@@ -14,9 +14,15 @@ datasource db {
 }
 
 model Task {
-  id        Int      @id @default(autoincrement())
-  title     String
-  status    String   @default("todo")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  title           String
+  description     String?
+  status          String   @default("todo")
+  labels          String[] @default([])
+  estimatedHours  Float?
+  parentId        Int?
+  parent          Task?    @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks        Task[]   @relation("TaskSubtasks")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
