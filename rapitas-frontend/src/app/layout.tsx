@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/Header";
+import Header from "@/components/header";
+import { Suspense } from "react";
+import { ToastProvider } from "@/components/ui/toast/toast-container";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Rapitas - 高速タスク管理",
+  title: "Rapitas",
   description: "高パフォーマンスで直感的なUIのタスク管理アプリケーション",
 };
 
@@ -28,8 +30,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Header />
-        {children}
+        <ToastProvider>
+          <Suspense fallback={<div className="h-16" />}>
+            <Header />
+          </Suspense>
+          {children}
+        </ToastProvider>
       </body>
     </html>
   );

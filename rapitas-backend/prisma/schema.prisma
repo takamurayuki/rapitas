@@ -13,16 +13,84 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Project {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String?
+  color       String      @default("#3B82F6") // デフォルトは青
+  icon        String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  tasks       Task[]
+  milestones  Milestone[]
+}
+
+model Milestone {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  dueDate     DateTime?
+  projectId   Int
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model Task {
-  id              Int      @id @default(autoincrement())
+  id              Int           @id @default(autoincrement())
   title           String
   description     String?
-  status          String   @default("todo")
-  labels          String[] @default([])
+  status          String        @default("todo")
+  priority        String        @default("medium") // low, medium, high, urgent
+  labels          String[]      @default([])
   estimatedHours  Float?
+  actualHours     Float?        // 実績時間
+  startedAt       DateTime?     // 作業開始時刻
+  completedAt     DateTime?     // 完了時刻
   parentId        Int?
-  parent          Task?    @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
-  subtasks        Task[]   @relation("TaskSubtasks")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  parent          Task?         @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks        Task[]        @relation("TaskSubtasks")
+  projectId       Int?
+  project         Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  milestoneId     Int?
+  milestone       Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  timeEntries     TimeEntry[]
+  comments        Comment[]
+  activityLogs    ActivityLog[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model TimeEntry {
+  id            Int      @id @default(autoincrement())
+  taskId        Int
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  duration      Float    // 作業時間(時間)
+  breakDuration Float?   @default(0) // 休憩時間(時間)
+  note          String?  // 作業内容メモ
+  startedAt     DateTime
+  endedAt       DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  content   String   // マークダウン対応
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  taskId    Int?
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  projectId Int?
+  action    String   // "created", "updated", "status_changed", "priority_changed", etc.
+  changes   Json?    // 変更内容の詳細
+  metadata  Json?    // 追加情報
+  createdAt DateTime @default(now())
 }

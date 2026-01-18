@@ -10,6 +10,7 @@ import {
   type DraggableProvided,
   type DraggableStateSnapshot,
 } from "@hello-pangea/dnd";
+import TaskSlidePanel from "@/feature/tasks/components/task-slide-panel";
 
 type Task = {
   id: number;
@@ -36,6 +37,8 @@ const columns = [
 export default function KanbanPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -84,6 +87,16 @@ export default function KanbanPage() {
     updateStatus(taskId, newStatus);
   };
 
+  const openTaskPanel = (taskId: number) => {
+    setSelectedTaskId(taskId);
+    setIsPanelOpen(true);
+  };
+
+  const closeTaskPanel = () => {
+    setIsPanelOpen(false);
+    setTimeout(() => setSelectedTaskId(null), 300);
+  };
+
   useEffect(() => {
     fetchTasks();
   }, []);
@@ -115,7 +128,7 @@ export default function KanbanPage() {
                   <Droppable droppableId={column.id}>
                     {(
                       provided: DroppableProvided,
-                      snapshot: DroppableStateSnapshot
+                      snapshot: DroppableStateSnapshot,
                     ) => (
                       <div
                         ref={provided.innerRef}
@@ -135,16 +148,17 @@ export default function KanbanPage() {
                             >
                               {(
                                 provided: DraggableProvided,
-                                snapshot: DraggableStateSnapshot
+                                snapshot: DraggableStateSnapshot,
                               ) => (
                                 <div
                                   ref={provided.innerRef}
                                   {...provided.draggableProps}
                                   {...provided.dragHandleProps}
-                                  className={`rounded-lg border bg-white dark:bg-zinc-800 p-3 shadow-sm transition-shadow ${
+                                  onClick={() => openTaskPanel(task.id)}
+                                  className={`rounded-lg border bg-white dark:bg-zinc-800 p-3 shadow-sm transition-all cursor-pointer ${
                                     snapshot.isDragging
                                       ? "shadow-lg border-blue-500"
-                                      : "border-zinc-200 dark:border-zinc-700 hover:shadow-md"
+                                      : "border-zinc-200 dark:border-zinc-700 hover:shadow-md hover:border-blue-400 dark:hover:border-blue-600"
                                   }`}
                                 >
                                   <div className="flex items-start justify-between gap-2 mb-2">
@@ -152,11 +166,12 @@ export default function KanbanPage() {
                                       {task.title}
                                     </h3>
                                     <a
-                                      href={`/tasks/${task.id}`}
+                                      href={`/tasks/${task.id}?hideHeader=true`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300 transition-colors"
                                       onClick={(e) => e.stopPropagation()}
+                                      title="別タブで開く (Ctrl+クリック)"
                                     >
                                       <svg
                                         className="w-4 h-4"
@@ -192,7 +207,7 @@ export default function KanbanPage() {
                                         />
                                       </svg>
                                       {new Date(
-                                        task.createdAt
+                                        task.createdAt,
                                       ).toLocaleDateString("ja-JP")}
                                     </span>
 
@@ -215,7 +230,7 @@ export default function KanbanPage() {
                                           </svg>
                                           {
                                             task.subtasks.filter(
-                                              (st) => st.status === "done"
+                                              (st) => st.status === "done",
                                             ).length
                                           }
                                           /{task.subtasks.length}
@@ -298,6 +313,14 @@ export default function KanbanPage() {
           </DragDropContext>
         )}
       </div>
+
+      {/* タスク詳細スライドパネル */}
+      <TaskSlidePanel
+        taskId={selectedTaskId}
+        isOpen={isPanelOpen}
+        onClose={closeTaskPanel}
+        onTaskUpdated={fetchTasks}
+      />
     </div>
   );
 }

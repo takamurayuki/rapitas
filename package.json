@@ -1,0 +1,18 @@
+{
+  "name": "rapitas",
+  "version": "1.0.0",
+  "description": "階層型タスク管理システム",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" --names \"BACKEND,FRONTEND\" --prefix-colors \"cyan,magenta\"",
+    "dev:backend": "cd rapitas-backend && bun run index.ts",
+    "dev:frontend": "cd rapitas-frontend && npm run dev",
+    "install:all": "cd rapitas-backend && bun install && cd ../rapitas-frontend && npm install",
+    "prisma:migrate": "cd rapitas-backend && npx prisma migrate dev",
+    "prisma:generate": "cd rapitas-backend && npx prisma generate",
+    "prisma:studio": "cd rapitas-backend && npx prisma studio"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
