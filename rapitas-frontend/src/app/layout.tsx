@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Rapitas",
+  title: "Rapi+",
   description: "高パフォーマンスで直感的なUIのタスク管理アプリケーション",
 };
 

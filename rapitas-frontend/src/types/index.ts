@@ -1,3 +1,17 @@
+export type Theme = {
+  id: number;
+  name: string;
+  description?: string | null;
+  color: string;
+  icon?: string | null;
+  isDefault?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    tasks: number;
+  };
+};
+
 export type Project = {
   id: number;
   name: string;
@@ -28,11 +42,13 @@ export type Milestone = {
 
 export type Priority = "low" | "medium" | "high" | "urgent";
 
+export type Status = "todo" | "in-progress" | "done";
+
 export type Task = {
   id: number;
   title: string;
   description?: string | null;
-  status: string;
+  status: Status;
   priority: Priority;
   labels?: string[];
   estimatedHours?: number | null;
@@ -42,6 +58,8 @@ export type Task = {
   parentId?: number | null;
   parent?: Task;
   subtasks?: Task[];
+  themeId?: number | null;
+  theme?: Theme | null;
   projectId?: number | null;
   project?: Project | null;
   milestoneId?: number | null;

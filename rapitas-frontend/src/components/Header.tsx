@@ -16,7 +16,9 @@ import {
   Tag,
   Check,
   XIcon,
+  Search,
 } from "lucide-react";
+import AppIcon from "@/components/app-icon";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -34,9 +36,7 @@ export default function Header() {
   const searchParams = useSearchParams();
   const hideHeader = searchParams.get("hideHeader") === "true";
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isAddingCategory, setIsAddingCategory] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [newCategoryIcon, setNewCategoryIcon] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -72,6 +72,11 @@ export default function Header() {
       label: "新規タスク",
       icon: Plus,
     },
+    {
+      href: "/themes",
+      label: "テーマ一覧",
+      icon: Tag,
+    },
   ];
 
   const isActive = (href: string) => {
@@ -103,7 +108,7 @@ export default function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-zinc-200 dark:border-zinc-800 backdrop-blur-lg bg-blue-50/80 dark:bg-zinc-950/80">
+      <header className="sticky top-0 z-50 border-b border-zinc-200 dark:border-zinc-800 backdrop-blur-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
@@ -118,25 +123,50 @@ export default function Header() {
 
               {/* ロゴ */}
               <Link href="/" className="flex items-center gap-2 group">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-linear-to-br from-blue-500 to-purple-600 group-hover:from-blue-600 group-hover:to-purple-700 transition-all">
-                  <svg
-                    className="w-5 h-5 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2.5}
-                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                    />
-                  </svg>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-8 h-8 bg-indigo-400 rounded-lg shadow-md">
+                    <AppIcon size={20} className="text-white" />
+                  </div>
+                  <span className="text-lg font-bold bg-indigo-400 bg-clip-text text-transparent">
+                    Rapi+
+                  </span>
                 </div>
-                <span className="text-xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Rapi+
-                </span>
               </Link>
+            </div>
+
+            {/* 検索バー */}
+            <div className="flex-1 max-w-md mx-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSearchQuery(value);
+                    if (value.trim()) {
+                      router.push(
+                        `/?search=${encodeURIComponent(value.trim())}`,
+                      );
+                    } else {
+                      router.push("/");
+                    }
+                  }}
+                  placeholder="タスクを検索..."
+                  className="w-full pl-10 pr-4 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-zinc-400 dark:placeholder-zinc-500 transition-all"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery("");
+                      router.push("/");
+                    }}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* 表示切り替えボタン（タスク一覧/カンバンページのみ表示） */}
@@ -180,22 +210,10 @@ export default function Header() {
         {/* ヘッダー */}
         <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-linear-to-r from-blue-500 to-purple-600">
-              <svg
-                className="w-5 h-5 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2.5}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                />
-              </svg>
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-400 shadow-md">
+              <AppIcon size={20} className="text-white" />
             </div>
-            <span className="text-lg font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <span className="text-lg font-bold bg-indigo-400 bg-clip-text text-transparent">
               Rapi+
             </span>
           </div>
@@ -221,7 +239,7 @@ export default function Header() {
                   onClick={() => setIsMenuOpen(false)}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
                     active
-                      ? "bg-linear-to-r from-blue-500 to-purple-600 text-white shadow-md"
+                      ? "bg-linear-to-r from-indigo-500 to-purple-600 text-white shadow-md"
                       : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                   }`}
                 >

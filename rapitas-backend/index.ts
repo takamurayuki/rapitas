@@ -7,6 +7,99 @@ const prisma = new PrismaClient();
 
 app.use(cors());
 
+// ==================== Themes API ====================
+app.get("/themes", async () => {
+  return await prisma.theme.findMany({
+    include: {
+      _count: {
+        select: { tasks: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+});
+
+app.get("/themes/:id", async ({ params }) => {
+  const { id } = params;
+  return await prisma.theme.findUnique({
+    where: { id: parseInt(id) },
+    include: {
+      tasks: {
+        where: { parentId: null },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+});
+
+app.post("/themes", async ({ body }) => {
+  const { name, description, color, icon } = body as {
+    name: string;
+    description?: string;
+    color?: string;
+    icon?: string;
+  };
+  return await prisma.theme.create({
+    data: {
+      name,
+      ...(description && { description }),
+      ...(color && { color }),
+      ...(icon && { icon }),
+    },
+  });
+});
+
+app.patch("/themes/:id", async ({ params, body }) => {
+  const { id } = params;
+  const { name, description, color, icon } = body as {
+    name?: string;
+    description?: string;
+    color?: string;
+    icon?: string;
+  };
+  return await prisma.theme.update({
+    where: { id: parseInt(id) },
+    data: {
+      ...(name && { name }),
+      ...(description !== undefined && { description }),
+      ...(color && { color }),
+      ...(icon !== undefined && { icon }),
+    },
+  });
+});
+
+app.delete("/themes/:id", async ({ params }) => {
+  const { id } = params;
+  return await prisma.theme.delete({
+    where: { id: parseInt(id) },
+  });
+});
+
+// デフォルトテーマ設定
+app.patch("/themes/:id/set-default", async ({ params }) => {
+  const { id } = params;
+  const themeId = parseInt(id);
+
+  // まず全てのテーマのisDefaultをfalseにする
+  await prisma.theme.updateMany({
+    where: { isDefault: true },
+    data: { isDefault: false },
+  });
+
+  // 指定されたテーマをデフォルトにする
+  return await prisma.theme.update({
+    where: { id: themeId },
+    data: { isDefault: true },
+  });
+});
+
+// デフォルトテーマ取得
+app.get("/themes/default/get", async () => {
+  return await prisma.theme.findFirst({
+    where: { isDefault: true },
+  });
+});
+
 // ==================== Projects API ====================
 app.get("/projects", async () => {
   return await prisma.project.findMany({
@@ -173,6 +266,7 @@ app.get("/tasks", async ({ query }) => {
       subtasks: {
         orderBy: { createdAt: "asc" },
       },
+      theme: true,
       project: true,
       milestone: true,
     },
@@ -206,6 +300,7 @@ app.post("/tasks", async ({ body }) => {
     parentId,
     projectId,
     milestoneId,
+    themeId,
   } = body as {
     title: string;
     description?: string;
@@ -216,6 +311,7 @@ app.post("/tasks", async ({ body }) => {
     parentId?: number;
     projectId?: number;
     milestoneId?: number;
+    themeId?: number;
   };
   return await prisma.task.create({
     data: {
@@ -229,10 +325,12 @@ app.post("/tasks", async ({ body }) => {
       ...(parentId && { parentId }),
       ...(projectId && { projectId }),
       ...(milestoneId && { milestoneId }),
+      ...(themeId !== undefined && { themeId }),
     },
     // @ts-ignore
     include: {
       subtasks: true,
+      theme: true,
       project: true,
       milestone: true,
     },
@@ -244,6 +342,7 @@ app.patch("/tasks/:id", async ({ params, body }) => {
   const {
     title,
     description,
+    themeId,
     status,
     priority,
     labels,
@@ -253,6 +352,7 @@ app.patch("/tasks/:id", async ({ params, body }) => {
   } = body as {
     title?: string;
     description?: string;
+    themeId?: number | null;
     status?: string;
     priority?: string;
     labels?: string[];
@@ -265,6 +365,7 @@ app.patch("/tasks/:id", async ({ params, body }) => {
     data: {
       ...(title && { title }),
       ...(description !== undefined && { description }),
+      ...(themeId !== undefined && { themeId }),
       ...(status && { status }),
       // @ts-ignore
       ...(priority && { priority }),
@@ -275,6 +376,7 @@ app.patch("/tasks/:id", async ({ params, body }) => {
     },
     // @ts-ignore
     include: {
+      theme: true,
       project: true,
       milestone: true,
     },

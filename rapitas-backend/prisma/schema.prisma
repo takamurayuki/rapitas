@@ -13,6 +13,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Theme {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  color       String   @default("#8B5CF6") // デフォルトは紫
+  icon        String?
+  isDefault   Boolean  @default(false) // デフォルトテーマフラグ
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tasks       Task[]
+}
+
 model Project {
   id          Int         @id @default(autoincrement())
   name        String
@@ -51,6 +63,8 @@ model Task {
   parentId        Int?
   parent          Task?         @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
   subtasks        Task[]        @relation("TaskSubtasks")
+  themeId         Int?
+  theme           Theme?        @relation(fields: [themeId], references: [id], onDelete: SetNull)
   projectId       Int?
   project         Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
   milestoneId     Int?

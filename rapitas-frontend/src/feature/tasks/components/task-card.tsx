@@ -1,15 +1,20 @@
 "use client";
 import { useState } from "react";
 import type { Task } from "@/types";
-import { priorityColors, priorityLabels } from "@/types";
-import StatusChangeButton from "@/feature/tasks/components/task-status-change";
+import { priorityColors, priorityLabels, Status } from "@/types";
+import TaskStatusChange from "@/feature/tasks/components/task-status-change";
+import SubtaskStatusButtons from "@/feature/tasks/components/subtask-status-buttons";
+import {
+  statusConfig,
+  renderStatusIcon,
+} from "@/feature/tasks/config/status-config";
 
 interface TaskCardProps {
   task: Task;
   isSelected?: boolean;
   isSelectionMode?: boolean;
   onTaskClick: (taskId: number) => void;
-  onStatusChange: (taskId: number, status: string) => void;
+  onStatusChange: (taskId: number, status: Status) => void;
   onToggleSelect?: (taskId: number) => void;
   onTaskUpdated?: () => void;
 }
@@ -26,89 +31,8 @@ export default function TaskCard({
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [expandedSubtasks, setExpandedSubtasks] = useState(false);
 
-  const statusConfig = {
-    todo: {
-      color: "text-zinc-700 dark:text-zinc-300",
-      bgColor: "bg-zinc-100 dark:bg-zinc-800",
-      borderColor: "border-l-zinc-400 dark:border-l-zinc-600",
-      label: "未着手",
-    },
-    "in-progress": {
-      color: "text-blue-700 dark:text-blue-300",
-      bgColor: "bg-blue-50 dark:bg-blue-900/40",
-      borderColor: "border-l-blue-500 dark:border-l-blue-400",
-      label: "進行中",
-    },
-    done: {
-      color: "text-green-700 dark:text-green-300",
-      bgColor: "bg-green-50 dark:bg-green-900/40",
-      borderColor: "border-l-green-500 dark:border-l-green-400",
-      label: "完了",
-    },
-  };
-
-  const renderStatusIcon = (status: string) => {
-    switch (status) {
-      case "todo":
-        return (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24">
-            <rect
-              x="3"
-              y="10"
-              width="18"
-              height="4"
-              rx="2"
-              stroke="currentColor"
-              strokeWidth="2"
-              fill="none"
-            />
-          </svg>
-        );
-      case "in-progress":
-        return (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24">
-            <rect
-              x="3"
-              y="10"
-              width="18"
-              height="4"
-              rx="2"
-              stroke="currentColor"
-              strokeWidth="2"
-              fill="none"
-            />
-            <rect
-              x="3"
-              y="10"
-              width="10"
-              height="4"
-              rx="2"
-              fill="currentColor"
-            />
-          </svg>
-        );
-      case "done":
-        return (
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2.5}
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
-        );
-      default:
-        return null;
-    }
-  };
-
-  const currentStatus = statusConfig[task.status as keyof typeof statusConfig];
+  const currentStatus =
+    statusConfig[task.status as keyof typeof statusConfig] || statusConfig.todo;
   const completionRate = task.subtasks?.length
     ? Math.round(
         (task.subtasks.filter((s) => s.status === "done").length /
@@ -290,13 +214,15 @@ export default function TaskCard({
             {["todo", "in-progress", "done"].map((status) => {
               const config = statusConfig[status as keyof typeof statusConfig];
               return (
-                <StatusChangeButton
+                <TaskStatusChange
                   key={status}
                   status={status}
                   currentStatus={task.status}
                   config={config}
                   renderIcon={renderStatusIcon}
-                  onClick={(s) => onStatusChange(task.id, s)}
+                  onClick={(status: string) =>
+                    onStatusChange(task.id, status as Status)
+                  }
                   size="md"
                 />
               );
@@ -313,7 +239,8 @@ export default function TaskCard({
         >
           {task.subtasks.map((subtask, index) => {
             const subtaskStatus =
-              statusConfig[subtask.status as keyof typeof statusConfig];
+              statusConfig[subtask.status as keyof typeof statusConfig] ||
+              statusConfig.todo;
             const isFirst = index === 0;
             const isLast = index === task.subtasks!.length - 1;
             const roundedClass =
@@ -353,42 +280,12 @@ export default function TaskCard({
                 </span>
 
                 {/* サブタスクステータス変更ボタン */}
-                <div className="flex items-center gap-1 shrink-0">
-                  {["todo", "in-progress", "done"].map((status) => {
-                    const config =
-                      statusConfig[status as keyof typeof statusConfig];
-                    return (
-                      <StatusChangeButton
-                        key={status}
-                        status={status}
-                        currentStatus={subtask.status}
-                        config={config}
-                        renderIcon={renderStatusIcon}
-                        onClick={async (s) => {
-                          try {
-                            const response = await fetch(
-                              `http://localhost:3001/tasks/${subtask.id}`,
-                              {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ status: s }),
-                              },
-                            );
-                            if (response.ok && onTaskUpdated) {
-                              onTaskUpdated();
-                            }
-                          } catch (error) {
-                            console.error(
-                              "Failed to update subtask status:",
-                              error,
-                            );
-                          }
-                        }}
-                        size="sm"
-                      />
-                    );
-                  })}
-                </div>
+                <SubtaskStatusButtons
+                  taskId={subtask.id}
+                  currentStatus={subtask.status}
+                  onTaskUpdated={onTaskUpdated}
+                  size="sm"
+                />
               </div>
             );
           })}

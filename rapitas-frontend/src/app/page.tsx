@@ -1,25 +1,139 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import type { Task, Project, Milestone, Priority } from "@/types";
+import React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import type { Task, Theme, Priority, Status } from "@/types";
 import TaskSlidePanel from "@/feature/tasks/components/task-slide-panel";
 import TaskCard from "@/feature/tasks/components/task-card";
 import { useToast } from "@/components/ui/toast/toast-container";
+import {
+  statusConfig,
+  renderStatusIcon,
+} from "@/feature/tasks/config/status-config";
+import TaskStatusChange from "@/feature/tasks/components/task-status-change";
+import {
+  Palette,
+  Book,
+  Briefcase,
+  Code,
+  Coffee,
+  Cpu,
+  Dumbbell,
+  Gamepad2,
+  GraduationCap,
+  Heart,
+  Home,
+  Lightbulb,
+  Music,
+  Plane,
+  Rocket,
+  ShoppingBag,
+  Sparkles,
+  Star,
+  Target,
+  Trophy,
+  Umbrella,
+  Zap,
+  Camera,
+  Film,
+  Headphones,
+  Laptop,
+  Smartphone,
+  Tv,
+  Watch,
+  Globe,
+  MapPin,
+  Mountain,
+  Sun,
+  Moon,
+  Cloud,
+  Droplet,
+  Flame,
+  Leaf,
+  Flower2,
+  Trees,
+  Fish,
+  Bird,
+  Bug,
+  Cat,
+  Dog,
+  Pizza,
+  Utensils,
+  IceCream,
+  Cake,
+  Apple,
+  type LucideIcon,
+} from "lucide-react";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
-export default function Home() {
+// Lucideアイコンのマッピング
+const ICON_MAP: Record<string, LucideIcon> = {
+  Palette,
+  Book,
+  Briefcase,
+  Code,
+  Coffee,
+  Cpu,
+  Dumbbell,
+  Gamepad2,
+  GraduationCap,
+  Heart,
+  Home,
+  Lightbulb,
+  Music,
+  Plane,
+  Rocket,
+  ShoppingBag,
+  Sparkles,
+  Star,
+  Target,
+  Trophy,
+  Umbrella,
+  Zap,
+  Camera,
+  Film,
+  Headphones,
+  Laptop,
+  Smartphone,
+  Tv,
+  Watch,
+  Globe,
+  MapPin,
+  Mountain,
+  Sun,
+  Moon,
+  Cloud,
+  Droplet,
+  Flame,
+  Leaf,
+  Flower2,
+  Trees,
+  Fish,
+  Bird,
+  Bug,
+  Cat,
+  Dog,
+  Pizza,
+  Utensils,
+  IceCream,
+  Cake,
+  Apple,
+};
+
+export default function HomePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const searchQuery = searchParams.get("search") || "";
   const { showToast } = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [themes, setThemes] = useState<Theme[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<string>("all");
-  const [projectFilter, setProjectFilter] = useState<number | null>(null);
-  const [milestoneFilter, setMilestoneFilter] = useState<number | null>(null);
+  const [themeFilter, setThemeFilter] = useState<number | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<Priority | null>(null);
+  const [defaultTheme, setDefaultTheme] = useState<Theme | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
 
@@ -37,6 +151,10 @@ export default function Home() {
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
+  // ページネーション
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   const fetchTasks = async () => {
     setLoading(true);
     try {
@@ -51,29 +169,26 @@ export default function Home() {
     }
   };
 
-  const fetchProjects = async () => {
+  const fetchThemes = async () => {
     try {
-      const res = await fetch(`${API_BASE}/projects`);
+      const res = await fetch(`${API_BASE}/themes`);
       const data = await res.json();
-      setProjects(data);
+      setThemes(data);
+      // デフォルトテーマを設定
+      const defaultThemeData = data.find((t: Theme) => t.isDefault);
+      if (defaultThemeData) {
+        setDefaultTheme(defaultThemeData);
+      }
     } catch (e) {
       console.error(e);
     }
   };
 
-  const fetchMilestones = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/milestones`);
-      const data = await res.json();
-      setMilestones(data);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const updateStatus = async (id: number, status: string) => {
+  const updateStatus = async (id: number, status: Status) => {
     const oldTasks = [...tasks];
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status } : t)));
+    setTasks((prev: Task[]) =>
+      prev.map((t: Task) => (t.id === id ? { ...t, status } : t)),
+    );
 
     try {
       const res = await fetch(`${API_BASE}/tasks/${id}`, {
@@ -90,7 +205,7 @@ export default function Home() {
 
   const deleteTask = async (id: number) => {
     const oldTasks = [...tasks];
-    setTasks((prev) => prev.filter((t) => t.id !== id));
+    setTasks((prev: Task[]) => prev.filter((t: Task) => t.id !== id));
 
     try {
       const res = await fetch(`${API_BASE}/tasks/${id}`, { method: "DELETE" });
@@ -123,15 +238,18 @@ export default function Home() {
           title: quickTaskTitle,
           status: "todo",
           priority: "medium",
+          ...(themeFilter && { themeId: themeFilter }),
+          ...(!themeFilter && defaultTheme && { themeId: defaultTheme.id }),
         }),
       });
 
       if (!res.ok) throw new Error("作成に失敗しました");
       const newTask = await res.json();
-      setTasks((prev) => [newTask, ...prev]);
       setQuickTaskTitle("");
       setIsQuickAdding(false);
       showToast("タスクを作成しました", "success");
+      // サーバーから最新データを再取得（theme情報を含む）
+      await fetchTasks();
     } catch (e) {
       console.error(e);
       showToast("タスクの作成に失敗しました", "error");
@@ -161,8 +279,10 @@ export default function Home() {
           }),
         ),
       );
-      setTasks((prev) =>
-        prev.map((t) => (taskIds.includes(t.id) ? { ...t, status } : t)),
+      setTasks((prev: Task[]) =>
+        prev.map((t: Task) =>
+          taskIds.includes(t.id) ? { ...t, status: status as Status } : t,
+        ),
       );
       showToast(`${taskIds.length}件のタスクを更新しました`, "success");
       setSelectedTasks(new Set());
@@ -182,7 +302,9 @@ export default function Home() {
           fetch(`${API_BASE}/tasks/${id}`, { method: "DELETE" }),
         ),
       );
-      setTasks((prev) => prev.filter((t) => !taskIds.includes(t.id)));
+      setTasks((prev: Task[]) =>
+        prev.filter((t: Task) => !taskIds.includes(t.id)),
+      );
       showToast(`${taskIds.length}件のタスクを削除しました`, "success");
       setSelectedTasks(new Set());
       setIsSelectionMode(false);
@@ -205,7 +327,10 @@ export default function Home() {
       switch (e.key.toLowerCase()) {
         case "n":
           e.preventDefault();
-          router.push("/tasks/new");
+          const themeParam = themeFilter || defaultTheme?.id;
+          router.push(
+            `/tasks/new${themeParam ? `?themeId=${themeParam}` : ""}`,
+          );
           break;
         case "q":
           e.preventDefault();
@@ -233,19 +358,38 @@ export default function Home() {
 
   useEffect(() => {
     fetchTasks();
-    fetchProjects();
-    fetchMilestones();
+    fetchThemes();
+
+    // ページがフォーカスを取得したときにタスクを再読み込み
+    const handleFocus = () => {
+      fetchTasks();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
   const filteredTasks = tasks.filter((t) => {
     if (t.parentId) return false;
     if (filter !== "all" && t.status !== filter) return false;
-    if (projectFilter !== null && t.projectId !== projectFilter) return false;
-    if (milestoneFilter !== null && t.milestoneId !== milestoneFilter)
-      return false;
+    if (themeFilter !== null && t.themeId !== themeFilter) return false;
     if (priorityFilter !== null && t.priority !== priorityFilter) return false;
+
+    // 検索フィルター
+    if (
+      searchQuery &&
+      !t.title.toLowerCase().includes(searchQuery.toLowerCase())
+    ) {
+      return false;
+    }
+
     return true;
   });
+
+  // フィルター変更時にページを1に戻す
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, themeFilter, priorityFilter, searchQuery]);
 
   // ソート処理
   const sortedTasks = [...filteredTasks].sort((a, b) => {
@@ -271,6 +415,19 @@ export default function Home() {
     return sortOrder === "asc" ? comparison : -comparison;
   });
 
+  // ページネーション処理
+  const totalPages = Math.ceil(sortedTasks.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedTasks = sortedTasks.slice(startIndex, endIndex);
+
+  // ページ変更時にページ数が超えていたら調整
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
   const statusColors = {
     todo: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
     "in-progress":
@@ -280,96 +437,168 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
-      <div className="mx-auto max-w-6xl px-4 py-8">
-        {/* ヘッダー - ショートカットヒントとアクションボタン */}
+      <div className="mx-auto max-w-6xl px-4 py-4">
+        {/* ヘッダー - アクションボタン */}
         {!isPanelOpen && (
-          <div className="mb-6 flex items-center justify-between">
-            {/* <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-                タスク一覧
-              </h1>
-              <div className="flex gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                <kbd className="px-2 py-1 bg-zinc-200 dark:bg-zinc-800 rounded">
-                  N
-                </kbd>
-                <span>新規作成</span>
-                <kbd className="px-2 py-1 bg-zinc-200 dark:bg-zinc-800 rounded ml-2">
-                  Q
-                </kbd>
-                <span>クイック追加</span>
-                <kbd className="px-2 py-1 bg-zinc-200 dark:bg-zinc-800 rounded ml-2">
-                  S
-                </kbd>
-                <span>一括選択</span>
+          <div className="mb-4 flex items-center justify-end">
+            <div className="flex items-center gap-2">
+              {/* バルク操作ボタン（選択時のみ表示） */}
+              {isSelectionMode && selectedTasks.size > 0 && (
+                <>
+                  {/* ステータス変更ボタングループ */}
+                  <div className="flex items-center gap-1 bg-white dark:bg-zinc-800 rounded-md shadow-sm p-1 border border-zinc-200 dark:border-zinc-700">
+                    {["todo", "in-progress", "done"].map((status, idx, arr) => {
+                      const config =
+                        statusConfig[status as keyof typeof statusConfig];
+                      const colorClasses =
+                        status === "todo"
+                          ? "hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
+                          : status === "in-progress"
+                            ? "hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                            : "hover:bg-green-50 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400";
+
+                      const isLast = idx === arr.length - 1;
+                      return (
+                        <React.Fragment key={status}>
+                          <button
+                            onClick={() => bulkUpdateStatus(status)}
+                            className={`px-2.5 py-1.5 rounded text-xs font-medium transition-all flex items-center gap-1 ${colorClasses}`}
+                            title={`${config.label}に変更`}
+                          >
+                            <span className="w-3.5 h-3.5">
+                              {renderStatusIcon(status)}
+                            </span>
+                            <span>{config.label}</span>
+                          </button>
+                          {!isLast && (
+                            <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+
+                  <div className="w-px h-7 bg-zinc-300 dark:bg-zinc-600"></div>
+                </>
+              )}
+
+              {/* メインアクションボタン */}
+              <div className="flex items-center gap-1 bg-white dark:bg-zinc-800 rounded-md shadow-md p-1 border border-zinc-200 dark:border-zinc-700">
+                <button
+                  onClick={() => setIsQuickAdding(!isQuickAdding)}
+                  className={`px-3 py-1.5  rounded text-xs transition-all flex items-center gap-1.5 ${
+                    isQuickAdding
+                      ? "bg-green-500 dark:bg-green-600 text-white shadow-sm"
+                      : "text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30"
+                  }`}
+                  title="クイック追加 (Q)"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2.5}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  <span>クイック</span>
+                </button>
+
+                <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
+
+                <button
+                  onClick={() => {
+                    const themeParam = themeFilter || defaultTheme?.id;
+                    router.push(
+                      `/tasks/new${themeParam ? `?themeId=${themeParam}` : ""}`,
+                    );
+                  }}
+                  className="px-3 py-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded text-xs transition-all flex items-center gap-1.5"
+                  title="新規タスク (N)"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  <span>新規</span>
+                </button>
+
+                <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
+
+                <button
+                  onClick={() => {
+                    setIsSelectionMode(!isSelectionMode);
+                    setSelectedTasks(new Set());
+                  }}
+                  className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
+                    isSelectionMode
+                      ? "bg-purple-500 dark:bg-purple-600 text-white shadow-sm"
+                      : "text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30"
+                  }`}
+                  title="一括選択モード (S)"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                    />
+                  </svg>
+                  <span>
+                    {isSelectionMode
+                      ? `選択中 (${selectedTasks.size})`
+                      : "一括"}
+                  </span>
+                </button>
+
+                {isSelectionMode && selectedTasks.size > 0 && (
+                  <>
+                    <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
+
+                    {/* 削除ボタン */}
+                    <button
+                      onClick={bulkDelete}
+                      className="px-3 py-1.5 bg-red-500 dark:bg-red-600 text-white rounded hover:bg-red-600 dark:hover:bg-red-700 text-xs transition-all hover:shadow-md flex items-center gap-1.5 shadow-sm"
+                      title="選択したタスクを削除"
+                    >
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                      削除
+                    </button>
+                  </>
+                )}
               </div>
-            </div> */}
-            <div className="flex gap-2 ml-auto">
-              <button
-                onClick={() => setIsQuickAdding(true)}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors flex items-center gap-2"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-                クイック追加
-              </button>
-              <button
-                onClick={() => router.push("/tasks/new")}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center gap-2"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-                新規タスク
-              </button>
-              <button
-                onClick={() => {
-                  setIsSelectionMode(!isSelectionMode);
-                  setSelectedTasks(new Set());
-                }}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-                  isSelectionMode
-                    ? "bg-purple-600 text-white hover:bg-purple-700"
-                    : "bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700"
-                }`}
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-                  />
-                </svg>
-                {isSelectionMode
-                  ? `一括選択 (${selectedTasks.size})`
-                  : "一括選択"}
-              </button>
             </div>
           </div>
         )}
@@ -413,174 +642,215 @@ export default function Home() {
           </div>
         )}
 
-        {/* バルク操作バー */}
-        {isSelectionMode && selectedTasks.size > 0 && (
-          <div className="mb-4 p-4 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-between">
-            <span className="font-medium text-purple-900 dark:text-purple-100">
-              {selectedTasks.size}件選択中
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => bulkUpdateStatus("todo")}
-                className="px-3 py-1 bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded hover:bg-zinc-300 dark:hover:bg-zinc-600 text-sm font-medium"
-              >
-                未着手にする
-              </button>
-              <button
-                onClick={() => bulkUpdateStatus("in-progress")}
-                className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm font-medium"
-              >
-                進行中にする
-              </button>
-              <button
-                onClick={() => bulkUpdateStatus("done")}
-                className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm font-medium"
-              >
-                完了にする
-              </button>
-              <button
-                onClick={bulkDelete}
-                className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm font-medium"
-              >
-                削除
-              </button>
+        {/* ステータスフィルター */}
+        {!isSelectionMode && !isQuickAdding && (
+          <>
+            <div className="mb-4 bg-white dark:bg-zinc-900 rounded-lg p-3 shadow-sm border border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-center gap-4">
+                {/* ステータス */}
+                <div className="flex items-center gap-2">
+                  <svg
+                    className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                    />
+                  </svg>
+                  <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
+                    ステータス:
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {["all", "todo", "in-progress", "done"].map((status) => {
+                      const statusConfig = {
+                        all: { label: "すべて", color: "purple" },
+                        todo: { label: "未着手", color: "zinc" },
+                        "in-progress": { label: "進行中", color: "blue" },
+                        done: { label: "完了", color: "green" },
+                      };
+                      const config =
+                        statusConfig[status as keyof typeof statusConfig];
+                      const count = tasks.filter(
+                        (t) => status === "all" || t.status === status,
+                      ).length;
+
+                      return (
+                        <button
+                          key={status}
+                          onClick={() => setFilter(status)}
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+                            filter === status
+                              ? config.color === "purple"
+                                ? "bg-purple-600 text-white shadow-md"
+                                : config.color === "blue"
+                                  ? "bg-blue-600 text-white shadow-md"
+                                  : config.color === "green"
+                                    ? "bg-green-600 text-white shadow-md"
+                                    : "bg-zinc-600 text-white shadow-md"
+                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                          }`}
+                        >
+                          {config.label}
+                          <span className="text-[10px] opacity-75">
+                            ({count})
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 区切り線 */}
+                <div className="w-px h-6 bg-zinc-300 dark:bg-zinc-700"></div>
+
+                {/* 優先度 */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
+                    優先度:
+                  </span>
+                  <select
+                    value={priorityFilter || ""}
+                    onChange={(e) =>
+                      setPriorityFilter(
+                        e.target.value ? (e.target.value as Priority) : null,
+                      )
+                    }
+                    className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-nowrap"
+                  >
+                    <option value="">すべて</option>
+                    <option value="low">低</option>
+                    <option value="medium">中</option>
+                    <option value="high">高</option>
+                    <option value="urgent">緊急</option>
+                  </select>
+                </div>
+
+                {/* 区切り線 */}
+                <div className="w-px h-6 bg-zinc-300 dark:bg-zinc-700"></div>
+
+                {/* ソート */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
+                    並び:
+                  </span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                    className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-nowrap"
+                  >
+                    <option value="createdAt">作成日時</option>
+                    <option value="title">タイトル</option>
+                    <option value="priority">優先度</option>
+                  </select>
+                  <button
+                    onClick={() =>
+                      setSortOrder((o) => (o === "asc" ? "desc" : "asc"))
+                    }
+                    className="p-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                    title={sortOrder === "asc" ? "昇順" : "降順"}
+                  >
+                    <svg
+                      className={`w-3.5 h-3.5 text-zinc-700 dark:text-zinc-300 transition-transform ${
+                        sortOrder === "desc" ? "rotate-180" : ""
+                      }`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 11l5-5m0 0l5 5m-5-5v12"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          </>
         )}
 
-        {/* ステータスフィルター */}
-        <div className="mb-4 flex gap-2">
-          {["all", "todo", "in-progress", "done"].map((status) => (
-            <button
-              key={status}
-              onClick={() => setFilter(status)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                filter === status
-                  ? "bg-blue-600 text-white"
-                  : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
-              }`}
-            >
-              {status === "all"
-                ? "すべて"
-                : status === "todo"
-                  ? "未着手"
-                  : status === "in-progress"
-                    ? "進行中"
-                    : "完了"}
-              <span className="ml-2 text-xs opacity-70">
-                (
-                {
-                  tasks.filter((t) => status === "all" || t.status === status)
-                    .length
-                }
-                )
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* 追加フィルター */}
-        <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-3">
-          {/* プロジェクトフィルター */}
-          <div>
-            <select
-              value={projectFilter || ""}
-              onChange={(e) => {
-                setProjectFilter(
-                  e.target.value ? Number(e.target.value) : null,
-                );
-                setMilestoneFilter(null);
-              }}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">すべてのプロジェクト</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.icon} {project.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* マイルストーンフィルター */}
-          <div>
-            <select
-              value={milestoneFilter || ""}
-              onChange={(e) =>
-                setMilestoneFilter(
-                  e.target.value ? Number(e.target.value) : null,
-                )
-              }
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">すべてのマイルストーン</option>
-              {milestones
-                .filter((m) => !projectFilter || m.projectId === projectFilter)
-                .map((milestone) => (
-                  <option key={milestone.id} value={milestone.id}>
-                    {milestone.name}
-                  </option>
-                ))}
-            </select>
-          </div>
-
-          {/* 優先度フィルター */}
-          <div>
-            <select
-              value={priorityFilter || ""}
-              onChange={(e) =>
-                setPriorityFilter(
-                  e.target.value ? (e.target.value as Priority) : null,
-                )
-              }
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">すべての優先度</option>
-              <option value="low">低</option>
-              <option value="medium">中</option>
-              <option value="high">高</option>
-              <option value="urgent">緊急</option>
-            </select>
-          </div>
-
-          {/* ソート */}
-          <div>
-            <div className="flex gap-1">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="createdAt">作成日時</option>
-                <option value="title">タイトル</option>
-                <option value="priority">優先度</option>
-              </select>
-              <button
-                onClick={() =>
-                  setSortOrder((o) => (o === "asc" ? "desc" : "asc"))
-                }
-                className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                title={sortOrder === "asc" ? "昇順" : "降順"}
-              >
-                <svg
-                  className={`w-5 h-5 text-zinc-700 dark:text-zinc-300 transition-transform ${
-                    sortOrder === "desc" ? "rotate-180" : ""
+        {/* テーマ選択とフィルター */}
+        {!isSelectionMode && !isQuickAdding && (
+          <>
+            <div className="mb-4 bg-white dark:bg-zinc-900 rounded-lg p-3 shadow-sm border border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Palette className="w-4 h-4 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  {themeFilter ? (
+                    <>
+                      <span className="text-purple-600 dark:text-purple-400">
+                        {themes.find((t) => t.id === themeFilter)?.name}
+                      </span>
+                      <span className="text-zinc-500 dark:text-zinc-400">
+                        {" "}
+                        でタスクを管理中
+                      </span>
+                      <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-2">
+                        (新規作成時も自動的にこのテーマに紐づきます)
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-zinc-500 dark:text-zinc-400">
+                      テーマを選択してタスクを管理 • 全テーマのタスクを表示中
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700 scrollbar-track-transparent pb-1">
+                {/* テーマボタン */}
+                <button
+                  onClick={() => setThemeFilter(null)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex-shrink-0 ${
+                    themeFilter === null
+                      ? "bg-purple-600 text-white shadow-lg"
+                      : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-700"
                   }`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 11l5-5m0 0l5 5m-5-5v12"
-                  />
-                </svg>
-              </button>
+                  <Palette className="w-3.5 h-3.5" />
+                  すべて
+                </button>
+                {themes.map((theme) => {
+                  const IconComponent =
+                    theme.icon && ICON_MAP[theme.icon]
+                      ? ICON_MAP[theme.icon]
+                      : Palette;
+                  return (
+                    <button
+                      key={theme.id}
+                      onClick={() => setThemeFilter(theme.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex-shrink-0 ${
+                        themeFilter === theme.id
+                          ? "shadow-lg scale-105"
+                          : "hover:scale-105 border border-zinc-300 dark:border-zinc-700"
+                      }`}
+                      style={{
+                        backgroundColor:
+                          themeFilter === theme.id ? theme.color : undefined,
+                        color:
+                          themeFilter === theme.id ? "#ffffff" : theme.color,
+                        borderColor:
+                          themeFilter === theme.id ? theme.color : undefined,
+                      }}
+                    >
+                      <IconComponent className="w-3.5 h-3.5" />
+                      {theme.name}
+                      {theme.isDefault && (
+                        <Star className="w-3 h-3 fill-current" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
 
         {loading && sortedTasks.length === 0 ? (
           <div className="text-center py-12 text-zinc-500 dark:text-zinc-400">
@@ -604,7 +874,12 @@ export default function Home() {
             <p className="text-lg font-medium mb-2">タスクがありません</p>
             <p className="text-sm mb-4">新しいタスクを作成してみましょう</p>
             <button
-              onClick={() => router.push("/tasks/new")}
+              onClick={() => {
+                const themeParam = themeFilter || defaultTheme?.id;
+                router.push(
+                  `/tasks/new${themeParam ? `?themeId=${themeParam}` : ""}`,
+                );
+              }}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors inline-flex items-center gap-2"
             >
               <svg
@@ -624,23 +899,171 @@ export default function Home() {
             </button>
           </div>
         ) : (
-          <div className="grid gap-3">
-            {sortedTasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                isSelected={selectedTasks.has(task.id)}
-                isSelectionMode={isSelectionMode}
-                onTaskClick={openTaskPanel}
-                onStatusChange={(taskId: number, status: string) => {
-                  updateStatus(taskId, status);
-                  showToast("ステータスを更新しました", "success");
-                }}
-                onToggleSelect={toggleTaskSelection}
-                onTaskUpdated={fetchTasks}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid gap-3">
+              {paginatedTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  isSelected={selectedTasks.has(task.id)}
+                  isSelectionMode={isSelectionMode}
+                  onTaskClick={openTaskPanel}
+                  onStatusChange={(taskId: number, status: Status) => {
+                    updateStatus(taskId, status);
+                    showToast("ステータスを更新しました", "success");
+                  }}
+                  onToggleSelect={toggleTaskSelection}
+                  onTaskUpdated={fetchTasks}
+                />
+              ))}
+            </div>
+
+            {/* ページネーション */}
+            {totalPages > 1 && (
+              <div className="mt-6 flex items-center justify-center gap-3">
+                {/* 表示件数 */}
+                <div className="flex items-center gap-1">
+                  {[5, 10, 15].map((count) => (
+                    <button
+                      key={count}
+                      onClick={() => {
+                        setItemsPerPage(count);
+                        setCurrentPage(1);
+                      }}
+                      className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                        itemsPerPage === count
+                          ? "bg-purple-600 text-white"
+                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                      }`}
+                    >
+                      {count}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700"></div>
+
+                {/* ページネーションコントロール */}
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="最初のページ"
+                  >
+                    <svg
+                      className="w-4 h-4 text-zinc-600 dark:text-zinc-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
+                      />
+                    </svg>
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.max(1, prev - 1))
+                    }
+                    disabled={currentPage === 1}
+                    className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="前のページ"
+                  >
+                    <svg
+                      className="w-4 h-4 text-zinc-600 dark:text-zinc-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 19l-7-7 7-7"
+                      />
+                    </svg>
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((page) => {
+                      return (
+                        page === 1 ||
+                        page === totalPages ||
+                        (page >= currentPage - 1 && page <= currentPage + 1)
+                      );
+                    })
+                    .map((page, index, array) => (
+                      <React.Fragment key={page}>
+                        {index > 0 && array[index - 1] !== page - 1 && (
+                          <span className="px-1 text-zinc-400 text-xs">
+                            •••
+                          </span>
+                        )}
+                        <button
+                          onClick={() => setCurrentPage(page)}
+                          className={`min-w-[28px] px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                            currentPage === page
+                              ? "bg-purple-600 text-white"
+                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      </React.Fragment>
+                    ))}
+
+                  <button
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                    className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="次のページ"
+                  >
+                    <svg
+                      className="w-4 h-4 text-zinc-600 dark:text-zinc-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </button>
+
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="最後のページ"
+                  >
+                    <svg
+                      className="w-4 h-4 text-zinc-600 dark:text-zinc-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 5l7 7-7 7M5 5l7 7-7 7"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

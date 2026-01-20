@@ -1,11 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
-import type { Project, Milestone, Priority } from "@/types";
+import type { Project, Milestone, Priority, Theme } from "@/types";
 import { priorityColors, priorityLabels } from "@/types";
 
 const API_BASE =
@@ -122,6 +122,7 @@ const MarkdownComponents = {
 
 export default function NewTaskPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [labels, setLabels] = useState("");
@@ -131,6 +132,8 @@ export default function NewTaskPage() {
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [projectId, setProjectId] = useState<number | null>(null);
   const [milestoneId, setMilestoneId] = useState<number | null>(null);
+  const [themeId, setThemeId] = useState<number | null>(null);
+  const [themes, setThemes] = useState<Theme[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [subtasks, setSubtasks] = useState<SubtaskInput[]>([]);
@@ -143,6 +146,15 @@ export default function NewTaskPage() {
   // ファイル・画像アップロード用の状態
   const [isDragging, setIsDragging] = useState(false);
 
+  // URLからthemeIdを取得
+  useEffect(() => {
+    const themeIdParam = searchParams.get("themeId");
+    if (themeIdParam) {
+      setThemeId(Number(themeIdParam));
+    }
+    fetchThemes();
+  }, [searchParams]);
+
   useEffect(() => {
     if (projectId) {
       fetchMilestones(projectId);
@@ -151,6 +163,24 @@ export default function NewTaskPage() {
       setMilestoneId(null);
     }
   }, [projectId]);
+
+  const fetchThemes = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/themes`);
+      const data = await res.json();
+      setThemes(data);
+      // URLからthemeIdが渡されていない場合、デフォルトテーマを設定
+      const themeIdParam = searchParams.get("themeId");
+      if (!themeIdParam) {
+        const defaultTheme = data.find((t: Theme) => t.isDefault);
+        if (defaultTheme) {
+          setThemeId(defaultTheme.id);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch themes:", error);
+    }
+  };
 
   const fetchProjects = async () => {
     try {
@@ -294,6 +324,7 @@ export default function NewTaskPage() {
           categoryId: categoryId || undefined,
           projectId: projectId || undefined,
           milestoneId: milestoneId || undefined,
+          themeId: themeId || undefined,
           labels: labelArray.length > 0 ? labelArray : undefined,
           estimatedHours: estimatedHours
             ? parseFloat(estimatedHours)
@@ -489,8 +520,34 @@ export default function NewTaskPage() {
               </p>
             </div>
 
-            {/* プロジェクトとマイルストーン */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {/* テーマ、プロジェクトとマイルストーン */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div>
+                <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
+                  テーマ{" "}
+                  <span className="text-purple-600 dark:text-purple-400">
+                    *
+                  </span>
+                </label>
+                <select
+                  value={themeId || ""}
+                  onChange={(e) =>
+                    setThemeId(e.target.value ? Number(e.target.value) : null)
+                  }
+                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 text-base shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">テーマを選択</option>
+                  {themes.map((theme) => (
+                    <option key={theme.id} value={theme.id}>
+                      {theme.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                  このタスクが紐づくテーマ
+                </p>
+              </div>
+
               <div>
                 <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
                   プロジェクト

@@ -69,128 +69,90 @@ export default function PomodoroTimer({
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const workAudioRef = useRef<HTMLAudioElement | null>(null);
-  const breakAudioRef = useRef<HTMLAudioElement | null>(null);
-  const [hasWorkAudio, setHasWorkAudio] = useState(false);
-  const [hasBreakAudio, setHasBreakAudio] = useState(false);
 
-  // 音声ファイルの存在チェック
+  // 音声ファイルは使用せず、常にWeb Audio APIを使用
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // 25分経過用の音声ファイルをチェック
-    const workAudio = new Audio("/notification-work.mp3");
-    workAudio.addEventListener("canplaythrough", () => setHasWorkAudio(true));
-    workAudio.addEventListener("error", () => setHasWorkAudio(false));
-    workAudioRef.current = workAudio;
-
-    // 休憩終了用の音声ファイルをチェック
-    const breakAudio = new Audio("/notification-break.mp3");
-    breakAudio.addEventListener("canplaythrough", () => setHasBreakAudio(true));
-    breakAudio.addEventListener("error", () => setHasBreakAudio(false));
-    breakAudioRef.current = breakAudio;
-
-    return () => {
-      workAudio.remove();
-      breakAudio.remove();
-    };
+    // AudioContextを初期化
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (
+        window.AudioContext || (window as any).webkitAudioContext
+      )();
+    }
   }, []);
 
   // Web Audio APIで通知音を生成
   const playNotificationSound = (type: "work" | "break") => {
-    console.log(`🔊 Playing notification sound: ${type}`);
     if (typeof window === "undefined") return;
 
-    const audioFile =
-      type === "work" ? workAudioRef.current : breakAudioRef.current;
-    const hasAudioFile = type === "work" ? hasWorkAudio : hasBreakAudio;
-
-    console.log(
-      `Audio file available: ${hasAudioFile}, Audio element:`,
-      audioFile,
-    );
-
-    // 音声ファイルが存在する場合はそれを使用
-    if (hasAudioFile && audioFile) {
-      console.log("Using audio file");
-      audioFile.loop = false; // ループを無効化
-      audioFile
-        .play()
-        .then(() => {
-          console.log("✅ Audio file playing successfully");
-        })
-        .catch((error) => {
-          console.error("❌ Audio file play failed:", error);
-          // 音声ファイルの再生に失敗した場合はWeb Audio APIを使用
-          playWebAudioBeep();
-        });
-      return;
-    }
-
-    console.log("Using Web Audio API beep");
-    // 音声ファイルがない場合はWeb Audio APIで生成
-    playWebAudioBeep();
+    // 常にWeb Audio APIで生成した音を使用
+    playWebAudioBeep(type);
   };
 
-  const playWebAudioBeep = () => {
-    console.log("🎵 Playing Web Audio API beep");
+  const playWebAudioBeep = (type: "work" | "break") => {
     if (!audioContextRef.current) {
-      console.log("Creating new AudioContext");
       audioContextRef.current = new (
         window.AudioContext || (window as any).webkitAudioContext
       )();
     }
 
-    const playBeep = () => {
-      const context = audioContextRef.current;
-      if (!context) {
-        console.error("❌ No AudioContext available");
-        return;
-      }
+    const context = audioContextRef.current;
+    if (!context) return;
 
-      console.log("🎶 Playing beep sound");
-      // オシレーター（音源）を作成
-      const oscillator = context.createOscillator();
-      const gainNode = context.createGain();
+    // オシレーター（音源）を作成
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
 
-      oscillator.connect(gainNode);
-      gainNode.connect(context.destination);
+    oscillator.connect(gainNode);
+    gainNode.connect(context.destination);
 
-      // 周波数と音量を設定
-      oscillator.frequency.value = 800; // 800Hzの音
-      gainNode.gain.setValueAtTime(0.3, context.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(
-        0.01,
-        context.currentTime + 0.5,
-      );
-
-      oscillator.start(context.currentTime);
-      oscillator.stop(context.currentTime + 0.5);
-    };
-
-    // 一度だけ再生
-    playBeep();
+    // 作業完了と休憩終了で異なる音を設定
+    if (type === "work") {
+      // 作業完了：高めの音で3回ビープ
+      const playBeep = (delay: number) => {
+        const osc = context.createOscillator();
+        const gain = context.createGain();
+        osc.connect(gain);
+        gain.connect(context.destination);
+        osc.frequency.value = 880; // A5 (高い音)
+        gain.gain.setValueAtTime(0.3, context.currentTime + delay);
+        gain.gain.exponentialRampToValueAtTime(
+          0.01,
+          context.currentTime + delay + 0.15,
+        );
+        osc.start(context.currentTime + delay);
+        osc.stop(context.currentTime + delay + 0.15);
+      };
+      playBeep(0);
+      playBeep(0.2);
+      playBeep(0.4);
+    } else {
+      // 休憩終了：低めの音で2回ビープ
+      const playBeep = (delay: number, frequency: number) => {
+        const osc = context.createOscillator();
+        const gain = context.createGain();
+        osc.connect(gain);
+        gain.connect(context.destination);
+        osc.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.3, context.currentTime + delay);
+        gain.gain.exponentialRampToValueAtTime(
+          0.01,
+          context.currentTime + delay + 0.2,
+        );
+        osc.start(context.currentTime + delay);
+        osc.stop(context.currentTime + delay + 0.2);
+      };
+      playBeep(0, 660); // E5
+      playBeep(0.25, 523); // C5 (低い音)
+    }
   };
 
   const stopNotificationSound = () => {
-    console.log("🔇 Stopping notification sound");
     if (audioIntervalRef.current) {
-      console.log("Clearing interval");
       clearInterval(audioIntervalRef.current);
       audioIntervalRef.current = null;
     }
-    // 音声ファイルも停止
-    if (workAudioRef.current) {
-      console.log("Stopping work audio");
-      workAudioRef.current.pause();
-      workAudioRef.current.currentTime = 0;
-    }
-    if (breakAudioRef.current) {
-      console.log("Stopping break audio");
-      breakAudioRef.current.pause();
-      breakAudioRef.current.currentTime = 0;
-    }
-    console.log("✅ All sounds stopped");
   };
 
   // 経過時間の更新（総時間）
@@ -334,29 +296,27 @@ export default function PomodoroTimer({
         )();
       }
 
-      // 音壵ファイルをプリロード
-      if (workAudioRef.current) {
-        workAudioRef.current.load();
-      }
-      if (breakAudioRef.current) {
-        breakAudioRef.current.load();
-      }
+      // タイマー状態を開始
+      setIsTimerRunning(true);
+      setIsPaused(false);
+      setTimerStartTime(new Date());
+      setPomodoroSeconds(0);
+      setPausedPomodoroSeconds(0);
+      setElapsedSeconds(0);
+      setPausedElapsedSeconds(0);
+      setWorkSeconds(0);
+      setPausedWorkSeconds(0);
 
-      const res = await fetch(`${API_BASE}/tasks/${taskId}/start-timer`, {
-        method: "POST",
+      // タスクのstartedAtを更新
+      await fetch(`${API_BASE}/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          startedAt: new Date().toISOString(),
+        }),
       });
-      if (res.ok) {
-        setIsTimerRunning(true);
-        setIsPaused(false);
-        setTimerStartTime(new Date());
-        setPomodoroSeconds(0);
-        setPausedPomodoroSeconds(0);
-        setElapsedSeconds(0);
-        setPausedElapsedSeconds(0);
-        setWorkSeconds(0);
-        setPausedWorkSeconds(0);
-        onUpdate();
-      }
+
+      onUpdate();
     } catch (err) {
       console.error("Failed to start timer:", err);
     }
