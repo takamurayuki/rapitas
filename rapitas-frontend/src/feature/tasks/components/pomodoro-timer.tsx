@@ -31,12 +31,9 @@ interface PomodoroTimerProps {
   onStatusChange?: (status: PomodoroStatus) => void;
 }
 
-// const POMODORO_DURATION = 25 * 60; // 25分
-// const SHORT_BREAK = 5 * 60; // 5分
-// const LONG_BREAK = 15 * 60; // 15分
-const POMODORO_DURATION = 25; // 25分
-const SHORT_BREAK = 5; // 5分
-const LONG_BREAK = 15; // 15分
+const POMODORO_DURATION = 25 * 60; // 25分
+const SHORT_BREAK = 5 * 60; // 5分
+const LONG_BREAK = 15 * 60; // 15分
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -285,7 +282,6 @@ export default function PomodoroTimer({
       interval = setInterval(() => {
         setPomodoroSeconds((prev) => {
           const newSeconds = prev + 1;
-          setAccumulatedBreakSeconds((acc) => acc + 1);
           if (newSeconds >= breakDuration) {
             // 休憩終了 - ダイアログ表示
             setShowBreakEndDialog(true);
@@ -484,6 +480,10 @@ export default function PomodoroTimer({
 
   const handleBreakEnd = () => {
     console.log("🔄 Handling break end");
+    // 休憩時間を累積に加算
+    const breakDuration = pomodoroCount % 4 === 0 ? LONG_BREAK : SHORT_BREAK;
+    setAccumulatedBreakSeconds((acc) => acc + breakDuration);
+
     setIsBreakTime(false);
     setPomodoroSeconds(0);
     setShowBreakEndDialog(false);

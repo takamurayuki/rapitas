@@ -128,6 +128,7 @@ export default function NewTaskPage() {
   const [estimatedHours, setEstimatedHours] = useState("");
   const [status, setStatus] = useState("todo");
   const [priority, setPriority] = useState<Priority>("medium");
+  const [categoryId, setCategoryId] = useState<number | null>(null);
   const [projectId, setProjectId] = useState<number | null>(null);
   const [milestoneId, setMilestoneId] = useState<number | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -141,11 +142,6 @@ export default function NewTaskPage() {
 
   // ファイル・画像アップロード用の状態
   const [isDragging, setIsDragging] = useState(false);
-
-  // プロジェクトとマイルストーンを取得
-  useEffect(() => {
-    fetchProjects();
-  }, []);
 
   useEffect(() => {
     if (projectId) {
@@ -295,6 +291,7 @@ export default function NewTaskPage() {
           description: description || undefined,
           status,
           priority,
+          categoryId: categoryId || undefined,
           projectId: projectId || undefined,
           milestoneId: milestoneId || undefined,
           labels: labelArray.length > 0 ? labelArray : undefined,
