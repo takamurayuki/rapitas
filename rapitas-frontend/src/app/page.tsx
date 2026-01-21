@@ -605,8 +605,8 @@ export default function HomePage() {
 
         {/* クイック追加フォーム */}
         {isQuickAdding && (
-          <div className="mb-4 p-4 bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-blue-500 dark:border-blue-600">
-            <div className="flex gap-2">
+          <div className="mb-4 p-2 bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-blue-500 dark:border-blue-600">
+            <div className="flex gap-2 p-n2">
               <input
                 type="text"
                 value={quickTaskTitle}
@@ -619,7 +619,7 @@ export default function HomePage() {
                   }
                 }}
                 placeholder="タスクタイトルを入力... (Enter で作成、Esc でキャンセル)"
-                className="flex-1 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-2 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 autoFocus
               />
               <button
@@ -628,15 +628,6 @@ export default function HomePage() {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 作成
-              </button>
-              <button
-                onClick={() => {
-                  setIsQuickAdding(false);
-                  setQuickTaskTitle("");
-                }}
-                className="px-4 py-2 bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-700 font-medium transition-colors"
-              >
-                キャンセル
               </button>
             </div>
           </div>
@@ -650,7 +641,7 @@ export default function HomePage() {
                 {/* ステータス */}
                 <div className="flex items-center gap-2">
                   <svg
-                    className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0"
+                    className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -781,7 +772,7 @@ export default function HomePage() {
           <>
             <div className="mb-4 bg-white dark:bg-zinc-900 rounded-lg p-3 shadow-sm border border-zinc-200 dark:border-zinc-800">
               <div className="flex items-center gap-2 mb-2">
-                <Palette className="w-4 h-4 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                <Palette className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
                 <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                   {themeFilter ? (
                     <>
@@ -807,7 +798,7 @@ export default function HomePage() {
                 {/* テーマボタン */}
                 <button
                   onClick={() => setThemeFilter(null)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex-shrink-0 ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap shrink-0 ${
                     themeFilter === null
                       ? "bg-purple-600 text-white shadow-lg"
                       : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-700"
@@ -825,7 +816,7 @@ export default function HomePage() {
                     <button
                       key={theme.id}
                       onClick={() => setThemeFilter(theme.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex-shrink-0 ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap shrink-0 ${
                         themeFilter === theme.id
                           ? "shadow-lg scale-105"
                           : "hover:scale-105 border border-zinc-300 dark:border-zinc-700"
@@ -1006,7 +997,7 @@ export default function HomePage() {
                         )}
                         <button
                           onClick={() => setCurrentPage(page)}
-                          className={`min-w-[28px] px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                          className={`min-w-28px px-2.5 py-1 rounded text-xs font-medium transition-all ${
                             currentPage === page
                               ? "bg-purple-600 text-white"
                               : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"

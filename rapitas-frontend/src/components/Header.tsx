@@ -64,13 +64,8 @@ export default function Header() {
   const navItems: NavItem[] = [
     {
       href: "/",
-      label: "すべてのタスク",
+      label: "タスク一覧",
       icon: Home,
-    },
-    {
-      href: "/tasks/new",
-      label: "新規タスク",
-      icon: Plus,
     },
     {
       href: "/themes",
