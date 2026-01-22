@@ -72,6 +72,7 @@ model Task {
   timeEntries     TimeEntry[]
   comments        Comment[]
   activityLogs    ActivityLog[]
+  taskLabels      TaskLabel[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 }
@@ -107,4 +108,26 @@ model ActivityLog {
   changes   Json?    // 変更内容の詳細
   metadata  Json?    // 追加情報
   createdAt DateTime @default(now())
+}
+
+model Label {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String?
+  color       String      @default("#6366F1")
+  icon        String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  tasks       TaskLabel[]
+}
+
+model TaskLabel {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  labelId   Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label     Label    @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([taskId, labelId])
 }

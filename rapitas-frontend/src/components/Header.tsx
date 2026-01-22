@@ -14,6 +14,8 @@ import {
   List,
   Folder,
   Tag,
+  Tags,
+  Palette,
   Check,
   XIcon,
   Search,
@@ -71,7 +73,12 @@ export default function Header() {
     {
       href: "/themes",
       label: "テーマ一覧",
-      icon: Tag,
+      icon: Palette,
+    },
+    {
+      href: "/labels",
+      label: "ラベル一覧",
+      icon: Tags,
     },
   ];
 

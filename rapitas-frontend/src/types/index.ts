@@ -44,6 +44,25 @@ export type Priority = "low" | "medium" | "high" | "urgent";
 
 export type Status = "todo" | "in-progress" | "done";
 
+export type Label = {
+  id: number;
+  name: string;
+  description?: string | null;
+  color: string;
+  icon?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { tasks: number };
+};
+
+export type TaskLabel = {
+  id: number;
+  taskId: number;
+  labelId: number;
+  label?: Label;
+  createdAt: string;
+};
+
 export type Task = {
   id: number;
   title: string;
@@ -51,6 +70,7 @@ export type Task = {
   status: Status;
   priority: Priority;
   labels?: string[];
+  taskLabels?: TaskLabel[];
   estimatedHours?: number | null;
   actualHours?: number | null;
   startedAt?: string | null;

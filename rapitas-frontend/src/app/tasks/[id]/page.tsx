@@ -1,7 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import type { Task, TimeEntry, Comment } from "@/types";
+import type { Task, TimeEntry, Comment, Label } from "@/types";
+import LabelSelector, {
+  SelectedLabelsDisplay,
+} from "@/feature/tasks/components/label-selector";
 import { Timer, Coffee, Pause, Square, Flame, Hourglass } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -67,6 +70,7 @@ export default function TaskDetailPage() {
   const [editDescription, setEditDescription] = useState("");
   const [editStatus, setEditStatus] = useState("");
   const [editLabels, setEditLabels] = useState("");
+  const [editLabelIds, setEditLabelIds] = useState<number[]>([]);
   const [editEstimatedHours, setEditEstimatedHours] = useState("");
 
   // サブタスク追加用の状態
@@ -297,6 +301,7 @@ export default function TaskDetailPage() {
     setEditDescription(task.description || "");
     setEditStatus(task.status);
     setEditLabels(task.labels?.join(", ") || "");
+    setEditLabelIds(task.taskLabels?.map((tl) => tl.labelId) || []);
     setEditEstimatedHours(task.estimatedHours?.toString() || "");
     setIsEditing(true);
   };
@@ -324,6 +329,7 @@ export default function TaskDetailPage() {
           description: editDescription || undefined,
           status: editStatus,
           labels: labelArray.length > 0 ? labelArray : undefined,
+          labelIds: editLabelIds,
           estimatedHours: editEstimatedHours
             ? parseFloat(editEstimatedHours)
             : undefined,
@@ -656,35 +662,31 @@ export default function TaskDetailPage() {
                 </select>
               </div>
 
-              {/* ラベルと見積もり時間 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
-                    ラベル
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="カンマ区切りで入力"
-                    value={editLabels}
-                    onChange={(e) => setEditLabels(e.target.value)}
-                  />
-                </div>
+              {/* ラベル */}
+              <div>
+                <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
+                  ラベル
+                </label>
+                <LabelSelector
+                  selectedLabelIds={editLabelIds}
+                  onChange={setEditLabelIds}
+                />
+              </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
-                    見積もり時間
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="時間"
-                    value={editEstimatedHours}
-                    onChange={(e) => setEditEstimatedHours(e.target.value)}
-                  />
-                </div>
+              {/* 見積もり時間 */}
+              <div>
+                <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
+                  見積もり時間
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="時間"
+                  value={editEstimatedHours}
+                  onChange={(e) => setEditEstimatedHours(e.target.value)}
+                />
               </div>
             </div>
           ) : (
@@ -755,21 +757,16 @@ export default function TaskDetailPage() {
               )}
 
               <div className="grid grid-cols-2 gap-4 mb-6">
-                {task.labels && task.labels.length > 0 && (
+                {task.taskLabels && task.taskLabels.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
                       ラベル
                     </h3>
-                    <div className="flex flex-wrap gap-2">
-                      {task.labels.map((label, idx) => (
-                        <span
-                          key={idx}
-                          className="px-3 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 text-sm"
-                        >
-                          {label}
-                        </span>
-                      ))}
-                    </div>
+                    <SelectedLabelsDisplay
+                      labels={task.taskLabels
+                        .map((tl) => tl.label)
+                        .filter((l): l is Label => l !== undefined)}
+                    />
                   </div>
                 )}
 

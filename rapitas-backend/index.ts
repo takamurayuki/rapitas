@@ -100,6 +100,109 @@ app.get("/themes/default/get", async () => {
   });
 });
 
+// ==================== Labels API ====================
+app.get("/labels", async () => {
+  return await prisma.label.findMany({
+    include: {
+      _count: {
+        select: { tasks: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+});
+
+app.get("/labels/:id", async ({ params }) => {
+  const { id } = params;
+  return await prisma.label.findUnique({
+    where: { id: parseInt(id) },
+    include: {
+      tasks: {
+        include: {
+          task: true,
+        },
+      },
+    },
+  });
+});
+
+app.post("/labels", async ({ body }) => {
+  const { name, description, color, icon } = body as {
+    name: string;
+    description?: string;
+    color?: string;
+    icon?: string;
+  };
+  return await prisma.label.create({
+    data: {
+      name,
+      ...(description && { description }),
+      ...(color && { color }),
+      ...(icon && { icon }),
+    },
+  });
+});
+
+app.patch("/labels/:id", async ({ params, body }) => {
+  const { id } = params;
+  const { name, description, color, icon } = body as {
+    name?: string;
+    description?: string;
+    color?: string;
+    icon?: string;
+  };
+  return await prisma.label.update({
+    where: { id: parseInt(id) },
+    data: {
+      ...(name && { name }),
+      ...(description !== undefined && { description }),
+      ...(color && { color }),
+      ...(icon !== undefined && { icon }),
+    },
+  });
+});
+
+app.delete("/labels/:id", async ({ params }) => {
+  const { id } = params;
+  return await prisma.label.delete({
+    where: { id: parseInt(id) },
+  });
+});
+
+// タスクのラベル一括更新
+app.put("/tasks/:taskId/labels", async ({ params, body }) => {
+  const { taskId } = params;
+  const { labelIds } = body as { labelIds: number[] };
+  const taskIdNum = parseInt(taskId);
+
+  // 既存の関連を削除
+  await prisma.taskLabel.deleteMany({
+    where: { taskId: taskIdNum },
+  });
+
+  // 新しい関連を作成
+  if (labelIds && labelIds.length > 0) {
+    await prisma.taskLabel.createMany({
+      data: labelIds.map((labelId) => ({
+        taskId: taskIdNum,
+        labelId,
+      })),
+    });
+  }
+
+  // 更新後のタスクを返す
+  return await prisma.task.findUnique({
+    where: { id: taskIdNum },
+    include: {
+      taskLabels: {
+        include: {
+          label: true,
+        },
+      },
+    },
+  });
+});
+
 // ==================== Projects API ====================
 app.get("/projects", async () => {
   return await prisma.project.findMany({
@@ -269,6 +372,11 @@ app.get("/tasks", async ({ query }) => {
       theme: true,
       project: true,
       milestone: true,
+      taskLabels: {
+        include: {
+          label: true,
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -285,6 +393,11 @@ app.get("/tasks/:id", async ({ params }) => {
       },
       project: true,
       milestone: true,
+      taskLabels: {
+        include: {
+          label: true,
+        },
+      },
     },
   });
 });
@@ -296,6 +409,7 @@ app.post("/tasks", async ({ body }) => {
     status,
     priority,
     labels,
+    labelIds,
     estimatedHours,
     parentId,
     projectId,
@@ -307,13 +421,14 @@ app.post("/tasks", async ({ body }) => {
     status?: string;
     priority?: string;
     labels?: string[];
+    labelIds?: number[];
     estimatedHours?: number;
     parentId?: number;
     projectId?: number;
     milestoneId?: number;
     themeId?: number;
   };
-  return await prisma.task.create({
+  const task = await prisma.task.create({
     data: {
       title,
       ...(description && { description }),
@@ -327,18 +442,38 @@ app.post("/tasks", async ({ body }) => {
       ...(milestoneId && { milestoneId }),
       ...(themeId !== undefined && { themeId }),
     },
-    // @ts-ignore
+  });
+
+  // ラベルの関連付け
+  if (labelIds && labelIds.length > 0) {
+    await prisma.taskLabel.createMany({
+      data: labelIds.map((labelId) => ({
+        taskId: task.id,
+        labelId,
+      })),
+    });
+  }
+
+  // @ts-ignore
+  return await prisma.task.findUnique({
+    where: { id: task.id },
     include: {
       subtasks: true,
       theme: true,
       project: true,
       milestone: true,
+      taskLabels: {
+        include: {
+          label: true,
+        },
+      },
     },
   });
 });
 
 app.patch("/tasks/:id", async ({ params, body }) => {
   const { id } = params;
+  const taskId = parseInt(id);
   const {
     title,
     description,
@@ -346,6 +481,7 @@ app.patch("/tasks/:id", async ({ params, body }) => {
     status,
     priority,
     labels,
+    labelIds,
     estimatedHours,
     projectId,
     milestoneId,
@@ -356,12 +492,14 @@ app.patch("/tasks/:id", async ({ params, body }) => {
     status?: string;
     priority?: string;
     labels?: string[];
+    labelIds?: number[];
     estimatedHours?: number;
     projectId?: number | null;
     milestoneId?: number | null;
   };
-  return await prisma.task.update({
-    where: { id: parseInt(id) },
+
+  await prisma.task.update({
+    where: { id: taskId },
     data: {
       ...(title && { title }),
       ...(description !== undefined && { description }),
@@ -374,11 +512,35 @@ app.patch("/tasks/:id", async ({ params, body }) => {
       ...(projectId !== undefined && { projectId }),
       ...(milestoneId !== undefined && { milestoneId }),
     },
-    // @ts-ignore
+  });
+
+  // ラベルの更新（labelIdsが提供された場合）
+  if (labelIds !== undefined) {
+    await prisma.taskLabel.deleteMany({
+      where: { taskId },
+    });
+    if (labelIds.length > 0) {
+      await prisma.taskLabel.createMany({
+        data: labelIds.map((labelId) => ({
+          taskId,
+          labelId,
+        })),
+      });
+    }
+  }
+
+  // @ts-ignore
+  return await prisma.task.findUnique({
+    where: { id: taskId },
     include: {
       theme: true,
       project: true,
       milestone: true,
+      taskLabels: {
+        include: {
+          label: true,
+        },
+      },
     },
   });
 });
