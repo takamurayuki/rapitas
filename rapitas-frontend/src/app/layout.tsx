@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/header";
+import KeyboardShortcuts from "@/components/keyboard-shortcuts";
 import { Suspense } from "react";
 import { ToastProvider } from "@/components/ui/toast/toast-container";
 import { PomodoroProvider } from "@/feature/tasks/pomodoro/PomodoroProvider";
@@ -37,6 +38,9 @@ export default function RootLayout({
               <Header />
             </Suspense>
             {children}
+            <Suspense fallback={null}>
+              <KeyboardShortcuts />
+            </Suspense>
           </ToastProvider>
         </PomodoroProvider>
       </body>

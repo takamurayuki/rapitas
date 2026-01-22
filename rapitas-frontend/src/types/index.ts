@@ -63,6 +63,60 @@ export type TaskLabel = {
   createdAt: string;
 };
 
+export type ExamGoal = {
+  id: number;
+  name: string;
+  description?: string | null;
+  examDate: string;
+  targetScore?: string | null;
+  color: string;
+  icon?: string | null;
+  isCompleted: boolean;
+  actualScore?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { tasks: number };
+};
+
+export type StudyStreak = {
+  id: number;
+  date: string;
+  studyMinutes: number;
+  tasksCompleted: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type StudyPlanPhase = {
+  name: string;
+  days: number;
+  tasks: string[];
+  dailyHours: number;
+};
+
+export type GeneratedStudyPlan = {
+  subject: string;
+  targetScore?: string;
+  totalDays: number;
+  studyHoursPerDay: number;
+  phases: StudyPlanPhase[];
+  tips: string[];
+};
+
+export type StudyPlan = {
+  id: number;
+  examGoalId?: number | null;
+  subject: string;
+  prompt: string;
+  generatedPlan: GeneratedStudyPlan;
+  totalDays: number;
+  startDate: string;
+  endDate: string;
+  isApplied: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Task = {
   id: number;
   title: string;
@@ -73,6 +127,8 @@ export type Task = {
   taskLabels?: TaskLabel[];
   estimatedHours?: number | null;
   actualHours?: number | null;
+  dueDate?: string | null;
+  subject?: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
   parentId?: number | null;
@@ -84,6 +140,8 @@ export type Task = {
   project?: Project | null;
   milestoneId?: number | null;
   milestone?: Milestone | null;
+  examGoalId?: number | null;
+  examGoal?: ExamGoal | null;
   timeEntries?: TimeEntry[];
   comments?: Comment[];
   createdAt: string;
@@ -132,4 +190,120 @@ export const priorityLabels = {
   medium: "中",
   high: "高",
   urgent: "緊急",
+};
+
+// 実績/バッジ
+export type Achievement = {
+  id: number;
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+  category: string;
+  condition: any;
+  rarity: "common" | "rare" | "epic" | "legendary";
+  isUnlocked: boolean;
+  unlockedAt: string | null;
+  createdAt: string;
+};
+
+// 習慣
+export type Habit = {
+  id: number;
+  name: string;
+  description?: string | null;
+  icon?: string | null;
+  color: string;
+  frequency: string;
+  targetCount: number;
+  isActive: boolean;
+  logs?: HabitLog[];
+  _count?: { logs: number };
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type HabitLog = {
+  id: number;
+  habitId: number;
+  date: string;
+  count: number;
+  note?: string | null;
+  createdAt: string;
+};
+
+// 学習リソース
+export type Resource = {
+  id: number;
+  taskId?: number | null;
+  title: string;
+  url?: string | null;
+  type: string;
+  description?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// フラッシュカード
+export type FlashcardDeck = {
+  id: number;
+  name: string;
+  description?: string | null;
+  color: string;
+  taskId?: number | null;
+  cards?: Flashcard[];
+  _count?: { cards: number };
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Flashcard = {
+  id: number;
+  deckId: number;
+  front: string;
+  back: string;
+  nextReview?: string | null;
+  interval: number;
+  easeFactor: number;
+  reviewCount: number;
+  deck?: FlashcardDeck;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// タスクテンプレート
+export type TaskTemplate = {
+  id: number;
+  name: string;
+  description?: string | null;
+  category: string;
+  templateData: any;
+  isPublic: boolean;
+  useCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// 週次レポート
+export type WeeklyReport = {
+  period: {
+    start: string;
+    end: string;
+  };
+  summary: {
+    tasksCompleted: number;
+    studyHours: number;
+    tasksChange: number;
+    hoursChange: number;
+  };
+  dailyData: {
+    date: string;
+    tasks: number;
+    hours: number;
+  }[];
+  subjectBreakdown: {
+    subject: string | null;
+    count: number;
+  }[];
 };

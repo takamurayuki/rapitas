@@ -58,6 +58,8 @@ model Task {
   labels          String[]      @default([])
   estimatedHours  Float?
   actualHours     Float?        // 実績時間
+  dueDate         DateTime?     // 締め切り日
+  subject         String?       // 科目（学習タスク用）
   startedAt       DateTime?     // 作業開始時刻
   completedAt     DateTime?     // 完了時刻
   parentId        Int?
@@ -69,10 +71,13 @@ model Task {
   project         Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
   milestoneId     Int?
   milestone       Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  examGoalId      Int?
+  examGoal        ExamGoal?     @relation(fields: [examGoalId], references: [id], onDelete: SetNull)
   timeEntries     TimeEntry[]
   comments        Comment[]
   activityLogs    ActivityLog[]
   taskLabels      TaskLabel[]
+  resources       Resource[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 }
@@ -130,4 +135,151 @@ model TaskLabel {
   createdAt DateTime @default(now())
 
   @@unique([taskId, labelId])
+}
+
+// 試験目標（学習特化機能）
+model ExamGoal {
+  id            Int       @id @default(autoincrement())
+  name          String    // 試験名（例：TOEIC、基本情報技術者）
+  description   String?   // 目標の詳細
+  examDate      DateTime  // 試験日
+  targetScore   String?   // 目標スコア/点数
+  color         String    @default("#10B981") // 表示色
+  icon          String?   // アイコン
+  isCompleted   Boolean   @default(false) // 達成済みフラグ
+  actualScore   String?   // 実際のスコア（試験後）
+  tasks         Task[]    // 関連タスク
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// 学習ストリーク（連続達成記録）
+model StudyStreak {
+  id              Int      @id @default(autoincrement())
+  date            DateTime @unique // 日付（日単位でユニーク）
+  studyMinutes    Int      @default(0) // その日の学習時間（分）
+  tasksCompleted  Int      @default(0) // その日の完了タスク数
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// AI学習計画
+model StudyPlan {
+  id            Int       @id @default(autoincrement())
+  examGoalId    Int?      // 関連する試験目標
+  subject       String    // 科目
+  prompt        String    // ユーザーの入力（目標など）
+  generatedPlan Json      // AIが生成した学習計画
+  totalDays     Int       // 計画日数
+  startDate     DateTime  // 開始日
+  endDate       DateTime  // 終了日
+  isApplied     Boolean   @default(false) // タスクに適用済みか
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// 実績/バッジ
+model Achievement {
+  id            Int                 @id @default(autoincrement())
+  key           String              @unique // 識別キー
+  name          String              // 表示名
+  description   String              // 説明
+  icon          String              // アイコン名
+  color         String              @default("#FFD700") // バッジの色
+  category      String              // カテゴリ（streak, tasks, study, etc）
+  condition     Json                // 解除条件
+  rarity        String              @default("common") // common, rare, epic, legendary
+  unlockedBy    UserAchievement[]
+  createdAt     DateTime            @default(now())
+}
+
+// ユーザーの獲得実績
+model UserAchievement {
+  id            Int         @id @default(autoincrement())
+  achievementId Int
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  unlockedAt    DateTime    @default(now())
+
+  @@unique([achievementId])
+}
+
+// 習慣トラッカー
+model Habit {
+  id            Int           @id @default(autoincrement())
+  name          String        // 習慣名
+  description   String?       // 説明
+  icon          String?       // アイコン
+  color         String        @default("#10B981")
+  frequency     String        @default("daily") // daily, weekly
+  targetCount   Int           @default(1) // 目標回数
+  isActive      Boolean       @default(true)
+  logs          HabitLog[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+// 習慣の記録
+model HabitLog {
+  id        Int      @id @default(autoincrement())
+  habitId   Int
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date      DateTime
+  count     Int      @default(1)
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@unique([habitId, date])
+}
+
+// 学習リソース
+model Resource {
+  id          Int      @id @default(autoincrement())
+  taskId      Int?
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title       String
+  url         String?
+  type        String   // link, file, note, video
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// フラッシュカードデッキ
+model FlashcardDeck {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String?
+  color       String      @default("#3B82F6")
+  taskId      Int?        // 関連タスク
+  cards       Flashcard[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+// フラッシュカード
+model Flashcard {
+  id          Int           @id @default(autoincrement())
+  deckId      Int
+  deck        FlashcardDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  front       String        // 表面（問題）
+  back        String        // 裏面（答え）
+  nextReview  DateTime?     // 次回復習日（忘却曲線）
+  interval    Int           @default(1) // 復習間隔（日）
+  easeFactor  Float         @default(2.5) // 難易度係数
+  reviewCount Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+// タスクテンプレート
+model TaskTemplate {
+  id            Int      @id @default(autoincrement())
+  name          String
+  description   String?
+  category      String   // study, work, routine
+  templateData  Json     // タスクのテンプレートデータ
+  isPublic      Boolean  @default(false)
+  useCount      Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }

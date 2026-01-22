@@ -11,116 +11,11 @@ import {
   renderStatusIcon,
 } from "@/feature/tasks/config/status-config";
 import TaskStatusChange from "@/feature/tasks/components/task-status-change";
-import {
-  Palette,
-  Book,
-  Briefcase,
-  Code,
-  Coffee,
-  Cpu,
-  Dumbbell,
-  Gamepad2,
-  GraduationCap,
-  Heart,
-  Home,
-  Lightbulb,
-  Music,
-  Plane,
-  Rocket,
-  ShoppingBag,
-  Sparkles,
-  Star,
-  Target,
-  Trophy,
-  Umbrella,
-  Zap,
-  Camera,
-  Film,
-  Headphones,
-  Laptop,
-  Smartphone,
-  Tv,
-  Watch,
-  Globe,
-  MapPin,
-  Mountain,
-  Sun,
-  Moon,
-  Cloud,
-  Droplet,
-  Flame,
-  Leaf,
-  Flower2,
-  Trees,
-  Fish,
-  Bird,
-  Bug,
-  Cat,
-  Dog,
-  Pizza,
-  Utensils,
-  IceCream,
-  Cake,
-  Apple,
-  type LucideIcon,
-} from "lucide-react";
+import { Palette, Star } from "lucide-react";
+import { getIconComponent, ICON_DATA } from "@/components/category/icon-data";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
-
-// Lucideアイコンのマッピング
-const ICON_MAP: Record<string, LucideIcon> = {
-  Palette,
-  Book,
-  Briefcase,
-  Code,
-  Coffee,
-  Cpu,
-  Dumbbell,
-  Gamepad2,
-  GraduationCap,
-  Heart,
-  Home,
-  Lightbulb,
-  Music,
-  Plane,
-  Rocket,
-  ShoppingBag,
-  Sparkles,
-  Star,
-  Target,
-  Trophy,
-  Umbrella,
-  Zap,
-  Camera,
-  Film,
-  Headphones,
-  Laptop,
-  Smartphone,
-  Tv,
-  Watch,
-  Globe,
-  MapPin,
-  Mountain,
-  Sun,
-  Moon,
-  Cloud,
-  Droplet,
-  Flame,
-  Leaf,
-  Flower2,
-  Trees,
-  Fish,
-  Bird,
-  Bug,
-  Cat,
-  Dog,
-  Pizza,
-  Utensils,
-  IceCream,
-  Cake,
-  Apple,
-};
 
 export default function HomePage() {
   const router = useRouter();
@@ -174,10 +69,12 @@ export default function HomePage() {
       const res = await fetch(`${API_BASE}/themes`);
       const data = await res.json();
       setThemes(data);
-      // デフォルトテーマを設定
+      // デフォルトテーマを設定し、自動選択
       const defaultThemeData = data.find((t: Theme) => t.isDefault);
       if (defaultThemeData) {
         setDefaultTheme(defaultThemeData);
+        // 初回表示時にデフォルトテーマを自動選択
+        setThemeFilter(defaultThemeData.id);
       }
     } catch (e) {
       console.error(e);
@@ -605,7 +502,7 @@ export default function HomePage() {
 
         {/* クイック追加フォーム */}
         {isQuickAdding && (
-          <div className="mb-4 p-2 bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-blue-500 dark:border-blue-600">
+          <div className="mb-4 p-3 bg-white dark:bg-zinc-900 rounded-lg shadow-lg">
             <div className="flex gap-2 p-n2">
               <input
                 type="text"
@@ -619,7 +516,7 @@ export default function HomePage() {
                   }
                 }}
                 placeholder="タスクタイトルを入力... (Enter で作成、Esc でキャンセル)"
-                className="flex-1 px-2 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="text-sm px-2 flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 autoFocus
               />
               <button
@@ -808,10 +705,7 @@ export default function HomePage() {
                   すべて
                 </button>
                 {themes.map((theme) => {
-                  const IconComponent =
-                    theme.icon && ICON_MAP[theme.icon]
-                      ? ICON_MAP[theme.icon]
-                      : Palette;
+                  const IconComponent = getIconComponent(theme.icon || "") || Palette;
                   return (
                     <button
                       key={theme.id}

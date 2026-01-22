@@ -350,7 +350,7 @@ export default function PomodoroTimer({
               {isPaused ? (
                 <button
                   onClick={handleResumeTimer}
-                  className="flex items-center gap-2 px-8 py-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold transition-all"
+                  className="flex items-center gap-2 px-8 py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-semibold transition-all"
                 >
                   <Play className="w-5 h-5" />
                   再開

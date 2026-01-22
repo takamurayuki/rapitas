@@ -14,6 +14,8 @@ import {
   X,
   Check,
   Trash2,
+  Calendar,
+  BookOpen,
 } from "lucide-react";
 import type { Priority, Theme, Label } from "@/types";
 import LabelSelector from "@/feature/tasks/components/label-selector";
@@ -35,6 +37,8 @@ export default function NewTaskPage() {
   const [labels, setLabels] = useState("");
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
   const [estimatedHours, setEstimatedHours] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [subject, setSubject] = useState("");
 
   // データ
   const [themes, setThemes] = useState<Theme[]>([]);
@@ -109,6 +113,8 @@ export default function NewTaskPage() {
           estimatedHours: estimatedHours
             ? parseFloat(estimatedHours)
             : undefined,
+          dueDate: dueDate || undefined,
+          subject: subject || undefined,
         }),
       });
 
@@ -176,35 +182,33 @@ export default function NewTaskPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-violet-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-violet-950/20">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-blue-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-blue-950/20">
       {/* Header */}
-      <div className="sticky top-0 z-10 backdrop-blur-xl bg-white/80 dark:bg-zinc-900/80 border-b border-zinc-200/50 dark:border-zinc-800/50">
-        <div className="max-w-2xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="text-sm font-medium">戻る</span>
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={!title.trim() || isSubmitting}
-              className="px-5 py-2 bg-linear-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isSubmitting ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <Check className="w-4 h-4" />
-              )}
-              作成
-            </button>
-          </div>
+      <div className="max-w-2xl mx-auto px-4 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-sm font-medium">戻る</span>
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!title.trim() || isSubmitting}
+            className="px-5 py-2 bg-blue-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {isSubmitting ? (
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <Plus className="w-4 h-4" />
+            )}
+            作成
+          </button>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="max-w-2xl mx-auto px-4 py-8">
+      <form onSubmit={handleSubmit} className="max-w-2xl mx-auto px-4">
         {/* Main Card */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
           {/* Title Section */}
@@ -316,6 +320,42 @@ export default function NewTaskPage() {
           {/* Advanced Options Content */}
           {showAdvanced && (
             <div className="p-6 pt-0 space-y-6 animate-in slide-in-from-top-2 duration-200">
+              {/* Due Date & Subject */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Due Date */}
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Calendar className="w-4 h-4 text-zinc-400" />
+                    <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                      締め切り日
+                    </span>
+                  </div>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-2.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
+                  />
+                </div>
+
+                {/* Subject */}
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <BookOpen className="w-4 h-4 text-zinc-400" />
+                    <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                      科目
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    placeholder="例: 英語、数学、プログラミング"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-2.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
+                  />
+                </div>
+              </div>
+
               {/* Labels */}
               <div>
                 <div className="flex items-center gap-2 mb-3">

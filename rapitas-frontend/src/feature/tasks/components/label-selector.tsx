@@ -1,117 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { Label } from "@/types";
-import {
-  Tag,
-  Book,
-  Briefcase,
-  Code,
-  Coffee,
-  Cpu,
-  Dumbbell,
-  Gamepad2,
-  GraduationCap,
-  Heart,
-  Home,
-  Lightbulb,
-  Music,
-  Plane,
-  Rocket,
-  ShoppingBag,
-  Sparkles,
-  Star,
-  Target,
-  Trophy,
-  Umbrella,
-  Zap,
-  Camera,
-  Film,
-  Headphones,
-  Laptop,
-  Smartphone,
-  Tv,
-  Watch,
-  Globe,
-  MapPin,
-  Mountain,
-  Sun,
-  Moon,
-  Cloud,
-  Droplet,
-  Flame,
-  Leaf,
-  Flower2,
-  Trees,
-  Fish,
-  Bird,
-  Bug,
-  Cat,
-  Dog,
-  Pizza,
-  Utensils,
-  IceCream,
-  Cake,
-  Apple,
-  Check,
-  type LucideIcon,
-} from "lucide-react";
+import { Check } from "lucide-react";
+import { getIconComponent, ICON_DATA } from "@/components/category/icon-data";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
-
-// Lucideアイコンのマッピング
-const ICON_MAP: Record<string, LucideIcon> = {
-  Tag,
-  Book,
-  Briefcase,
-  Code,
-  Coffee,
-  Cpu,
-  Dumbbell,
-  Gamepad2,
-  GraduationCap,
-  Heart,
-  Home,
-  Lightbulb,
-  Music,
-  Plane,
-  Rocket,
-  ShoppingBag,
-  Sparkles,
-  Star,
-  Target,
-  Trophy,
-  Umbrella,
-  Zap,
-  Camera,
-  Film,
-  Headphones,
-  Laptop,
-  Smartphone,
-  Tv,
-  Watch,
-  Globe,
-  MapPin,
-  Mountain,
-  Sun,
-  Moon,
-  Cloud,
-  Droplet,
-  Flame,
-  Leaf,
-  Flower2,
-  Trees,
-  Fish,
-  Bird,
-  Bug,
-  Cat,
-  Dog,
-  Pizza,
-  Utensils,
-  IceCream,
-  Cake,
-  Apple,
-};
 
 type LabelSelectorProps = {
   selectedLabelIds: number[];
@@ -153,11 +47,11 @@ export default function LabelSelector({
   };
 
   const renderIcon = (iconName: string | null | undefined, size = 16) => {
-    if (!iconName || !ICON_MAP[iconName]) {
-      const DefaultIcon = ICON_MAP["Tag"];
+    const IconComponent = getIconComponent(iconName || "");
+    if (!IconComponent) {
+      const DefaultIcon = ICON_DATA["Tag"].component;
       return <DefaultIcon size={size} />;
     }
-    const IconComponent = ICON_MAP[iconName];
     return <IconComponent size={size} />;
   };
 
@@ -208,7 +102,7 @@ export default function LabelSelector({
               style={{
                 backgroundColor: isSelected ? label.color : `${label.color}20`,
                 color: isSelected ? "#fff" : label.color,
-                ringColor: label.color,
+                ["--tw-ring-color" as any]: label.color,
               }}
             >
               {renderIcon(label.icon, 14)}
@@ -238,11 +132,11 @@ export function SelectedLabelsDisplay({
   className = "",
 }: SelectedLabelsDisplayProps) {
   const renderIcon = (iconName: string | null | undefined, size = 14) => {
-    if (!iconName || !ICON_MAP[iconName]) {
-      const DefaultIcon = ICON_MAP["Tag"];
+    const IconComponent = getIconComponent(iconName || "");
+    if (!IconComponent) {
+      const DefaultIcon = ICON_DATA["Tag"].component;
       return <DefaultIcon size={size} />;
     }
-    const IconComponent = ICON_MAP[iconName];
     return <IconComponent size={size} />;
   };
 
