@@ -1,6 +1,14 @@
 "use client";
 import { TimeEntry } from "@/types";
-import { Icon, Circle, Play, Pause, Square, Coffee, Hourglass } from "lucide-react";
+import {
+  Icon,
+  Circle,
+  Play,
+  Pause,
+  Square,
+  Coffee,
+  Hourglass,
+} from "lucide-react";
 import { fruit } from "@lucide/lab";
 import {
   usePomodoroStore,
@@ -52,7 +60,9 @@ export default function PomodoroTimer({
   const pomodoroCount = isThisTask ? store.pomodoroCount : 0;
   const pomodoroSeconds = isThisTask ? store.pomodoroSeconds : 0;
   const workSeconds = isThisTask ? store.workSeconds : 0;
-  const accumulatedBreakSeconds = isThisTask ? store.accumulatedBreakSeconds : 0;
+  const accumulatedBreakSeconds = isThisTask
+    ? store.accumulatedBreakSeconds
+    : 0;
   const showBreakDialog = isThisTask && store.showBreakDialog;
   const showBreakEndDialog = isThisTask && store.showBreakEndDialog;
 
@@ -183,7 +193,7 @@ export default function PomodoroTimer({
     : POMODORO_DURATION - pomodoroSeconds;
   const progress = Math.max(
     0,
-    Math.min(((currentDuration - remainingTime) / currentDuration) * 100, 100)
+    Math.min(((currentDuration - remainingTime) / currentDuration) * 100, 100),
   );
   const circumference = 2 * Math.PI * 120;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
