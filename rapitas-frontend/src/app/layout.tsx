@@ -4,6 +4,7 @@ import "./globals.css";
 import Header from "@/components/header";
 import { Suspense } from "react";
 import { ToastProvider } from "@/components/ui/toast/toast-container";
+import { PomodoroProvider } from "@/feature/tasks/pomodoro/PomodoroProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,12 +31,14 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ToastProvider>
-          <Suspense fallback={<div className="h-16" />}>
-            <Header />
-          </Suspense>
-          {children}
-        </ToastProvider>
+        <PomodoroProvider>
+          <ToastProvider>
+            <Suspense fallback={<div className="h-16" />}>
+              <Header />
+            </Suspense>
+            {children}
+          </ToastProvider>
+        </PomodoroProvider>
       </body>
     </html>
   );

@@ -1,18 +1,14 @@
 "use client";
 import { TimeEntry } from "@/types";
-import { useState, useEffect, useRef } from "react";
-import {
-  Icon,
-  Circle,
-  Play,
-  Pause,
-  Square,
-  Timer,
-  Coffee,
-  Hourglass,
-} from "lucide-react";
-
+import { Icon, Circle, Play, Pause, Square, Coffee, Hourglass } from "lucide-react";
 import { fruit } from "@lucide/lab";
+import {
+  usePomodoroStore,
+  formatTime,
+  POMODORO_DURATION,
+  SHORT_BREAK,
+  LONG_BREAK,
+} from "../pomodoro/pomodoroStore";
 
 export type PomodoroStatus = {
   isRunning: boolean;
@@ -24,288 +20,46 @@ export type PomodoroStatus = {
 
 interface PomodoroTimerProps {
   taskId: number;
+  taskTitle?: string;
   estimatedHours?: number;
   actualHours?: number;
   timeEntries: TimeEntry[];
   onUpdate: () => void;
   onStatusChange?: (status: PomodoroStatus) => void;
+  showTaskTitle?: boolean;
 }
-
-const POMODORO_DURATION = 25 * 60; // 25分
-const SHORT_BREAK = 5 * 60; // 5分
-const LONG_BREAK = 15 * 60; // 15分
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
 export default function PomodoroTimer({
   taskId,
+  taskTitle,
   estimatedHours,
   actualHours,
   timeEntries,
   onUpdate,
   onStatusChange,
+  showTaskTitle = false,
 }: PomodoroTimerProps) {
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [timerStartTime, setTimerStartTime] = useState<Date | null>(null);
-  const [pausedElapsedSeconds, setPausedElapsedSeconds] = useState(0); // 一時停止時の累積時間
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [workSeconds, setWorkSeconds] = useState(0); // 実作業時間（休憩を除く）
-  const [pausedWorkSeconds, setPausedWorkSeconds] = useState(0); // 一時停止時の実作業時間
+  const store = usePomodoroStore();
 
-  // ポモドーロ関連
-  const [pomodoroSeconds, setPomodoroSeconds] = useState(0);
-  const [pausedPomodoroSeconds, setPausedPomodoroSeconds] = useState(0); // 一時停止時のポモドーロ秒数
-  const [isBreakTime, setIsBreakTime] = useState(false);
-  const [pomodoroCount, setPomodoroCount] = useState(0);
-  const [accumulatedBreakSeconds, setAccumulatedBreakSeconds] = useState(0);
+  // このタスクのタイマーかどうか
+  const isThisTask = store.taskId === taskId;
+  const isTimerRunning = isThisTask && store.isTimerRunning;
+  const isPaused = isThisTask && store.isPaused;
+  const isBreakTime = isThisTask && store.isBreakTime;
+  const pomodoroCount = isThisTask ? store.pomodoroCount : 0;
+  const pomodoroSeconds = isThisTask ? store.pomodoroSeconds : 0;
+  const workSeconds = isThisTask ? store.workSeconds : 0;
+  const accumulatedBreakSeconds = isThisTask ? store.accumulatedBreakSeconds : 0;
+  const showBreakDialog = isThisTask && store.showBreakDialog;
+  const showBreakEndDialog = isThisTask && store.showBreakEndDialog;
 
-  // ダイアログ
-  const [showBreakDialog, setShowBreakDialog] = useState(false);
-  const [showBreakEndDialog, setShowBreakEndDialog] = useState(false);
-  const [showOverageDialog, setShowOverageDialog] = useState(false);
-  const [overageReason, setOverageReason] = useState("");
-
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const audioIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // 音声ファイルは使用せず、常にWeb Audio APIを使用
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    // AudioContextを初期化
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (
-        window.AudioContext || (window as any).webkitAudioContext
-      )();
-    }
-  }, []);
-
-  // Web Audio APIで通知音を生成
-  const playNotificationSound = (type: "work" | "break") => {
-    if (typeof window === "undefined") return;
-
-    // 常にWeb Audio APIで生成した音を使用
-    playWebAudioBeep(type);
-  };
-
-  const playWebAudioBeep = (type: "work" | "break") => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (
-        window.AudioContext || (window as any).webkitAudioContext
-      )();
-    }
-
-    const context = audioContextRef.current;
-    if (!context) return;
-
-    // オシレーター（音源）を作成
-    const oscillator = context.createOscillator();
-    const gainNode = context.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(context.destination);
-
-    // 作業完了と休憩終了で異なる音を設定
-    if (type === "work") {
-      // 作業完了：高めの音で3回ビープ
-      const playBeep = (delay: number) => {
-        const osc = context.createOscillator();
-        const gain = context.createGain();
-        osc.connect(gain);
-        gain.connect(context.destination);
-        osc.frequency.value = 880; // A5 (高い音)
-        gain.gain.setValueAtTime(0.3, context.currentTime + delay);
-        gain.gain.exponentialRampToValueAtTime(
-          0.01,
-          context.currentTime + delay + 0.15,
-        );
-        osc.start(context.currentTime + delay);
-        osc.stop(context.currentTime + delay + 0.15);
-      };
-      playBeep(0);
-      playBeep(0.2);
-      playBeep(0.4);
-    } else {
-      // 休憩終了：低めの音で2回ビープ
-      const playBeep = (delay: number, frequency: number) => {
-        const osc = context.createOscillator();
-        const gain = context.createGain();
-        osc.connect(gain);
-        gain.connect(context.destination);
-        osc.frequency.value = frequency;
-        gain.gain.setValueAtTime(0.3, context.currentTime + delay);
-        gain.gain.exponentialRampToValueAtTime(
-          0.01,
-          context.currentTime + delay + 0.2,
-        );
-        osc.start(context.currentTime + delay);
-        osc.stop(context.currentTime + delay + 0.2);
-      };
-      playBeep(0, 660); // E5
-      playBeep(0.25, 523); // C5 (低い音)
-    }
-  };
-
-  const stopNotificationSound = () => {
-    if (audioIntervalRef.current) {
-      clearInterval(audioIntervalRef.current);
-      audioIntervalRef.current = null;
-    }
-  };
-
-  // 経過時間の更新（総時間）
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (
-      isTimerRunning &&
-      !isPaused &&
-      !showBreakDialog &&
-      !showBreakEndDialog &&
-      !showOverageDialog &&
-      timerStartTime
-    ) {
-      interval = setInterval(() => {
-        const elapsed =
-          Math.floor((Date.now() - timerStartTime.getTime()) / 1000) +
-          pausedElapsedSeconds;
-        setElapsedSeconds(elapsed);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [
-    isTimerRunning,
-    isPaused,
-    showBreakDialog,
-    showBreakEndDialog,
-    showOverageDialog,
-    timerStartTime,
-    pausedElapsedSeconds,
-  ]);
-
-  // 実作業時間の更新（休憩中は増えない）
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (
-      isTimerRunning &&
-      !isPaused &&
-      !showBreakDialog &&
-      !showBreakEndDialog &&
-      !showOverageDialog &&
-      !isBreakTime
-    ) {
-      interval = setInterval(() => {
-        setWorkSeconds((prev) => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [
-    isTimerRunning,
-    isPaused,
-    showBreakDialog,
-    showBreakEndDialog,
-    showOverageDialog,
-    isBreakTime,
-  ]);
-
-  // ポモドーロタイマー
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (
-      isTimerRunning &&
-      !isPaused &&
-      !showBreakDialog && // 休憩確認中は停止
-      !showBreakEndDialog && // 休憩終了確認中は停止
-      !showOverageDialog &&
-      !isBreakTime
-    ) {
-      interval = setInterval(() => {
-        setPomodoroSeconds((prev) => {
-          const newSeconds = prev + 1;
-          if (newSeconds >= POMODORO_DURATION) {
-            // 25分経過 - 休憩ダイアログ表示
-            setShowBreakDialog(true);
-            playNotificationSound("work");
-            return POMODORO_DURATION; // 正確に25分を表示
-          }
-          return newSeconds;
-        });
-      }, 1000);
-    } else if (
-      isTimerRunning &&
-      !isPaused &&
-      !showBreakDialog &&
-      !showBreakEndDialog &&
-      !showOverageDialog &&
-      isBreakTime
-    ) {
-      const breakDuration = pomodoroCount % 4 === 0 ? LONG_BREAK : SHORT_BREAK;
-      interval = setInterval(() => {
-        setPomodoroSeconds((prev) => {
-          const newSeconds = prev + 1;
-          if (newSeconds >= breakDuration) {
-            // 休憩終了 - ダイアログ表示
-            setShowBreakEndDialog(true);
-            playNotificationSound("break");
-            return breakDuration; // 正確に休憩時間を表示
-          }
-          return newSeconds;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [
-    isTimerRunning,
-    isPaused,
-    showBreakDialog,
-    showBreakEndDialog,
-    showOverageDialog,
-    isBreakTime,
-    pomodoroCount,
-  ]);
-  // 状態変更を親コンポーネントに通知
-  useEffect(() => {
-    if (onStatusChange) {
-      const remainingSeconds = isBreakTime
-        ? (pomodoroCount % 4 === 0 ? LONG_BREAK : SHORT_BREAK) - pomodoroSeconds
-        : POMODORO_DURATION - pomodoroSeconds;
-
-      onStatusChange({
-        isRunning: isTimerRunning,
-        isPaused: isPaused,
-        isBreak: isBreakTime,
-        pomodoroCount: pomodoroCount,
-        remainingSeconds: remainingSeconds,
-      });
-    }
-  }, [
-    isTimerRunning,
-    isPaused,
-    isBreakTime,
-    pomodoroCount,
-    pomodoroSeconds,
-    onStatusChange,
-  ]);
   const handleStartTimer = async () => {
     try {
-      // AudioContextを初期化（ユーザーの操作後なので自動再生が許可される）
-      if (typeof window !== "undefined" && !audioContextRef.current) {
-        audioContextRef.current = new (
-          window.AudioContext || (window as any).webkitAudioContext
-        )();
-      }
-
       // タイマー状態を開始
-      setIsTimerRunning(true);
-      setIsPaused(false);
-      setTimerStartTime(new Date());
-      setPomodoroSeconds(0);
-      setPausedPomodoroSeconds(0);
-      setElapsedSeconds(0);
-      setPausedElapsedSeconds(0);
-      setWorkSeconds(0);
-      setPausedWorkSeconds(0);
+      store.startTimer(taskId, taskTitle || "タスク");
 
       // タスクのstartedAtを更新
       await fetch(`${API_BASE}/tasks/${taskId}`, {
@@ -323,50 +77,24 @@ export default function PomodoroTimer({
   };
 
   const handlePauseTimer = () => {
-    setIsPaused(true);
-    setPausedElapsedSeconds(elapsedSeconds);
-    setPausedPomodoroSeconds(pomodoroSeconds);
-    setPausedWorkSeconds(workSeconds);
+    store.pauseTimer();
   };
 
   const handleResumeTimer = () => {
-    setIsPaused(false);
-    // 一時停止からの再開時、新しい開始時刻を設定
-    const now = new Date();
-    const adjustedStartTime = new Date(
-      now.getTime() - pausedElapsedSeconds * 1000,
-    );
-    setTimerStartTime(adjustedStartTime);
+    store.resumeTimer();
   };
 
   const handleStopTimer = async () => {
-    if (!timerStartTime) return;
+    if (!store.timerStartTime) return;
 
-    const workHours = workSeconds / 3600; // 実作業時間（h）
-    const breakHours = accumulatedBreakSeconds / 3600; // 休憩時間（h）
+    const workHours = workSeconds / 3600;
+    const breakHours = accumulatedBreakSeconds / 3600;
 
     const newActualHours = (actualHours || 0) + workHours;
-    const isOverage = estimatedHours && newActualHours > estimatedHours;
-
-    // タイマー状態をすぐにリセット
-    setIsTimerRunning(false);
-    setIsPaused(false);
-
-    if (isOverage) {
-      // 見積もり超過 - 理由を聞く
-      setShowOverageDialog(true);
-    } else {
-      // 通常停止 - 自動保存
-      await saveTimeEntry("", breakHours);
-    }
-  };
-
-  const saveTimeEntry = async (note: string, breakHours: number) => {
-    if (!timerStartTime) return;
 
     try {
       const endTime = new Date();
-      const workHours = workSeconds / 3600;
+      const startTime = new Date(store.timerStartTime);
 
       await fetch(`${API_BASE}/tasks/${taskId}/time-entries`, {
         method: "POST",
@@ -374,133 +102,119 @@ export default function PomodoroTimer({
         body: JSON.stringify({
           duration: workHours,
           breakDuration: breakHours,
-          note: note || undefined,
-          startedAt: timerStartTime.toISOString(),
+          note: undefined,
+          startedAt: startTime.toISOString(),
           endedAt: endTime.toISOString(),
         }),
       });
 
-      // タスクのactualHoursを更新
+      await fetch(`${API_BASE}/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actualHours: newActualHours,
+          startedAt: null,
+        }),
+      });
+
+      store.stopTimer();
+      onUpdate();
+    } catch (err) {
+      console.error("Failed to stop timer:", err);
+    }
+  };
+
+  const handleCompleteTask = async () => {
+    if (!store.timerStartTime || isBreakTime) return;
+
+    const workHours = workSeconds / 3600;
+    const breakHours = accumulatedBreakSeconds / 3600;
+
+    try {
+      const endTime = new Date();
+      const startTime = new Date(store.timerStartTime);
+
+      await fetch(`${API_BASE}/tasks/${taskId}/time-entries`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          duration: workHours,
+          breakDuration: breakHours,
+          note: "タスク完了",
+          startedAt: startTime.toISOString(),
+          endedAt: endTime.toISOString(),
+        }),
+      });
+
       await fetch(`${API_BASE}/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           actualHours: (actualHours || 0) + workHours,
+          status: "done",
           startedAt: null,
         }),
       });
 
-      // リセット
-      setIsTimerRunning(false);
-      setTimerStartTime(null);
-      setElapsedSeconds(0);
-      setWorkSeconds(0);
-      setPausedWorkSeconds(0);
-      setPomodoroSeconds(0);
-      setAccumulatedBreakSeconds(0);
-      setPomodoroCount(0);
-      setIsBreakTime(false);
-      setOverageReason("");
-      setShowOverageDialog(false);
-
+      store.stopTimer();
       onUpdate();
     } catch (err) {
-      console.error("Failed to save time entry:", err);
+      console.error("Failed to complete task:", err);
     }
   };
 
   const handleTakeBreak = () => {
-    setPomodoroCount((c) => c + 1);
-    setIsBreakTime(true);
-    setPomodoroSeconds(0);
-    setShowBreakDialog(false);
-    // 音声を停止
-    stopNotificationSound();
-    // ダイアログを閉じた時点からタイマーを再開するため、開始時刻を調整
-    if (timerStartTime) {
-      const now = new Date();
-      const adjustedStartTime = new Date(now.getTime() - elapsedSeconds * 1000);
-      setTimerStartTime(adjustedStartTime);
-    }
+    store.takeBreak();
   };
 
   const handleSkipBreak = () => {
-    setPomodoroCount((c) => c + 1);
-    setPomodoroSeconds(0);
-    setShowBreakDialog(false);
-    // 音声を停止
-    stopNotificationSound();
-    // ダイアログを閉じた時点からタイマーを再開するため、開始時刻を調整
-    if (timerStartTime) {
-      const now = new Date();
-      const adjustedStartTime = new Date(now.getTime() - elapsedSeconds * 1000);
-      setTimerStartTime(adjustedStartTime);
-    }
+    store.skipBreak();
   };
 
   const handleBreakEnd = () => {
-    console.log("🔄 Handling break end");
-    // 休憩時間を累積に加算
-    const breakDuration = pomodoroCount % 4 === 0 ? LONG_BREAK : SHORT_BREAK;
-    setAccumulatedBreakSeconds((acc) => acc + breakDuration);
-
-    setIsBreakTime(false);
-    setPomodoroSeconds(0);
-    setShowBreakEndDialog(false);
-    // 音声を停止
-    stopNotificationSound();
-    // タイマーを調整
-    if (timerStartTime) {
-      const now = new Date();
-      const adjustedStartTime = new Date(now.getTime() - elapsedSeconds * 1000);
-      setTimerStartTime(adjustedStartTime);
-    }
+    store.endBreak();
   };
-
-  const formatTime = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    if (hrs > 0) {
-      return `${hrs}:${mins.toString().padStart(2, "0")}:${secs
-        .toString()
-        .padStart(2, "0")}`;
-    }
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  const remainingHours =
-    estimatedHours && actualHours
-      ? Math.max(0, estimatedHours - actualHours)
-      : estimatedHours || 0;
-
-  const progressPercent =
-    estimatedHours && actualHours
-      ? Math.min((actualHours / estimatedHours) * 100, 100)
-      : 0;
-
-  const totalBreakHours =
-    timeEntries.reduce((sum, entry) => sum + (entry.breakDuration || 0), 0) +
-    accumulatedBreakSeconds / 3600;
-
-  const breakType =
-    pomodoroCount > 0 && pomodoroCount % 4 === 0 ? "長い休憩" : "短い休憩";
-  const breakDuration = pomodoroCount % 4 === 0 ? LONG_BREAK : SHORT_BREAK;
 
   // 円形プログレスバー用の計算
+  const breakDuration = pomodoroCount % 4 === 0 ? LONG_BREAK : SHORT_BREAK;
   const currentDuration = isBreakTime ? breakDuration : POMODORO_DURATION;
   const remainingTime = isBreakTime
     ? breakDuration - pomodoroSeconds
     : POMODORO_DURATION - pomodoroSeconds;
   const progress = Math.max(
     0,
-    Math.min(((currentDuration - remainingTime) / currentDuration) * 100, 100),
-  ); // 0-100%の範囲に制限
-  const circumference = 2 * Math.PI * 120; // 半径120の円周
+    Math.min(((currentDuration - remainingTime) / currentDuration) * 100, 100)
+  );
+  const circumference = 2 * Math.PI * 120;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
+
+  const breakType =
+    pomodoroCount > 0 && pomodoroCount % 4 === 0 ? "長い休憩" : "短い休憩";
+
+  // 別のタスクでタイマーが動いている場合
+  const isOtherTaskRunning = store.isTimerRunning && !isThisTask;
 
   return (
     <div className="flex flex-col items-center py-8">
+      {/* タスク名表示（グローバル表示時のみ） */}
+      {showTaskTitle && store.taskTitle && (
+        <div className="mb-4 text-sm text-zinc-600 dark:text-zinc-400 w-full text-center">
+          タスク:{" "}
+          <span className="font-semibold text-zinc-900 dark:text-zinc-50">
+            {store.taskTitle}
+          </span>
+        </div>
+      )}
+
+      {/* 別のタスクでタイマーが動いている場合の警告 */}
+      {isOtherTaskRunning && (
+        <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-950 rounded-xl border border-yellow-500 text-center">
+          <p className="text-sm text-yellow-700 dark:text-yellow-300">
+            別のタスク「{store.taskTitle}」でタイマーが動作中です
+          </p>
+        </div>
+      )}
+
       {/* 作業時間と休憩時間 */}
       <div className="flex gap-4 mb-4 text-sm text-zinc-600 dark:text-zinc-400">
         <div className="flex items-center gap-1">
@@ -515,9 +229,7 @@ export default function PomodoroTimer({
 
       {/* 円形プログレスバーとタイマー */}
       <div className="relative mb-8">
-        {/* SVG円形プログレスバー */}
         <svg className="w-64 h-64 transform -rotate-90">
-          {/* 背景の円 */}
           <circle
             cx="128"
             cy="128"
@@ -527,7 +239,6 @@ export default function PomodoroTimer({
             fill="none"
             className="text-zinc-200 dark:text-zinc-800"
           />
-          {/* プログレスの円 */}
           <circle
             cx="128"
             cy="128"
@@ -548,7 +259,6 @@ export default function PomodoroTimer({
           />
         </svg>
 
-        {/* 中央のタイマー表示 */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           {/* ポモドーロカウンター */}
           <div className="flex gap-2 mb-8">
@@ -563,11 +273,7 @@ export default function PomodoroTimer({
             ))}
           </div>
           <div className="text-6xl font-bold font-mono text-zinc-900 dark:text-zinc-50">
-            {formatTime(
-              isBreakTime
-                ? breakDuration - pomodoroSeconds
-                : POMODORO_DURATION - pomodoroSeconds,
-            )}
+            {formatTime(remainingTime)}
           </div>
           <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
             {isBreakTime
@@ -649,6 +355,23 @@ export default function PomodoroTimer({
                 </button>
               )}
               <button
+                onClick={handleCompleteTask}
+                className="flex items-center gap-2 px-8 py-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold transition-all"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                完了
+              </button>
+              <button
                 onClick={handleStopTimer}
                 className="flex items-center gap-2 px-8 py-4 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold transition-all"
               >
@@ -659,45 +382,13 @@ export default function PomodoroTimer({
           ) : (
             <button
               onClick={handleStartTimer}
-              className="flex items-center gap-2 px-12 py-5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-lg transition-all"
+              disabled={isOtherTaskRunning}
+              className="flex items-center gap-2 px-12 py-5 bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-400 disabled:cursor-not-allowed text-white rounded-xl font-bold text-lg transition-all"
             >
               <Play className="w-6 h-6" />
               開始
             </button>
           )}
-        </div>
-      )}
-
-      {/* 見積もり超過ダイアログ */}
-      {showOverageDialog && (
-        <div className="mt-6 p-6 bg-orange-50 dark:bg-orange-950 rounded-xl border-2 border-orange-500">
-          <div className="text-center mb-4">
-            <div className="text-lg font-semibold text-orange-700 dark:text-orange-300 mb-2">
-              見積もり時間を超過
-            </div>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-              予定より時間がかかった理由を記録してください
-            </p>
-          </div>
-          <textarea
-            value={overageReason}
-            onChange={(e) => setOverageReason(e.target.value)}
-            placeholder="例: 仕様変更、想定外のバグ、調査に時間..."
-            className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-orange-500 mb-4"
-            rows={3}
-          />
-          <button
-            onClick={() =>
-              saveTimeEntry(
-                overageReason || "見積もり超過",
-                accumulatedBreakSeconds / 3600,
-              )
-            }
-            disabled={!overageReason.trim()}
-            className="w-full px-6 py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors"
-          >
-            記録する
-          </button>
         </div>
       )}
     </div>

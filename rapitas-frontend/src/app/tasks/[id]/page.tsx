@@ -6,10 +6,13 @@ import { Timer, Coffee, Pause, Square, Flame, Hourglass } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { createMarkdownComponents } from "@/feature/tasks/components/markdown-components";
-import PomodoroTimer, {
-  PomodoroStatus,
-} from "@/feature/tasks/components/pomodoro-timer";
+import PomodoroTimer from "@/feature/tasks/components/pomodoro-timer";
 import Button from "@/components/ui/button";
+import {
+  usePomodoro,
+  formatTime,
+  getRemainingTime,
+} from "@/feature/tasks/pomodoro/PomodoroProvider";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -96,13 +99,10 @@ export default function TaskDetailPage() {
 
   // ポモドーロモーダル用の状態
   const [showPomodoroModal, setShowPomodoroModal] = useState(false);
-  const [pomodoroStatus, setPomodoroStatus] = useState<PomodoroStatus>({
-    isRunning: false,
-    isPaused: false,
-    isBreak: false,
-    pomodoroCount: 0,
-    remainingSeconds: 0,
-  });
+  const { state: pomodoroState } = usePomodoro();
+
+  // このタスクのタイマーかどうか
+  const isThisTaskTimer = pomodoroState.taskId === task?.id;
 
   // サブタスクの計算
   const totalSubtasks = task?.subtasks?.length || 0;
@@ -176,13 +176,15 @@ export default function TaskDetailPage() {
       setTask((prev) => {
         if (!prev) return prev;
         if (prev.id === taskId) {
-          return { ...prev, status: newStatus };
+          return { ...prev, status: newStatus as Task["status"] };
         }
         if (prev.subtasks) {
           return {
             ...prev,
             subtasks: prev.subtasks.map((st) =>
-              st.id === taskId ? { ...st, status: newStatus } : st,
+              st.id === taskId
+                ? { ...st, status: newStatus as Task["status"] }
+                : st,
             ),
           };
         }
@@ -457,37 +459,42 @@ export default function TaskDetailPage() {
           <div className="flex items-center gap-2 ml-auto">
             <button
               onClick={() => setShowPomodoroModal(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 border rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors ${
+                isThisTaskTimer && pomodoroState.isTimerRunning
+                  ? pomodoroState.isBreakTime
+                    ? "bg-green-50 dark:bg-green-950 border-green-300 dark:border-green-700"
+                    : pomodoroState.isPaused
+                      ? "bg-orange-50 dark:bg-orange-950 border-orange-300 dark:border-orange-700"
+                      : "bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-700"
+                  : "bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700"
+              }`}
               title={
-                pomodoroStatus.isRunning
-                  ? pomodoroStatus.isBreak
+                isThisTaskTimer && pomodoroState.isTimerRunning
+                  ? pomodoroState.isBreakTime
                     ? "休憩中"
-                    : "作業中"
+                    : pomodoroState.isPaused
+                      ? "一時停止中"
+                      : "作業中"
                   : "タイマー停止中"
               }
             >
-              {pomodoroStatus.isRunning ? (
-                pomodoroStatus.isBreak ? (
-                  <Coffee className="w-4 h-4 text-orange-500" />
-                ) : pomodoroStatus.isPaused ? (
-                  <Pause className="w-4 h-4 text-yellow-500" />
+              {isThisTaskTimer && pomodoroState.isTimerRunning ? (
+                pomodoroState.isBreakTime ? (
+                  <Coffee className="w-4 h-4 text-green-500" />
+                ) : pomodoroState.isPaused ? (
+                  <Pause className="w-4 h-4 text-orange-500" />
                 ) : (
-                  <Hourglass className="w-4 h-4 text-blue-500" />
+                  <Hourglass className="w-4 h-4 text-blue-500 animate-pulse" />
                 )
               ) : (
                 <Timer className="w-4 h-4 text-zinc-400" />
               )}
               時間管理
-              {pomodoroStatus.isRunning &&
-                pomodoroStatus.remainingSeconds > 0 && (
-                  <span className="text-xs font-mono">
-                    {Math.floor(pomodoroStatus.remainingSeconds / 60)}:
-                    {String(pomodoroStatus.remainingSeconds % 60).padStart(
-                      2,
-                      "0",
-                    )}
-                  </span>
-                )}
+              {isThisTaskTimer && pomodoroState.isTimerRunning && (
+                <span className="text-xs font-mono tabular-nums">
+                  {formatTime(getRemainingTime(pomodoroState))}
+                </span>
+              )}
             </button>
             {!isEditing ? (
               <>
@@ -1184,6 +1191,7 @@ export default function TaskDetailPage() {
             <div className="p-6">
               <PomodoroTimer
                 taskId={task.id}
+                taskTitle={task.title}
                 estimatedHours={task.estimatedHours ?? undefined}
                 actualHours={task.actualHours ?? undefined}
                 timeEntries={timeEntries}
@@ -1196,7 +1204,7 @@ export default function TaskDetailPage() {
                     .then((res) => res.json())
                     .then((data) => setTimeEntries(data));
                 }}
-                onStatusChange={setPomodoroStatus}
+                showTaskTitle={false}
               />
             </div>
           </div>

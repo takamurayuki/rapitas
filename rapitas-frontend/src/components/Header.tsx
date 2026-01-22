@@ -19,6 +19,7 @@ import {
   Search,
 } from "lucide-react";
 import AppIcon from "@/components/app-icon";
+import GlobalPomodoroWidget from "@/feature/tasks/pomodoro/GlobalPomodoroWidget";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -165,32 +166,37 @@ export default function Header() {
             </div>
 
             {/* 表示切り替えボタン（タスク一覧/カンバンページのみ表示） */}
-            {(pathname === "/" || pathname === "/kanban") && (
-              <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
-                <button
-                  onClick={() => isListView || toggleView()}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    isListView
-                      ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm"
-                      : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50"
-                  }`}
-                >
-                  <List className="w-4 h-4" />
-                  <span>リスト</span>
-                </button>
-                <button
-                  onClick={() => !isListView || toggleView()}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    !isListView
-                      ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm"
-                      : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50"
-                  }`}
-                >
-                  <Columns3 className="w-4 h-4" />
-                  <span>カンバン</span>
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {/* ポモドーロタイマー表示 */}
+              <GlobalPomodoroWidget />
+
+              {(pathname === "/" || pathname === "/kanban") && (
+                <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
+                  <button
+                    onClick={() => isListView || toggleView()}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                      isListView
+                        ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm"
+                        : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50"
+                    }`}
+                  >
+                    <List className="w-4 h-4" />
+                    <span>リスト</span>
+                  </button>
+                  <button
+                    onClick={() => !isListView || toggleView()}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                      !isListView
+                        ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm"
+                        : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50"
+                    }`}
+                  >
+                    <Columns3 className="w-4 h-4" />
+                    <span>カンバン</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>

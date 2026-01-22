@@ -48,7 +48,7 @@ export default function TaskSlidePanel({
     <>
       {/* オーバーレイ */}
       <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300"
+        className="fixed inset-0 z-40"
         onClick={onClose}
         style={{ animation: isOpen ? "fadeIn 0.3s" : "fadeOut 0.3s" }}
       />
