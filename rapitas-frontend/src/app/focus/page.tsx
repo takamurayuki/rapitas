@@ -14,6 +14,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
+import { useToast } from "@/components/ui/toast/toast-container";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -23,6 +24,7 @@ type FocusMode = "work" | "break";
 export default function FocusPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showToast } = useToast();
   const taskId = searchParams.get("taskId");
 
   const [task, setTask] = useState<Task | null>(null);
@@ -104,24 +106,29 @@ export default function FocusPage() {
   };
 
   const saveTimeEntry = async () => {
-    if (!taskId || !startTime) return;
-
     const endTime = new Date();
     const duration = (customWorkTime / 60); // 時間単位
 
     try {
-      await fetch(`${API_BASE}/tasks/${taskId}/time-entries`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          duration,
-          startedAt: startTime.toISOString(),
-          endedAt: endTime.toISOString(),
-          note: `フォーカスセッション ${sessionsCompleted + 1}`,
-        }),
-      });
+      // タスクに紐づいている場合は時間を記録
+      if (taskId && startTime) {
+        const res = await fetch(`${API_BASE}/tasks/${taskId}/time-entries`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            duration,
+            startedAt: startTime.toISOString(),
+            endedAt: endTime.toISOString(),
+            note: `フォーカスセッション ${sessionsCompleted + 1}`,
+          }),
+        });
 
-      // ストリーク記録
+        if (res.ok) {
+          showToast(`${customWorkTime}分の作業時間を記録しました`, "success");
+        }
+      }
+
+      // ストリーク記録（タスクがなくても記録）
       await fetch(`${API_BASE}/study-streaks/record`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -131,9 +138,18 @@ export default function FocusPage() {
       });
 
       // 実績チェック
-      await fetch(`${API_BASE}/achievements/check`, { method: "POST" });
+      const achievementRes = await fetch(`${API_BASE}/achievements/check`, { method: "POST" });
+      if (achievementRes.ok) {
+        const { newlyUnlocked } = await achievementRes.json();
+        if (newlyUnlocked && newlyUnlocked.length > 0) {
+          newlyUnlocked.forEach((achievement: any) => {
+            showToast(`🏆 「${achievement.name}」を獲得しました！`, "success");
+          });
+        }
+      }
     } catch (e) {
       console.error("Failed to save time entry:", e);
+      showToast("時間の記録に失敗しました", "error");
     }
   };
 
@@ -189,14 +205,20 @@ export default function FocusPage() {
   const completeTask = async () => {
     if (!taskId) return;
     try {
-      await fetch(`${API_BASE}/tasks/${taskId}`, {
+      const res = await fetch(`${API_BASE}/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "done" }),
       });
-      router.push("/");
+      if (res.ok) {
+        showToast("タスクを完了しました！", "success");
+        router.push("/");
+      } else {
+        showToast("タスクの完了に失敗しました", "error");
+      }
     } catch (e) {
       console.error("Failed to complete task:", e);
+      showToast("エラーが発生しました", "error");
     }
   };
 

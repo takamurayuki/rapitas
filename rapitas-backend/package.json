@@ -11,6 +11,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
     "@elysiajs/cors": "^1.4.0",
     "@prisma/client": "^6.19.0",
     "elysia": "^1.4.15"

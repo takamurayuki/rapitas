@@ -144,6 +144,12 @@ export type Task = {
   examGoal?: ExamGoal | null;
   timeEntries?: TimeEntry[];
   comments?: Comment[];
+  // 開発者モード関連
+  isDeveloperMode?: boolean;
+  agentGenerated?: boolean;
+  agentExecutable?: boolean;
+  executionInstructions?: string | null;
+  developerModeConfig?: DeveloperModeConfig | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -306,4 +312,352 @@ export type WeeklyReport = {
     subject: string | null;
     count: number;
   }[];
+};
+
+// ==================== 開発者モード関連 ====================
+
+export type DeveloperModeConfig = {
+  id: number;
+  taskId: number;
+  isEnabled: boolean;
+  autoApprove: boolean;
+  notifyInApp: boolean;
+  maxSubtasks: number;
+  priority: "aggressive" | "balanced" | "conservative";
+  createdAt: string;
+  updatedAt: string;
+  agentSessions?: AgentSession[];
+  approvalRequests?: ApprovalRequest[];
+};
+
+export type AgentSession = {
+  id: number;
+  configId: number;
+  status: "pending" | "running" | "paused" | "completed" | "failed";
+  startedAt?: string | null;
+  completedAt?: string | null;
+  lastActivityAt: string;
+  totalTokensUsed: number;
+  errorMessage?: string | null;
+  metadata?: any;
+  agentActions?: AgentAction[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AgentAction = {
+  id: number;
+  sessionId: number;
+  actionType: string;
+  targetTaskId?: number | null;
+  input?: any;
+  output?: any;
+  tokensUsed: number;
+  durationMs?: number | null;
+  status: string;
+  errorMessage?: string | null;
+  createdAt: string;
+};
+
+export type SubtaskProposal = {
+  title: string;
+  description: string;
+  estimatedHours?: number;
+  priority: Priority;
+  order: number;
+  dependencies?: number[];
+};
+
+export type TaskAnalysisResult = {
+  summary: string;
+  complexity: "simple" | "medium" | "complex";
+  estimatedTotalHours: number;
+  suggestedSubtasks: SubtaskProposal[];
+  reasoning: string;
+  tips?: string[];
+};
+
+export type ApprovalRequest = {
+  id: number;
+  configId: number;
+  config?: DeveloperModeConfig & { task?: Task };
+  requestType: "subtask_creation" | "task_execution" | "task_completion";
+  title: string;
+  description?: string | null;
+  proposedChanges: {
+    subtasks?: SubtaskProposal[];
+    reasoning?: string;
+    tips?: string[];
+    complexity?: string;
+    estimatedTotalHours?: number;
+  };
+  status: "pending" | "approved" | "rejected" | "expired";
+  expiresAt?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
+  notificationSent: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Notification = {
+  id: number;
+  type: "approval_request" | "task_completed" | "agent_error" | "daily_summary";
+  title: string;
+  message: string;
+  link?: string | null;
+  isRead: boolean;
+  readAt?: string | null;
+  metadata?: any;
+  createdAt: string;
+};
+
+export type UserSettings = {
+  id: number;
+  developerModeDefault: boolean;
+  claudeApiKeyConfigured?: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// ==================== AI駆動開発モード関連 ====================
+
+// AI エージェント設定
+export type AIAgentConfig = {
+  id: number;
+  agentType: string; // claude-code, codex, gemini, custom
+  name: string;
+  endpoint?: string | null;
+  modelId?: string | null;
+  isDefault: boolean;
+  isActive: boolean;
+  capabilities: AgentCapability;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { executions: number };
+};
+
+export type AgentCapability = {
+  codeGeneration: boolean;
+  codeReview: boolean;
+  taskAnalysis: boolean;
+  fileOperations: boolean;
+  terminalAccess: boolean;
+  gitOperations?: boolean;
+  webSearch?: boolean;
+};
+
+export type AgentType = "claude-code" | "codex" | "gemini" | "custom";
+
+// エージェント実行
+export type AgentExecution = {
+  id: number;
+  sessionId: number;
+  agentConfigId?: number | null;
+  agentConfig?: AIAgentConfig;
+  command: string;
+  status: AgentExecutionStatus;
+  output?: string | null;
+  artifacts?: AgentArtifact[] | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  tokensUsed: number;
+  executionTimeMs?: number | null;
+  errorMessage?: string | null;
+  createdAt: string;
+  gitCommits?: GitCommit[];
+};
+
+export type AgentExecutionStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type AgentArtifact = {
+  type: "file" | "code" | "diff" | "log";
+  name: string;
+  content: string;
+  path?: string;
+};
+
+// Git コミット追跡
+export type GitCommit = {
+  id: number;
+  executionId: number;
+  commitHash: string;
+  message: string;
+  branch: string;
+  filesChanged: number;
+  additions: number;
+  deletions: number;
+  createdAt: string;
+};
+
+// ==================== GitHub連携関連 ====================
+
+export type GitHubIntegration = {
+  id: number;
+  repositoryUrl: string;
+  repositoryName: string;
+  ownerName: string;
+  isActive: boolean;
+  syncIssues: boolean;
+  syncPullRequests: boolean;
+  autoLinkTasks: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    pullRequests: number;
+    issues: number;
+  };
+};
+
+export type GitHubPullRequest = {
+  id: number;
+  integrationId: number;
+  integration?: GitHubIntegration;
+  prNumber: number;
+  title: string;
+  body?: string | null;
+  state: "open" | "closed" | "merged";
+  headBranch: string;
+  baseBranch: string;
+  authorLogin: string;
+  url: string;
+  linkedTaskId?: number | null;
+  lastSyncedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  reviews?: GitHubPRReview[];
+  comments?: GitHubPRComment[];
+  _count?: {
+    reviews: number;
+    comments: number;
+  };
+};
+
+export type GitHubPRReview = {
+  id: number;
+  pullRequestId: number;
+  reviewId: number;
+  state: "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "PENDING";
+  body?: string | null;
+  authorLogin: string;
+  submittedAt: string;
+  createdAt: string;
+};
+
+export type GitHubPRComment = {
+  id: number;
+  pullRequestId: number;
+  commentId: number;
+  body: string;
+  path?: string | null;
+  line?: number | null;
+  authorLogin: string;
+  isFromRapitas: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GitHubIssue = {
+  id: number;
+  integrationId: number;
+  integration?: GitHubIntegration;
+  issueNumber: number;
+  title: string;
+  body?: string | null;
+  state: "open" | "closed";
+  labels: string[];
+  authorLogin: string;
+  url: string;
+  linkedTaskId?: number | null;
+  lastSyncedAt: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FileDiff = {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patch?: string;
+};
+
+// ==================== リアルタイム通信関連 ====================
+
+export type SSEEvent = {
+  type: string;
+  data: unknown;
+  id?: string;
+  timestamp: string;
+};
+
+export type ExecutionOutputEvent = {
+  executionId: number;
+  output: string;
+  isError: boolean;
+  timestamp: string;
+};
+
+export type ExecutionStatusEvent = {
+  executionId: number;
+  status: AgentExecutionStatus;
+  timestamp: string;
+};
+
+export type GitHubEventData = {
+  action: string;
+  prNumber?: number;
+  issueNumber?: number;
+  title?: string;
+  repo: string;
+  timestamp: string;
+};
+
+// ==================== 拡張された通知タイプ ====================
+
+export type NotificationType =
+  | "approval_request"
+  | "task_completed"
+  | "agent_error"
+  | "daily_summary"
+  | "pr_review_requested"
+  | "pr_approved"
+  | "pr_changes_requested"
+  | "agent_execution_started"
+  | "agent_execution_complete"
+  | "github_sync_complete";
+
+// ==================== 拡張されたTask型 ====================
+
+export type TaskWithGitHub = Task & {
+  githubIssueId?: number | null;
+  githubPrId?: number | null;
+  autoExecutable?: boolean;
+  requireApproval?: "always" | "major_only" | "never";
+  githubIssue?: GitHubIssue;
+  githubPr?: GitHubPullRequest;
+};
+
+// ==================== 拡張された承認リクエスト型 ====================
+
+export type ApprovalRequestExtended = ApprovalRequest & {
+  executionType?: "code_execution" | "pr_merge" | "deployment" | null;
+  estimatedChanges?: {
+    files?: string[];
+    additions?: number;
+    deletions?: number;
+  } | null;
+};
+
+// ==================== 拡張されたDeveloperModeConfig型 ====================
+
+export type DeveloperModeConfigExtended = DeveloperModeConfig & {
+  requireApproval?: "always" | "major_only" | "never";
+  autoExecuteOn?: string[];
 };

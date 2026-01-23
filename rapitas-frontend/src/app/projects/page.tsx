@@ -3,8 +3,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { Project } from "@/types";
+import { useToast } from "@/components/ui/toast/toast-container";
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
 export default function ProjectsPage() {
+  const { showToast } = useToast();
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,11 +43,12 @@ export default function ProjectsPage() {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetch("http://localhost:3001/projects");
+      const res = await fetch(`${API_BASE}/projects`);
       const data = await res.json();
       setProjects(data);
     } catch (error) {
       console.error("Failed to fetch projects:", error);
+      showToast("プロジェクトの取得に失敗しました", "error");
     } finally {
       setIsLoading(false);
     }
@@ -54,7 +60,7 @@ export default function ProjectsPage() {
       if (editingProject) {
         // 編集
         const res = await fetch(
-          `http://localhost:3001/projects/${editingProject.id}`,
+          `${API_BASE}/projects/${editingProject.id}`,
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -64,10 +70,13 @@ export default function ProjectsPage() {
         if (res.ok) {
           await fetchProjects();
           handleCloseModal();
+          showToast("プロジェクトを更新しました", "success");
+        } else {
+          showToast("プロジェクトの更新に失敗しました", "error");
         }
       } else {
         // 新規作成
-        const res = await fetch("http://localhost:3001/projects", {
+        const res = await fetch(`${API_BASE}/projects`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(formData),
@@ -75,10 +84,14 @@ export default function ProjectsPage() {
         if (res.ok) {
           await fetchProjects();
           handleCloseModal();
+          showToast("プロジェクトを作成しました", "success");
+        } else {
+          showToast("プロジェクトの作成に失敗しました", "error");
         }
       }
     } catch (error) {
       console.error("Failed to save project:", error);
+      showToast("エラーが発生しました", "error");
     }
   };
 
@@ -91,14 +104,18 @@ export default function ProjectsPage() {
       return;
     }
     try {
-      const res = await fetch(`http://localhost:3001/projects/${id}`, {
+      const res = await fetch(`${API_BASE}/projects/${id}`, {
         method: "DELETE",
       });
       if (res.ok) {
         await fetchProjects();
+        showToast("プロジェクトを削除しました", "success");
+      } else {
+        showToast("プロジェクトの削除に失敗しました", "error");
       }
     } catch (error) {
       console.error("Failed to delete project:", error);
+      showToast("エラーが発生しました", "error");
     }
   };
 

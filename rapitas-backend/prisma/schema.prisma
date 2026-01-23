@@ -50,36 +50,47 @@ model Milestone {
 }
 
 model Task {
-  id              Int           @id @default(autoincrement())
-  title           String
-  description     String?
-  status          String        @default("todo")
-  priority        String        @default("medium") // low, medium, high, urgent
-  labels          String[]      @default([])
-  estimatedHours  Float?
-  actualHours     Float?        // 実績時間
-  dueDate         DateTime?     // 締め切り日
-  subject         String?       // 科目（学習タスク用）
-  startedAt       DateTime?     // 作業開始時刻
-  completedAt     DateTime?     // 完了時刻
-  parentId        Int?
-  parent          Task?         @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
-  subtasks        Task[]        @relation("TaskSubtasks")
-  themeId         Int?
-  theme           Theme?        @relation(fields: [themeId], references: [id], onDelete: SetNull)
-  projectId       Int?
-  project         Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  milestoneId     Int?
-  milestone       Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
-  examGoalId      Int?
-  examGoal        ExamGoal?     @relation(fields: [examGoalId], references: [id], onDelete: SetNull)
-  timeEntries     TimeEntry[]
-  comments        Comment[]
-  activityLogs    ActivityLog[]
-  taskLabels      TaskLabel[]
-  resources       Resource[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id                    Int           @id @default(autoincrement())
+  title                 String
+  description           String?
+  status                String        @default("todo")
+  priority              String        @default("medium") // low, medium, high, urgent
+  labels                String[]      @default([])
+  estimatedHours        Float?
+  actualHours           Float?        // 実績時間
+  dueDate               DateTime?     // 締め切り日
+  subject               String?       // 科目（学習タスク用）
+  startedAt             DateTime?     // 作業開始時刻
+  completedAt           DateTime?     // 完了時刻
+  parentId              Int?
+  parent                Task?         @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks              Task[]        @relation("TaskSubtasks")
+  themeId               Int?
+  theme                 Theme?        @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  projectId             Int?
+  project               Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  milestoneId           Int?
+  milestone             Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  examGoalId            Int?
+  examGoal              ExamGoal?     @relation(fields: [examGoalId], references: [id], onDelete: SetNull)
+  timeEntries           TimeEntry[]
+  comments              Comment[]
+  activityLogs          ActivityLog[]
+  taskLabels            TaskLabel[]
+  resources             Resource[]
+  // 開発者モード関連
+  isDeveloperMode       Boolean       @default(false)
+  agentGenerated        Boolean       @default(false)
+  agentExecutable       Boolean       @default(false)
+  executionInstructions String?
+  developerModeConfig   DeveloperModeConfig?
+  // GitHub連携
+  githubIssueId         Int?
+  githubPrId            Int?
+  autoExecutable        Boolean       @default(false)
+  requireApproval       String        @default("always") // always, major_only, never
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 }
 
 model TimeEntry {
@@ -282,4 +293,246 @@ model TaskTemplate {
   useCount      Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+// ==================== 開発者モード機能 ====================
+
+// 開発者モード設定
+model DeveloperModeConfig {
+  id                Int       @id @default(autoincrement())
+  taskId            Int       @unique
+  task              Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  isEnabled         Boolean   @default(true)
+  autoApprove       Boolean   @default(false)
+  notifyInApp       Boolean   @default(true)
+  maxSubtasks       Int       @default(10)
+  priority          String    @default("balanced") // aggressive, balanced, conservative
+  // 追加: 承認設定
+  requireApproval   String    @default("always") // always, major_only, never
+  autoExecuteOn     String[]  @default([])       // ["subtask_creation", "code_generation"]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  agentSessions     AgentSession[]
+  approvalRequests  ApprovalRequest[]
+}
+
+// AIエージェントセッション
+model AgentSession {
+  id                Int       @id @default(autoincrement())
+  configId          Int
+  config            DeveloperModeConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  status            String    @default("pending") // pending, running, paused, completed, failed
+  startedAt         DateTime?
+  completedAt       DateTime?
+  lastActivityAt    DateTime  @default(now())
+  totalTokensUsed   Int       @default(0)
+  errorMessage      String?
+  metadata          Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  agentActions      AgentAction[]
+  agentExecutions   AgentExecution[]
+}
+
+// AIアクション履歴
+model AgentAction {
+  id                Int       @id @default(autoincrement())
+  sessionId         Int
+  session           AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  actionType        String    // task_created, task_updated, task_completed, subtask_created, analysis
+  targetTaskId      Int?
+  input             Json?
+  output            Json?
+  tokensUsed        Int       @default(0)
+  durationMs        Int?
+  status            String    @default("success")
+  errorMessage      String?
+  createdAt         DateTime  @default(now())
+}
+
+// 承認リクエスト
+model ApprovalRequest {
+  id                Int       @id @default(autoincrement())
+  configId          Int
+  config            DeveloperModeConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  requestType       String    // subtask_creation, task_execution, task_completion
+  title             String
+  description       String?
+  proposedChanges   Json
+  status            String    @default("pending") // pending, approved, rejected, expired
+  expiresAt         DateTime?
+  approvedAt        DateTime?
+  rejectedAt        DateTime?
+  rejectionReason   String?
+  notificationSent  Boolean   @default(false)
+  // 追加フィールド
+  executionType     String?   // code_execution, pr_merge, deployment
+  estimatedChanges  Json?     // 予想される変更内容
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// 通知
+// type: approval_request, task_completed, agent_error, daily_summary,
+//       pr_review_requested, pr_approved, pr_changes_requested,
+//       agent_execution_started, agent_execution_complete, github_sync_complete
+model Notification {
+  id                Int       @id @default(autoincrement())
+  type              String
+  title             String
+  message           String
+  link              String?
+  isRead            Boolean   @default(false)
+  readAt            DateTime?
+  metadata          Json?
+  createdAt         DateTime  @default(now())
+}
+
+// ユーザー設定
+model UserSettings {
+  id                      Int       @id @default(autoincrement())
+  developerModeDefault    Boolean   @default(false)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+}
+
+// ==================== AI駆動開発モード機能 ====================
+
+// AI エージェント設定
+model AIAgentConfig {
+  id              Int       @id @default(autoincrement())
+  agentType       String    // claude-code, codex, gemini, custom
+  name            String
+  apiKeyEncrypted String?
+  endpoint        String?
+  modelId         String?
+  isDefault       Boolean   @default(false)
+  isActive        Boolean   @default(true)
+  capabilities    Json      @default("{}")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  executions      AgentExecution[]
+}
+
+// エージェント実行履歴
+model AgentExecution {
+  id                Int       @id @default(autoincrement())
+  sessionId         Int
+  session           AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  agentConfigId     Int?
+  agentConfig       AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
+  command           String
+  status            String    @default("pending") // pending, running, completed, failed, cancelled
+  output            String?   @db.Text
+  artifacts         Json?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  tokensUsed        Int       @default(0)
+  executionTimeMs   Int?
+  errorMessage      String?
+  createdAt         DateTime  @default(now())
+  gitCommits        GitCommit[]
+}
+
+// GitHub連携設定
+model GitHubIntegration {
+  id                Int       @id @default(autoincrement())
+  repositoryUrl     String    @unique
+  repositoryName    String
+  ownerName         String
+  accessTokenEnc    String?
+  webhookSecret     String?
+  isActive          Boolean   @default(true)
+  syncIssues        Boolean   @default(true)
+  syncPullRequests  Boolean   @default(true)
+  autoLinkTasks     Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  pullRequests      GitHubPullRequest[]
+  issues            GitHubIssue[]
+}
+
+// GitHub PR同期
+model GitHubPullRequest {
+  id                Int       @id @default(autoincrement())
+  integrationId     Int
+  integration       GitHubIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  prNumber          Int
+  title             String
+  body              String?   @db.Text
+  state             String    // open, closed, merged
+  headBranch        String
+  baseBranch        String
+  authorLogin       String
+  url               String
+  linkedTaskId      Int?
+  lastSyncedAt      DateTime
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  reviews           GitHubPRReview[]
+  comments          GitHubPRComment[]
+  @@unique([integrationId, prNumber])
+}
+
+// GitHub PRレビュー
+model GitHubPRReview {
+  id                Int       @id @default(autoincrement())
+  pullRequestId     Int
+  pullRequest       GitHubPullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  reviewId          Int
+  state             String    // APPROVED, CHANGES_REQUESTED, COMMENTED
+  body              String?   @db.Text
+  authorLogin       String
+  submittedAt       DateTime
+  createdAt         DateTime  @default(now())
+}
+
+// GitHub PRコメント
+model GitHubPRComment {
+  id                Int       @id @default(autoincrement())
+  pullRequestId     Int
+  pullRequest       GitHubPullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  commentId         Int
+  body              String    @db.Text
+  path              String?
+  line              Int?
+  authorLogin       String
+  isFromRapitas     Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// GitHub Issue同期
+model GitHubIssue {
+  id                Int       @id @default(autoincrement())
+  integrationId     Int
+  integration       GitHubIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  issueNumber       Int
+  title             String
+  body              String?   @db.Text
+  state             String
+  labels            String[]  @default([])
+  authorLogin       String
+  url               String
+  linkedTaskId      Int?
+  lastSyncedAt      DateTime
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@unique([integrationId, issueNumber])
+}
+
+// Gitコミット追跡
+model GitCommit {
+  id                Int       @id @default(autoincrement())
+  executionId       Int
+  execution         AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  commitHash        String
+  message           String
+  branch            String
+  filesChanged      Int       @default(0)
+  additions         Int       @default(0)
+  deletions         Int       @default(0)
+  createdAt         DateTime  @default(now())
 }

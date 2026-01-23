@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import type { Task, TimeEntry, Comment, Label } from "@/types";
+import type { Task, TimeEntry, Comment, Label, DeveloperModeConfig } from "@/types";
 import LabelSelector, {
   SelectedLabelsDisplay,
 } from "@/feature/tasks/components/label-selector";
@@ -22,6 +22,7 @@ import {
   FileText,
   Tag,
   Save,
+  Copy,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -33,6 +34,12 @@ import {
   formatTime,
   getRemainingTime,
 } from "@/feature/tasks/pomodoro/PomodoroProvider";
+import { useDeveloperMode } from "@/feature/developer-mode/hooks/useDeveloperMode";
+import { useApprovals } from "@/feature/developer-mode/hooks/useApprovals";
+import { DeveloperModeToggle } from "@/feature/developer-mode/components/DeveloperModeToggle";
+import { DeveloperModeConfigModal } from "@/feature/developer-mode/components/DeveloperModeConfig";
+import { TaskAnalysisPanel } from "@/feature/developer-mode/components/TaskAnalysisPanel";
+import { Bot } from "lucide-react";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -126,6 +133,25 @@ export default function TaskDetailPage() {
 
   const isThisTaskTimer = pomodoroState.taskId === task?.id;
 
+  // 開発者モード用の状態
+  const [showDevModeConfig, setShowDevModeConfig] = useState(false);
+  const taskId = params.id ? parseInt(params.id as string) : 0;
+  const {
+    config: devModeConfig,
+    isLoading: devModeLoading,
+    isAnalyzing,
+    analysisResult,
+    error: devModeError,
+    fetchConfig: fetchDevModeConfig,
+    enableDeveloperMode,
+    disableDeveloperMode,
+    updateConfig: updateDevModeConfig,
+    analyzeTask,
+    setAnalysisResult,
+  } = useDeveloperMode(taskId);
+  const { approve: approveRequest, reject: rejectRequest, isLoading: approvalLoading } = useApprovals();
+  const [pendingApprovalId, setPendingApprovalId] = useState<number | null>(null);
+
   useEffect(() => {
     const fetchTask = async () => {
       try {
@@ -163,8 +189,9 @@ export default function TaskDetailPage() {
       fetchTask();
       fetchTimeEntries();
       fetchComments();
+      fetchDevModeConfig();
     }
-  }, [params.id]);
+  }, [params.id, fetchDevModeConfig]);
 
   const updateStatus = async (taskId: number, newStatus: string) => {
     try {
@@ -312,9 +339,94 @@ export default function TaskDetailPage() {
 
       // ポモドーロモーダルを閉じる
       setShowPomodoroModal(false);
+
+      // 前のページに戻る
+      router.back();
     } catch (err) {
       console.error(err);
       alert("タスクの削除に失敗しました");
+    }
+  };
+
+  // 開発者モードのトグル
+  const handleToggleDeveloperMode = async () => {
+    if (devModeConfig?.isEnabled) {
+      await disableDeveloperMode();
+      setTask((prev) => prev ? { ...prev, isDeveloperMode: false } : prev);
+    } else {
+      await enableDeveloperMode();
+      setTask((prev) => prev ? { ...prev, isDeveloperMode: true } : prev);
+    }
+  };
+
+  // AI分析の実行
+  const handleAnalyze = async () => {
+    const result = await analyzeTask();
+    if (result?.approvalRequestId) {
+      setPendingApprovalId(result.approvalRequestId);
+    }
+    // 自動承認の場合は、タスクを再取得
+    if (result?.autoApproved) {
+      const res = await fetch(`${API_BASE}/tasks/${params.id}`);
+      if (res.ok) {
+        setTask(await res.json());
+      }
+    }
+  };
+
+  // 承認
+  const handleApproveAnalysis = async (selectedSubtasks?: number[]) => {
+    if (!pendingApprovalId) return;
+    const result = await approveRequest(pendingApprovalId, selectedSubtasks);
+    if (result?.success) {
+      setAnalysisResult(null);
+      setPendingApprovalId(null);
+      // タスクを再取得してサブタスクを表示
+      const res = await fetch(`${API_BASE}/tasks/${params.id}`);
+      if (res.ok) {
+        setTask(await res.json());
+      }
+    }
+  };
+
+  // 却下
+  const handleRejectAnalysis = async () => {
+    if (!pendingApprovalId) return;
+    await rejectRequest(pendingApprovalId);
+    setAnalysisResult(null);
+    setPendingApprovalId(null);
+  };
+
+  const duplicateTask = async () => {
+    if (!task) return;
+
+    try {
+      const duplicateData = {
+        title: `${task.title} (コピー)`,
+        description: task.description || undefined,
+        status: "todo",
+        labels: task.labels || undefined,
+        labelIds: task.taskLabels?.map((tl) => tl.labelId) || [],
+        estimatedHours: task.estimatedHours || undefined,
+        dueDate: task.dueDate || undefined,
+        projectId: task.projectId || undefined,
+        milestoneId: task.milestoneId || undefined,
+        themeId: task.themeId || undefined,
+      };
+
+      const res = await fetch(`${API_BASE}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(duplicateData),
+      });
+
+      if (!res.ok) throw new Error("複製に失敗しました");
+
+      const newTask = await res.json();
+      router.push(`/tasks/${newTask.id}`);
+    } catch (err) {
+      console.error(err);
+      alert("タスクの複製に失敗しました");
     }
   };
 
@@ -413,6 +525,13 @@ export default function TaskDetailPage() {
                 </svg>
                 編集
               </Button>
+              <button
+                onClick={duplicateTask}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl hover:border-gray-300 dark:hover:border-gray-700 transition-all"
+              >
+                <Copy className="w-4 h-4" />
+                複製
+              </button>
               <button
                 onClick={deleteTask}
                 className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-red-500 rounded-xl hover:bg-red-600 transition-colors"
@@ -648,18 +767,100 @@ export default function TaskDetailPage() {
 
               {/* Timestamps */}
               <div className="px-8 py-4 bg-zinc-50 dark:bg-zinc-800/30 border-t border-zinc-100 dark:border-zinc-800">
-                <div className="flex items-center gap-6 text-xs text-zinc-400 dark:text-zinc-500">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5" />
-                    作成: {new Date(task.createdAt).toLocaleDateString("ja-JP")}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-6 text-xs text-zinc-400 dark:text-zinc-500">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5" />
+                      作成: {new Date(task.createdAt).toLocaleDateString("ja-JP")}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5" />
+                      更新: {new Date(task.updatedAt).toLocaleDateString("ja-JP")}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" />
-                    更新: {new Date(task.updatedAt).toLocaleDateString("ja-JP")}
-                  </div>
+                  {/* 開発者モードトグル */}
+                  <DeveloperModeToggle
+                    isEnabled={devModeConfig?.isEnabled ?? false}
+                    isLoading={devModeLoading}
+                    onToggle={handleToggleDeveloperMode}
+                    onOpenSettings={() => setShowDevModeConfig(true)}
+                  />
                 </div>
               </div>
             </div>
+
+            {/* Developer Mode Section */}
+            {devModeConfig?.isEnabled && (
+              <div className="mb-6">
+                <TaskAnalysisPanel
+                  isAnalyzing={isAnalyzing}
+                  analysisResult={analysisResult}
+                  error={devModeError}
+                  onAnalyze={handleAnalyze}
+                  onApprove={handleApproveAnalysis}
+                  onReject={handleRejectAnalysis}
+                  isApproving={approvalLoading}
+                />
+              </div>
+            )}
+
+            {/* Subtasks Section (AI生成含む) */}
+            {task.subtasks && task.subtasks.length > 0 && (
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden mb-6">
+                <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
+                  <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-50">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                    <h2 className="text-lg font-bold">サブタスク</h2>
+                    <span className="ml-1 px-2 py-0.5 text-xs font-medium bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-full">
+                      {task.subtasks.length}
+                    </span>
+                  </div>
+                </div>
+                <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {task.subtasks.map((subtask) => (
+                    <div
+                      key={subtask.id}
+                      className="p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
+                    >
+                      <div className="flex items-start gap-3">
+                        <button
+                          onClick={() => updateStatus(subtask.id, subtask.status === "done" ? "todo" : "done")}
+                          className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                            subtask.status === "done"
+                              ? "border-emerald-500 bg-emerald-500"
+                              : "border-zinc-300 dark:border-zinc-600 hover:border-emerald-400"
+                          }`}
+                        >
+                          {subtask.status === "done" && (
+                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 12 12">
+                              <path d="M10.28 2.28a.75.75 0 00-1.06-1.06L4.5 5.94 2.78 4.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.06 0l5.25-5.25z" />
+                            </svg>
+                          )}
+                        </button>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-medium ${subtask.status === "done" ? "text-zinc-400 line-through" : "text-zinc-900 dark:text-zinc-50"}`}>
+                              {subtask.title}
+                            </span>
+                            {subtask.agentGenerated && (
+                              <span className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded">
+                                <Bot className="w-3 h-3" />
+                                AI
+                              </span>
+                            )}
+                          </div>
+                          {subtask.description && (
+                            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                              {subtask.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Comments Section */}
             <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
@@ -792,6 +993,14 @@ export default function TaskDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Developer Mode Config Modal */}
+      <DeveloperModeConfigModal
+        config={devModeConfig}
+        isOpen={showDevModeConfig}
+        onClose={() => setShowDevModeConfig(false)}
+        onSave={updateDevModeConfig}
+      />
 
       {/* Code Block Dialog */}
       {showCodeBlockDialog && (

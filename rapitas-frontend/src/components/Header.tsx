@@ -24,10 +24,20 @@ import {
   Calendar,
   Keyboard,
   Command,
+  Bot,
+  CheckCircle,
+  Settings,
+  Github,
+  GitPullRequest,
+  CircleDot,
+  Cpu,
+  Play,
+  History,
 } from "lucide-react";
 import AppIcon from "@/components/app-icon";
 import GlobalPomodoroWidget from "@/feature/tasks/pomodoro/GlobalPomodoroWidget";
 import { OPEN_SHORTCUTS_EVENT } from "@/components/keyboard-shortcuts";
+import NotificationBell from "@/components/NotificationBell";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -50,6 +60,43 @@ export default function Header() {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 検索のデバウンス処理
+  useEffect(() => {
+    // 前回のタイマーをクリア
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // 300ms後にURLを更新
+    debounceTimerRef.current = setTimeout(() => {
+      if (searchQuery.trim()) {
+        router.push(`/?search=${encodeURIComponent(searchQuery.trim())}`);
+      } else if (pathname === "/" || pathname === "/kanban") {
+        // 検索クエリが空で、タスクページにいる場合のみクリア
+        const currentSearch = searchParams.get("search");
+        if (currentSearch) {
+          router.push(pathname);
+        }
+      }
+    }, 300);
+
+    // クリーンアップ
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [searchQuery, pathname, router, searchParams]);
+
+  // URLの検索パラメータから初期値を設定
+  useEffect(() => {
+    const search = searchParams.get("search");
+    if (search && searchQuery !== search) {
+      setSearchQuery(search);
+    }
+  }, [searchParams]);
 
   // メニュー外をクリックしたら閉じる
   useEffect(() => {
@@ -151,6 +198,50 @@ export default function Header() {
           href: "/reports",
           label: "週次レポート",
           icon: FileText,
+        },
+      ],
+    },
+    {
+      href: "#",
+      label: "GitHub",
+      icon: Github,
+      children: [
+        {
+          href: "/github",
+          label: "ダッシュボード",
+          icon: Github,
+        },
+        {
+          href: "/github/pull-requests",
+          label: "Pull Requests",
+          icon: GitPullRequest,
+        },
+        {
+          href: "/github/issues",
+          label: "Issues",
+          icon: CircleDot,
+        },
+      ],
+    },
+    {
+      href: "#",
+      label: "AI開発モード",
+      icon: Bot,
+      children: [
+        {
+          href: "/agents",
+          label: "エージェント管理",
+          icon: Cpu,
+        },
+        {
+          href: "/approvals",
+          label: "承認待ち",
+          icon: CheckCircle,
+        },
+        {
+          href: "/settings",
+          label: "設定",
+          icon: Settings,
         },
       ],
     },
@@ -452,25 +543,19 @@ export default function Header() {
                   <input
                     type="text"
                     value={searchQuery}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setSearchQuery(value);
-                      if (value.trim()) {
-                        router.push(
-                          `/?search=${encodeURIComponent(value.trim())}`,
-                        );
-                      } else {
-                        router.push("/");
-                      }
-                    }}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="タスクを検索..."
                     className="w-full pl-10 pr-4 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-zinc-400 dark:placeholder-zinc-500 transition-all"
                   />
                   {searchQuery && (
                     <button
                       onClick={() => {
+                        // デバウンスタイマーをクリアして即座にリセット
+                        if (debounceTimerRef.current) {
+                          clearTimeout(debounceTimerRef.current);
+                        }
                         setSearchQuery("");
-                        router.push("/");
+                        router.push(pathname === "/kanban" ? "/kanban" : "/");
                       }}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
                     >
@@ -488,6 +573,9 @@ export default function Header() {
 
             {/* 表示切り替えボタン（タスク一覧/カンバンページのみ表示） */}
             <div className="flex items-center gap-3">
+              {/* 通知ベル */}
+              <NotificationBell />
+
               {/* ポモドーロタイマー表示（タスク詳細ページでは非表示） */}
               {!pathname?.startsWith("/tasks/") && <GlobalPomodoroWidget />}
 

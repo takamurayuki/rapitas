@@ -2,15 +2,22 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import type { Project, Milestone } from "@/types";
+import type { Project, Milestone, Task } from "@/types";
+import { useToast } from "@/components/ui/toast/toast-container";
+import { CheckCircle2, Circle, PlayCircle, Calendar, Clock } from "lucide-react";
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
 export default function ProjectDetailPage() {
+  const { showToast } = useToast();
   const params = useParams();
   const router = useRouter();
   const projectId = Number(params.id);
 
   const [project, setProject] = useState<Project | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showMilestoneModal, setShowMilestoneModal] = useState(false);
   const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(
@@ -28,16 +35,20 @@ export default function ProjectDetailPage() {
 
   const fetchProjectData = async () => {
     try {
-      const [projectRes, milestonesRes] = await Promise.all([
-        fetch(`http://localhost:3001/projects/${projectId}`),
-        fetch(`http://localhost:3001/milestones?projectId=${projectId}`),
+      const [projectRes, milestonesRes, tasksRes] = await Promise.all([
+        fetch(`${API_BASE}/projects/${projectId}`),
+        fetch(`${API_BASE}/milestones?projectId=${projectId}`),
+        fetch(`${API_BASE}/tasks?projectId=${projectId}`),
       ]);
       const projectData = await projectRes.json();
       const milestonesData = await milestonesRes.json();
+      const tasksData = await tasksRes.json();
       setProject(projectData);
       setMilestones(milestonesData);
+      setTasks(Array.isArray(tasksData) ? tasksData : []);
     } catch (error) {
       console.error("Failed to fetch project data:", error);
+      showToast("データの取得に失敗しました", "error");
     } finally {
       setIsLoading(false);
     }
@@ -56,7 +67,7 @@ export default function ProjectDetailPage() {
 
       if (editingMilestone) {
         const res = await fetch(
-          `http://localhost:3001/milestones/${editingMilestone.id}`,
+          `${API_BASE}/milestones/${editingMilestone.id}`,
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -66,9 +77,12 @@ export default function ProjectDetailPage() {
         if (res.ok) {
           await fetchProjectData();
           handleCloseMilestoneModal();
+          showToast("マイルストーンを更新しました", "success");
+        } else {
+          showToast("マイルストーンの更新に失敗しました", "error");
         }
       } else {
-        const res = await fetch("http://localhost:3001/milestones", {
+        const res = await fetch(`${API_BASE}/milestones`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -76,10 +90,14 @@ export default function ProjectDetailPage() {
         if (res.ok) {
           await fetchProjectData();
           handleCloseMilestoneModal();
+          showToast("マイルストーンを作成しました", "success");
+        } else {
+          showToast("マイルストーンの作成に失敗しました", "error");
         }
       }
     } catch (error) {
       console.error("Failed to save milestone:", error);
+      showToast("エラーが発生しました", "error");
     }
   };
 
@@ -92,14 +110,18 @@ export default function ProjectDetailPage() {
       return;
     }
     try {
-      const res = await fetch(`http://localhost:3001/milestones/${id}`, {
+      const res = await fetch(`${API_BASE}/milestones/${id}`, {
         method: "DELETE",
       });
       if (res.ok) {
         await fetchProjectData();
+        showToast("マイルストーンを削除しました", "success");
+      } else {
+        showToast("マイルストーンの削除に失敗しました", "error");
       }
     } catch (error) {
       console.error("Failed to delete milestone:", error);
+      showToast("エラーが発生しました", "error");
     }
   };
 
@@ -233,6 +255,68 @@ export default function ProjectDetailPage() {
           {milestones.length === 0 && (
             <div className="text-center text-gray-400 py-8">
               マイルストーンがありません。新規作成してください。
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* タスク一覧 */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold">タスク一覧</h2>
+          <button
+            onClick={() => router.push(`/tasks/new?projectId=${projectId}`)}
+            className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600"
+          >
+            + 新規タスク
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          {tasks.map((task) => {
+            const statusConfig = {
+              todo: { icon: Circle, color: "text-zinc-400", bg: "bg-zinc-100 dark:bg-zinc-800" },
+              "in-progress": { icon: PlayCircle, color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-900/30" },
+              done: { icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-900/30" },
+            };
+            const config = statusConfig[task.status as keyof typeof statusConfig] || statusConfig.todo;
+            const StatusIcon = config.icon;
+
+            return (
+              <div
+                key={task.id}
+                onClick={() => router.push(`/tasks/${task.id}`)}
+                className={`${config.bg} rounded-lg p-4 hover:opacity-80 transition-all cursor-pointer border border-zinc-200 dark:border-zinc-700`}
+              >
+                <div className="flex items-center gap-3">
+                  <StatusIcon className={`w-5 h-5 ${config.color}`} />
+                  <div className="flex-1 min-w-0">
+                    <h3 className={`font-medium truncate ${task.status === "done" ? "line-through text-zinc-400" : "text-zinc-900 dark:text-zinc-100"}`}>
+                      {task.title}
+                    </h3>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                      {task.dueDate && (
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {new Date(task.dueDate).toLocaleDateString("ja-JP")}
+                        </span>
+                      )}
+                      {task.estimatedHours && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {task.estimatedHours}h
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {tasks.length === 0 && (
+            <div className="text-center text-gray-400 py-8">
+              タスクがありません。新規作成してください。
             </div>
           )}
         </div>

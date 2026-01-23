@@ -1,11 +1,37 @@
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { PrismaClient } from "@prisma/client";
+import {
+  analyzeTask,
+  generateExecutionInstructions,
+  isApiKeyConfigured,
+  type SubtaskProposal,
+} from "./services/claude-agent";
+import { GitHubService } from "./services/github-service";
+import { agentFactory } from "./services/agents/agent-factory";
+import { createOrchestrator } from "./services/agents/agent-orchestrator";
+import { realtimeService } from "./services/realtime-service";
+import { encrypt, decrypt, maskApiKey } from "./utils/encryption";
 
 const app = new Elysia();
 const prisma = new PrismaClient();
 
 app.use(cors());
+
+// エラーハンドリング
+app.onError(({ code, error, set }: { code: any; error: any; set: any }) => {
+  if (code === "VALIDATION") {
+    set.status = 400;
+    return { error: "バリデーションエラー", details: error.message };
+  }
+  if (code === "NOT_FOUND") {
+    set.status = 404;
+    return { error: "リソースが見つかりません" };
+  }
+  console.error(error);
+  set.status = 500;
+  return { error: "サーバーエラーが発生しました" };
+});
 
 // ==================== Themes API ====================
 app.get("/themes", async () => {
@@ -19,7 +45,7 @@ app.get("/themes", async () => {
   });
 });
 
-app.get("/themes/:id", async ({ params }) => {
+app.get("/themes/:id", async ({ params }: { params: any }) => {
   const { id } = params;
   return await prisma.theme.findUnique({
     where: { id: parseInt(id) },
@@ -32,43 +58,52 @@ app.get("/themes/:id", async ({ params }) => {
   });
 });
 
-app.post("/themes", async ({ body }) => {
-  const { name, description, color, icon } = body as {
-    name: string;
-    description?: string;
-    color?: string;
-    icon?: string;
-  };
-  return await prisma.theme.create({
-    data: {
-      name,
-      ...(description && { description }),
-      ...(color && { color }),
-      ...(icon && { icon }),
-    },
-  });
-});
+app.post(
+  "/themes",
+  async ({ body }: { body: any }) => {
+    const { name, description, color, icon } = body;
+    return await prisma.theme.create({
+      data: {
+        name,
+        ...(description && { description }),
+        ...(color && { color }),
+        ...(icon && { icon }),
+      },
+    });
+  },
+  {
+    body: t.Object({
+      name: t.String({ minLength: 1 }),
+      description: t.Optional(t.String()),
+      color: t.Optional(t.String()),
+      icon: t.Optional(t.String()),
+    }),
+  },
+);
 
-app.patch("/themes/:id", async ({ params, body }) => {
-  const { id } = params;
-  const { name, description, color, icon } = body as {
-    name?: string;
-    description?: string;
-    color?: string;
-    icon?: string;
-  };
-  return await prisma.theme.update({
-    where: { id: parseInt(id) },
-    data: {
-      ...(name && { name }),
-      ...(description !== undefined && { description }),
-      ...(color && { color }),
-      ...(icon !== undefined && { icon }),
-    },
-  });
-});
+app.patch(
+  "/themes/:id",
+  async ({ params, body }: { params: any; body: any }) => {
+    const { id } = params;
+    const { name, description, color, icon } = body as {
+      name?: string;
+      description?: string;
+      color?: string;
+      icon?: string;
+    };
+    return await prisma.theme.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...(name && { name }),
+        ...(description !== undefined && { description }),
+        ...(color && { color }),
+        ...(icon !== undefined && { icon }),
+      },
+    });
+  },
+);
 
-app.delete("/themes/:id", async ({ params }) => {
+app.delete("/themes/:id", async ({ params }: { params: { id: string } }) => {
   const { id } = params;
   return await prisma.theme.delete({
     where: { id: parseInt(id) },
@@ -76,22 +111,25 @@ app.delete("/themes/:id", async ({ params }) => {
 });
 
 // デフォルトテーマ設定
-app.patch("/themes/:id/set-default", async ({ params }) => {
-  const { id } = params;
-  const themeId = parseInt(id);
+app.patch(
+  "/themes/:id/set-default",
+  async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
+    const themeId = parseInt(id);
 
-  // まず全てのテーマのisDefaultをfalseにする
-  await prisma.theme.updateMany({
-    where: { isDefault: true },
-    data: { isDefault: false },
-  });
+    // まず全てのテーマのisDefaultをfalseにする
+    await prisma.theme.updateMany({
+      where: { isDefault: true },
+      data: { isDefault: false },
+    });
 
-  // 指定されたテーマをデフォルトにする
-  return await prisma.theme.update({
-    where: { id: themeId },
-    data: { isDefault: true },
-  });
-});
+    // 指定されたテーマをデフォルトにする
+    return await prisma.theme.update({
+      where: { id: themeId },
+      data: { isDefault: true },
+    });
+  },
+);
 
 // デフォルトテーマ取得
 app.get("/themes/default/get", async () => {
@@ -112,7 +150,7 @@ app.get("/labels", async () => {
   });
 });
 
-app.get("/labels/:id", async ({ params }) => {
+app.get("/labels/:id", async ({ params }: { params: any }) => {
   const { id } = params;
   return await prisma.label.findUnique({
     where: { id: parseInt(id) },
@@ -126,43 +164,52 @@ app.get("/labels/:id", async ({ params }) => {
   });
 });
 
-app.post("/labels", async ({ body }) => {
-  const { name, description, color, icon } = body as {
-    name: string;
-    description?: string;
-    color?: string;
-    icon?: string;
-  };
-  return await prisma.label.create({
-    data: {
-      name,
-      ...(description && { description }),
-      ...(color && { color }),
-      ...(icon && { icon }),
-    },
-  });
-});
+app.post(
+  "/labels",
+  async ({ body }: { body: any }) => {
+    const { name, description, color, icon } = body;
+    return await prisma.label.create({
+      data: {
+        name,
+        ...(description && { description }),
+        ...(color && { color }),
+        ...(icon && { icon }),
+      },
+    });
+  },
+  {
+    body: t.Object({
+      name: t.String({ minLength: 1 }),
+      description: t.Optional(t.String()),
+      color: t.Optional(t.String()),
+      icon: t.Optional(t.String()),
+    }),
+  },
+);
 
-app.patch("/labels/:id", async ({ params, body }) => {
-  const { id } = params;
-  const { name, description, color, icon } = body as {
-    name?: string;
-    description?: string;
-    color?: string;
-    icon?: string;
-  };
-  return await prisma.label.update({
-    where: { id: parseInt(id) },
-    data: {
-      ...(name && { name }),
-      ...(description !== undefined && { description }),
-      ...(color && { color }),
-      ...(icon !== undefined && { icon }),
-    },
-  });
-});
+app.patch(
+  "/labels/:id",
+  async ({ params, body }: { params: any; body: any }) => {
+    const { id } = params;
+    const { name, description, color, icon } = body as {
+      name?: string;
+      description?: string;
+      color?: string;
+      icon?: string;
+    };
+    return await prisma.label.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...(name && { name }),
+        ...(description !== undefined && { description }),
+        ...(color && { color }),
+        ...(icon !== undefined && { icon }),
+      },
+    });
+  },
+);
 
-app.delete("/labels/:id", async ({ params }) => {
+app.delete("/labels/:id", async ({ params }: { params: { id: string } }) => {
   const { id } = params;
   return await prisma.label.delete({
     where: { id: parseInt(id) },
@@ -170,38 +217,41 @@ app.delete("/labels/:id", async ({ params }) => {
 });
 
 // タスクのラベル一括更新
-app.put("/tasks/:taskId/labels", async ({ params, body }) => {
-  const { taskId } = params;
-  const { labelIds } = body as { labelIds: number[] };
-  const taskIdNum = parseInt(taskId);
+app.put(
+  "/tasks/:id/labels",
+  async ({ params, body }: { params: { id: string }; body: any }) => {
+    const { id } = params;
+    const { labelIds } = body as { labelIds: number[] };
+    const taskIdNum = parseInt(id);
 
-  // 既存の関連を削除
-  await prisma.taskLabel.deleteMany({
-    where: { taskId: taskIdNum },
-  });
-
-  // 新しい関連を作成
-  if (labelIds && labelIds.length > 0) {
-    await prisma.taskLabel.createMany({
-      data: labelIds.map((labelId) => ({
-        taskId: taskIdNum,
-        labelId,
-      })),
+    // 既存の関連を削除
+    await prisma.taskLabel.deleteMany({
+      where: { taskId: taskIdNum },
     });
-  }
 
-  // 更新後のタスクを返す
-  return await prisma.task.findUnique({
-    where: { id: taskIdNum },
-    include: {
-      taskLabels: {
-        include: {
-          label: true,
+    // 新しい関連を作成
+    if (labelIds && labelIds.length > 0) {
+      await prisma.taskLabel.createMany({
+        data: labelIds.map((labelId) => ({
+          taskId: taskIdNum,
+          labelId,
+        })),
+      });
+    }
+
+    // 更新後のタスクを返す
+    return await prisma.task.findUnique({
+      where: { id: taskIdNum },
+      include: {
+        taskLabels: {
+          include: {
+            label: true,
+          },
         },
       },
-    },
-  });
-});
+    });
+  },
+);
 
 // ==================== Projects API ====================
 app.get("/projects", async () => {
@@ -215,7 +265,7 @@ app.get("/projects", async () => {
   });
 });
 
-app.get("/projects/:id", async ({ params }) => {
+app.get("/projects/:id", async ({ params }: { params: any }) => {
   const { id } = params;
   return await prisma.project.findUnique({
     where: { id: parseInt(id) },
@@ -234,43 +284,52 @@ app.get("/projects/:id", async ({ params }) => {
   });
 });
 
-app.post("/projects", async ({ body }) => {
-  const { name, description, color, icon } = body as {
-    name: string;
-    description?: string;
-    color?: string;
-    icon?: string;
-  };
-  return await prisma.project.create({
-    data: {
-      name,
-      ...(description && { description }),
-      ...(color && { color }),
-      ...(icon && { icon }),
-    },
-  });
-});
+app.post(
+  "/projects",
+  async ({ body }: { body: any }) => {
+    const { name, description, color, icon } = body;
+    return await prisma.project.create({
+      data: {
+        name,
+        ...(description && { description }),
+        ...(color && { color }),
+        ...(icon && { icon }),
+      },
+    });
+  },
+  {
+    body: t.Object({
+      name: t.String({ minLength: 1 }),
+      description: t.Optional(t.String()),
+      color: t.Optional(t.String()),
+      icon: t.Optional(t.String()),
+    }),
+  },
+);
 
-app.patch("/projects/:id", async ({ params, body }) => {
-  const { id } = params;
-  const { name, description, color, icon } = body as {
-    name?: string;
-    description?: string;
-    color?: string;
-    icon?: string;
-  };
-  return await prisma.project.update({
-    where: { id: parseInt(id) },
-    data: {
-      ...(name && { name }),
-      ...(description !== undefined && { description }),
-      ...(color && { color }),
-      ...(icon !== undefined && { icon }),
-    },
-  });
-});
+app.patch(
+  "/projects/:id",
+  async ({ params, body }: { params: any; body: any }) => {
+    const { id } = params;
+    const { name, description, color, icon } = body as {
+      name?: string;
+      description?: string;
+      color?: string;
+      icon?: string;
+    };
+    return await prisma.project.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...(name && { name }),
+        ...(description !== undefined && { description }),
+        ...(color && { color }),
+        ...(icon !== undefined && { icon }),
+      },
+    });
+  },
+);
 
-app.delete("/projects/:id", async ({ params }) => {
+app.delete("/projects/:id", async ({ params }: { params: any }) => {
   const { id } = params;
   return await prisma.project.delete({
     where: { id: parseInt(id) },
@@ -278,8 +337,8 @@ app.delete("/projects/:id", async ({ params }) => {
 });
 
 // ==================== Milestones API ====================
-app.get("/milestones", async ({ query }) => {
-  const { projectId } = query as { projectId?: string };
+app.get("/milestones", async ({ query }: { query: { projectId?: string } }) => {
+  const { projectId } = query;
   return await prisma.milestone.findMany({
     where: projectId ? { projectId: parseInt(projectId) } : undefined,
     include: {
@@ -290,7 +349,7 @@ app.get("/milestones", async ({ query }) => {
   });
 });
 
-app.get("/milestones/:id", async ({ params }) => {
+app.get("/milestones/:id", async ({ params }: { params: { id: string } }) => {
   const { id } = params;
   return await prisma.milestone.findUnique({
     where: { id: parseInt(id) },
@@ -304,46 +363,55 @@ app.get("/milestones/:id", async ({ params }) => {
   });
 });
 
-app.post("/milestones", async ({ body }) => {
-  const { name, description, dueDate, projectId } = body as {
-    name: string;
-    description?: string;
-    dueDate?: string;
-    projectId: number;
-  };
-  return await prisma.milestone.create({
-    data: {
-      name,
-      projectId,
-      ...(description && { description }),
-      ...(dueDate && { dueDate: new Date(dueDate) }),
-    },
-    include: {
-      project: true,
-    },
-  });
-});
+app.post(
+  "/milestones",
+  async ({ body }: { body: any }) => {
+    const { name, description, dueDate, projectId } = body;
+    return await prisma.milestone.create({
+      data: {
+        name,
+        projectId,
+        ...(description && { description }),
+        ...(dueDate && { dueDate: new Date(dueDate) }),
+      },
+      include: {
+        project: true,
+      },
+    });
+  },
+  {
+    body: t.Object({
+      name: t.String({ minLength: 1 }),
+      projectId: t.Number(),
+      description: t.Optional(t.String()),
+      dueDate: t.Optional(t.String()),
+    }),
+  },
+);
 
-app.patch("/milestones/:id", async ({ params, body }) => {
-  const { id } = params;
-  const { name, description, dueDate } = body as {
-    name?: string;
-    description?: string;
-    dueDate?: string;
-  };
-  return await prisma.milestone.update({
-    where: { id: parseInt(id) },
-    data: {
-      ...(name && { name }),
-      ...(description !== undefined && { description }),
-      ...(dueDate !== undefined && {
-        dueDate: dueDate ? new Date(dueDate) : null,
-      }),
-    },
-  });
-});
+app.patch(
+  "/milestones/:id",
+  async ({ params, body }: { params: any; body: any }) => {
+    const { id } = params;
+    const { name, description, dueDate } = body as {
+      name?: string;
+      description?: string;
+      dueDate?: string;
+    };
+    return await prisma.milestone.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...(name && { name }),
+        ...(description !== undefined && { description }),
+        ...(dueDate !== undefined && {
+          dueDate: dueDate ? new Date(dueDate) : null,
+        }),
+      },
+    });
+  },
+);
 
-app.delete("/milestones/:id", async ({ params }) => {
+app.delete("/milestones/:id", async ({ params }: { params: any }) => {
   const { id } = params;
   return await prisma.milestone.delete({
     where: { id: parseInt(id) },
@@ -351,39 +419,42 @@ app.delete("/milestones/:id", async ({ params }) => {
 });
 
 // ==================== Tasks API ====================
-app.get("/tasks", async ({ query }) => {
-  const { projectId, milestoneId, priority } = query as {
-    projectId?: string;
-    milestoneId?: string;
-    priority?: string;
-  };
+app.get(
+  "/tasks",
+  async ({
+    query,
+  }: {
+    query: { projectId?: string; milestoneId?: string; priority?: string };
+  }) => {
+    const { projectId, milestoneId, priority } = query;
 
-  return await prisma.task.findMany({
-    where: {
-      parentId: null,
-      ...(projectId && { projectId: parseInt(projectId) }),
-      ...(milestoneId && { milestoneId: parseInt(milestoneId) }),
-      ...(priority && { priority }),
-    },
-    include: {
-      subtasks: {
-        orderBy: { createdAt: "asc" },
+    return await prisma.task.findMany({
+      where: {
+        parentId: null,
+        ...(projectId && { projectId: parseInt(projectId) }),
+        ...(milestoneId && { milestoneId: parseInt(milestoneId) }),
+        ...(priority && { priority }),
       },
-      theme: true,
-      project: true,
-      milestone: true,
-      examGoal: true,
-      taskLabels: {
-        include: {
-          label: true,
+      include: {
+        subtasks: {
+          orderBy: { createdAt: "asc" },
+        },
+        theme: true,
+        project: true,
+        milestone: true,
+        examGoal: true,
+        taskLabels: {
+          include: {
+            label: true,
+          },
         },
       },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-});
+      orderBy: { createdAt: "desc" },
+    });
+  },
+);
 
-app.get("/tasks/:id", async ({ params }) => {
+app.get("/tasks/:id", async ({ params }: { params: { id: string } }) => {
   const { id } = params;
   return await prisma.task.findUnique({
     where: { id: parseInt(id) },
@@ -405,182 +476,193 @@ app.get("/tasks/:id", async ({ params }) => {
   });
 });
 
-app.post("/tasks", async ({ body }) => {
-  const {
-    title,
-    description,
-    status,
-    priority,
-    labels,
-    labelIds,
-    estimatedHours,
-    dueDate,
-    subject,
-    parentId,
-    projectId,
-    milestoneId,
-    themeId,
-    examGoalId,
-  } = body as {
-    title: string;
-    description?: string;
-    status?: string;
-    priority?: string;
-    labels?: string[];
-    labelIds?: number[];
-    estimatedHours?: number;
-    dueDate?: string;
-    subject?: string;
-    parentId?: number;
-    projectId?: number;
-    milestoneId?: number;
-    themeId?: number;
-    examGoalId?: number;
-  };
-  const task = await prisma.task.create({
-    data: {
+app.post(
+  "/tasks",
+  async ({ body }: { body: any }) => {
+    const {
       title,
-      ...(description && { description }),
-      status: status ?? "todo",
-      // @ts-ignore
-      priority: priority ?? "medium",
-      ...(labels && { labels }),
-      ...(estimatedHours && { estimatedHours }),
-      ...(dueDate && { dueDate: new Date(dueDate) }),
-      ...(subject && { subject }),
-      ...(parentId && { parentId }),
-      ...(projectId && { projectId }),
-      ...(milestoneId && { milestoneId }),
-      ...(themeId !== undefined && { themeId }),
-      ...(examGoalId !== undefined && { examGoalId }),
-    },
-  });
-
-  // ラベルの関連付け
-  if (labelIds && labelIds.length > 0) {
-    await prisma.taskLabel.createMany({
-      data: labelIds.map((labelId) => ({
-        taskId: task.id,
-        labelId,
-      })),
-    });
-  }
-
-  // @ts-ignore
-  return await prisma.task.findUnique({
-    where: { id: task.id },
-    include: {
-      subtasks: true,
-      theme: true,
-      project: true,
-      milestone: true,
-      examGoal: true,
-      taskLabels: {
-        include: {
-          label: true,
-        },
+      description,
+      status,
+      priority,
+      labels,
+      labelIds,
+      estimatedHours,
+      dueDate,
+      subject,
+      parentId,
+      projectId,
+      milestoneId,
+      themeId,
+      examGoalId,
+    } = body;
+    const task = await prisma.task.create({
+      data: {
+        title,
+        ...(description && { description }),
+        status: status ?? "todo",
+        // @ts-ignore
+        priority: priority ?? "medium",
+        ...(labels && { labels }),
+        ...(estimatedHours && { estimatedHours }),
+        ...(dueDate && { dueDate: new Date(dueDate) }),
+        ...(subject && { subject }),
+        ...(parentId && { parentId }),
+        ...(projectId && { projectId }),
+        ...(milestoneId && { milestoneId }),
+        ...(themeId !== undefined && { themeId }),
+        ...(examGoalId !== undefined && { examGoalId }),
       },
-    },
-  });
-});
-
-app.patch("/tasks/:id", async ({ params, body }) => {
-  const { id } = params;
-  const taskId = parseInt(id);
-  const {
-    title,
-    description,
-    themeId,
-    status,
-    priority,
-    labels,
-    labelIds,
-    estimatedHours,
-    dueDate,
-    subject,
-    projectId,
-    milestoneId,
-    examGoalId,
-  } = body as {
-    title?: string;
-    description?: string;
-    themeId?: number | null;
-    status?: string;
-    priority?: string;
-    labels?: string[];
-    labelIds?: number[];
-    estimatedHours?: number;
-    dueDate?: string | null;
-    subject?: string | null;
-    projectId?: number | null;
-    milestoneId?: number | null;
-    examGoalId?: number | null;
-  };
-
-  // タスク完了時にストリークを記録
-  if (status === "done") {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    await prisma.studyStreak.upsert({
-      where: { date: today },
-      update: { tasksCompleted: { increment: 1 } },
-      create: { date: today, studyMinutes: 0, tasksCompleted: 1 },
     });
-  }
 
-  await prisma.task.update({
-    where: { id: taskId },
-    data: {
-      ...(title && { title }),
-      ...(description !== undefined && { description }),
-      ...(themeId !== undefined && { themeId }),
-      ...(status && { status }),
-      ...(status === "done" && { completedAt: new Date() }),
-      // @ts-ignore
-      ...(priority && { priority }),
-      ...(labels && { labels }),
-      ...(estimatedHours !== undefined && { estimatedHours }),
-      ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
-      ...(subject !== undefined && { subject }),
-      ...(projectId !== undefined && { projectId }),
-      ...(milestoneId !== undefined && { milestoneId }),
-      ...(examGoalId !== undefined && { examGoalId }),
-    },
-  });
-
-  // ラベルの更新（labelIdsが提供された場合）
-  if (labelIds !== undefined) {
-    await prisma.taskLabel.deleteMany({
-      where: { taskId },
-    });
-    if (labelIds.length > 0) {
+    // ラベルの関連付け
+    if (labelIds && labelIds.length > 0) {
       await prisma.taskLabel.createMany({
-        data: labelIds.map((labelId) => ({
-          taskId,
+        data: labelIds.map((labelId: number) => ({
+          taskId: task.id,
           labelId,
         })),
       });
     }
-  }
 
-  // @ts-ignore
-  return await prisma.task.findUnique({
-    where: { id: taskId },
-    include: {
-      theme: true,
-      project: true,
-      milestone: true,
-      examGoal: true,
-      taskLabels: {
-        include: {
-          label: true,
+    // @ts-ignore
+    return await prisma.task.findUnique({
+      where: { id: task.id },
+      include: {
+        subtasks: true,
+        theme: true,
+        project: true,
+        milestone: true,
+        examGoal: true,
+        taskLabels: {
+          include: {
+            label: true,
+          },
         },
       },
-    },
-  });
-});
+    });
+  },
+  {
+    body: t.Object({
+      title: t.String({ minLength: 1 }),
+      description: t.Optional(t.String()),
+      status: t.Optional(t.String()),
+      priority: t.Optional(t.String()),
+      labels: t.Optional(t.Array(t.String())),
+      labelIds: t.Optional(t.Array(t.Number())),
+      estimatedHours: t.Optional(t.Number()),
+      dueDate: t.Optional(t.String()),
+      subject: t.Optional(t.String()),
+      parentId: t.Optional(t.Number()),
+      projectId: t.Optional(t.Number()),
+      milestoneId: t.Optional(t.Number()),
+      themeId: t.Optional(t.Number()),
+      examGoalId: t.Optional(t.Number()),
+    }),
+  },
+);
 
-app.delete("/tasks/:id", async ({ params }) => {
+app.patch(
+  "/tasks/:id",
+  async ({ params, body }: { params: { id: string }; body: any }) => {
+    const { id } = params;
+    const taskId = parseInt(id);
+    const {
+      title,
+      description,
+      themeId,
+      status,
+      priority,
+      labels,
+      labelIds,
+      estimatedHours,
+      dueDate,
+      subject,
+      projectId,
+      milestoneId,
+      examGoalId,
+    } = body as {
+      title?: string;
+      description?: string;
+      themeId?: number | null;
+      status?: string;
+      priority?: string;
+      labels?: string[];
+      labelIds?: number[];
+      estimatedHours?: number;
+      dueDate?: string | null;
+      subject?: string | null;
+      projectId?: number | null;
+      milestoneId?: number | null;
+      examGoalId?: number | null;
+    };
+
+    // タスク完了時にストリークを記録
+    if (status === "done") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      await prisma.studyStreak.upsert({
+        where: { date: today },
+        update: { tasksCompleted: { increment: 1 } },
+        create: { date: today, studyMinutes: 0, tasksCompleted: 1 },
+      });
+    }
+
+    await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        ...(title && { title }),
+        ...(description !== undefined && { description }),
+        ...(themeId !== undefined && { themeId }),
+        ...(status && { status }),
+        ...(status === "done" && { completedAt: new Date() }),
+        // @ts-ignore
+        ...(priority && { priority }),
+        ...(labels && { labels }),
+        ...(estimatedHours !== undefined && { estimatedHours }),
+        ...(dueDate !== undefined && {
+          dueDate: dueDate ? new Date(dueDate) : null,
+        }),
+        ...(subject !== undefined && { subject }),
+        ...(projectId !== undefined && { projectId }),
+        ...(milestoneId !== undefined && { milestoneId }),
+        ...(examGoalId !== undefined && { examGoalId }),
+      },
+    });
+
+    // ラベルの更新（labelIdsが提供された場合）
+    if (labelIds !== undefined) {
+      await prisma.taskLabel.deleteMany({
+        where: { taskId },
+      });
+      if (labelIds.length > 0) {
+        await prisma.taskLabel.createMany({
+          data: labelIds.map((labelId) => ({
+            taskId,
+            labelId,
+          })),
+        });
+      }
+    }
+
+    // @ts-ignore
+    return await prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        theme: true,
+        project: true,
+        milestone: true,
+        examGoal: true,
+        taskLabels: {
+          include: {
+            label: true,
+          },
+        },
+      },
+    });
+  },
+);
+
+app.delete("/tasks/:id", async ({ params }: { params: any }) => {
   const { id } = params;
   return await prisma.task.delete({
     where: { id: parseInt(id) },
@@ -588,7 +670,7 @@ app.delete("/tasks/:id", async ({ params }) => {
 });
 
 // ==================== Time Entries API ====================
-app.get("/tasks/:id/time-entries", async ({ params }) => {
+app.get("/tasks/:id/time-entries", async ({ params }: { params: any }) => {
   const { id } = params;
   return await prisma.timeEntry.findMany({
     where: { taskId: parseInt(id) },
@@ -596,44 +678,67 @@ app.get("/tasks/:id/time-entries", async ({ params }) => {
   });
 });
 
-app.post("/tasks/:id/time-entries", async ({ params, body }) => {
-  const { id } = params;
-  const { duration, note, startedAt, endedAt } = body as {
-    duration: number;
-    note?: string;
-    startedAt: string;
-    endedAt: string;
-  };
-  return await prisma.timeEntry.create({
-    data: {
-      taskId: parseInt(id),
-      duration,
-      note,
-      startedAt: new Date(startedAt),
-      endedAt: new Date(endedAt),
-    },
-  });
-});
+app.post(
+  "/tasks/:id/time-entries",
+  async ({ params, body }: { params: any; body: any }) => {
+    const { id } = params;
+    const { duration, note, startedAt, endedAt } = body;
+    return await prisma.timeEntry.create({
+      data: {
+        taskId: parseInt(id),
+        duration,
+        note,
+        startedAt: new Date(startedAt),
+        endedAt: new Date(endedAt),
+      },
+    });
+  },
+  {
+    body: t.Object({
+      duration: t.Number({ minimum: 0 }),
+      startedAt: t.String(),
+      endedAt: t.String(),
+      note: t.Optional(t.String()),
+    }),
+  },
+);
 
 // ==================== Comments API ====================
-app.get("/tasks/:id/comments", async ({ params }) => {
-  const { id } = params;
-  return await prisma.comment.findMany({
-    where: { taskId: parseInt(id) },
-    orderBy: { createdAt: "desc" },
-  });
-});
+app.get(
+  "/tasks/:id/comments",
+  async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
+    return await prisma.comment.findMany({
+      where: { taskId: parseInt(id) },
+      orderBy: { createdAt: "desc" },
+    });
+  },
+);
 
-app.post("/tasks/:id/comments", async ({ params, body }) => {
-  const { id } = params;
-  const { content } = body as { content: string };
-  return await prisma.comment.create({
-    data: {
-      taskId: parseInt(id),
-      content,
-    },
-  });
-});
+app.post(
+  "/tasks/:id/comments",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { content: string };
+  }) => {
+    const { id } = params;
+    const { content } = body;
+    return await prisma.comment.create({
+      data: {
+        taskId: parseInt(id),
+        content,
+      },
+    });
+  },
+  {
+    body: t.Object({
+      content: t.String({ minLength: 1 }),
+    }),
+  },
+);
 
 // ==================== Exam Goals API ====================
 app.get("/exam-goals", async () => {
@@ -647,7 +752,7 @@ app.get("/exam-goals", async () => {
   });
 });
 
-app.get("/exam-goals/:id", async ({ params }) => {
+app.get("/exam-goals/:id", async ({ params }: { params: { id: string } }) => {
   const { id } = params;
   return await prisma.examGoal.findUnique({
     where: { id: parseInt(id) },
@@ -659,55 +764,99 @@ app.get("/exam-goals/:id", async ({ params }) => {
   });
 });
 
-app.post("/exam-goals", async ({ body }) => {
-  const { name, description, examDate, targetScore, color, icon } = body as {
-    name: string;
-    description?: string;
-    examDate: string;
-    targetScore?: string;
-    color?: string;
-    icon?: string;
-  };
-  return await prisma.examGoal.create({
-    data: {
+app.post(
+  "/exam-goals",
+  async ({
+    body,
+  }: {
+    body: {
+      name: string;
+      description?: string;
+      examDate: string;
+      targetScore?: string;
+      color?: string;
+      icon?: string;
+    };
+  }) => {
+    const { name, description, examDate, targetScore, color, icon } = body;
+    return await prisma.examGoal.create({
+      data: {
+        name,
+        examDate: new Date(examDate),
+        ...(description && { description }),
+        ...(targetScore && { targetScore }),
+        ...(color && { color }),
+        ...(icon && { icon }),
+      },
+    });
+  },
+  {
+    body: t.Object({
+      name: t.String({ minLength: 1 }),
+      examDate: t.String(),
+      description: t.Optional(t.String()),
+      targetScore: t.Optional(t.String()),
+      color: t.Optional(t.String()),
+      icon: t.Optional(t.String()),
+    }),
+  },
+);
+
+app.patch(
+  "/exam-goals/:id",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: {
+      name?: string;
+      description?: string;
+      examDate?: string;
+      targetScore?: string;
+      color?: string;
+      icon?: string;
+      isCompleted?: boolean;
+      actualScore?: string;
+    };
+  }) => {
+    const { id } = params;
+    const {
       name,
-      examDate: new Date(examDate),
-      ...(description && { description }),
-      ...(targetScore && { targetScore }),
-      ...(color && { color }),
-      ...(icon && { icon }),
-    },
-  });
-});
+      description,
+      examDate,
+      targetScore,
+      color,
+      icon,
+      isCompleted,
+      actualScore,
+    } = body as {
+      name?: string;
+      description?: string;
+      examDate?: string;
+      targetScore?: string;
+      color?: string;
+      icon?: string;
+      isCompleted?: boolean;
+      actualScore?: string;
+    };
+    return await prisma.examGoal.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...(name && { name }),
+        ...(description !== undefined && { description }),
+        ...(examDate && { examDate: new Date(examDate) }),
+        ...(targetScore !== undefined && { targetScore }),
+        ...(color && { color }),
+        ...(icon !== undefined && { icon }),
+        ...(isCompleted !== undefined && { isCompleted }),
+        ...(actualScore !== undefined && { actualScore }),
+      },
+    });
+  },
+);
 
-app.patch("/exam-goals/:id", async ({ params, body }) => {
-  const { id } = params;
-  const { name, description, examDate, targetScore, color, icon, isCompleted, actualScore } = body as {
-    name?: string;
-    description?: string;
-    examDate?: string;
-    targetScore?: string;
-    color?: string;
-    icon?: string;
-    isCompleted?: boolean;
-    actualScore?: string;
-  };
-  return await prisma.examGoal.update({
-    where: { id: parseInt(id) },
-    data: {
-      ...(name && { name }),
-      ...(description !== undefined && { description }),
-      ...(examDate && { examDate: new Date(examDate) }),
-      ...(targetScore !== undefined && { targetScore }),
-      ...(color && { color }),
-      ...(icon !== undefined && { icon }),
-      ...(isCompleted !== undefined && { isCompleted }),
-      ...(actualScore !== undefined && { actualScore }),
-    },
-  });
-});
-
-app.delete("/exam-goals/:id", async ({ params }) => {
+app.delete("/exam-goals/:id", async ({ params }: { params: any }) => {
   const { id } = params;
   return await prisma.examGoal.delete({
     where: { id: parseInt(id) },
@@ -715,7 +864,7 @@ app.delete("/exam-goals/:id", async ({ params }) => {
 });
 
 // ==================== Study Streak API ====================
-app.get("/study-streaks", async ({ query }) => {
+app.get("/study-streaks", async ({ query }: { query: { days?: string } }) => {
   const { days } = query as { days?: string };
   const daysNum = days ? parseInt(days) : 30;
 
@@ -764,7 +913,9 @@ app.get("/study-streaks/current", async () => {
   for (const streak of allStreaks) {
     if (streak.studyMinutes > 0 || streak.tasksCompleted > 0) {
       if (prevDate) {
-        const diff = Math.round((streak.date.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
+        const diff = Math.round(
+          (streak.date.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24),
+        );
         if (diff === 1) {
           tempStreak++;
         } else {
@@ -788,11 +939,11 @@ app.get("/study-streaks/current", async () => {
   };
 });
 
-app.post("/study-streaks/record", async ({ body }) => {
+app.post("/study-streaks/record", async ({ body }: { body: any }) => {
   const { date, studyMinutes, tasksCompleted } = body as {
-    date?: string;
-    studyMinutes?: number;
-    tasksCompleted?: number;
+    date?: string | null;
+    studyMinutes?: number | null;
+    tasksCompleted?: number | null;
   };
 
   const targetDate = date ? new Date(date) : new Date();
@@ -801,8 +952,12 @@ app.post("/study-streaks/record", async ({ body }) => {
   return await prisma.studyStreak.upsert({
     where: { date: targetDate },
     update: {
-      ...(studyMinutes !== undefined && { studyMinutes: { increment: studyMinutes } }),
-      ...(tasksCompleted !== undefined && { tasksCompleted: { increment: tasksCompleted } }),
+      ...(studyMinutes !== undefined && {
+        studyMinutes: { increment: studyMinutes },
+      }),
+      ...(tasksCompleted !== undefined && {
+        tasksCompleted: { increment: tasksCompleted },
+      }),
     },
     create: {
       date: targetDate,
@@ -819,16 +974,24 @@ app.get("/study-plans", async () => {
   });
 });
 
-app.get("/study-plans/:id", async ({ params }) => {
+app.get("/study-plans/:id", async ({ params }: { params: any }) => {
   const { id } = params;
   return await prisma.studyPlan.findUnique({
     where: { id: parseInt(id) },
   });
 });
 
-app.post("/study-plans", async ({ body }) => {
-  const { examGoalId, subject, prompt, generatedPlan, totalDays, startDate, endDate } = body as {
-    examGoalId?: number;
+app.post("/study-plans", async ({ body }: { body: any }) => {
+  const {
+    examGoalId,
+    subject,
+    prompt,
+    generatedPlan,
+    totalDays,
+    startDate,
+    endDate,
+  } = body as {
+    examGoalId?: number | null;
     subject: string;
     prompt: string;
     generatedPlan: any;
@@ -849,95 +1012,178 @@ app.post("/study-plans", async ({ body }) => {
   });
 });
 
-app.patch("/study-plans/:id", async ({ params, body }) => {
-  const { id } = params;
-  const { isApplied } = body as { isApplied?: boolean };
-  return await prisma.studyPlan.update({
-    where: { id: parseInt(id) },
-    data: {
-      ...(isApplied !== undefined && { isApplied }),
-    },
-  });
-});
+app.patch(
+  "/study-plans/:id",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { isApplied?: boolean };
+  }) => {
+    const { id } = params;
+    const { isApplied } = body as { isApplied?: boolean };
+    return await prisma.studyPlan.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...(isApplied !== undefined && { isApplied }),
+      },
+    });
+  },
+);
 
-app.delete("/study-plans/:id", async ({ params }) => {
-  const { id } = params;
-  return await prisma.studyPlan.delete({
-    where: { id: parseInt(id) },
-  });
-});
+// 学習プランをタスクに適用
+app.post(
+  "/study-plans/:id/apply",
+  async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
+    const studyPlan = await prisma.studyPlan.findUnique({
+      where: { id: parseInt(id) },
+    });
+    if (!studyPlan) return { error: "Study plan not found" };
+
+    const plan = studyPlan.generatedPlan as {
+      phases: {
+        name: string;
+        days: number;
+        tasks: string[];
+        dailyHours: number;
+      }[];
+    };
+    const createdTasks = [];
+    let currentDate = new Date(studyPlan.startDate);
+
+    // 各フェーズのタスクを作成
+    for (const phase of plan.phases) {
+      const phaseDays = phase.days;
+      const phaseEndDate = new Date(currentDate);
+      phaseEndDate.setDate(phaseEndDate.getDate() + phaseDays);
+
+      for (const taskTitle of phase.tasks) {
+        const task = await prisma.task.create({
+          data: {
+            title: `[${studyPlan.subject}] ${taskTitle}`,
+            description: `学習計画「${studyPlan.subject}」のフェーズ「${phase.name}」のタスクです。\n\n目標: 1日${phase.dailyHours}時間`,
+            status: "todo",
+            subject: studyPlan.subject,
+            estimatedHours: phase.dailyHours,
+            dueDate: phaseEndDate,
+            ...(studyPlan.examGoalId && { examGoalId: studyPlan.examGoalId }),
+          },
+        });
+        createdTasks.push(task);
+      }
+
+      currentDate = phaseEndDate;
+    }
+
+    // 学習プランを適用済みに更新
+    await prisma.studyPlan.update({
+      where: { id: parseInt(id) },
+      data: { isApplied: true },
+    });
+
+    return { createdTasks, count: createdTasks.length };
+  },
+);
+
+app.delete(
+  "/study-plans/:id",
+  async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
+    return await prisma.studyPlan.delete({
+      where: { id: parseInt(id) },
+    });
+  },
+);
 
 // AI学習計画生成（モックAPI - 実際のAI連携は後で追加）
-app.post("/study-plans/generate", async ({ body }) => {
-  const { subject, examDate, targetScore, studyHoursPerDay, currentLevel } = body as {
-    subject: string;
-    examDate: string;
-    targetScore?: string;
-    studyHoursPerDay: number;
-    currentLevel: string; // beginner, intermediate, advanced
-  };
+app.post(
+  "/study-plans/generate",
+  async ({
+    body,
+  }: {
+    body: {
+      subject: string | null;
+      examDate: string | null;
+      targetScore?: string | null;
+      studyHoursPerDay: number | null;
+      currentLevel: string | null;
+    };
+  }) => {
+    const { subject, examDate, targetScore, studyHoursPerDay, currentLevel } =
+      body as {
+        subject: string | null;
+        examDate: string | null;
+        targetScore?: string | null;
+        studyHoursPerDay: number | null;
+        currentLevel: string | null; // beginner, intermediate, advanced
+      };
 
-  const start = new Date();
-  const end = new Date(examDate);
-  const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    const start = new Date();
+    const end = new Date(examDate || "");
+    const totalDays = Math.ceil(
+      (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+    );
 
-  // AIによる計画生成をシミュレート（実際にはOpenAI APIを呼び出す）
-  const phases = [];
-  const phaseDays = Math.floor(totalDays / 3);
+    // AIによる計画生成をシミュレート（実際にはOpenAI APIを呼び出す）
+    const phases = [];
+    const phaseDays = Math.floor(totalDays / 3);
 
-  phases.push({
-    name: "基礎固め",
-    days: phaseDays,
-    tasks: [
-      `${subject}の基本概念を学習`,
-      `${subject}の用語を暗記`,
-      "過去問を確認して傾向を把握",
-    ],
-    dailyHours: studyHoursPerDay * 0.8,
-  });
+    phases.push({
+      name: "基礎固め",
+      days: phaseDays,
+      tasks: [
+        `${subject}の基本概念を学習`,
+        `${subject}の用語を暗記`,
+        "過去問を確認して傾向を把握",
+      ],
+      dailyHours: Number(studyHoursPerDay) * 0.8,
+    });
 
-  phases.push({
-    name: "応用力強化",
-    days: phaseDays,
-    tasks: [
-      `${subject}の応用問題に取り組む`,
-      "弱点分野を重点的に学習",
-      "模擬試験を解く",
-    ],
-    dailyHours: studyHoursPerDay,
-  });
+    phases.push({
+      name: "応用力強化",
+      days: phaseDays,
+      tasks: [
+        `${subject}の応用問題に取り組む`,
+        "弱点分野を重点的に学習",
+        "模擬試験を解く",
+      ],
+      dailyHours: Number(studyHoursPerDay),
+    });
 
-  phases.push({
-    name: "総仕上げ",
-    days: totalDays - phaseDays * 2,
-    tasks: [
-      "過去問を時間を計って解く",
-      "間違えた問題の復習",
-      `${targetScore ? `目標${targetScore}達成のための最終調整` : "試験本番に向けた最終確認"}`,
-    ],
-    dailyHours: studyHoursPerDay * 1.2,
-  });
+    phases.push({
+      name: "総仕上げ",
+      days: totalDays - phaseDays * 2,
+      tasks: [
+        "過去問を時間を計って解く",
+        "間違えた問題の復習",
+        `${targetScore ? `目標${targetScore}達成のための最終調整` : "試験本番に向けた最終確認"}`,
+      ],
+      dailyHours: Number(studyHoursPerDay) * 1.2,
+    });
 
-  const generatedPlan = {
-    subject,
-    targetScore,
-    totalDays,
-    studyHoursPerDay,
-    phases,
-    tips: [
-      "毎日同じ時間に学習する習慣をつけましょう",
-      "休憩を適度に取り、集中力を維持しましょう",
-      "復習は記憶定着に重要です",
-    ],
-  };
+    const generatedPlan = {
+      subject,
+      targetScore,
+      totalDays,
+      studyHoursPerDay,
+      phases,
+      tips: [
+        "毎日同じ時間に学習する習慣をつけましょう",
+        "休憩を適度に取り、集中力を維持しましょう",
+        "復習は記憶定着に重要です",
+      ],
+    };
 
-  return {
-    generatedPlan,
-    startDate: start.toISOString(),
-    endDate: end.toISOString(),
-    totalDays,
-  };
-});
+    return {
+      generatedPlan,
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
+      totalDays,
+    };
+  },
+);
 
 // ==================== Dashboard Statistics API ====================
 app.get("/statistics/overview", async () => {
@@ -974,12 +1220,18 @@ app.get("/statistics/overview", async () => {
   const weekTimeEntries = await prisma.timeEntry.findMany({
     where: { startedAt: { gte: weekAgo } },
   });
-  const weekStudyHours = weekTimeEntries.reduce((sum, entry) => sum + entry.duration, 0);
+  const weekStudyHours = weekTimeEntries.reduce(
+    (sum: number, entry: { duration: number }) => sum + entry.duration,
+    0,
+  );
 
   const monthTimeEntries = await prisma.timeEntry.findMany({
     where: { startedAt: { gte: monthAgo } },
   });
-  const monthStudyHours = monthTimeEntries.reduce((sum, entry) => sum + entry.duration, 0);
+  const monthStudyHours = monthTimeEntries.reduce(
+    (sum: number, entry: { duration: number }) => sum + entry.duration,
+    0,
+  );
 
   // 試験目標
   const upcomingExams = await prisma.examGoal.findMany({
@@ -1003,7 +1255,8 @@ app.get("/statistics/overview", async () => {
       completed: completedTasks,
       todayCompleted,
       weekCompleted,
-      completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+      completionRate:
+        totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
     },
     studyTime: {
       weekHours: Math.round(weekStudyHours * 10) / 10,
@@ -1015,98 +1268,231 @@ app.get("/statistics/overview", async () => {
 });
 
 // 日別学習時間
-app.get("/statistics/daily-study", async ({ query }) => {
-  const { days } = query as { days?: string };
-  const daysNum = days ? parseInt(days) : 7;
+app.get(
+  "/statistics/daily-study",
+  async ({ query }: { query: { days?: string } }) => {
+    const daysNum = query.days ? parseInt(query.days) : 7;
 
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - daysNum);
-  startDate.setHours(0, 0, 0, 0);
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysNum);
+    startDate.setHours(0, 0, 0, 0);
 
-  const timeEntries = await prisma.timeEntry.findMany({
-    where: { startedAt: { gte: startDate } },
-    orderBy: { startedAt: "asc" },
-  });
+    const timeEntries = await prisma.timeEntry.findMany({
+      where: { startedAt: { gte: startDate } },
+      orderBy: { startedAt: "asc" },
+    });
 
-  // 日別に集計
-  const dailyData: Record<string, number> = {};
-  for (let i = 0; i < daysNum; i++) {
-    const date = new Date(startDate);
-    date.setDate(date.getDate() + i);
-    const dateStr = date.toISOString().split("T")[0];
-    dailyData[dateStr] = 0;
-  }
-
-  for (const entry of timeEntries) {
-    const dateStr = entry.startedAt.toISOString().split("T")[0];
-    if (dailyData[dateStr] !== undefined) {
-      dailyData[dateStr] += entry.duration;
+    // 日別に集計
+    const dailyData: Record<string, number> = {};
+    for (let i = 0; i < daysNum; i++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      const dateStr = date.toISOString().split("T")[0];
+      dailyData[String(dateStr)] = 0;
     }
-  }
 
-  return Object.entries(dailyData).map(([date, hours]) => ({
-    date,
-    hours: Math.round(hours * 10) / 10,
-  }));
-});
+    for (const entry of timeEntries) {
+      const dateStr = entry.startedAt.toISOString().split("T")[0];
+      if (dailyData[dateStr] !== undefined) {
+        dailyData[dateStr] += entry.duration;
+      }
+    }
+
+    return Object.entries(dailyData).map(([date, hours]) => ({
+      date,
+      hours: Math.round(hours * 10) / 10,
+    }));
+  },
+);
 
 // 科目別学習時間
-app.get("/statistics/subject-breakdown", async ({ query }) => {
-  const { days } = query as { days?: string };
-  const daysNum = days ? parseInt(days) : 30;
+app.get(
+  "/statistics/subject-breakdown",
+  async ({ query }: { query: { days?: string } }) => {
+    const daysNum = query.days ? parseInt(query.days) : 30;
 
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - daysNum);
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysNum);
 
-  const tasks = await prisma.task.findMany({
-    where: {
-      subject: { not: null },
-      timeEntries: {
-        some: {
-          startedAt: { gte: startDate },
+    const tasks = await prisma.task.findMany({
+      where: {
+        subject: { not: null },
+        timeEntries: {
+          some: {
+            startedAt: { gte: startDate },
+          },
         },
       },
-    },
-    include: {
-      timeEntries: {
-        where: { startedAt: { gte: startDate } },
+      include: {
+        timeEntries: {
+          where: { startedAt: { gte: startDate } },
+        },
       },
-    },
-  });
+    });
 
-  const subjectData: Record<string, number> = {};
-  for (const task of tasks) {
-    if (task.subject) {
-      const hours = task.timeEntries.reduce((sum, e) => sum + e.duration, 0);
-      subjectData[task.subject] = (subjectData[task.subject] || 0) + hours;
+    const subjectData: Record<string, number> = {};
+    for (const task of tasks) {
+      if (task.subject) {
+        const hours = task.timeEntries.reduce(
+          (sum: number, e: { duration: number }) => sum + e.duration,
+          0,
+        );
+        subjectData[task.subject] = (subjectData[task.subject] || 0) + hours;
+      }
     }
-  }
 
-  return Object.entries(subjectData)
-    .map(([subject, hours]) => ({
-      subject,
-      hours: Math.round(hours * 10) / 10,
-    }))
-    .sort((a, b) => b.hours - a.hours);
-});
+    return Object.entries(subjectData)
+      .map(([subject, hours]) => ({
+        subject,
+        hours: Math.round(hours * 10) / 10,
+      }))
+      .sort((a, b) => b.hours - a.hours);
+  },
+);
 
 // ==================== Achievements API ====================
 // 初期実績データを作成
 const ACHIEVEMENTS = [
-  { key: "first_task", name: "はじめの一歩", description: "最初のタスクを完了", icon: "Star", color: "#FFD700", category: "tasks", condition: { type: "tasks_completed", count: 1 }, rarity: "common" },
-  { key: "task_10", name: "やる気満々", description: "10個のタスクを完了", icon: "Zap", color: "#F59E0B", category: "tasks", condition: { type: "tasks_completed", count: 10 }, rarity: "common" },
-  { key: "task_50", name: "努力家", description: "50個のタスクを完了", icon: "Award", color: "#8B5CF6", category: "tasks", condition: { type: "tasks_completed", count: 50 }, rarity: "rare" },
-  { key: "task_100", name: "タスクマスター", description: "100個のタスクを完了", icon: "Crown", color: "#EC4899", category: "tasks", condition: { type: "tasks_completed", count: 100 }, rarity: "epic" },
-  { key: "streak_3", name: "継続は力なり", description: "3日連続で学習", icon: "Flame", color: "#F97316", category: "streak", condition: { type: "streak", days: 3 }, rarity: "common" },
-  { key: "streak_7", name: "一週間の壁突破", description: "7日連続で学習", icon: "Flame", color: "#EF4444", category: "streak", condition: { type: "streak", days: 7 }, rarity: "rare" },
-  { key: "streak_30", name: "鉄人", description: "30日連続で学習", icon: "Flame", color: "#DC2626", category: "streak", condition: { type: "streak", days: 30 }, rarity: "legendary" },
-  { key: "study_10h", name: "学習の第一歩", description: "累計10時間学習", icon: "Clock", color: "#3B82F6", category: "study", condition: { type: "study_hours", hours: 10 }, rarity: "common" },
-  { key: "study_50h", name: "勉強熱心", description: "累計50時間学習", icon: "Clock", color: "#2563EB", category: "study", condition: { type: "study_hours", hours: 50 }, rarity: "rare" },
-  { key: "study_100h", name: "学習の達人", description: "累計100時間学習", icon: "BookOpen", color: "#1D4ED8", category: "study", condition: { type: "study_hours", hours: 100 }, rarity: "epic" },
-  { key: "exam_pass", name: "合格おめでとう", description: "試験目標を達成", icon: "Trophy", color: "#10B981", category: "exam", condition: { type: "exam_completed", count: 1 }, rarity: "rare" },
-  { key: "early_bird", name: "早起き学習", description: "朝6時前に学習開始", icon: "Sun", color: "#FBBF24", category: "special", condition: { type: "early_study" }, rarity: "rare" },
-  { key: "night_owl", name: "夜型学習者", description: "深夜0時以降に学習", icon: "Moon", color: "#6366F1", category: "special", condition: { type: "night_study" }, rarity: "rare" },
-  { key: "flashcard_master", name: "暗記王", description: "100枚のフラッシュカードを復習", icon: "Brain", color: "#8B5CF6", category: "flashcard", condition: { type: "flashcard_reviews", count: 100 }, rarity: "rare" },
+  {
+    key: "first_task",
+    name: "はじめの一歩",
+    description: "最初のタスクを完了",
+    icon: "Star",
+    color: "#FFD700",
+    category: "tasks",
+    condition: { type: "tasks_completed", count: 1 },
+    rarity: "common",
+  },
+  {
+    key: "task_10",
+    name: "やる気満々",
+    description: "10個のタスクを完了",
+    icon: "Zap",
+    color: "#F59E0B",
+    category: "tasks",
+    condition: { type: "tasks_completed", count: 10 },
+    rarity: "common",
+  },
+  {
+    key: "task_50",
+    name: "努力家",
+    description: "50個のタスクを完了",
+    icon: "Award",
+    color: "#8B5CF6",
+    category: "tasks",
+    condition: { type: "tasks_completed", count: 50 },
+    rarity: "rare",
+  },
+  {
+    key: "task_100",
+    name: "タスクマスター",
+    description: "100個のタスクを完了",
+    icon: "Crown",
+    color: "#EC4899",
+    category: "tasks",
+    condition: { type: "tasks_completed", count: 100 },
+    rarity: "epic",
+  },
+  {
+    key: "streak_3",
+    name: "継続は力なり",
+    description: "3日連続で学習",
+    icon: "Flame",
+    color: "#F97316",
+    category: "streak",
+    condition: { type: "streak", days: 3 },
+    rarity: "common",
+  },
+  {
+    key: "streak_7",
+    name: "一週間の壁突破",
+    description: "7日連続で学習",
+    icon: "Flame",
+    color: "#EF4444",
+    category: "streak",
+    condition: { type: "streak", days: 7 },
+    rarity: "rare",
+  },
+  {
+    key: "streak_30",
+    name: "鉄人",
+    description: "30日連続で学習",
+    icon: "Flame",
+    color: "#DC2626",
+    category: "streak",
+    condition: { type: "streak", days: 30 },
+    rarity: "legendary",
+  },
+  {
+    key: "study_10h",
+    name: "学習の第一歩",
+    description: "累計10時間学習",
+    icon: "Clock",
+    color: "#3B82F6",
+    category: "study",
+    condition: { type: "study_hours", hours: 10 },
+    rarity: "common",
+  },
+  {
+    key: "study_50h",
+    name: "勉強熱心",
+    description: "累計50時間学習",
+    icon: "Clock",
+    color: "#2563EB",
+    category: "study",
+    condition: { type: "study_hours", hours: 50 },
+    rarity: "rare",
+  },
+  {
+    key: "study_100h",
+    name: "学習の達人",
+    description: "累計100時間学習",
+    icon: "BookOpen",
+    color: "#1D4ED8",
+    category: "study",
+    condition: { type: "study_hours", hours: 100 },
+    rarity: "epic",
+  },
+  {
+    key: "exam_pass",
+    name: "合格おめでとう",
+    description: "試験目標を達成",
+    icon: "Trophy",
+    color: "#10B981",
+    category: "exam",
+    condition: { type: "exam_completed", count: 1 },
+    rarity: "rare",
+  },
+  {
+    key: "early_bird",
+    name: "早起き学習",
+    description: "朝6時前に学習開始",
+    icon: "Sun",
+    color: "#FBBF24",
+    category: "special",
+    condition: { type: "early_study" },
+    rarity: "rare",
+  },
+  {
+    key: "night_owl",
+    name: "夜型学習者",
+    description: "深夜0時以降に学習",
+    icon: "Moon",
+    color: "#6366F1",
+    category: "special",
+    condition: { type: "night_study" },
+    rarity: "rare",
+  },
+  {
+    key: "flashcard_master",
+    name: "暗記王",
+    description: "100枚のフラッシュカードを復習",
+    icon: "Brain",
+    color: "#8B5CF6",
+    category: "flashcard",
+    condition: { type: "flashcard_reviews", count: 100 },
+    rarity: "rare",
+  },
 ];
 
 app.get("/achievements", async () => {
@@ -1138,14 +1524,14 @@ app.get("/achievements", async () => {
     });
   }
 
-  return achievements.map((a) => ({
+  return achievements.map((a: { unlockedBy: { unlockedAt: Date }[] }) => ({
     ...a,
     isUnlocked: a.unlockedBy.length > 0,
     unlockedAt: a.unlockedBy[0]?.unlockedAt || null,
   }));
 });
 
-app.post("/achievements/:key/unlock", async ({ params }) => {
+app.post("/achievements/:key/unlock", async ({ params }: { params: any }) => {
   const { key } = params;
   const achievement = await prisma.achievement.findUnique({ where: { key } });
   if (!achievement) return { error: "Achievement not found" };
@@ -1153,7 +1539,12 @@ app.post("/achievements/:key/unlock", async ({ params }) => {
   const existing = await prisma.userAchievement.findUnique({
     where: { achievementId: achievement.id },
   });
-  if (existing) return { ...achievement, isUnlocked: true, unlockedAt: existing.unlockedAt };
+  if (existing)
+    return {
+      ...achievement,
+      isUnlocked: true,
+      unlockedAt: existing.unlockedAt,
+    };
 
   await prisma.userAchievement.create({
     data: { achievementId: achievement.id },
@@ -1173,12 +1564,15 @@ app.post("/achievements/check", async () => {
 
   // ストリークをチェック
   const streakRes = await fetch("http://localhost:3001/study-streaks/current");
-  const streakData = await streakRes.json();
+  const streakData = (await streakRes.json()) as { currentStreak: number };
   const currentStreak = streakData.currentStreak || 0;
 
   // 学習時間をチェック
   const timeEntries = await prisma.timeEntry.findMany();
-  const totalHours = timeEntries.reduce((sum, e) => sum + e.duration, 0);
+  const totalHours = timeEntries.reduce(
+    (sum: number, e: { duration: number }) => sum + e.duration,
+    0,
+  );
 
   // 試験達成をチェック
   const completedExams = await prisma.examGoal.count({
@@ -1237,7 +1631,7 @@ app.get("/habits", async () => {
   });
 });
 
-app.get("/habits/:id", async ({ params }) => {
+app.get("/habits/:id", async ({ params }: { params: any }) => {
   const { id } = params;
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -1254,94 +1648,130 @@ app.get("/habits/:id", async ({ params }) => {
   });
 });
 
-app.post("/habits", async ({ body }) => {
-  const { name, description, icon, color, frequency, targetCount } = body as {
-    name: string;
-    description?: string;
-    icon?: string;
-    color?: string;
-    frequency?: string;
-    targetCount?: number;
-  };
-  return await prisma.habit.create({
-    data: {
-      name,
-      ...(description && { description }),
-      ...(icon && { icon }),
-      ...(color && { color }),
-      ...(frequency && { frequency }),
-      ...(targetCount && { targetCount }),
-    },
-  });
-});
+app.post(
+  "/habits",
+  async ({
+    body,
+  }: {
+    body: {
+      name: string;
+      description?: string;
+      icon?: string;
+      color?: string;
+      frequency?: string;
+      targetCount?: number;
+    };
+  }) => {
+    const { name, description, icon, color, frequency, targetCount } = body;
+    return await prisma.habit.create({
+      data: {
+        name,
+        ...(description && { description }),
+        ...(icon && { icon }),
+        ...(color && { color }),
+        ...(frequency && { frequency }),
+        ...(targetCount && { targetCount }),
+      },
+    });
+  },
+  {
+    body: t.Object({
+      name: t.String({ minLength: 1 }),
+      description: t.Optional(t.String()),
+      icon: t.Optional(t.String()),
+      color: t.Optional(t.String()),
+      frequency: t.Optional(t.String()),
+      targetCount: t.Optional(t.Number()),
+    }),
+  },
+);
 
-app.patch("/habits/:id", async ({ params, body }) => {
-  const { id } = params;
-  const { name, description, icon, color, frequency, targetCount, isActive } = body as {
-    name?: string;
-    description?: string;
-    icon?: string;
-    color?: string;
-    frequency?: string;
-    targetCount?: number;
-    isActive?: boolean;
-  };
-  return await prisma.habit.update({
-    where: { id: parseInt(id) },
-    data: {
-      ...(name && { name }),
-      ...(description !== undefined && { description }),
-      ...(icon !== undefined && { icon }),
-      ...(color && { color }),
-      ...(frequency && { frequency }),
-      ...(targetCount && { targetCount }),
-      ...(isActive !== undefined && { isActive }),
-    },
-  });
-});
+app.patch(
+  "/habits/:id",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: {
+      name?: string;
+      description?: string;
+      icon?: string;
+      color?: string;
+      frequency?: string;
+      targetCount?: number;
+      isActive?: boolean;
+    };
+  }) => {
+    const { id } = params;
+    const { name, description, icon, color, frequency, targetCount, isActive } =
+      body;
+    return await prisma.habit.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...(name && { name }),
+        ...(description !== undefined && { description }),
+        ...(icon !== undefined && { icon }),
+        ...(color && { color }),
+        ...(frequency && { frequency }),
+        ...(targetCount && { targetCount }),
+        ...(isActive !== undefined && { isActive }),
+      },
+    });
+  },
+);
 
-app.delete("/habits/:id", async ({ params }) => {
+app.delete("/habits/:id", async ({ params }: { params: { id: string } }) => {
   const { id } = params;
   return await prisma.habit.delete({ where: { id: parseInt(id) } });
 });
 
-app.post("/habits/:id/log", async ({ params, body }) => {
-  const { id } = params;
-  const { date, note } = body as { date?: string; note?: string };
+app.post(
+  "/habits/:id/log",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { date?: string; note?: string };
+  }) => {
+    const { id } = params;
+    const { date, note } = body;
 
-  const targetDate = date ? new Date(date) : new Date();
-  targetDate.setHours(0, 0, 0, 0);
+    const targetDate = date ? new Date(date) : new Date();
+    targetDate.setHours(0, 0, 0, 0);
 
-  return await prisma.habitLog.upsert({
-    where: {
-      habitId_date: {
+    return await prisma.habitLog.upsert({
+      where: {
+        habitId_date: {
+          habitId: parseInt(id),
+          date: targetDate,
+        },
+      },
+      update: {
+        count: { increment: 1 },
+        ...(note && { note }),
+      },
+      create: {
         habitId: parseInt(id),
         date: targetDate,
+        count: 1,
+        ...(note && { note }),
       },
-    },
-    update: {
-      count: { increment: 1 },
-      ...(note && { note }),
-    },
-    create: {
-      habitId: parseInt(id),
-      date: targetDate,
-      count: 1,
-      ...(note && { note }),
-    },
-  });
-});
+    });
+  },
+);
 
 // ==================== Resources API ====================
-app.get("/tasks/:taskId/resources", async ({ params }) => {
-  const { taskId } = params;
+app.get("/tasks/:id/resources", async ({ params }: { params: any }) => {
+  const { id } = params;
   return await prisma.resource.findMany({
-    where: { taskId: parseInt(taskId) },
+    where: { taskId: parseInt(id) },
     orderBy: { createdAt: "desc" },
   });
 });
 
-app.post("/resources", async ({ body }) => {
+app.post("/resources", async ({ body }: { body: any }) => {
   const { taskId, title, url, type, description } = body as {
     taskId?: number;
     title: string;
@@ -1360,7 +1790,7 @@ app.post("/resources", async ({ body }) => {
   });
 });
 
-app.delete("/resources/:id", async ({ params }) => {
+app.delete("/resources/:id", async ({ params }: { params: { id: string } }) => {
   const { id } = params;
   return await prisma.resource.delete({ where: { id: parseInt(id) } });
 });
@@ -1375,119 +1805,171 @@ app.get("/flashcard-decks", async () => {
   });
 });
 
-app.get("/flashcard-decks/:id", async ({ params }) => {
-  const { id } = params;
-  return await prisma.flashcardDeck.findUnique({
-    where: { id: parseInt(id) },
-    include: {
-      cards: {
-        orderBy: { createdAt: "asc" },
+app.get(
+  "/flashcard-decks/:id",
+  async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
+    return await prisma.flashcardDeck.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        cards: {
+          orderBy: { createdAt: "asc" },
+        },
       },
-    },
-  });
-});
+    });
+  },
+);
 
-app.post("/flashcard-decks", async ({ body }) => {
-  const { name, description, color, taskId } = body as {
-    name: string;
-    description?: string;
-    color?: string;
-    taskId?: number;
-  };
-  return await prisma.flashcardDeck.create({
-    data: {
-      name,
-      ...(description && { description }),
-      ...(color && { color }),
-      ...(taskId && { taskId }),
-    },
-  });
-});
+app.post(
+  "/flashcard-decks",
+  async ({
+    body: { name, description, color, taskId },
+  }: {
+    body: {
+      name: string;
+      description?: string;
+      color?: string;
+      taskId?: number;
+    };
+  }) => {
+    return await prisma.flashcardDeck.create({
+      data: {
+        name,
+        ...(description && { description }),
+        ...(color && { color }),
+        ...(taskId && { taskId }),
+      },
+    });
+  },
+  {
+    body: t.Object({
+      name: t.String({ minLength: 1 }),
+      description: t.Optional(t.String()),
+      color: t.Optional(t.String()),
+      taskId: t.Optional(t.Number()),
+    }),
+  },
+);
 
-app.delete("/flashcard-decks/:id", async ({ params }) => {
+app.delete("/flashcard-decks/:id", async ({ params }: { params: any }) => {
   const { id } = params;
   return await prisma.flashcardDeck.delete({ where: { id: parseInt(id) } });
 });
 
-app.post("/flashcard-decks/:deckId/cards", async ({ params, body }) => {
-  const { deckId } = params;
-  const { front, back } = body as { front: string; back: string };
-  return await prisma.flashcard.create({
-    data: {
-      deckId: parseInt(deckId),
-      front,
-      back,
-    },
-  });
-});
+app.post(
+  "/flashcard-decks/:deckId/cards",
+  async ({
+    params,
+    body,
+  }: {
+    params: { deckId: string };
+    body: { front: string; back: string };
+  }) => {
+    const { deckId } = params;
+    const { front, back } = body;
+    return await prisma.flashcard.create({
+      data: {
+        deckId: parseInt(deckId),
+        front,
+        back,
+      },
+    });
+  },
+  {
+    body: t.Object({
+      front: t.String({ minLength: 1 }),
+      back: t.String({ minLength: 1 }),
+    }),
+  },
+);
 
-app.patch("/flashcards/:id", async ({ params, body }) => {
-  const { id } = params;
-  const { front, back } = body as { front?: string; back?: string };
-  return await prisma.flashcard.update({
-    where: { id: parseInt(id) },
-    data: {
-      ...(front && { front }),
-      ...(back && { back }),
-    },
-  });
-});
+app.patch(
+  "/flashcards/:id",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { front?: string; back?: string };
+  }) => {
+    const { id } = params;
+    const { front, back } = body as { front?: string; back?: string };
+    return await prisma.flashcard.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...(front && { front }),
+        ...(back && { back }),
+      },
+    });
+  },
+);
 
-app.delete("/flashcards/:id", async ({ params }) => {
+app.delete("/flashcards/:id", async ({ params }: { params: any }) => {
   const { id } = params;
   return await prisma.flashcard.delete({ where: { id: parseInt(id) } });
 });
 
 // フラッシュカード復習（SM-2アルゴリズム）
-app.post("/flashcards/:id/review", async ({ params, body }) => {
-  const { id } = params;
-  const { quality } = body as { quality: number }; // 0-5 (0=完全忘れ, 5=完璧)
+app.post(
+  "/flashcards/:id/review",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { quality: number };
+  }) => {
+    const { id } = params;
+    const { quality } = body; // 0-5 (0=完全忘れ, 5=完璧)
 
-  const card = await prisma.flashcard.findUnique({ where: { id: parseInt(id) } });
-  if (!card) return { error: "Card not found" };
+    const card = await prisma.flashcard.findUnique({
+      where: { id: parseInt(id) },
+    });
+    if (!card) return { error: "Card not found" };
 
-  let { interval, easeFactor, reviewCount } = card;
+    let { interval, easeFactor, reviewCount } = card;
 
-  // SM-2アルゴリズム
-  if (quality >= 3) {
-    if (reviewCount === 0) {
-      interval = 1;
-    } else if (reviewCount === 1) {
-      interval = 6;
+    // SM-2アルゴリズム
+    if (quality >= 3) {
+      if (reviewCount === 0) {
+        interval = 1;
+      } else if (reviewCount === 1) {
+        interval = 6;
+      } else {
+        interval = Math.round(interval * easeFactor);
+      }
+      reviewCount++;
     } else {
-      interval = Math.round(interval * easeFactor);
+      reviewCount = 0;
+      interval = 1;
     }
-    reviewCount++;
-  } else {
-    reviewCount = 0;
-    interval = 1;
-  }
 
-  easeFactor = Math.max(1.3, easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)));
+    easeFactor = Math.max(
+      1.3,
+      easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)),
+    );
 
-  const nextReview = new Date();
-  nextReview.setDate(nextReview.getDate() + interval);
+    const nextReview = new Date();
+    nextReview.setDate(nextReview.getDate() + interval);
 
-  return await prisma.flashcard.update({
-    where: { id: parseInt(id) },
-    data: {
-      interval,
-      easeFactor,
-      reviewCount,
-      nextReview,
-    },
-  });
-});
+    return await prisma.flashcard.update({
+      where: { id: parseInt(id) },
+      data: {
+        interval,
+        easeFactor,
+        reviewCount,
+        nextReview,
+      },
+    });
+  },
+);
 
 // 今日復習すべきカード
 app.get("/flashcards/due", async () => {
   const today = new Date();
   return await prisma.flashcard.findMany({
     where: {
-      OR: [
-        { nextReview: null },
-        { nextReview: { lte: today } },
-      ],
+      OR: [{ nextReview: null }, { nextReview: { lte: today } }],
     },
     include: {
       deck: true,
@@ -1503,14 +1985,14 @@ app.get("/templates", async () => {
   });
 });
 
-app.get("/templates/:id", async ({ params }) => {
+app.get("/templates/:id", async ({ params }: { params: any }) => {
   const { id } = params;
   return await prisma.taskTemplate.findUnique({
     where: { id: parseInt(id) },
   });
 });
 
-app.post("/templates", async ({ body }) => {
+app.post("/templates", async ({ body }: { body: any }) => {
   const { name, description, category, templateData } = body as {
     name: string;
     description?: string;
@@ -1527,13 +2009,13 @@ app.post("/templates", async ({ body }) => {
   });
 });
 
-app.delete("/templates/:id", async ({ params }) => {
+app.delete("/templates/:id", async ({ params }: { params: any }) => {
   const { id } = params;
   return await prisma.taskTemplate.delete({ where: { id: parseInt(id) } });
 });
 
 // テンプレートからタスク作成
-app.post("/templates/:id/apply", async ({ params }) => {
+app.post("/templates/:id/apply", async ({ params }: { params: any }) => {
   const { id } = params;
   const template = await prisma.taskTemplate.findUnique({
     where: { id: parseInt(id) },
@@ -1591,16 +2073,26 @@ app.get("/reports/weekly", async () => {
   const thisWeekTime = await prisma.timeEntry.findMany({
     where: { startedAt: { gte: weekAgo } },
   });
-  const thisWeekHours = thisWeekTime.reduce((sum, e) => sum + e.duration, 0);
+  const thisWeekHours = thisWeekTime.reduce(
+    (sum: number, e: { duration: number }) => sum + e.duration,
+    0,
+  );
 
   // 先週のデータ（比較用）
   const lastWeekTasks = await prisma.task.count({
-    where: { status: "done", completedAt: { gte: twoWeeksAgo, lt: weekAgo }, parentId: null },
+    where: {
+      status: "done",
+      completedAt: { gte: twoWeeksAgo, lt: weekAgo },
+      parentId: null,
+    },
   });
   const lastWeekTime = await prisma.timeEntry.findMany({
     where: { startedAt: { gte: twoWeeksAgo, lt: weekAgo } },
   });
-  const lastWeekHours = lastWeekTime.reduce((sum, e) => sum + e.duration, 0);
+  const lastWeekHours = lastWeekTime.reduce(
+    (sum: number, e: { duration: number }) => sum + e.duration,
+    0,
+  );
 
   // 日別データ
   const dailyData = [];
@@ -1611,12 +2103,19 @@ app.get("/reports/weekly", async () => {
     nextDate.setDate(nextDate.getDate() + 1);
 
     const tasks = await prisma.task.count({
-      where: { status: "done", completedAt: { gte: date, lt: nextDate }, parentId: null },
+      where: {
+        status: "done",
+        completedAt: { gte: date, lt: nextDate },
+        parentId: null,
+      },
     });
     const time = await prisma.timeEntry.findMany({
       where: { startedAt: { gte: date, lt: nextDate } },
     });
-    const hours = time.reduce((sum, e) => sum + e.duration, 0);
+    const hours = time.reduce(
+      (sum: number, e: { duration: number }) => sum + e.duration,
+      0,
+    );
 
     dailyData.push({
       date: date.toISOString().split("T")[0],
@@ -1647,10 +2146,12 @@ app.get("/reports/weekly", async () => {
       hoursChange: Math.round((thisWeekHours - lastWeekHours) * 10) / 10,
     },
     dailyData,
-    subjectBreakdown: subjectData.map((s) => ({
-      subject: s.subject,
-      count: s._count,
-    })),
+    subjectBreakdown: subjectData.map(
+      (s: { subject: string; _count: number }) => ({
+        subject: s.subject,
+        count: s._count,
+      }),
+    ),
   };
 });
 
@@ -1669,7 +2170,7 @@ app.get("/export/tasks", async () => {
   return {
     exportedAt: new Date().toISOString(),
     version: "1.0",
-    tasks: tasks.map((t) => ({
+    tasks: tasks.map((t: any) => ({
       id: t.id,
       title: t.title,
       description: t.description,
@@ -1680,15 +2181,1756 @@ app.get("/export/tasks", async () => {
       estimatedHours: t.estimatedHours,
       actualHours: t.actualHours,
       theme: t.theme?.name,
-      labels: t.taskLabels.map((tl) => tl.label.name),
-      subtasks: t.subtasks.map((st) => ({
+      labels: t.taskLabels.map((tl: any) => tl.label.name),
+      subtasks: t.subtasks.map((st: any) => ({
         title: st.title,
         status: st.status,
       })),
-      totalTimeHours: t.timeEntries.reduce((sum, e) => sum + e.duration, 0),
+      totalTimeHours: t.timeEntries.reduce(
+        (sum: number, e: { duration: number }) => sum + e.duration,
+        0,
+      ),
       createdAt: t.createdAt,
       completedAt: t.completedAt,
     })),
+  };
+});
+
+// ==================== Developer Mode API ====================
+
+// 開発者モード設定取得
+app.get(
+  "/developer-mode/config/:taskId",
+  async ({ params }: { params: any }) => {
+    const { taskId } = params;
+    const config = await prisma.developerModeConfig.findUnique({
+      where: { taskId: parseInt(taskId) },
+      include: {
+        agentSessions: {
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        },
+        approvalRequests: {
+          where: { status: "pending" },
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    });
+    return config;
+  },
+);
+
+// 開発者モード有効化
+app.post(
+  "/developer-mode/enable/:taskId",
+  async ({ params, body }: { params: { taskId: string }; body: any }) => {
+    const { taskId } = params;
+    const taskIdNum = parseInt(taskId);
+    const { autoApprove, maxSubtasks, priority } = body as {
+      autoApprove?: boolean;
+      maxSubtasks?: number;
+      priority?: string;
+    };
+
+    // タスクを更新
+    await prisma.task.update({
+      where: { id: taskIdNum },
+      data: { isDeveloperMode: true },
+    });
+
+    // 設定を作成または更新
+    const config = await prisma.developerModeConfig.upsert({
+      where: { taskId: taskIdNum },
+      update: {
+        isEnabled: true,
+        ...(autoApprove !== undefined && { autoApprove }),
+        ...(maxSubtasks !== undefined && { maxSubtasks }),
+        ...(priority !== undefined && { priority }),
+      },
+      create: {
+        taskId: taskIdNum,
+        isEnabled: true,
+        autoApprove: autoApprove ?? false,
+        maxSubtasks: maxSubtasks ?? 10,
+        priority: priority ?? "balanced",
+      },
+    });
+
+    return config;
+  },
+);
+
+// 開発者モード無効化
+app.delete(
+  "/developer-mode/disable/:taskId",
+  async ({ params }: { params: any }) => {
+    const { taskId } = params;
+    const taskIdNum = parseInt(taskId);
+
+    await prisma.task.update({
+      where: { id: taskIdNum },
+      data: { isDeveloperMode: false },
+    });
+
+    const config = await prisma.developerModeConfig.findUnique({
+      where: { taskId: taskIdNum },
+    });
+
+    if (config) {
+      await prisma.developerModeConfig.update({
+        where: { taskId: taskIdNum },
+        data: { isEnabled: false },
+      });
+    }
+
+    return { success: true };
+  },
+);
+
+// 開発者モード設定更新
+app.patch(
+  "/developer-mode/config/:taskId",
+  async ({
+    params,
+    body,
+  }: {
+    params: { taskId: string };
+    body: {
+      autoApprove?: boolean;
+      notifyInApp?: boolean;
+      maxSubtasks?: number;
+      priority?: string;
+    };
+  }) => {
+    const { taskId } = params;
+    const { autoApprove, notifyInApp, maxSubtasks, priority } = body;
+
+    return await prisma.developerModeConfig.update({
+      where: { taskId: parseInt(taskId) },
+      data: {
+        ...(autoApprove !== undefined && { autoApprove }),
+        ...(notifyInApp !== undefined && { notifyInApp }),
+        ...(maxSubtasks !== undefined && { maxSubtasks }),
+        ...(priority !== undefined && { priority }),
+      },
+    });
+  },
+);
+
+// タスク分析・サブタスク提案
+app.post(
+  "/developer-mode/analyze/:taskId",
+  async ({ params, set }: { params: { taskId: string }; set: any }) => {
+    const { taskId } = params;
+    const taskIdNum = parseInt(taskId);
+
+    // APIキーチェック
+    if (!isApiKeyConfigured()) {
+      set.status = 400;
+      return { error: "Claude API key is not configured" };
+    }
+
+    // タスクと設定を取得
+    const task = await prisma.task.findUnique({
+      where: { id: taskIdNum },
+    });
+
+    if (!task) {
+      set.status = 404;
+      return { error: "Task not found" };
+    }
+
+    const config = await prisma.developerModeConfig.findUnique({
+      where: { taskId: taskIdNum },
+    });
+
+    if (!config || !config.isEnabled) {
+      set.status = 400;
+      return { error: "Developer mode is not enabled for this task" };
+    }
+
+    // セッションを作成
+    const session = await prisma.agentSession.create({
+      data: {
+        configId: config.id,
+        status: "running",
+        startedAt: new Date(),
+      },
+    });
+
+    try {
+      // タスクを分析
+      const { result, tokensUsed } = await analyzeTask(
+        {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          dueDate: task.dueDate,
+          estimatedHours: task.estimatedHours,
+        },
+        {
+          maxSubtasks: config.maxSubtasks,
+          priority: config.priority as
+            | "aggressive"
+            | "balanced"
+            | "conservative",
+        },
+      );
+
+      // アクションを記録
+      await prisma.agentAction.create({
+        data: {
+          sessionId: session.id,
+          actionType: "analysis",
+          targetTaskId: taskIdNum,
+          input: { taskTitle: task.title },
+          output: result,
+          tokensUsed,
+          status: "success",
+        },
+      });
+
+      // セッションを更新
+      await prisma.agentSession.update({
+        where: { id: session.id },
+        data: {
+          totalTokensUsed: tokensUsed,
+          lastActivityAt: new Date(),
+        },
+      });
+
+      // 自動承認の場合は承認リクエストを作成せず、直接サブタスクを作成
+      if (config.autoApprove) {
+        const createdSubtasks = [];
+        for (const subtask of result.suggestedSubtasks) {
+          const created = await prisma.task.create({
+            data: {
+              title: subtask.title,
+              description: subtask.description,
+              priority: subtask.priority,
+              estimatedHours: subtask.estimatedHours,
+              parentId: taskIdNum,
+              agentGenerated: true,
+            },
+          });
+          createdSubtasks.push(created);
+        }
+
+        await prisma.agentSession.update({
+          where: { id: session.id },
+          data: { status: "completed", completedAt: new Date() },
+        });
+
+        return {
+          sessionId: session.id,
+          analysis: result,
+          autoApproved: true,
+          createdSubtasks,
+        };
+      }
+
+      // 承認リクエストを作成
+      const approvalRequest = await prisma.approvalRequest.create({
+        data: {
+          configId: config.id,
+          requestType: "subtask_creation",
+          title: `「${task.title}」のサブタスク提案`,
+          description: result.summary,
+          proposedChanges: {
+            subtasks: result.suggestedSubtasks,
+            reasoning: result.reasoning,
+            tips: result.tips,
+            complexity: result.complexity,
+            estimatedTotalHours: result.estimatedTotalHours,
+          },
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7日後
+        },
+      });
+
+      // 通知を作成
+      if (config.notifyInApp) {
+        await prisma.notification.create({
+          data: {
+            type: "approval_request",
+            title: "サブタスク提案",
+            message: `「${task.title}」に${result.suggestedSubtasks.length}個のサブタスクが提案されました`,
+            link: `/tasks/${taskIdNum}`,
+            metadata: { approvalRequestId: approvalRequest.id },
+          },
+        });
+      }
+
+      return {
+        sessionId: session.id,
+        analysis: result,
+        approvalRequestId: approvalRequest.id,
+        autoApproved: false,
+      };
+    } catch (error: any) {
+      // エラー時はセッションを失敗に更新
+      await prisma.agentSession.update({
+        where: { id: session.id },
+        data: {
+          status: "failed",
+          errorMessage: error.message,
+          completedAt: new Date(),
+        },
+      });
+
+      set.status = 500;
+      return { error: "Analysis failed", details: error.message };
+    }
+  },
+);
+
+// セッション履歴取得
+app.get(
+  "/developer-mode/sessions/:taskId",
+  async ({ params }: { params: any }) => {
+    const { taskId } = params;
+
+    const config = await prisma.developerModeConfig.findUnique({
+      where: { taskId: parseInt(taskId) },
+    });
+
+    if (!config) {
+      return [];
+    }
+
+    return await prisma.agentSession.findMany({
+      where: { configId: config.id },
+      include: {
+        agentActions: {
+          orderBy: { createdAt: "desc" },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  },
+);
+
+// ==================== Approvals API ====================
+
+// 承認待ち一覧
+app.get("/approvals", async ({ query }: { query: { status?: string } }) => {
+  const { status } = query as { status?: string };
+  return await prisma.approvalRequest.findMany({
+    where: status ? { status } : { status: "pending" },
+    include: {
+      config: {
+        include: {
+          task: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+});
+
+// 承認リクエスト詳細
+app.get("/approvals/:id", async ({ params }: { params: any }) => {
+  const { id } = params;
+  return await prisma.approvalRequest.findUnique({
+    where: { id: parseInt(id) },
+    include: {
+      config: {
+        include: {
+          task: true,
+        },
+      },
+    },
+  });
+});
+
+// 承認
+app.post(
+  "/approvals/:id/approve",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { selectedSubtasks?: number[] };
+  }) => {
+    const { id } = params;
+    const approvalId = parseInt(id);
+    const { selectedSubtasks } = body;
+
+    const approval = await prisma.approvalRequest.findUnique({
+      where: { id: approvalId },
+      include: {
+        config: {
+          include: { task: true },
+        },
+      },
+    });
+
+    if (!approval) {
+      return { error: "Approval request not found" };
+    }
+
+    if (approval.status !== "pending") {
+      return { error: "Approval request is not pending" };
+    }
+
+    // 承認リクエストを更新
+    await prisma.approvalRequest.update({
+      where: { id: approvalId },
+      data: {
+        status: "approved",
+        approvedAt: new Date(),
+      },
+    });
+
+    // リクエストタイプに応じた処理
+    if (approval.requestType === "task_execution") {
+      // タスク実行の承認 → 自動的にエージェント実行を開始
+      const proposedChanges = approval.proposedChanges as {
+        taskId: number;
+        agentConfigId?: number;
+        workingDirectory?: string;
+      };
+
+      const task = approval.config.task;
+
+      // セッションを作成
+      const session = await prisma.agentSession.create({
+        data: {
+          configId: approval.config.id,
+          status: "pending",
+        },
+      });
+
+      // 通知を作成
+      await prisma.notification.create({
+        data: {
+          type: "agent_execution_started",
+          title: "エージェント実行開始",
+          message: `承認されたタスク「${task.title}」の自動実行を開始しました`,
+          link: `/tasks/${task.id}`,
+          metadata: { sessionId: session.id, taskId: task.id },
+        },
+      });
+
+      // 非同期でエージェント実行を開始
+      orchestrator
+        .executeTask(
+          {
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            context: task.executionInstructions || undefined,
+            workingDirectory: proposedChanges.workingDirectory,
+          },
+          {
+            taskId: task.id,
+            sessionId: session.id,
+            agentConfigId: proposedChanges.agentConfigId,
+            workingDirectory: proposedChanges.workingDirectory,
+          },
+        )
+        .then(async (result) => {
+          // 完了通知
+          await prisma.notification.create({
+            data: {
+              type: "agent_execution_complete",
+              title: result.success
+                ? "エージェント実行完了"
+                : "エージェント実行失敗",
+              message: result.success
+                ? `「${task.title}」の自動実行が完了しました`
+                : `「${task.title}」の自動実行が失敗しました: ${result.errorMessage}`,
+              link: `/tasks/${task.id}`,
+              metadata: {
+                sessionId: session.id,
+                taskId: task.id,
+                success: result.success,
+              },
+            },
+          });
+
+          // タスクのステータスを更新（成功時）
+          if (result.success) {
+            await prisma.task.update({
+              where: { id: task.id },
+              data: { status: "done", completedAt: new Date() },
+            });
+          }
+        })
+        .catch(async (error) => {
+          console.error("Agent execution failed:", error);
+          await prisma.notification.create({
+            data: {
+              type: "agent_error",
+              title: "エージェント実行エラー",
+              message: `「${task.title}」の実行中にエラーが発生しました`,
+              link: `/tasks/${task.id}`,
+            },
+          });
+        });
+
+      return {
+        success: true,
+        sessionId: session.id,
+        autoExecutionStarted: true,
+      };
+    } else if (approval.requestType === "subtask_creation") {
+      // サブタスク作成の承認
+      const proposedChanges = approval.proposedChanges as {
+        subtasks: SubtaskProposal[];
+      };
+
+      // 選択されたサブタスクのみを作成（指定がなければ全て）
+      const subtasksToCreate = selectedSubtasks
+        ? proposedChanges.subtasks.filter((_, i) =>
+            selectedSubtasks.includes(i),
+          )
+        : proposedChanges.subtasks;
+
+      const createdSubtasks = [];
+      for (const subtask of subtasksToCreate) {
+        const created = await prisma.task.create({
+          data: {
+            title: subtask.title,
+            description: subtask.description,
+            priority: subtask.priority,
+            estimatedHours: subtask.estimatedHours,
+            parentId: approval.config.taskId,
+            agentGenerated: true,
+          },
+        });
+        createdSubtasks.push(created);
+      }
+
+      // 通知を作成
+      await prisma.notification.create({
+        data: {
+          type: "task_completed",
+          title: "サブタスク作成完了",
+          message: `「${approval.config.task.title}」に${createdSubtasks.length}個のサブタスクが作成されました`,
+          link: `/tasks/${approval.config.taskId}`,
+        },
+      });
+
+      return { success: true, createdSubtasks };
+    }
+
+    // その他のリクエストタイプ
+    await prisma.notification.create({
+      data: {
+        type: "approval_request",
+        title: "承認完了",
+        message: `リクエストが承認されました`,
+        link: `/tasks/${approval.config.taskId}`,
+      },
+    });
+
+    return { success: true };
+  },
+);
+
+// 却下
+app.post(
+  "/approvals/:id/reject",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { reason?: string };
+  }) => {
+    const { id } = params;
+    const { reason } = body as { reason?: string };
+
+    await prisma.approvalRequest.update({
+      where: { id: parseInt(id) },
+      data: {
+        status: "rejected",
+        rejectedAt: new Date(),
+        rejectionReason: reason,
+      },
+    });
+
+    return { success: true };
+  },
+);
+
+// 一括承認
+app.post(
+  "/approvals/bulk-approve",
+  async ({ body }: { body: { ids: number[] } }) => {
+    const { ids } = body as { ids: number[] };
+
+    const results = [];
+    for (const id of ids) {
+      try {
+        const approval = await prisma.approvalRequest.findUnique({
+          where: { id },
+          include: {
+            config: {
+              include: { task: true },
+            },
+          },
+        });
+
+        if (!approval || approval.status !== "pending") continue;
+
+        await prisma.approvalRequest.update({
+          where: { id },
+          data: { status: "approved", approvedAt: new Date() },
+        });
+
+        if (approval.requestType === "task_execution") {
+          // タスク実行の承認 → 自動実行開始
+          const proposedChanges = approval.proposedChanges as {
+            taskId: number;
+            agentConfigId?: number;
+            workingDirectory?: string;
+          };
+          const task = approval.config.task;
+
+          const session = await prisma.agentSession.create({
+            data: {
+              configId: approval.config.id,
+              status: "pending",
+            },
+          });
+
+          // 非同期でエージェント実行を開始
+          orchestrator
+            .executeTask(
+              {
+                id: task.id,
+                title: task.title,
+                description: task.description,
+                context: task.executionInstructions || undefined,
+                workingDirectory: proposedChanges.workingDirectory,
+              },
+              {
+                taskId: task.id,
+                sessionId: session.id,
+                agentConfigId: proposedChanges.agentConfigId,
+                workingDirectory: proposedChanges.workingDirectory,
+              },
+            )
+            .then(async (result) => {
+              await prisma.notification.create({
+                data: {
+                  type: result.success
+                    ? "agent_execution_complete"
+                    : "agent_error",
+                  title: result.success
+                    ? "エージェント実行完了"
+                    : "エージェント実行失敗",
+                  message: result.success
+                    ? `「${task.title}」の自動実行が完了しました`
+                    : `「${task.title}」の自動実行が失敗しました`,
+                  link: `/tasks/${task.id}`,
+                },
+              });
+              if (result.success) {
+                await prisma.task.update({
+                  where: { id: task.id },
+                  data: { status: "done", completedAt: new Date() },
+                });
+              }
+            })
+            .catch(console.error);
+
+          results.push({ id, success: true, autoExecutionStarted: true });
+        } else if (approval.requestType === "subtask_creation") {
+          // サブタスク作成
+          const proposedChanges = approval.proposedChanges as {
+            subtasks: SubtaskProposal[];
+          };
+
+          for (const subtask of proposedChanges.subtasks) {
+            await prisma.task.create({
+              data: {
+                title: subtask.title,
+                description: subtask.description,
+                priority: subtask.priority,
+                estimatedHours: subtask.estimatedHours,
+                parentId: approval.config.taskId,
+                agentGenerated: true,
+              },
+            });
+          }
+
+          results.push({ id, success: true });
+        } else {
+          results.push({ id, success: true });
+        }
+      } catch (error) {
+        results.push({ id, success: false });
+      }
+    }
+
+    return { results };
+  },
+);
+
+// ==================== Notifications API ====================
+
+// 通知一覧
+app.get(
+  "/notifications",
+  async ({ query }: { query: { unreadOnly?: string; limit?: string } }) => {
+    const { unreadOnly, limit } = query as {
+      unreadOnly?: string;
+      limit?: string;
+    };
+
+    return await prisma.notification.findMany({
+      where: unreadOnly === "true" ? { isRead: false } : undefined,
+      orderBy: { createdAt: "desc" },
+      take: limit ? parseInt(limit) : 50,
+    });
+  },
+);
+
+// 未読通知数
+app.get("/notifications/unread-count", async () => {
+  const count = await prisma.notification.count({
+    where: { isRead: false },
+  });
+  return { count };
+});
+
+// 既読にする
+app.patch("/notifications/:id/read", async ({ params }: { params: any }) => {
+  const { id } = params;
+  return await prisma.notification.update({
+    where: { id: parseInt(id) },
+    data: { isRead: true, readAt: new Date() },
+  });
+});
+
+// 全て既読にする
+app.post("/notifications/mark-all-read", async () => {
+  await prisma.notification.updateMany({
+    where: { isRead: false },
+    data: { isRead: true, readAt: new Date() },
+  });
+  return { success: true };
+});
+
+// 通知削除
+app.delete(
+  "/notifications/:id",
+  async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
+    return await prisma.notification.delete({
+      where: { id: parseInt(id) },
+    });
+  },
+);
+
+// ==================== User Settings API ====================
+
+// 設定取得（なければ作成）
+app.get("/settings", async () => {
+  let settings = await prisma.userSettings.findFirst();
+  if (!settings) {
+    settings = await prisma.userSettings.create({
+      data: {},
+    });
+  }
+  return {
+    ...settings,
+    claudeApiKeyConfigured: isApiKeyConfigured(),
+  };
+});
+
+// 設定更新
+app.patch(
+  "/settings",
+  async ({ body }: { body: { developerModeDefault?: boolean } }) => {
+    const { developerModeDefault } = body;
+
+    let settings = await prisma.userSettings.findFirst();
+    if (!settings) {
+      settings = await prisma.userSettings.create({
+        data: {
+          developerModeDefault: developerModeDefault ?? false,
+        },
+      });
+    } else {
+      settings = await prisma.userSettings.update({
+        where: { id: settings.id },
+        data: {
+          ...(developerModeDefault !== undefined && { developerModeDefault }),
+        },
+      });
+    }
+
+    return settings;
+  },
+);
+
+// API設定状態の確認
+app.get("/settings/api-status", async () => {
+  return {
+    claudeApiKeyConfigured: isApiKeyConfigured(),
+  };
+});
+
+// ==================== GitHub Integration API ====================
+
+const githubService = new GitHubService(prisma);
+const orchestrator = createOrchestrator(prisma);
+
+// GitHub CLI 状態確認
+app.get("/github/status", async () => {
+  const ghAvailable = await githubService.isGhAvailable();
+  const authenticated = ghAvailable
+    ? await githubService.isAuthenticated()
+    : false;
+  return { ghAvailable, authenticated };
+});
+
+// 連携設定一覧
+app.get("/github/integrations", async () => {
+  return await prisma.gitHubIntegration.findMany({
+    include: {
+      _count: { select: { pullRequests: true, issues: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+});
+
+// 連携設定作成
+app.post(
+  "/github/integrations",
+  async ({
+    body,
+  }: {
+    body: {
+      repositoryUrl: string;
+      ownerName: string;
+      repositoryName: string;
+      syncIssues?: boolean;
+      syncPullRequests?: boolean;
+      autoLinkTasks?: boolean;
+    };
+  }) => {
+    const {
+      repositoryUrl,
+      ownerName,
+      repositoryName,
+      syncIssues,
+      syncPullRequests,
+      autoLinkTasks,
+    } = body;
+
+    return await prisma.gitHubIntegration.create({
+      data: {
+        repositoryUrl,
+        ownerName,
+        repositoryName,
+        syncIssues: syncIssues ?? true,
+        syncPullRequests: syncPullRequests ?? true,
+        autoLinkTasks: autoLinkTasks ?? true,
+      },
+    });
+  },
+);
+
+// 連携設定詳細
+app.get(
+  "/github/integrations/:id",
+  async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
+    return await prisma.gitHubIntegration.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        _count: { select: { pullRequests: true, issues: true } },
+      },
+    });
+  },
+);
+
+// 連携設定更新
+app.patch(
+  "/github/integrations/:id",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: {
+      syncIssues?: boolean;
+      syncPullRequests?: boolean;
+      autoLinkTasks?: boolean;
+      isActive?: boolean;
+    };
+  }) => {
+    const { id } = params;
+    const { syncIssues, syncPullRequests, autoLinkTasks, isActive } = body as {
+      syncIssues?: boolean;
+      syncPullRequests?: boolean;
+      autoLinkTasks?: boolean;
+      isActive?: boolean;
+    };
+
+    return await prisma.gitHubIntegration.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...(syncIssues !== undefined && { syncIssues }),
+        ...(syncPullRequests !== undefined && { syncPullRequests }),
+        ...(autoLinkTasks !== undefined && { autoLinkTasks }),
+        ...(isActive !== undefined && { isActive }),
+      },
+    });
+  },
+);
+
+// 連携設定削除
+app.delete(
+  "/github/integrations/:id",
+  async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
+    return await prisma.gitHubIntegration.delete({
+      where: { id: parseInt(id) },
+    });
+  },
+);
+
+// PR同期
+app.post(
+  "/github/integrations/:id/sync-prs",
+  async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
+    const count = await githubService.syncPullRequests(parseInt(id));
+    return { syncedCount: count };
+  },
+);
+
+// Issue同期
+app.post(
+  "/github/integrations/:id/sync-issues",
+  async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
+    const count = await githubService.syncIssues(parseInt(id));
+    return { syncedCount: count };
+  },
+);
+
+// PRリスト取得
+app.get(
+  "/github/integrations/:id/pull-requests",
+  async ({
+    params,
+    query,
+  }: {
+    params: { id: string };
+    query: { state?: string; fromGitHub?: string };
+  }) => {
+    const { id } = params;
+    const { state, fromGitHub } = query as {
+      state?: string;
+      fromGitHub?: string;
+    };
+
+    if (fromGitHub === "true") {
+      const integration = await prisma.gitHubIntegration.findUnique({
+        where: { id: parseInt(id) },
+      });
+      if (!integration) return [];
+      const repo = `${integration.ownerName}/${integration.repositoryName}`;
+      return await githubService.getPullRequests(
+        repo,
+        (state as "open" | "closed" | "all") || "open",
+      );
+    }
+
+    return await prisma.gitHubPullRequest.findMany({
+      where: {
+        integrationId: parseInt(id),
+        ...(state && state !== "all" && { state }),
+      },
+      include: {
+        _count: { select: { reviews: true, comments: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+  },
+);
+
+// PR詳細取得
+app.get(
+  "/github/pull-requests/:id",
+  async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
+    return await prisma.gitHubPullRequest.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        integration: true,
+        reviews: { orderBy: { submittedAt: "desc" } },
+        comments: { orderBy: { createdAt: "asc" } },
+      },
+    });
+  },
+);
+
+// PR差分取得
+app.get(
+  "/github/pull-requests/:id/diff",
+  async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
+    const pr = await prisma.gitHubPullRequest.findUnique({
+      where: { id: parseInt(id) },
+      include: { integration: true },
+    });
+
+    if (!pr) return { error: "PR not found" };
+
+    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    return await githubService.getPullRequestDiff(repo, pr.prNumber);
+  },
+);
+
+// PRコメント投稿
+app.post(
+  "/github/pull-requests/:id/comments",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: {
+      body: string;
+      path?: string;
+      line?: number;
+    };
+  }) => {
+    const { id } = params;
+    const { body: commentBody, path, line } = body;
+
+    const pr = await prisma.gitHubPullRequest.findUnique({
+      where: { id: parseInt(id) },
+      include: { integration: true },
+    });
+
+    if (!pr) return { error: "PR not found" };
+
+    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const comment = await githubService.createPullRequestComment(
+      repo,
+      pr.prNumber,
+      {
+        body: commentBody,
+        path,
+        line,
+      },
+    );
+
+    // DBにコメントを保存
+    await prisma.gitHubPRComment.create({
+      data: {
+        pullRequestId: parseInt(id),
+        commentId: comment.id || 0,
+        body: commentBody,
+        path,
+        line,
+        authorLogin: "rapitas",
+        isFromRapitas: true,
+      },
+    });
+
+    return comment;
+  },
+);
+
+// PR承認
+app.post(
+  "/github/pull-requests/:id/approve",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { body?: string };
+  }) => {
+    const { id } = params;
+    const { body: reviewBody } = body as { body?: string };
+
+    const pr = await prisma.gitHubPullRequest.findUnique({
+      where: { id: parseInt(id) },
+      include: { integration: true },
+    });
+
+    if (!pr) return { error: "PR not found" };
+
+    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    await githubService.approvePullRequest(repo, pr.prNumber, reviewBody);
+
+    // 通知を作成
+    await prisma.notification.create({
+      data: {
+        type: "pr_approved",
+        title: "PR承認完了",
+        message: `PR #${pr.prNumber} (${pr.title}) を承認しました`,
+        link: pr.url,
+      },
+    });
+
+    return { success: true };
+  },
+);
+
+// PR変更リクエスト
+app.post(
+  "/github/pull-requests/:id/request-changes",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { body: string };
+  }) => {
+    const { id } = params;
+    const { body: reviewBody } = body as { body: string };
+
+    const pr = await prisma.gitHubPullRequest.findUnique({
+      where: { id: parseInt(id) },
+      include: { integration: true },
+    });
+
+    if (!pr) return { error: "PR not found" };
+
+    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    await githubService.requestChanges(repo, pr.prNumber, reviewBody);
+
+    return { success: true };
+  },
+);
+
+// Issueリスト取得
+app.get(
+  "/github/integrations/:id/issues",
+  async ({
+    params,
+    query,
+  }: {
+    params: { id: string };
+    query: { state?: string; fromGitHub?: string };
+  }) => {
+    const { id } = params;
+    const { state, fromGitHub } = query as {
+      state?: string;
+      fromGitHub?: string;
+    };
+
+    if (fromGitHub === "true") {
+      const integration = await prisma.gitHubIntegration.findUnique({
+        where: { id: parseInt(id) },
+      });
+      if (!integration) return [];
+      const repo = `${integration.ownerName}/${integration.repositoryName}`;
+      return await githubService.getIssues(
+        repo,
+        (state as "open" | "closed" | "all") || "open",
+      );
+    }
+
+    return await prisma.gitHubIssue.findMany({
+      where: {
+        integrationId: parseInt(id),
+        ...(state && state !== "all" && { state }),
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+  },
+);
+
+// Issue詳細取得
+app.get(
+  "/github/issues/:id",
+  async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
+    return await prisma.gitHubIssue.findUnique({
+      where: { id: parseInt(id) },
+      include: { integration: true },
+    });
+  },
+);
+
+// Issueコメント投稿
+app.post(
+  "/github/issues/:id/comments",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { body: string };
+  }) => {
+    const { id } = params;
+    const { body: commentBody } = body as { body: string };
+
+    const issue = await prisma.gitHubIssue.findUnique({
+      where: { id: parseInt(id) },
+      include: { integration: true },
+    });
+
+    if (!issue) return { error: "Issue not found" };
+
+    const repo = `${issue.integration.ownerName}/${issue.integration.repositoryName}`;
+    return await githubService.addIssueComment(
+      repo,
+      issue.issueNumber,
+      commentBody,
+    );
+  },
+);
+
+// IssueからTaskを作成
+app.post(
+  "/github/issues/:id/create-task",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { projectId?: number; themeId?: number; priority?: string };
+  }) => {
+    const { id } = params;
+    const { projectId, themeId, priority } = body as {
+      projectId?: number;
+      themeId?: number;
+      priority?: string;
+    };
+
+    const issue = await prisma.gitHubIssue.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!issue) return { error: "Issue not found" };
+
+    const task = await prisma.task.create({
+      data: {
+        title: `[GitHub] ${issue.title}`,
+        description: issue.body || "",
+        priority: priority || "medium",
+        githubIssueId: issue.id,
+        ...(projectId && { projectId }),
+        ...(themeId && { themeId }),
+      },
+    });
+
+    // Issue と Task を紐付け
+    await prisma.gitHubIssue.update({
+      where: { id: parseInt(id) },
+      data: { linkedTaskId: task.id },
+    });
+
+    return task;
+  },
+);
+
+// TaskからGitHub Issueを作成
+app.post(
+  "/tasks/:id/create-github-issue",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { integrationId: number; labels?: string[] };
+  }) => {
+    const { id } = params;
+    const { integrationId, labels } = body as {
+      integrationId: number;
+      labels?: string[];
+    };
+
+    const task = await prisma.task.findUnique({
+      where: { id: parseInt(id) },
+    });
+    if (!task) return { error: "Task not found" };
+
+    const integration = await prisma.gitHubIntegration.findUnique({
+      where: { id: integrationId },
+    });
+    if (!integration) return { error: "Integration not found" };
+
+    const repo = `${integration.ownerName}/${integration.repositoryName}`;
+    const issue = await githubService.createIssue(repo, {
+      title: task.title,
+      body: task.description || "",
+      labels,
+    });
+
+    // DBにIssueを保存
+    const savedIssue = await prisma.gitHubIssue.create({
+      data: {
+        integrationId,
+        issueNumber: issue.number,
+        title: issue.title,
+        body: issue.body,
+        state: issue.state,
+        labels: issue.labels,
+        authorLogin: issue.authorLogin,
+        url: issue.url,
+        linkedTaskId: parseInt(id),
+        lastSyncedAt: new Date(),
+      },
+    });
+
+    // Task を更新
+    await prisma.task.update({
+      where: { id: parseInt(id) },
+      data: { githubIssueId: savedIssue.id },
+    });
+
+    return savedIssue;
+  },
+);
+
+// TaskにGitHub PRを紐付け
+app.post(
+  "/tasks/:id/link-github-pr/:prId",
+  async ({ params }: { params: { id: string; prId: string } }) => {
+    const { id, prId } = params;
+
+    await prisma.gitHubPullRequest.update({
+      where: { id: parseInt(prId) },
+      data: { linkedTaskId: parseInt(id) },
+    });
+
+    await prisma.task.update({
+      where: { id: parseInt(id) },
+      data: { githubPrId: parseInt(prId) },
+    });
+
+    return { success: true };
+  },
+);
+
+// Webhook受信
+app.post(
+  "/github/webhook",
+  async ({ request, body }: { request: Request; body: {} }) => {
+    const event = request.headers.get("x-github-event");
+    if (!event) {
+      return { error: "Missing X-GitHub-Event header" };
+    }
+
+    await githubService.handleWebhook(event, body);
+    return { success: true };
+  },
+);
+
+// ==================== AI Agent API ====================
+
+// エージェント設定一覧
+app.get("/agents", async () => {
+  return await prisma.aIAgentConfig.findMany({
+    where: { isActive: true },
+    include: {
+      _count: { select: { executions: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+});
+
+// エージェント設定作成
+app.post(
+  "/agents",
+  async ({
+    body,
+  }: {
+    body: {
+      agentType: string;
+      name: string;
+      endpoint?: string;
+      modelId?: string;
+      capabilities?: any;
+      isDefault?: boolean;
+    };
+  }) => {
+    const { agentType, name, endpoint, modelId, capabilities, isDefault } =
+      body;
+
+    // デフォルト設定の場合、既存のデフォルトを解除
+    if (isDefault) {
+      await prisma.aIAgentConfig.updateMany({
+        where: { isDefault: true },
+        data: { isDefault: false },
+      });
+    }
+
+    return await prisma.aIAgentConfig.create({
+      data: {
+        agentType,
+        name,
+        endpoint,
+        modelId,
+        capabilities: capabilities || {},
+        isDefault: isDefault || false,
+      },
+    });
+  },
+);
+
+// エージェント設定更新
+app.patch(
+  "/agents/:id",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: {
+      name?: string;
+      endpoint?: string;
+      modelId?: string;
+      capabilities?: any;
+      isDefault?: boolean;
+      isActive?: boolean;
+    };
+  }) => {
+    const { id } = params;
+    const { name, endpoint, modelId, capabilities, isDefault, isActive } = body;
+
+    if (isDefault) {
+      await prisma.aIAgentConfig.updateMany({
+        where: { isDefault: true },
+        data: { isDefault: false },
+      });
+    }
+
+    return await prisma.aIAgentConfig.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...(name && { name }),
+        ...(endpoint !== undefined && { endpoint }),
+        ...(modelId !== undefined && { modelId }),
+        ...(capabilities && { capabilities }),
+        ...(isDefault !== undefined && { isDefault }),
+        ...(isActive !== undefined && { isActive }),
+      },
+    });
+  },
+);
+
+// エージェント設定削除
+app.delete("/agents/:id", async ({ params }: { params: { id: string } }) => {
+  const { id } = params;
+  return await prisma.aIAgentConfig.update({
+    where: { id: parseInt(id) },
+    data: { isActive: false },
+  });
+});
+
+// 利用可能なエージェントタイプ一覧
+app.get("/agents/types", async () => {
+  const registered = agentFactory.getRegisteredAgents();
+  const available = await agentFactory.getAvailableAgents();
+  return {
+    registered,
+    available: available.map((a) => a.type),
+  };
+});
+
+// タスクに対してエージェントを実行
+app.post(
+  "/tasks/:id/execute",
+  async ({
+    params,
+    body,
+    set,
+  }: {
+    params: { id: string };
+    body: {
+      agentConfigId?: number;
+      workingDirectory?: string;
+      timeout?: number;
+      skipApproval?: boolean;
+    };
+    set: any;
+  }) => {
+    const { id } = params;
+    const taskIdNum = parseInt(id);
+    const { agentConfigId, workingDirectory, timeout, skipApproval } = body;
+
+    // タスクを取得
+    const task = await prisma.task.findUnique({
+      where: { id: taskIdNum },
+      include: { developerModeConfig: true },
+    });
+
+    if (!task) {
+      set.status = 404;
+      return { error: "Task not found" };
+    }
+
+    // 承認が必要かチェック
+    const config = task.developerModeConfig;
+    if (config && !skipApproval && config.requireApproval === "always") {
+      // 承認リクエストを作成
+      const approvalRequest = await prisma.approvalRequest.create({
+        data: {
+          configId: config.id,
+          requestType: "task_execution",
+          title: `「${task.title}」の自動実行`,
+          description: `タスク「${task.title}」をAIエージェントで自動実行します。`,
+          proposedChanges: {
+            taskId: taskIdNum,
+            agentConfigId,
+            workingDirectory,
+          },
+          executionType: "code_execution",
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        },
+      });
+
+      // 通知を作成
+      await prisma.notification.create({
+        data: {
+          type: "approval_request",
+          title: "エージェント実行承認リクエスト",
+          message: `「${task.title}」の自動実行が承認待ちです`,
+          link: `/approvals/${approvalRequest.id}`,
+          metadata: { approvalRequestId: approvalRequest.id },
+        },
+      });
+
+      return { requiresApproval: true, approvalRequestId: approvalRequest.id };
+    }
+
+    // セッションを作成
+    let developerModeConfig = config;
+    if (!developerModeConfig) {
+      developerModeConfig = await prisma.developerModeConfig.create({
+        data: {
+          taskId: taskIdNum,
+          isEnabled: true,
+        },
+      });
+    }
+
+    const session = await prisma.agentSession.create({
+      data: {
+        configId: developerModeConfig.id,
+        status: "pending",
+      },
+    });
+
+    // 通知を送信
+    await prisma.notification.create({
+      data: {
+        type: "agent_execution_started",
+        title: "エージェント実行開始",
+        message: `「${task.title}」の自動実行を開始しました`,
+        link: `/tasks/${taskIdNum}`,
+        metadata: { sessionId: session.id, taskId: taskIdNum },
+      },
+    });
+
+    // 非同期で実行
+    orchestrator
+      .executeTask(
+        {
+          id: taskIdNum,
+          title: task.title,
+          description: task.description,
+          context: task.executionInstructions || undefined,
+          workingDirectory,
+        },
+        {
+          taskId: taskIdNum,
+          sessionId: session.id,
+          agentConfigId,
+          workingDirectory,
+          timeout,
+        },
+      )
+      .then(async (result) => {
+        // 完了通知
+        await prisma.notification.create({
+          data: {
+            type: "agent_execution_complete",
+            title: result.success
+              ? "エージェント実行完了"
+              : "エージェント実行失敗",
+            message: result.success
+              ? `「${task.title}」の自動実行が完了しました`
+              : `「${task.title}」の自動実行が失敗しました: ${result.errorMessage}`,
+            link: `/tasks/${taskIdNum}`,
+            metadata: {
+              sessionId: session.id,
+              taskId: taskIdNum,
+              success: result.success,
+            },
+          },
+        });
+      })
+      .catch(console.error);
+
+    return { success: true, sessionId: session.id };
+  },
+);
+
+// セッション詳細取得
+app.get(
+  "/agents/sessions/:id",
+  async ({ params }: { params: { id: string } }) => {
+    return await prisma.agentSession.findUnique({
+      where: { id: parseInt(params.id) },
+      include: {
+        agentActions: { orderBy: { createdAt: "desc" } },
+        agentExecutions: {
+          include: {
+            agentConfig: true,
+            gitCommits: true,
+          },
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    });
+  },
+);
+
+// セッション停止
+app.post(
+  "/agents/sessions/:id/stop",
+  async ({ params }: { params: { id: string } }) => {
+    const sessionId = parseInt(params.id);
+
+    // アクティブな実行を取得
+    const executions = orchestrator.getSessionExecutions(sessionId);
+    for (const execution of executions) {
+      await orchestrator.stopExecution(execution.executionId);
+    }
+
+    // セッションを更新
+    await prisma.agentSession.update({
+      where: { id: sessionId },
+      data: {
+        status: "failed",
+        completedAt: new Date(),
+        errorMessage: "Manually stopped",
+      },
+    });
+
+    return { success: true };
+  },
+);
+
+// ==================== SSE (Server-Sent Events) API ====================
+
+app.get(
+  "/events/stream",
+  ({ set }: { set: { headers: Record<string, string> } }) => {
+    set.headers = {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Access-Control-Allow-Origin": "*",
+    };
+
+    const clientId = realtimeService.registerClient(
+      {
+        write: (data: string) => {
+          // Elysiaでは直接ストリームを返す必要がある
+          // この実装は簡略化されている
+        },
+      },
+      ["*"], // 全てのイベントを購読
+    );
+
+    // 接続情報を返す
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          const client = {
+            write: (data: string) => {
+              controller.enqueue(new TextEncoder().encode(data));
+            },
+          };
+
+          realtimeService.removeClient(clientId);
+          const newClientId = realtimeService.registerClient(client, ["*"]);
+
+          // クローズ時のクリーンアップ
+          // Note: Elysiaでは abort イベントの処理が異なる場合がある
+        },
+      }),
+      {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      },
+    );
+  },
+);
+
+// 特定チャンネルの購読
+app.get(
+  "/events/subscribe/:channel",
+  ({
+    params,
+    query,
+    set,
+  }: {
+    params: { channel: string };
+    query: { lastEventId?: string };
+    set: { headers: Record<string, string> };
+  }) => {
+    const { channel } = params;
+    const { lastEventId } = query;
+
+    set.headers = {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    };
+
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          const client = {
+            write: (data: string) => {
+              controller.enqueue(new TextEncoder().encode(data));
+            },
+          };
+
+          const clientId = realtimeService.registerClient(client, [channel]);
+
+          // 過去のイベントを送信（lastEventIdがある場合）
+          if (lastEventId) {
+            const history = realtimeService.getChannelHistory(channel);
+            for (const event of history) {
+              if (event.id && event.id > lastEventId) {
+                client.write(
+                  `id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`,
+                );
+              }
+            }
+          }
+        },
+      }),
+      {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      },
+    );
+  },
+);
+
+// SSE接続状態
+app.get("/events/status", () => {
+  return {
+    clientCount: realtimeService.getClientCount(),
+    clients: realtimeService.getClients(),
   };
 });
 

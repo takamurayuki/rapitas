@@ -12,16 +12,20 @@ import {
   Lightbulb,
   Target,
   Play,
+  ListTodo,
 } from "lucide-react";
+import { useToast } from "@/components/ui/toast/toast-container";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
 export default function StudyPlansPage() {
+  const { showToast } = useToast();
   const [examGoals, setExamGoals] = useState<ExamGoal[]>([]);
   const [studyPlans, setStudyPlans] = useState<StudyPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [applying, setApplying] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<StudyPlan | null>(null);
 
   // 生成フォーム
@@ -138,9 +142,42 @@ export default function StudyPlansPage() {
         if (selectedPlan?.id === id) {
           setSelectedPlan(null);
         }
+        showToast("学習計画を削除しました", "success");
       }
     } catch (e) {
       console.error("Failed to delete study plan:", e);
+      showToast("削除に失敗しました", "error");
+    }
+  };
+
+  const applyPlanToTasks = async (plan: StudyPlan) => {
+    if (plan.isApplied) {
+      showToast("この計画は既に適用済みです", "info");
+      return;
+    }
+    if (!confirm("この学習計画をタスクとして作成しますか？")) return;
+
+    setApplying(true);
+    try {
+      const res = await fetch(`${API_BASE}/study-plans/${plan.id}/apply`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        const result = await res.json();
+        showToast(`${result.count}件のタスクを作成しました`, "success");
+        fetchStudyPlans();
+        // 選択中の計画を更新
+        if (selectedPlan?.id === plan.id) {
+          setSelectedPlan({ ...plan, isApplied: true });
+        }
+      } else {
+        showToast("タスクの作成に失敗しました", "error");
+      }
+    } catch (e) {
+      console.error("Failed to apply study plan:", e);
+      showToast("エラーが発生しました", "error");
+    } finally {
+      setApplying(false);
     }
   };
 
@@ -335,8 +372,13 @@ export default function StudyPlansPage() {
                     }`}
                   >
                     <div>
-                      <div className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">
-                        {plan.subject}
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">
+                          {plan.subject}
+                        </span>
+                        {plan.isApplied && (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                        )}
                       </div>
                       <div className="text-xs text-zinc-500 dark:text-zinc-400">
                         {plan.totalDays}日間の計画
@@ -441,7 +483,7 @@ export default function StudyPlansPage() {
               </div>
 
               {/* ヒント */}
-              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
+              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 mb-4">
                 <h3 className="font-semibold text-amber-800 dark:text-amber-200 mb-2 flex items-center gap-2">
                   <Lightbulb className="w-4 h-4" />
                   学習のヒント
@@ -457,19 +499,55 @@ export default function StudyPlansPage() {
                   ))}
                 </ul>
               </div>
+
+              {/* 保存後の案内 */}
+              <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4">
+                <p className="text-sm text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
+                  <ListTodo className="w-4 h-4 shrink-0" />
+                  保存後、「タスクに適用」ボタンでこの計画をタスクとして登録できます
+                </p>
+              </div>
             </div>
           ) : selectedPlan ? (
             <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
-                  {selectedPlan.subject}
-                </h2>
-                <button
-                  onClick={() => handleDelete(selectedPlan.id)}
-                  className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
+                    {selectedPlan.subject}
+                  </h2>
+                  {selectedPlan.isApplied && (
+                    <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium rounded-full">
+                      適用済み
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {!selectedPlan.isApplied && (
+                    <button
+                      onClick={() => applyPlanToTasks(selectedPlan)}
+                      disabled={applying}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                    >
+                      {applying ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>適用中...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ListTodo className="w-4 h-4" />
+                          <span>タスクに適用</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDelete(selectedPlan.id)}
+                    className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               <div className="mb-6 flex items-center gap-4 text-sm text-zinc-600 dark:text-zinc-400">

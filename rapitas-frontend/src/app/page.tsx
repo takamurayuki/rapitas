@@ -54,7 +54,11 @@ export default function HomePage() {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/tasks`);
-      if (!res.ok) throw new Error("取得に失敗しました");
+      if (!res.ok) {
+        const text = await res.text().catch(() => "<no body>");
+        console.error("GET /tasks failed:", res.status, res.statusText, text);
+        throw new Error("取得に失敗しました");
+      }
       const data = await res.json();
       setTasks(data);
     } catch (e) {
@@ -705,7 +709,8 @@ export default function HomePage() {
                   すべて
                 </button>
                 {themes.map((theme) => {
-                  const IconComponent = getIconComponent(theme.icon || "") || Palette;
+                  const IconComponent =
+                    getIconComponent(theme.icon || "") || Palette;
                   return (
                     <button
                       key={theme.id}

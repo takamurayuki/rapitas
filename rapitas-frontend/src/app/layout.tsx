@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/header";
+import Header from "@/components/Header";
 import KeyboardShortcuts from "@/components/keyboard-shortcuts";
 import { Suspense } from "react";
 import { ToastProvider } from "@/components/ui/toast/toast-container";
