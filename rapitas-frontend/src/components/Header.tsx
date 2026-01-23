@@ -78,6 +78,25 @@ export default function Header() {
       label: "タスク一覧",
       icon: Home,
       shortcut: "⌘H",
+      children: [
+        {
+          href: "#",
+          label: "カテゴリ",
+          icon: FolderOpen,
+          children: [
+            {
+              href: "/themes",
+              label: "テーマ一覧",
+              icon: Palette,
+            },
+            {
+              href: "/labels",
+              label: "ラベル一覧",
+              icon: Tags,
+            },
+          ],
+        },
+      ],
     },
     {
       href: "/dashboard",
@@ -135,23 +154,6 @@ export default function Header() {
         },
       ],
     },
-    {
-      href: "#",
-      label: "カテゴリ",
-      icon: FolderOpen,
-      children: [
-        {
-          href: "/themes",
-          label: "テーマ一覧",
-          icon: Palette,
-        },
-        {
-          href: "/labels",
-          label: "ラベル一覧",
-          icon: Tags,
-        },
-      ],
-    },
   ];
 
   const toggleExpand = (label: string) => {
@@ -166,14 +168,19 @@ export default function Header() {
     });
   };
 
-  const isChildActive = (item: NavItem) => {
-    if (!item.children) return false;
-    return item.children.some((child) => isActive(child.href));
-  };
-
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/" || pathname === "/kanban";
+    if (href === "#") return false;
     return pathname?.startsWith(href);
+  };
+
+  // 再帰的に子要素がアクティブかチェック
+  const isChildActive = (item: NavItem): boolean => {
+    if (!item.children) return false;
+    return item.children.some((child) => {
+      if (isActive(child.href)) return true;
+      return isChildActive(child);
+    });
   };
 
   const isListView = pathname === "/" || !pathname?.startsWith("/kanban");
@@ -184,6 +191,225 @@ export default function Header() {
     } else {
       router.push("/");
     }
+  };
+
+  // 再帰的にナビゲーション項目をレンダリング
+  const renderNavItem = (item: NavItem, depth: number): React.ReactNode => {
+    const Icon = item.icon;
+    const active = isActive(item.href);
+    const hasChildren = item.children && item.children.length > 0;
+    const isExpanded = expandedItems.has(item.label);
+    const childActive = isChildActive(item);
+    const hasValidLink = item.href !== "#";
+
+    // トップレベル（depth === 0）
+    if (depth === 0) {
+      if (hasChildren) {
+        return (
+          <div key={item.label}>
+            {hasValidLink ? (
+              /* リンクと展開ボタンの両方を持つ項目 */
+              <div
+                className={`flex items-center justify-between gap-1 px-4 py-3 rounded-lg transition-all ${
+                  active || childActive
+                    ? "bg-indigo-50 dark:bg-indigo-900/20"
+                    : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                }`}
+              >
+                <Link
+                  href={item.href}
+                  onClick={() => setIsMenuOpen(false)}
+                  className={`flex-1 flex items-center gap-3 ${
+                    active
+                      ? "text-indigo-700 dark:text-indigo-300 font-semibold"
+                      : childActive
+                        ? "text-indigo-700 dark:text-indigo-300"
+                        : "text-zinc-700 dark:text-zinc-300"
+                  }`}
+                >
+                  <Icon className={`w-5 h-5 shrink-0 ${active ? "text-indigo-600 dark:text-indigo-400" : ""}`} />
+                  <span className="font-medium">{item.label}</span>
+                  {item.shortcut && (
+                    <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
+                      {item.shortcut}
+                    </kbd>
+                  )}
+                </Link>
+                <button
+                  onClick={() => toggleExpand(item.label)}
+                  className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            ) : (
+              /* 展開のみの項目（リンクなし） */
+              <button
+                onClick={() => toggleExpand(item.label)}
+                className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-all ${
+                  childActive
+                    ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300"
+                    : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Icon className="w-5 h-5 shrink-0" />
+                  <span className="font-medium">{item.label}</span>
+                </div>
+                {isExpanded ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+              </button>
+            )}
+            {isExpanded && (
+              <div className="ml-7">
+                {item.children!.map((child, index) => {
+                  const isLastChild = index === item.children!.length - 1;
+                  return (
+                    <div key={child.label} className="relative">
+                      {/* 縦線 */}
+                      <div className={`absolute left-0 top-0 w-px bg-zinc-300 dark:bg-zinc-600 ${isLastChild ? "h-5" : "h-full"}`} />
+                      {renderNavItem(child, depth + 1)}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      // 子要素なしのトップレベル項目
+      return (
+        <Link
+          key={item.href}
+          href={item.href}
+          onClick={() => setIsMenuOpen(false)}
+          className={`flex items-center justify-between gap-3 px-4 py-3 rounded-md transition-all ${
+            active
+              ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-semibold border-l-2 border-indigo-500"
+              : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <Icon className={`w-5 h-5 shrink-0 ${active ? "text-indigo-600 dark:text-indigo-400" : ""}`} />
+            <span className="font-medium">{item.label}</span>
+          </div>
+          {item.shortcut && (
+            <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
+              {item.shortcut}
+            </kbd>
+          )}
+        </Link>
+      );
+    }
+
+    // ネストされた項目（depth > 0）
+    if (hasChildren) {
+      return (
+        <div key={item.label}>
+          {/* アイテム本体（固定高さ） */}
+          <div className="relative h-10 flex items-center">
+            <div className="absolute left-0 top-1/2 w-4 h-px bg-zinc-300 dark:bg-zinc-600" />
+            <div className="ml-5 flex-1">
+              {hasValidLink ? (
+                <div
+                  className={`flex items-center justify-between gap-1 px-3 py-1.5 rounded-md transition-all ${
+                    active || childActive
+                      ? "bg-indigo-50 dark:bg-indigo-900/20"
+                      : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  <Link
+                    href={item.href}
+                    onClick={() => setIsMenuOpen(false)}
+                    className={`flex-1 flex items-center gap-2.5 ${
+                      active
+                        ? "text-indigo-700 dark:text-indigo-300 font-semibold"
+                        : childActive
+                          ? "text-indigo-700 dark:text-indigo-300"
+                          : "text-zinc-600 dark:text-zinc-400"
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 shrink-0 ${active ? "text-indigo-600 dark:text-indigo-400" : ""}`} />
+                    <span className="text-sm">{item.label}</span>
+                  </Link>
+                  <button
+                    onClick={() => toggleExpand(item.label)}
+                    className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => toggleExpand(item.label)}
+                  className={`w-full flex items-center justify-between gap-2.5 px-3 py-1.5 rounded-md transition-all ${
+                    childActive
+                      ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300"
+                      : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span className="text-sm">{item.label}</span>
+                  </div>
+                  {isExpanded ? (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+          {/* 展開されたコンテンツ（本体とは別） */}
+          {isExpanded && (
+            <div className="ml-5">
+              {item.children!.map((child, index) => {
+                const isLastChild = index === item.children!.length - 1;
+                return (
+                  <div key={child.label} className="relative">
+                    {/* 縦線 */}
+                    <div className={`absolute left-0 top-0 w-px bg-zinc-300 dark:bg-zinc-600 ${isLastChild ? "h-5" : "h-full"}`} />
+                    {renderNavItem(child, depth + 1)}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ネストされたリンク項目（子要素なし）
+    return (
+      <div key={item.href} className="relative h-10 flex items-center">
+        <div className="absolute left-0 top-1/2 w-4 h-px bg-zinc-300 dark:bg-zinc-600" />
+        <Link
+          href={item.href}
+          onClick={() => setIsMenuOpen(false)}
+          className={`ml-5 flex items-center gap-2.5 px-3 py-1.5 rounded-md transition-all ${
+            active
+              ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-semibold border-l-2 border-indigo-500"
+              : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          }`}
+        >
+          <Icon className={`w-4 h-4 shrink-0 ${active ? "text-indigo-600 dark:text-indigo-400" : ""}`} />
+          <span className="text-sm">{item.label}</span>
+        </Link>
+      </div>
+    );
   };
 
   return (
@@ -318,101 +544,7 @@ export default function Header() {
         {/* ナビゲーション項目 */}
         <div className="flex-1 overflow-y-auto flex flex-col">
           <div className="p-4 space-y-1 flex-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href);
-              const hasChildren = item.children && item.children.length > 0;
-              const isExpanded = expandedItems.has(item.label);
-              const childActive = isChildActive(item);
-
-              if (hasChildren) {
-                return (
-                  <div key={item.label}>
-                    <button
-                      onClick={() => toggleExpand(item.label)}
-                      className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-all ${
-                        childActive
-                          ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300"
-                          : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Icon className="w-5 h-5 shrink-0" />
-                        <span className="font-medium">{item.label}</span>
-                      </div>
-                      {isExpanded ? (
-                        <ChevronDown className="w-4 h-4" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4" />
-                      )}
-                    </button>
-                    {isExpanded && (
-                      <div className="relative ml-7">
-                        {/* 縦線（全体を通る） */}
-                        <div
-                          className="absolute left-0 top-0 w-px bg-zinc-300 dark:bg-zinc-600"
-                          style={{ height: `calc(100% - 20px)` }}
-                        />
-                        {item.children!.map((child, index) => {
-                          const ChildIcon = child.icon;
-                          const childIsActive = isActive(child.href);
-                          const isLast = index === item.children!.length - 1;
-                          return (
-                            <div
-                              key={child.href}
-                              className="relative flex items-center py-1"
-                            >
-                              {/* 横線 */}
-                              <div className="absolute left-0 top-1/2 w-4 h-px bg-zinc-300 dark:bg-zinc-600" />
-                              {/* リンク */}
-                              <Link
-                                href={child.href}
-                                onClick={() => setIsMenuOpen(false)}
-                                className={`ml-5 flex-1 flex items-center gap-2.5 px-3 py-2 rounded-md transition-all ${
-                                  childIsActive
-                                    ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-semibold border-l-2 border-indigo-500"
-                                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                                }`}
-                              >
-                                <ChildIcon
-                                  className={`w-4 h-4 shrink-0 ${childIsActive ? "text-indigo-600 dark:text-indigo-400" : ""}`}
-                                />
-                                <span className="text-sm">{child.label}</span>
-                              </Link>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setIsMenuOpen(false)}
-                  className={`flex items-center justify-between gap-3 px-4 py-3 rounded-md transition-all ${
-                    active
-                      ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-semibold border-l-2 border-indigo-500"
-                      : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon
-                      className={`w-5 h-5 shrink-0 ${active ? "text-indigo-600 dark:text-indigo-400" : ""}`}
-                    />
-                    <span className="font-medium">{item.label}</span>
-                  </div>
-                  {item.shortcut && (
-                    <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
-                      {item.shortcut}
-                    </kbd>
-                  )}
-                </Link>
-              );
-            })}
+            {navItems.map((item) => renderNavItem(item, 0))}
           </div>
 
           {/* ショートカットヘルプ */}
