@@ -1,10 +1,13 @@
 import { Elysia, t } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { PrismaClient } from "@prisma/client";
+import * as fs from "fs";
+import * as path from "path";
 import {
   analyzeTask,
   generateExecutionInstructions,
   isApiKeyConfigured,
+  isApiKeyConfiguredAsync,
   type SubtaskProposal,
 } from "./services/claude-agent";
 import { GitHubService } from "./services/github-service";
@@ -61,13 +64,17 @@ app.get("/themes/:id", async ({ params }: { params: any }) => {
 app.post(
   "/themes",
   async ({ body }: { body: any }) => {
-    const { name, description, color, icon } = body;
+    const { name, description, color, icon, isDevelopment, repositoryUrl, workingDirectory, defaultBranch } = body;
     return await prisma.theme.create({
       data: {
         name,
         ...(description && { description }),
         ...(color && { color }),
         ...(icon && { icon }),
+        ...(isDevelopment !== undefined && { isDevelopment }),
+        ...(repositoryUrl && { repositoryUrl }),
+        ...(workingDirectory && { workingDirectory }),
+        ...(defaultBranch && { defaultBranch }),
       },
     });
   },
@@ -77,30 +84,72 @@ app.post(
       description: t.Optional(t.String()),
       color: t.Optional(t.String()),
       icon: t.Optional(t.String()),
+      isDevelopment: t.Optional(t.Boolean()),
+      repositoryUrl: t.Optional(t.String()),
+      workingDirectory: t.Optional(t.String()),
+      defaultBranch: t.Optional(t.String()),
     }),
   },
 );
 
 app.patch(
   "/themes/:id",
-  async ({ params, body }: { params: any; body: any }) => {
+  async ({ params, body, set }: { params: any; body: any; set: any }) => {
     const { id } = params;
-    const { name, description, color, icon } = body as {
-      name?: string;
-      description?: string;
-      color?: string;
-      icon?: string;
-    };
-    return await prisma.theme.update({
-      where: { id: parseInt(id) },
-      data: {
-        ...(name && { name }),
-        ...(description !== undefined && { description }),
-        ...(color && { color }),
-        ...(icon !== undefined && { icon }),
-      },
-    });
+    const themeId = parseInt(id);
+
+    if (isNaN(themeId)) {
+      set.status = 400;
+      return { error: "無効なIDです" };
+    }
+
+    const { name, description, color, icon, isDevelopment, repositoryUrl, workingDirectory, defaultBranch } = body;
+
+    try {
+      // テーマが存在するか確認
+      const existingTheme = await prisma.theme.findUnique({
+        where: { id: themeId },
+      });
+
+      if (!existingTheme) {
+        set.status = 404;
+        return { error: "テーマが見つかりません" };
+      }
+
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (color !== undefined) updateData.color = color;
+      if (icon !== undefined) updateData.icon = icon;
+      if (isDevelopment !== undefined) updateData.isDevelopment = isDevelopment;
+      if (repositoryUrl !== undefined) updateData.repositoryUrl = repositoryUrl;
+      if (workingDirectory !== undefined) updateData.workingDirectory = workingDirectory;
+      if (defaultBranch !== undefined) updateData.defaultBranch = defaultBranch;
+
+      const updatedTheme = await prisma.theme.update({
+        where: { id: themeId },
+        data: updateData,
+      });
+
+      return updatedTheme;
+    } catch (error: any) {
+      console.error("Theme update error:", error);
+      set.status = 500;
+      return { error: error.message || "テーマの更新に失敗しました" };
+    }
   },
+  {
+    body: t.Object({
+      name: t.Optional(t.String()),
+      description: t.Optional(t.String()),
+      color: t.Optional(t.String()),
+      icon: t.Optional(t.String()),
+      isDevelopment: t.Optional(t.Boolean()),
+      repositoryUrl: t.Optional(t.String()),
+      workingDirectory: t.Optional(t.String()),
+      defaultBranch: t.Optional(t.String()),
+    }),
+  }
 );
 
 app.delete("/themes/:id", async ({ params }: { params: { id: string } }) => {
@@ -2675,6 +2724,110 @@ app.post(
         sessionId: session.id,
         autoExecutionStarted: true,
       };
+    } else if (approval.requestType === "code_review") {
+      // コードレビュー承認 → コミット＆PR作成
+      const proposedChanges = approval.proposedChanges as {
+        taskId: number;
+        sessionId: number;
+        workingDirectory: string;
+        branchName?: string;
+        diff: string;
+      };
+
+      const task = approval.config.task;
+      const workDir = proposedChanges.workingDirectory;
+
+      // コミットメッセージを作成
+      const commitMessage = `feat: ${task.title}`;
+
+      // 変更をコミット
+      const commitResult = await orchestrator.commitChanges(
+        workDir,
+        commitMessage,
+        task.title
+      );
+
+      if (!commitResult.success) {
+        await prisma.notification.create({
+          data: {
+            type: "agent_error",
+            title: "コミット失敗",
+            message: `「${task.title}」のコミットに失敗しました: ${commitResult.error}`,
+            link: `/tasks/${task.id}`,
+          },
+        });
+        return { success: false, error: commitResult.error };
+      }
+
+      // PRを作成
+      const prBody = `## 概要
+${task.description || task.title}
+
+## 変更内容
+Claude Codeによる自動実装
+
+## 関連タスク
+Task ID: ${task.id}
+
+---
+🤖 Generated by rapitas AI Development Mode`;
+
+      const prResult = await orchestrator.createPullRequest(
+        workDir,
+        task.title,
+        prBody,
+        "main" // TODO: 設定可能にする
+      );
+
+      if (prResult.success) {
+        // タスクにPR情報を紐付け
+        if (prResult.prNumber) {
+          await prisma.task.update({
+            where: { id: task.id },
+            data: { status: "in_review" },
+          });
+        }
+
+        // 通知を作成
+        await prisma.notification.create({
+          data: {
+            type: "pr_approved",
+            title: "PR作成完了",
+            message: `「${task.title}」のPRが作成されました`,
+            link: prResult.prUrl || `/tasks/${task.id}`,
+            metadata: {
+              taskId: task.id,
+              commitHash: commitResult.commitHash,
+              prUrl: prResult.prUrl,
+              prNumber: prResult.prNumber,
+            },
+          },
+        });
+
+        return {
+          success: true,
+          commitHash: commitResult.commitHash,
+          prUrl: prResult.prUrl,
+          prNumber: prResult.prNumber,
+        };
+      } else {
+        // PR作成失敗（コミットは成功している）
+        await prisma.notification.create({
+          data: {
+            type: "agent_error",
+            title: "PR作成失敗",
+            message: `「${task.title}」のPR作成に失敗しました: ${prResult.error}`,
+            link: `/tasks/${task.id}`,
+            metadata: { commitHash: commitResult.commitHash },
+          },
+        });
+
+        return {
+          success: false,
+          commitHash: commitResult.commitHash,
+          error: prResult.error,
+        };
+      }
     } else if (approval.requestType === "subtask_creation") {
       // サブタスク作成の承認
       const proposedChanges = approval.proposedChanges as {
@@ -2743,6 +2896,20 @@ app.post(
     const { id } = params;
     const { reason } = body as { reason?: string };
 
+    const approval = await prisma.approvalRequest.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        config: {
+          include: { task: true },
+        },
+      },
+    });
+
+    if (!approval) {
+      return { error: "Approval request not found" };
+    }
+
+    // 承認リクエストを更新
     await prisma.approvalRequest.update({
       where: { id: parseInt(id) },
       data: {
@@ -2752,9 +2919,248 @@ app.post(
       },
     });
 
+    // コードレビュー却下の場合は変更を元に戻す
+    if (approval.requestType === "code_review") {
+      const proposedChanges = approval.proposedChanges as {
+        workingDirectory: string;
+      };
+
+      const reverted = await orchestrator.revertChanges(proposedChanges.workingDirectory);
+
+      await prisma.notification.create({
+        data: {
+          type: "pr_changes_requested",
+          title: "コードレビュー却下",
+          message: `「${approval.config.task.title}」のコードレビューが却下されました${reason ? `: ${reason}` : ''}。変更は元に戻されました。`,
+          link: `/tasks/${approval.config.taskId}`,
+        },
+      });
+
+      return { success: true, reverted };
+    }
+
     return { success: true };
   },
 );
+
+// コードレビュー承認（コミット + PR作成）
+app.post(
+  "/approvals/:id/approve-code-review",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { commitMessage: string; baseBranch?: string };
+  }) => {
+    const { id } = params;
+    const { commitMessage, baseBranch = "main" } = body;
+
+    const approval = await prisma.approvalRequest.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        config: {
+          include: { task: { include: { theme: true } } },
+        },
+      },
+    });
+
+    if (!approval) {
+      return { error: "Approval request not found" };
+    }
+
+    if (approval.status !== "pending") {
+      return { error: "Approval request is not pending" };
+    }
+
+    if (approval.requestType !== "code_review") {
+      return { error: "This endpoint is only for code_review requests" };
+    }
+
+    const proposedChanges = approval.proposedChanges as {
+      workingDirectory?: string;
+      files?: string[];
+    };
+
+    const workingDirectory =
+      proposedChanges.workingDirectory ||
+      approval.config.task?.theme?.workingDirectory;
+
+    if (!workingDirectory) {
+      return { error: "Working directory not found" };
+    }
+
+    try {
+      // Gitでコミット作成
+      const commitResult = await orchestrator.createCommit(
+        workingDirectory,
+        commitMessage
+      );
+
+      // PR作成
+      const prResult = await githubService.createPullRequest(
+        workingDirectory,
+        commitResult.branch,
+        baseBranch,
+        `[Task-${approval.config.taskId}] ${commitMessage}`,
+        `## 概要\n\n${approval.description || "AIエージェントによる自動実装"}\n\n関連タスク: #${approval.config.taskId}`
+      );
+
+      // 承認リクエストを更新
+      await prisma.approvalRequest.update({
+        where: { id: parseInt(id) },
+        data: {
+          status: "approved",
+          approvedAt: new Date(),
+        },
+      });
+
+      // タスクにPR情報を紐付け
+      if (prResult.prNumber) {
+        await prisma.task.update({
+          where: { id: approval.config.taskId },
+          data: { githubPrId: prResult.prNumber },
+        });
+      }
+
+      // 通知を作成
+      await prisma.notification.create({
+        data: {
+          type: "pr_approved",
+          title: "PR作成完了",
+          message: `「${approval.config.task.title}」のPRを作成しました`,
+          link: prResult.prUrl || `/tasks/${approval.config.taskId}`,
+          metadata: {
+            prNumber: prResult.prNumber,
+            prUrl: prResult.prUrl,
+            commitHash: commitResult.hash,
+          },
+        },
+      });
+
+      return {
+        success: true,
+        commit: commitResult,
+        pr: prResult,
+      };
+    } catch (error: any) {
+      console.error("Code review approval failed:", error);
+      return { error: error.message || "Code review approval failed" };
+    }
+  }
+);
+
+// コードレビュー却下（変更を破棄）
+app.post(
+  "/approvals/:id/reject-code-review",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { reason?: string };
+  }) => {
+    const { id } = params;
+    const { reason } = body;
+
+    const approval = await prisma.approvalRequest.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        config: {
+          include: { task: { include: { theme: true } } },
+        },
+      },
+    });
+
+    if (!approval) {
+      return { error: "Approval request not found" };
+    }
+
+    if (approval.requestType !== "code_review") {
+      return { error: "This endpoint is only for code_review requests" };
+    }
+
+    const proposedChanges = approval.proposedChanges as {
+      workingDirectory?: string;
+    };
+
+    const workingDirectory =
+      proposedChanges.workingDirectory ||
+      approval.config.task?.theme?.workingDirectory;
+
+    if (!workingDirectory) {
+      return { error: "Working directory not found" };
+    }
+
+    try {
+      // 変更を元に戻す
+      const reverted = await orchestrator.revertChanges(workingDirectory);
+
+      // 承認リクエストを更新
+      await prisma.approvalRequest.update({
+        where: { id: parseInt(id) },
+        data: {
+          status: "rejected",
+          rejectedAt: new Date(),
+          rejectionReason: reason,
+        },
+      });
+
+      // 通知を作成
+      await prisma.notification.create({
+        data: {
+          type: "pr_changes_requested",
+          title: "コードレビュー却下",
+          message: `「${approval.config.task.title}」の変更を破棄しました${reason ? `: ${reason}` : ""}`,
+          link: `/tasks/${approval.config.taskId}`,
+        },
+      });
+
+      return { success: true, reverted };
+    } catch (error: any) {
+      console.error("Code review rejection failed:", error);
+      return { error: error.message || "Code review rejection failed" };
+    }
+  }
+);
+
+// 差分を取得
+app.get("/approvals/:id/diff", async ({ params }: { params: { id: string } }) => {
+  const { id } = params;
+
+  const approval = await prisma.approvalRequest.findUnique({
+    where: { id: parseInt(id) },
+    include: {
+      config: {
+        include: { task: { include: { theme: true } } },
+      },
+    },
+  });
+
+  if (!approval) {
+    return { error: "Approval request not found" };
+  }
+
+  const proposedChanges = approval.proposedChanges as {
+    workingDirectory?: string;
+  };
+
+  const workingDirectory =
+    proposedChanges.workingDirectory ||
+    approval.config.task?.theme?.workingDirectory;
+
+  if (!workingDirectory) {
+    return { error: "Working directory not found" };
+  }
+
+  try {
+    const diff = await orchestrator.getDiff(workingDirectory);
+    return { files: diff };
+  } catch (error: any) {
+    console.error("Failed to get diff:", error);
+    return { error: error.message || "Failed to get diff" };
+  }
+});
 
 // 一括承認
 app.post(
@@ -2937,9 +3343,10 @@ app.get("/settings", async () => {
       data: {},
     });
   }
+  const apiKeyConfigured = await isApiKeyConfiguredAsync();
   return {
     ...settings,
-    claudeApiKeyConfigured: isApiKeyConfigured(),
+    claudeApiKeyConfigured: apiKeyConfigured,
   };
 });
 
@@ -2971,10 +3378,260 @@ app.patch(
 
 // API設定状態の確認
 app.get("/settings/api-status", async () => {
+  const apiKeyConfigured = await isApiKeyConfiguredAsync();
   return {
-    claudeApiKeyConfigured: isApiKeyConfigured(),
+    claudeApiKeyConfigured: apiKeyConfigured,
   };
 });
+
+// APIキーの保存（暗号化）
+app.post(
+  "/settings/api-key",
+  async ({ body }: { body: { apiKey: string } }) => {
+    const { apiKey } = body;
+
+    if (!apiKey || apiKey.trim() === "") {
+      return { error: "APIキーが必要です" };
+    }
+
+    // 暗号化
+    const encryptedKey = encrypt(apiKey);
+
+    // 設定を取得または作成
+    let settings = await prisma.userSettings.findFirst();
+    if (!settings) {
+      settings = await prisma.userSettings.create({
+        data: {
+          claudeApiKeyEncrypted: encryptedKey,
+        },
+      });
+    } else {
+      settings = await prisma.userSettings.update({
+        where: { id: settings.id },
+        data: {
+          claudeApiKeyEncrypted: encryptedKey,
+        },
+      });
+    }
+
+    return {
+      success: true,
+      maskedKey: maskApiKey(apiKey),
+    };
+  },
+);
+
+// マスクされたAPIキーを取得
+app.get("/settings/api-key", async () => {
+  const settings = await prisma.userSettings.findFirst();
+
+  if (!settings?.claudeApiKeyEncrypted) {
+    return {
+      configured: false,
+      maskedKey: null,
+    };
+  }
+
+  try {
+    const decryptedKey = decrypt(settings.claudeApiKeyEncrypted);
+    return {
+      configured: true,
+      maskedKey: maskApiKey(decryptedKey),
+    };
+  } catch {
+    return {
+      configured: false,
+      maskedKey: null,
+      error: "復号化に失敗しました",
+    };
+  }
+});
+
+// APIキーの削除
+app.delete("/settings/api-key", async () => {
+  const settings = await prisma.userSettings.findFirst();
+
+  if (!settings) {
+    return { success: true };
+  }
+
+  await prisma.userSettings.update({
+    where: { id: settings.id },
+    data: {
+      claudeApiKeyEncrypted: null,
+    },
+  });
+
+  return { success: true };
+});
+
+// ==================== Directory Browser API ====================
+
+// ディレクトリ一覧を取得
+app.get(
+  "/directories/browse",
+  async ({ query }: { query: { path?: string } }) => {
+    const { path: dirPath } = query as { path?: string };
+
+    try {
+      // パスが指定されていない場合はドライブ一覧を返す
+      if (!dirPath || dirPath.trim() === "") {
+        // Windows の場合はドライブ一覧を返す
+        if (process.platform === "win32") {
+          const { execSync } = require("child_process");
+          try {
+            const result = execSync("wmic logicaldisk get name", {
+              encoding: "utf8",
+            });
+            const drives = result
+              .split("\n")
+              .filter((line: string) => /^[A-Z]:/.test(line.trim()))
+              .map((line: string) => line.trim());
+
+            return {
+              path: "",
+              parent: null,
+              directories: drives.map((drive: string) => ({
+                name: `${drive} ドライブ`,
+                path: drive + "\\",
+                isDirectory: true,
+              })),
+              isDriveList: true,
+            };
+          } catch (e) {
+            console.error("Failed to get drive list:", e);
+            // フォールバック: C: と D: を返す
+            return {
+              path: "",
+              parent: null,
+              directories: [
+                { name: "C: ドライブ", path: "C:\\", isDirectory: true },
+                { name: "D: ドライブ", path: "D:\\", isDirectory: true },
+              ],
+              isDriveList: true,
+            };
+          }
+        } else {
+          // Unix系の場合はルートを返す
+          return {
+            path: "/",
+            parent: null,
+            directories: fs.readdirSync("/", { withFileTypes: true })
+              .filter((entry) => entry.isDirectory())
+              .filter((entry) => !entry.name.startsWith("."))
+              .map((entry) => ({
+                name: entry.name,
+                path: "/" + entry.name,
+                isDirectory: true,
+              }))
+              .sort((a, b) => a.name.localeCompare(b.name)),
+          };
+        }
+      }
+
+      let targetPath = dirPath.trim();
+
+      // Windowsドライブレター対応（C: → C:\）
+      if (process.platform === "win32" && /^[A-Z]:$/i.test(targetPath)) {
+        targetPath = targetPath + "\\";
+      }
+
+      // パスの正規化
+      const normalizedPath = path.resolve(targetPath);
+
+      // ディレクトリが存在するか確認
+      if (!fs.existsSync(normalizedPath)) {
+        return { error: `パスが存在しません: ${normalizedPath}`, path: normalizedPath };
+      }
+
+      const stats = fs.statSync(normalizedPath);
+      if (!stats.isDirectory()) {
+        return { error: "ディレクトリではありません", path: normalizedPath };
+      }
+
+      // ディレクトリ内容を取得
+      let entries;
+      try {
+        entries = fs.readdirSync(normalizedPath, { withFileTypes: true });
+      } catch (e: any) {
+        return { error: `アクセスできません: ${e.message}`, path: normalizedPath };
+      }
+
+      const directories = entries
+        .filter((entry) => {
+          try {
+            return entry.isDirectory();
+          } catch {
+            return false;
+          }
+        })
+        .filter((entry) => !entry.name.startsWith(".")) // 隠しフォルダを除外
+        .filter((entry) => {
+          // システムフォルダを除外（Windows）
+          const excludeNames = ["$Recycle.Bin", "$RECYCLE.BIN", "System Volume Information", "Recovery"];
+          return !excludeNames.includes(entry.name);
+        })
+        .map((entry) => ({
+          name: entry.name,
+          path: path.join(normalizedPath, entry.name),
+          isDirectory: true,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      // 親ディレクトリを計算
+      const parentPath = path.dirname(normalizedPath);
+      // ドライブルート（C:\など）の場合はparentをnullにしてドライブ一覧に戻れるようにする
+      const isDriveRoot = process.platform === "win32" && /^[A-Z]:\\?$/i.test(normalizedPath);
+      const hasParent = parentPath !== normalizedPath && !isDriveRoot;
+
+      return {
+        path: normalizedPath,
+        parent: hasParent ? parentPath : null,
+        directories,
+        isGitRepo: fs.existsSync(path.join(normalizedPath, ".git")),
+        isDriveList: false,
+      };
+    } catch (error: any) {
+      console.error("Directory browse error:", error);
+      return { error: error.message || "ディレクトリの取得に失敗しました" };
+    }
+  }
+);
+
+// パスの検証
+app.post(
+  "/directories/validate",
+  async ({ body }: { body: { path: string } }) => {
+    const { path: dirPath } = body;
+
+    if (!dirPath) {
+      return { valid: false, error: "パスが指定されていません" };
+    }
+
+    try {
+      const normalizedPath = path.resolve(dirPath);
+
+      if (!fs.existsSync(normalizedPath)) {
+        return { valid: false, error: "パスが存在しません" };
+      }
+
+      const stats = fs.statSync(normalizedPath);
+      if (!stats.isDirectory()) {
+        return { valid: false, error: "ディレクトリではありません" };
+      }
+
+      const isGitRepo = fs.existsSync(path.join(normalizedPath, ".git"));
+
+      return {
+        valid: true,
+        path: normalizedPath,
+        isGitRepo,
+      };
+    } catch (error: any) {
+      return { valid: false, error: error.message || "検証に失敗しました" };
+    }
+  }
+);
 
 // ==================== GitHub Integration API ====================
 
@@ -3635,7 +4292,7 @@ app.get("/agents/types", async () => {
   };
 });
 
-// タスクに対してエージェントを実行
+// タスクに対してエージェントを実行（自動実行モード：実行→差分レビュー→承認→コミット&PR）
 app.post(
   "/tasks/:id/execute",
   async ({
@@ -3648,18 +4305,22 @@ app.post(
       agentConfigId?: number;
       workingDirectory?: string;
       timeout?: number;
-      skipApproval?: boolean;
+      instruction?: string; // 追加の実装指示
+      branchName?: string;  // 作業ブランチ名
     };
     set: any;
   }) => {
     const { id } = params;
     const taskIdNum = parseInt(id);
-    const { agentConfigId, workingDirectory, timeout, skipApproval } = body;
+    const { agentConfigId, workingDirectory, timeout, instruction, branchName } = body;
 
-    // タスクを取得
+    // タスクを取得（テーマ情報も含む）
     const task = await prisma.task.findUnique({
       where: { id: taskIdNum },
-      include: { developerModeConfig: true },
+      include: {
+        developerModeConfig: true,
+        theme: true,
+      },
     });
 
     if (!task) {
@@ -3667,42 +4328,16 @@ app.post(
       return { error: "Task not found" };
     }
 
-    // 承認が必要かチェック
-    const config = task.developerModeConfig;
-    if (config && !skipApproval && config.requireApproval === "always") {
-      // 承認リクエストを作成
-      const approvalRequest = await prisma.approvalRequest.create({
-        data: {
-          configId: config.id,
-          requestType: "task_execution",
-          title: `「${task.title}」の自動実行`,
-          description: `タスク「${task.title}」をAIエージェントで自動実行します。`,
-          proposedChanges: {
-            taskId: taskIdNum,
-            agentConfigId,
-            workingDirectory,
-          },
-          executionType: "code_execution",
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        },
-      });
+    // 作業ディレクトリを決定（優先順位: 指定 > テーマ設定 > カレントディレクトリ）
+    const workDir = workingDirectory || task.theme?.workingDirectory || process.cwd();
 
-      // 通知を作成
-      await prisma.notification.create({
-        data: {
-          type: "approval_request",
-          title: "エージェント実行承認リクエスト",
-          message: `「${task.title}」の自動実行が承認待ちです`,
-          link: `/approvals/${approvalRequest.id}`,
-          metadata: { approvalRequestId: approvalRequest.id },
-        },
-      });
-
-      return { requiresApproval: true, approvalRequestId: approvalRequest.id };
+    // テーマが開発プロジェクトでない場合の警告
+    if (!task.theme?.isDevelopment && !workingDirectory) {
+      console.warn(`Task ${taskIdNum} is not in a development theme. Using current directory.`);
     }
 
     // セッションを作成
-    let developerModeConfig = config;
+    let developerModeConfig = task.developerModeConfig;
     if (!developerModeConfig) {
       developerModeConfig = await prisma.developerModeConfig.create({
         data: {
@@ -3719,6 +4354,14 @@ app.post(
       },
     });
 
+    // ブランチを作成（指定がある場合）
+    if (branchName) {
+      const branchCreated = await orchestrator.createBranch(workDir, branchName);
+      if (!branchCreated) {
+        return { error: "Failed to create branch", branchName };
+      }
+    }
+
     // 通知を送信
     await prisma.notification.create({
       data: {
@@ -3730,45 +4373,105 @@ app.post(
       },
     });
 
-    // 非同期で実行
+    // 実装指示を構築
+    const fullInstruction = instruction
+      ? `${task.description || task.title}\n\n追加指示:\n${instruction}`
+      : task.description || task.title;
+
+    // 非同期でClaude Code実行
     orchestrator
       .executeTask(
         {
           id: taskIdNum,
           title: task.title,
-          description: task.description,
+          description: fullInstruction,
           context: task.executionInstructions || undefined,
-          workingDirectory,
+          workingDirectory: workDir,
         },
         {
           taskId: taskIdNum,
           sessionId: session.id,
           agentConfigId,
-          workingDirectory,
+          workingDirectory: workDir,
           timeout,
         },
       )
       .then(async (result) => {
-        // 完了通知
+        if (result.success) {
+          // 実行成功 → git diffを取得してレビュー依頼を作成
+          const diff = await orchestrator.getFullGitDiff(workDir);
+
+          if (diff && diff !== 'No changes detected') {
+            // コードレビュー承認リクエストを作成
+            const approvalRequest = await prisma.approvalRequest.create({
+              data: {
+                configId: developerModeConfig!.id,
+                requestType: "code_review",
+                title: `「${task.title}」のコードレビュー`,
+                description: `Claude Codeによる実装が完了しました。変更内容を確認してください。`,
+                proposedChanges: {
+                  taskId: taskIdNum,
+                  sessionId: session.id,
+                  workingDirectory: workDir,
+                  branchName,
+                  diff,
+                },
+                executionType: "code_review",
+                estimatedChanges: { diff },
+                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7日間
+              },
+            });
+
+            // レビュー依頼通知
+            await prisma.notification.create({
+              data: {
+                type: "pr_review_requested",
+                title: "コードレビュー依頼",
+                message: `「${task.title}」の実装が完了しました。レビューをお願いします。`,
+                link: `/approvals/${approvalRequest.id}`,
+                metadata: {
+                  approvalRequestId: approvalRequest.id,
+                  sessionId: session.id,
+                  taskId: taskIdNum,
+                },
+              },
+            });
+          } else {
+            // 変更なし
+            await prisma.notification.create({
+              data: {
+                type: "agent_execution_complete",
+                title: "エージェント実行完了（変更なし）",
+                message: `「${task.title}」の実行が完了しましたが、コード変更はありませんでした。`,
+                link: `/tasks/${taskIdNum}`,
+                metadata: { sessionId: session.id, taskId: taskIdNum },
+              },
+            });
+          }
+        } else {
+          // 実行失敗
+          await prisma.notification.create({
+            data: {
+              type: "agent_error",
+              title: "エージェント実行失敗",
+              message: `「${task.title}」の自動実行が失敗しました: ${result.errorMessage}`,
+              link: `/tasks/${taskIdNum}`,
+              metadata: { sessionId: session.id, taskId: taskIdNum },
+            },
+          });
+        }
+      })
+      .catch(async (error) => {
+        console.error("Agent execution error:", error);
         await prisma.notification.create({
           data: {
-            type: "agent_execution_complete",
-            title: result.success
-              ? "エージェント実行完了"
-              : "エージェント実行失敗",
-            message: result.success
-              ? `「${task.title}」の自動実行が完了しました`
-              : `「${task.title}」の自動実行が失敗しました: ${result.errorMessage}`,
+            type: "agent_error",
+            title: "エージェント実行エラー",
+            message: `「${task.title}」の実行中にエラーが発生しました`,
             link: `/tasks/${taskIdNum}`,
-            metadata: {
-              sessionId: session.id,
-              taskId: taskIdNum,
-              success: result.success,
-            },
           },
         });
-      })
-      .catch(console.error);
+      });
 
     return { success: true, sessionId: session.id };
   },

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" --names \"BACKEND,FRONTEND\" --prefix-colors \"cyan,magenta\"",
     "dev:backend": "cd rapitas-backend && bun run index.ts",
-    "dev:frontend": "cd rapitas-frontend && cross-env PORT=0 pnpm run dev",
+    "dev:frontend": "cd rapitas-frontend && cross-env pnpm run dev",
     "install:all": "cd rapitas-backend && bun install && cd ../rapitas-frontend && npm install",
     "prisma:migrate": "cd rapitas-backend && npx prisma migrate dev",
     "prisma:generate": "cd rapitas-backend && npx prisma generate",

@@ -10,10 +10,24 @@ import type {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
+export type ExecutionStatus = "idle" | "running" | "completed" | "failed";
+
+export type ExecutionResult = {
+  success: boolean;
+  sessionId?: number;
+  executionId?: number;
+  approvalRequestId?: number;
+  message?: string;
+  error?: string;
+};
+
 export function useDeveloperMode(taskId: number) {
   const [config, setConfig] = useState<DeveloperModeConfig | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>("idle");
+  const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
   const [analysisResult, setAnalysisResult] =
     useState<TaskAnalysisResult | null>(null);
   const [sessions, setSessions] = useState<AgentSession[]>([]);
@@ -168,10 +182,68 @@ export function useDeveloperMode(taskId: number) {
     }
   }, [taskId]);
 
+  /**
+   * AIエージェントを実行してタスクを実装
+   */
+  const executeAgent = useCallback(
+    async (options?: {
+      instruction?: string;
+      branchName?: string;
+      workingDirectory?: string;
+    }) => {
+      setIsExecuting(true);
+      setExecutionStatus("running");
+      setExecutionResult(null);
+      setError(null);
+      try {
+        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/execute`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(options || {}),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setExecutionResult({
+            success: true,
+            sessionId: data.sessionId,
+            message: data.message || "エージェント実行を開始しました",
+          });
+          setExecutionStatus("completed");
+          return data;
+        } else {
+          throw new Error(data.error || "エージェントの実行に失敗しました");
+        }
+      } catch (err: any) {
+        setError(err.message);
+        setExecutionStatus("failed");
+        setExecutionResult({
+          success: false,
+          error: err.message,
+        });
+        return null;
+      } finally {
+        setIsExecuting(false);
+      }
+    },
+    [taskId]
+  );
+
+  /**
+   * 実行状態をリセット
+   */
+  const resetExecutionState = useCallback(() => {
+    setExecutionStatus("idle");
+    setExecutionResult(null);
+    setError(null);
+  }, []);
+
   return {
     config,
     isLoading,
     isAnalyzing,
+    isExecuting,
+    executionStatus,
+    executionResult,
     analysisResult,
     sessions,
     error,
@@ -182,5 +254,7 @@ export function useDeveloperMode(taskId: number) {
     analyzeTask,
     fetchSessions,
     setAnalysisResult,
+    executeAgent,
+    resetExecutionState,
   };
 }

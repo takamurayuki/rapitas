@@ -16,6 +16,8 @@ import {
   Trash2,
   Calendar,
   BookOpen,
+  Code2,
+  Bot,
 } from "lucide-react";
 import type { Priority, Theme, Label } from "@/types";
 import LabelSelector from "@/feature/tasks/components/label-selector";
@@ -39,6 +41,9 @@ export default function NewTaskPage() {
   const [estimatedHours, setEstimatedHours] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [subject, setSubject] = useState("");
+
+  // 開発者モード
+  const [isDeveloperMode, setIsDeveloperMode] = useState(false);
 
   // データ
   const [themes, setThemes] = useState<Theme[]>([]);
@@ -68,10 +73,33 @@ export default function NewTaskPage() {
       const themeIdParam = searchParams.get("themeId");
       if (!themeIdParam) {
         const defaultTheme = data.find((t: Theme) => t.isDefault);
-        if (defaultTheme) setThemeId(defaultTheme.id);
+        if (defaultTheme) {
+          setThemeId(defaultTheme.id);
+          // 開発テーマの場合は自動で開発者モードを有効化
+          if (defaultTheme.isDevelopment) {
+            setIsDeveloperMode(true);
+          }
+        }
+      } else {
+        // URLパラメータで指定されたテーマの場合
+        const selectedTheme = data.find(
+          (t: Theme) => t.id === Number(themeIdParam)
+        );
+        if (selectedTheme?.isDevelopment) {
+          setIsDeveloperMode(true);
+        }
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // テーマ選択時の処理
+  const handleThemeSelect = (theme: Theme) => {
+    setThemeId(theme.id);
+    // 開発テーマの場合は自動で開発者モードを有効化
+    if (theme.isDevelopment) {
+      setIsDeveloperMode(true);
     }
   };
 
@@ -115,6 +143,7 @@ export default function NewTaskPage() {
             : undefined,
           dueDate: dueDate || undefined,
           subject: subject || undefined,
+          isDeveloperMode: isDeveloperMode || undefined,
         }),
       });
 
@@ -282,8 +311,8 @@ export default function NewTaskPage() {
                     <button
                       key={theme.id}
                       type="button"
-                      onClick={() => setThemeId(theme.id)}
-                      className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                      onClick={() => handleThemeSelect(theme)}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
                         themeId === theme.id
                           ? "ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 scale-105"
                           : "opacity-60 hover:opacity-100"
@@ -297,6 +326,7 @@ export default function NewTaskPage() {
                         ["--tw-ring-color" as any]: theme.color,
                       }}
                     >
+                      {theme.isDevelopment && <Code2 className="w-3 h-3" />}
                       {theme.name}
                     </button>
                   ))}
@@ -304,6 +334,43 @@ export default function NewTaskPage() {
               </div>
             </div>
           </div>
+
+          {/* 開発者モード */}
+          {(isDeveloperMode ||
+            themes.find((t) => t.id === themeId)?.isDevelopment) && (
+            <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-violet-100 dark:bg-violet-900/40 rounded-lg">
+                    <Bot className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                      開発者モード
+                    </h3>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                      AIがタスクを分析し、サブタスクを自動提案します
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDeveloperMode(!isDeveloperMode)}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${
+                    isDeveloperMode
+                      ? "bg-violet-500"
+                      : "bg-zinc-300 dark:bg-zinc-600"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                      isDeveloperMode ? "translate-x-5" : ""
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Advanced Options Toggle */}
           <button

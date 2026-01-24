@@ -6,7 +6,8 @@
       "Bash(npm install:*)",
       "Bash(dir:*)",
       "Bash(npx prisma db push:*)",
-      "Bash(npx prisma generate:*)"
+      "Bash(npx prisma generate:*)",
+      "Bash(netstat:*)"
     ]
   }
 }

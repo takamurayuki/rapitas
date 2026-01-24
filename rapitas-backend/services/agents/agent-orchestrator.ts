@@ -4,6 +4,8 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { agentFactory, AgentConfigInput } from './agent-factory';
 import {
   BaseAgent,
@@ -12,6 +14,8 @@ import {
   AgentOutputHandler,
   AgentStatus,
 } from './base-agent';
+
+const execAsync = promisify(exec);
 
 export type ExecutionOptions = {
   taskId: number;
@@ -104,6 +108,7 @@ export class AgentOrchestrator {
       name: 'Claude Code Agent',
       workingDirectory: options.workingDirectory,
       timeout: options.timeout,
+      dangerouslySkipPermissions: true, // 自動実行モード: ファイル変更を許可
     };
 
     if (options.agentConfigId) {
@@ -331,6 +336,383 @@ export class AgentOrchestrator {
    */
   getExecutionState(executionId: number): ExecutionState | undefined {
     return this.activeExecutions.get(executionId);
+  }
+
+  // ==================== Git操作 ====================
+
+  /**
+   * 作業ディレクトリのgit diffを取得
+   */
+  async getGitDiff(workingDirectory: string): Promise<string> {
+    try {
+      const { stdout } = await execAsync('git diff', {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024,
+      });
+      return stdout;
+    } catch (error) {
+      console.error('Failed to get git diff:', error);
+      return '';
+    }
+  }
+
+  /**
+   * ステージされていない変更も含めた全diffを取得
+   */
+  async getFullGitDiff(workingDirectory: string): Promise<string> {
+    try {
+      // ステージされた変更
+      const { stdout: staged } = await execAsync('git diff --cached', {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024,
+      });
+      // ステージされていない変更
+      const { stdout: unstaged } = await execAsync('git diff', {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024,
+      });
+      // 新規ファイル
+      const { stdout: untracked } = await execAsync('git ls-files --others --exclude-standard', {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      });
+
+      let result = '';
+      if (staged) result += '=== Staged Changes ===\n' + staged + '\n';
+      if (unstaged) result += '=== Unstaged Changes ===\n' + unstaged + '\n';
+      if (untracked.trim()) result += '=== New Files ===\n' + untracked + '\n';
+
+      return result || 'No changes detected';
+    } catch (error) {
+      console.error('Failed to get full git diff:', error);
+      return '';
+    }
+  }
+
+  /**
+   * 変更をコミット
+   */
+  async commitChanges(
+    workingDirectory: string,
+    message: string,
+    taskTitle?: string
+  ): Promise<{ success: boolean; commitHash?: string; error?: string }> {
+    try {
+      // すべての変更をステージ
+      await execAsync('git add -A', { cwd: workingDirectory });
+
+      // コミットメッセージを作成
+      const fullMessage = taskTitle
+        ? `${message}\n\nTask: ${taskTitle}\n\nCo-Authored-By: Claude Code <noreply@anthropic.com>`
+        : `${message}\n\nCo-Authored-By: Claude Code <noreply@anthropic.com>`;
+
+      // コミット
+      const { stdout } = await execAsync(
+        `git commit -m "${fullMessage.replace(/"/g, '\\"')}"`,
+        { cwd: workingDirectory, encoding: 'utf8' }
+      );
+
+      // コミットハッシュを取得
+      const { stdout: hash } = await execAsync('git rev-parse HEAD', {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      });
+
+      return { success: true, commitHash: hash.trim() };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * PRを作成
+   */
+  async createPullRequest(
+    workingDirectory: string,
+    title: string,
+    body: string,
+    baseBranch: string = 'main'
+  ): Promise<{ success: boolean; prUrl?: string; prNumber?: number; error?: string }> {
+    try {
+      // ghコマンドのパス
+      const ghPath = process.platform === 'win32'
+        ? '"C:\\Program Files\\GitHub CLI\\gh.exe"'
+        : 'gh';
+
+      // 現在のブランチ名を取得
+      const { stdout: currentBranch } = await execAsync('git branch --show-current', {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      });
+
+      // リモートにプッシュ
+      await execAsync(`git push -u origin ${currentBranch.trim()}`, {
+        cwd: workingDirectory,
+      });
+
+      // PR作成
+      const { stdout } = await execAsync(
+        `${ghPath} pr create --title "${title.replace(/"/g, '\\"')}" --body "${body.replace(/"/g, '\\"')}" --base ${baseBranch}`,
+        { cwd: workingDirectory, encoding: 'utf8' }
+      );
+
+      // PR URLからPR番号を抽出
+      const prUrl = stdout.trim();
+      const prMatch = prUrl.match(/\/pull\/(\d+)/);
+      const prNumber = prMatch ? parseInt(prMatch[1], 10) : undefined;
+
+      return { success: true, prUrl, prNumber };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * 変更を元に戻す
+   */
+  async revertChanges(workingDirectory: string): Promise<boolean> {
+    try {
+      // ステージされた変更を取り消し
+      await execAsync('git reset HEAD', { cwd: workingDirectory });
+      // 変更を破棄
+      await execAsync('git checkout -- .', { cwd: workingDirectory });
+      // 新規ファイルを削除
+      await execAsync('git clean -fd', { cwd: workingDirectory });
+      return true;
+    } catch (error) {
+      console.error('Failed to revert changes:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 新しいブランチを作成してチェックアウト
+   */
+  async createBranch(workingDirectory: string, branchName: string): Promise<boolean> {
+    try {
+      await execAsync(`git checkout -b ${branchName}`, { cwd: workingDirectory });
+      return true;
+    } catch (error) {
+      console.error('Failed to create branch:', error);
+      return false;
+    }
+  }
+
+  /**
+   * コミットを作成（フル機能版）
+   */
+  async createCommit(
+    workingDirectory: string,
+    message: string
+  ): Promise<{ hash: string; branch: string; filesChanged: number; additions: number; deletions: number }> {
+    // 現在のブランチ名を取得
+    const { stdout: currentBranch } = await execAsync('git branch --show-current', {
+      cwd: workingDirectory,
+      encoding: 'utf8',
+    });
+    const branch = currentBranch.trim();
+
+    // フィーチャーブランチでない場合は新規作成
+    if (branch === 'main' || branch === 'master' || branch === 'develop') {
+      const timestamp = Date.now();
+      const featureBranch = `feature/auto-${timestamp}`;
+      await execAsync(`git checkout -b ${featureBranch}`, { cwd: workingDirectory });
+    }
+
+    // すべての変更をステージ
+    await execAsync('git add -A', { cwd: workingDirectory });
+
+    // 変更統計を取得
+    const { stdout: diffStat } = await execAsync('git diff --cached --numstat', {
+      cwd: workingDirectory,
+      encoding: 'utf8',
+    });
+
+    let filesChanged = 0;
+    let additions = 0;
+    let deletions = 0;
+
+    diffStat.split('\n').filter(Boolean).forEach((line) => {
+      const parts = line.split('\t');
+      if (parts.length >= 2) {
+        filesChanged++;
+        const added = parseInt(parts[0]!, 10) || 0;
+        const deleted = parseInt(parts[1]!, 10) || 0;
+        additions += added;
+        deletions += deleted;
+      }
+    });
+
+    // コミットメッセージを作成
+    const fullMessage = `${message}\n\nCo-Authored-By: Claude Code <noreply@anthropic.com>`;
+
+    // コミット
+    await execAsync(
+      `git commit -m "${fullMessage.replace(/"/g, '\\"')}"`,
+      { cwd: workingDirectory, encoding: 'utf8' }
+    );
+
+    // コミットハッシュを取得
+    const { stdout: hash } = await execAsync('git rev-parse HEAD', {
+      cwd: workingDirectory,
+      encoding: 'utf8',
+    });
+
+    // 最新のブランチ名を取得
+    const { stdout: finalBranch } = await execAsync('git branch --show-current', {
+      cwd: workingDirectory,
+      encoding: 'utf8',
+    });
+
+    return {
+      hash: hash.trim(),
+      branch: finalBranch.trim(),
+      filesChanged,
+      additions,
+      deletions,
+    };
+  }
+
+  /**
+   * 差分を構造化された形式で取得
+   */
+  async getDiff(workingDirectory: string): Promise<Array<{
+    filename: string;
+    status: string;
+    additions: number;
+    deletions: number;
+    patch?: string;
+  }>> {
+    const files: Array<{
+      filename: string;
+      status: string;
+      additions: number;
+      deletions: number;
+      patch?: string;
+    }> = [];
+
+    try {
+      // ステージされた変更
+      const { stdout: stagedNumstat } = await execAsync('git diff --cached --numstat', {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      });
+
+      // ステージされていない変更
+      const { stdout: unstagedNumstat } = await execAsync('git diff --numstat', {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      });
+
+      // 新規ファイル
+      const { stdout: untracked } = await execAsync('git ls-files --others --exclude-standard', {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      });
+
+      // ステータスを取得
+      const { stdout: status } = await execAsync('git status --porcelain', {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      });
+
+      // ファイル情報をマップに格納
+      const fileMap = new Map<string, {
+        additions: number;
+        deletions: number;
+        status: string;
+      }>();
+
+      // numstatを解析
+      const parseNumstat = (numstat: string) => {
+        numstat.split('\n').filter(Boolean).forEach((line) => {
+          const parts = line.split('\t');
+          if (parts.length >= 3) {
+            const additions = parseInt(parts[0]!, 10) || 0;
+            const deletions = parseInt(parts[1]!, 10) || 0;
+            const filename = parts[2]!;
+            const existing = fileMap.get(filename);
+            fileMap.set(filename, {
+              additions: (existing?.additions || 0) + additions,
+              deletions: (existing?.deletions || 0) + deletions,
+              status: existing?.status || 'modified',
+            });
+          }
+        });
+      };
+
+      parseNumstat(stagedNumstat);
+      parseNumstat(unstagedNumstat);
+
+      // 新規ファイルを追加
+      untracked.split('\n').filter(Boolean).forEach((filename) => {
+        if (!fileMap.has(filename)) {
+          fileMap.set(filename, {
+            additions: 0,
+            deletions: 0,
+            status: 'added',
+          });
+        }
+      });
+
+      // ステータスからファイル状態を更新
+      status.split('\n').filter(Boolean).forEach((line) => {
+        const statusCode = line.substring(0, 2);
+        const filename = line.substring(3);
+        const existing = fileMap.get(filename);
+        let fileStatus = 'modified';
+
+        if (statusCode.includes('A') || statusCode.includes('?')) {
+          fileStatus = 'added';
+        } else if (statusCode.includes('D')) {
+          fileStatus = 'deleted';
+        } else if (statusCode.includes('R')) {
+          fileStatus = 'renamed';
+        }
+
+        if (existing) {
+          existing.status = fileStatus;
+        } else {
+          fileMap.set(filename, {
+            additions: 0,
+            deletions: 0,
+            status: fileStatus,
+          });
+        }
+      });
+
+      // 各ファイルのパッチを取得
+      for (const [filename, info] of fileMap) {
+        let patch = '';
+        try {
+          if (info.status !== 'added') {
+            const { stdout: filePatch } = await execAsync(
+              `git diff HEAD -- "${filename}"`,
+              { cwd: workingDirectory, encoding: 'utf8', maxBuffer: 5 * 1024 * 1024 }
+            );
+            patch = filePatch;
+          }
+        } catch {
+          // パッチ取得に失敗した場合は空
+        }
+
+        files.push({
+          filename,
+          status: info.status,
+          additions: info.additions,
+          deletions: info.deletions,
+          patch: patch || undefined,
+        });
+      }
+
+      return files;
+    } catch (error) {
+      console.error('Failed to get diff:', error);
+      return [];
+    }
   }
 }
 

@@ -12,9 +12,12 @@ import {
   CheckCheck,
   AlertCircle,
   ListChecks,
+  Code2,
+  GitPullRequest,
 } from "lucide-react";
 import { useApprovals } from "@/feature/developer-mode/hooks/useApprovals";
-import type { ApprovalRequest, Priority } from "@/types";
+import { ExecutionReviewPanel } from "@/feature/developer-mode/components/ExecutionReviewPanel";
+import type { ApprovalRequest, Priority, FileDiff } from "@/types";
 import { priorityColors, priorityLabels } from "@/types";
 
 export default function ApprovalsPage() {
@@ -22,15 +25,22 @@ export default function ApprovalsPage() {
     approvals,
     isLoading,
     error,
+    diff,
     fetchApprovals,
     approve,
     reject,
     bulkApprove,
+    fetchDiff,
+    approveCodeReview,
+    rejectCodeReview,
   } = useApprovals();
   const [filter, setFilter] = useState<string>("pending");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [codeReviewDiff, setCodeReviewDiff] = useState<Map<number, FileDiff[]>>(
+    new Map(),
+  );
 
   useEffect(() => {
     fetchApprovals(filter);
@@ -48,6 +58,37 @@ export default function ApprovalsPage() {
     await reject(id);
     setProcessingId(null);
     setExpandedId(null);
+  };
+
+  const handleCodeReviewApprove = async (
+    id: number,
+    commitMessage: string,
+    baseBranch: string,
+  ) => {
+    setProcessingId(id);
+    await approveCodeReview(id, commitMessage, baseBranch);
+    setProcessingId(null);
+    setExpandedId(null);
+  };
+
+  const handleCodeReviewReject = async (id: number) => {
+    setProcessingId(id);
+    await rejectCodeReview(id);
+    setProcessingId(null);
+    setExpandedId(null);
+  };
+
+  const handleExpandCodeReview = async (id: number) => {
+    if (expandedId === id) {
+      setExpandedId(null);
+    } else {
+      setExpandedId(id);
+      // 差分がまだ取得されていない場合は取得
+      if (!codeReviewDiff.has(id)) {
+        const files = await fetchDiff(id);
+        setCodeReviewDiff((prev) => new Map(prev).set(id, files));
+      }
+    }
   };
 
   const handleBulkApprove = async () => {
@@ -200,23 +241,45 @@ export default function ApprovalsPage() {
             </div>
           )}
 
-          {approvals.map((approval) => (
-            <ApprovalCard
-              key={approval.id}
-              approval={approval}
-              isSelected={selectedIds.has(approval.id)}
-              isExpanded={expandedId === approval.id}
-              isProcessing={processingId === approval.id}
-              isPending={filter === "pending"}
-              onToggleSelect={() => toggleSelect(approval.id)}
-              onToggleExpand={() =>
-                setExpandedId(expandedId === approval.id ? null : approval.id)
-              }
-              onApprove={(selected) => handleApprove(approval.id, selected)}
-              onReject={() => handleReject(approval.id)}
-              formatDate={formatDate}
-            />
-          ))}
+          {approvals.map((approval) =>
+            approval.requestType === "code_review" ? (
+              <CodeReviewCard
+                key={approval.id}
+                approval={approval}
+                isExpanded={expandedId === approval.id}
+                isProcessing={processingId === approval.id}
+                isPending={filter === "pending"}
+                diffFiles={codeReviewDiff.get(approval.id) || []}
+                onToggleExpand={() => handleExpandCodeReview(approval.id)}
+                onApprove={(commitMessage, baseBranch) =>
+                  handleCodeReviewApprove(
+                    approval.id,
+                    commitMessage,
+                    baseBranch,
+                  )
+                }
+                onReject={() => handleCodeReviewReject(approval.id)}
+                formatDate={formatDate}
+                error={error}
+              />
+            ) : (
+              <ApprovalCard
+                key={approval.id}
+                approval={approval}
+                isSelected={selectedIds.has(approval.id)}
+                isExpanded={expandedId === approval.id}
+                isProcessing={processingId === approval.id}
+                isPending={filter === "pending"}
+                onToggleSelect={() => toggleSelect(approval.id)}
+                onToggleExpand={() =>
+                  setExpandedId(expandedId === approval.id ? null : approval.id)
+                }
+                onApprove={(selected) => handleApprove(approval.id, selected)}
+                onReject={() => handleReject(approval.id)}
+                formatDate={formatDate}
+              />
+            ),
+          )}
         </div>
       )}
     </div>
@@ -247,7 +310,7 @@ function ApprovalCard({
   formatDate: (date: string) => string;
 }) {
   const [selectedSubtasks, setSelectedSubtasks] = useState<Set<number>>(
-    new Set(approval.proposedChanges.subtasks?.map((_, i) => i) || [])
+    new Set(approval.proposedChanges.subtasks?.map((_, i) => i) || []),
   );
 
   const toggleSubtask = (index: number) => {
@@ -268,8 +331,7 @@ function ApprovalCard({
     approved:
       "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
     rejected: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300",
-    expired:
-      "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
+    expired: "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
   };
 
   const statusLabels = {
@@ -457,7 +519,7 @@ function ApprovalCard({
                     selectedSubtasks.size ===
                       (approval.proposedChanges.subtasks?.length || 0)
                       ? undefined
-                      : Array.from(selectedSubtasks)
+                      : Array.from(selectedSubtasks),
                   )
                 }
                 disabled={isProcessing || selectedSubtasks.size === 0}
@@ -475,6 +537,147 @@ function ApprovalCard({
               </button>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CodeReviewCard({
+  approval,
+  isExpanded,
+  isProcessing,
+  isPending,
+  diffFiles,
+  onToggleExpand,
+  onApprove,
+  onReject,
+  formatDate,
+  error,
+}: {
+  approval: ApprovalRequest;
+  isExpanded: boolean;
+  isProcessing: boolean;
+  isPending: boolean;
+  diffFiles: FileDiff[];
+  onToggleExpand: () => void;
+  onApprove: (commitMessage: string, baseBranch: string) => void;
+  onReject: () => void;
+  formatDate: (date: string) => string;
+  error: string | null;
+}) {
+  const statusColors = {
+    pending:
+      "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
+    approved:
+      "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
+    rejected: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300",
+    expired: "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
+  };
+
+  const statusLabels = {
+    pending: "承認待ち",
+    approved: "承認済み",
+    rejected: "却下済み",
+    expired: "期限切れ",
+  };
+
+  const defaultBranch = approval.config?.task?.theme?.defaultBranch || "main";
+
+  return (
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+      {/* Main Content */}
+      <div className="p-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-violet-100 dark:bg-violet-900/30 rounded-lg shrink-0">
+            <Code2 className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4 mb-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                    {approval.title}
+                  </h3>
+                  <span className="flex items-center gap-1 px-2 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded text-xs font-medium">
+                    <GitPullRequest className="w-3 h-3" />
+                    コードレビュー
+                  </span>
+                </div>
+                {approval.config?.task && (
+                  <Link
+                    href={`/tasks/${approval.config.task.id}`}
+                    className="text-sm text-violet-600 dark:text-violet-400 hover:underline"
+                  >
+                    タスク: {approval.config.task.title}
+                  </Link>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[approval.status]}`}
+                >
+                  {statusLabels[approval.status]}
+                </span>
+              </div>
+            </div>
+
+            {/* Description */}
+            {approval.description && (
+              <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3">
+                {approval.description}
+              </p>
+            )}
+
+            {/* Meta */}
+            <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
+              <span className="flex items-center gap-1">
+                <Code2 className="w-3.5 h-3.5" />
+                {diffFiles.length > 0
+                  ? `${diffFiles.length}ファイル変更`
+                  : "変更を読み込み中..."}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" />
+                {formatDate(approval.createdAt)}
+              </span>
+            </div>
+          </div>
+
+          {/* Expand Button */}
+          <button
+            onClick={onToggleExpand}
+            className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+          >
+            <ChevronRight
+              className={`w-5 h-5 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* Expanded Content - ExecutionReviewPanel */}
+      {isExpanded && (
+        <div className="border-t border-zinc-200 dark:border-zinc-800">
+          <ExecutionReviewPanel
+            files={diffFiles}
+            status={
+              approval.status === "pending"
+                ? "completed"
+                : (approval.status as any)
+            }
+            onApprove={async (commitMessage, baseBranch) => {
+              onApprove(commitMessage, baseBranch);
+            }}
+            onReject={async () => {
+              onReject();
+            }}
+            isProcessing={isProcessing}
+            error={error}
+            defaultBranch={defaultBranch}
+          />
         </div>
       )}
     </div>

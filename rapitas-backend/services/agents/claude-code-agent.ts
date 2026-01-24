@@ -57,30 +57,38 @@ export class ClaudeCodeAgent extends BaseAgent {
       const workDir = task.workingDirectory || this.config.workingDirectory || process.cwd();
 
       // Claude Code CLI コマンドを構築
-      const args = [
-        '-p', // print mode (non-interactive)
-        task.description || task.title,
-      ];
+      // 実行モードに応じてフラグを設定
+      const args: string[] = [];
 
-      // オプションを追加
-      if (this.config.model) {
-        args.unshift('--model', this.config.model);
-      }
-
+      // 自動実行モード: 実際にファイル変更を行う
       if (this.config.dangerouslySkipPermissions) {
-        args.unshift('--dangerously-skip-permissions');
+        args.push('--dangerously-skip-permissions');
       }
 
-      if (this.config.maxTokens) {
-        args.unshift('--max-tokens', String(this.config.maxTokens));
+      // モデル指定
+      if (this.config.model) {
+        args.push('--model', this.config.model);
       }
+
+      // 最大トークン数
+      if (this.config.maxTokens) {
+        args.push('--max-tokens', String(this.config.maxTokens));
+      }
+
+      // プロンプトを追加（-p フラグで非対話モード）
+      args.push('-p', task.description || task.title);
+
+      // Windows環境でのClaudeコマンドのパス
+      const claudePath = process.platform === 'win32'
+        ? 'C:\\home\\wsl\\.npm-global\\claude.cmd'
+        : 'claude';
 
       this.emitOutput(`[Claude Code] Starting execution in ${workDir}\n`);
       this.emitOutput(`[Claude Code] Task: ${task.title}\n`);
-      this.emitOutput(`[Claude Code] Command: claude ${args.join(' ')}\n\n`);
+      this.emitOutput(`[Claude Code] Command: ${claudePath} ${args.join(' ')}\n\n`);
 
       try {
-        this.process = spawn('claude', args, {
+        this.process = spawn(claudePath, args, {
           cwd: workDir,
           shell: true,
           env: {
@@ -222,7 +230,10 @@ export class ClaudeCodeAgent extends BaseAgent {
 
   async isAvailable(): Promise<boolean> {
     return new Promise((resolve) => {
-      const proc = spawn('claude', ['--version'], { shell: true });
+      const claudePath = process.platform === 'win32'
+        ? 'C:\\home\\wsl\\.npm-global\\claude.cmd'
+        : 'claude';
+      const proc = spawn(claudePath, ['--version'], { shell: true });
       proc.on('close', (code) => {
         resolve(code === 0);
       });

@@ -1,6 +1,34 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { PrismaClient } from "@prisma/client";
+import { decrypt } from "../utils/encryption";
 
-// Claude APIクライアント
+const prisma = new PrismaClient();
+
+// APIキーの取得（DBを優先、環境変数をフォールバック）
+async function getApiKey(): Promise<string | null> {
+  // まずDBから取得
+  const settings = await prisma.userSettings.findFirst();
+  if (settings?.claudeApiKeyEncrypted) {
+    try {
+      return decrypt(settings.claudeApiKeyEncrypted);
+    } catch {
+      console.error("Failed to decrypt API key from database");
+    }
+  }
+  // フォールバック: 環境変数
+  return process.env.CLAUDE_API_KEY || null;
+}
+
+// Anthropic クライアントを取得
+async function getAnthropicClient(): Promise<Anthropic | null> {
+  const apiKey = await getApiKey();
+  if (!apiKey) {
+    return null;
+  }
+  return new Anthropic({ apiKey });
+}
+
+// 環境変数からのクライアント（後方互換性のため保持）
 const anthropic = new Anthropic({
   apiKey: process.env.CLAUDE_API_KEY || "",
 });
@@ -93,7 +121,13 @@ export async function analyzeTask(
 タスクの性質に応じて適切なサブタスクを提案してください。`;
 
   try {
-    const response = await anthropic.messages.create({
+    // DBまたは環境変数からクライアントを取得
+    const client = await getAnthropicClient();
+    if (!client) {
+      throw new Error("Claude API key is not configured");
+    }
+
+    const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 2048,
       system: SYSTEM_PROMPT,
@@ -158,7 +192,13 @@ ${subtasks.map((st, i) => `${i + 1}. ${st.title}: ${st.description}`).join("\n")
 実行する際の注意点や効率的な進め方を含めてください。`;
 
   try {
-    const response = await anthropic.messages.create({
+    // DBまたは環境変数からクライアントを取得
+    const client = await getAnthropicClient();
+    if (!client) {
+      throw new Error("Claude API key is not configured");
+    }
+
+    const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 1024,
       messages: [
@@ -188,7 +228,21 @@ ${subtasks.map((st, i) => `${i + 1}. ${st.title}: ${st.description}`).join("\n")
 }
 
 /**
- * APIキーが設定されているか確認
+ * APIキーが設定されているか確認（DB優先、環境変数フォールバック）
+ */
+export async function isApiKeyConfiguredAsync(): Promise<boolean> {
+  // まずDBから確認
+  const settings = await prisma.userSettings.findFirst();
+  if (settings?.claudeApiKeyEncrypted) {
+    return true;
+  }
+  // フォールバック: 環境変数
+  return !!process.env.CLAUDE_API_KEY;
+}
+
+/**
+ * APIキーが設定されているか確認（同期版 - 環境変数のみ）
+ * 後方互換性のため保持
  */
 export function isApiKeyConfigured(): boolean {
   return !!process.env.CLAUDE_API_KEY;

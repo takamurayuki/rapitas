@@ -93,12 +93,20 @@ export class GitHubService {
    * gh CLI コマンドを実行
    */
   private async runGhCommand(args: string[], cwd?: string): Promise<string> {
-    const command = `gh ${args.join(' ')}`;
+    // Windows環境でのghコマンドのフルパス
+    const ghPath = process.platform === 'win32'
+      ? '"C:\\Program Files\\GitHub CLI\\gh.exe"'
+      : 'gh';
+    const command = `${ghPath} ${args.join(' ')}`;
     try {
-      const { stdout } = await execAsync(command, { cwd });
+      const { stdout } = await execAsync(command, {
+        cwd,
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024, // 10MB
+      });
       return stdout.trim();
     } catch (error: any) {
-      console.error(`gh command failed: ${command}`, error);
+      console.error(`gh command failed: ${command}`, error.message);
       throw new Error(error.stderr || error.message);
     }
   }
@@ -351,6 +359,48 @@ export class GitHubService {
       '--body',
       body,
     ]);
+  }
+
+  /**
+   * 作業ディレクトリからPRを作成
+   */
+  async createPullRequest(
+    workingDirectory: string,
+    headBranch: string,
+    baseBranch: string,
+    title: string,
+    body: string
+  ): Promise<{ prNumber?: number; prUrl?: string; success: boolean; error?: string }> {
+    try {
+      // 現在のブランチをプッシュ
+      await execAsync(`git push -u origin ${headBranch}`, {
+        cwd: workingDirectory,
+      });
+
+      // PRを作成
+      const output = await this.runGhCommand([
+        'pr',
+        'create',
+        '--title',
+        title,
+        '--body',
+        body,
+        '--base',
+        baseBranch,
+        '--head',
+        headBranch,
+      ], workingDirectory);
+
+      // PR URLからPR番号を抽出
+      const prUrl = output.trim();
+      const prMatch = prUrl.match(/\/pull\/(\d+)/);
+      const prNumber = prMatch ? parseInt(prMatch[1], 10) : undefined;
+
+      return { success: true, prUrl, prNumber };
+    } catch (error: any) {
+      console.error('Failed to create PR:', error);
+      return { success: false, error: error.message };
+    }
   }
 
   // ==================== Issue 操作 ====================

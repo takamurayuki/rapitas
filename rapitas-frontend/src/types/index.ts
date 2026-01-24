@@ -5,6 +5,11 @@ export type Theme = {
   color: string;
   icon?: string | null;
   isDefault?: boolean;
+  // 開発プロジェクト設定
+  isDevelopment?: boolean;
+  repositoryUrl?: string | null;
+  workingDirectory?: string | null;
+  defaultBranch?: string | null;
   createdAt: string;
   updatedAt: string;
   _count?: {
@@ -381,7 +386,7 @@ export type ApprovalRequest = {
   id: number;
   configId: number;
   config?: DeveloperModeConfig & { task?: Task };
-  requestType: "subtask_creation" | "task_execution" | "task_completion";
+  requestType: "subtask_creation" | "task_execution" | "task_completion" | "code_review";
   title: string;
   description?: string | null;
   proposedChanges: {
@@ -390,6 +395,8 @@ export type ApprovalRequest = {
     tips?: string[];
     complexity?: string;
     estimatedTotalHours?: number;
+    workingDirectory?: string;
+    files?: string[];
   };
   status: "pending" | "approved" | "rejected" | "expired";
   expiresAt?: string | null;
@@ -417,6 +424,7 @@ export type UserSettings = {
   id: number;
   developerModeDefault: boolean;
   claudeApiKeyConfigured?: boolean;
+  claudeApiKeyMasked?: string | null;
   createdAt: string;
   updatedAt: string;
 };
