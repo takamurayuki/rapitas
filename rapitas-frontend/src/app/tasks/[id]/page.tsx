@@ -39,6 +39,7 @@ import { useApprovals } from "@/feature/developer-mode/hooks/useApprovals";
 import { DeveloperModeToggle } from "@/feature/developer-mode/components/DeveloperModeToggle";
 import { DeveloperModeConfigModal } from "@/feature/developer-mode/components/DeveloperModeConfig";
 import { TaskAnalysisPanel } from "@/feature/developer-mode/components/TaskAnalysisPanel";
+import { AgentExecutionPanel } from "@/feature/developer-mode/components/AgentExecutionPanel";
 import { Bot } from "lucide-react";
 
 const API_BASE =
@@ -140,14 +141,20 @@ export default function TaskDetailPage() {
     config: devModeConfig,
     isLoading: devModeLoading,
     isAnalyzing,
+    isExecuting,
+    executionStatus,
+    executionResult,
     analysisResult,
     error: devModeError,
+    analysisError,
     fetchConfig: fetchDevModeConfig,
     enableDeveloperMode,
     disableDeveloperMode,
     updateConfig: updateDevModeConfig,
     analyzeTask,
     setAnalysisResult,
+    executeAgent,
+    resetExecutionState,
   } = useDeveloperMode(taskId);
   const { approve: approveRequest, reject: rejectRequest, isLoading: approvalLoading } = useApprovals();
   const [pendingApprovalId, setPendingApprovalId] = useState<number | null>(null);
@@ -473,36 +480,38 @@ export default function TaskDetailPage() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header Actions */}
         <div className="mb-6 flex items-center justify-end gap-2">
-          <button
-            onClick={() => setShowPomodoroModal(true)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl transition-all ${
-              isThisTaskTimer && pomodoroState.isTimerRunning
-                ? pomodoroState.isBreakTime
-                  ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                  : pomodoroState.isPaused
-                    ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-orange-300 border border-orange-200 dark:border-amber-800"
-                    : "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
-                : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:border-gray-300 dark:hover:border-gray-700"
-            }`}
-          >
-            {isThisTaskTimer && pomodoroState.isTimerRunning ? (
-              pomodoroState.isBreakTime ? (
-                <Coffee className="w-4 h-4" />
-              ) : pomodoroState.isPaused ? (
-                <Pause className="w-4 h-4" />
+          {!isEditing && (
+            <button
+              onClick={() => setShowPomodoroModal(true)}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl transition-all ${
+                isThisTaskTimer && pomodoroState.isTimerRunning
+                  ? pomodoroState.isBreakTime
+                    ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                    : pomodoroState.isPaused
+                      ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-orange-300 border border-orange-200 dark:border-amber-800"
+                      : "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                  : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:border-gray-300 dark:hover:border-gray-700"
+              }`}
+            >
+              {isThisTaskTimer && pomodoroState.isTimerRunning ? (
+                pomodoroState.isBreakTime ? (
+                  <Coffee className="w-4 h-4" />
+                ) : pomodoroState.isPaused ? (
+                  <Pause className="w-4 h-4" />
+                ) : (
+                  <Hourglass className="w-4 h-4 animate-pulse" />
+                )
               ) : (
-                <Hourglass className="w-4 h-4 animate-pulse" />
-              )
-            ) : (
-              <Timer className="w-4 h-4" />
-            )}
-            時間管理
-            {isThisTaskTimer && pomodoroState.isTimerRunning && (
-              <span className="font-mono tabular-nums text-xs bg-white/50 dark:bg-black/20 px-2 py-0.5 rounded-md">
-                {formatTime(getRemainingTime(pomodoroState))}
-              </span>
-            )}
-          </button>
+                <Timer className="w-4 h-4" />
+              )}
+              時間管理
+              {isThisTaskTimer && pomodoroState.isTimerRunning && (
+                <span className="font-mono tabular-nums text-xs bg-white/50 dark:bg-black/20 px-2 py-0.5 rounded-md">
+                  {formatTime(getRemainingTime(pomodoroState))}
+                </span>
+              )}
+            </button>
+          )}
 
           {!isEditing ? (
             <>
@@ -789,17 +798,32 @@ export default function TaskDetailPage() {
               </div>
             </div>
 
-            {/* Developer Mode Section */}
-            {devModeConfig?.isEnabled && (
+            {/* AI タスク分析パネル - 常に表示 */}
+            <div className="mb-6">
+              <TaskAnalysisPanel
+                isAnalyzing={isAnalyzing}
+                analysisResult={analysisResult}
+                error={analysisError}
+                onAnalyze={handleAnalyze}
+                onApprove={handleApproveAnalysis}
+                onReject={handleRejectAnalysis}
+                isApproving={approvalLoading}
+              />
+            </div>
+
+            {/* Developer Mode Section - AI自動実装機能 */}
+            {devModeConfig?.isEnabled && task.theme?.isDevelopment && (
               <div className="mb-6">
-                <TaskAnalysisPanel
-                  isAnalyzing={isAnalyzing}
-                  analysisResult={analysisResult}
-                  error={devModeError}
-                  onAnalyze={handleAnalyze}
-                  onApprove={handleApproveAnalysis}
-                  onReject={handleRejectAnalysis}
-                  isApproving={approvalLoading}
+                <AgentExecutionPanel
+                  taskId={taskId}
+                  isExecuting={isExecuting}
+                  executionStatus={executionStatus}
+                  executionResult={executionResult}
+                  error={executionResult?.error || null}
+                  workingDirectory={task.theme?.workingDirectory || undefined}
+                  defaultBranch={task.theme?.defaultBranch || "main"}
+                  onExecute={executeAgent}
+                  onReset={resetExecutionState}
                 />
               </div>
             )}

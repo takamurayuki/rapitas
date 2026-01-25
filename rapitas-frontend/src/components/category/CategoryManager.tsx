@@ -401,7 +401,14 @@ export default function CategoryManager({ config }: Props) {
           </div>
         ) : (
           <div className="grid gap-4">
-            {items.map((item) => (
+            {items
+              .filter((item) => {
+                // 編集中または新規追加中の場合は、編集中のアイテムのみ表示
+                if (isAdding) return false;
+                if (editingId !== null) return item.id === editingId;
+                return true;
+              })
+              .map((item) => (
               <div
                 key={item.id}
                 className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:shadow-lg transition-all overflow-hidden"
