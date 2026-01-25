@@ -23,6 +23,31 @@ import type { Theme } from "@/types";
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
+// 作業ディレクトリをお気に入りに自動登録する関数
+const addWorkingDirectoryToFavorites = async (path: string) => {
+  if (!path.trim()) return;
+
+  try {
+    // まず既にお気に入りに登録されているか確認
+    const checkRes = await fetch(`${API_BASE}/directories/favorites`);
+    const favorites = await checkRes.json();
+
+    if (!Array.isArray(favorites)) return;
+
+    const isAlreadyFavorite = favorites.some((f: { path: string }) => f.path === path);
+    if (isAlreadyFavorite) return;
+
+    // お気に入りに追加
+    await fetch(`${API_BASE}/directories/favorites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    });
+  } catch (err) {
+    console.error("Failed to add working directory to favorites:", err);
+  }
+};
+
 type FormData = {
   name: string;
   description: string;
@@ -87,6 +112,11 @@ export default function ThemesPage() {
 
       if (!res.ok) throw new Error("作成に失敗しました");
 
+      // 開発プロジェクトの場合、作業ディレクトリをお気に入りに自動登録
+      if (formData.isDevelopment && formData.workingDirectory) {
+        await addWorkingDirectoryToFavorites(formData.workingDirectory);
+      }
+
       showToast("テーマを作成しました", "success");
       setIsAdding(false);
       resetForm();
@@ -128,6 +158,11 @@ export default function ThemesPage() {
           }
         }
         throw new Error(errorMessage);
+      }
+
+      // 開発プロジェクトの場合、作業ディレクトリをお気に入りに自動登録
+      if (formData.isDevelopment && formData.workingDirectory) {
+        await addWorkingDirectoryToFavorites(formData.workingDirectory);
       }
 
       showToast("テーマを更新しました", "success");
@@ -464,7 +499,9 @@ export default function ThemesPage() {
           </div>
         ) : (
           <div className="grid gap-4">
-            {items.map((item) => (
+            {items
+              .filter((item) => !isAdding && (editingId === null || editingId === item.id))
+              .map((item) => (
               <div
                 key={item.id}
                 className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:shadow-lg transition-all overflow-hidden"

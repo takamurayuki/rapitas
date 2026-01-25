@@ -2373,10 +2373,11 @@ app.post(
     const { taskId } = params;
     const taskIdNum = parseInt(taskId);
 
-    // APIキーチェック
-    if (!isApiKeyConfigured()) {
+    // APIキーチェック（DB優先、環境変数フォールバック）
+    const apiKeyConfigured = await isApiKeyConfiguredAsync();
+    if (!apiKeyConfigured) {
       set.status = 400;
-      return { error: "Claude API key is not configured" };
+      return { error: "Claude APIキーが設定されていません。設定ページでAPIキーを登録してください。" };
     }
 
     // タスクと設定を取得
@@ -3124,6 +3125,211 @@ app.post(
   }
 );
 
+// 修正依頼（フィードバックを送信して再実行）
+app.post(
+  "/approvals/:id/request-changes",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: {
+      feedback: string;
+      comments: { file?: string; content: string; type: string }[];
+    };
+  }) => {
+    const { id } = params;
+    const { feedback, comments } = body;
+
+    const approval = await prisma.approvalRequest.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        config: {
+          include: { task: { include: { theme: true } } },
+        },
+      },
+    });
+
+    if (!approval) {
+      return { error: "Approval request not found" };
+    }
+
+    if (approval.requestType !== "code_review") {
+      return { error: "This endpoint is only for code_review requests" };
+    }
+
+    const proposedChanges = approval.proposedChanges as {
+      workingDirectory?: string;
+      sessionId?: number;
+      implementationSummary?: string;
+    };
+
+    const workingDirectory =
+      proposedChanges.workingDirectory ||
+      approval.config.task?.theme?.workingDirectory;
+
+    if (!workingDirectory) {
+      return { error: "Working directory not found" };
+    }
+
+    const task = approval.config.task;
+    if (!task) {
+      return { error: "Task not found" };
+    }
+
+    try {
+      // 1. 変更を元に戻す
+      await orchestrator.revertChanges(workingDirectory);
+
+      // 2. フィードバックを含む新しい指示を作成
+      const feedbackInstructions = [];
+
+      if (feedback) {
+        feedbackInstructions.push(`## 全体的なフィードバック\n${feedback}`);
+      }
+
+      if (comments && comments.length > 0) {
+        feedbackInstructions.push("\n## 具体的な修正依頼:");
+        comments.forEach((comment, index) => {
+          const typeLabel =
+            comment.type === "change_request"
+              ? "修正"
+              : comment.type === "question"
+                ? "質問"
+                : "コメント";
+          const fileInfo = comment.file ? ` (${comment.file})` : "";
+          feedbackInstructions.push(`${index + 1}. [${typeLabel}]${fileInfo}: ${comment.content}`);
+        });
+      }
+
+      const additionalInstructions = feedbackInstructions.join("\n");
+
+      // 元の実装説明を含める（コンテキスト用）
+      const previousImplementation = proposedChanges.implementationSummary
+        ? `\n\n## 前回の実装内容（参考）:\n${proposedChanges.implementationSummary.substring(0, 1000)}`
+        : "";
+
+      const fullInstruction = `
+以下のタスクを実装してください。前回の実装に対してフィードバックがありますので、それを踏まえて修正・改善してください。
+
+## タスク
+${task.title}
+${task.description || ""}
+
+${additionalInstructions}
+${previousImplementation}
+
+上記のフィードバックを反映した実装をお願いします。
+`;
+
+      // 3. 承認リクエストのステータスを更新
+      await prisma.approvalRequest.update({
+        where: { id: parseInt(id) },
+        data: {
+          status: "rejected",
+          rejectedAt: new Date(),
+          rejectionReason: "修正依頼: " + (feedback || comments.map(c => c.content).join(", ")).substring(0, 200),
+        },
+      });
+
+      // 4. 新しいセッションを作成して再実行
+      const session = await prisma.agentSession.create({
+        data: {
+          configId: approval.configId,
+          status: "pending",
+          metadata: {
+            previousApprovalId: parseInt(id),
+            feedbackIteration: true,
+          },
+        },
+      });
+
+      // 5. エージェントを非同期で実行
+      const agentConfig = await prisma.aIAgentConfig.findFirst({
+        where: { isDefault: true, isActive: true },
+      });
+
+      const timeout = 900000; // 15分
+
+      orchestrator
+        .executeTask(
+          {
+            id: task.id,
+            title: task.title,
+            description: fullInstruction,
+            context: task.executionInstructions || undefined,
+            workingDirectory,
+          },
+          {
+            taskId: task.id,
+            sessionId: session.id,
+            agentConfigId: agentConfig?.id,
+            workingDirectory,
+            timeout,
+          },
+        )
+        .then(async (result) => {
+          if (result.success) {
+            const diff = await orchestrator.getFullGitDiff(workingDirectory);
+            const structuredDiff = await orchestrator.getDiff(workingDirectory);
+
+            if (diff && diff !== "No changes detected") {
+              const implementationSummary = result.output || "修正が完了しました。";
+
+              // 新しいコードレビュー承認リクエストを作成
+              const newApprovalRequest = await prisma.approvalRequest.create({
+                data: {
+                  configId: approval.configId,
+                  requestType: "code_review",
+                  title: `「${task.title}」のコードレビュー（修正版）`,
+                  description: implementationSummary,
+                  proposedChanges: {
+                    taskId: task.id,
+                    sessionId: session.id,
+                    workingDirectory,
+                    diff,
+                    structuredDiff,
+                    implementationSummary,
+                    executionTimeMs: result.executionTimeMs,
+                    feedbackIteration: true,
+                    previousFeedback: feedback,
+                    previousComments: comments,
+                  },
+                  estimatedChanges: {
+                    diff,
+                    filesChanged: structuredDiff.length,
+                    summary: implementationSummary.substring(0, 500),
+                  },
+                  expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                },
+              });
+
+              // 通知
+              await prisma.notification.create({
+                data: {
+                  type: "pr_review_requested",
+                  title: "修正版レビュー依頼",
+                  message: `「${task.title}」の修正が完了しました。再度レビューをお願いします。`,
+                  link: `/approvals/${newApprovalRequest.id}`,
+                },
+              });
+            }
+          }
+        })
+        .catch(console.error);
+
+      return {
+        success: true,
+        message: "修正依頼を受け付けました。再実行を開始します。",
+        sessionId: session.id,
+      };
+    } catch (error: any) {
+      console.error("Request changes failed:", error);
+      return { error: error.message || "Request changes failed" };
+    }
+  }
+);
+
 // 差分を取得
 app.get("/approvals/:id/diff", async ({ params }: { params: { id: string } }) => {
   const { id } = params;
@@ -3633,10 +3839,210 @@ app.post(
   }
 );
 
+// ==================== Favorite Directories API ====================
+
+// お気に入りディレクトリ一覧を取得
+app.get("/directories/favorites", async () => {
+  try {
+    const favorites = await prisma.favoriteDirectory.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    return favorites;
+  } catch (error: any) {
+    console.error("Favorite directories fetch error:", error);
+    return { error: error.message || "お気に入りの取得に失敗しました" };
+  }
+});
+
+// お気に入りディレクトリを追加
+app.post(
+  "/directories/favorites",
+  async ({ body }: { body: { path: string; name?: string } }) => {
+    const { path: dirPath, name } = body;
+
+    if (!dirPath) {
+      return { error: "パスが指定されていません" };
+    }
+
+    try {
+      const normalizedPath = path.resolve(dirPath);
+
+      // パスの存在確認
+      if (!fs.existsSync(normalizedPath)) {
+        return { error: "パスが存在しません" };
+      }
+
+      const stats = fs.statSync(normalizedPath);
+      if (!stats.isDirectory()) {
+        return { error: "ディレクトリではありません" };
+      }
+
+      // 既に登録されているか確認
+      const existing = await prisma.favoriteDirectory.findUnique({
+        where: { path: normalizedPath },
+      });
+
+      if (existing) {
+        return { error: "このディレクトリは既にお気に入りに登録されています" };
+      }
+
+      // Gitリポジトリかどうかを確認
+      const isGitRepo = fs.existsSync(path.join(normalizedPath, ".git"));
+
+      // 表示名を決定（指定がなければフォルダ名を使用）
+      const displayName = name || path.basename(normalizedPath);
+
+      const favorite = await prisma.favoriteDirectory.create({
+        data: {
+          path: normalizedPath,
+          name: displayName,
+          isGitRepo,
+        },
+      });
+
+      return favorite;
+    } catch (error: any) {
+      console.error("Favorite directory create error:", error);
+      return { error: error.message || "お気に入りの登録に失敗しました" };
+    }
+  }
+);
+
+// お気に入りディレクトリを削除
+app.delete(
+  "/directories/favorites/:id",
+  async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
+
+    try {
+      const favoriteId = parseInt(id);
+      if (isNaN(favoriteId)) {
+        return { error: "無効なIDです" };
+      }
+
+      const existing = await prisma.favoriteDirectory.findUnique({
+        where: { id: favoriteId },
+      });
+
+      if (!existing) {
+        return { error: "お気に入りが見つかりません" };
+      }
+
+      await prisma.favoriteDirectory.delete({
+        where: { id: favoriteId },
+      });
+
+      return { success: true };
+    } catch (error: any) {
+      console.error("Favorite directory delete error:", error);
+      return { error: error.message || "お気に入りの削除に失敗しました" };
+    }
+  }
+);
+
+// お気に入りディレクトリの名前を更新
+app.patch(
+  "/directories/favorites/:id",
+  async ({ params, body }: { params: { id: string }; body: { name: string } }) => {
+    const { id } = params;
+    const { name } = body;
+
+    try {
+      const favoriteId = parseInt(id);
+      if (isNaN(favoriteId)) {
+        return { error: "無効なIDです" };
+      }
+
+      const existing = await prisma.favoriteDirectory.findUnique({
+        where: { id: favoriteId },
+      });
+
+      if (!existing) {
+        return { error: "お気に入りが見つかりません" };
+      }
+
+      const updated = await prisma.favoriteDirectory.update({
+        where: { id: favoriteId },
+        data: { name },
+      });
+
+      return updated;
+    } catch (error: any) {
+      console.error("Favorite directory update error:", error);
+      return { error: error.message || "お気に入りの更新に失敗しました" };
+    }
+  }
+);
+
 // ==================== GitHub Integration API ====================
 
 const githubService = new GitHubService(prisma);
 const orchestrator = createOrchestrator(prisma);
+
+// オーケストレーターのイベントをリアルタイムサービスに転送
+orchestrator.addEventListener((event) => {
+  const executionChannel = `execution:${event.executionId}`;
+  const sessionChannel = `session:${event.sessionId}`;
+
+  // 両方のチャンネルにブロードキャストする関数
+  const broadcastToBoth = (eventType: string, data: Record<string, unknown>) => {
+    realtimeService.broadcast(executionChannel, eventType, data);
+    realtimeService.broadcast(sessionChannel, eventType, data);
+  };
+
+  switch (event.type) {
+    case 'execution_started':
+      broadcastToBoth('execution_started', {
+        executionId: event.executionId,
+        sessionId: event.sessionId,
+        taskId: event.taskId,
+        timestamp: event.timestamp.toISOString(),
+      });
+      break;
+    case 'execution_output':
+      const outputData = event.data as { output: string; isError: boolean };
+      // 両チャンネルに送信
+      realtimeService.broadcast(executionChannel, 'execution_output', {
+        executionId: event.executionId,
+        output: outputData.output,
+        isError: outputData.isError,
+        timestamp: new Date().toISOString(),
+      });
+      realtimeService.broadcast(sessionChannel, 'execution_output', {
+        executionId: event.executionId,
+        output: outputData.output,
+        isError: outputData.isError,
+        timestamp: new Date().toISOString(),
+      });
+      break;
+    case 'execution_completed':
+      broadcastToBoth('execution_completed', {
+        executionId: event.executionId,
+        sessionId: event.sessionId,
+        taskId: event.taskId,
+        result: event.data,
+        timestamp: event.timestamp.toISOString(),
+      });
+      break;
+    case 'execution_failed':
+      broadcastToBoth('execution_failed', {
+        executionId: event.executionId,
+        sessionId: event.sessionId,
+        taskId: event.taskId,
+        error: event.data,
+        timestamp: event.timestamp.toISOString(),
+      });
+      break;
+    case 'execution_cancelled':
+      broadcastToBoth('execution_cancelled', {
+        executionId: event.executionId,
+        sessionId: event.sessionId,
+        taskId: event.taskId,
+        timestamp: event.timestamp.toISOString(),
+      });
+      break;
+  }
+});
 
 // GitHub CLI 状態確認
 app.get("/github/status", async () => {
@@ -4400,24 +4806,35 @@ app.post(
         if (result.success) {
           // 実行成功 → git diffを取得してレビュー依頼を作成
           const diff = await orchestrator.getFullGitDiff(workDir);
+          const structuredDiff = await orchestrator.getDiff(workDir);
 
           if (diff && diff !== 'No changes detected') {
+            // Claude Codeの出力から実装説明を抽出
+            const implementationSummary = result.output || "実装が完了しました。";
+
             // コードレビュー承認リクエストを作成
             const approvalRequest = await prisma.approvalRequest.create({
               data: {
                 configId: developerModeConfig!.id,
                 requestType: "code_review",
                 title: `「${task.title}」のコードレビュー`,
-                description: `Claude Codeによる実装が完了しました。変更内容を確認してください。`,
+                description: implementationSummary,
                 proposedChanges: {
                   taskId: taskIdNum,
                   sessionId: session.id,
                   workingDirectory: workDir,
                   branchName,
                   diff,
+                  structuredDiff, // 構造化された差分情報
+                  implementationSummary, // Claude Codeの出力
+                  executionTimeMs: result.executionTimeMs,
                 },
                 executionType: "code_review",
-                estimatedChanges: { diff },
+                estimatedChanges: {
+                  diff,
+                  filesChanged: structuredDiff.length,
+                  summary: implementationSummary.substring(0, 500),
+                },
                 expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7日間
               },
             });
@@ -4473,8 +4890,293 @@ app.post(
         });
       });
 
-    return { success: true, sessionId: session.id };
+    return {
+      success: true,
+      sessionId: session.id,
+      taskId: taskIdNum,
+      workingDirectory: workDir,
+      message: "エージェント実行を開始しました。リアルタイムで進捗を確認できます。",
+    };
   },
+);
+
+// Claude CLI診断エンドポイント
+app.get("/agents/diagnose", async () => {
+  const { spawn } = await import("child_process");
+  const claudePath = process.env.CLAUDE_CODE_PATH || "claude";
+
+  console.log("[Diagnose] Testing Claude CLI...");
+  console.log("[Diagnose] Claude path:", claudePath);
+  console.log("[Diagnose] Platform:", process.platform);
+
+  const results: { step: string; success: boolean; output?: string; error?: string; duration?: number }[] = [];
+
+  // Step 1: Test claude --version
+  const versionResult = await new Promise<{ success: boolean; output?: string; error?: string; duration: number }>((resolve) => {
+    const startTime = Date.now();
+    const proc = spawn(claudePath, ["--version"], { shell: true });
+    let stdout = "";
+    let stderr = "";
+
+    const timeout = setTimeout(() => {
+      proc.kill();
+      resolve({ success: false, error: "Timeout (10s)", duration: Date.now() - startTime });
+    }, 10000);
+
+    proc.stdout?.on("data", (data) => { stdout += data.toString(); });
+    proc.stderr?.on("data", (data) => { stderr += data.toString(); });
+
+    proc.on("close", (code) => {
+      clearTimeout(timeout);
+      resolve({
+        success: code === 0,
+        output: stdout.trim(),
+        error: stderr.trim() || (code !== 0 ? `Exit code: ${code}` : undefined),
+        duration: Date.now() - startTime,
+      });
+    });
+
+    proc.on("error", (err) => {
+      clearTimeout(timeout);
+      resolve({ success: false, error: err.message, duration: Date.now() - startTime });
+    });
+  });
+
+  results.push({ step: "claude --version", ...versionResult });
+  console.log("[Diagnose] Version check:", versionResult);
+
+  // Step 2: Test simple prompt with spawn and explicit cmd.exe
+  if (versionResult.success) {
+    const promptResult = await new Promise<{ success: boolean; output?: string; error?: string; duration: number }>((resolve) => {
+      const startTime = Date.now();
+
+      // Windows: cmd.exe /c を使用して正しくコマンドを実行
+      const isWindows = process.platform === "win32";
+      let proc;
+
+      if (isWindows) {
+        // cmd.exe経由で実行 - コマンド全体を1つの文字列として渡す
+        const fullCommand = `${claudePath} --dangerously-skip-permissions -p "Say hello"`;
+        console.log("[Diagnose] Windows full command:", fullCommand);
+        proc = spawn("cmd.exe", ["/c", fullCommand], {
+          env: { ...process.env, FORCE_COLOR: "0", CI: "1" },
+          windowsHide: true,
+        });
+      } else {
+        proc = spawn(claudePath, ["--dangerously-skip-permissions", "-p", "Say hello"], {
+          env: { ...process.env, FORCE_COLOR: "0", CI: "1" },
+        });
+      }
+
+      let stdout = "";
+      let stderr = "";
+
+      const timeout = setTimeout(() => {
+        console.log("[Diagnose] Timeout, killing process");
+        proc.kill();
+        resolve({ success: false, error: "Timeout (90s)", duration: Date.now() - startTime });
+      }, 90000);
+
+      proc.stdout?.on("data", (data) => {
+        const chunk = data.toString();
+        stdout += chunk;
+        console.log("[Diagnose] stdout chunk:", chunk.substring(0, 100));
+      });
+
+      proc.stderr?.on("data", (data) => {
+        const chunk = data.toString();
+        stderr += chunk;
+        console.log("[Diagnose] stderr chunk:", chunk.substring(0, 100));
+      });
+
+      proc.on("close", (code) => {
+        clearTimeout(timeout);
+        console.log("[Diagnose] Process closed, code:", code, "stdout length:", stdout.length);
+        resolve({
+          success: code === 0,
+          output: stdout.substring(0, 500),
+          error: stderr.trim() || (code !== 0 ? `Exit code: ${code}` : undefined),
+          duration: Date.now() - startTime,
+        });
+      });
+
+      proc.on("error", (err) => {
+        clearTimeout(timeout);
+        console.log("[Diagnose] Process error:", err.message);
+        resolve({ success: false, error: err.message, duration: Date.now() - startTime });
+      });
+    });
+
+    results.push({ step: "simple prompt test", ...promptResult });
+    console.log("[Diagnose] Prompt test result:", promptResult);
+  }
+
+  return {
+    claudePath,
+    platform: process.platform,
+    results,
+    allPassed: results.every(r => r.success),
+  };
+});
+
+// タスクの実行状態を取得
+app.get(
+  "/tasks/:id/execution-status",
+  async ({ params }: { params: { id: string } }) => {
+    const taskId = parseInt(params.id);
+
+    // 最新のセッションと実行を取得
+    const config = await prisma.developerModeConfig.findUnique({
+      where: { taskId },
+      include: {
+        agentSessions: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          include: {
+            agentExecutions: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+
+    if (!config || !config.agentSessions[0]) {
+      return { status: "none", message: "実行履歴がありません" };
+    }
+
+    const latestSession = config.agentSessions[0];
+    const latestExecution = latestSession.agentExecutions[0];
+
+    return {
+      sessionId: latestSession.id,
+      sessionStatus: latestSession.status,
+      executionId: latestExecution?.id,
+      executionStatus: latestExecution?.status,
+      output: latestExecution?.output,
+      errorMessage: latestExecution?.errorMessage,
+      startedAt: latestExecution?.startedAt,
+      completedAt: latestExecution?.completedAt,
+      // 質問待ち状態の情報
+      waitingForInput: latestExecution?.status === "waiting_for_input",
+      question: (latestExecution as any)?.question || null,
+    };
+  }
+);
+
+// エージェントへの応答（質問への回答）
+app.post(
+  "/tasks/:id/agent-respond",
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { response: string };
+  }) => {
+    const taskId = parseInt(params.id);
+    const { response } = body;
+
+    if (!response?.trim()) {
+      return { error: "Response is required" };
+    }
+
+    // タスクの設定を取得
+    const config = await prisma.developerModeConfig.findUnique({
+      where: { taskId },
+      include: {
+        task: { include: { theme: true } },
+        agentSessions: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          include: {
+            agentExecutions: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+
+    if (!config || !config.agentSessions[0]) {
+      return { error: "No active session found" };
+    }
+
+    const session = config.agentSessions[0];
+    const latestExecution = session.agentExecutions[0];
+
+    // waiting_for_input 状態のみ許可
+    if (!latestExecution || latestExecution.status !== "waiting_for_input") {
+      return { error: "No execution waiting for input", currentStatus: latestExecution?.status };
+    }
+
+    const workingDirectory =
+      config.task.theme?.workingDirectory || process.cwd();
+
+    try {
+      // オーケストレーターで継続実行（既存の実行を再開、--continue フラグを使用）
+      orchestrator
+        .executeContinuation(latestExecution.id, response.trim(), {
+          timeout: 900000,
+        })
+        .then(async (result) => {
+          // 成功かつ質問待ちでない場合のみ、差分を確認してレビュー依頼を作成
+          if (result.success && !result.waitingForInput) {
+            const diff = await orchestrator.getFullGitDiff(workingDirectory);
+            if (diff && diff !== "No changes detected") {
+              // コードレビュー承認リクエストを作成
+              const structuredDiff = await orchestrator.getDiff(workingDirectory);
+              const implementationSummary = result.output || "実装が完了しました。";
+
+              await prisma.approvalRequest.create({
+                data: {
+                  configId: config.id,
+                  requestType: "code_review",
+                  title: `「${config.task.title}」のコードレビュー`,
+                  description: implementationSummary,
+                  proposedChanges: {
+                    taskId,
+                    sessionId: session.id,
+                    workingDirectory,
+                    diff,
+                    structuredDiff,
+                    implementationSummary,
+                    executionTimeMs: result.executionTimeMs,
+                  },
+                  estimatedChanges: {
+                    diff,
+                    filesChanged: structuredDiff.length,
+                    summary: implementationSummary.substring(0, 500),
+                  },
+                  expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                },
+              });
+
+              await prisma.notification.create({
+                data: {
+                  type: "pr_review_requested",
+                  title: "コードレビュー依頼",
+                  message: `「${config.task.title}」の実装が完了しました。レビューをお願いします。`,
+                  link: `/approvals`,
+                },
+              });
+            }
+          }
+        })
+        .catch(console.error);
+
+      return {
+        success: true,
+        message: "Response sent successfully",
+        executionId: latestExecution.id,
+      };
+    } catch (error: any) {
+      console.error("Agent respond failed:", error);
+      return { error: error.message || "Failed to send response" };
+    }
+  }
 );
 
 // セッション詳細取得

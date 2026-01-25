@@ -430,7 +430,7 @@ model AgentExecution {
   agentConfigId     Int?
   agentConfig       AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
   command           String
-  status            String    @default("pending") // pending, running, completed, failed, cancelled
+  status            String    @default("pending") // pending, running, completed, failed, cancelled, waiting_for_input
   output            String?   @db.Text
   artifacts         Json?
   startedAt         DateTime?
@@ -438,6 +438,7 @@ model AgentExecution {
   tokensUsed        Int       @default(0)
   executionTimeMs   Int?
   errorMessage      String?
+  question          String?   @db.Text // 質問待ち時のClaude Codeからの質問
   createdAt         DateTime  @default(now())
   gitCommits        GitCommit[]
 }
@@ -541,4 +542,14 @@ model GitCommit {
   additions         Int       @default(0)
   deletions         Int       @default(0)
   createdAt         DateTime  @default(now())
+}
+
+// お気に入りディレクトリパス
+model FavoriteDirectory {
+  id          Int       @id @default(autoincrement())
+  path        String    @unique  // ディレクトリパス（ユニーク）
+  name        String?            // 表示名（オプション）
+  isGitRepo   Boolean   @default(false)  // Gitリポジトリかどうか
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }

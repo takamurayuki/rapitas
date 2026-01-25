@@ -78,6 +78,30 @@ export default function ApprovalsPage() {
     setExpandedId(null);
   };
 
+  const handleRequestChanges = async (
+    id: number,
+    feedback: string,
+    comments: { file?: string; content: string; type: string }[]
+  ) => {
+    setProcessingId(id);
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+    try {
+      const res = await fetch(`${API_BASE_URL}/approvals/${id}/request-changes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ feedback, comments }),
+      });
+      if (res.ok) {
+        await fetchApprovals(filter);
+      }
+    } catch (error) {
+      console.error("Failed to request changes:", error);
+    } finally {
+      setProcessingId(null);
+      setExpandedId(null);
+    }
+  };
+
   const handleExpandCodeReview = async (id: number) => {
     if (expandedId === id) {
       setExpandedId(null);
@@ -85,8 +109,17 @@ export default function ApprovalsPage() {
       setExpandedId(id);
       // 差分がまだ取得されていない場合は取得
       if (!codeReviewDiff.has(id)) {
-        const files = await fetchDiff(id);
-        setCodeReviewDiff((prev) => new Map(prev).set(id, files));
+        // まずproposedChangesのstructuredDiffを確認
+        const approval = approvals.find((a) => a.id === id);
+        if (approval?.proposedChanges?.structuredDiff?.length) {
+          setCodeReviewDiff((prev) =>
+            new Map(prev).set(id, approval.proposedChanges.structuredDiff!)
+          );
+        } else {
+          // APIから取得
+          const files = await fetchDiff(id);
+          setCodeReviewDiff((prev) => new Map(prev).set(id, files));
+        }
       }
     }
   };
@@ -259,6 +292,9 @@ export default function ApprovalsPage() {
                   )
                 }
                 onReject={() => handleCodeReviewReject(approval.id)}
+                onRequestChanges={(feedback, comments) =>
+                  handleRequestChanges(approval.id, feedback, comments)
+                }
                 formatDate={formatDate}
                 error={error}
               />
@@ -552,6 +588,7 @@ function CodeReviewCard({
   onToggleExpand,
   onApprove,
   onReject,
+  onRequestChanges,
   formatDate,
   error,
 }: {
@@ -563,6 +600,7 @@ function CodeReviewCard({
   onToggleExpand: () => void;
   onApprove: (commitMessage: string, baseBranch: string) => void;
   onReject: () => void;
+  onRequestChanges: (feedback: string, comments: { file?: string; content: string; type: string }[]) => void;
   formatDate: (date: string) => string;
   error: string | null;
 }) {
@@ -674,9 +712,15 @@ function CodeReviewCard({
             onReject={async () => {
               onReject();
             }}
+            onRequestChanges={async (feedback, comments) => {
+              onRequestChanges(feedback, comments);
+            }}
             isProcessing={isProcessing}
             error={error}
             defaultBranch={defaultBranch}
+            implementationSummary={approval.proposedChanges?.implementationSummary}
+            executionTimeMs={approval.proposedChanges?.executionTimeMs}
+            taskId={approval.config?.task?.id}
           />
         </div>
       )}

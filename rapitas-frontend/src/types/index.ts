@@ -397,7 +397,16 @@ export type ApprovalRequest = {
     estimatedTotalHours?: number;
     workingDirectory?: string;
     files?: string[];
+    // コードレビュー用の追加フィールド
+    structuredDiff?: FileDiff[];
+    implementationSummary?: string;
+    executionTimeMs?: number;
   };
+  estimatedChanges?: {
+    diff?: string;
+    filesChanged?: number;
+    summary?: string;
+  } | null;
   status: "pending" | "approved" | "rejected" | "expired";
   expiresAt?: string | null;
   approvedAt?: string | null;
@@ -668,4 +677,14 @@ export type ApprovalRequestExtended = ApprovalRequest & {
 export type DeveloperModeConfigExtended = DeveloperModeConfig & {
   requireApproval?: "always" | "major_only" | "never";
   autoExecuteOn?: string[];
+};
+
+// ==================== コードレビュー関連 ====================
+
+export type ReviewComment = {
+  id: string;
+  file?: string;
+  line?: number;
+  content: string;
+  type: "comment" | "change_request" | "question";
 };

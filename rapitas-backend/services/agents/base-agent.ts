@@ -13,7 +13,7 @@ export type AgentCapability = {
   webSearch?: boolean;
 };
 
-export type AgentStatus = 'idle' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+export type AgentStatus = 'idle' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'waiting_for_input';
 
 export type AgentTask = {
   id: number;
@@ -32,6 +32,9 @@ export type AgentExecutionResult = {
   executionTimeMs?: number;
   errorMessage?: string;
   commits?: GitCommitInfo[];
+  // 質問待ち状態
+  waitingForInput?: boolean;
+  question?: string;
 };
 
 export type AgentArtifact = {

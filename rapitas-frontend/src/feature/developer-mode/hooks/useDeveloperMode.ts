@@ -32,6 +32,7 @@ export function useDeveloperMode(taskId: number) {
     useState<TaskAnalysisResult | null>(null);
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   const fetchConfig = useCallback(async () => {
     setIsLoading(true);
@@ -144,7 +145,7 @@ export function useDeveloperMode(taskId: number) {
 
   const analyzeTask = useCallback(async () => {
     setIsAnalyzing(true);
-    setError(null);
+    setAnalysisError(null);
     setAnalysisResult(null);
     try {
       const res = await fetch(
@@ -161,7 +162,7 @@ export function useDeveloperMode(taskId: number) {
         throw new Error(data.error || "分析に失敗しました");
       }
     } catch (err: any) {
-      setError(err.message);
+      setAnalysisError(err.message);
       return null;
     } finally {
       setIsAnalyzing(false);
@@ -247,6 +248,7 @@ export function useDeveloperMode(taskId: number) {
     analysisResult,
     sessions,
     error,
+    analysisError,
     fetchConfig,
     enableDeveloperMode,
     disableDeveloperMode,
