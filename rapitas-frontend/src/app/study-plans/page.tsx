@@ -14,7 +14,7 @@ import {
   Play,
   ListTodo,
 } from "lucide-react";
-import { useToast } from "@/components/ui/toast/toast-container";
+import { useToast } from "@/components/ui/toast/ToastContainer";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -46,7 +46,7 @@ export default function StudyPlansPage() {
 
   useEffect(() => {
     Promise.all([fetchExamGoals(), fetchStudyPlans()]).finally(() =>
-      setLoading(false)
+      setLoading(false),
     );
   }, []);
 
@@ -463,7 +463,8 @@ export default function StudyPlansPage() {
                           {phase.name}
                         </h3>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                          {phase.days}日間 ・ {phase.dailyHours.toFixed(1)}時間/日
+                          {phase.days}日間 ・ {phase.dailyHours.toFixed(1)}
+                          時間/日
                         </p>
                       </div>
                     </div>
@@ -554,7 +555,9 @@ export default function StudyPlansPage() {
                 <div className="flex items-center gap-1.5">
                   <Calendar className="w-4 h-4" />
                   <span>
-                    {new Date(selectedPlan.startDate).toLocaleDateString("ja-JP")}
+                    {new Date(selectedPlan.startDate).toLocaleDateString(
+                      "ja-JP",
+                    )}
                     {" 〜 "}
                     {new Date(selectedPlan.endDate).toLocaleDateString("ja-JP")}
                   </span>
@@ -581,7 +584,8 @@ export default function StudyPlansPage() {
                           {phase.name}
                         </h3>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                          {phase.days}日間 ・ {phase.dailyHours.toFixed(1)}時間/日
+                          {phase.days}日間 ・ {phase.dailyHours.toFixed(1)}
+                          時間/日
                         </p>
                       </div>
                     </div>

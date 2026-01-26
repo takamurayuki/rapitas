@@ -1,13 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Bot,
-  CheckCircle,
-  AlertCircle,
-  Loader2,
-  Sparkles,
-} from "lucide-react";
+import { Bot, CheckCircle, AlertCircle, Loader2, Sparkles } from "lucide-react";
 import type { UserSettings } from "@/types";
 
 const API_BASE_URL =
@@ -217,7 +211,7 @@ export default function DeveloperModeSettingsPage() {
         </div>
 
         {/* 情報 */}
-        <div className="bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 rounded-xl p-6 border border-violet-100 dark:border-violet-800">
+        <div className="bg-linear-to-br from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 rounded-xl p-6 border border-violet-100 dark:border-violet-800">
           <div className="flex items-start gap-4">
             <div className="p-2 bg-violet-100 dark:bg-violet-900/40 rounded-lg">
               <Bot className="w-6 h-6 text-violet-600 dark:text-violet-400" />

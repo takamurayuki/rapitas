@@ -1,6 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { createMarkdownComponents } from "@/feature/tasks/components/markdown-components";
+import { createMarkdownComponents } from "@/feature/tasks/components/MarkdownComponents";
 
 // プログラミング言語リスト
 const PROGRAMMING_LANGUAGES = [

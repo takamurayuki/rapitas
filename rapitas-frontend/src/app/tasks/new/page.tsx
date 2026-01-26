@@ -16,7 +16,7 @@ import {
   Bot,
   SwatchBook,
 } from "lucide-react";
-import type { Priority, Theme, Label, UserSettings } from "@/types";
+import type { Priority, Theme, UserSettings } from "@/types";
 import LabelSelector from "@/feature/tasks/components/LabelSelector";
 import { getIconComponent } from "@/components/category/IconData";
 

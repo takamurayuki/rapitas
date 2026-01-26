@@ -18,7 +18,7 @@ import {
   Zap,
   Activity,
 } from "lucide-react";
-import type { AIAgentConfig, AgentSession, AgentExecution } from "@/types";
+import type { AIAgentConfig } from "@/types";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -26,7 +26,12 @@ const API_BASE_URL =
 export default function AgentsPage() {
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const [agentTypes, setAgentTypes] = useState<{
-    registered: Array<{ id: number; agentType: string; name: string; isActive: boolean }>;
+    registered: Array<{
+      id: number;
+      agentType: string;
+      name: string;
+      isActive: boolean;
+    }>;
     available: string[];
   } | null>(null);
   const [recentSessions, setRecentSessions] = useState<any[]>([]);
@@ -123,12 +128,12 @@ export default function AgentsPage() {
         </h2>
         <div className="grid gap-4 md:grid-cols-3">
           {agentTypes?.registered.map((type) => {
-            const info = getAgentTypeInfo(type.type);
-            const isAvailable = agentTypes.available.includes(type.type);
+            const info = getAgentTypeInfo(type.agentType);
+            const isAvailable = agentTypes.available.includes(type.agentType);
 
             return (
               <div
-                key={type.type}
+                key={type.agentType}
                 className={`p-4 rounded-lg border ${
                   isAvailable
                     ? "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700"
@@ -155,10 +160,10 @@ export default function AgentsPage() {
                   </div>
                 </div>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  {type.description}
+                  {type.name}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-1">
-                  {Object.entries(type.capabilities)
+                  {Object.entries(type.agentType)
                     .filter(([_, v]) => v)
                     .map(([key]) => (
                       <span
@@ -320,7 +325,12 @@ function AddAgentModal({
 }: {
   onClose: () => void;
   onSuccess: () => void;
-  agentTypes: Array<{ id: number; agentType: string; name: string; isActive: boolean }>;
+  agentTypes: Array<{
+    id: number;
+    agentType: string;
+    name: string;
+    isActive: boolean;
+  }>;
   availableTypes: string[];
 }) {
   const [name, setName] = useState("");
@@ -396,12 +406,12 @@ function AddAgentModal({
                 >
                   {agentTypes.map((type) => (
                     <option
-                      key={type.type}
-                      value={type.type}
-                      disabled={!availableTypes.includes(type.type)}
+                      key={type.agentType}
+                      value={type.agentType}
+                      disabled={!availableTypes.includes(type.agentType)}
                     >
                       {type.name}{" "}
-                      {!availableTypes.includes(type.type) && "(利用不可)"}
+                      {!availableTypes.includes(type.agentType) && "(利用不可)"}
                     </option>
                   ))}
                 </select>

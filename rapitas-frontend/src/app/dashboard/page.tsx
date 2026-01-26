@@ -49,9 +49,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([fetchOverview(), fetchDailyStudy(), fetchStreakInfo()]).finally(
-      () => setLoading(false)
-    );
+    Promise.all([
+      fetchOverview(),
+      fetchDailyStudy(),
+      fetchStreakInfo(),
+    ]).finally(() => setLoading(false));
   }, []);
 
   const fetchOverview = async () => {
@@ -109,7 +111,10 @@ export default function DashboardPage() {
           <div className="h-8 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
+              <div
+                key={i}
+                className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl"
+              />
             ))}
           </div>
           <div className="h-64 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
@@ -135,7 +140,7 @@ export default function DashboardPage() {
       {/* 統計カード */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {/* ストリーク */}
-        <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-xl p-4 text-white">
+        <div className="bg-linear-to-br from-orange-500 to-red-500 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between mb-2">
             <Flame className="w-8 h-8" />
             <span className="text-xs opacity-75">連続記録</span>
@@ -149,7 +154,7 @@ export default function DashboardPage() {
         </div>
 
         {/* 今日の完了 */}
-        <div className="bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl p-4 text-white">
+        <div className="bg-linear-to-br from-emerald-500 to-teal-500 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between mb-2">
             <CheckCircle2 className="w-8 h-8" />
             <span className="text-xs opacity-75">今日</span>
@@ -161,7 +166,7 @@ export default function DashboardPage() {
         </div>
 
         {/* 週間学習時間 */}
-        <div className="bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl p-4 text-white">
+        <div className="bg-linear-to-br from-blue-500 to-indigo-500 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between mb-2">
             <Clock className="w-8 h-8" />
             <span className="text-xs opacity-75">今週</span>
@@ -173,7 +178,7 @@ export default function DashboardPage() {
         </div>
 
         {/* 全体進捗 */}
-        <div className="bg-gradient-to-br from-violet-500 to-purple-500 rounded-xl p-4 text-white">
+        <div className="bg-linear-to-br from-violet-500 to-purple-500 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between mb-2">
             <TrendingUp className="w-8 h-8" />
             <span className="text-xs opacity-75">全体</span>
@@ -200,7 +205,8 @@ export default function DashboardPage() {
               {/* グラフ */}
               <div className="flex items-end justify-between h-40 gap-1">
                 {dailyStudy.map((day, index) => {
-                  const height = day.hours > 0 ? (day.hours / maxHours) * 100 : 2;
+                  const height =
+                    day.hours > 0 ? (day.hours / maxHours) * 100 : 2;
                   const isToday = index === dailyStudy.length - 1;
                   return (
                     <div
@@ -212,8 +218,8 @@ export default function DashboardPage() {
                           isToday
                             ? "bg-indigo-500"
                             : day.hours > 0
-                            ? "bg-indigo-300 dark:bg-indigo-600"
-                            : "bg-zinc-200 dark:bg-zinc-700"
+                              ? "bg-indigo-300 dark:bg-indigo-600"
+                              : "bg-zinc-200 dark:bg-zinc-700"
                         }`}
                         style={{ height: `${height}%` }}
                         title={`${day.hours}時間`}
@@ -233,8 +239,19 @@ export default function DashboardPage() {
               </div>
 
               <div className="flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400 mt-2">
-                <span>合計: {dailyStudy.reduce((sum, d) => sum + d.hours, 0).toFixed(1)}時間</span>
-                <span>平均: {(dailyStudy.reduce((sum, d) => sum + d.hours, 0) / dailyStudy.length).toFixed(1)}時間/日</span>
+                <span>
+                  合計:{" "}
+                  {dailyStudy.reduce((sum, d) => sum + d.hours, 0).toFixed(1)}
+                  時間
+                </span>
+                <span>
+                  平均:{" "}
+                  {(
+                    dailyStudy.reduce((sum, d) => sum + d.hours, 0) /
+                    dailyStudy.length
+                  ).toFixed(1)}
+                  時間/日
+                </span>
               </div>
             </div>
           ) : (
@@ -272,8 +289,8 @@ export default function DashboardPage() {
                           isUrgent
                             ? "text-red-600"
                             : isNear
-                            ? "text-amber-600"
-                            : "text-emerald-600"
+                              ? "text-amber-600"
+                              : "text-emerald-600"
                         }`}
                       >
                         {daysRemaining}日

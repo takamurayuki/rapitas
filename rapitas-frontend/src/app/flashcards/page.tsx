@@ -3,10 +3,8 @@ import { useEffect, useState } from "react";
 import type { FlashcardDeck, Flashcard } from "@/types";
 import {
   Plus,
-  Edit2,
   Trash2,
   ChevronLeft,
-  ChevronRight,
   RotateCcw,
   Brain,
   Check,
@@ -101,11 +99,14 @@ export default function FlashcardsPage() {
     if (!cardFront.trim() || !cardBack.trim() || !selectedDeck) return;
 
     try {
-      const res = await fetch(`${API_BASE}/flashcard-decks/${selectedDeck.id}/cards`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ front: cardFront, back: cardBack }),
-      });
+      const res = await fetch(
+        `${API_BASE}/flashcard-decks/${selectedDeck.id}/cards`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ front: cardFront, back: cardBack }),
+        },
+      );
       if (res.ok) {
         fetchDeck(selectedDeck.id);
         setIsCardModalOpen(false);
@@ -171,7 +172,10 @@ export default function FlashcardsPage() {
           <div className="h-8 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
+              <div
+                key={i}
+                className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl"
+              />
             ))}
           </div>
         </div>
@@ -205,7 +209,7 @@ export default function FlashcardsPage() {
         {/* カード */}
         <div
           onClick={() => setIsFlipped(!isFlipped)}
-          className="aspect-[3/2] bg-white dark:bg-zinc-800 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-700 flex items-center justify-center p-8 cursor-pointer transition-all hover:shadow-2xl"
+          className="aspect-3/2 bg-white dark:bg-zinc-800 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-700 flex items-center justify-center p-8 cursor-pointer transition-all hover:shadow-2xl"
         >
           <div className="text-center">
             <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-4">
@@ -273,7 +277,10 @@ export default function FlashcardsPage() {
             </button>
             <div
               className="w-10 h-10 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: `${selectedDeck.color}20`, color: selectedDeck.color }}
+              style={{
+                backgroundColor: `${selectedDeck.color}20`,
+                color: selectedDeck.color,
+              }}
             >
               <Layers className="w-5 h-5" />
             </div>
@@ -318,12 +325,20 @@ export default function FlashcardsPage() {
               </span>
               <div className="flex-1 grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">問題</p>
-                  <p className="text-zinc-900 dark:text-zinc-100">{card.front}</p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">
+                    問題
+                  </p>
+                  <p className="text-zinc-900 dark:text-zinc-100">
+                    {card.front}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">答え</p>
-                  <p className="text-zinc-900 dark:text-zinc-100">{card.back}</p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">
+                    答え
+                  </p>
+                  <p className="text-zinc-900 dark:text-zinc-100">
+                    {card.back}
+                  </p>
                 </div>
               </div>
               <button
@@ -440,7 +455,10 @@ export default function FlashcardsPage() {
             <div className="flex items-start justify-between mb-3">
               <div
                 className="w-12 h-12 rounded-lg flex items-center justify-center"
-                style={{ backgroundColor: `${deck.color}20`, color: deck.color }}
+                style={{
+                  backgroundColor: `${deck.color}20`,
+                  color: deck.color,
+                }}
               >
                 <Layers className="w-6 h-6" />
               </div>
@@ -467,9 +485,7 @@ export default function FlashcardsPage() {
       {decks.length === 0 && (
         <div className="text-center py-12">
           <Brain className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-          <p className="text-zinc-500 dark:text-zinc-400">
-            デッキがありません
-          </p>
+          <p className="text-zinc-500 dark:text-zinc-400">デッキがありません</p>
         </div>
       )}
 

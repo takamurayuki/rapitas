@@ -2,7 +2,7 @@ import { Task } from "@/types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { createMarkdownComponents } from "@/feature/tasks/components/MarkdownComponents";
-import TaskStatusChange from "@/feature/tasks/components/TaskSatusChange";
+import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
 import {
   statusConfig,
   renderStatusIcon,
