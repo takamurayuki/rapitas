@@ -10,16 +10,21 @@ import {
   Star,
   type LucideIcon,
 } from "lucide-react";
-import { useToast } from "@/components/ui/toast/toast-container";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { ICON_DATA, ICON_NAMES, searchIcons, getIconComponent } from "./icon-data";
+import { useToast } from "@/components/ui/toast/ToastContainer";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import {
+  ICON_DATA,
+  ICON_NAMES,
+  searchIcons,
+  getIconComponent,
+} from "./IconData";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
 // 後方互換性のためにICON_MAPをエクスポート
 export const ICON_MAP: Record<string, LucideIcon> = Object.fromEntries(
-  ICON_NAMES.map((name) => [name, ICON_DATA[name].component])
+  ICON_NAMES.map((name) => [name, ICON_DATA[name].component]),
 );
 
 // 共通のカテゴリアイテム型
@@ -44,7 +49,7 @@ export type CategoryManagerConfig = {
   // スタイル
   accentColor: string; // "purple" or "indigo"
   defaultColor: string; // "#8B5CF6" or "#6366F1"
-  defaultIcon: string; // "Palette" or "Tag"
+  defaultIcon: string; // "SwatchBook" or "Tag"
   // 機能
   showDefaultButton?: boolean;
 };
@@ -87,7 +92,9 @@ export default function CategoryManager({ config }: Props) {
     },
   };
 
-  const accent = accentClasses[config.accentColor as keyof typeof accentClasses] || accentClasses.indigo;
+  const accent =
+    accentClasses[config.accentColor as keyof typeof accentClasses] ||
+    accentClasses.indigo;
 
   const fetchItems = async () => {
     setLoading(true);
@@ -177,9 +184,12 @@ export default function CategoryManager({ config }: Props) {
 
   const setDefault = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE}/${config.endpoint}/${id}/set-default`, {
-        method: "PATCH",
-      });
+      const res = await fetch(
+        `${API_BASE}/${config.endpoint}/${id}/set-default`,
+        {
+          method: "PATCH",
+        },
+      );
 
       if (!res.ok) throw new Error("デフォルト設定に失敗しました");
 
@@ -203,7 +213,12 @@ export default function CategoryManager({ config }: Props) {
   };
 
   const resetForm = () => {
-    setFormData({ name: "", description: "", color: config.defaultColor, icon: "" });
+    setFormData({
+      name: "",
+      description: "",
+      color: config.defaultColor,
+      icon: "",
+    });
     setIconSearchQuery("");
   };
 
@@ -218,7 +233,8 @@ export default function CategoryManager({ config }: Props) {
   const renderIcon = (iconName: string | null | undefined, size = 20) => {
     const IconComponent = getIconComponent(iconName || "");
     if (!IconComponent) {
-      const DefaultIcon = getIconComponent(config.defaultIcon) || ICON_DATA["Tag"].component;
+      const DefaultIcon =
+        getIconComponent(config.defaultIcon) || ICON_DATA["Tag"].component;
       return <DefaultIcon size={size} />;
     }
     return <IconComponent size={size} />;
@@ -248,7 +264,9 @@ export default function CategoryManager({ config }: Props) {
         </label>
         <textarea
           value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          onChange={(e) =>
+            setFormData({ ...formData, description: e.target.value })
+          }
           placeholder="説明を入力"
           rows={2}
           className={`w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all resize-none`}
@@ -264,13 +282,17 @@ export default function CategoryManager({ config }: Props) {
             <input
               type="color"
               value={formData.color}
-              onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, color: e.target.value })
+              }
               className="h-11 w-16 rounded-lg border border-zinc-300 dark:border-zinc-700 cursor-pointer"
             />
             <input
               type="text"
               value={formData.color}
-              onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, color: e.target.value })
+              }
               className={`flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all font-mono`}
             />
           </div>
@@ -282,9 +304,14 @@ export default function CategoryManager({ config }: Props) {
           </label>
           <div
             className="h-11 rounded-lg border-2 flex items-center justify-center"
-            style={{ borderColor: formData.color, backgroundColor: formData.color + "15" }}
+            style={{
+              borderColor: formData.color,
+              backgroundColor: formData.color + "15",
+            }}
           >
-            <div style={{ color: formData.color }}>{renderIcon(formData.icon, 24)}</div>
+            <div style={{ color: formData.color }}>
+              {renderIcon(formData.icon, 24)}
+            </div>
           </div>
         </div>
       </div>
@@ -322,7 +349,9 @@ export default function CategoryManager({ config }: Props) {
                     }`}
                     title={iconName}
                   >
-                    <div className="flex items-center justify-center">{renderIcon(iconName, 18)}</div>
+                    <div className="flex items-center justify-center">
+                      {renderIcon(iconName, 18)}
+                    </div>
                   </button>
                 );
               })
@@ -344,7 +373,9 @@ export default function CategoryManager({ config }: Props) {
           キャンセル
         </button>
         <button
-          onClick={() => (isEdit && itemId ? handleUpdate(itemId) : handleAdd())}
+          onClick={() =>
+            isEdit && itemId ? handleUpdate(itemId) : handleAdd()
+          }
           className={`flex items-center gap-2 rounded-lg ${accent.bg} px-4 py-2.5 text-white transition-all shadow-lg hover:shadow-xl font-medium`}
         >
           <Save className="w-4 h-4" />
@@ -360,7 +391,9 @@ export default function CategoryManager({ config }: Props) {
         {/* ヘッダー */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className={`text-3xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-3`}>
+            <h1
+              className={`text-3xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-3`}
+            >
               <TitleIcon className={`w-8 h-8 ${accent.text}`} />
               {config.title}
             </h1>
@@ -381,7 +414,9 @@ export default function CategoryManager({ config }: Props) {
 
         {/* 新規追加フォーム */}
         {isAdding && (
-          <div className={`mb-6 rounded-xl border-2 ${accent.border} bg-white dark:bg-zinc-900 p-6 shadow-xl`}>
+          <div
+            className={`mb-6 rounded-xl border-2 ${accent.border} bg-white dark:bg-zinc-900 p-6 shadow-xl`}
+          >
             <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
               <Plus className={`w-5 h-5 ${accent.text}`} />
               新規{config.itemName}作成
@@ -396,8 +431,12 @@ export default function CategoryManager({ config }: Props) {
         ) : items.length === 0 ? (
           <div className="text-center py-16 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
             <TitleIcon className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
-            <p className="text-lg font-medium mb-2">{config.itemName}がありません</p>
-            <p className="text-sm mb-4">最初の{config.itemName}を作成してみましょう</p>
+            <p className="text-lg font-medium mb-2">
+              {config.itemName}がありません
+            </p>
+            <p className="text-sm mb-4">
+              最初の{config.itemName}を作成してみましょう
+            </p>
           </div>
         ) : (
           <div className="grid gap-4">
@@ -409,86 +448,99 @@ export default function CategoryManager({ config }: Props) {
                 return true;
               })
               .map((item) => (
-              <div
-                key={item.id}
-                className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:shadow-lg transition-all overflow-hidden"
-              >
-                {editingId === item.id ? (
-                  <div className="p-6">
-                    <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-                      <Edit2 className={`w-5 h-5 ${accent.text}`} />
-                      {config.itemName}を編集
-                    </h2>
-                    {renderForm(true, item.id)}
-                  </div>
-                ) : (
-                  <div className="p-5 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <div
-                        className="flex items-center justify-center w-14 h-14 rounded-xl shrink-0 shadow-sm"
-                        style={{ backgroundColor: item.color + "20", color: item.color }}
-                      >
-                        {renderIcon(item.icon, 28)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 truncate">
-                          {item.name}
-                        </h3>
-                        {item.description && (
-                          <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-0.5 line-clamp-2">
-                            {item.description}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-3 mt-2">
-                          <span
-                            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md"
-                            style={{ backgroundColor: item.color + "15", color: item.color }}
-                          >
-                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                            {item.color}
-                          </span>
-                          {item._count && (
-                            <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-                              <span className="font-semibold">{item._count.tasks}</span>
-                              タスク
-                            </span>
+                <div
+                  key={item.id}
+                  className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:shadow-lg transition-all overflow-hidden"
+                >
+                  {editingId === item.id ? (
+                    <div className="p-6">
+                      <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+                        <Edit2 className={`w-5 h-5 ${accent.text}`} />
+                        {config.itemName}を編集
+                      </h2>
+                      {renderForm(true, item.id)}
+                    </div>
+                  ) : (
+                    <div className="p-5 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div
+                          className="flex items-center justify-center w-14 h-14 rounded-xl shrink-0 shadow-sm"
+                          style={{
+                            backgroundColor: item.color + "20",
+                            color: item.color,
+                          }}
+                        >
+                          {renderIcon(item.icon, 28)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 truncate">
+                            {item.name}
+                          </h3>
+                          {item.description && (
+                            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-0.5 line-clamp-2">
+                              {item.description}
+                            </p>
                           )}
+                          <div className="flex items-center gap-3 mt-2">
+                            <span
+                              className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md"
+                              style={{
+                                backgroundColor: item.color + "15",
+                                color: item.color,
+                              }}
+                            >
+                              <div
+                                className="w-2 h-2 rounded-full"
+                                style={{ backgroundColor: item.color }}
+                              />
+                              {item.color}
+                            </span>
+                            {item._count && (
+                              <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
+                                <span className="font-semibold">
+                                  {item._count.tasks}
+                                </span>
+                                タスク
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {config.showDefaultButton && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        {config.showDefaultButton && (
+                          <button
+                            onClick={() => setDefault(item.id)}
+                            className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-all font-medium ${
+                              item.isDefault
+                                ? `${accent.bgLight} ${accent.text} border-2 ${accent.border}`
+                                : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                            }`}
+                          >
+                            <Star
+                              className={`w-4 h-4 ${item.isDefault ? "fill-current" : ""}`}
+                            />
+                            {item.isDefault ? "デフォルト" : "デフォルト設定"}
+                          </button>
+                        )}
                         <button
-                          onClick={() => setDefault(item.id)}
-                          className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-all font-medium ${
-                            item.isDefault
-                              ? `${accent.bgLight} ${accent.text} border-2 ${accent.border}`
-                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                          }`}
+                          onClick={() => startEdit(item)}
+                          className="flex items-center gap-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-3 py-2 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
                         >
-                          <Star className={`w-4 h-4 ${item.isDefault ? "fill-current" : ""}`} />
-                          {item.isDefault ? "デフォルト" : "デフォルト設定"}
+                          <Edit2 className="w-4 h-4" />
+                          編集
                         </button>
-                      )}
-                      <button
-                        onClick={() => startEdit(item)}
-                        className="flex items-center gap-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-3 py-2 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                        編集
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item.id, item.name)}
-                        className="flex items-center gap-2 rounded-lg bg-red-100 dark:bg-red-900/30 px-3 py-2 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        削除
-                      </button>
+                        <button
+                          onClick={() => handleDelete(item.id, item.name)}
+                          className="flex items-center gap-2 rounded-lg bg-red-100 dark:bg-red-900/30 px-3 py-2 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          削除
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              ))}
           </div>
         )}
       </div>

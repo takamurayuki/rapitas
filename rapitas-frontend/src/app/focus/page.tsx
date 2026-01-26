@@ -142,7 +142,7 @@ export default function FocusPage() {
       if (achievementRes.ok) {
         const { newlyUnlocked } = await achievementRes.json();
         if (newlyUnlocked && newlyUnlocked.length > 0) {
-          newlyUnlocked.forEach((achievement: any) => {
+          newlyUnlocked.forEach((achievement: { name: string }) => {
             showToast(`🏆 「${achievement.name}」を獲得しました！`, "success");
           });
         }
@@ -155,7 +155,8 @@ export default function FocusPage() {
 
   const playNotificationSound = () => {
     // シンプルなビープ音を生成
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const audioContext = new AudioContextClass();
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
 

@@ -11,7 +11,7 @@ interface TaskTimeTrackingProps {
   onStopTimer: (breakDuration?: number) => void;
   getElapsedTime: () => string;
   formatDuration: (hours: number) => string;
-  getAccumulatedBreakTime?: () => number;
+  getAccumulatedBreakTime?: React.MutableRefObject<(() => number) | undefined>;
 }
 
 const POMODORO_DURATION = 25 * 60; // 25分（秒単位）
@@ -40,7 +40,7 @@ export default function TaskTimeTracking({
   useEffect(() => {
     if (getAccumulatedBreakTime) {
       // この関数が呼ばれたときに現在の累積休憩時間（時間単位）を返す
-      (getAccumulatedBreakTime as any).current = () =>
+      getAccumulatedBreakTime.current = () =>
         accumulatedBreakSeconds / 3600;
     }
   }, [accumulatedBreakSeconds, getAccumulatedBreakTime]);

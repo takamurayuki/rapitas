@@ -701,11 +701,7 @@ function CodeReviewCard({
         <div className="border-t border-zinc-200 dark:border-zinc-800">
           <ExecutionReviewPanel
             files={diffFiles}
-            status={
-              approval.status === "pending"
-                ? "completed"
-                : (approval.status as any)
-            }
+            status="completed"
             onApprove={async (commitMessage, baseBranch) => {
               onApprove(commitMessage, baseBranch);
             }}

@@ -26,8 +26,10 @@ export function useDeveloperMode(taskId: number) {
   const [isLoading, setIsLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
-  const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>("idle");
-  const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
+  const [executionStatus, setExecutionStatus] =
+    useState<ExecutionStatus>("idle");
+  const [executionResult, setExecutionResult] =
+    useState<ExecutionResult | null>(null);
   const [analysisResult, setAnalysisResult] =
     useState<TaskAnalysisResult | null>(null);
   const [sessions, setSessions] = useState<AgentSession[]>([]);
@@ -39,7 +41,7 @@ export function useDeveloperMode(taskId: number) {
     setError(null);
     try {
       const res = await fetch(
-        `${API_BASE_URL}/developer-mode/config/${taskId}`
+        `${API_BASE_URL}/developer-mode/config/${taskId}`,
       );
       if (res.ok) {
         const data = await res.json();
@@ -69,7 +71,7 @@ export function useDeveloperMode(taskId: number) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(options || {}),
-          }
+          },
         );
         if (res.ok) {
           const data = await res.json();
@@ -85,7 +87,7 @@ export function useDeveloperMode(taskId: number) {
         setIsLoading(false);
       }
     },
-    [taskId]
+    [taskId],
   );
 
   const disableDeveloperMode = useCallback(async () => {
@@ -96,7 +98,7 @@ export function useDeveloperMode(taskId: number) {
         `${API_BASE_URL}/developer-mode/disable/${taskId}`,
         {
           method: "DELETE",
-        }
+        },
       );
       if (res.ok) {
         setConfig(null);
@@ -124,7 +126,7 @@ export function useDeveloperMode(taskId: number) {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(updates),
-          }
+          },
         );
         if (res.ok) {
           const data = await res.json();
@@ -140,7 +142,7 @@ export function useDeveloperMode(taskId: number) {
         setIsLoading(false);
       }
     },
-    [taskId]
+    [taskId],
   );
 
   const analyzeTask = useCallback(async () => {
@@ -152,7 +154,7 @@ export function useDeveloperMode(taskId: number) {
         `${API_BASE_URL}/developer-mode/analyze/${taskId}`,
         {
           method: "POST",
-        }
+        },
       );
       const data = await res.json();
       if (res.ok) {
@@ -162,7 +164,9 @@ export function useDeveloperMode(taskId: number) {
         throw new Error(data.error || "分析に失敗しました");
       }
     } catch (err) {
-      setAnalysisError(err instanceof Error ? err.message : "エラーが発生しました");
+      setAnalysisError(
+        err instanceof Error ? err.message : "エラーが発生しました",
+      );
       return null;
     } finally {
       setIsAnalyzing(false);
@@ -172,7 +176,7 @@ export function useDeveloperMode(taskId: number) {
   const fetchSessions = useCallback(async () => {
     try {
       const res = await fetch(
-        `${API_BASE_URL}/developer-mode/sessions/${taskId}`
+        `${API_BASE_URL}/developer-mode/sessions/${taskId}`,
       );
       if (res.ok) {
         const data = await res.json();
@@ -215,7 +219,8 @@ export function useDeveloperMode(taskId: number) {
           throw new Error(data.error || "エージェントの実行に失敗しました");
         }
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : "エラーが発生しました";
+        const errorMessage =
+          err instanceof Error ? err.message : "エラーが発生しました";
         setError(errorMessage);
         setExecutionStatus("failed");
         setExecutionResult({
@@ -227,7 +232,7 @@ export function useDeveloperMode(taskId: number) {
         setIsExecuting(false);
       }
     },
-    [taskId]
+    [taskId],
   );
 
   /**

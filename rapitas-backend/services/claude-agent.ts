@@ -20,7 +20,7 @@ async function getApiKey(): Promise<string | null> {
 }
 
 // Anthropic クライアントを取得
-async function getAnthropicClient(): Promise<Anthropic | null> {
+async function getAnthropicClient(): Promise<any | null> {
   const apiKey = await getApiKey();
   if (!apiKey) {
     return null;

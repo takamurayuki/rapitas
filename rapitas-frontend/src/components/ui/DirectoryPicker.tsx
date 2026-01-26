@@ -86,11 +86,18 @@ export function DirectoryPicker({
   // ドロップダウン外クリックで閉じる & インライン編集外クリックで反映
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setShowFavoritesDropdown(false);
       }
       // インライン編集中に外側をクリックしたら反映
-      if (editInputRef.current && !editInputRef.current.contains(event.target as Node) && isEditing) {
+      if (
+        editInputRef.current &&
+        !editInputRef.current.contains(event.target as Node) &&
+        isEditing
+      ) {
         handleEditComplete();
       }
     };
@@ -204,8 +211,10 @@ export function DirectoryPicker({
       setParentPath(data.parent);
       setIsGitRepo(data.isGitRepo || false);
       setIsDriveList(data.isDriveList || false);
-    } catch (err: any) {
-      setError(err.message || "ディレクトリの取得に失敗しました");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "ディレクトリの取得に失敗しました",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -322,7 +331,7 @@ export function DirectoryPicker({
                 }
               }}
               onBlur={handleEditComplete}
-              className="flex-1 rounded-l-lg border border-r-0 border-purple-500 dark:border-purple-400 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all font-mono text-xs"
+              className="flex-1 rounded-l-lg border border-r-0 border-purple-500 dark:border-purple-400 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all font-mono"
             />
           ) : (
             <div
@@ -331,7 +340,7 @@ export function DirectoryPicker({
               title="ダブルクリックで編集"
             >
               {value ? (
-                <span className="text-sm font-mono text-xs text-zinc-700 dark:text-zinc-300 truncate">
+                <span className="text-sm font-mono text-zinc-700 dark:text-zinc-300 truncate">
                   {value}
                 </span>
               ) : (
@@ -351,10 +360,16 @@ export function DirectoryPicker({
                   ? "bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400"
                   : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed"
               }`}
-              title={favorites.length > 0 ? "お気に入りから選択" : "お気に入りがありません"}
+              title={
+                favorites.length > 0
+                  ? "お気に入りから選択"
+                  : "お気に入りがありません"
+              }
               disabled={favorites.length === 0}
             >
-              <Star className={`w-4 h-4 ${favorites.length > 0 ? "fill-current" : ""}`} />
+              <Star
+                className={`w-4 h-4 ${favorites.length > 0 ? "fill-current" : ""}`}
+              />
               <ChevronDown className="w-3 h-3" />
             </button>
 
@@ -384,9 +399,13 @@ export function DirectoryPicker({
                             : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                         }`}
                       >
-                        <Folder className={`w-4 h-4 shrink-0 ${isCurrentValue ? "text-purple-500" : "text-yellow-500"}`} />
+                        <Folder
+                          className={`w-4 h-4 shrink-0 ${isCurrentValue ? "text-purple-500" : "text-yellow-500"}`}
+                        />
                         <div className="flex-1 min-w-0">
-                          <div className={`text-sm font-medium truncate ${isCurrentValue ? "text-purple-700 dark:text-purple-300" : "text-zinc-700 dark:text-zinc-300"}`}>
+                          <div
+                            className={`text-sm font-medium truncate ${isCurrentValue ? "text-purple-700 dark:text-purple-300" : "text-zinc-700 dark:text-zinc-300"}`}
+                          >
                             {fav.name || fav.path.split(/[\\/]/).pop()}
                             {isCurrentValue && (
                               <span className="ml-2 text-xs font-normal text-purple-500 dark:text-purple-400">
@@ -468,7 +487,9 @@ export function DirectoryPicker({
                       ? "text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20"
                       : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                   }`}
-                  title={showFavorites ? "お気に入りを非表示" : "お気に入りを表示"}
+                  title={
+                    showFavorites ? "お気に入りを非表示" : "お気に入りを表示"
+                  }
                 >
                   <Star className="w-4 h-4" />
                 </button>
@@ -500,7 +521,11 @@ export function DirectoryPicker({
                         ? "text-yellow-500 hover:text-yellow-600"
                         : "text-zinc-400 hover:text-yellow-500"
                     }`}
-                    title={isFavorite(currentPath) ? "お気に入りから削除" : "お気に入りに追加"}
+                    title={
+                      isFavorite(currentPath)
+                        ? "お気に入りから削除"
+                        : "お気に入りに追加"
+                    }
                   >
                     {isFavorite(currentPath) ? (
                       <Star className="w-4 h-4 fill-current" />
@@ -574,9 +599,13 @@ export function DirectoryPicker({
                           }}
                           className="flex-1 flex items-center gap-3 text-left min-w-0"
                         >
-                          <Folder className={`w-5 h-5 shrink-0 ${isCurrentValue ? "text-purple-500" : "text-yellow-500"}`} />
+                          <Folder
+                            className={`w-5 h-5 shrink-0 ${isCurrentValue ? "text-purple-500" : "text-yellow-500"}`}
+                          />
                           <div className="flex-1 min-w-0">
-                            <div className={`text-sm font-medium truncate ${isCurrentValue ? "text-purple-700 dark:text-purple-300" : "text-zinc-700 dark:text-zinc-300"}`}>
+                            <div
+                              className={`text-sm font-medium truncate ${isCurrentValue ? "text-purple-700 dark:text-purple-300" : "text-zinc-700 dark:text-zinc-300"}`}
+                            >
                               {fav.name || fav.path.split(/[\\/]/).pop()}
                               {isCurrentValue && (
                                 <span className="ml-2 text-xs font-normal text-purple-500 dark:text-purple-400">
@@ -636,9 +665,13 @@ export function DirectoryPicker({
                               onClick={() => handleNavigate(fav.path)}
                               className="flex-1 flex items-center gap-3 text-left min-w-0"
                             >
-                              <Folder className={`w-4 h-4 shrink-0 ${isCurrentValue ? "text-purple-500" : "text-yellow-500"}`} />
+                              <Folder
+                                className={`w-4 h-4 shrink-0 ${isCurrentValue ? "text-purple-500" : "text-yellow-500"}`}
+                              />
                               <div className="flex-1 min-w-0">
-                                <div className={`text-sm font-medium truncate ${isCurrentValue ? "text-purple-700 dark:text-purple-300" : "text-zinc-700 dark:text-zinc-300"}`}>
+                                <div
+                                  className={`text-sm font-medium truncate ${isCurrentValue ? "text-purple-700 dark:text-purple-300" : "text-zinc-700 dark:text-zinc-300"}`}
+                                >
                                   {fav.name || fav.path.split(/[\\/]/).pop()}
                                   {isCurrentValue && (
                                     <span className="ml-2 text-xs font-normal text-purple-500 dark:text-purple-400">
@@ -674,7 +707,9 @@ export function DirectoryPicker({
                 )}
 
                 {/* Directory List - 通常モード時のディレクトリ一覧 */}
-                <div className={`overflow-y-auto ${showFavorites && favorites.length > 0 ? "h-40" : "h-72"}`}>
+                <div
+                  className={`overflow-y-auto ${showFavorites && favorites.length > 0 ? "h-40" : "h-72"}`}
+                >
                   {isLoading ? (
                     <div className="flex items-center justify-center h-full">
                       <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />

@@ -1,17 +1,37 @@
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import type { ReactNode, HTMLAttributes } from "react";
+
+type MarkdownNode = {
+  children?: Array<{
+    type: string;
+    tagName?: string;
+  }>;
+};
+
+type ParagraphProps = HTMLAttributes<HTMLParagraphElement> & {
+  node?: MarkdownNode;
+  children?: ReactNode;
+};
+
+type CodeProps = HTMLAttributes<HTMLElement> & {
+  node?: MarkdownNode;
+  inline?: boolean;
+  className?: string;
+  children?: ReactNode;
+};
 
 // マークダウン用カスタムコンポーネント（編集ボタン付き）
 export const createMarkdownComponents = (
-  onEditCode?: (language: string, code: string) => void
+  onEditCode?: (language: string, code: string) => void,
 ) => ({
   // pタグの処理をカスタマイズ（pre/codeを含む場合は div に変換）
-  p({ node, children, ...props }: any) {
+  p({ node, children, ...props }: ParagraphProps) {
     // 子要素に pre や code ブロックが含まれているかチェック
     const hasCodeBlock = node?.children?.some(
-      (child: any) =>
+      (child) =>
         child.type === "element" &&
-        (child.tagName === "pre" || child.tagName === "code")
+        (child.tagName === "pre" || child.tagName === "code"),
     );
 
     if (hasCodeBlock) {
@@ -19,7 +39,7 @@ export const createMarkdownComponents = (
     }
     return <p {...props}>{children}</p>;
   },
-  code({ node, inline, className, children, ...props }: any) {
+  code({ inline, className, children, ...props }: CodeProps) {
     const match = /language-(\w+)/.exec(className || "");
     const language = match ? match[1] : "";
     const codeString = String(children).replace(/\n$/, "");
@@ -54,7 +74,7 @@ export const createMarkdownComponents = (
             )}
           </div>
           <SyntaxHighlighter
-            style={vscDarkPlus}
+            style={vscDarkPlus as any}
             language={language}
             PreTag="div"
             className="mt-0! mb-0! rounded-lg! text-sm!"

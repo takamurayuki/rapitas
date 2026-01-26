@@ -10,15 +10,29 @@ export type ExecuteTaskOptions = {
   skipApproval?: boolean;
 };
 
+export type AgentSessionResponse = {
+  id: number;
+  status: string;
+  output?: string;
+  [key: string]: unknown;
+};
+
+export type RegisteredAgentType = {
+  id: number;
+  agentType: string;
+  name: string;
+  isActive: boolean;
+};
+
 export type UseAgentExecutionReturn = {
   isExecuting: boolean;
   currentExecution: AgentExecution | null;
   error: string | null;
   executeTask: (taskId: number, options?: ExecuteTaskOptions) => Promise<{ sessionId: number } | { approvalRequestId: number }>;
   stopExecution: (sessionId: number) => Promise<void>;
-  getSession: (sessionId: number) => Promise<any>;
+  getSession: (sessionId: number) => Promise<AgentSessionResponse>;
   getAgents: () => Promise<AIAgentConfig[]>;
-  getAgentTypes: () => Promise<{ registered: any[]; available: string[] }>;
+  getAgentTypes: () => Promise<{ registered: RegisteredAgentType[]; available: string[] }>;
 };
 
 export function useAgentExecution(): UseAgentExecutionReturn {

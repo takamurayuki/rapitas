@@ -84,7 +84,7 @@ export function useCodeReview(): UseCodeReviewReturn {
   }, [request]);
 
   const getReviews = useCallback(async (prId: number) => {
-    const pr = await request<any>(`/github/pull-requests/${prId}`);
+    const pr = await request<{ reviews?: GitHubPRReview[] }>(`/github/pull-requests/${prId}`);
     return pr.reviews || [];
   }, [request]);
 
@@ -108,7 +108,7 @@ export function useCodeReview(): UseCodeReviewReturn {
   );
 
   const getComments = useCallback(async (prId: number) => {
-    const pr = await request<any>(`/github/pull-requests/${prId}`);
+    const pr = await request<{ comments?: GitHubPRComment[] }>(`/github/pull-requests/${prId}`);
     return pr.comments || [];
   }, [request]);
 

@@ -11,7 +11,11 @@ import {
   Clock,
   Trophy,
 } from "lucide-react";
-import { getIconComponent, ICON_DATA, searchIcons } from "@/components/category/icon-data";
+import {
+  getIconComponent,
+  ICON_DATA,
+  searchIcons,
+} from "@/components/category/IconData";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -159,7 +163,9 @@ export default function ExamGoalsPage() {
     now.setHours(0, 0, 0, 0);
     const exam = new Date(examDate);
     exam.setHours(0, 0, 0, 0);
-    const diff = Math.ceil((exam.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const diff = Math.ceil(
+      (exam.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+    );
     return diff;
   };
 
@@ -171,7 +177,9 @@ export default function ExamGoalsPage() {
     return <IconComponent size={size} />;
   };
 
-  const filteredIcons = iconSearch ? searchIcons(iconSearch) : Object.keys(ICON_DATA).slice(0, 30);
+  const filteredIcons = iconSearch
+    ? searchIcons(iconSearch)
+    : Object.keys(ICON_DATA).slice(0, 30);
 
   if (loading) {
     return (
@@ -180,7 +188,10 @@ export default function ExamGoalsPage() {
           <div className="h-8 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-40 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
+              <div
+                key={i}
+                className="h-40 bg-zinc-200 dark:bg-zinc-700 rounded-xl"
+              />
             ))}
           </div>
         </div>
@@ -233,7 +244,10 @@ export default function ExamGoalsPage() {
                     <div className="flex items-center gap-3">
                       <div
                         className="w-10 h-10 rounded-lg flex items-center justify-center"
-                        style={{ backgroundColor: `${goal.color}20`, color: goal.color }}
+                        style={{
+                          backgroundColor: `${goal.color}20`,
+                          color: goal.color,
+                        }}
                       >
                         {renderIcon(goal.icon, 22)}
                       </div>
@@ -293,15 +307,15 @@ export default function ExamGoalsPage() {
                         isUrgent
                           ? "text-red-600"
                           : isNear
-                          ? "text-amber-600"
-                          : "text-emerald-600"
+                            ? "text-amber-600"
+                            : "text-emerald-600"
                       }`}
                     >
                       {daysRemaining > 0
                         ? `あと${daysRemaining}日`
                         : daysRemaining === 0
-                        ? "今日!"
-                        : `${Math.abs(daysRemaining)}日経過`}
+                          ? "今日!"
+                          : `${Math.abs(daysRemaining)}日経過`}
                     </div>
                   </div>
 
@@ -336,7 +350,10 @@ export default function ExamGoalsPage() {
                   <div className="flex items-center gap-3">
                     <div
                       className="w-10 h-10 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: `${goal.color}20`, color: goal.color }}
+                      style={{
+                        backgroundColor: `${goal.color}20`,
+                        color: goal.color,
+                      }}
                     >
                       {renderIcon(goal.icon, 22)}
                     </div>

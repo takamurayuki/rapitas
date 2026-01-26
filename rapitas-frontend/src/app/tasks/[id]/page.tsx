@@ -1,10 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import type { Task, TimeEntry, Comment, Label, DeveloperModeConfig } from "@/types";
+import type {
+  Task,
+  TimeEntry,
+  Comment,
+  Label,
+  DeveloperModeConfig,
+} from "@/types";
 import LabelSelector, {
   SelectedLabelsDisplay,
-} from "@/feature/tasks/components/label-selector";
+} from "@/feature/tasks/components/LabelSelector";
 import {
   Timer,
   Coffee,
@@ -23,12 +29,13 @@ import {
   Tag,
   Save,
   Copy,
+  BrainCircuit,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { createMarkdownComponents } from "@/feature/tasks/components/markdown-components";
-import PomodoroTimer from "@/feature/tasks/components/pomodoro-timer";
-import Button from "@/components/ui/button";
+import { createMarkdownComponents } from "@/feature/tasks/components/MarkdownComponents";
+import PomodoroTimer from "@/feature/tasks/components/PomodoroTimer";
+import Button from "@/components/ui/button/Button";
 import {
   usePomodoro,
   formatTime,
@@ -36,7 +43,7 @@ import {
 } from "@/feature/tasks/pomodoro/PomodoroProvider";
 import { useDeveloperMode } from "@/feature/developer-mode/hooks/useDeveloperMode";
 import { useApprovals } from "@/feature/developer-mode/hooks/useApprovals";
-import { DeveloperModeToggle } from "@/feature/developer-mode/components/DeveloperModeToggle";
+import { ToggleButton } from "@/components/ui/button/ToggleButton";
 import { DeveloperModeConfigModal } from "@/feature/developer-mode/components/DeveloperModeConfig";
 import { TaskAnalysisPanel } from "@/feature/developer-mode/components/TaskAnalysisPanel";
 import { AgentExecutionPanel } from "@/feature/developer-mode/components/AgentExecutionPanel";
@@ -156,8 +163,20 @@ export default function TaskDetailPage() {
     executeAgent,
     resetExecutionState,
   } = useDeveloperMode(taskId);
-  const { approve: approveRequest, reject: rejectRequest, isLoading: approvalLoading } = useApprovals();
-  const [pendingApprovalId, setPendingApprovalId] = useState<number | null>(null);
+
+  // const {
+  //   config: config,
+  // } = useAIAnalysisMode(taskId);
+  const {
+    approve: approveRequest,
+    reject: rejectRequest,
+    isLoading: approvalLoading,
+  } = useApprovals();
+  const [pendingApprovalId, setPendingApprovalId] = useState<number | null>(
+    null,
+  );
+
+  const [showTaskAnalysis, setShowTaskAnalysis] = useState(false);
 
   useEffect(() => {
     const fetchTask = async () => {
@@ -359,12 +378,14 @@ export default function TaskDetailPage() {
   const handleToggleDeveloperMode = async () => {
     if (devModeConfig?.isEnabled) {
       await disableDeveloperMode();
-      setTask((prev) => prev ? { ...prev, isDeveloperMode: false } : prev);
+      setTask((prev) => (prev ? { ...prev, isDeveloperMode: false } : prev));
     } else {
       await enableDeveloperMode();
-      setTask((prev) => prev ? { ...prev, isDeveloperMode: true } : prev);
+      setTask((prev) => (prev ? { ...prev, isDeveloperMode: true } : prev));
     }
   };
+
+  const handleToggleAIAnalysisMode = async () => {};
 
   // AI分析の実行
   const handleAnalyze = async () => {
@@ -780,36 +801,52 @@ export default function TaskDetailPage() {
                   <div className="flex items-center gap-6 text-xs text-zinc-400 dark:text-zinc-500">
                     <div className="flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5" />
-                      作成: {new Date(task.createdAt).toLocaleDateString("ja-JP")}
+                      作成:{" "}
+                      {new Date(task.createdAt).toLocaleDateString("ja-JP")}
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Clock className="w-3.5 h-3.5" />
-                      更新: {new Date(task.updatedAt).toLocaleDateString("ja-JP")}
+                      更新:{" "}
+                      {new Date(task.updatedAt).toLocaleDateString("ja-JP")}
                     </div>
                   </div>
-                  {/* 開発者モードトグル */}
-                  <DeveloperModeToggle
-                    isEnabled={devModeConfig?.isEnabled ?? false}
-                    isLoading={devModeLoading}
-                    onToggle={handleToggleDeveloperMode}
-                    onOpenSettings={() => setShowDevModeConfig(true)}
-                  />
+
+                  <div className="flex items-center gap-4">
+                    {/* AIタスク分析トグル */}
+                    <ToggleButton
+                      label="AIタスク分析モード"
+                      icon={BrainCircuit}
+                      isEnabled={showTaskAnalysis}
+                      onToggle={() => setShowTaskAnalysis(!showTaskAnalysis)}
+                    />
+                    {/* 開発者モードトグル */}
+                    <ToggleButton
+                      label="開発者モード"
+                      icon={Bot}
+                      isEnabled={devModeConfig?.isEnabled ?? false}
+                      isLoading={devModeLoading}
+                      onToggle={handleToggleDeveloperMode}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* AI タスク分析パネル - 常に表示 */}
-            <div className="mb-6">
-              <TaskAnalysisPanel
-                isAnalyzing={isAnalyzing}
-                analysisResult={analysisResult}
-                error={analysisError}
-                onAnalyze={handleAnalyze}
-                onApprove={handleApproveAnalysis}
-                onReject={handleRejectAnalysis}
-                isApproving={approvalLoading}
-              />
-            </div>
+            {/* AI タスク分析パネル */}
+            {showTaskAnalysis && (
+              <div className="mb-6">
+                <TaskAnalysisPanel
+                  isAnalyzing={isAnalyzing}
+                  analysisResult={analysisResult}
+                  error={analysisError}
+                  onAnalyze={handleAnalyze}
+                  onApprove={handleApproveAnalysis}
+                  onReject={handleRejectAnalysis}
+                  isApproving={approvalLoading}
+                  onOpenSettings={() => setShowDevModeConfig(true)}
+                />
+              </div>
+            )}
 
             {/* Developer Mode Section - AI自動実装機能 */}
             {devModeConfig?.isEnabled && task.theme?.isDevelopment && (
@@ -848,7 +885,12 @@ export default function TaskDetailPage() {
                     >
                       <div className="flex items-start gap-3">
                         <button
-                          onClick={() => updateStatus(subtask.id, subtask.status === "done" ? "todo" : "done")}
+                          onClick={() =>
+                            updateStatus(
+                              subtask.id,
+                              subtask.status === "done" ? "todo" : "done",
+                            )
+                          }
                           className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
                             subtask.status === "done"
                               ? "border-emerald-500 bg-emerald-500"
@@ -856,14 +898,20 @@ export default function TaskDetailPage() {
                           }`}
                         >
                           {subtask.status === "done" && (
-                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 12 12">
+                            <svg
+                              className="w-3 h-3 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 12 12"
+                            >
                               <path d="M10.28 2.28a.75.75 0 00-1.06-1.06L4.5 5.94 2.78 4.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.06 0l5.25-5.25z" />
                             </svg>
                           )}
                         </button>
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <span className={`font-medium ${subtask.status === "done" ? "text-zinc-400 line-through" : "text-zinc-900 dark:text-zinc-50"}`}>
+                            <span
+                              className={`font-medium ${subtask.status === "done" ? "text-zinc-400 line-through" : "text-zinc-900 dark:text-zinc-50"}`}
+                            >
                               {subtask.title}
                             </span>
                             {subtask.agentGenerated && (

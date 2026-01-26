@@ -40,7 +40,7 @@ export type UseGitHubIntegrationReturn = {
   // Issues
   getIssues: (integrationId: number, state?: string) => Promise<GitHubIssue[]>;
   getIssue: (id: number) => Promise<GitHubIssue>;
-  createTaskFromIssue: (issueId: number, options?: { projectId?: number; themeId?: number }) => Promise<any>;
+  createTaskFromIssue: (issueId: number, options?: { projectId?: number; themeId?: number }) => Promise<{ taskId: number; task: unknown }>;
   createIssueFromTask: (taskId: number, integrationId: number, labels?: string[]) => Promise<GitHubIssue>;
   linkPullRequestToTask: (taskId: number, prId: number) => Promise<void>;
 };

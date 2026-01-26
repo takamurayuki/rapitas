@@ -10,7 +10,7 @@ import {
   type DraggableProvided,
   type DraggableStateSnapshot,
 } from "@hello-pangea/dnd";
-import TaskSlidePanel from "@/feature/tasks/components/task-slide-panel";
+import TaskSlidePanel from "@/feature/tasks/components/TaskSlidePanel";
 
 type Task = {
   id: number;

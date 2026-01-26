@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Timer, ExternalLink, X } from "lucide-react";
 import Link from "next/link";
-import PomodoroTimer from "@/feature/tasks/components/pomodoro-timer";
+import PomodoroTimer from "@/feature/tasks/components/PomodoroTimer";
 import { usePomodoroStore } from "./pomodoroStore";
 import { TimeEntry } from "@/types";
 

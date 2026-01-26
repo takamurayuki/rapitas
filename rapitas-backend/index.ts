@@ -22,7 +22,7 @@ const prisma = new PrismaClient();
 app.use(cors());
 
 // エラーハンドリング
-app.onError(({ code, error, set }: { code: any; error: any; set: any }) => {
+app.onError(({ code, error, set }: { code: string; error: Error; set: { status: number } }) => {
   if (code === "VALIDATION") {
     set.status = 400;
     return { error: "バリデーションエラー", details: error.message };
@@ -48,7 +48,7 @@ app.get("/themes", async () => {
   });
 });
 
-app.get("/themes/:id", async ({ params }: { params: any }) => {
+app.get("/themes/:id", async ({ params }: { params: { id: string } }) => {
   const { id } = params;
   return await prisma.theme.findUnique({
     where: { id: parseInt(id) },

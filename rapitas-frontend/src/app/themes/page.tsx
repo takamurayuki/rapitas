@@ -8,16 +8,20 @@ import {
   X,
   Search,
   Star,
-  Palette,
+  SwatchBook,
   Code,
   FolderGit2,
   GitBranch,
   FolderOpen,
 } from "lucide-react";
-import { useToast } from "@/components/ui/toast/toast-container";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { DirectoryPicker } from "@/components/ui/directory-picker";
-import { ICON_DATA, ICON_NAMES, searchIcons, getIconComponent } from "@/components/category/icon-data";
+import { useToast } from "@/components/ui/toast/ToastContainer";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { DirectoryPicker } from "@/components/ui/DirectoryPicker";
+import {
+  ICON_DATA,
+  searchIcons,
+  getIconComponent,
+} from "@/components/category/IconData";
 import type { Theme } from "@/types";
 
 const API_BASE =
@@ -34,7 +38,9 @@ const addWorkingDirectoryToFavorites = async (path: string) => {
 
     if (!Array.isArray(favorites)) return;
 
-    const isAlreadyFavorite = favorites.some((f: { path: string }) => f.path === path);
+    const isAlreadyFavorite = favorites.some(
+      (f: { path: string }) => f.path === path,
+    );
     if (isAlreadyFavorite) return;
 
     // お気に入りに追加
@@ -169,9 +175,12 @@ export default function ThemesPage() {
       setEditingId(null);
       setIconSearchQuery("");
       fetchItems();
-    } catch (e: any) {
+    } catch (e) {
       console.error("Theme update error:", e);
-      showToast(e.message || "テーマの更新に失敗しました", "error");
+      showToast(
+        e instanceof Error ? e.message : "テーマの更新に失敗しました",
+        "error",
+      );
     }
   };
 
@@ -240,7 +249,8 @@ export default function ThemesPage() {
   const renderIcon = (iconName: string | null | undefined, size = 20) => {
     const IconComponent = getIconComponent(iconName || "");
     if (!IconComponent) {
-      const DefaultIcon = getIconComponent("Palette") || ICON_DATA["Palette"].component;
+      const DefaultIcon =
+        getIconComponent("SwatchBook") || ICON_DATA["SwatchBook"].component;
       return <DefaultIcon size={size} />;
     }
     return <IconComponent size={size} />;
@@ -251,7 +261,7 @@ export default function ThemesPage() {
       {/* 基本情報 */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
-          <Palette className="w-4 h-4" />
+          <SwatchBook className="w-4 h-4" />
           基本情報
         </h3>
 
@@ -275,7 +285,9 @@ export default function ThemesPage() {
           </label>
           <textarea
             value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            onChange={(e) =>
+              setFormData({ ...formData, description: e.target.value })
+            }
             placeholder="説明を入力"
             rows={2}
             className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none"
@@ -291,13 +303,17 @@ export default function ThemesPage() {
               <input
                 type="color"
                 value={formData.color}
-                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, color: e.target.value })
+                }
                 className="h-11 w-16 rounded-lg border border-zinc-300 dark:border-zinc-700 cursor-pointer"
               />
               <input
                 type="text"
                 value={formData.color}
-                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, color: e.target.value })
+                }
                 className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all font-mono"
               />
             </div>
@@ -309,16 +325,21 @@ export default function ThemesPage() {
             </label>
             <div
               className="h-11 rounded-lg border-2 flex items-center justify-center"
-              style={{ borderColor: formData.color, backgroundColor: formData.color + "15" }}
+              style={{
+                borderColor: formData.color,
+                backgroundColor: formData.color + "15",
+              }}
             >
-              <div style={{ color: formData.color }}>{renderIcon(formData.icon, 24)}</div>
+              <div style={{ color: formData.color }}>
+                {renderIcon(formData.icon, 24)}
+              </div>
             </div>
           </div>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-            アイコンを選択 {!formData.icon && "(未選択時: Palette)"}
+            アイコンを選択 {!formData.icon && "(未選択時: SwatchBook)"}
           </label>
 
           <div className="relative mb-3">
@@ -341,7 +362,9 @@ export default function ThemesPage() {
                     <button
                       key={iconName}
                       type="button"
-                      onClick={() => setFormData({ ...formData, icon: iconName })}
+                      onClick={() =>
+                        setFormData({ ...formData, icon: iconName })
+                      }
                       className={`p-2.5 rounded-lg transition-all ${
                         isSelected
                           ? "bg-purple-500 text-white shadow-lg scale-105"
@@ -349,7 +372,9 @@ export default function ThemesPage() {
                       }`}
                       title={iconName}
                     >
-                      <div className="flex items-center justify-center">{renderIcon(iconName, 18)}</div>
+                      <div className="flex items-center justify-center">
+                        {renderIcon(iconName, 18)}
+                      </div>
                     </button>
                   );
                 })
@@ -374,10 +399,14 @@ export default function ThemesPage() {
             <input
               type="checkbox"
               checked={formData.isDevelopment}
-              onChange={(e) => setFormData({ ...formData, isDevelopment: e.target.checked })}
+              onChange={(e) =>
+                setFormData({ ...formData, isDevelopment: e.target.checked })
+              }
               className="w-4 h-4 rounded border-zinc-300 text-purple-600 focus:ring-purple-500"
             />
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">開発プロジェクトとして設定</span>
+            <span className="text-sm text-zinc-600 dark:text-zinc-400">
+              開発プロジェクトとして設定
+            </span>
           </label>
         </div>
 
@@ -388,43 +417,50 @@ export default function ThemesPage() {
             </p>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-2">
+              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-2">
                 <FolderGit2 className="w-4 h-4" />
                 GitHubリポジトリURL
               </label>
               <input
                 type="text"
                 value={formData.repositoryUrl}
-                onChange={(e) => setFormData({ ...formData, repositoryUrl: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, repositoryUrl: e.target.value })
+                }
                 placeholder="https://github.com/username/repository"
                 className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-2">
+              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-2">
                 <FolderOpen className="w-4 h-4" />
                 作業ディレクトリ（ローカルパス）
               </label>
               <DirectoryPicker
                 value={formData.workingDirectory}
-                onChange={(path) => setFormData({ ...formData, workingDirectory: path })}
+                onChange={(path) =>
+                  setFormData({ ...formData, workingDirectory: path })
+                }
                 placeholder="C:\Projects\my-project または /home/user/projects/my-project"
               />
               <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                Claude Codeがコード変更を行うローカルのプロジェクトフォルダを指定してください。「参照」ボタンでフォルダを選択できます。
+                Claude
+                Codeがコード変更を行うローカルのプロジェクトフォルダを指定してください。「参照」ボタンでフォルダを選択できます。
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-2">
+              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-2">
                 <GitBranch className="w-4 h-4" />
                 デフォルトブランチ
               </label>
               <input
                 type="text"
                 value={formData.defaultBranch}
-                onChange={(e) => setFormData({ ...formData, defaultBranch: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, defaultBranch: e.target.value })
+                }
                 placeholder="main"
                 className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
               />
@@ -442,7 +478,9 @@ export default function ThemesPage() {
           キャンセル
         </button>
         <button
-          onClick={() => (isEdit && itemId ? handleUpdate(itemId) : handleAdd())}
+          onClick={() =>
+            isEdit && itemId ? handleUpdate(itemId) : handleAdd()
+          }
           className="flex items-center gap-2 rounded-lg bg-purple-600 hover:bg-purple-700 px-4 py-2.5 text-white transition-all shadow-lg hover:shadow-xl font-medium"
         >
           <Save className="w-4 h-4" />
@@ -459,7 +497,7 @@ export default function ThemesPage() {
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-3">
-              <Palette className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+              <SwatchBook className="w-8 h-8 text-purple-600 dark:text-purple-400" />
               テーマ一覧
             </h1>
             <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
@@ -480,10 +518,6 @@ export default function ThemesPage() {
         {/* 新規追加フォーム */}
         {isAdding && (
           <div className="mb-6 rounded-xl border-2 border-purple-500 bg-white dark:bg-zinc-900 p-6 shadow-xl">
-            <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-              <Plus className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              新規テーマ作成
-            </h2>
             {renderForm(false)}
           </div>
         )}
@@ -493,109 +527,125 @@ export default function ThemesPage() {
           <LoadingSpinner color="purple" />
         ) : items.length === 0 ? (
           <div className="text-center py-16 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
-            <Palette className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
+            <SwatchBook className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
             <p className="text-lg font-medium mb-2">テーマがありません</p>
             <p className="text-sm mb-4">最初のテーマを作成してみましょう</p>
           </div>
         ) : (
           <div className="grid gap-4">
             {items
-              .filter((item) => !isAdding && (editingId === null || editingId === item.id))
+              .filter(
+                (item) =>
+                  !isAdding && (editingId === null || editingId === item.id),
+              )
               .map((item) => (
-              <div
-                key={item.id}
-                className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:shadow-lg transition-all overflow-hidden"
-              >
-                {editingId === item.id ? (
-                  <div className="p-6">
-                    <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-                      <Edit2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                      テーマを編集
-                    </h2>
-                    {renderForm(true, item.id)}
-                  </div>
-                ) : (
-                  <div className="p-5 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <div
-                        className="flex items-center justify-center w-14 h-14 rounded-xl shrink-0 shadow-sm"
-                        style={{ backgroundColor: item.color + "20", color: item.color }}
-                      >
-                        {renderIcon(item.icon, 28)}
+                <div
+                  key={item.id}
+                  className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:shadow-lg transition-all overflow-hidden"
+                >
+                  {editingId === item.id ? (
+                    <div className="p-6">
+                      <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+                        <Edit2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                        テーマを編集
+                      </h2>
+                      {renderForm(true, item.id)}
+                    </div>
+                  ) : (
+                    <div className="p-5 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div
+                          className="flex items-center justify-center w-14 h-14 rounded-xl shrink-0 shadow-sm"
+                          style={{
+                            backgroundColor: item.color + "20",
+                            color: item.color,
+                          }}
+                        >
+                          {renderIcon(item.icon, 28)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 truncate">
+                              {item.name}
+                            </h3>
+                            {item.isDevelopment && (
+                              <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                                <Code className="w-3 h-3" />
+                                開発
+                              </span>
+                            )}
+                          </div>
+                          {item.description && (
+                            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-0.5 line-clamp-2">
+                              {item.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-3 mt-2 flex-wrap">
+                            <span
+                              className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md"
+                              style={{
+                                backgroundColor: item.color + "15",
+                                color: item.color,
+                              }}
+                            >
+                              <div
+                                className="w-2 h-2 rounded-full"
+                                style={{ backgroundColor: item.color }}
+                              />
+                              {item.color}
+                            </span>
+                            {item._count && (
+                              <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
+                                <span className="font-semibold">
+                                  {item._count.tasks}
+                                </span>
+                                タスク
+                              </span>
+                            )}
+                            {item.isDevelopment && item.workingDirectory && (
+                              <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1 font-mono">
+                                <FolderOpen className="w-3 h-3" />
+                                {item.workingDirectory.length > 40
+                                  ? "..." + item.workingDirectory.slice(-37)
+                                  : item.workingDirectory}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 truncate">
-                            {item.name}
-                          </h3>
-                          {item.isDevelopment && (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
-                              <Code className="w-3 h-3" />
-                              開発
-                            </span>
-                          )}
-                        </div>
-                        {item.description && (
-                          <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-0.5 line-clamp-2">
-                            {item.description}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-3 mt-2 flex-wrap">
-                          <span
-                            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md"
-                            style={{ backgroundColor: item.color + "15", color: item.color }}
-                          >
-                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                            {item.color}
-                          </span>
-                          {item._count && (
-                            <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-                              <span className="font-semibold">{item._count.tasks}</span>
-                              タスク
-                            </span>
-                          )}
-                          {item.isDevelopment && item.workingDirectory && (
-                            <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1 font-mono">
-                              <FolderOpen className="w-3 h-3" />
-                              {item.workingDirectory.length > 40
-                                ? "..." + item.workingDirectory.slice(-37)
-                                : item.workingDirectory}
-                            </span>
-                          )}
-                        </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => setDefault(item.id)}
+                          className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-all font-medium ${
+                            item.isDefault
+                              ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-2 border-purple-500"
+                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                          }`}
+                        >
+                          <Star
+                            className={`w-4 h-4 ${item.isDefault ? "fill-current" : ""}`}
+                          />
+                          {item.isDefault ? "デフォルト" : "デフォルト設定"}
+                        </button>
+                        <button
+                          onClick={() => startEdit(item)}
+                          className="flex items-center gap-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-3 py-2 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                          編集
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id, item.name)}
+                          className="flex items-center gap-2 rounded-lg bg-red-100 dark:bg-red-900/30 px-3 py-2 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          削除
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => setDefault(item.id)}
-                        className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-all font-medium ${
-                          item.isDefault
-                            ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-2 border-purple-500"
-                            : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                        }`}
-                      >
-                        <Star className={`w-4 h-4 ${item.isDefault ? "fill-current" : ""}`} />
-                        {item.isDefault ? "デフォルト" : "デフォルト設定"}
-                      </button>
-                      <button
-                        onClick={() => startEdit(item)}
-                        className="flex items-center gap-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-3 py-2 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                        編集
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item.id, item.name)}
-                        className="flex items-center gap-2 rounded-lg bg-red-100 dark:bg-red-900/30 px-3 py-2 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        削除
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              ))}
           </div>
         )}
       </div>

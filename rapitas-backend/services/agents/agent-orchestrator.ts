@@ -2,7 +2,7 @@
  * エージェントオーケストレーター
  * エージェントの実行管理、状態追跡、イベント配信を担当
  */
-import type { PrismaClient } from "@prisma/client";
+// import { PrismaClient } from "@prisma/client";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { agentFactory } from "./agent-factory";
@@ -57,15 +57,15 @@ export type EventListener = (event: OrchestratorEvent) => void;
  */
 export class AgentOrchestrator {
   private static instance: AgentOrchestrator;
-  private prisma: PrismaClient;
+  private prisma: any;
   private activeExecutions: Map<number, ExecutionState> = new Map();
   private eventListeners: Set<EventListener> = new Set();
 
-  private constructor(prisma: PrismaClient) {
+  private constructor(prisma: any) {
     this.prisma = prisma;
   }
 
-  static getInstance(prisma: PrismaClient): AgentOrchestrator {
+  static getInstance(prisma: any): AgentOrchestrator {
     if (!AgentOrchestrator.instance) {
       AgentOrchestrator.instance = new AgentOrchestrator(prisma);
     }
@@ -214,7 +214,9 @@ export class AgentOrchestrator {
       // エージェントを実行
       const result = await agent.execute(task);
 
-      console.log(`[Orchestrator] Execution result - success: ${result.success}, waitingForInput: ${result.waitingForInput}, question: ${result.question?.substring(0, 100)}`);
+      console.log(
+        `[Orchestrator] Execution result - success: ${result.success}, waitingForInput: ${result.waitingForInput}, question: ${result.question?.substring(0, 100)}`,
+      );
 
       // ステータス判定: 質問待ちの場合は waiting_for_input
       let executionStatus: string;
@@ -369,7 +371,9 @@ export class AgentOrchestrator {
     }
 
     if (execution.status !== "waiting_for_input") {
-      throw new Error(`Execution is not waiting for input: ${execution.status}`);
+      throw new Error(
+        `Execution is not waiting for input: ${execution.status}`,
+      );
     }
 
     // タスク情報を取得
@@ -499,7 +503,8 @@ export class AgentOrchestrator {
             : execution.artifacts,
           completedAt: result.waitingForInput ? null : new Date(),
           tokensUsed: (execution.tokensUsed || 0) + (result.tokensUsed || 0),
-          executionTimeMs: (execution.executionTimeMs || 0) + (result.executionTimeMs || 0),
+          executionTimeMs:
+            (execution.executionTimeMs || 0) + (result.executionTimeMs || 0),
           errorMessage: result.errorMessage,
           question: result.question || null,
         },
@@ -1100,6 +1105,6 @@ export class AgentOrchestrator {
 }
 
 // ファクトリー関数
-export function createOrchestrator(prisma: PrismaClient): AgentOrchestrator {
+export function createOrchestrator(prisma: any): AgentOrchestrator {
   return AgentOrchestrator.getInstance(prisma);
 }

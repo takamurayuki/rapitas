@@ -11,11 +11,13 @@ import {
   Lightbulb,
   Check,
   X,
+  Settings,
+  BrainCircuit,
 } from "lucide-react";
 import type { TaskAnalysisResult, SubtaskProposal, Priority } from "@/types";
 import { priorityColors, priorityLabels } from "@/types";
 
-type Props = {
+type TaskAnalysisPanelProps = {
   isAnalyzing: boolean;
   analysisResult: TaskAnalysisResult | null;
   error: string | null;
@@ -23,6 +25,7 @@ type Props = {
   onApprove: (selectedSubtasks?: number[]) => void;
   onReject: () => void;
   isApproving?: boolean;
+  onOpenSettings?: () => void;
 };
 
 export function TaskAnalysisPanel({
@@ -33,9 +36,10 @@ export function TaskAnalysisPanel({
   onApprove,
   onReject,
   isApproving,
-}: Props) {
+  onOpenSettings,
+}: TaskAnalysisPanelProps) {
   const [selectedSubtasks, setSelectedSubtasks] = useState<Set<number>>(
-    new Set()
+    new Set(),
   );
   const [selectAll, setSelectAll] = useState(true);
 
@@ -58,7 +62,7 @@ export function TaskAnalysisPanel({
       setSelectAll(false);
     } else {
       setSelectedSubtasks(
-        new Set(analysisResult?.suggestedSubtasks.map((_, i) => i) || [])
+        new Set(analysisResult?.suggestedSubtasks.map((_, i) => i) || []),
       );
       setSelectAll(true);
     }
@@ -73,8 +77,10 @@ export function TaskAnalysisPanel({
   };
 
   const complexityColors = {
-    simple: "text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30",
-    medium: "text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30",
+    simple:
+      "text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30",
+    medium:
+      "text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30",
     complex: "text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30",
   };
 
@@ -87,26 +93,38 @@ export function TaskAnalysisPanel({
   // 分析前の状態
   if (!analysisResult && !isAnalyzing && !error) {
     return (
-      <div className="bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 rounded-xl p-6 border border-violet-100 dark:border-violet-800">
+      <div className="bg-linear-to-br from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 rounded-xl p-6 border border-violet-100 dark:border-violet-800">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-violet-100 dark:bg-violet-900/40 rounded-xl">
-            <Brain className="w-8 h-8 text-violet-600 dark:text-violet-400" />
+            <BrainCircuit className="w-8 h-8 text-violet-600 dark:text-violet-400" />
           </div>
           <div className="flex-1">
             <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
               AI タスク分析
             </h3>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-              AIがこのタスクを分析し、効率的なサブタスクを提案します
+              AIがタスクを分析し、効率的なサブタスクを提案します
             </p>
           </div>
-          <button
-            onClick={onAnalyze}
-            className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition-colors"
-          >
-            <Sparkles className="w-4 h-4" />
-            分析を開始
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onAnalyze}
+              className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition-colors"
+            >
+              <Sparkles className="w-4 h-4" />
+              分析を開始
+            </button>
+
+            {onOpenSettings && (
+              <button
+                onClick={onOpenSettings}
+                className="p-2.5 rounded-lg text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors"
+                title="AIタスク分析設定"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -166,7 +184,7 @@ export function TaskAnalysisPanel({
     return (
       <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
         {/* ヘッダー */}
-        <div className="px-6 py-4 bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border-b border-zinc-200 dark:border-zinc-700">
+        <div className="px-6 py-4 bg-linear-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border-b border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-violet-100 dark:bg-violet-900/40 rounded-lg">
@@ -191,6 +209,15 @@ export function TaskAnalysisPanel({
                 <Clock className="w-4 h-4" />
                 <span>約{analysisResult.estimatedTotalHours}時間</span>
               </div>
+              {onOpenSettings && (
+                <button
+                  onClick={onOpenSettings}
+                  className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors"
+                  title="開発者モード設定"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -269,8 +296,7 @@ export function TaskAnalysisPanel({
           <button
             onClick={handleApprove}
             disabled={
-              isApproving ||
-              (!selectAll && selectedSubtasks.size === 0)
+              isApproving || (!selectAll && selectedSubtasks.size === 0)
             }
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors disabled:opacity-50"
           >
@@ -279,9 +305,7 @@ export function TaskAnalysisPanel({
             ) : (
               <Check className="w-4 h-4" />
             )}
-            {selectAll
-              ? "全て承認"
-              : `${selectedSubtasks.size}件を承認`}
+            {selectAll ? "全て承認" : `${selectedSubtasks.size}件を承認`}
           </button>
         </div>
       </div>

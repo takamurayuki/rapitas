@@ -149,8 +149,9 @@ export type Task = {
   examGoal?: ExamGoal | null;
   timeEntries?: TimeEntry[];
   comments?: Comment[];
-  // 開発者モード関連
+  // タスク設定関連
   isDeveloperMode?: boolean;
+  isAiTaskAnalysis?: boolean;
   agentGenerated?: boolean;
   agentExecutable?: boolean;
   executionInstructions?: string | null;
@@ -179,13 +180,16 @@ export type Comment = {
   updatedAt: string;
 };
 
+export type ActivityLogChanges = Record<string, unknown>;
+export type ActivityLogMetadata = Record<string, unknown>;
+
 export type ActivityLog = {
   id: number;
   taskId?: number | null;
   projectId?: number | null;
   action: string;
-  changes?: any;
-  metadata?: any;
+  changes?: ActivityLogChanges;
+  metadata?: ActivityLogMetadata;
   createdAt: string;
 };
 
@@ -204,6 +208,14 @@ export const priorityLabels = {
 };
 
 // 実績/バッジ
+export type AchievementCondition = {
+  type: string;
+  value?: number;
+  count?: number;
+  threshold?: number;
+  [key: string]: unknown;
+};
+
 export type Achievement = {
   id: number;
   key: string;
@@ -212,7 +224,7 @@ export type Achievement = {
   icon: string;
   color: string;
   category: string;
-  condition: any;
+  condition: AchievementCondition;
   rarity: "common" | "rare" | "epic" | "legendary";
   isUnlocked: boolean;
   unlockedAt: string | null;
@@ -284,12 +296,26 @@ export type Flashcard = {
 };
 
 // タスクテンプレート
+export type TaskTemplateData = {
+  title?: string;
+  description?: string;
+  estimatedHours?: number;
+  priority?: Priority;
+  labels?: string[];
+  subtasks?: Array<{
+    title: string;
+    description?: string;
+    estimatedHours?: number;
+  }>;
+  [key: string]: unknown;
+};
+
 export type TaskTemplate = {
   id: number;
   name: string;
   description?: string | null;
   category: string;
-  templateData: any;
+  templateData: TaskTemplateData;
   isPublic: boolean;
   useCount: number;
   createdAt: string;
@@ -335,6 +361,13 @@ export type DeveloperModeConfig = {
   approvalRequests?: ApprovalRequest[];
 };
 
+export type AgentSessionMetadata = {
+  workingDirectory?: string;
+  branchName?: string;
+  instruction?: string;
+  [key: string]: unknown;
+};
+
 export type AgentSession = {
   id: number;
   configId: number;
@@ -344,10 +377,24 @@ export type AgentSession = {
   lastActivityAt: string;
   totalTokensUsed: number;
   errorMessage?: string | null;
-  metadata?: any;
+  metadata?: AgentSessionMetadata;
   agentActions?: AgentAction[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type AgentActionInput = {
+  command?: string;
+  args?: string[];
+  content?: string;
+  [key: string]: unknown;
+};
+
+export type AgentActionOutput = {
+  result?: string;
+  files?: string[];
+  error?: string;
+  [key: string]: unknown;
 };
 
 export type AgentAction = {
@@ -355,8 +402,8 @@ export type AgentAction = {
   sessionId: number;
   actionType: string;
   targetTaskId?: number | null;
-  input?: any;
-  output?: any;
+  input?: AgentActionInput;
+  output?: AgentActionOutput;
   tokensUsed: number;
   durationMs?: number | null;
   status: string;
@@ -417,6 +464,13 @@ export type ApprovalRequest = {
   updatedAt: string;
 };
 
+export type NotificationMetadata = {
+  approvalId?: number;
+  taskId?: number;
+  errorDetails?: string;
+  [key: string]: unknown;
+};
+
 export type Notification = {
   id: number;
   type: "approval_request" | "task_completed" | "agent_error" | "daily_summary";
@@ -425,13 +479,14 @@ export type Notification = {
   link?: string | null;
   isRead: boolean;
   readAt?: string | null;
-  metadata?: any;
+  metadata?: NotificationMetadata;
   createdAt: string;
 };
 
 export type UserSettings = {
   id: number;
   developerModeDefault: boolean;
+  aiTaskAnalysisDefault: boolean;
   claudeApiKeyConfigured?: boolean;
   claudeApiKeyMasked?: string | null;
   createdAt: string;

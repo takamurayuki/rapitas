@@ -33,11 +33,30 @@ const ICON_MAP: Record<string, any> = {
   Brain,
 };
 
-const RARITY_STYLES: Record<string, { bg: string; border: string; text: string }> = {
-  common: { bg: "bg-zinc-100 dark:bg-zinc-800", border: "border-zinc-300 dark:border-zinc-600", text: "text-zinc-600 dark:text-zinc-400" },
-  rare: { bg: "bg-blue-50 dark:bg-blue-900/20", border: "border-blue-300 dark:border-blue-700", text: "text-blue-600 dark:text-blue-400" },
-  epic: { bg: "bg-purple-50 dark:bg-purple-900/20", border: "border-purple-300 dark:border-purple-700", text: "text-purple-600 dark:text-purple-400" },
-  legendary: { bg: "bg-amber-50 dark:bg-amber-900/20", border: "border-amber-300 dark:border-amber-700", text: "text-amber-600 dark:text-amber-400" },
+const RARITY_STYLES: Record<
+  string,
+  { bg: string; border: string; text: string }
+> = {
+  common: {
+    bg: "bg-zinc-100 dark:bg-zinc-800",
+    border: "border-zinc-300 dark:border-zinc-600",
+    text: "text-zinc-600 dark:text-zinc-400",
+  },
+  rare: {
+    bg: "bg-blue-50 dark:bg-blue-900/20",
+    border: "border-blue-300 dark:border-blue-700",
+    text: "text-blue-600 dark:text-blue-400",
+  },
+  epic: {
+    bg: "bg-purple-50 dark:bg-purple-900/20",
+    border: "border-purple-300 dark:border-purple-700",
+    text: "text-purple-600 dark:text-purple-400",
+  },
+  legendary: {
+    bg: "bg-amber-50 dark:bg-amber-900/20",
+    border: "border-amber-300 dark:border-amber-700",
+    text: "text-amber-600 dark:text-amber-400",
+  },
 };
 
 const RARITY_LABELS: Record<string, string> = {
@@ -77,9 +96,10 @@ export default function AchievementsPage() {
   const unlockedCount = achievements.filter((a) => a.isUnlocked).length;
   const categories = ["all", ...new Set(achievements.map((a) => a.category))];
 
-  const filteredAchievements = filter === "all"
-    ? achievements
-    : achievements.filter((a) => a.category === filter);
+  const filteredAchievements =
+    filter === "all"
+      ? achievements
+      : achievements.filter((a) => a.category === filter);
 
   const getCategoryLabel = (cat: string) => {
     const labels: Record<string, string> = {
@@ -101,7 +121,10 @@ export default function AchievementsPage() {
           <div className="h-8 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
+              <div
+                key={i}
+                className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl"
+              />
             ))}
           </div>
         </div>
@@ -128,8 +151,10 @@ export default function AchievementsPage() {
         <div className="hidden sm:block w-48">
           <div className="h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-amber-400 to-amber-600 transition-all"
-              style={{ width: `${(unlockedCount / achievements.length) * 100}%` }}
+              className="h-full bg-linear-to-r from-amber-400 to-amber-600 transition-all"
+              style={{
+                width: `${(unlockedCount / achievements.length) * 100}%`,
+              }}
             />
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 text-right">
@@ -158,7 +183,8 @@ export default function AchievementsPage() {
       {/* 実績グリッド */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         {filteredAchievements.map((achievement) => {
-          const rarityStyle = RARITY_STYLES[achievement.rarity] || RARITY_STYLES.common;
+          const rarityStyle =
+            RARITY_STYLES[achievement.rarity] || RARITY_STYLES.common;
 
           return (
             <div
@@ -170,7 +196,9 @@ export default function AchievementsPage() {
               }`}
             >
               {/* レアリティバッジ */}
-              <div className={`absolute top-2 right-2 px-2 py-0.5 rounded text-xs font-medium ${rarityStyle.text}`}>
+              <div
+                className={`absolute top-2 right-2 px-2 py-0.5 rounded text-xs font-medium ${rarityStyle.text}`}
+              >
                 {RARITY_LABELS[achievement.rarity]}
               </div>
 
@@ -178,13 +206,14 @@ export default function AchievementsPage() {
                 {/* アイコン */}
                 <div
                   className={`w-16 h-16 rounded-full flex items-center justify-center mb-3 ${
-                    achievement.isUnlocked
-                      ? ""
-                      : "bg-zinc-200 dark:bg-zinc-700"
+                    achievement.isUnlocked ? "" : "bg-zinc-200 dark:bg-zinc-700"
                   }`}
                   style={
                     achievement.isUnlocked
-                      ? { backgroundColor: `${achievement.color}20`, color: achievement.color }
+                      ? {
+                          backgroundColor: `${achievement.color}20`,
+                          color: achievement.color,
+                        }
                       : {}
                   }
                 >
@@ -196,11 +225,13 @@ export default function AchievementsPage() {
                 </div>
 
                 {/* 名前 */}
-                <h3 className={`font-semibold mb-1 ${
-                  achievement.isUnlocked
-                    ? "text-zinc-900 dark:text-zinc-50"
-                    : "text-zinc-500 dark:text-zinc-400"
-                }`}>
+                <h3
+                  className={`font-semibold mb-1 ${
+                    achievement.isUnlocked
+                      ? "text-zinc-900 dark:text-zinc-50"
+                      : "text-zinc-500 dark:text-zinc-400"
+                  }`}
+                >
                   {achievement.name}
                 </h3>
 
@@ -212,7 +243,10 @@ export default function AchievementsPage() {
                 {/* 解除日 */}
                 {achievement.isUnlocked && achievement.unlockedAt && (
                   <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                    {new Date(achievement.unlockedAt).toLocaleDateString("ja-JP")} 解除
+                    {new Date(achievement.unlockedAt).toLocaleDateString(
+                      "ja-JP",
+                    )}{" "}
+                    解除
                   </p>
                 )}
               </div>

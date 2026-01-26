@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
-  Sparkles,
   ChevronDown,
   Clock,
   Tag,
@@ -11,16 +10,15 @@ import {
   Flag,
   FileText,
   Plus,
-  X,
-  Check,
   Trash2,
   Calendar,
   BookOpen,
-  Code2,
   Bot,
+  SwatchBook,
 } from "lucide-react";
-import type { Priority, Theme, Label } from "@/types";
-import LabelSelector from "@/feature/tasks/components/label-selector";
+import type { Priority, Theme, Label, UserSettings } from "@/types";
+import LabelSelector from "@/feature/tasks/components/LabelSelector";
+import { getIconComponent } from "@/components/category/IconData";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -42,11 +40,13 @@ export default function NewTaskPage() {
   const [dueDate, setDueDate] = useState("");
   const [subject, setSubject] = useState("");
 
-  // 開発者モード
+  // タスクの設定
   const [isDeveloperMode, setIsDeveloperMode] = useState(false);
+  const [isAiTaskAnalysis, setIsAiTaskAnalysis] = useState(false);
 
   // データ
   const [themes, setThemes] = useState<Theme[]>([]);
+  const [settings, setSettings] = useState<UserSettings | null>(null);
 
   // UI状態
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,7 +63,27 @@ export default function NewTaskPage() {
       setThemeId(Number(themeIdParam));
     }
     fetchThemes();
+    fetchSettings();
   }, [searchParams]);
+
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/settings`);
+      if (res.ok) {
+        const data = await res.json();
+        setSettings(data);
+        // 設定からデフォルト値を適用
+        if (data.developerModeDefault) {
+          setIsDeveloperMode(true);
+        }
+        if (data.aiTaskAnalysisDefault) {
+          setIsAiTaskAnalysis(true);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const fetchThemes = async () => {
     try {
@@ -83,7 +103,7 @@ export default function NewTaskPage() {
       } else {
         // URLパラメータで指定されたテーマの場合
         const selectedTheme = data.find(
-          (t: Theme) => t.id === Number(themeIdParam)
+          (t: Theme) => t.id === Number(themeIdParam),
         );
         if (selectedTheme?.isDevelopment) {
           setIsDeveloperMode(true);
@@ -144,6 +164,7 @@ export default function NewTaskPage() {
           dueDate: dueDate || undefined,
           subject: subject || undefined,
           isDeveloperMode: isDeveloperMode || undefined,
+          isAiTaskAnalysis: isAiTaskAnalysis || undefined,
         }),
       });
 
@@ -307,67 +328,115 @@ export default function NewTaskPage() {
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {themes.map((theme) => (
-                    <button
-                      key={theme.id}
-                      type="button"
-                      onClick={() => handleThemeSelect(theme)}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                        themeId === theme.id
-                          ? "ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 scale-105"
-                          : "opacity-60 hover:opacity-100"
-                      }`}
-                      style={{
-                        backgroundColor:
-                          themeId === theme.id
-                            ? theme.color
-                            : `${theme.color}20`,
-                        color: themeId === theme.id ? "#fff" : theme.color,
-                        ["--tw-ring-color" as any]: theme.color,
-                      }}
-                    >
-                      {theme.isDevelopment && <Code2 className="w-3 h-3" />}
-                      {theme.name}
-                    </button>
-                  ))}
+                  {(() => {
+                    // URLパラメータでテーマIDが指定されている場合はそのテーマのみ表示
+                    const themeIdParam = searchParams.get("themeId");
+                    const displayThemes = themeIdParam
+                      ? themes.filter((t) => t.id === Number(themeIdParam))
+                      : themes;
+                    return displayThemes.map((theme) => {
+                      const ThemeIcon =
+                        getIconComponent(theme.icon || "") || SwatchBook;
+                      return (
+                        <button
+                          key={theme.id}
+                          type="button"
+                          onClick={() => handleThemeSelect(theme)}
+                          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                            themeId === theme.id
+                              ? "ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 scale-105"
+                              : "opacity-60 hover:opacity-100"
+                          }`}
+                          style={
+                            {
+                              backgroundColor:
+                                themeId === theme.id
+                                  ? theme.color
+                                  : `${theme.color}20`,
+                              color:
+                                themeId === theme.id ? "#fff" : theme.color,
+                              ["--tw-ring-color" as keyof React.CSSProperties]:
+                                theme.color,
+                            } as React.CSSProperties
+                          }
+                        >
+                          <ThemeIcon className="w-3 h-3" />
+                          {theme.name}
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* 開発者モード */}
+          {/* タスクの設定 */}
           {(isDeveloperMode ||
+            isAiTaskAnalysis ||
             themes.find((t) => t.id === themeId)?.isDevelopment) && (
-            <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-violet-100 dark:bg-violet-900/40 rounded-lg">
-                    <Bot className="w-5 h-5 text-violet-600 dark:text-violet-400" />
-                  </div>
+            <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 bg-linear-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-violet-100 dark:bg-violet-900/40 rounded-lg">
+                  <Bot className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                </div>
+                <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                  タスクの設定
+                </h3>
+              </div>
+              <div className="space-y-4">
+                {/* 開発者モード */}
+                <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                    <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
                       開発者モード
-                    </h3>
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      開発プロジェクト向けの機能を有効化します
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsDeveloperMode(!isDeveloperMode)}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${
+                      isDeveloperMode
+                        ? "bg-violet-500"
+                        : "bg-zinc-300 dark:bg-zinc-600"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                        isDeveloperMode ? "translate-x-5" : ""
+                      }`}
+                    />
+                  </button>
+                </div>
+                {/* AIタスク分析 */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                      AIタスク分析
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
                       AIがタスクを分析し、サブタスクを自動提案します
                     </p>
                   </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsDeveloperMode(!isDeveloperMode)}
-                  className={`relative w-11 h-6 rounded-full transition-colors ${
-                    isDeveloperMode
-                      ? "bg-violet-500"
-                      : "bg-zinc-300 dark:bg-zinc-600"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                      isDeveloperMode ? "translate-x-5" : ""
+                  <button
+                    type="button"
+                    onClick={() => setIsAiTaskAnalysis(!isAiTaskAnalysis)}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${
+                      isAiTaskAnalysis
+                        ? "bg-violet-500"
+                        : "bg-zinc-300 dark:bg-zinc-600"
                     }`}
-                  />
-                </button>
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                        isAiTaskAnalysis ? "translate-x-5" : ""
+                      }`}
+                    />
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -528,18 +597,6 @@ export default function NewTaskPage() {
             )}
           </div>
         </div>
-
-        {/* Keyboard Hint */}
-        <p className="mt-6 text-center text-xs text-zinc-400 dark:text-zinc-500">
-          <kbd className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded font-mono">
-            ⌘
-          </kbd>{" "}
-          +{" "}
-          <kbd className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded font-mono">
-            Enter
-          </kbd>{" "}
-          で作成
-        </p>
       </form>
     </div>
   );

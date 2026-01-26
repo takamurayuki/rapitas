@@ -12,7 +12,7 @@ import {
   Plus,
   X,
 } from "lucide-react";
-import { useToast } from "@/components/ui/toast/toast-container";
+import { useToast } from "@/components/ui/toast/ToastContainer";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -117,11 +117,15 @@ export default function CalendarPage() {
   };
 
   const prevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    setCurrentDate(
+      new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1),
+    );
   };
 
   const nextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    setCurrentDate(
+      new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1),
+    );
   };
 
   const goToToday = () => {
@@ -245,8 +249,8 @@ export default function CalendarPage() {
                   index === 0
                     ? "text-red-500"
                     : index === 6
-                    ? "text-blue-500"
-                    : "text-zinc-500 dark:text-zinc-400"
+                      ? "text-blue-500"
+                      : "text-zinc-500 dark:text-zinc-400"
                 }`}
               >
                 {day}
@@ -265,7 +269,7 @@ export default function CalendarPage() {
               const dateStr = formatDateStr(day);
               const isSelected = selectedDate === dateStr;
               const today = isToday(day);
-              const dayOfWeek = (index % 7);
+              const dayOfWeek = index % 7;
 
               return (
                 <button
@@ -282,10 +286,10 @@ export default function CalendarPage() {
                       today
                         ? "w-6 h-6 bg-indigo-500 text-white rounded-full flex items-center justify-center mx-auto"
                         : dayOfWeek === 0
-                        ? "text-red-500"
-                        : dayOfWeek === 6
-                        ? "text-blue-500"
-                        : "text-zinc-700 dark:text-zinc-300"
+                          ? "text-red-500"
+                          : dayOfWeek === 6
+                            ? "text-blue-500"
+                            : "text-zinc-700 dark:text-zinc-300"
                     }`}
                   >
                     {day}

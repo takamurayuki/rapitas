@@ -399,6 +399,7 @@ model Notification {
 model UserSettings {
   id                      Int       @id @default(autoincrement())
   developerModeDefault    Boolean   @default(false)
+  aiTaskAnalysisDefault   Boolean   @default(false)
   claudeApiKeyEncrypted   String?   // 暗号化されたClaude APIキー
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt

@@ -5,9 +5,16 @@ import { useState, useEffect, useCallback, useRef } from "react";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
+export type ExecutionEventData = {
+  output?: string;
+  result?: unknown;
+  error?: { errorMessage?: string };
+  [key: string]: unknown;
+};
+
 export type ExecutionEvent = {
   type: "started" | "output" | "completed" | "failed" | "cancelled";
-  data: any;
+  data: ExecutionEventData;
   timestamp: string;
 };
 
@@ -17,7 +24,7 @@ export type ExecutionStreamState = {
   logs: string[];
   status: "idle" | "running" | "completed" | "failed" | "cancelled" | "waiting_for_input";
   error: string | null;
-  result: any | null;
+  result: unknown | null;
   waitingForInput?: boolean;
   question?: string;
 };

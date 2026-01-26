@@ -1,6 +1,6 @@
 "use client";
-import TaskStatusChange from "./task-status-change";
-import { statusConfig, renderStatusIcon } from "../config/status-config";
+import TaskStatusChange from "./TaskStatusChange";
+import { statusConfig, renderStatusIcon } from "../config/StatusConfig";
 
 interface SubtaskStatusButtonsProps {
   taskId: number;

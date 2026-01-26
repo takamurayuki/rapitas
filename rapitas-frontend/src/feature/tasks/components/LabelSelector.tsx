@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import type { Label } from "@/types";
 import { Check } from "lucide-react";
-import { getIconComponent, ICON_DATA } from "@/components/category/icon-data";
+import { getIconComponent, ICON_DATA } from "@/components/category/IconData";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -99,11 +99,15 @@ export default function LabelSelector({
                   ? "ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 scale-105 shadow-md"
                   : "opacity-60 hover:opacity-100"
               }`}
-              style={{
-                backgroundColor: isSelected ? label.color : `${label.color}20`,
-                color: isSelected ? "#fff" : label.color,
-                ["--tw-ring-color" as any]: label.color,
-              }}
+              style={
+                {
+                  backgroundColor: isSelected
+                    ? label.color
+                    : `${label.color}20`,
+                  color: isSelected ? "#fff" : label.color,
+                  ["--tw-ring-color" as keyof React.CSSProperties]: label.color,
+                } as React.CSSProperties
+              }
             >
               {renderIcon(label.icon, 14)}
               <span>{label.name}</span>

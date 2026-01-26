@@ -27,8 +27,8 @@ export function useApprovals() {
       } else {
         throw new Error("承認リクエストの取得に失敗しました");
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
       return [];
     } finally {
       setIsLoading(false);
@@ -64,8 +64,8 @@ export function useApprovals() {
         } else {
           throw new Error("承認に失敗しました");
         }
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "エラーが発生しました");
         return null;
       } finally {
         setIsLoading(false);
@@ -89,8 +89,8 @@ export function useApprovals() {
       } else {
         throw new Error("却下に失敗しました");
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
       return false;
     } finally {
       setIsLoading(false);
@@ -109,15 +109,15 @@ export function useApprovals() {
       if (res.ok) {
         const data = await res.json();
         const approvedIds = data.results
-          .filter((r: any) => r.success)
-          .map((r: any) => r.id);
+          .filter((r: { success: boolean; id: number }) => r.success)
+          .map((r: { success: boolean; id: number }) => r.id);
         setApprovals((prev) => prev.filter((a) => !approvedIds.includes(a.id)));
         return data;
       } else {
         throw new Error("一括承認に失敗しました");
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
       return null;
     } finally {
       setIsLoading(false);
@@ -139,8 +139,8 @@ export function useApprovals() {
       } else {
         throw new Error("差分の取得に失敗しました");
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
       return [];
     } finally {
       setIsLoading(false);
@@ -170,8 +170,8 @@ export function useApprovals() {
         } else {
           throw new Error("コードレビュー承認に失敗しました");
         }
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "エラーが発生しました");
         return null;
       } finally {
         setIsLoading(false);
@@ -202,8 +202,8 @@ export function useApprovals() {
       } else {
         throw new Error("コードレビュー却下に失敗しました");
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
       return false;
     } finally {
       setIsLoading(false);

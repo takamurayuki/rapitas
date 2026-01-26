@@ -23,7 +23,7 @@ export type UseRealtimeUpdatesReturn = {
   onExecutionOutput: (handler: EventHandler<ExecutionOutputEvent>) => () => void;
   onExecutionStatus: (handler: EventHandler<ExecutionStatusEvent>) => () => void;
   onGitHubEvent: (handler: EventHandler<GitHubEventData>) => () => void;
-  onNotification: (handler: EventHandler<any>) => () => void;
+  onNotification: (handler: EventHandler<unknown>) => () => void;
 };
 
 export function useRealtimeUpdates(
@@ -185,7 +185,7 @@ export function useRealtimeUpdates(
   );
 
   const onNotification = useCallback(
-    (handler: EventHandler<any>) => {
+    (handler: EventHandler<unknown>) => {
       return addHandler("new_notification", handler as EventHandler);
     },
     [addHandler]

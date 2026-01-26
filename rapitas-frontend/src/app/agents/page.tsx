@@ -26,7 +26,7 @@ const API_BASE_URL =
 export default function AgentsPage() {
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const [agentTypes, setAgentTypes] = useState<{
-    registered: any[];
+    registered: Array<{ id: number; agentType: string; name: string; isActive: boolean }>;
     available: string[];
   } | null>(null);
   const [recentSessions, setRecentSessions] = useState<any[]>([]);
@@ -320,7 +320,7 @@ function AddAgentModal({
 }: {
   onClose: () => void;
   onSuccess: () => void;
-  agentTypes: any[];
+  agentTypes: Array<{ id: number; agentType: string; name: string; isActive: boolean }>;
   availableTypes: string[];
 }) {
   const [name, setName] = useState("");

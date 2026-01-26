@@ -1,14 +1,32 @@
 "use client";
 
-import { useState } from "react";
-import { X, Bot, Zap, Shield, Scale } from "lucide-react";
+import { useState, useEffect } from "react";
+import {
+  X,
+  Bot,
+  Zap,
+  Shield,
+  Scale,
+  Key,
+  Eye,
+  EyeOff,
+  CheckCircle,
+  AlertCircle,
+  ExternalLink,
+  Save,
+  Trash2,
+  Loader2,
+} from "lucide-react";
 import type { DeveloperModeConfig } from "@/types";
+
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
 type Props = {
   config: DeveloperModeConfig | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (updates: Partial<DeveloperModeConfig>) => Promise<any>;
+  onSave: (updates: Partial<DeveloperModeConfig>) => Promise<DeveloperModeConfig | null>;
 };
 
 export function DeveloperModeConfigModal({
@@ -24,6 +42,99 @@ export function DeveloperModeConfigModal({
     config?.priority ?? "balanced"
   );
   const [isSaving, setIsSaving] = useState(false);
+
+  // APIキー関連の状態
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [maskedApiKey, setMaskedApiKey] = useState<string | null>(null);
+  const [isApiKeyConfigured, setIsApiKeyConfigured] = useState(false);
+  const [isEditingApiKey, setIsEditingApiKey] = useState(false);
+  const [isSavingApiKey, setIsSavingApiKey] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [apiKeySuccess, setApiKeySuccess] = useState<string | null>(null);
+
+  // モーダルが開かれた時にAPIキー情報を取得
+  useEffect(() => {
+    if (isOpen) {
+      fetchApiKey();
+    }
+  }, [isOpen]);
+
+  const fetchApiKey = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings/api-key`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.configured && data.maskedKey) {
+          setMaskedApiKey(data.maskedKey);
+          setIsApiKeyConfigured(true);
+        } else {
+          setMaskedApiKey(null);
+          setIsApiKeyConfigured(false);
+        }
+      }
+    } catch (err) {
+      console.error("APIキー情報の取得に失敗:", err);
+    }
+  };
+
+  const saveApiKey = async () => {
+    if (!apiKeyInput.trim()) return;
+
+    setIsSavingApiKey(true);
+    setApiKeyError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings/api-key`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: apiKeyInput }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setMaskedApiKey(data.maskedKey);
+        setApiKeyInput("");
+        setIsEditingApiKey(false);
+        setShowApiKey(false);
+        setIsApiKeyConfigured(true);
+        setApiKeySuccess("APIキーを保存しました");
+        setTimeout(() => setApiKeySuccess(null), 3000);
+      } else {
+        throw new Error("保存に失敗しました");
+      }
+    } catch (err) {
+      setApiKeyError(err instanceof Error ? err.message : "エラーが発生しました");
+    } finally {
+      setIsSavingApiKey(false);
+    }
+  };
+
+  const deleteApiKey = async () => {
+    if (!confirm("APIキーを削除してもよろしいですか？")) return;
+
+    setIsSavingApiKey(true);
+    setApiKeyError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings/api-key`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        setMaskedApiKey(null);
+        setApiKeyInput("");
+        setIsEditingApiKey(false);
+        setIsApiKeyConfigured(false);
+        setApiKeySuccess("APIキーを削除しました");
+        setTimeout(() => setApiKeySuccess(null), 3000);
+      } else {
+        throw new Error("削除に失敗しました");
+      }
+    } catch (err) {
+      setApiKeyError(err instanceof Error ? err.message : "エラーが発生しました");
+    } finally {
+      setIsSavingApiKey(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -86,7 +197,134 @@ export function DeveloperModeConfigModal({
         </div>
 
         {/* Content */}
-        <div className="px-6 py-4 space-y-6">
+        <div className="px-6 py-4 space-y-6 max-h-[60vh] overflow-y-auto">
+          {/* APIキー設定 */}
+          <div className="p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg space-y-3">
+            <div className="flex items-center gap-2">
+              <Key className="w-4 h-4 text-violet-500" />
+              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Claude API キー
+              </label>
+              {isApiKeyConfigured ? (
+                <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
+                  <CheckCircle className="w-3 h-3" />
+                  設定済み
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-xs font-medium">
+                  <AlertCircle className="w-3 h-3" />
+                  未設定
+                </span>
+              )}
+            </div>
+
+            {/* エラー/成功メッセージ */}
+            {apiKeyError && (
+              <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                <AlertCircle className="w-4 h-4" />
+                {apiKeyError}
+              </div>
+            )}
+            {apiKeySuccess && (
+              <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                <CheckCircle className="w-4 h-4" />
+                {apiKeySuccess}
+              </div>
+            )}
+
+            {/* APIキーが設定済みの場合 */}
+            {isApiKeyConfigured && maskedApiKey && !isEditingApiKey && (
+              <div className="flex items-center justify-between gap-2">
+                <code className="flex-1 px-2 py-1.5 bg-zinc-200 dark:bg-zinc-700 rounded text-xs font-mono truncate">
+                  {maskedApiKey}
+                </code>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setIsEditingApiKey(true)}
+                    className="px-2 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
+                  >
+                    変更
+                  </button>
+                  <button
+                    onClick={deleteApiKey}
+                    disabled={isSavingApiKey}
+                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* APIキー入力フォーム（未設定または編集中の場合） */}
+            {(!isApiKeyConfigured || isEditingApiKey) && (
+              <div className="space-y-2">
+                <div className="relative">
+                  <input
+                    type={showApiKey ? "text" : "password"}
+                    value={apiKeyInput}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    placeholder="sk-ant-api..."
+                    className="w-full px-3 py-2 pr-10 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                  >
+                    {showApiKey ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <a
+                    href="https://console.anthropic.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                  >
+                    APIキーを取得
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <div className="flex items-center gap-2">
+                    {isEditingApiKey && (
+                      <button
+                        onClick={() => {
+                          setIsEditingApiKey(false);
+                          setApiKeyInput("");
+                          setShowApiKey(false);
+                        }}
+                        className="px-2 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
+                      >
+                        キャンセル
+                      </button>
+                    )}
+                    <button
+                      onClick={saveApiKey}
+                      disabled={!apiKeyInput.trim() || isSavingApiKey}
+                      className="flex items-center gap-1 px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSavingApiKey ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Save className="w-3 h-3" />
+                      )}
+                      保存
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              AIタスク分析機能を使用するにはAPIキーが必要です
+            </p>
+          </div>
+
           {/* 分解レベル */}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">

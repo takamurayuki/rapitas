@@ -73,9 +73,8 @@ const playNotificationSound = (type: "work" | "break") => {
   if (typeof window === "undefined") return;
 
   if (!audioContext) {
-    audioContext = new (
-      window.AudioContext || (window as any).webkitAudioContext
-    )();
+    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    audioContext = new AudioContextClass();
   }
 
   const context = audioContext;
@@ -164,9 +163,8 @@ export const usePomodoroStore = create<PomodoroState>()(
       startTimer: (taskId: number, taskTitle: string) => {
         // AudioContextを初期化
         if (typeof window !== "undefined" && !audioContext) {
-          audioContext = new (
-            window.AudioContext || (window as any).webkitAudioContext
-          )();
+          const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+          audioContext = new AudioContextClass();
         }
 
         const newState = {

@@ -1,13 +1,47 @@
 "use client";
 import { useState } from "react";
 import type { Task } from "@/types";
-import { priorityColors, priorityLabels, Status } from "@/types";
-import TaskStatusChange from "@/feature/tasks/components/task-status-change";
-import SubtaskStatusButtons from "@/feature/tasks/components/subtask-status-buttons";
+import { Status } from "@/types";
+import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
+import SubtaskStatusButtons from "@/feature/tasks/components/SubtaskStatusButtons";
 import {
   statusConfig,
   renderStatusIcon,
-} from "@/feature/tasks/config/status-config";
+} from "@/feature/tasks/config/StatusConfig";
+import {
+  ChevronDown,
+  ChevronsUpDown,
+  ChevronUp,
+  ChevronsUp,
+} from "lucide-react";
+import type { Priority } from "@/types";
+
+// 優先度アイコンの設定
+const priorityIcons: Record<
+  Priority,
+  { icon: React.ReactNode; color: string; title: string }
+> = {
+  urgent: {
+    icon: <ChevronsUp className="w-4 h-4" />,
+    color: "text-red-500",
+    title: "緊急",
+  },
+  high: {
+    icon: <ChevronUp className="w-4 h-4" />,
+    color: "text-orange-500",
+    title: "高",
+  },
+  medium: {
+    icon: <ChevronsUpDown className="w-4 h-4" />,
+    color: "text-blue-400",
+    title: "中",
+  },
+  low: {
+    icon: <ChevronDown className="w-4 h-4" />,
+    color: "text-gray-400",
+    title: "低",
+  },
+};
 
 interface TaskCardProps {
   task: Task;
@@ -98,13 +132,13 @@ export default function TaskCard({
             <h3 className="font-medium text-zinc-900 dark:text-zinc-50 truncate text-sm">
               {task.title}
             </h3>
-            {task.priority && task.priority !== "medium" && (
+            {/* 優先度アイコン */}
+            {task.priority && (
               <span
-                className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                  priorityColors[task.priority]
-                } shrink-0`}
+                className={`shrink-0 ${priorityIcons[task.priority].color}`}
+                title={priorityIcons[task.priority].title}
               >
-                {priorityLabels[task.priority]}
+                {priorityIcons[task.priority].icon}
               </span>
             )}
           </div>
@@ -118,27 +152,6 @@ export default function TaskCard({
                 day: "numeric",
               })}
             </span>
-
-            {task.project && (
-              <>
-                <span className="text-zinc-300 dark:text-zinc-700">•</span>
-                <span
-                  className="shrink-0 font-medium"
-                  style={{ color: task.project.color }}
-                >
-                  {task.project.icon} {task.project.name}
-                </span>
-              </>
-            )}
-
-            {task.milestone && (
-              <>
-                <span className="text-zinc-300 dark:text-zinc-700">•</span>
-                <span className="shrink-0 text-purple-600 dark:text-purple-400">
-                  🎯 {task.milestone.name}
-                </span>
-              </>
-            )}
 
             {task.subtasks && task.subtasks.length > 0 && (
               <>
@@ -202,33 +215,36 @@ export default function TaskCard({
         </div>
 
         {/* 右: クイックアクション */}
-        <div
-          className={`flex items-center gap-1 transition-opacity duration-150 ${
-            showQuickActions
-              ? "opacity-100"
-              : "opacity-0 group-hover:opacity-100"
-          }`}
-        >
-          <>
-            {/* ステータス変更ボタン */}
-            {["todo", "in-progress", "done"].map((status) => {
-              const config = statusConfig[status as keyof typeof statusConfig];
-              return (
-                <TaskStatusChange
-                  key={status}
-                  status={status}
-                  currentStatus={task.status}
-                  config={config}
-                  renderIcon={renderStatusIcon}
-                  onClick={(status: string) =>
-                    onStatusChange(task.id, status as Status)
-                  }
-                  size="md"
-                />
-              );
-            })}
-          </>
-        </div>
+        {!isSelectionMode && (
+          <div
+            className={`flex items-center gap-1 transition-opacity duration-150 ${
+              showQuickActions
+                ? "opacity-100"
+                : "opacity-0 group-hover:opacity-100"
+            }`}
+          >
+            <>
+              {/* ステータス変更ボタン */}
+              {["todo", "in-progress", "done"].map((status) => {
+                const config =
+                  statusConfig[status as keyof typeof statusConfig];
+                return (
+                  <TaskStatusChange
+                    key={status}
+                    status={status}
+                    currentStatus={task.status}
+                    config={config}
+                    renderIcon={renderStatusIcon}
+                    onClick={(status: string) =>
+                      onStatusChange(task.id, status as Status)
+                    }
+                    size="md"
+                  />
+                );
+              })}
+            </>
+          </div>
+        )}
       </div>
 
       {/* サブタスク展開エリア */}

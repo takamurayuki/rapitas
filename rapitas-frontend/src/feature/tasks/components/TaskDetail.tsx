@@ -1,14 +1,12 @@
 import { Task } from "@/types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { createMarkdownComponents } from "@/feature/tasks/components/markdown-components";
-
-const statusColors = {
-  todo: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-  "in-progress":
-    "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-  done: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-};
+import { createMarkdownComponents } from "@/feature/tasks/components/MarkdownComponents";
+import TaskStatusChange from "@/feature/tasks/components/TaskSatusChange";
+import {
+  statusConfig,
+  renderStatusIcon,
+} from "@/feature/tasks/config/StatusConfig";
 
 interface TaskDetailProps {
   task: Task;
@@ -126,15 +124,22 @@ export default function TaskDetail({
             <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
               ステータス
             </label>
-            <select
-              value={editStatus}
-              onChange={(e) => onEditStatusChange(e.target.value)}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="todo">未着手</option>
-              <option value="in-progress">進行中</option>
-              <option value="done">完了</option>
-            </select>
+            <div className="flex items-center gap-2">
+              {(["todo", "in-progress", "done"] as const).map((status) => {
+                const config = statusConfig[status];
+                return (
+                  <TaskStatusChange
+                    key={status}
+                    status={status}
+                    currentStatus={editStatus}
+                    config={config}
+                    renderIcon={renderStatusIcon}
+                    onClick={(newStatus) => onEditStatusChange(newStatus)}
+                    showLabel
+                  />
+                );
+              })}
+            </div>
           </div>
 
           {/* ラベルと見積もり時間 */}
@@ -175,17 +180,22 @@ export default function TaskDetail({
             <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
               {task.title}
             </h1>
-            <select
-              value={task.status}
-              onChange={(e) => onStatusUpdate(task.id, e.target.value)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium ${
-                statusColors[task.status as keyof typeof statusColors]
-              } border-0 focus:outline-none focus:ring-2 focus:ring-blue-500`}
-            >
-              <option value="todo">未着手</option>
-              <option value="in-progress">進行中</option>
-              <option value="done">完了</option>
-            </select>
+            <div className="flex items-center gap-2">
+              {(["todo", "in-progress", "done"] as const).map((status) => {
+                const config = statusConfig[status];
+                return (
+                  <TaskStatusChange
+                    key={status}
+                    status={status}
+                    currentStatus={task.status}
+                    config={config}
+                    renderIcon={renderStatusIcon}
+                    onClick={(newStatus) => onStatusUpdate(task.id, newStatus)}
+                    size="md"
+                  />
+                );
+              })}
+            </div>
           </div>
 
           {task.description && (
