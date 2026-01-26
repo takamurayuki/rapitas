@@ -5130,7 +5130,7 @@ app.post(
               const structuredDiff = await orchestrator.getDiff(workingDirectory);
               const implementationSummary = result.output || "実装が完了しました。";
 
-              await prisma.approvalRequest.create({
+              const approvalRequest = await prisma.approvalRequest.create({
                 data: {
                   configId: config.id,
                   requestType: "code_review",
@@ -5159,7 +5159,7 @@ app.post(
                   type: "pr_review_requested",
                   title: "コードレビュー依頼",
                   message: `「${config.task.title}」の実装が完了しました。レビューをお願いします。`,
-                  link: `/approvals`,
+                  link: `/approvals/${approvalRequest.id}`,
                 },
               });
             }

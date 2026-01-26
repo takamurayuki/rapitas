@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   CheckCircle,
@@ -21,6 +22,8 @@ import type { ApprovalRequest, Priority, FileDiff } from "@/types";
 import { priorityColors, priorityLabels } from "@/types";
 
 export default function ApprovalsPage() {
+  const searchParams = useSearchParams();
+  const expandParam = searchParams.get("expand");
   const {
     approvals,
     isLoading,
@@ -41,10 +44,56 @@ export default function ApprovalsPage() {
   const [codeReviewDiff, setCodeReviewDiff] = useState<Map<number, FileDiff[]>>(
     new Map(),
   );
+  const [hasAutoExpanded, setHasAutoExpanded] = useState(false);
 
   useEffect(() => {
     fetchApprovals(filter);
   }, [filter, fetchApprovals]);
+
+  // URLパラメータからIDを読み取り、該当の承認リクエストを自動展開
+  useEffect(() => {
+    if (expandParam && approvals.length > 0 && !hasAutoExpanded) {
+      const targetId = parseInt(expandParam, 10);
+      const targetApproval = approvals.find((a) => a.id === targetId);
+
+      if (targetApproval) {
+        setExpandedId(targetId);
+        setHasAutoExpanded(true);
+
+        // コードレビューの場合は差分も取得
+        if (
+          targetApproval.requestType === "code_review" &&
+          !codeReviewDiff.has(targetId)
+        ) {
+          if (targetApproval.proposedChanges?.structuredDiff?.length) {
+            setCodeReviewDiff((prev) =>
+              new Map(prev).set(
+                targetId,
+                targetApproval.proposedChanges.structuredDiff!,
+              ),
+            );
+          } else {
+            fetchDiff(targetId).then((files) => {
+              setCodeReviewDiff((prev) => new Map(prev).set(targetId, files));
+            });
+          }
+        }
+      } else {
+        // 該当IDがpendingフィルターで見つからない場合、全フィルターを試す
+        if (filter === "pending") {
+          // approvedとrejectedも確認するため一時的にフィルターを変更しない
+          // 代わりに、見つからないことをユーザーに伝えるか、他のステータスを探す
+        }
+      }
+    }
+  }, [
+    expandParam,
+    approvals,
+    hasAutoExpanded,
+    filter,
+    codeReviewDiff,
+    fetchDiff,
+  ]);
 
   const handleApprove = async (id: number, selectedSubtasks?: number[]) => {
     setProcessingId(id);
@@ -81,16 +130,20 @@ export default function ApprovalsPage() {
   const handleRequestChanges = async (
     id: number,
     feedback: string,
-    comments: { file?: string; content: string; type: string }[]
+    comments: { file?: string; content: string; type: string }[],
   ) => {
     setProcessingId(id);
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+    const API_BASE_URL =
+      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
     try {
-      const res = await fetch(`${API_BASE_URL}/approvals/${id}/request-changes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ feedback, comments }),
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/approvals/${id}/request-changes`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ feedback, comments }),
+        },
+      );
       if (res.ok) {
         await fetchApprovals(filter);
       }
@@ -113,7 +166,7 @@ export default function ApprovalsPage() {
         const approval = approvals.find((a) => a.id === id);
         if (approval?.proposedChanges?.structuredDiff?.length) {
           setCodeReviewDiff((prev) =>
-            new Map(prev).set(id, approval.proposedChanges.structuredDiff!)
+            new Map(prev).set(id, approval.proposedChanges.structuredDiff!),
           );
         } else {
           // APIから取得
@@ -600,7 +653,10 @@ function CodeReviewCard({
   onToggleExpand: () => void;
   onApprove: (commitMessage: string, baseBranch: string) => void;
   onReject: () => void;
-  onRequestChanges: (feedback: string, comments: { file?: string; content: string; type: string }[]) => void;
+  onRequestChanges: (
+    feedback: string,
+    comments: { file?: string; content: string; type: string }[],
+  ) => void;
   formatDate: (date: string) => string;
   error: string | null;
 }) {
@@ -662,13 +718,6 @@ function CodeReviewCard({
               </div>
             </div>
 
-            {/* Description */}
-            {approval.description && (
-              <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3">
-                {approval.description}
-              </p>
-            )}
-
             {/* Meta */}
             <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
               <span className="flex items-center gap-1">
@@ -714,7 +763,9 @@ function CodeReviewCard({
             isProcessing={isProcessing}
             error={error}
             defaultBranch={defaultBranch}
-            implementationSummary={approval.proposedChanges?.implementationSummary}
+            implementationSummary={
+              approval.proposedChanges?.implementationSummary
+            }
             executionTimeMs={approval.proposedChanges?.executionTimeMs}
             taskId={approval.config?.task?.id}
           />

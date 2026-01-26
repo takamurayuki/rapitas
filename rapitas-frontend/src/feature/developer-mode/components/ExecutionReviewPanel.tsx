@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { DiffViewer } from "./DiffViewer";
 import type { FileDiff, AgentExecution, ReviewComment } from "@/types";
+import ReactMarkdown from "react-markdown";
 
 type ExecutionReviewPanelProps = {
   execution?: AgentExecution;
@@ -30,7 +31,10 @@ type ExecutionReviewPanelProps = {
   status: "pending" | "running" | "completed" | "failed";
   onApprove: (commitMessage: string, baseBranch: string) => Promise<void>;
   onReject: () => Promise<void>;
-  onRequestChanges?: (feedback: string, comments: ReviewComment[]) => Promise<void>;
+  onRequestChanges?: (
+    feedback: string,
+    comments: ReviewComment[],
+  ) => Promise<void>;
   isProcessing?: boolean;
   error?: string | null;
   defaultBranch?: string;
@@ -65,7 +69,8 @@ export function ExecutionReviewPanel({
   const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
   const [newCommentFile, setNewCommentFile] = useState("");
   const [newCommentContent, setNewCommentContent] = useState("");
-  const [newCommentType, setNewCommentType] = useState<ReviewComment["type"]>("change_request");
+  const [newCommentType, setNewCommentType] =
+    useState<ReviewComment["type"]>("change_request");
 
   const handleApprove = async () => {
     if (!commitMessage.trim()) return;
@@ -184,26 +189,6 @@ export function ExecutionReviewPanel({
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center gap-3">
-          {getStatusIcon()}
-          <div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-              実行結果レビュー
-            </h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              変更内容を確認して承認またはキャンセル
-            </p>
-          </div>
-        </div>
-        <span
-          className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor()}`}
-        >
-          {getStatusLabel()}
-        </span>
-      </div>
-
       {/* Error Message */}
       {error && (
         <div className="px-6 py-4 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
@@ -226,18 +211,14 @@ export function ExecutionReviewPanel({
                 実装内容の説明
               </h4>
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <pre className="whitespace-pre-wrap text-sm text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-lg overflow-x-auto">
-                  {implementationSummary}
-                </pre>
+                <ReactMarkdown>{implementationSummary}</ReactMarkdown>
               </div>
             </div>
           </div>
           {executionTimeMs && (
             <div className="flex items-center gap-2 mt-3 text-xs text-zinc-500 dark:text-zinc-400">
               <Timer className="w-3.5 h-3.5" />
-              <span>
-                実行時間: {Math.round(executionTimeMs / 1000)}秒
-              </span>
+              <span>実行時間: {Math.round(executionTimeMs / 1000)}秒</span>
             </div>
           )}
         </div>
@@ -345,7 +326,9 @@ export function ExecutionReviewPanel({
                 <div className="flex items-center gap-2">
                   <select
                     value={newCommentType}
-                    onChange={(e) => setNewCommentType(e.target.value as ReviewComment["type"])}
+                    onChange={(e) =>
+                      setNewCommentType(e.target.value as ReviewComment["type"])
+                    }
                     className="px-3 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                   >
                     <option value="change_request">修正依頼</option>
@@ -402,7 +385,10 @@ export function ExecutionReviewPanel({
               {onRequestChanges && (
                 <button
                   onClick={handleRequestChanges}
-                  disabled={isRequestingChanges || (!feedbackText.trim() && reviewComments.length === 0)}
+                  disabled={
+                    isRequestingChanges ||
+                    (!feedbackText.trim() && reviewComments.length === 0)
+                  }
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isRequestingChanges ? (
