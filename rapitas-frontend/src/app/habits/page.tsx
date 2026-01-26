@@ -1,23 +1,21 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { Habit } from "@/types";
-import {
-  Plus,
-  Edit2,
-  Trash2,
-  Check,
-  Calendar,
-  Target,
-  Flame,
-} from "lucide-react";
-import { getIconComponent, ICON_DATA, searchIcons } from "@/components/category/icon-data";
+import { Plus, Edit2, Trash2, Check, Target, Flame } from "lucide-react";
+import { getIconComponent } from "@/components/category/IconData";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
 const PRESET_COLORS = [
-  "#10B981", "#3B82F6", "#8B5CF6", "#EC4899",
-  "#F59E0B", "#EF4444", "#06B6D4", "#84CC16",
+  "#10B981",
+  "#3B82F6",
+  "#8B5CF6",
+  "#EC4899",
+  "#F59E0B",
+  "#EF4444",
+  "#06B6D4",
+  "#84CC16",
 ];
 
 export default function HabitsPage() {
@@ -153,7 +151,10 @@ export default function HabitsPage() {
           <div className="h-8 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-20 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
+              <div
+                key={i}
+                className="h-20 bg-zinc-200 dark:bg-zinc-700 rounded-xl"
+              />
             ))}
           </div>
         </div>
@@ -222,11 +223,13 @@ export default function HabitsPage() {
 
               {/* 習慣情報 */}
               <div className="flex-1">
-                <h3 className={`font-semibold ${
-                  isCompleted
-                    ? "text-emerald-700 dark:text-emerald-300"
-                    : "text-zinc-900 dark:text-zinc-50"
-                }`}>
+                <h3
+                  className={`font-semibold ${
+                    isCompleted
+                      ? "text-emerald-700 dark:text-emerald-300"
+                      : "text-zinc-900 dark:text-zinc-50"
+                  }`}
+                >
                   {habit.name}
                 </h3>
                 {habit.description && (
@@ -324,7 +327,10 @@ export default function HabitsPage() {
                     max="100"
                     value={formData.targetCount}
                     onChange={(e) =>
-                      setFormData({ ...formData, targetCount: parseInt(e.target.value) || 1 })
+                      setFormData({
+                        ...formData,
+                        targetCount: parseInt(e.target.value) || 1,
+                      })
                     }
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />

@@ -27,10 +27,18 @@ export default function AgentsPage() {
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const [agentTypes, setAgentTypes] = useState<{
     registered: Array<{
-      id: number;
-      agentType: string;
+      type: string;
       name: string;
-      isActive: boolean;
+      description?: string;
+      capabilities?: {
+        codeGeneration?: boolean;
+        codeReview?: boolean;
+        taskAnalysis?: boolean;
+        fileOperations?: boolean;
+        terminalAccess?: boolean;
+        gitOperations?: boolean;
+        webSearch?: boolean;
+      };
     }>;
     available: string[];
   } | null>(null);
@@ -127,13 +135,13 @@ export default function AgentsPage() {
           利用可能なエージェント
         </h2>
         <div className="grid gap-4 md:grid-cols-3">
-          {agentTypes?.registered.map((type) => {
-            const info = getAgentTypeInfo(type.agentType);
-            const isAvailable = agentTypes.available.includes(type.agentType);
+          {agentTypes?.registered.map((agentTypeInfo) => {
+            const info = getAgentTypeInfo(agentTypeInfo.type);
+            const isAvailable = agentTypes.available.includes(agentTypeInfo.type);
 
             return (
               <div
-                key={type.agentType}
+                key={agentTypeInfo.type}
                 className={`p-4 rounded-lg border ${
                   isAvailable
                     ? "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700"
@@ -144,7 +152,7 @@ export default function AgentsPage() {
                   <div className={info.color}>{info.icon}</div>
                   <div>
                     <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
-                      {type.name}
+                      {agentTypeInfo.name}
                     </h3>
                     {isAvailable ? (
                       <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
@@ -160,25 +168,28 @@ export default function AgentsPage() {
                   </div>
                 </div>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  {type.name}
+                  {agentTypeInfo.description || agentTypeInfo.name}
                 </p>
-                <div className="mt-3 flex flex-wrap gap-1">
-                  {Object.entries(type.agentType)
-                    .filter(([_, v]) => v)
-                    .map(([key]) => (
-                      <span
-                        key={key}
-                        className="px-2 py-0.5 text-xs bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 rounded"
-                      >
-                        {key === "codeGeneration" && "コード生成"}
-                        {key === "codeReview" && "レビュー"}
-                        {key === "taskAnalysis" && "分析"}
-                        {key === "fileOperations" && "ファイル操作"}
-                        {key === "terminalAccess" && "ターミナル"}
-                        {key === "gitOperations" && "Git"}
-                      </span>
-                    ))}
-                </div>
+                {agentTypeInfo.capabilities && (
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {Object.entries(agentTypeInfo.capabilities)
+                      .filter(([_, v]) => v)
+                      .map(([key]) => (
+                        <span
+                          key={key}
+                          className="px-2 py-0.5 text-xs bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 rounded"
+                        >
+                          {key === "codeGeneration" && "コード生成"}
+                          {key === "codeReview" && "レビュー"}
+                          {key === "taskAnalysis" && "分析"}
+                          {key === "fileOperations" && "ファイル操作"}
+                          {key === "terminalAccess" && "ターミナル"}
+                          {key === "gitOperations" && "Git"}
+                          {key === "webSearch" && "Web検索"}
+                        </span>
+                      ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -326,10 +337,9 @@ function AddAgentModal({
   onClose: () => void;
   onSuccess: () => void;
   agentTypes: Array<{
-    id: number;
-    agentType: string;
+    type: string;
     name: string;
-    isActive: boolean;
+    description?: string;
   }>;
   availableTypes: string[];
 }) {
@@ -404,14 +414,14 @@ function AddAgentModal({
                   onChange={(e) => setAgentType(e.target.value)}
                   className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 >
-                  {agentTypes.map((type) => (
+                  {agentTypes.map((agentTypeOption) => (
                     <option
-                      key={type.agentType}
-                      value={type.agentType}
-                      disabled={!availableTypes.includes(type.agentType)}
+                      key={agentTypeOption.type}
+                      value={agentTypeOption.type}
+                      disabled={!availableTypes.includes(agentTypeOption.type)}
                     >
-                      {type.name}{" "}
-                      {!availableTypes.includes(type.agentType) && "(利用不可)"}
+                      {agentTypeOption.name}{" "}
+                      {!availableTypes.includes(agentTypeOption.type) && "(利用不可)"}
                     </option>
                   ))}
                 </select>
