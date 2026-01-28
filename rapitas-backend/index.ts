@@ -6,9 +6,12 @@ import * as path from "path";
 import {
   analyzeTask,
   generateExecutionInstructions,
+  generateOptimizedPrompt,
+  formatPromptForAgent,
   isApiKeyConfigured,
   isApiKeyConfiguredAsync,
   type SubtaskProposal,
+  type OptimizedPromptResult,
 } from "./services/claude-agent";
 import { GitHubService } from "./services/github-service";
 import { agentFactory } from "./services/agents/agent-factory";
@@ -22,19 +25,29 @@ const prisma = new PrismaClient();
 app.use(cors());
 
 // エラーハンドリング
-app.onError(({ code, error, set }: { code: string; error: Error; set: { status: number } }) => {
-  if (code === "VALIDATION") {
-    set.status = 400;
-    return { error: "バリデーションエラー", details: error.message };
-  }
-  if (code === "NOT_FOUND") {
-    set.status = 404;
-    return { error: "リソースが見つかりません" };
-  }
-  console.error(error);
-  set.status = 500;
-  return { error: "サーバーエラーが発生しました" };
-});
+app.onError(
+  ({
+    code,
+    error,
+    set,
+  }: {
+    code: string;
+    error: Error;
+    set: { status: number };
+  }) => {
+    if (code === "VALIDATION") {
+      set.status = 400;
+      return { error: "バリデーションエラー", details: error.message };
+    }
+    if (code === "NOT_FOUND") {
+      set.status = 404;
+      return { error: "リソースが見つかりません" };
+    }
+    console.error(error);
+    set.status = 500;
+    return { error: "サーバーエラーが発生しました" };
+  },
+);
 
 // ==================== Themes API ====================
 app.get("/themes", async () => {
@@ -64,7 +77,16 @@ app.get("/themes/:id", async ({ params }: { params: { id: string } }) => {
 app.post(
   "/themes",
   async ({ body }: { body: any }) => {
-    const { name, description, color, icon, isDevelopment, repositoryUrl, workingDirectory, defaultBranch } = body;
+    const {
+      name,
+      description,
+      color,
+      icon,
+      isDevelopment,
+      repositoryUrl,
+      workingDirectory,
+      defaultBranch,
+    } = body;
     return await prisma.theme.create({
       data: {
         name,
@@ -103,7 +125,16 @@ app.patch(
       return { error: "無効なIDです" };
     }
 
-    const { name, description, color, icon, isDevelopment, repositoryUrl, workingDirectory, defaultBranch } = body;
+    const {
+      name,
+      description,
+      color,
+      icon,
+      isDevelopment,
+      repositoryUrl,
+      workingDirectory,
+      defaultBranch,
+    } = body;
 
     try {
       // テーマが存在するか確認
@@ -123,7 +154,8 @@ app.patch(
       if (icon !== undefined) updateData.icon = icon;
       if (isDevelopment !== undefined) updateData.isDevelopment = isDevelopment;
       if (repositoryUrl !== undefined) updateData.repositoryUrl = repositoryUrl;
-      if (workingDirectory !== undefined) updateData.workingDirectory = workingDirectory;
+      if (workingDirectory !== undefined)
+        updateData.workingDirectory = workingDirectory;
       if (defaultBranch !== undefined) updateData.defaultBranch = defaultBranch;
 
       const updatedTheme = await prisma.theme.update({
@@ -149,7 +181,7 @@ app.patch(
       workingDirectory: t.Optional(t.String()),
       defaultBranch: t.Optional(t.String()),
     }),
-  }
+  },
 );
 
 app.delete("/themes/:id", async ({ params }: { params: { id: string } }) => {
@@ -2377,7 +2409,10 @@ app.post(
     const apiKeyConfigured = await isApiKeyConfiguredAsync();
     if (!apiKeyConfigured) {
       set.status = 400;
-      return { error: "Claude APIキーが設定されていません。設定ページでAPIキーを登録してください。" };
+      return {
+        error:
+          "Claude APIキーが設定されていません。設定ページでAPIキーを登録してください。",
+      };
     }
 
     // タスクと設定を取得
@@ -2387,7 +2422,7 @@ app.post(
 
     if (!task) {
       set.status = 404;
-      return { error: "Task not found" };
+      return { error: "タスクが見つかりません" };
     }
 
     const config = await prisma.developerModeConfig.findUnique({
@@ -2396,7 +2431,10 @@ app.post(
 
     if (!config || !config.isEnabled) {
       set.status = 400;
-      return { error: "Developer mode is not enabled for this task" };
+      return {
+        error:
+          "このタスクでは開発者モードが有効になっていません。先に開発者モードを有効にしてください。",
+      };
     }
 
     // セッションを作成
@@ -2534,6 +2572,200 @@ app.post(
   },
 );
 
+// プロンプト最適化API
+app.post(
+  "/developer-mode/optimize-prompt/:taskId",
+  async ({
+    params,
+    body,
+    set,
+  }: {
+    params: { taskId: string };
+    body: any;
+    set: any;
+  }) => {
+    const { taskId } = params;
+    const taskIdNum = parseInt(taskId);
+    const { clarificationAnswers, savePrompt } = body || {};
+
+    // APIキーチェック
+    const apiKeyConfigured = await isApiKeyConfiguredAsync();
+    if (!apiKeyConfigured) {
+      set.status = 400;
+      return {
+        error:
+          "Claude APIキーが設定されていません。設定ページでAPIキーを登録してください。",
+      };
+    }
+
+    // タスクとサブタスクを取得
+    const task = await prisma.task.findUnique({
+      where: { id: taskIdNum },
+      include: {
+        subtasks: true,
+      },
+    });
+
+    if (!task) {
+      set.status = 404;
+      return { error: "タスクが見つかりません" };
+    }
+
+    // 最新のAI分析結果を取得（存在する場合）
+    const config = await prisma.developerModeConfig.findUnique({
+      where: { taskId: taskIdNum },
+      include: {
+        agentSessions: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          include: {
+            agentActions: {
+              where: { actionType: "analysis", status: "success" },
+              orderBy: { createdAt: "desc" },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+
+    let analysisResult = null;
+    if (config?.agentSessions?.[0]?.agentActions?.[0]?.output) {
+      analysisResult = config.agentSessions[0].agentActions[0].output as any;
+    }
+
+    try {
+      // プロンプト最適化を実行
+      const { result, tokensUsed } = await generateOptimizedPrompt(
+        {
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          labels: task.labels?.map((l: any) => l.name) || [],
+        },
+        analysisResult,
+        clarificationAnswers,
+      );
+
+      // トークン使用量を記録（セッションが存在する場合）
+      if (config?.agentSessions?.[0]) {
+        await prisma.agentSession.update({
+          where: { id: config.agentSessions[0].id },
+          data: {
+            totalTokensUsed: {
+              increment: tokensUsed,
+            },
+            lastActivityAt: new Date(),
+          },
+        });
+      }
+
+      // 質問がなく、保存オプションが有効な場合はプロンプトを保存
+      let savedPromptId = null;
+      if (
+        savePrompt &&
+        (!result.clarificationQuestions ||
+          result.clarificationQuestions.length === 0)
+      ) {
+        const savedPrompt = await prisma.taskPrompt.create({
+          data: {
+            taskId: taskIdNum,
+            name: `${task.title} - 最適化プロンプト`,
+            originalDescription: task.description,
+            optimizedPrompt: result.optimizedPrompt,
+            structuredSections: result.structuredSections as any,
+            qualityScore: result.promptQuality.score,
+            isActive: true,
+          },
+        });
+        savedPromptId = savedPrompt.id;
+      }
+
+      return {
+        optimizedPrompt: result.optimizedPrompt,
+        structuredSections: result.structuredSections,
+        clarificationQuestions: result.clarificationQuestions || [],
+        promptQuality: result.promptQuality,
+        tokensUsed,
+        hasQuestions: (result.clarificationQuestions?.length || 0) > 0,
+        savedPromptId,
+        taskInfo: {
+          id: task.id,
+          title: task.title,
+          hasSubtasks: task.subtasks.length > 0,
+          subtaskCount: task.subtasks.length,
+        },
+      };
+    } catch (error: any) {
+      console.error("Prompt optimization error:", error);
+      set.status = 500;
+      return {
+        error: "プロンプト最適化に失敗しました",
+        details: error.message,
+      };
+    }
+  },
+);
+
+// 最適化プロンプトをエージェント実行用フォーマットに変換
+app.post(
+  "/developer-mode/format-prompt/:taskId",
+  async ({
+    params,
+    body,
+    set,
+  }: {
+    params: { taskId: string };
+    body: any;
+    set: any;
+  }) => {
+    const { taskId } = params;
+    const taskIdNum = parseInt(taskId);
+    const { optimizedResult } = body;
+
+    if (!optimizedResult) {
+      set.status = 400;
+      return { error: "optimizedResult is required" };
+    }
+
+    // タスクを取得
+    const task = await prisma.task.findUnique({
+      where: { id: taskIdNum },
+    });
+
+    if (!task) {
+      set.status = 404;
+      return { error: "タスクが見つかりません" };
+    }
+
+    const formattedPrompt = formatPromptForAgent(optimizedResult, task.title);
+
+    return {
+      formattedPrompt,
+    };
+  },
+  {
+    body: t.Object({
+      optimizedResult: t.Object({
+        optimizedPrompt: t.String(),
+        structuredSections: t.Object({
+          objective: t.String(),
+          context: t.String(),
+          requirements: t.Array(t.String()),
+          constraints: t.Array(t.String()),
+          deliverables: t.Array(t.String()),
+          technicalDetails: t.Optional(t.String()),
+        }),
+        promptQuality: t.Object({
+          score: t.Number(),
+          issues: t.Array(t.String()),
+          suggestions: t.Array(t.String()),
+        }),
+      }),
+    }),
+  },
+);
+
 // セッション履歴取得
 app.get(
   "/developer-mode/sessions/:taskId",
@@ -2557,6 +2789,290 @@ app.get(
       },
       orderBy: { createdAt: "desc" },
     });
+  },
+);
+
+// ==================== Prompts API ====================
+
+// タスクのプロンプト一覧取得
+app.get(
+  "/tasks/:id/prompts",
+  async ({ params }: { params: { id: string } }) => {
+    const taskIdNum = parseInt(params.id);
+
+    // タスクと子タスクを取得
+    const task = await prisma.task.findUnique({
+      where: { id: taskIdNum },
+      include: {
+        subtasks: {
+          select: { id: true, title: true },
+        },
+      },
+    });
+
+    if (!task) {
+      return { error: "タスクが見つかりません" };
+    }
+
+    type SubtaskInfo = {
+      id: number;
+      title: string;
+    };
+
+    // 親タスクとサブタスクのプロンプトを取得
+    const taskIds = [
+      taskIdNum,
+      ...task.subtasks.map((st: SubtaskInfo) => st.id),
+    ];
+    const prompts = await prisma.taskPrompt.findMany({
+      where: { taskId: { in: taskIds } },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return {
+      task: {
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        hasSubtasks: task.subtasks.length > 0,
+      },
+      subtasks: task.subtasks as SubtaskInfo[],
+      prompts,
+    };
+  },
+);
+
+// プロンプト作成
+app.post(
+  "/tasks/:id/prompts",
+  async ({
+    params,
+    body,
+    set,
+  }: {
+    params: { id: string };
+    body: any;
+    set: any;
+  }) => {
+    const taskIdNum = parseInt(params.id);
+    const {
+      name,
+      optimizedPrompt,
+      structuredSections,
+      qualityScore,
+      originalDescription,
+    } = body;
+
+    if (!optimizedPrompt) {
+      set.status = 400;
+      return { error: "optimizedPromptは必須です" };
+    }
+
+    const prompt = await prisma.taskPrompt.create({
+      data: {
+        taskId: taskIdNum,
+        name,
+        optimizedPrompt,
+        structuredSections,
+        qualityScore,
+        originalDescription,
+        isActive: true,
+      },
+    });
+
+    return prompt;
+  },
+);
+
+// プロンプト更新
+app.patch(
+  "/prompts/:id",
+  async ({
+    params,
+    body,
+    set,
+  }: {
+    params: { id: string };
+    body: any;
+    set: any;
+  }) => {
+    const promptId = parseInt(params.id);
+    const { name, optimizedPrompt, isActive } = body;
+
+    const existing = await prisma.taskPrompt.findUnique({
+      where: { id: promptId },
+    });
+
+    if (!existing) {
+      set.status = 404;
+      return { error: "プロンプトが見つかりません" };
+    }
+
+    const updated = await prisma.taskPrompt.update({
+      where: { id: promptId },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(optimizedPrompt !== undefined && { optimizedPrompt }),
+        ...(isActive !== undefined && { isActive }),
+      },
+    });
+
+    return updated;
+  },
+);
+
+// プロンプト削除
+app.delete(
+  "/prompts/:id",
+  async ({ params, set }: { params: { id: string }; set: any }) => {
+    const promptId = parseInt(params.id);
+
+    const existing = await prisma.taskPrompt.findUnique({
+      where: { id: promptId },
+    });
+
+    if (!existing) {
+      set.status = 404;
+      return { error: "プロンプトが見つかりません" };
+    }
+
+    await prisma.taskPrompt.delete({
+      where: { id: promptId },
+    });
+
+    return { success: true };
+  },
+);
+
+// サブタスクを含む全プロンプト生成（一括最適化）
+app.post(
+  "/tasks/:id/prompts/generate-all",
+  async ({ params, set }: { params: { id: string }; set: any }) => {
+    const taskIdNum = parseInt(params.id);
+
+    // APIキーチェック
+    const apiKeyConfigured = await isApiKeyConfiguredAsync();
+    if (!apiKeyConfigured) {
+      set.status = 400;
+      return {
+        error:
+          "Claude APIキーが設定されていません。設定ページでAPIキーを登録してください。",
+      };
+    }
+
+    // タスクとサブタスクを取得
+    const task = await prisma.task.findUnique({
+      where: { id: taskIdNum },
+      include: {
+        subtasks: true,
+      },
+    });
+
+    if (!task) {
+      set.status = 404;
+      return { error: "タスクが見つかりません" };
+    }
+
+    const results: Array<{
+      taskId: number;
+      title: string;
+      isSubtask: boolean;
+      success: boolean;
+      prompt?: any;
+      error?: string;
+    }> = [];
+
+    // サブタスクがない場合は親タスクのみ最適化
+    if (task.subtasks.length === 0) {
+      try {
+        const { result, tokensUsed } = await generateOptimizedPrompt({
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          labels: task.labels?.map((l: any) => l.name) || [],
+        });
+
+        // プロンプトを保存
+        const savedPrompt = await prisma.taskPrompt.create({
+          data: {
+            taskId: task.id,
+            name: `${task.title} - 最適化プロンプト`,
+            originalDescription: task.description,
+            optimizedPrompt: result.optimizedPrompt,
+            structuredSections: result.structuredSections as any,
+            qualityScore: result.promptQuality.score,
+            isActive: true,
+          },
+        });
+
+        results.push({
+          taskId: task.id,
+          title: task.title,
+          isSubtask: false,
+          success: true,
+          prompt: savedPrompt,
+        });
+      } catch (error: any) {
+        results.push({
+          taskId: task.id,
+          title: task.title,
+          isSubtask: false,
+          success: false,
+          error: error.message,
+        });
+      }
+    } else {
+      // サブタスクがある場合は各サブタスクごとに最適化
+      for (const subtask of task.subtasks) {
+        try {
+          const { result, tokensUsed } = await generateOptimizedPrompt({
+            title: subtask.title,
+            description: subtask.description,
+            priority: subtask.priority,
+            labels: subtask.labels?.map((l: any) => l.name) || [],
+          });
+
+          // プロンプトを保存
+          const savedPrompt = await prisma.taskPrompt.create({
+            data: {
+              taskId: subtask.id,
+              name: `${subtask.title} - 最適化プロンプト`,
+              originalDescription: subtask.description,
+              optimizedPrompt: result.optimizedPrompt,
+              structuredSections: result.structuredSections as any,
+              qualityScore: result.promptQuality.score,
+              isActive: true,
+            },
+          });
+
+          results.push({
+            taskId: subtask.id,
+            title: subtask.title,
+            isSubtask: true,
+            success: true,
+            prompt: savedPrompt,
+          });
+        } catch (error: any) {
+          results.push({
+            taskId: subtask.id,
+            title: subtask.title,
+            isSubtask: true,
+            success: false,
+            error: error.message,
+          });
+        }
+      }
+    }
+
+    return {
+      taskId: task.id,
+      taskTitle: task.title,
+      hasSubtasks: task.subtasks.length > 0,
+      subtaskCount: task.subtasks.length,
+      results,
+      successCount: results.filter((r) => r.success).length,
+      failureCount: results.filter((r) => !r.success).length,
+    };
   },
 );
 
@@ -2745,7 +3261,7 @@ app.post(
       const commitResult = await orchestrator.commitChanges(
         workDir,
         commitMessage,
-        task.title
+        task.title,
       );
 
       if (!commitResult.success) {
@@ -2777,7 +3293,7 @@ Task ID: ${task.id}
         workDir,
         task.title,
         prBody,
-        "main" // TODO: 設定可能にする
+        "main", // TODO: 設定可能にする
       );
 
       if (prResult.success) {
@@ -2926,13 +3442,15 @@ app.post(
         workingDirectory: string;
       };
 
-      const reverted = await orchestrator.revertChanges(proposedChanges.workingDirectory);
+      const reverted = await orchestrator.revertChanges(
+        proposedChanges.workingDirectory,
+      );
 
       await prisma.notification.create({
         data: {
           type: "pr_changes_requested",
           title: "コードレビュー却下",
-          message: `「${approval.config.task.title}」のコードレビューが却下されました${reason ? `: ${reason}` : ''}。変更は元に戻されました。`,
+          message: `「${approval.config.task.title}」のコードレビューが却下されました${reason ? `: ${reason}` : ""}。変更は元に戻されました。`,
           link: `/tasks/${approval.config.taskId}`,
         },
       });
@@ -2995,7 +3513,7 @@ app.post(
       // Gitでコミット作成
       const commitResult = await orchestrator.createCommit(
         workingDirectory,
-        commitMessage
+        commitMessage,
       );
 
       // PR作成
@@ -3004,7 +3522,7 @@ app.post(
         commitResult.branch,
         baseBranch,
         `[Task-${approval.config.taskId}] ${commitMessage}`,
-        `## 概要\n\n${approval.description || "AIエージェントによる自動実装"}\n\n関連タスク: #${approval.config.taskId}`
+        `## 概要\n\n${approval.description || "AIエージェントによる自動実装"}\n\n関連タスク: #${approval.config.taskId}`,
       );
 
       // 承認リクエストを更新
@@ -3048,7 +3566,7 @@ app.post(
       console.error("Code review approval failed:", error);
       return { error: error.message || "Code review approval failed" };
     }
-  }
+  },
 );
 
 // コードレビュー却下（変更を破棄）
@@ -3122,7 +3640,7 @@ app.post(
       console.error("Code review rejection failed:", error);
       return { error: error.message || "Code review rejection failed" };
     }
-  }
+  },
 );
 
 // 修正依頼（フィードバックを送信して再実行）
@@ -3198,7 +3716,9 @@ app.post(
                 ? "質問"
                 : "コメント";
           const fileInfo = comment.file ? ` (${comment.file})` : "";
-          feedbackInstructions.push(`${index + 1}. [${typeLabel}]${fileInfo}: ${comment.content}`);
+          feedbackInstructions.push(
+            `${index + 1}. [${typeLabel}]${fileInfo}: ${comment.content}`,
+          );
         });
       }
 
@@ -3228,7 +3748,12 @@ ${previousImplementation}
         data: {
           status: "rejected",
           rejectedAt: new Date(),
-          rejectionReason: "修正依頼: " + (feedback || comments.map(c => c.content).join(", ")).substring(0, 200),
+          rejectionReason:
+            "修正依頼: " +
+            (feedback || comments.map((c) => c.content).join(", ")).substring(
+              0,
+              200,
+            ),
         },
       });
 
@@ -3274,7 +3799,8 @@ ${previousImplementation}
             const structuredDiff = await orchestrator.getDiff(workingDirectory);
 
             if (diff && diff !== "No changes detected") {
-              const implementationSummary = result.output || "修正が完了しました。";
+              const implementationSummary =
+                result.output || "修正が完了しました。";
 
               // 新しいコードレビュー承認リクエストを作成
               const newApprovalRequest = await prisma.approvalRequest.create({
@@ -3327,46 +3853,49 @@ ${previousImplementation}
       console.error("Request changes failed:", error);
       return { error: error.message || "Request changes failed" };
     }
-  }
+  },
 );
 
 // 差分を取得
-app.get("/approvals/:id/diff", async ({ params }: { params: { id: string } }) => {
-  const { id } = params;
+app.get(
+  "/approvals/:id/diff",
+  async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
 
-  const approval = await prisma.approvalRequest.findUnique({
-    where: { id: parseInt(id) },
-    include: {
-      config: {
-        include: { task: { include: { theme: true } } },
+    const approval = await prisma.approvalRequest.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        config: {
+          include: { task: { include: { theme: true } } },
+        },
       },
-    },
-  });
+    });
 
-  if (!approval) {
-    return { error: "Approval request not found" };
-  }
+    if (!approval) {
+      return { error: "Approval request not found" };
+    }
 
-  const proposedChanges = approval.proposedChanges as {
-    workingDirectory?: string;
-  };
+    const proposedChanges = approval.proposedChanges as {
+      workingDirectory?: string;
+    };
 
-  const workingDirectory =
-    proposedChanges.workingDirectory ||
-    approval.config.task?.theme?.workingDirectory;
+    const workingDirectory =
+      proposedChanges.workingDirectory ||
+      approval.config.task?.theme?.workingDirectory;
 
-  if (!workingDirectory) {
-    return { error: "Working directory not found" };
-  }
+    if (!workingDirectory) {
+      return { error: "Working directory not found" };
+    }
 
-  try {
-    const diff = await orchestrator.getDiff(workingDirectory);
-    return { files: diff };
-  } catch (error: any) {
-    console.error("Failed to get diff:", error);
-    return { error: error.message || "Failed to get diff" };
-  }
-});
+    try {
+      const diff = await orchestrator.getDiff(workingDirectory);
+      return { files: diff };
+    } catch (error: any) {
+      console.error("Failed to get diff:", error);
+      return { error: error.message || "Failed to get diff" };
+    }
+  },
+);
 
 // 一括承認
 app.post(
@@ -3722,7 +4251,8 @@ app.get(
           return {
             path: "/",
             parent: null,
-            directories: fs.readdirSync("/", { withFileTypes: true })
+            directories: fs
+              .readdirSync("/", { withFileTypes: true })
               .filter((entry) => entry.isDirectory())
               .filter((entry) => !entry.name.startsWith("."))
               .map((entry) => ({
@@ -3747,7 +4277,10 @@ app.get(
 
       // ディレクトリが存在するか確認
       if (!fs.existsSync(normalizedPath)) {
-        return { error: `パスが存在しません: ${normalizedPath}`, path: normalizedPath };
+        return {
+          error: `パスが存在しません: ${normalizedPath}`,
+          path: normalizedPath,
+        };
       }
 
       const stats = fs.statSync(normalizedPath);
@@ -3760,7 +4293,10 @@ app.get(
       try {
         entries = fs.readdirSync(normalizedPath, { withFileTypes: true });
       } catch (e: any) {
-        return { error: `アクセスできません: ${e.message}`, path: normalizedPath };
+        return {
+          error: `アクセスできません: ${e.message}`,
+          path: normalizedPath,
+        };
       }
 
       const directories = entries
@@ -3774,7 +4310,12 @@ app.get(
         .filter((entry) => !entry.name.startsWith(".")) // 隠しフォルダを除外
         .filter((entry) => {
           // システムフォルダを除外（Windows）
-          const excludeNames = ["$Recycle.Bin", "$RECYCLE.BIN", "System Volume Information", "Recovery"];
+          const excludeNames = [
+            "$Recycle.Bin",
+            "$RECYCLE.BIN",
+            "System Volume Information",
+            "Recovery",
+          ];
           return !excludeNames.includes(entry.name);
         })
         .map((entry) => ({
@@ -3787,7 +4328,8 @@ app.get(
       // 親ディレクトリを計算
       const parentPath = path.dirname(normalizedPath);
       // ドライブルート（C:\など）の場合はparentをnullにしてドライブ一覧に戻れるようにする
-      const isDriveRoot = process.platform === "win32" && /^[A-Z]:\\?$/i.test(normalizedPath);
+      const isDriveRoot =
+        process.platform === "win32" && /^[A-Z]:\\?$/i.test(normalizedPath);
       const hasParent = parentPath !== normalizedPath && !isDriveRoot;
 
       return {
@@ -3801,7 +4343,7 @@ app.get(
       console.error("Directory browse error:", error);
       return { error: error.message || "ディレクトリの取得に失敗しました" };
     }
-  }
+  },
 );
 
 // パスの検証
@@ -3836,7 +4378,7 @@ app.post(
     } catch (error: any) {
       return { valid: false, error: error.message || "検証に失敗しました" };
     }
-  }
+  },
 );
 
 // ==================== Favorite Directories API ====================
@@ -3905,7 +4447,7 @@ app.post(
       console.error("Favorite directory create error:", error);
       return { error: error.message || "お気に入りの登録に失敗しました" };
     }
-  }
+  },
 );
 
 // お気に入りディレクトリを削除
@@ -3937,13 +4479,19 @@ app.delete(
       console.error("Favorite directory delete error:", error);
       return { error: error.message || "お気に入りの削除に失敗しました" };
     }
-  }
+  },
 );
 
 // お気に入りディレクトリの名前を更新
 app.patch(
   "/directories/favorites/:id",
-  async ({ params, body }: { params: { id: string }; body: { name: string } }) => {
+  async ({
+    params,
+    body,
+  }: {
+    params: { id: string };
+    body: { name: string };
+  }) => {
     const { id } = params;
     const { name } = body;
 
@@ -3971,7 +4519,7 @@ app.patch(
       console.error("Favorite directory update error:", error);
       return { error: error.message || "お気に入りの更新に失敗しました" };
     }
-  }
+  },
 );
 
 // ==================== GitHub Integration API ====================
@@ -3985,38 +4533,41 @@ orchestrator.addEventListener((event) => {
   const sessionChannel = `session:${event.sessionId}`;
 
   // 両方のチャンネルにブロードキャストする関数
-  const broadcastToBoth = (eventType: string, data: Record<string, unknown>) => {
+  const broadcastToBoth = (
+    eventType: string,
+    data: Record<string, unknown>,
+  ) => {
     realtimeService.broadcast(executionChannel, eventType, data);
     realtimeService.broadcast(sessionChannel, eventType, data);
   };
 
   switch (event.type) {
-    case 'execution_started':
-      broadcastToBoth('execution_started', {
+    case "execution_started":
+      broadcastToBoth("execution_started", {
         executionId: event.executionId,
         sessionId: event.sessionId,
         taskId: event.taskId,
         timestamp: event.timestamp.toISOString(),
       });
       break;
-    case 'execution_output':
+    case "execution_output":
       const outputData = event.data as { output: string; isError: boolean };
       // 両チャンネルに送信
-      realtimeService.broadcast(executionChannel, 'execution_output', {
+      realtimeService.broadcast(executionChannel, "execution_output", {
         executionId: event.executionId,
         output: outputData.output,
         isError: outputData.isError,
         timestamp: new Date().toISOString(),
       });
-      realtimeService.broadcast(sessionChannel, 'execution_output', {
+      realtimeService.broadcast(sessionChannel, "execution_output", {
         executionId: event.executionId,
         output: outputData.output,
         isError: outputData.isError,
         timestamp: new Date().toISOString(),
       });
       break;
-    case 'execution_completed':
-      broadcastToBoth('execution_completed', {
+    case "execution_completed":
+      broadcastToBoth("execution_completed", {
         executionId: event.executionId,
         sessionId: event.sessionId,
         taskId: event.taskId,
@@ -4024,8 +4575,8 @@ orchestrator.addEventListener((event) => {
         timestamp: event.timestamp.toISOString(),
       });
       break;
-    case 'execution_failed':
-      broadcastToBoth('execution_failed', {
+    case "execution_failed":
+      broadcastToBoth("execution_failed", {
         executionId: event.executionId,
         sessionId: event.sessionId,
         taskId: event.taskId,
@@ -4033,8 +4584,8 @@ orchestrator.addEventListener((event) => {
         timestamp: event.timestamp.toISOString(),
       });
       break;
-    case 'execution_cancelled':
-      broadcastToBoth('execution_cancelled', {
+    case "execution_cancelled":
+      broadcastToBoth("execution_cancelled", {
         executionId: event.executionId,
         sessionId: event.sessionId,
         taskId: event.taskId,
@@ -4712,13 +5263,23 @@ app.post(
       workingDirectory?: string;
       timeout?: number;
       instruction?: string; // 追加の実装指示
-      branchName?: string;  // 作業ブランチ名
+      branchName?: string; // 作業ブランチ名
+      useTaskAnalysis?: boolean; // AIタスク分析を使用するか
+      optimizedPrompt?: string; // 最適化されたプロンプト
     };
     set: any;
   }) => {
     const { id } = params;
     const taskIdNum = parseInt(id);
-    const { agentConfigId, workingDirectory, timeout, instruction, branchName } = body;
+    const {
+      agentConfigId,
+      workingDirectory,
+      timeout,
+      instruction,
+      branchName,
+      useTaskAnalysis,
+      optimizedPrompt,
+    } = body;
 
     // タスクを取得（テーマ情報も含む）
     const task = await prisma.task.findUnique({
@@ -4735,11 +5296,14 @@ app.post(
     }
 
     // 作業ディレクトリを決定（優先順位: 指定 > テーマ設定 > カレントディレクトリ）
-    const workDir = workingDirectory || task.theme?.workingDirectory || process.cwd();
+    const workDir =
+      workingDirectory || task.theme?.workingDirectory || process.cwd();
 
     // テーマが開発プロジェクトでない場合の警告
     if (!task.theme?.isDevelopment && !workingDirectory) {
-      console.warn(`Task ${taskIdNum} is not in a development theme. Using current directory.`);
+      console.warn(
+        `Task ${taskIdNum} is not in a development theme. Using current directory.`,
+      );
     }
 
     // セッションを作成
@@ -4762,7 +5326,10 @@ app.post(
 
     // ブランチを作成（指定がある場合）
     if (branchName) {
-      const branchCreated = await orchestrator.createBranch(workDir, branchName);
+      const branchCreated = await orchestrator.createBranch(
+        workDir,
+        branchName,
+      );
       if (!branchCreated) {
         return { error: "Failed to create branch", branchName };
       }
@@ -4779,10 +5346,88 @@ app.post(
       },
     });
 
-    // 実装指示を構築
-    const fullInstruction = instruction
-      ? `${task.description || task.title}\n\n追加指示:\n${instruction}`
-      : task.description || task.title;
+    // 実装指示を構築（最適化されたプロンプトを優先）
+    let fullInstruction: string;
+    if (optimizedPrompt) {
+      // 最適化されたプロンプトがある場合はそれを使用
+      fullInstruction = instruction
+        ? `${optimizedPrompt}\n\n追加指示:\n${instruction}`
+        : optimizedPrompt;
+      console.log(`[API] Using optimized prompt for task ${taskIdNum}`);
+    } else {
+      // 従来通りタスクの説明を使用
+      fullInstruction = instruction
+        ? `${task.description || task.title}\n\n追加指示:\n${instruction}`
+        : task.description || task.title;
+    }
+
+    // AIタスク分析結果を取得（useTaskAnalysisが有効な場合）
+    let analysisInfo:
+      | {
+          summary: string;
+          complexity: "simple" | "medium" | "complex";
+          estimatedTotalHours: number;
+          subtasks: Array<{
+            title: string;
+            description: string;
+            estimatedHours: number;
+            priority: "low" | "medium" | "high" | "urgent";
+            order: number;
+            dependencies?: number[];
+          }>;
+          reasoning: string;
+          tips?: string[];
+        }
+      | undefined;
+
+    if (useTaskAnalysis && developerModeConfig) {
+      // 最新の分析アクションを取得
+      const latestAnalysisAction = await prisma.agentAction.findFirst({
+        where: {
+          session: {
+            configId: developerModeConfig.id,
+          },
+          actionType: "analysis",
+          status: "success",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      if (latestAnalysisAction?.output) {
+        try {
+          const analysisOutput = latestAnalysisAction.output as any;
+          if (analysisOutput.summary && analysisOutput.suggestedSubtasks) {
+            analysisInfo = {
+              summary: analysisOutput.summary,
+              complexity: analysisOutput.complexity || "medium",
+              estimatedTotalHours: analysisOutput.estimatedTotalHours || 0,
+              subtasks: (analysisOutput.suggestedSubtasks || []).map(
+                (st: any) => ({
+                  title: st.title,
+                  description: st.description || "",
+                  estimatedHours: st.estimatedHours || 0,
+                  priority: st.priority || "medium",
+                  order: st.order || 0,
+                  dependencies: st.dependencies,
+                }),
+              ),
+              reasoning: analysisOutput.reasoning || "",
+              tips: analysisOutput.tips,
+            };
+            console.log(`[API] Using AI task analysis for task ${taskIdNum}`);
+            console.log(
+              `[API] Analysis subtasks count: ${analysisInfo.subtasks.length}`,
+            );
+          }
+        } catch (e) {
+          console.error(`[API] Failed to parse analysis result:`, e);
+        }
+      } else {
+        console.log(`[API] No analysis result found for task ${taskIdNum}`);
+      }
+    }
 
     // 非同期でClaude Code実行
     orchestrator
@@ -4800,6 +5445,7 @@ app.post(
           agentConfigId,
           workingDirectory: workDir,
           timeout,
+          analysisInfo, // AIタスク分析結果を渡す
         },
       )
       .then(async (result) => {
@@ -4808,9 +5454,10 @@ app.post(
           const diff = await orchestrator.getFullGitDiff(workDir);
           const structuredDiff = await orchestrator.getDiff(workDir);
 
-          if (diff && diff !== 'No changes detected') {
+          if (diff && diff !== "No changes detected") {
             // Claude Codeの出力から実装説明を抽出
-            const implementationSummary = result.output || "実装が完了しました。";
+            const implementationSummary =
+              result.output || "実装が完了しました。";
 
             // コードレビュー承認リクエストを作成
             const approvalRequest = await prisma.approvalRequest.create({
@@ -4895,7 +5542,8 @@ app.post(
       sessionId: session.id,
       taskId: taskIdNum,
       workingDirectory: workDir,
-      message: "エージェント実行を開始しました。リアルタイムで進捗を確認できます。",
+      message:
+        "エージェント実行を開始しました。リアルタイムで進捗を確認できます。",
     };
   },
 );
@@ -4909,10 +5557,21 @@ app.get("/agents/diagnose", async () => {
   console.log("[Diagnose] Claude path:", claudePath);
   console.log("[Diagnose] Platform:", process.platform);
 
-  const results: { step: string; success: boolean; output?: string; error?: string; duration?: number }[] = [];
+  const results: {
+    step: string;
+    success: boolean;
+    output?: string;
+    error?: string;
+    duration?: number;
+  }[] = [];
 
   // Step 1: Test claude --version
-  const versionResult = await new Promise<{ success: boolean; output?: string; error?: string; duration: number }>((resolve) => {
+  const versionResult = await new Promise<{
+    success: boolean;
+    output?: string;
+    error?: string;
+    duration: number;
+  }>((resolve) => {
     const startTime = Date.now();
     const proc = spawn(claudePath, ["--version"], { shell: true });
     let stdout = "";
@@ -4920,11 +5579,19 @@ app.get("/agents/diagnose", async () => {
 
     const timeout = setTimeout(() => {
       proc.kill();
-      resolve({ success: false, error: "Timeout (10s)", duration: Date.now() - startTime });
+      resolve({
+        success: false,
+        error: "Timeout (10s)",
+        duration: Date.now() - startTime,
+      });
     }, 10000);
 
-    proc.stdout?.on("data", (data) => { stdout += data.toString(); });
-    proc.stderr?.on("data", (data) => { stderr += data.toString(); });
+    proc.stdout?.on("data", (data) => {
+      stdout += data.toString();
+    });
+    proc.stderr?.on("data", (data) => {
+      stderr += data.toString();
+    });
 
     proc.on("close", (code) => {
       clearTimeout(timeout);
@@ -4938,7 +5605,11 @@ app.get("/agents/diagnose", async () => {
 
     proc.on("error", (err) => {
       clearTimeout(timeout);
-      resolve({ success: false, error: err.message, duration: Date.now() - startTime });
+      resolve({
+        success: false,
+        error: err.message,
+        duration: Date.now() - startTime,
+      });
     });
   });
 
@@ -4947,7 +5618,12 @@ app.get("/agents/diagnose", async () => {
 
   // Step 2: Test simple prompt with spawn and explicit cmd.exe
   if (versionResult.success) {
-    const promptResult = await new Promise<{ success: boolean; output?: string; error?: string; duration: number }>((resolve) => {
+    const promptResult = await new Promise<{
+      success: boolean;
+      output?: string;
+      error?: string;
+      duration: number;
+    }>((resolve) => {
       const startTime = Date.now();
 
       // Windows: cmd.exe /c を使用して正しくコマンドを実行
@@ -4963,9 +5639,13 @@ app.get("/agents/diagnose", async () => {
           windowsHide: true,
         });
       } else {
-        proc = spawn(claudePath, ["--dangerously-skip-permissions", "-p", "Say hello"], {
-          env: { ...process.env, FORCE_COLOR: "0", CI: "1" },
-        });
+        proc = spawn(
+          claudePath,
+          ["--dangerously-skip-permissions", "-p", "Say hello"],
+          {
+            env: { ...process.env, FORCE_COLOR: "0", CI: "1" },
+          },
+        );
       }
 
       let stdout = "";
@@ -4974,7 +5654,11 @@ app.get("/agents/diagnose", async () => {
       const timeout = setTimeout(() => {
         console.log("[Diagnose] Timeout, killing process");
         proc.kill();
-        resolve({ success: false, error: "Timeout (90s)", duration: Date.now() - startTime });
+        resolve({
+          success: false,
+          error: "Timeout (90s)",
+          duration: Date.now() - startTime,
+        });
       }, 90000);
 
       proc.stdout?.on("data", (data) => {
@@ -4991,11 +5675,17 @@ app.get("/agents/diagnose", async () => {
 
       proc.on("close", (code) => {
         clearTimeout(timeout);
-        console.log("[Diagnose] Process closed, code:", code, "stdout length:", stdout.length);
+        console.log(
+          "[Diagnose] Process closed, code:",
+          code,
+          "stdout length:",
+          stdout.length,
+        );
         resolve({
           success: code === 0,
           output: stdout.substring(0, 500),
-          error: stderr.trim() || (code !== 0 ? `Exit code: ${code}` : undefined),
+          error:
+            stderr.trim() || (code !== 0 ? `Exit code: ${code}` : undefined),
           duration: Date.now() - startTime,
         });
       });
@@ -5003,7 +5693,11 @@ app.get("/agents/diagnose", async () => {
       proc.on("error", (err) => {
         clearTimeout(timeout);
         console.log("[Diagnose] Process error:", err.message);
-        resolve({ success: false, error: err.message, duration: Date.now() - startTime });
+        resolve({
+          success: false,
+          error: err.message,
+          duration: Date.now() - startTime,
+        });
       });
     });
 
@@ -5015,7 +5709,7 @@ app.get("/agents/diagnose", async () => {
     claudePath,
     platform: process.platform,
     results,
-    allPassed: results.every(r => r.success),
+    allPassed: results.every((r) => r.success),
   };
 });
 
@@ -5049,6 +5743,21 @@ app.get(
     const latestSession = config.agentSessions[0];
     const latestExecution = latestSession.agentExecutions[0];
 
+    // 質問待ち状態の情報
+    const isWaitingForInput = latestExecution?.status === "waiting_for_input";
+    const questionText = (latestExecution as any)?.question || null;
+    // DBからquestionTypeを取得（保存されていない場合はパターンマッチングにフォールバック）
+    let questionType: "tool_call" | "pattern_match" | "none" =
+      ((latestExecution as any)?.questionType as
+        | "tool_call"
+        | "pattern_match"
+        | "none") || "none";
+
+    // questionTypeがDBに保存されていない場合のフォールバック（後方互換性）
+    if (isWaitingForInput && questionText && questionType === "none") {
+      questionType = "pattern_match";
+    }
+
     return {
       sessionId: latestSession.id,
       sessionStatus: latestSession.status,
@@ -5059,10 +5768,11 @@ app.get(
       startedAt: latestExecution?.startedAt,
       completedAt: latestExecution?.completedAt,
       // 質問待ち状態の情報
-      waitingForInput: latestExecution?.status === "waiting_for_input",
-      question: (latestExecution as any)?.question || null,
+      waitingForInput: isWaitingForInput,
+      question: questionText,
+      questionType, // 質問の検出方法（tool_call, pattern_match, none）
     };
-  }
+  },
 );
 
 // エージェントへの応答（質問への回答）
@@ -5109,7 +5819,10 @@ app.post(
 
     // waiting_for_input 状態のみ許可
     if (!latestExecution || latestExecution.status !== "waiting_for_input") {
-      return { error: "No execution waiting for input", currentStatus: latestExecution?.status };
+      return {
+        error: "No execution waiting for input",
+        currentStatus: latestExecution?.status,
+      };
     }
 
     const workingDirectory =
@@ -5127,8 +5840,10 @@ app.post(
             const diff = await orchestrator.getFullGitDiff(workingDirectory);
             if (diff && diff !== "No changes detected") {
               // コードレビュー承認リクエストを作成
-              const structuredDiff = await orchestrator.getDiff(workingDirectory);
-              const implementationSummary = result.output || "実装が完了しました。";
+              const structuredDiff =
+                await orchestrator.getDiff(workingDirectory);
+              const implementationSummary =
+                result.output || "実装が完了しました。";
 
               const approvalRequest = await prisma.approvalRequest.create({
                 data: {
@@ -5176,7 +5891,7 @@ app.post(
       console.error("Agent respond failed:", error);
       return { error: error.message || "Failed to send response" };
     }
-  }
+  },
 );
 
 // セッション詳細取得
@@ -5222,6 +5937,103 @@ app.post(
     });
 
     return { success: true };
+  },
+);
+
+// タスクの実行を停止
+app.post(
+  "/tasks/:id/stop-execution",
+  async ({ params }: { params: { id: string } }) => {
+    const taskId = parseInt(params.id);
+
+    // タスクの最新の実行中セッションを取得
+    const config = await prisma.developerModeConfig.findUnique({
+      where: { taskId },
+      include: {
+        agentSessions: {
+          where: {
+            status: { in: ["running", "pending"] },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
+    });
+
+    if (!config || config.agentSessions.length === 0) {
+      // セッションがない場合でも、実行中の実行レコードを直接停止
+      const runningExecution = await prisma.agentExecution.findFirst({
+        where: {
+          session: {
+            config: {
+              taskId,
+            },
+          },
+          status: { in: ["running", "pending", "waiting_for_input"] },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (runningExecution) {
+        // オーケストレーターから停止を試みる
+        try {
+          await orchestrator.stopExecution(runningExecution.id);
+        } catch (e) {
+          // オーケストレーターで停止できない場合は直接DBを更新
+          await prisma.agentExecution.update({
+            where: { id: runningExecution.id },
+            data: {
+              status: "cancelled",
+              completedAt: new Date(),
+              errorMessage: "Manually stopped",
+            },
+          });
+        }
+
+        return { success: true, message: "Execution stopped" };
+      }
+
+      return { success: false, message: "No running execution found" };
+    }
+
+    const session = config.agentSessions[0];
+
+    // セッションの全実行を停止
+    const executions = orchestrator.getSessionExecutions(session.id);
+    for (const execution of executions) {
+      await orchestrator.stopExecution(execution.executionId);
+    }
+
+    // オーケストレーターに登録されていない実行も直接停止
+    const pendingExecutions = await prisma.agentExecution.findMany({
+      where: {
+        sessionId: session.id,
+        status: { in: ["running", "pending", "waiting_for_input"] },
+      },
+    });
+
+    for (const execution of pendingExecutions) {
+      await prisma.agentExecution.update({
+        where: { id: execution.id },
+        data: {
+          status: "cancelled",
+          completedAt: new Date(),
+          errorMessage: "Manually stopped",
+        },
+      });
+    }
+
+    // セッションを更新
+    await prisma.agentSession.update({
+      where: { id: session.id },
+      data: {
+        status: "failed",
+        completedAt: new Date(),
+        errorMessage: "Manually stopped",
+      },
+    });
+
+    return { success: true, sessionId: session.id };
   },
 );
 
@@ -5294,18 +6106,33 @@ app.get(
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
+      "Access-Control-Allow-Origin": "*",
     };
+
+    console.log(`[SSE] Client connecting to channel: ${channel}`);
 
     return new Response(
       new ReadableStream({
         start(controller) {
           const client = {
             write: (data: string) => {
-              controller.enqueue(new TextEncoder().encode(data));
+              try {
+                controller.enqueue(new TextEncoder().encode(data));
+              } catch (e) {
+                console.error(`[SSE] Error writing to client:`, e);
+              }
             },
           };
 
           const clientId = realtimeService.registerClient(client, [channel]);
+          console.log(
+            `[SSE] Client ${clientId} registered for channel: ${channel}`,
+          );
+
+          // 接続確認イベントを即座に送信
+          client.write(
+            `event: connected\ndata: ${JSON.stringify({ channel, clientId })}\n\n`,
+          );
 
           // 過去のイベントを送信（lastEventIdがある場合）
           if (lastEventId) {
@@ -5325,6 +6152,7 @@ app.get(
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
           Connection: "keep-alive",
+          "Access-Control-Allow-Origin": "*",
         },
       },
     );

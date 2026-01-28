@@ -445,6 +445,59 @@ export default function HomePage() {
                   </>
                 )}
 
+                {/* 全選択ボタン（選択モード時のみ表示、一括ボタンの左に配置） */}
+                {isSelectionMode && (
+                  <>
+                    <button
+                      onClick={() => {
+                        if (selectedTasks.size === paginatedTasks.length) {
+                          setSelectedTasks(new Set());
+                        } else {
+                          setSelectedTasks(new Set(paginatedTasks.map((t) => t.id)));
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
+                        selectedTasks.size === paginatedTasks.length && paginatedTasks.length > 0
+                          ? "bg-blue-500 dark:bg-blue-600 text-white shadow-sm"
+                          : "bg-blue-50 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30"
+                      }`}
+                      title={selectedTasks.size === paginatedTasks.length ? "全解除" : "全選択"}
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        {selectedTasks.size === paginatedTasks.length && paginatedTasks.length > 0 ? (
+                          /* 全解除: 四角から外れるアイコン */
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        ) : (
+                          /* 全選択: ダブルチェックマークアイコン */
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        )}
+                      </svg>
+                      <span>
+                        {selectedTasks.size === paginatedTasks.length && paginatedTasks.length > 0
+                          ? "全解除"
+                          : "全選択"}
+                      </span>
+                    </button>
+
+                    <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
+                  </>
+                )}
+
                 <button
                   onClick={() => {
                     setIsSelectionMode(!isSelectionMode);
@@ -559,9 +612,15 @@ export default function HomePage() {
                       };
                       const config =
                         statusConfig[status as keyof typeof statusConfig];
-                      const count = tasks.filter(
-                        (t) => status === "all" || t.status === status,
-                      ).length;
+                      // テーマ、優先度、検索フィルターを適用した上でカウント
+                      const count = tasks.filter((t) => {
+                        if (t.parentId) return false;
+                        if (status !== "all" && t.status !== status) return false;
+                        if (themeFilter !== null && t.themeId !== themeFilter) return false;
+                        if (priorityFilter !== null && t.priority !== priorityFilter) return false;
+                        if (searchQuery && !t.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+                        return true;
+                      }).length;
 
                       return (
                         <button

@@ -4,8 +4,11 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun --watch index.ts",
+    "dev": "bun run scripts/dev.ts",
+    "dev:simple": "bun --watch index.ts",
     "start": "bun index.ts",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio"

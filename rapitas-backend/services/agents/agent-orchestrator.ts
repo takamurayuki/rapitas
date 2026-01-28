@@ -12,6 +12,7 @@ import type {
   AgentExecutionResult,
   AgentOutputHandler,
   AgentStatus,
+  TaskAnalysisInfo,
 } from "./base-agent";
 
 const execAsync = promisify(exec);
@@ -24,6 +25,8 @@ export type ExecutionOptions = {
   timeout?: number;
   requireApproval?: boolean;
   onOutput?: AgentOutputHandler;
+  /** AIタスク分析結果（有効な場合に渡される） */
+  analysisInfo?: TaskAnalysisInfo;
 };
 
 export type ExecutionState = {
@@ -159,7 +162,8 @@ export class AgentOrchestrator {
 
     // 出力ハンドラを設定（リアルタイムでDBに保存）
     let lastDbUpdate = Date.now();
-    const DB_UPDATE_INTERVAL = 500; // 0.5秒ごとにDBを更新（リアルタイム表示のため）
+    const DB_UPDATE_INTERVAL = 200; // 0.2秒ごとにDBを更新（リアルタイム表示のため）
+    let pendingDbUpdate = false;
 
     agent.setOutputHandler(async (output, isError) => {
       state.output += output;
@@ -179,7 +183,8 @@ export class AgentOrchestrator {
 
       // 定期的にDBを更新（ポーリング用）
       const now = Date.now();
-      if (now - lastDbUpdate > DB_UPDATE_INTERVAL) {
+      if (now - lastDbUpdate > DB_UPDATE_INTERVAL && !pendingDbUpdate) {
+        pendingDbUpdate = true;
         lastDbUpdate = now;
         try {
           await this.prisma.agentExecution.update({
@@ -188,6 +193,8 @@ export class AgentOrchestrator {
           });
         } catch (e) {
           console.error("Failed to update execution output:", e);
+        } finally {
+          pendingDbUpdate = false;
         }
       }
     });
@@ -201,21 +208,41 @@ export class AgentOrchestrator {
       timestamp: new Date(),
     });
 
-    // 実行レコードを更新
+    // 初期メッセージを設定
+    const initialMessage = `[実行開始] タスクの実行を開始します...\n`;
+    state.output = initialMessage;
+
+    // 実行レコードを更新（初期出力も保存）
     await this.prisma.agentExecution.update({
       where: { id: execution.id },
       data: {
         status: "running",
         startedAt: new Date(),
+        output: initialMessage,
       },
     });
 
     try {
+      // AIタスク分析結果がある場合はタスクに追加
+      const taskWithAnalysis: AgentTask = {
+        ...task,
+        analysisInfo: options.analysisInfo,
+      };
+
+      // 分析情報の有無をログ出力
+      if (options.analysisInfo) {
+        console.log(`[Orchestrator] AI task analysis enabled`);
+        console.log(`[Orchestrator] Analysis summary: ${options.analysisInfo.summary?.substring(0, 100)}`);
+        console.log(`[Orchestrator] Subtasks count: ${options.analysisInfo.subtasks?.length || 0}`);
+      } else {
+        console.log(`[Orchestrator] AI task analysis not provided`);
+      }
+
       // エージェントを実行
-      const result = await agent.execute(task);
+      const result = await agent.execute(taskWithAnalysis);
 
       console.log(
-        `[Orchestrator] Execution result - success: ${result.success}, waitingForInput: ${result.waitingForInput}, question: ${result.question?.substring(0, 100)}`,
+        `[Orchestrator] Execution result - success: ${result.success}, waitingForInput: ${result.waitingForInput}, questionType: ${result.questionType}, question: ${result.question?.substring(0, 100)}`,
       );
 
       // ステータス判定: 質問待ちの場合は waiting_for_input
@@ -248,6 +275,14 @@ export class AgentOrchestrator {
           executionTimeMs: result.executionTimeMs,
           errorMessage: result.errorMessage,
           question: result.question || null,
+          questionType: result.questionType || null,
+          questionDetails: result.questionDetails
+            ? JSON.parse(JSON.stringify(result.questionDetails))
+            : null,
+          // 新しい構造化キー情報（questionKeyフィールドがDBに追加されたら有効化）
+          // questionKey: result.questionKey
+          //   ? JSON.parse(JSON.stringify(result.questionKey))
+          //   : null,
         },
       });
 
@@ -283,7 +318,7 @@ export class AgentOrchestrator {
 
       // イベント発火
       if (result.waitingForInput) {
-        // 質問待ちイベント
+        // 質問待ちイベント（新しい構造化キー情報を含む）
         this.emitEvent({
           type: "execution_output",
           executionId: execution.id,
@@ -293,6 +328,9 @@ export class AgentOrchestrator {
             output: result.output,
             waitingForInput: true,
             question: result.question,
+            questionType: result.questionType,
+            questionDetails: result.questionDetails,
+            questionKey: result.questionKey, // 新しい構造化キー情報
           },
           timestamp: new Date(),
         });
@@ -427,7 +465,8 @@ export class AgentOrchestrator {
 
     // 出力ハンドラを設定
     let lastDbUpdate = Date.now();
-    const DB_UPDATE_INTERVAL = 500; // 0.5秒ごとにDBを更新
+    const DB_UPDATE_INTERVAL = 200; // 0.2秒ごとにDBを更新
+    let pendingDbUpdate = false;
 
     agent.setOutputHandler(async (output, isError) => {
       state.output += output;
@@ -445,7 +484,8 @@ export class AgentOrchestrator {
       });
 
       const now = Date.now();
-      if (now - lastDbUpdate > DB_UPDATE_INTERVAL) {
+      if (now - lastDbUpdate > DB_UPDATE_INTERVAL && !pendingDbUpdate) {
+        pendingDbUpdate = true;
         lastDbUpdate = now;
         try {
           await this.prisma.agentExecution.update({
@@ -454,9 +494,15 @@ export class AgentOrchestrator {
           });
         } catch (e) {
           console.error("Failed to update execution output:", e);
+        } finally {
+          pendingDbUpdate = false;
         }
       }
     });
+
+    // 継続メッセージを追加
+    const continueMessage = `\n[継続] ユーザーからの回答を受け取りました。実行を継続します...\n`;
+    state.output += continueMessage;
 
     // 実行レコードを更新（再開）
     await this.prisma.agentExecution.update({
@@ -464,6 +510,7 @@ export class AgentOrchestrator {
       data: {
         status: "running",
         question: null, // 質問をクリア
+        output: state.output,
       },
     });
 
@@ -507,6 +554,14 @@ export class AgentOrchestrator {
             (execution.executionTimeMs || 0) + (result.executionTimeMs || 0),
           errorMessage: result.errorMessage,
           question: result.question || null,
+          questionType: result.questionType || null,
+          questionDetails: result.questionDetails
+            ? JSON.parse(JSON.stringify(result.questionDetails))
+            : null,
+          // 新しい構造化キー情報（questionKeyフィールドがDBに追加されたら有効化）
+          // questionKey: result.questionKey
+          //   ? JSON.parse(JSON.stringify(result.questionKey))
+          //   : null,
         },
       });
 
@@ -551,6 +606,9 @@ export class AgentOrchestrator {
             output: result.output,
             waitingForInput: true,
             question: result.question,
+            questionType: result.questionType,
+            questionDetails: result.questionDetails,
+            questionKey: result.questionKey, // 新しい構造化キー情報
           },
           timestamp: new Date(),
         });

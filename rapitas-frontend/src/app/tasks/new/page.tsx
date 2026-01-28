@@ -371,76 +371,6 @@ export default function NewTaskPage() {
             </div>
           </div>
 
-          {/* タスクの設定 */}
-          {(isDeveloperMode ||
-            isAiTaskAnalysis ||
-            themes.find((t) => t.id === themeId)?.isDevelopment) && (
-            <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 bg-linear-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-violet-100 dark:bg-violet-900/40 rounded-lg">
-                  <Bot className="w-5 h-5 text-violet-600 dark:text-violet-400" />
-                </div>
-                <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                  タスクの設定
-                </h3>
-              </div>
-              <div className="space-y-4">
-                {/* 開発者モード */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                      開発者モード
-                    </p>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      開発プロジェクト向けの機能を有効化します
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsDeveloperMode(!isDeveloperMode)}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${
-                      isDeveloperMode
-                        ? "bg-violet-500"
-                        : "bg-zinc-300 dark:bg-zinc-600"
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                        isDeveloperMode ? "translate-x-5" : ""
-                      }`}
-                    />
-                  </button>
-                </div>
-                {/* AIタスク分析 */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                      AIタスク分析
-                    </p>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      AIがタスクを分析し、サブタスクを自動提案します
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsAiTaskAnalysis(!isAiTaskAnalysis)}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${
-                      isAiTaskAnalysis
-                        ? "bg-violet-500"
-                        : "bg-zinc-300 dark:bg-zinc-600"
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                        isAiTaskAnalysis ? "translate-x-5" : ""
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Advanced Options Toggle */}
           <button
             type="button"
@@ -523,6 +453,72 @@ export default function NewTaskPage() {
                   placeholder="時間"
                   className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-2.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
                 />
+              </div>
+
+              {/* タスクの設定 */}
+              <div className="p-4 bg-linear-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 rounded-xl">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-violet-100 dark:bg-violet-900/40 rounded-lg">
+                    <Bot className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                  </div>
+                  <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                    タスクの設定
+                  </h3>
+                </div>
+                <div className="space-y-4">
+                  {/* 開発者モード */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                        開発者モード
+                      </p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        開発プロジェクト向けの機能を有効化します
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsDeveloperMode(!isDeveloperMode)}
+                      className={`relative w-11 h-6 rounded-full transition-colors ${
+                        isDeveloperMode
+                          ? "bg-violet-500"
+                          : "bg-zinc-300 dark:bg-zinc-600"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                          isDeveloperMode ? "translate-x-5" : ""
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {/* AIタスク分析 */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                        AIタスク分析
+                      </p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        AIがタスクを分析し、サブタスクを自動提案します
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsAiTaskAnalysis(!isAiTaskAnalysis)}
+                      className={`relative w-11 h-6 rounded-full transition-colors ${
+                        isAiTaskAnalysis
+                          ? "bg-violet-500"
+                          : "bg-zinc-300 dark:bg-zinc-600"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                          isAiTaskAnalysis ? "translate-x-5" : ""
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}

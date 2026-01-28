@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import {
-  Settings,
   Key,
   CheckCircle,
   AlertCircle,
@@ -143,15 +142,15 @@ export default function SettingsPage() {
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="flex items-center gap-3 mb-8">
-        <div className="p-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-xl">
-          <Settings className="w-6 h-6 text-zinc-600 dark:text-zinc-400" />
+        <div className="p-2.5 bg-violet-100 dark:bg-violet-900/30 rounded-xl">
+          <Key className="w-6 h-6 text-violet-600 dark:text-violet-400" />
         </div>
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            設定
+            APIキー設定
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            アプリケーションの設定を管理
+            AI機能に必要なAPIキーを管理
           </p>
         </div>
       </div>

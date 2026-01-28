@@ -19,6 +19,10 @@ export type ExecutionResult = {
   approvalRequestId?: number;
   message?: string;
   error?: string;
+  // 復元された実行の追加情報
+  output?: string;
+  waitingForInput?: boolean;
+  question?: string;
 };
 
 export function useDeveloperMode(taskId: number) {
@@ -30,6 +34,7 @@ export function useDeveloperMode(taskId: number) {
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
   const [analysisResult, setAnalysisResult] =
     useState<TaskAnalysisResult | null>(null);
+  const [analysisApprovalId, setAnalysisApprovalId] = useState<number | null>(null);
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -51,6 +56,52 @@ export function useDeveloperMode(taskId: number) {
       setError("設定の取得に失敗しました");
     } finally {
       setIsLoading(false);
+    }
+  }, [taskId]);
+
+  /**
+   * 進行中の実行状態を復元する
+   * コンポーネントのマウント時に呼び出して、実行中のエージェントがあれば状態を復元する
+   */
+  const restoreExecutionState = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-status`);
+      if (!res.ok) return null;
+
+      const data = await res.json();
+
+      // 実行データがない場合はスキップ
+      if (!data.executionStatus || data.status === "none") {
+        return null;
+      }
+
+      // 実行中または入力待ちの場合のみ復元
+      if (data.executionStatus === "running" || data.executionStatus === "waiting_for_input") {
+        setIsExecuting(true);
+        setExecutionStatus("running");
+        setExecutionResult({
+          success: true,
+          sessionId: data.sessionId,
+          executionId: data.executionId,
+          message: "実行中のエージェントを復元しました",
+          output: data.output,
+          waitingForInput: data.waitingForInput,
+          question: data.question,
+        });
+        return {
+          sessionId: data.sessionId,
+          executionId: data.executionId,
+          output: data.output,
+          status: data.executionStatus,
+          waitingForInput: data.waitingForInput,
+          question: data.question,
+        };
+      }
+
+      return null;
+    } catch (err) {
+      console.error("Failed to restore execution state:", err);
+      return null;
     }
   }, [taskId]);
 
@@ -147,6 +198,7 @@ export function useDeveloperMode(taskId: number) {
     setIsAnalyzing(true);
     setAnalysisError(null);
     setAnalysisResult(null);
+    setAnalysisApprovalId(null);
     try {
       const res = await fetch(
         `${API_BASE_URL}/developer-mode/analyze/${taskId}`,
@@ -157,6 +209,10 @@ export function useDeveloperMode(taskId: number) {
       const data = await res.json();
       if (res.ok) {
         setAnalysisResult(data.analysis);
+        // 承認リクエストIDを保存（自動承認でない場合）
+        if (data.approvalRequestId && !data.autoApproved) {
+          setAnalysisApprovalId(data.approvalRequestId);
+        }
         return data;
       } else {
         throw new Error(data.error || "分析に失敗しました");
@@ -184,6 +240,47 @@ export function useDeveloperMode(taskId: number) {
   }, [taskId]);
 
   /**
+   * 分析結果のサブタスク提案を承認してサブタスクを作成
+   */
+  const approveSubtaskCreation = useCallback(
+    async (selectedSubtaskIndices?: number[]) => {
+      if (!analysisApprovalId) {
+        setError("承認リクエストがありません");
+        return null;
+      }
+
+      setIsLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/approvals/${analysisApprovalId}/approve`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              selectedSubtasks: selectedSubtaskIndices,
+            }),
+          }
+        );
+        const data = await res.json();
+        if (res.ok) {
+          // 承認成功後、状態をクリア
+          setAnalysisApprovalId(null);
+          return data;
+        } else {
+          throw new Error(data.error || "承認に失敗しました");
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "エラーが発生しました");
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [analysisApprovalId]
+  );
+
+  /**
    * AIエージェントを実行してタスクを実装
    */
   const executeAgent = useCallback(
@@ -191,6 +288,8 @@ export function useDeveloperMode(taskId: number) {
       instruction?: string;
       branchName?: string;
       workingDirectory?: string;
+      useTaskAnalysis?: boolean; // AIタスク分析を使用するか
+      optimizedPrompt?: string; // 最適化されたプロンプト
     }) => {
       setIsExecuting(true);
       setExecutionStatus("running");
@@ -234,9 +333,41 @@ export function useDeveloperMode(taskId: number) {
    * 実行状態をリセット
    */
   const resetExecutionState = useCallback(() => {
+    setIsExecuting(false);
     setExecutionStatus("idle");
     setExecutionResult(null);
     setError(null);
+  }, []);
+
+  /**
+   * 実行を停止してUIを復元
+   */
+  const stopExecution = useCallback(async () => {
+    try {
+      // タスクレベルの停止エンドポイントを呼び出し
+      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/stop-execution`, {
+        method: "POST",
+      });
+
+      if (res.ok) {
+        // UIを即座に停止状態に更新
+        setIsExecuting(false);
+        setExecutionStatus("idle");
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error("Failed to stop execution:", err);
+      return false;
+    }
+  }, [taskId]);
+
+  /**
+   * 実行をキャンセル状態に設定（UIの即時更新用）
+   */
+  const setExecutionCancelled = useCallback(() => {
+    setIsExecuting(false);
+    setExecutionStatus("idle");
   }, []);
 
   return {
@@ -247,6 +378,7 @@ export function useDeveloperMode(taskId: number) {
     executionStatus,
     executionResult,
     analysisResult,
+    analysisApprovalId,
     sessions,
     error,
     analysisError,
@@ -259,5 +391,9 @@ export function useDeveloperMode(taskId: number) {
     setAnalysisResult,
     executeAgent,
     resetExecutionState,
+    restoreExecutionState,
+    approveSubtaskCreation,
+    stopExecution,
+    setExecutionCancelled,
   };
 }

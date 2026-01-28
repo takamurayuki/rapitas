@@ -248,12 +248,16 @@ export default function ThemesPage() {
 
   const renderIcon = (iconName: string | null | undefined, size = 20) => {
     const IconComponent = getIconComponent(iconName || "");
-    if (!IconComponent) {
-      const DefaultIcon =
-        getIconComponent("SwatchBook") || ICON_DATA["SwatchBook"].component;
-      return <DefaultIcon size={size} />;
+    if (IconComponent) {
+      return <IconComponent size={size} />;
     }
-    return <IconComponent size={size} />;
+
+    const DefaultIcon =
+      getIconComponent("SwatchBook") ??
+      ICON_DATA?.["SwatchBook"]?.component ??
+      SwatchBook;
+
+    return <DefaultIcon size={size} />;
   };
 
   const renderForm = (isEdit: boolean, itemId?: number) => (

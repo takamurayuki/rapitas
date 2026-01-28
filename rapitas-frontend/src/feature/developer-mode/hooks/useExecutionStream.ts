@@ -18,6 +18,14 @@ export type ExecutionEvent = {
   timestamp: string;
 };
 
+/**
+ * 質問の種類を表す型
+ * - 'tool_call': Claude CodeのAskUserQuestionツール呼び出しによる質問（最も信頼性が高い）
+ * - 'pattern_match': テキストパターンマッチングによる質問検出
+ * - 'none': 質問なし
+ */
+export type QuestionType = "tool_call" | "pattern_match" | "none";
+
 export type ExecutionStreamState = {
   isConnected: boolean;
   isRunning: boolean;
@@ -27,7 +35,12 @@ export type ExecutionStreamState = {
   result: unknown | null;
   waitingForInput?: boolean;
   question?: string;
+  /** 質問の検出方法（tool_call: AskUserQuestionツール, pattern_match: パターンマッチング, none: 質問なし） */
+  questionType?: QuestionType;
 };
+
+// SSEは現在無効化（ポーリングをメインで使用）
+const SSE_ENABLED = false;
 
 export function useExecutionStream(sessionId: number | null) {
   const [state, setState] = useState<ExecutionStreamState>({
@@ -43,29 +56,57 @@ export function useExecutionStream(sessionId: number | null) {
   const logsRef = useRef<string[]>([]);
 
   const connect = useCallback(() => {
-    if (!sessionId || eventSourceRef.current) return;
+    // SSEが無効の場合は何もしない
+    if (!SSE_ENABLED) {
+      console.log("[ExecutionStream] SSE disabled, using polling instead");
+      return;
+    }
+
+    if (!sessionId) {
+      console.log("[ExecutionStream] No sessionId, skipping connection");
+      return;
+    }
+    if (eventSourceRef.current) {
+      console.log("[ExecutionStream] Already connected, skipping");
+      return;
+    }
 
     const channel = `session:${sessionId}`;
-    const url = `${API_BASE_URL}/events/stream/${encodeURIComponent(channel)}`;
+    const url = `${API_BASE_URL}/events/subscribe/${encodeURIComponent(channel)}`;
 
     console.log("[ExecutionStream] Connecting to:", url);
 
-    const eventSource = new EventSource(url);
-    eventSourceRef.current = eventSource;
+    try {
+      const eventSource = new EventSource(url);
+      eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
-      console.log("[ExecutionStream] Connected");
-      setState((prev) => ({ ...prev, isConnected: true }));
+      console.log("[ExecutionStream] Connection opened");
+      setState((prev) => ({ ...prev, isConnected: true, error: null }));
     };
 
-    eventSource.onerror = (error) => {
-      console.error("[ExecutionStream] Error:", error);
-      setState((prev) => ({
-        ...prev,
-        isConnected: false,
-        error: "接続エラーが発生しました",
-      }));
+    eventSource.onerror = () => {
+      // EventSourceのエラーは接続の再試行を示す場合もあるため、
+      // readyStateをチェックして本当のエラーかどうか判定
+      if (eventSource.readyState === EventSource.CLOSED) {
+        console.log("[ExecutionStream] Connection closed, will use polling fallback");
+        eventSourceRef.current = null;
+        setState((prev) => ({
+          ...prev,
+          isConnected: false,
+          // エラーメッセージは表示しない（ポーリングがフォールバックとして機能する）
+        }));
+      } else if (eventSource.readyState === EventSource.CONNECTING) {
+        // 再接続中の場合はログのみ
+        console.log("[ExecutionStream] Reconnecting...");
+      }
     };
+
+    // 接続確認イベント（サーバーから送信）
+    eventSource.addEventListener("connected", (event) => {
+      console.log("[ExecutionStream] Connected event received:", event.data);
+      setState((prev) => ({ ...prev, isConnected: true, error: null }));
+    });
 
     // 実行開始イベント
     eventSource.addEventListener("execution_started", (event) => {
@@ -161,10 +202,18 @@ export function useExecutionStream(sessionId: number | null) {
       }));
     });
 
-    return () => {
-      eventSource.close();
-      eventSourceRef.current = null;
-    };
+      return () => {
+        eventSource.close();
+        eventSourceRef.current = null;
+      };
+    } catch (error) {
+      console.error("[ExecutionStream] Failed to create EventSource:", error);
+      setState((prev) => ({
+        ...prev,
+        isConnected: false,
+        error: "SSE接続の作成に失敗しました",
+      }));
+    }
   }, [sessionId]);
 
   const disconnect = useCallback(() => {
@@ -218,24 +267,66 @@ export function useExecutionPolling(taskId: number | null) {
     result: null,
     waitingForInput: false,
     question: undefined,
+    questionType: "none",
   });
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastOutputLengthRef = useRef(0);
+  // 終了ログが既に追加されたかを追跡（重複防止）
+  const hasAddedFinalLogRef = useRef(false);
+  // 最後に処理したステータスを追跡（同一ステータスの重複処理防止）
+  const lastProcessedStatusRef = useRef<string | null>(null);
 
-  const startPolling = useCallback(async () => {
-    console.log("[ExecutionPolling] startPolling called, taskId:", taskId, "intervalRef:", intervalRef.current);
+  /**
+   * ポーリングを開始する
+   * @param options.initialOutput 復元時の初期出力（指定された場合はログをリセットせず、この位置から差分を取得）
+   * @param options.preserveLogs trueの場合、既存のログを保持する
+   */
+  const startPolling = useCallback(async (options?: { initialOutput?: string; preserveLogs?: boolean }) => {
+    console.log("[ExecutionPolling] startPolling called, taskId:", taskId, "intervalRef:", intervalRef.current, "options:", options);
     if (!taskId || intervalRef.current) {
       console.log("[ExecutionPolling] Skipping - taskId:", taskId, "intervalRef exists:", !!intervalRef.current);
       return;
     }
 
     console.log("[ExecutionPolling] Starting polling for task:", taskId);
-    setState((prev) => ({ ...prev, isConnected: true, isRunning: true, status: "running" }));
+
+    // 終了ログフラグとステータス追跡をリセット
+    hasAddedFinalLogRef.current = false;
+    lastProcessedStatusRef.current = null;
+
+    // 初期出力がある場合はその長さから開始（復元時）
+    if (options?.initialOutput) {
+      lastOutputLengthRef.current = options.initialOutput.length;
+      setState((prev) => ({
+        ...prev,
+        isConnected: true,
+        isRunning: true,
+        status: "running",
+        logs: options.preserveLogs ? prev.logs : [options.initialOutput || ""],
+      }));
+    } else if (options?.preserveLogs) {
+      // ログを保持する場合
+      setState((prev) => ({
+        ...prev,
+        isConnected: true,
+        isRunning: true,
+        status: "running",
+      }));
+    } else {
+      // 新規実行時はリセット
+      lastOutputLengthRef.current = 0;
+      setState((prev) => ({
+        ...prev,
+        isConnected: true,
+        isRunning: true,
+        status: "running",
+        logs: [],
+      }));
+    }
 
     const poll = async () => {
       try {
-        console.log("[ExecutionPolling] Polling...");
         const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-status`);
         if (!res.ok) {
           console.log("[ExecutionPolling] Response not ok:", res.status);
@@ -243,17 +334,19 @@ export function useExecutionPolling(taskId: number | null) {
         }
 
         const data = await res.json();
-        console.log("[ExecutionPolling] Got data:", {
-          executionStatus: data.executionStatus,
-          outputLength: data.output?.length || 0,
-          errorMessage: data.errorMessage,
-        });
 
+        // 実行データがない場合はスキップ
+        if (!data.executionStatus || data.status === "none") {
+          console.log("[ExecutionPolling] No execution data yet");
+          return;
+        }
+
+        // 出力を更新
         if (data.output) {
-          // 新しい出力があれば追加
-          const newOutput = data.output.slice(lastOutputLengthRef.current);
+          const currentLength = lastOutputLengthRef.current;
+          const newOutput = data.output.slice(currentLength);
           if (newOutput) {
-            console.log("[ExecutionPolling] New output:", newOutput.substring(0, 100));
+            console.log("[ExecutionPolling] New output received:", newOutput.length, "chars");
             lastOutputLengthRef.current = data.output.length;
             setState((prev) => ({
               ...prev,
@@ -262,38 +355,102 @@ export function useExecutionPolling(taskId: number | null) {
           }
         }
 
+        // ステータスに応じて処理
+        // 同一ステータスの重複処理を防止
+        const currentStatus = data.executionStatus;
+        const isStatusChanged = lastProcessedStatusRef.current !== currentStatus;
+
         if (data.executionStatus === "completed") {
+          // 既に同じステータスを処理済みの場合はスキップ
+          if (!isStatusChanged && hasAddedFinalLogRef.current) {
+            return;
+          }
           console.log("[ExecutionPolling] Execution completed");
+          lastProcessedStatusRef.current = currentStatus;
+          // 終了ログが未追加の場合のみ追加（重複防止）
+          const shouldAddLog = !hasAddedFinalLogRef.current;
+          if (shouldAddLog) {
+            hasAddedFinalLogRef.current = true;
+          }
           setState((prev) => ({
             ...prev,
             isRunning: false,
             status: "completed",
             waitingForInput: false,
             question: undefined,
-            logs: [...prev.logs, "\n[完了] 実行が完了しました。\n"],
+            logs: shouldAddLog && prev.logs.length > 0
+              ? [...prev.logs, "\n[完了] 実行が完了しました。\n"]
+              : shouldAddLog
+                ? ["[完了] 実行が完了しました。\n"]
+                : prev.logs,
           }));
           stopPolling();
         } else if (data.executionStatus === "failed") {
+          // 既に同じステータスを処理済みの場合はスキップ
+          if (!isStatusChanged && hasAddedFinalLogRef.current) {
+            return;
+          }
           console.log("[ExecutionPolling] Execution failed:", data.errorMessage);
+          lastProcessedStatusRef.current = currentStatus;
+          // 終了ログが未追加の場合のみ追加（重複防止）
+          const shouldAddLog = !hasAddedFinalLogRef.current;
+          if (shouldAddLog) {
+            hasAddedFinalLogRef.current = true;
+          }
           setState((prev) => ({
             ...prev,
             isRunning: false,
             status: "failed",
             waitingForInput: false,
             error: data.errorMessage,
-            logs: [...prev.logs, `\n[エラー] ${data.errorMessage || "実行失敗"}\n`],
+            logs: shouldAddLog && prev.logs.length > 0
+              ? [...prev.logs, `\n[エラー] ${data.errorMessage || "実行失敗"}\n`]
+              : shouldAddLog
+                ? [`[エラー] ${data.errorMessage || "実行失敗"}\n`]
+                : prev.logs,
+          }));
+          stopPolling();
+        } else if (data.executionStatus === "cancelled") {
+          // 既に同じステータスを処理済みの場合はスキップ
+          if (!isStatusChanged && hasAddedFinalLogRef.current) {
+            return;
+          }
+          console.log("[ExecutionPolling] Execution cancelled");
+          lastProcessedStatusRef.current = currentStatus;
+          // 終了ログが未追加の場合のみ追加（重複防止）
+          const shouldAddLog = !hasAddedFinalLogRef.current;
+          if (shouldAddLog) {
+            hasAddedFinalLogRef.current = true;
+          }
+          setState((prev) => ({
+            ...prev,
+            isRunning: false,
+            status: "cancelled",
+            waitingForInput: false,
+            logs: shouldAddLog && prev.logs.length > 0
+              ? [...prev.logs, "\n[キャンセル] 実行が停止されました。\n"]
+              : shouldAddLog
+                ? ["[キャンセル] 実行が停止されました。\n"]
+                : prev.logs,
           }));
           stopPolling();
         } else if (data.executionStatus === "waiting_for_input" || data.waitingForInput) {
-          console.log("[ExecutionPolling] Waiting for input:", data.question);
+          console.log("[ExecutionPolling] Waiting for input:", data.question, "questionType:", data.questionType);
           setState((prev) => ({
             ...prev,
-            isRunning: true, // まだ実行中扱い（応答待ち）
+            isRunning: true,
             status: "waiting_for_input",
             waitingForInput: true,
             question: data.question || "",
+            questionType: data.questionType || "pattern_match",
           }));
-          // ポーリングは継続（応答後にステータスが変わる）
+        } else if (data.executionStatus === "running") {
+          // 実行中の場合、isRunningをtrueに維持
+          setState((prev) => ({
+            ...prev,
+            isRunning: true,
+            status: "running",
+          }));
         }
       } catch (error) {
         console.error("[ExecutionPolling] Error:", error);
@@ -303,8 +460,8 @@ export function useExecutionPolling(taskId: number | null) {
     // 初回実行
     await poll();
 
-    // 0.5秒ごとにポーリング（リアルタイム更新）
-    intervalRef.current = setInterval(poll, 500);
+    // 300msごとにポーリング（より高頻度でリアルタイム感を向上）
+    intervalRef.current = setInterval(poll, 300);
   }, [taskId]);
 
   const stopPolling = useCallback(() => {
@@ -315,8 +472,44 @@ export function useExecutionPolling(taskId: number | null) {
     setState((prev) => ({ ...prev, isConnected: false }));
   }, []);
 
+  /**
+   * 実行をキャンセル状態に設定する（停止ボタン押下時に即座にUIを更新するため）
+   */
+  const setCancelled = useCallback(() => {
+    // ポーリングを停止
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    // 既にキャンセル処理済みの場合はスキップ
+    if (lastProcessedStatusRef.current === "cancelled" && hasAddedFinalLogRef.current) {
+      return;
+    }
+    lastProcessedStatusRef.current = "cancelled";
+    // 終了ログが未追加の場合のみ追加
+    const shouldAddLog = !hasAddedFinalLogRef.current;
+    if (shouldAddLog) {
+      hasAddedFinalLogRef.current = true;
+    }
+    setState((prev) => ({
+      ...prev,
+      isConnected: false,
+      isRunning: false,
+      status: "cancelled",
+      waitingForInput: false,
+      question: undefined,
+      logs: shouldAddLog && prev.logs.length > 0
+        ? [...prev.logs, "\n[キャンセル] 実行が停止されました。\n"]
+        : shouldAddLog
+          ? ["[キャンセル] 実行が停止されました。\n"]
+          : prev.logs,
+    }));
+  }, []);
+
   const clearLogs = useCallback(() => {
     lastOutputLengthRef.current = 0;
+    hasAddedFinalLogRef.current = false;
+    lastProcessedStatusRef.current = null;
     setState({
       isConnected: false,
       isRunning: false,
@@ -326,6 +519,7 @@ export function useExecutionPolling(taskId: number | null) {
       result: null,
       waitingForInput: false,
       question: undefined,
+      questionType: "none",
     });
   }, []);
 
@@ -340,5 +534,6 @@ export function useExecutionPolling(taskId: number | null) {
     startPolling,
     stopPolling,
     clearLogs,
+    setCancelled,
   };
 }

@@ -3,6 +3,10 @@
  * 将来的に他のエージェント（Codex, Gemini等）を追加できるよう設計
  */
 
+// 質問判定システムの型は各ファイルで直接インポートしてください
+// re-exportはBunとの互換性問題があるため削除
+// import { QuestionKey, QuestionDetails, ... } from "./question-detection";
+
 export type AgentCapability = {
   codeGeneration: boolean;
   codeReview: boolean;
@@ -15,6 +19,25 @@ export type AgentCapability = {
 
 export type AgentStatus = 'idle' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'waiting_for_input';
 
+/**
+ * AIタスク分析結果（構造化プロンプト用）
+ */
+export type TaskAnalysisInfo = {
+  summary: string;
+  complexity: 'simple' | 'medium' | 'complex';
+  estimatedTotalHours: number;
+  subtasks: Array<{
+    title: string;
+    description: string;
+    estimatedHours: number;
+    priority: 'low' | 'medium' | 'high' | 'urgent';
+    order: number;
+    dependencies?: number[];
+  }>;
+  reasoning: string;
+  tips?: string[];
+};
+
 export type AgentTask = {
   id: number;
   title: string;
@@ -22,7 +45,24 @@ export type AgentTask = {
   context?: string;
   workingDirectory?: string;
   repositoryUrl?: string;
+  /** AIタスク分析が有効な場合の分析結果 */
+  analysisInfo?: TaskAnalysisInfo;
+  /** 最適化されたプロンプト（AIによる構造化・最適化済み） */
+  optimizedPrompt?: string;
 };
+
+/**
+ * 質問の種類を表す型
+ * - 'tool_call': Claude CodeのAskUserQuestionツール呼び出しによる質問
+ * - 'none': 質問なし
+ *
+ * @deprecated 新しい実装ではQuestionDetectionMethodを使用してください
+ * 質問検出はAskUserQuestionツール呼び出しのみで行います。
+ */
+export type QuestionType = 'tool_call' | 'none';
+
+// QuestionDetailsはquestion-detection.tsからre-exportされているため、
+// 既存コードの互換性のためにインポートしてローカルでも使用可能
 
 export type AgentExecutionResult = {
   success: boolean;
@@ -35,6 +75,12 @@ export type AgentExecutionResult = {
   // 質問待ち状態
   waitingForInput?: boolean;
   question?: string;
+  /** 質問の検出方法（tool_call: AskUserQuestionツール, none: 質問なし） */
+  questionType?: QuestionType;
+  /** 質問の詳細情報（選択肢など） */
+  questionDetails?: import("./question-detection").QuestionDetails;
+  /** 構造化キー情報（新方式） */
+  questionKey?: import("./question-detection").QuestionKey;
 };
 
 export type AgentArtifact = {

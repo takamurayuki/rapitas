@@ -89,6 +89,7 @@ model Task {
   agentExecutable       Boolean       @default(false)
   executionInstructions String?
   developerModeConfig   DeveloperModeConfig?
+  prompts               TaskPrompt[]
   // GitHub連携
   githubIssueId         Int?
   githubPrId            Int?
@@ -440,6 +441,8 @@ model AgentExecution {
   executionTimeMs   Int?
   errorMessage      String?
   question          String?   @db.Text // 質問待ち時のClaude Codeからの質問
+  questionType      String?   // 質問検出方法: tool_call (AskUserQuestion), none
+  questionDetails   Json?     // 質問詳細（選択肢、ヘッダー等）
   createdAt         DateTime  @default(now())
   gitCommits        GitCommit[]
 }
@@ -553,4 +556,21 @@ model FavoriteDirectory {
   isGitRepo   Boolean   @default(false)  // Gitリポジトリかどうか
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+// タスク最適化プロンプト
+model TaskPrompt {
+  id                  Int       @id @default(autoincrement())
+  taskId              Int       // 親タスクまたはサブタスクのID
+  task                Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  name                String?   // プロンプト名（オプション）
+  originalDescription String?   @db.Text // 元の説明
+  optimizedPrompt     String    @db.Text // 最適化されたプロンプト
+  structuredSections  Json?     // 構造化セクション
+  qualityScore        Int?      // 品質スコア
+  isActive            Boolean   @default(true) // アクティブなプロンプト
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([taskId])
 }

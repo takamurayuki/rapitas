@@ -11,6 +11,11 @@ import type {
 import LabelSelector, {
   SelectedLabelsDisplay,
 } from "@/feature/tasks/components/LabelSelector";
+import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
+import {
+  statusConfig as sharedStatusConfig,
+  renderStatusIcon,
+} from "@/feature/tasks/config/StatusConfig";
 import {
   Timer,
   Coffee,
@@ -20,7 +25,6 @@ import {
   Calendar,
   CheckCircle2,
   Circle,
-  PlayCircle,
   MessageSquare,
   Send,
   Trash2,
@@ -30,6 +34,8 @@ import {
   Save,
   Copy,
   BrainCircuit,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -45,39 +51,13 @@ import { useDeveloperMode } from "@/feature/developer-mode/hooks/useDeveloperMod
 import { useApprovals } from "@/feature/developer-mode/hooks/useApprovals";
 import { ToggleButton } from "@/components/ui/button/ToggleButton";
 import { DeveloperModeConfigModal } from "@/feature/developer-mode/components/DeveloperModeConfig";
-import { TaskAnalysisPanel } from "@/feature/developer-mode/components/TaskAnalysisPanel";
 import { AgentExecutionPanel } from "@/feature/developer-mode/components/AgentExecutionPanel";
+import { AIAnalysisPanel } from "@/feature/developer-mode/components/AIAnalysisPanel";
 import { Bot } from "lucide-react";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
-const statusConfig = {
-  todo: {
-    label: "未着手",
-    icon: Circle,
-    bg: "bg-zinc-100 dark:bg-zinc-800",
-    text: "text-zinc-600 dark:text-zinc-400",
-    border: "border-zinc-300 dark:border-zinc-600",
-    activeBg: "bg-zinc-200 dark:bg-zinc-700",
-  },
-  "in-progress": {
-    label: "進行中",
-    icon: PlayCircle,
-    bg: "bg-blue-50 dark:bg-blue-950",
-    text: "text-blue-600 dark:text-blue-400",
-    border: "border-blue-300 dark:border-blue-600",
-    activeBg: "bg-blue-100 dark:bg-blue-900",
-  },
-  done: {
-    label: "完了",
-    icon: CheckCircle2,
-    bg: "bg-emerald-50 dark:bg-emerald-950",
-    text: "text-emerald-600 dark:text-emerald-400",
-    border: "border-emerald-300 dark:border-emerald-600",
-    activeBg: "bg-emerald-100 dark:bg-emerald-900",
-  },
-};
 
 const PROGRAMMING_LANGUAGES = [
   { value: "javascript", label: "JavaScript" },
@@ -134,6 +114,7 @@ export default function TaskDetailPage() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [isAddingComment, setIsAddingComment] = useState(false);
+  const [isCommentsExpanded, setIsCommentsExpanded] = useState(false);
 
   // ポモドーロモーダル用の状態
   const [showPomodoroModal, setShowPomodoroModal] = useState(false);
@@ -152,6 +133,7 @@ export default function TaskDetailPage() {
     executionStatus,
     executionResult,
     analysisResult,
+    analysisApprovalId,
     error: devModeError,
     analysisError,
     fetchConfig: fetchDevModeConfig,
@@ -162,6 +144,9 @@ export default function TaskDetailPage() {
     setAnalysisResult,
     executeAgent,
     resetExecutionState,
+    restoreExecutionState,
+    approveSubtaskCreation,
+    setExecutionCancelled,
   } = useDeveloperMode(taskId);
 
   // const {
@@ -176,7 +161,22 @@ export default function TaskDetailPage() {
     null,
   );
 
-  const [showTaskAnalysis, setShowTaskAnalysis] = useState(false);
+  // AIタスク分析モードの状態（localStorageからグローバルに保持）
+  const [showTaskAnalysis, setShowTaskAnalysis] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("showTaskAnalysis");
+      return saved === "true";
+    }
+    return false;
+  });
+
+  // showTaskAnalysis の変更時にlocalStorageに保存
+  useEffect(() => {
+    localStorage.setItem("showTaskAnalysis", String(showTaskAnalysis));
+  }, [showTaskAnalysis]);
+
+  // 最適化されたプロンプト用の状態
+  const [optimizedPrompt, setOptimizedPrompt] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchTask = async () => {
@@ -403,19 +403,23 @@ export default function TaskDetailPage() {
   };
 
   // 承認
-  const handleApproveAnalysis = async (selectedSubtasks?: number[]) => {
-    if (!pendingApprovalId) return;
-    const result = await approveRequest(pendingApprovalId, selectedSubtasks);
-    if (result?.success) {
-      setAnalysisResult(null);
-      setPendingApprovalId(null);
-      // タスクを再取得してサブタスクを表示
-      const res = await fetch(`${API_BASE}/tasks/${params.id}`);
-      if (res.ok) {
-        setTask(await res.json());
+    const handleApproveAnalysis = async (arg?: number | number[]) => {
+      // arg may be approvalId (number) when called from AIAnalysisPanel
+      // or selectedSubtasks (number[]) when called locally.
+      const approvalId = typeof arg === "number" ? arg : pendingApprovalId;
+      const selectedSubtasks = Array.isArray(arg) ? arg : undefined;
+      if (!approvalId) return;
+      const result = await approveRequest(approvalId, selectedSubtasks);
+      if (result?.success) {
+        setAnalysisResult(null);
+        setPendingApprovalId(null);
+        // タスクを再取得してサブタスクを表示
+        const res = await fetch(`${API_BASE}/tasks/${params.id}`);
+        if (res.ok) {
+          setTask(await res.json());
+        }
       }
-    }
-  };
+    };
 
   // 却下
   const handleRejectAnalysis = async () => {
@@ -494,7 +498,7 @@ export default function TaskDetailPage() {
     );
   }
 
-  const currentStatus = statusConfig[task.status as keyof typeof statusConfig];
+  const currentStatus = sharedStatusConfig[task.status as keyof typeof sharedStatusConfig];
 
   return (
     <div className="min-h-screen bg-linear-to-br from-zinc-50 via-white to-violet-50/30 dark:from-zinc-950 dark:via-zinc-900 dark:to-violet-950/10">
@@ -634,28 +638,19 @@ export default function TaskDetailPage() {
                 <span className="text-sm font-medium">ステータス</span>
               </div>
               <div className="flex gap-2">
-                {(
-                  Object.entries(statusConfig) as [
-                    string,
-                    typeof statusConfig.todo,
-                  ][]
-                ).map(([key, config]) => {
-                  const Icon = config.icon;
-                  const isActive = editStatus === key;
+                {(["todo", "in-progress", "done"] as const).map((status) => {
+                  const config = sharedStatusConfig[status];
                   return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setEditStatus(key)}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                        isActive
-                          ? `${config.activeBg} ${config.text} ring-2 ring-current ring-opacity-30`
-                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      {config.label}
-                    </button>
+                    <TaskStatusChange
+                      key={status}
+                      status={status}
+                      currentStatus={editStatus}
+                      config={config}
+                      renderIcon={renderStatusIcon}
+                      onClick={(status: string) => setEditStatus(status)}
+                      size="lg"
+                      showLabel={true}
+                    />
                   );
                 })}
               </div>
@@ -710,29 +705,19 @@ export default function TaskDetailPage() {
 
                 {/* Status Buttons */}
                 <div className="flex gap-2">
-                  {(
-                    Object.entries(statusConfig) as [
-                      string,
-                      typeof statusConfig.todo,
-                    ][]
-                  ).map(([key, config]) => {
-                    const Icon = config.icon;
-                    const isActive = task.status === key;
+                  {(["todo", "in-progress", "done"] as const).map((status) => {
+                    const config = sharedStatusConfig[status];
                     return (
-                      <button
-                        key={key}
-                        onClick={() => updateStatus(task.id, key)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                          isActive
-                            ? `${config.activeBg} ${config.text} shadow-sm`
-                            : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
-                        }`}
-                      >
-                        <Icon
-                          className={`w-4 h-4 ${isActive ? "" : "opacity-50"}`}
-                        />
-                        {config.label}
-                      </button>
+                      <TaskStatusChange
+                        key={status}
+                        status={status}
+                        currentStatus={task.status}
+                        config={config}
+                        renderIcon={renderStatusIcon}
+                        onClick={(status: string) => updateStatus(task.id, status)}
+                        size="lg"
+                        showLabel={true}
+                      />
                     );
                   })}
                 </div>
@@ -832,18 +817,31 @@ export default function TaskDetailPage() {
               </div>
             </div>
 
-            {/* AI タスク分析パネル */}
+            {/* AI アシスタントパネル（タスク分析 + プロンプト最適化 + 設定を統合） */}
             {showTaskAnalysis && (
               <div className="mb-6">
-                <TaskAnalysisPanel
+                <AIAnalysisPanel
+                  taskId={taskId}
+                  config={devModeConfig}
                   isAnalyzing={isAnalyzing}
-                  analysisResult={analysisResult}
-                  error={analysisError}
+                  analysisResult={analysisResult as any}
+                  analysisError={analysisError}
+                  analysisApprovalId={analysisApprovalId}
                   onAnalyze={handleAnalyze}
                   onApprove={handleApproveAnalysis}
                   onReject={handleRejectAnalysis}
+                  onApproveSubtasks={approveSubtaskCreation}
                   isApproving={approvalLoading}
                   onOpenSettings={() => setShowDevModeConfig(true)}
+                  onPromptGenerated={(prompt) => setOptimizedPrompt(prompt)}
+                  onSubtasksCreated={async () => {
+                    // タスクを再取得してサブタスクを更新
+                    const res = await fetch(`${API_BASE}/tasks/${params.id}`);
+                    if (res.ok) {
+                      const data = await res.json();
+                      setTask(data);
+                    }
+                  }}
                 />
               </div>
             )}
@@ -859,8 +857,12 @@ export default function TaskDetailPage() {
                   error={executionResult?.error || null}
                   workingDirectory={task.theme?.workingDirectory || undefined}
                   defaultBranch={task.theme?.defaultBranch || "main"}
+                  useTaskAnalysis={showTaskAnalysis && !!analysisResult}
+                  optimizedPrompt={optimizedPrompt}
                   onExecute={executeAgent}
                   onReset={resetExecutionState}
+                  onRestoreExecutionState={restoreExecutionState}
+                  onStopExecution={setExecutionCancelled}
                 />
               </div>
             )}
@@ -936,74 +938,88 @@ export default function TaskDetailPage() {
 
             {/* Comments Section */}
             <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
-              <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
-                <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-50">
-                  <MessageSquare className="w-5 h-5 text-blue-500" />
-                  <h2 className="text-lg font-bold">コメント</h2>
-                  {comments.length > 0 && (
-                    <span className="ml-1 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full">
-                      {comments.length}
-                    </span>
+              <div
+                className="p-4 border-b border-zinc-100 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
+                onClick={() => setIsCommentsExpanded(!isCommentsExpanded)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-50">
+                    <MessageSquare className="w-5 h-5 text-blue-500" />
+                    <h2 className="text-lg font-bold">コメント</h2>
+                    {comments.length > 0 && (
+                      <span className="ml-1 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full">
+                        {comments.length}
+                      </span>
+                    )}
+                  </div>
+                  {isCommentsExpanded ? (
+                    <ChevronUp className="w-5 h-5 text-zinc-400" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-zinc-400" />
                   )}
                 </div>
               </div>
 
-              {/* Add Comment */}
-              <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
-                <div className="flex gap-3">
-                  <textarea
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                    rows={2}
-                    placeholder="コメントを追加..."
-                  />
-                  <button
-                    onClick={handleAddComment}
-                    disabled={!newComment.trim() || isAddingComment}
-                    className="self-end px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Comments List */}
-              {comments.length > 0 && (
-                <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                  {comments.map((comment) => (
-                    <div
-                      key={comment.id}
-                      className="p-6 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                          {new Date(comment.createdAt).toLocaleString("ja-JP")}
-                        </span>
-                        <button
-                          onClick={() => handleDeleteComment(comment.id)}
-                          className="p-1 text-zinc-400 hover:text-red-500 rounded transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                      <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {comment.content}
-                        </ReactMarkdown>
-                      </div>
+              {isCommentsExpanded && (
+                <>
+                  {/* Add Comment */}
+                  <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
+                    <div className="flex gap-3">
+                      <textarea
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        rows={2}
+                        placeholder="コメントを追加..."
+                      />
+                      <button
+                        onClick={handleAddComment}
+                        disabled={!newComment.trim() || isAddingComment}
+                        className="self-end px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
 
-              {comments.length === 0 && (
-                <div className="p-12 text-center">
-                  <MessageSquare className="w-12 h-12 mx-auto mb-3 text-zinc-200 dark:text-zinc-700" />
-                  <p className="text-sm text-zinc-400 dark:text-zinc-500">
-                    コメントはまだありません
-                  </p>
-                </div>
+                  {/* Comments List */}
+                  {comments.length > 0 && (
+                    <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                      {comments.map((comment) => (
+                        <div
+                          key={comment.id}
+                          className="p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                              {new Date(comment.createdAt).toLocaleString("ja-JP")}
+                            </span>
+                            <button
+                              onClick={() => handleDeleteComment(comment.id)}
+                              className="p-1 text-zinc-400 hover:text-red-500 rounded transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {comment.content}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {comments.length === 0 && (
+                    <div className="p-8 text-center">
+                      <MessageSquare className="w-10 h-10 mx-auto mb-3 text-zinc-200 dark:text-zinc-700" />
+                      <p className="text-sm text-zinc-400 dark:text-zinc-500">
+                        コメントはまだありません
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </>
