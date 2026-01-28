@@ -82,6 +82,7 @@ export function AgentExecutionPanel({
   onRestoreExecutionState,
   onStopExecution,
 }: Props) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [showLogs, setShowLogs] = useState(true);
   const [isLogExpanded, setIsLogExpanded] = useState(false);
@@ -209,16 +210,31 @@ export function AgentExecutionPanel({
   // 質問検出の結果をメモ化
   const { hasQuestion, question, questionType } = useMemo(() => {
     return detectQuestion(currentLogText);
-  }, [currentLogText, pollingWaitingForInput, pollingQuestion, pollingQuestionType]);
+  }, [
+    currentLogText,
+    pollingWaitingForInput,
+    pollingQuestion,
+    pollingQuestionType,
+  ]);
 
   // questionTypeがtool_callの場合はより確実に質問があることを示す
   const isConfirmedQuestion = questionType === "tool_call";
 
   // waiting_for_input状態の場合は、完了とは見なさない
+  // ただし、pollingStatusまたはsseStatusが終了状態（completed, failed, cancelled）の場合は
+  // 質問待ちではないと判断する（過去のログに質問パターンが残っていても無視）
+  const isTerminalStatus =
+    pollingStatus === "completed" ||
+    pollingStatus === "failed" ||
+    pollingStatus === "cancelled" ||
+    sseStatus === "completed" ||
+    sseStatus === "failed" ||
+    sseStatus === "cancelled";
   const isWaitingForInput =
-    pollingStatus === "waiting_for_input" ||
-    pollingWaitingForInput ||
-    hasQuestion;
+    !isTerminalStatus &&
+    (pollingStatus === "waiting_for_input" ||
+      pollingWaitingForInput ||
+      hasQuestion);
 
   // マウント時に実行状態を復元
   useEffect(() => {
@@ -325,13 +341,18 @@ export function AgentExecutionPanel({
   useEffect(() => {
     // ログが増えた場合のみ自動スクロール
     if (logs.length > prevLogsLengthRef.current) {
-      if (logContainerRef.current && autoScroll && !isUserScrollingRef.current) {
+      if (
+        logContainerRef.current &&
+        autoScroll &&
+        !isUserScrollingRef.current
+      ) {
         // 自動スクロール中フラグを設定
         isAutoScrollingRef.current = true;
         // requestAnimationFrameを使用してスクロールを次のフレームに遅延
         requestAnimationFrame(() => {
           if (logContainerRef.current) {
-            logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+            logContainerRef.current.scrollTop =
+              logContainerRef.current.scrollHeight;
           }
           // スクロール完了後にフラグをリセット
           setTimeout(() => {
@@ -414,7 +435,6 @@ export function AgentExecutionPanel({
     jumpToMatch(prevIndex);
   }, [currentMatchIndex, searchMatches.length, jumpToMatch]);
 
-
   // キーボードショートカット
   const handleSearchKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -442,7 +462,7 @@ export function AgentExecutionPanel({
 
   // ログ拡大のトグル
   const toggleLogExpanded = useCallback(() => {
-    setIsLogExpanded(prev => !prev);
+    setIsLogExpanded((prev) => !prev);
   }, []);
 
   // 検索クエリのクリア
@@ -452,9 +472,12 @@ export function AgentExecutionPanel({
   }, []);
 
   // 検索クエリの変更
-  const handleSearchQueryChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
-  }, []);
+  const handleSearchQueryChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setSearchQuery(e.target.value);
+    },
+    [],
+  );
 
   const handleExecute = async () => {
     clearLogs();
@@ -515,16 +538,22 @@ export function AgentExecutionPanel({
         process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
       // タスクレベルの停止エンドポイントを使用（より確実）
-      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/stop-execution`, {
-        method: "POST",
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/tasks/${taskId}/stop-execution`,
+        {
+          method: "POST",
+        },
+      );
 
       if (!res.ok) {
         // 失敗した場合はセッションレベルで試す（フォールバック）
         if (sessionId) {
-          const fallbackRes = await fetch(`${API_BASE_URL}/agents/sessions/${sessionId}/stop`, {
-            method: "POST",
-          });
+          const fallbackRes = await fetch(
+            `${API_BASE_URL}/agents/sessions/${sessionId}/stop`,
+            {
+              method: "POST",
+            },
+          );
           if (!fallbackRes.ok) {
             console.error("Failed to stop execution");
           }
@@ -675,165 +704,167 @@ export function AgentExecutionPanel({
   }, [isRunning, isCompleted, isCancelled, isFailed]);
 
   // ログビューアーのJSXをメモ化
-  const logViewerContent = useMemo(() => (
-    <div
-      className={`transition-all duration-300 ${
-        isLogExpanded
-          ? "fixed inset-4 z-50 bg-zinc-900 rounded-xl shadow-2xl flex flex-col"
-          : "mt-4"
-      }`}
-    >
-      <div className="flex items-center justify-between px-4 py-2 bg-zinc-800 rounded-t-lg border-b border-zinc-700">
-        <div className="flex items-center gap-2">
-          <Terminal className="w-4 h-4 text-green-400" />
-          <span className="text-sm font-medium text-zinc-200">実行ログ</span>
-          {statusBadge}
-          {/* SSE接続状態インジケーター */}
-          {isSseConnected && (
-            <span
-              className="flex items-center gap-1 px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded text-xs"
-              title="リアルタイムストリーミング接続中"
-            >
-              <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full" />
-              LIVE
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {/* 検索バー（常時表示） */}
-          <div className="relative flex items-center gap-1">
-            <div className="relative">
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={handleSearchQueryChange}
-                onKeyDown={handleSearchKeyDown}
-                placeholder="検索..."
-                className="w-40 px-3 py-1 pl-7 bg-zinc-900 border border-zinc-600 rounded text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-yellow-500/50 focus:ring-1 focus:ring-yellow-500/30 focus:w-56 transition-all"
-              />
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
-            </div>
-            {searchQuery && (
-              <>
-                <span className="text-xs text-zinc-400 whitespace-nowrap">
-                  {searchMatches.length > 0
-                    ? `${currentMatchIndex + 1}/${searchMatches.length}`
-                    : "0件"}
-                </span>
-                <button
-                  onClick={goToPreviousMatch}
-                  disabled={searchMatches.length === 0}
-                  className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="前の結果 (Shift+Enter)"
-                >
-                  <ArrowUp className="w-3 h-3" />
-                </button>
-                <button
-                  onClick={goToNextMatch}
-                  disabled={searchMatches.length === 0}
-                  className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="次の結果 (Enter)"
-                >
-                  <ArrowDown className="w-3 h-3" />
-                </button>
-                <button
-                  onClick={clearSearchQuery}
-                  className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded"
-                  title="クリア"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </>
-            )}
-          </div>
-          <div className="w-px h-4 bg-zinc-600" />
-          {/* 自動スクロールボタン */}
-          <button
-            onClick={scrollToBottom}
-            className={`p-1.5 rounded transition-colors ${
-              autoScroll
-                ? "text-green-400 bg-zinc-700"
-                : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
-            }`}
-            title={autoScroll ? "自動スクロール中" : "最下部へスクロール"}
-          >
-            <ArrowDown className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleCopyLogs}
-            className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded transition-colors"
-            title="ログをコピー"
-          >
-            {copied ? (
-              <Check className="w-4 h-4 text-green-400" />
-            ) : (
-              <Copy className="w-4 h-4" />
-            )}
-          </button>
-          <button
-            onClick={toggleLogExpanded}
-            className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded transition-colors"
-            title={isLogExpanded ? "縮小" : "拡大"}
-          >
-            {isLogExpanded ? (
-              <Minimize2 className="w-4 h-4" />
-            ) : (
-              <Maximize2 className="w-4 h-4" />
-            )}
-          </button>
-        </div>
-      </div>
-
-
+  const logViewerContent = useMemo(
+    () => (
       <div
-        ref={logContainerRef}
-        onScroll={handleScroll}
-        onMouseDown={handleScrollStart}
-        onMouseUp={handleScrollEnd}
-        onTouchStart={handleScrollStart}
-        onTouchEnd={handleScrollEnd}
-        className={`bg-zinc-900 rounded-b-lg overflow-auto font-mono text-sm ${
-          isLogExpanded ? "flex-1" : "h-64"
+        className={`transition-all duration-300 ${
+          isLogExpanded
+            ? "fixed inset-4 z-50 bg-zinc-900 rounded-xl shadow-2xl flex flex-col"
+            : "mt-4"
         }`}
       >
-        <pre className="p-4 text-zinc-300 whitespace-pre-wrap wrap-break-words">
-          {logContent || (
-            <span className="text-zinc-500 flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              実行ログを取得中...
-            </span>
-          )}
-          {isRunning && logs.length > 0 && (
-            <span className="inline-flex w-2 h-4 bg-green-400 ml-1 animate-pulse" />
-          )}
-        </pre>
+        <div className="flex items-center justify-between px-4 py-2 bg-zinc-800 rounded-t-lg border-b border-zinc-700">
+          <div className="flex items-center gap-2">
+            <Terminal className="w-4 h-4 text-green-400" />
+            <span className="text-sm font-medium text-zinc-200">実行ログ</span>
+            {statusBadge}
+            {/* SSE接続状態インジケーター */}
+            {isSseConnected && (
+              <span
+                className="flex items-center gap-1 px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded text-xs"
+                title="リアルタイムストリーミング接続中"
+              >
+                <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full" />
+                LIVE
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {/* 検索バー（常時表示） */}
+            <div className="relative flex items-center gap-1">
+              <div className="relative">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={handleSearchQueryChange}
+                  onKeyDown={handleSearchKeyDown}
+                  placeholder="検索..."
+                  className="w-40 px-3 py-1 pl-7 bg-zinc-900 border border-zinc-600 rounded text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-yellow-500/50 focus:ring-1 focus:ring-yellow-500/30 focus:w-56 transition-all"
+                />
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
+              </div>
+              {searchQuery && (
+                <>
+                  <span className="text-xs text-zinc-400 whitespace-nowrap">
+                    {searchMatches.length > 0
+                      ? `${currentMatchIndex + 1}/${searchMatches.length}`
+                      : "0件"}
+                  </span>
+                  <button
+                    onClick={goToPreviousMatch}
+                    disabled={searchMatches.length === 0}
+                    className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="前の結果 (Shift+Enter)"
+                  >
+                    <ArrowUp className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={goToNextMatch}
+                    disabled={searchMatches.length === 0}
+                    className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="次の結果 (Enter)"
+                  >
+                    <ArrowDown className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={clearSearchQuery}
+                    className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded"
+                    title="クリア"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </>
+              )}
+            </div>
+            <div className="w-px h-4 bg-zinc-600" />
+            {/* 自動スクロールボタン */}
+            <button
+              onClick={scrollToBottom}
+              className={`p-1.5 rounded transition-colors ${
+                autoScroll
+                  ? "text-green-400 bg-zinc-700"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
+              }`}
+              title={autoScroll ? "自動スクロール中" : "最下部へスクロール"}
+            >
+              <ArrowDown className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleCopyLogs}
+              className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded transition-colors"
+              title="ログをコピー"
+            >
+              {copied ? (
+                <Check className="w-4 h-4 text-green-400" />
+              ) : (
+                <Copy className="w-4 h-4" />
+              )}
+            </button>
+            <button
+              onClick={toggleLogExpanded}
+              className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded transition-colors"
+              title={isLogExpanded ? "縮小" : "拡大"}
+            >
+              {isLogExpanded ? (
+                <Minimize2 className="w-4 h-4" />
+              ) : (
+                <Maximize2 className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div
+          ref={logContainerRef}
+          onScroll={handleScroll}
+          onMouseDown={handleScrollStart}
+          onMouseUp={handleScrollEnd}
+          onTouchStart={handleScrollStart}
+          onTouchEnd={handleScrollEnd}
+          className={`bg-zinc-900 rounded-b-lg overflow-auto font-mono text-sm ${
+            isLogExpanded ? "flex-1" : "h-64"
+          }`}
+        >
+          <pre className="p-4 text-zinc-300 whitespace-pre-wrap wrap-break-words">
+            {logContent || (
+              <span className="text-zinc-500 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                実行ログを取得中...
+              </span>
+            )}
+            {isRunning && logs.length > 0 && (
+              <span className="inline-flex w-2 h-4 bg-green-400 ml-1 animate-pulse" />
+            )}
+          </pre>
+        </div>
       </div>
-    </div>
-  ), [
-    isLogExpanded,
-    statusBadge,
-    isSseConnected,
-    searchQuery,
-    searchMatches.length,
-    currentMatchIndex,
-    autoScroll,
-    copied,
-    logContent,
-    isRunning,
-    logs.length,
-    handleScroll,
-    handleScrollStart,
-    handleScrollEnd,
-    handleCopyLogs,
-    scrollToBottom,
-    goToPreviousMatch,
-    goToNextMatch,
-    handleSearchKeyDown,
-    toggleLogExpanded,
-    clearSearchQuery,
-    handleSearchQueryChange,
-  ]);
+    ),
+    [
+      isLogExpanded,
+      statusBadge,
+      isSseConnected,
+      searchQuery,
+      searchMatches.length,
+      currentMatchIndex,
+      autoScroll,
+      copied,
+      logContent,
+      isRunning,
+      logs.length,
+      handleScroll,
+      handleScrollStart,
+      handleScrollEnd,
+      handleCopyLogs,
+      scrollToBottom,
+      goToPreviousMatch,
+      goToNextMatch,
+      handleSearchKeyDown,
+      toggleLogExpanded,
+      clearSearchQuery,
+      handleSearchQueryChange,
+    ],
+  );
 
   // 実行中の表示
   if (isRunning) {
@@ -1152,106 +1183,144 @@ export function AgentExecutionPanel({
     );
   }
 
-  // 初期状態（実行ボタン）
+  // 初期状態（折りたたみ可能な展開メニュー）
   return (
-    <div className="bg-linear-to-r from-violet-50 via-purple-50 to-indigo-50 dark:from-violet-950/30 dark:via-purple-950/30 dark:to-indigo-950/30 rounded-xl border border-violet-200 dark:border-violet-800 overflow-hidden">
-      {/* メインセクション */}
-      <div className="p-6">
-        <div className="flex items-start gap-4">
-          <div className="p-3 bg-linear-to-br from-violet-500 to-purple-600 rounded-xl shadow-lg">
-            <Code2 className="w-8 h-8 text-white" />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-bold text-lg text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-violet-500" />
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+      {/* ヘッダー（クリックで展開/折りたたみ） */}
+      <div
+        className="px-4 py-3 bg-linear-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 border-b border-zinc-200 dark:border-zinc-700 cursor-pointer"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Code2 className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+            <span className="font-semibold text-zinc-900 dark:text-zinc-50">
               AI エージェント実行
-            </h3>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+            </span>
+            {optimizedPrompt && (
+              <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs">
+                <Sparkles className="w-3 h-3" />
+                最適化済み
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {/* 展開していない時でも実行ボタンを表示 */}
+            {!isExpanded && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleExecute();
+                }}
+                disabled={isExecuting}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Play className="w-4 h-4" />
+                実行
+              </button>
+            )}
+            {isExpanded ? (
+              <ChevronUp className="w-4 h-4 text-zinc-400" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-zinc-400" />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 展開時のコンテンツ */}
+      {isExpanded && (
+        <>
+          {/* メインセクション */}
+          <div className="p-4">
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
               Claude
               Codeがこのタスクを自動で実装します。完了後、差分をレビューしてコミット・PRを作成できます。
             </p>
-          </div>
-          <button
-            onClick={handleExecute}
-            disabled={isExecuting}
-            className="flex items-center gap-2 px-6 py-3 bg-linear-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-          >
-            <Play className="w-5 h-5" />
-            実行開始
-          </button>
-        </div>
 
-        {/* 作業ディレクトリ表示 */}
-        {workingDirectory && (
-          <div className="mt-4 flex items-center gap-2 px-3 py-2 bg-white/60 dark:bg-zinc-900/40 rounded-lg">
-            <FolderOpen className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-            <span className="text-sm font-mono text-zinc-700 dark:text-zinc-300">
-              {workingDirectory}
-            </span>
-          </div>
-        )}
+            {/* 作業ディレクトリ表示 */}
+            {workingDirectory && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg mb-4">
+                <FolderOpen className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                <span className="text-sm font-mono text-zinc-700 dark:text-zinc-300">
+                  {workingDirectory}
+                </span>
+              </div>
+            )}
 
-        {/* 最適化プロンプト使用インジケータ */}
-        {optimizedPrompt && (
-          <div className="mt-4 flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-            <Sparkles className="w-4 h-4 text-green-600 dark:text-green-400" />
-            <span className="text-sm text-green-700 dark:text-green-300">
-              最適化されたプロンプトを使用して実行します
-            </span>
-          </div>
-        )}
-      </div>
+            {/* 最適化プロンプト使用インジケータ */}
+            {optimizedPrompt && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 mb-4">
+                <Sparkles className="w-4 h-4 text-green-600 dark:text-green-400" />
+                <span className="text-sm text-green-700 dark:text-green-300">
+                  最適化されたプロンプトを使用して実行します
+                </span>
+              </div>
+            )}
 
-      {/* オプション表示トグル */}
-      <button
-        onClick={() => setShowOptions(!showOptions)}
-        className="w-full px-6 py-3 flex items-center justify-between bg-violet-100/50 dark:bg-violet-900/20 border-t border-violet-200 dark:border-violet-800 hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors"
-      >
-        <span className="text-sm font-medium text-violet-700 dark:text-violet-300">
-          詳細オプション
-        </span>
-        {showOptions ? (
-          <ChevronUp className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-        ) : (
-          <ChevronDown className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-        )}
-      </button>
+            {/* 詳細オプション（折りたたみ） */}
+            <button
+              onClick={() => setShowOptions(!showOptions)}
+              className="w-full px-3 py-2 flex items-center justify-between bg-zinc-50 dark:bg-zinc-800/50 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors mb-4"
+            >
+              <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                詳細オプション
+              </span>
+              {showOptions ? (
+                <ChevronUp className="w-4 h-4 text-zinc-400" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-zinc-400" />
+              )}
+            </button>
 
-      {/* 詳細オプション */}
-      {showOptions && (
-        <div className="p-6 bg-white/40 dark:bg-zinc-900/20 border-t border-violet-200 dark:border-violet-800 space-y-4">
-          {/* 追加指示 */}
-          <div>
-            <label className="flex text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-              追加の実装指示（任意）
-            </label>
-            <textarea
-              value={instruction}
-              onChange={(e) => setInstruction(e.target.value)}
-              placeholder="例: TypeScriptの型を厳密に定義してください。テストも作成してください。"
-              rows={3}
-              className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 transition-all resize-none"
-            />
-          </div>
+            {/* 詳細オプション内容 */}
+            {showOptions && (
+              <div className="space-y-4 mb-4 p-4 bg-zinc-50 dark:bg-zinc-800/30 rounded-lg">
+                {/* 追加指示 */}
+                <div>
+                  <label className="flex text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                    追加の実装指示（任意）
+                  </label>
+                  <textarea
+                    value={instruction}
+                    onChange={(e) => setInstruction(e.target.value)}
+                    placeholder="例: TypeScriptの型を厳密に定義してください。テストも作成してください。"
+                    rows={3}
+                    className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 transition-all resize-none"
+                  />
+                </div>
 
-          {/* ブランチ名 */}
-          <div>
-            <label className="flex text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 items-center gap-2">
-              <GitBranch className="w-4 h-4" />
-              作業ブランチ名（任意）
-            </label>
-            <input
-              type="text"
-              value={branchName}
-              onChange={(e) => setBranchName(e.target.value)}
-              placeholder={`例: feature/task-${Date.now()}`}
-              className="w-full px-4 py-2.5 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 transition-all"
-            />
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              指定しない場合、自動でフィーチャーブランチが作成されます
-            </p>
+                {/* ブランチ名 */}
+                <div>
+                  <label className="flex text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 items-center gap-2">
+                    <GitBranch className="w-4 h-4" />
+                    作業ブランチ名（任意）
+                  </label>
+                  <input
+                    type="text"
+                    value={branchName}
+                    onChange={(e) => setBranchName(e.target.value)}
+                    placeholder={`例: feature/task-${Date.now()}`}
+                    className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 transition-all"
+                  />
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    指定しない場合、自動でフィーチャーブランチが作成されます
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* 実行ボタン */}
+            <button
+              onClick={handleExecute}
+              disabled={isExecuting}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Play className="w-5 h-5" />
+              実行開始
+            </button>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
