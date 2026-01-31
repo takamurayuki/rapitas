@@ -22,7 +22,6 @@ import {
   Pause,
   Hourglass,
   Clock,
-  Calendar,
   CheckCircle2,
   Circle,
   MessageSquare,
@@ -33,7 +32,6 @@ import {
   Tag,
   Save,
   Copy,
-  BrainCircuit,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -48,8 +46,8 @@ import {
   getRemainingTime,
 } from "@/feature/tasks/pomodoro/PomodoroProvider";
 import { useDeveloperMode } from "@/feature/developer-mode/hooks/useDeveloperMode";
+import CompactTaskDetailCard from "@/feature/tasks/components/CompactTaskDetailCard";
 import { useApprovals } from "@/feature/developer-mode/hooks/useApprovals";
-import { ToggleButton } from "@/components/ui/button/ToggleButton";
 import { DeveloperModeConfigModal } from "@/feature/developer-mode/components/DeveloperModeConfig";
 import { AIAccordionPanel } from "@/feature/developer-mode/components/AIAccordionPanel";
 import { Bot } from "lucide-react";
@@ -697,128 +695,18 @@ export default function TaskDetailClient() {
         ) : (
           /* View Mode */
           <>
-            {/* Main Card */}
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden mb-6">
-              {/* Title & Status */}
-              <div className="p-8 pb-6">
-                <div className="flex items-start justify-between gap-4 mb-6">
-                  <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 leading-tight">
-                    {task.title}
-                  </h1>
-                </div>
-
-                {/* Status Buttons */}
-                <div className="flex gap-2">
-                  {(["todo", "in-progress", "done"] as const).map((status) => {
-                    const config = sharedStatusConfig[status];
-                    return (
-                      <TaskStatusChange
-                        key={status}
-                        status={status}
-                        currentStatus={task.status}
-                        config={config}
-                        renderIcon={renderStatusIcon}
-                        onClick={(status: string) => updateStatus(task.id, status)}
-                        size="lg"
-                        showLabel={true}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Meta Info */}
-              {(task.taskLabels?.length || task.estimatedHours) && (
-                <div className="px-8 pb-6 flex flex-wrap items-center gap-4">
-                  {task.taskLabels && task.taskLabels.length > 0 && (
-                    <SelectedLabelsDisplay
-                      labels={task.taskLabels
-                        .map((tl) => tl.label)
-                        .filter((l): l is Label => l !== undefined)}
-                    />
-                  )}
-                  {task.estimatedHours && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-sm font-medium">
-                      <Clock className="w-3.5 h-3.5" />
-                      {task.estimatedHours}時間
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Description */}
-              {task.description && (
-                <div className="px-8 pb-8">
-                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-6">
-                    <div
-                      className="prose prose-zinc dark:prose-invert max-w-none
-                      prose-headings:font-bold
-                      prose-h1:text-xl prose-h1:mt-4 prose-h1:mb-2
-                      prose-h2:text-lg prose-h2:mt-3 prose-h2:mb-2
-                      prose-h3:text-base prose-h3:mt-2 prose-h3:mb-1
-                      prose-p:my-2 prose-p:leading-relaxed prose-p:text-sm
-                      prose-a:text-violet-600 prose-a:no-underline hover:prose-a:underline
-                      prose-pre:bg-zinc-100 prose-pre:dark:bg-zinc-900
-                      prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto
-                      prose-blockquote:border-l-4 prose-blockquote:border-violet-300
-                      prose-blockquote:dark:border-violet-700 prose-blockquote:pl-4
-                      prose-blockquote:italic prose-blockquote:text-zinc-600
-                      prose-blockquote:dark:text-zinc-400
-                      prose-ul:my-2 prose-ol:my-2
-                      prose-li:my-1 prose-li:text-sm
-                      [&_code]:bg-zinc-200 [&_code]:dark:bg-zinc-700
-                      [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded
-                      [&_code]:text-sm [&_code]:font-mono
-                      [&_code]:text-zinc-800 [&_code]:dark:text-zinc-200
-                      [&_code]:before:content-[''] [&_code]:after:content-['']
-                      [&_pre_code]:bg-transparent [&_pre_code]:p-0"
-                    >
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={createMarkdownComponents(handleEditCode)}
-                      >
-                        {task.description}
-                      </ReactMarkdown>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Timestamps */}
-              <div className="px-8 py-4 bg-zinc-50 dark:bg-zinc-800/30 border-t border-zinc-100 dark:border-zinc-800">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-6 text-xs text-zinc-400 dark:text-zinc-500">
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5" />
-                      作成:{" "}
-                      {new Date(task.createdAt).toLocaleDateString("ja-JP")}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" />
-                      更新:{" "}
-                      {new Date(task.updatedAt).toLocaleDateString("ja-JP")}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    {/* AIタスク分析トグル */}
-                    <ToggleButton
-                      label="AIタスク分析モード"
-                      icon={BrainCircuit}
-                      isEnabled={showTaskAnalysis}
-                      onToggle={() => setShowTaskAnalysis(!showTaskAnalysis)}
-                    />
-                    {/* 開発者モードトグル */}
-                    <ToggleButton
-                      label="開発者モード"
-                      icon={Bot}
-                      isEnabled={devModeConfig?.isEnabled ?? false}
-                      isLoading={devModeLoading}
-                      onToggle={handleToggleDeveloperMode}
-                    />
-                  </div>
-                </div>
-              </div>
+            {/* Compact Main Card with Accordion - All-in-one */}
+            <div className="mb-6">
+              <CompactTaskDetailCard
+                task={task}
+                onStatusUpdate={updateStatus}
+                onEditCode={handleEditCode}
+                showTaskAnalysis={showTaskAnalysis}
+                onToggleTaskAnalysis={() => setShowTaskAnalysis(!showTaskAnalysis)}
+                devModeConfig={devModeConfig}
+                devModeLoading={devModeLoading}
+                onToggleDeveloperMode={handleToggleDeveloperMode}
+              />
             </div>
 
             {/* AI アシスタント統合パネル（タスク分析 + プロンプト最適化 + エージェント実行） */}
