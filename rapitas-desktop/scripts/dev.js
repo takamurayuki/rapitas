@@ -5,11 +5,28 @@
  */
 const { spawn, execSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 const FRONTEND_DIR = path.resolve(__dirname, '../../rapitas-frontend');
 const BACKEND_DIR = path.resolve(__dirname, '../../rapitas-backend');
+const BINARIES_DIR = path.resolve(__dirname, '../src-tauri/binaries');
 
 console.log('Starting development servers for Tauri (SQLite mode)...');
+
+// 開発モード用にダミーのsidecarバイナリを作成（Tauriがパスを検証するため）
+const targetTriple = 'x86_64-pc-windows-msvc';
+const dummyBinaryPath = path.join(BINARIES_DIR, `rapitas-backend-${targetTriple}.exe`);
+
+if (!fs.existsSync(BINARIES_DIR)) {
+  fs.mkdirSync(BINARIES_DIR, { recursive: true });
+}
+
+if (!fs.existsSync(dummyBinaryPath)) {
+  console.log('Creating dummy sidecar binary for development...');
+  // 空の実行ファイルを作成（開発モードでは使用されない）
+  fs.writeFileSync(dummyBinaryPath, '');
+  console.log(`Created: ${dummyBinaryPath}`);
+}
 
 // 既存のバックエンドプロセスを停止（ファイルロック解除のため）
 console.log('Stopping existing backend processes...');

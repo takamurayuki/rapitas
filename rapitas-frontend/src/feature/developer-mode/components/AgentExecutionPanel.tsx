@@ -15,7 +15,6 @@ import {
   Rocket,
   Bot,
   GitBranch,
-  FolderOpen,
   Sparkles,
   Terminal,
   ChevronDown,
@@ -26,6 +25,7 @@ import {
   Send,
   HelpCircle,
   FileText,
+  Settings,
 } from "lucide-react";
 import type {
   ExecutionStatus,
@@ -955,24 +955,40 @@ export function AgentExecutionPanel({
               </div>
             )}
 
-            {/* 詳細オプション（折りたたみ） */}
-            <button
-              onClick={() => setShowOptions(!showOptions)}
-              className="w-full px-3 py-2 flex items-center justify-between bg-zinc-50 dark:bg-zinc-800/50 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors mb-4"
-            >
-              <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-                詳細オプション
-              </span>
-              {showOptions ? (
-                <ChevronUp className="w-4 h-4 text-zinc-400" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-zinc-400" />
-              )}
-            </button>
+            {/* 詳細オプションと実行ボタンを同じ行に配置 */}
+            <div className="flex items-center gap-3">
+              {/* 詳細オプション（アコーディオン形式） */}
+              <button
+                onClick={() => setShowOptions(!showOptions)}
+                className="flex-1 h-11 flex items-center justify-between px-4 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-zinc-400" />
+                  <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                    詳細オプション
+                  </span>
+                </div>
+                <ChevronDown
+                  className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${
+                    showOptions ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {/* 実行ボタン */}
+              <button
+                onClick={handleExecute}
+                disabled={isExecuting}
+                className="h-11 flex items-center gap-2 px-6 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              >
+                <Play className="w-4 h-4" />
+                実行開始
+              </button>
+            </div>
 
             {/* 詳細オプション内容 */}
             {showOptions && (
-              <div className="space-y-4 mb-4 p-4 bg-zinc-50 dark:bg-zinc-800/30 rounded-lg">
+              <div className="mt-3 space-y-4 p-4 bg-zinc-50 dark:bg-zinc-800/30 rounded-lg border border-zinc-200 dark:border-zinc-700 animate-in slide-in-from-top-1 duration-200">
                 {/* 追加指示 */}
                 <div>
                   <label className="flex text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
@@ -1006,18 +1022,6 @@ export function AgentExecutionPanel({
                 </div>
               </div>
             )}
-
-            {/* 実行ボタン */}
-            <div className="mx-auto flex justify-center gap-2 max-w-4xl">
-              <button
-                onClick={handleExecute}
-                disabled={isExecuting}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors"
-              >
-                <Play className="w-4 h-4" />
-                実行開始
-              </button>
-            </div>
           </div>
         </>
       )}
