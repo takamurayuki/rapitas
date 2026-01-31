@@ -81,10 +81,24 @@ export default function TaskDetailClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // TauriのiframeではuseParams()が正しく動作しない場合があるため、
+  // window.locationからIDを直接抽出するフォールバックを追加
+  const getTaskIdFromUrl = (): string | null => {
+    if (typeof window === 'undefined') return null;
+    const match = window.location.pathname.match(/\/tasks\/(\d+)/);
+    return match ? match[1] : null;
+  };
+
+  // params.idを優先し、取得できない場合はURLから直接取得
+  const taskIdFromParams = params?.id as string | undefined;
+  const taskIdFromUrl = getTaskIdFromUrl();
+  const resolvedTaskId = taskIdFromParams || taskIdFromUrl;
+
   // デバッグログ
   console.log('[TaskDetailClient] params:', params);
   console.log('[TaskDetailClient] window.location:', typeof window !== 'undefined' ? window.location.href : 'SSR');
   console.log('[TaskDetailClient] params.id:', params?.id);
+  console.log('[TaskDetailClient] resolvedTaskId:', resolvedTaskId);
 
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
@@ -126,7 +140,7 @@ export default function TaskDetailClient() {
 
   // 開発者モード用の状態
   const [showDevModeConfig, setShowDevModeConfig] = useState(false);
-  const taskId = params.id ? parseInt(params.id as string) : 0;
+  const taskId = resolvedTaskId ? parseInt(resolvedTaskId) : 0;
   const {
     config: devModeConfig,
     isLoading: devModeLoading,
@@ -184,7 +198,7 @@ export default function TaskDetailClient() {
     const fetchTask = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${API_BASE}/tasks/${params.id}`);
+        const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
         if (!res.ok) throw new Error("タスクの取得に失敗しました");
         const data = await res.json();
         setTask(data);
@@ -197,7 +211,7 @@ export default function TaskDetailClient() {
 
     const fetchTimeEntries = async () => {
       try {
-        const res = await fetch(`${API_BASE}/tasks/${params.id}/time-entries`);
+        const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/time-entries`);
         if (res.ok) setTimeEntries(await res.json());
       } catch (err) {
         console.error("Failed to fetch time entries:", err);
@@ -206,20 +220,20 @@ export default function TaskDetailClient() {
 
     const fetchComments = async () => {
       try {
-        const res = await fetch(`${API_BASE}/tasks/${params.id}/comments`);
+        const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/comments`);
         if (res.ok) setComments(await res.json());
       } catch (err) {
         console.error("Failed to fetch comments:", err);
       }
     };
 
-    if (params.id) {
+    if (resolvedTaskId) {
       fetchTask();
       fetchTimeEntries();
       fetchComments();
       fetchDevModeConfig();
     }
-  }, [params.id, fetchDevModeConfig]);
+  }, [resolvedTaskId, fetchDevModeConfig]);
 
   const updateStatus = async (taskId: number, newStatus: string) => {
     try {
@@ -271,7 +285,7 @@ export default function TaskDetailClient() {
 
     try {
       setIsAddingComment(true);
-      const res = await fetch(`${API_BASE}/tasks/${params.id}/comments`, {
+      const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: newComment }),
@@ -397,7 +411,7 @@ export default function TaskDetailClient() {
     }
     // 自動承認の場合は、タスクを再取得
     if (result?.autoApproved) {
-      const res = await fetch(`${API_BASE}/tasks/${params.id}`);
+      const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
       if (res.ok) {
         setTask(await res.json());
       }
@@ -416,7 +430,7 @@ export default function TaskDetailClient() {
         setAnalysisResult(null);
         setPendingApprovalId(null);
         // タスクを再取得してサブタスクを表示
-        const res = await fetch(`${API_BASE}/tasks/${params.id}`);
+        const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
         if (res.ok) {
           setTask(await res.json());
         }
@@ -729,7 +743,7 @@ export default function TaskDetailClient() {
                   onPromptGenerated={(prompt) => setOptimizedPrompt(prompt)}
                   onSubtasksCreated={async () => {
                     // タスクを再取得してサブタスクを更新
-                    const res = await fetch(`${API_BASE}/tasks/${params.id}`);
+                    const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
                     if (res.ok) {
                       const data = await res.json();
                       setTask(data);
@@ -954,10 +968,10 @@ export default function TaskDetailClient() {
                 actualHours={task.actualHours ?? undefined}
                 timeEntries={timeEntries}
                 onUpdate={() => {
-                  fetch(`${API_BASE}/tasks/${params.id}`)
+                  fetch(`${API_BASE}/tasks/${resolvedTaskId}`)
                     .then((res) => res.json())
                     .then((data) => setTask(data));
-                  fetch(`${API_BASE}/tasks/${params.id}/time-entries`)
+                  fetch(`${API_BASE}/tasks/${resolvedTaskId}/time-entries`)
                     .then((res) => res.json())
                     .then((data) => setTimeEntries(data));
                 }}
