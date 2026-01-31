@@ -6,11 +6,17 @@ import Link from "next/link";
 import { useNotifications } from "@/feature/developer-mode/hooks/useNotifications";
 import type { Notification } from "@/types";
 
-const typeIcons: Record<Notification["type"], string> = {
+const typeIcons: Record<string, string> = {
   approval_request: "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400",
   task_completed: "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400",
   agent_error: "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400",
   daily_summary: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400",
+  pr_review_requested: "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400",
+  pr_approved: "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400",
+  pr_changes_requested: "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400",
+  agent_execution_started: "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400",
+  agent_execution_complete: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400",
+  github_sync_complete: "bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400",
 };
 
 export default function NotificationBell() {
@@ -178,7 +184,7 @@ export default function NotificationBell() {
 
                   {/* Unread indicator */}
                   {!notification.isRead && (
-                    <div className="absolute left-1.5 top-1/2 -translate-y-1/2 w-2 h-2 bg-violet-500 rounded-full" />
+                    <div className="absolute left-[42px] top-2.5 w-2 h-2 bg-violet-500 rounded-full" />
                   )}
                 </div>
               ))
@@ -257,6 +263,48 @@ function NotificationContent({
               strokeLinejoin="round"
               strokeWidth={2}
               d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
+          </svg>
+        )}
+        {notification.type === "pr_review_requested" && (
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+            />
+          </svg>
+        )}
+        {notification.type === "agent_execution_started" && (
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
             />
           </svg>
         )}

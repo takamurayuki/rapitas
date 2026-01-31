@@ -1,0 +1,576 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Theme {
+  id               Int      @id @default(autoincrement())
+  name             String
+  description      String?
+  color            String   @default("#8B5CF6") // デフォルトは紫
+  icon             String?
+  isDefault        Boolean  @default(false) // デフォルトテーマフラグ
+  // 開発プロジェクト設定
+  isDevelopment    Boolean  @default(false) // 開発系テーマフラグ
+  repositoryUrl    String?  // GitHubリポジトリURL
+  workingDirectory String?  // ローカル作業ディレクトリパス
+  defaultBranch    String?  @default("main") // デフォルトブランチ
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  tasks            Task[]
+}
+
+model Project {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String?
+  color       String      @default("#3B82F6") // デフォルトは青
+  icon        String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  tasks       Task[]
+  milestones  Milestone[]
+}
+
+model Milestone {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  dueDate     DateTime?
+  projectId   Int
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Task {
+  id                    Int           @id @default(autoincrement())
+  title                 String
+  description           String?
+  status                String        @default("todo")
+  priority              String        @default("medium") // low, medium, high, urgent
+  labels                String[]      @default([])
+  estimatedHours        Float?
+  actualHours           Float?        // 実績時間
+  dueDate               DateTime?     // 締め切り日
+  subject               String?       // 科目（学習タスク用）
+  startedAt             DateTime?     // 作業開始時刻
+  completedAt           DateTime?     // 完了時刻
+  parentId              Int?
+  parent                Task?         @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks              Task[]        @relation("TaskSubtasks")
+  themeId               Int?
+  theme                 Theme?        @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  projectId             Int?
+  project               Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  milestoneId           Int?
+  milestone             Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  examGoalId            Int?
+  examGoal              ExamGoal?     @relation(fields: [examGoalId], references: [id], onDelete: SetNull)
+  timeEntries           TimeEntry[]
+  comments              Comment[]
+  activityLogs          ActivityLog[]
+  taskLabels            TaskLabel[]
+  resources             Resource[]
+  // 開発者モード関連
+  isDeveloperMode       Boolean       @default(false)
+  agentGenerated        Boolean       @default(false)
+  agentExecutable       Boolean       @default(false)
+  executionInstructions String?
+  developerModeConfig   DeveloperModeConfig?
+  prompts               TaskPrompt[]
+  // GitHub連携
+  githubIssueId         Int?
+  githubPrId            Int?
+  autoExecutable        Boolean       @default(false)
+  requireApproval       String        @default("always") // always, major_only, never
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+}
+
+model TimeEntry {
+  id            Int      @id @default(autoincrement())
+  taskId        Int
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  duration      Float    // 作業時間(時間)
+  breakDuration Float?   @default(0) // 休憩時間(時間)
+  note          String?  // 作業内容メモ
+  startedAt     DateTime
+  endedAt       DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  content   String   // マークダウン対応
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  taskId    Int?
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  projectId Int?
+  action    String   // "created", "updated", "status_changed", "priority_changed", etc.
+  changes   Json?    // 変更内容の詳細
+  metadata  Json?    // 追加情報
+  createdAt DateTime @default(now())
+}
+
+model Label {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String?
+  color       String      @default("#6366F1")
+  icon        String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  tasks       TaskLabel[]
+}
+
+model TaskLabel {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  labelId   Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label     Label    @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([taskId, labelId])
+}
+
+// 試験目標（学習特化機能）
+model ExamGoal {
+  id            Int       @id @default(autoincrement())
+  name          String    // 試験名（例：TOEIC、基本情報技術者）
+  description   String?   // 目標の詳細
+  examDate      DateTime  // 試験日
+  targetScore   String?   // 目標スコア/点数
+  color         String    @default("#10B981") // 表示色
+  icon          String?   // アイコン
+  isCompleted   Boolean   @default(false) // 達成済みフラグ
+  actualScore   String?   // 実際のスコア（試験後）
+  tasks         Task[]    // 関連タスク
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// 学習ストリーク（連続達成記録）
+model StudyStreak {
+  id              Int      @id @default(autoincrement())
+  date            DateTime @unique // 日付（日単位でユニーク）
+  studyMinutes    Int      @default(0) // その日の学習時間（分）
+  tasksCompleted  Int      @default(0) // その日の完了タスク数
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// AI学習計画
+model StudyPlan {
+  id            Int       @id @default(autoincrement())
+  examGoalId    Int?      // 関連する試験目標
+  subject       String    // 科目
+  prompt        String    // ユーザーの入力（目標など）
+  generatedPlan Json      // AIが生成した学習計画
+  totalDays     Int       // 計画日数
+  startDate     DateTime  // 開始日
+  endDate       DateTime  // 終了日
+  isApplied     Boolean   @default(false) // タスクに適用済みか
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// 実績/バッジ
+model Achievement {
+  id            Int                 @id @default(autoincrement())
+  key           String              @unique // 識別キー
+  name          String              // 表示名
+  description   String              // 説明
+  icon          String              // アイコン名
+  color         String              @default("#FFD700") // バッジの色
+  category      String              // カテゴリ（streak, tasks, study, etc）
+  condition     Json                // 解除条件
+  rarity        String              @default("common") // common, rare, epic, legendary
+  unlockedBy    UserAchievement[]
+  createdAt     DateTime            @default(now())
+}
+
+// ユーザーの獲得実績
+model UserAchievement {
+  id            Int         @id @default(autoincrement())
+  achievementId Int
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  unlockedAt    DateTime    @default(now())
+
+  @@unique([achievementId])
+}
+
+// 習慣トラッカー
+model Habit {
+  id            Int           @id @default(autoincrement())
+  name          String        // 習慣名
+  description   String?       // 説明
+  icon          String?       // アイコン
+  color         String        @default("#10B981")
+  frequency     String        @default("daily") // daily, weekly
+  targetCount   Int           @default(1) // 目標回数
+  isActive      Boolean       @default(true)
+  logs          HabitLog[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+// 習慣の記録
+model HabitLog {
+  id        Int      @id @default(autoincrement())
+  habitId   Int
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date      DateTime
+  count     Int      @default(1)
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@unique([habitId, date])
+}
+
+// 学習リソース
+model Resource {
+  id          Int      @id @default(autoincrement())
+  taskId      Int?
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title       String
+  url         String?
+  type        String   // link, file, note, video
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// フラッシュカードデッキ
+model FlashcardDeck {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String?
+  color       String      @default("#3B82F6")
+  taskId      Int?        // 関連タスク
+  cards       Flashcard[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+// フラッシュカード
+model Flashcard {
+  id          Int           @id @default(autoincrement())
+  deckId      Int
+  deck        FlashcardDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  front       String        // 表面（問題）
+  back        String        // 裏面（答え）
+  nextReview  DateTime?     // 次回復習日（忘却曲線）
+  interval    Int           @default(1) // 復習間隔（日）
+  easeFactor  Float         @default(2.5) // 難易度係数
+  reviewCount Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+// タスクテンプレート
+model TaskTemplate {
+  id            Int      @id @default(autoincrement())
+  name          String
+  description   String?
+  category      String   // study, work, routine
+  templateData  Json     // タスクのテンプレートデータ
+  isPublic      Boolean  @default(false)
+  useCount      Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ==================== 開発者モード機能 ====================
+
+// 開発者モード設定
+model DeveloperModeConfig {
+  id                Int       @id @default(autoincrement())
+  taskId            Int       @unique
+  task              Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  isEnabled         Boolean   @default(true)
+  autoApprove       Boolean   @default(false)
+  notifyInApp       Boolean   @default(true)
+  maxSubtasks       Int       @default(10)
+  priority          String    @default("balanced") // aggressive, balanced, conservative
+  // 追加: 承認設定
+  requireApproval   String    @default("always") // always, major_only, never
+  autoExecuteOn     String[]  @default([])       // ["subtask_creation", "code_generation"]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  agentSessions     AgentSession[]
+  approvalRequests  ApprovalRequest[]
+}
+
+// AIエージェントセッション
+model AgentSession {
+  id                Int       @id @default(autoincrement())
+  configId          Int
+  config            DeveloperModeConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  status            String    @default("pending") // pending, running, paused, completed, failed
+  startedAt         DateTime?
+  completedAt       DateTime?
+  lastActivityAt    DateTime  @default(now())
+  totalTokensUsed   Int       @default(0)
+  errorMessage      String?
+  metadata          Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  agentActions      AgentAction[]
+  agentExecutions   AgentExecution[]
+}
+
+// AIアクション履歴
+model AgentAction {
+  id                Int       @id @default(autoincrement())
+  sessionId         Int
+  session           AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  actionType        String    // task_created, task_updated, task_completed, subtask_created, analysis
+  targetTaskId      Int?
+  input             Json?
+  output            Json?
+  tokensUsed        Int       @default(0)
+  durationMs        Int?
+  status            String    @default("success")
+  errorMessage      String?
+  createdAt         DateTime  @default(now())
+}
+
+// 承認リクエスト
+model ApprovalRequest {
+  id                Int       @id @default(autoincrement())
+  configId          Int
+  config            DeveloperModeConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  requestType       String    // subtask_creation, task_execution, task_completion
+  title             String
+  description       String?
+  proposedChanges   Json
+  status            String    @default("pending") // pending, approved, rejected, expired
+  expiresAt         DateTime?
+  approvedAt        DateTime?
+  rejectedAt        DateTime?
+  rejectionReason   String?
+  notificationSent  Boolean   @default(false)
+  // 追加フィールド
+  executionType     String?   // code_execution, pr_merge, deployment
+  estimatedChanges  Json?     // 予想される変更内容
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// 通知
+// type: approval_request, task_completed, agent_error, daily_summary,
+//       pr_review_requested, pr_approved, pr_changes_requested,
+//       agent_execution_started, agent_execution_complete, github_sync_complete
+model Notification {
+  id                Int       @id @default(autoincrement())
+  type              String
+  title             String
+  message           String
+  link              String?
+  isRead            Boolean   @default(false)
+  readAt            DateTime?
+  metadata          Json?
+  createdAt         DateTime  @default(now())
+}
+
+// ユーザー設定
+model UserSettings {
+  id                      Int       @id @default(autoincrement())
+  developerModeDefault    Boolean   @default(false)
+  aiTaskAnalysisDefault   Boolean   @default(false)
+  claudeApiKeyEncrypted   String?   // 暗号化されたClaude APIキー
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+}
+
+// ==================== AI駆動開発モード機能 ====================
+
+// AI エージェント設定
+model AIAgentConfig {
+  id              Int       @id @default(autoincrement())
+  agentType       String    // claude-code, codex, gemini, custom
+  name            String
+  apiKeyEncrypted String?
+  endpoint        String?
+  modelId         String?
+  isDefault       Boolean   @default(false)
+  isActive        Boolean   @default(true)
+  capabilities    Json      @default("{}")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  executions      AgentExecution[]
+}
+
+// エージェント実行履歴
+model AgentExecution {
+  id                Int       @id @default(autoincrement())
+  sessionId         Int
+  session           AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  agentConfigId     Int?
+  agentConfig       AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
+  command           String
+  status            String    @default("pending") // pending, running, completed, failed, cancelled, waiting_for_input
+  output            String?   @db.Text
+  artifacts         Json?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  tokensUsed        Int       @default(0)
+  executionTimeMs   Int?
+  errorMessage      String?
+  question          String?   @db.Text // 質問待ち時のClaude Codeからの質問
+  questionType      String?   // 質問検出方法: tool_call (AskUserQuestion), none
+  questionDetails   Json?     // 質問詳細（選択肢、ヘッダー等）
+  createdAt         DateTime  @default(now())
+  gitCommits        GitCommit[]
+}
+
+// GitHub連携設定
+model GitHubIntegration {
+  id                Int       @id @default(autoincrement())
+  repositoryUrl     String    @unique
+  repositoryName    String
+  ownerName         String
+  accessTokenEnc    String?
+  webhookSecret     String?
+  isActive          Boolean   @default(true)
+  syncIssues        Boolean   @default(true)
+  syncPullRequests  Boolean   @default(true)
+  autoLinkTasks     Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  pullRequests      GitHubPullRequest[]
+  issues            GitHubIssue[]
+}
+
+// GitHub PR同期
+model GitHubPullRequest {
+  id                Int       @id @default(autoincrement())
+  integrationId     Int
+  integration       GitHubIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  prNumber          Int
+  title             String
+  body              String?   @db.Text
+  state             String    // open, closed, merged
+  headBranch        String
+  baseBranch        String
+  authorLogin       String
+  url               String
+  linkedTaskId      Int?
+  lastSyncedAt      DateTime
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  reviews           GitHubPRReview[]
+  comments          GitHubPRComment[]
+  @@unique([integrationId, prNumber])
+}
+
+// GitHub PRレビュー
+model GitHubPRReview {
+  id                Int       @id @default(autoincrement())
+  pullRequestId     Int
+  pullRequest       GitHubPullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  reviewId          Int
+  state             String    // APPROVED, CHANGES_REQUESTED, COMMENTED
+  body              String?   @db.Text
+  authorLogin       String
+  submittedAt       DateTime
+  createdAt         DateTime  @default(now())
+}
+
+// GitHub PRコメント
+model GitHubPRComment {
+  id                Int       @id @default(autoincrement())
+  pullRequestId     Int
+  pullRequest       GitHubPullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  commentId         Int
+  body              String    @db.Text
+  path              String?
+  line              Int?
+  authorLogin       String
+  isFromRapitas     Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// GitHub Issue同期
+model GitHubIssue {
+  id                Int       @id @default(autoincrement())
+  integrationId     Int
+  integration       GitHubIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  issueNumber       Int
+  title             String
+  body              String?   @db.Text
+  state             String
+  labels            String[]  @default([])
+  authorLogin       String
+  url               String
+  linkedTaskId      Int?
+  lastSyncedAt      DateTime
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@unique([integrationId, issueNumber])
+}
+
+// Gitコミット追跡
+model GitCommit {
+  id                Int       @id @default(autoincrement())
+  executionId       Int
+  execution         AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  commitHash        String
+  message           String
+  branch            String
+  filesChanged      Int       @default(0)
+  additions         Int       @default(0)
+  deletions         Int       @default(0)
+  createdAt         DateTime  @default(now())
+}
+
+// お気に入りディレクトリパス
+model FavoriteDirectory {
+  id          Int       @id @default(autoincrement())
+  path        String    @unique  // ディレクトリパス（ユニーク）
+  name        String?            // 表示名（オプション）
+  isGitRepo   Boolean   @default(false)  // Gitリポジトリかどうか
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// タスク最適化プロンプト
+model TaskPrompt {
+  id                  Int       @id @default(autoincrement())
+  taskId              Int       // 親タスクまたはサブタスクのID
+  task                Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  name                String?   // プロンプト名（オプション）
+  originalDescription String?   @db.Text // 元の説明
+  optimizedPrompt     String    @db.Text // 最適化されたプロンプト
+  structuredSections  Json?     // 構造化セクション
+  qualityScore        Int?      // 品質スコア
+  isActive            Boolean   @default(true) // アクティブなプロンプト
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([taskId])
+}

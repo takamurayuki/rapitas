@@ -1,0 +1,60 @@
+#!/usr/bin/env node
+/**
+ * 本番ビルド用スクリプト
+ * バックエンドとフロントエンドを両方ビルド
+ */
+const { execSync } = require('child_process');
+const path = require('path');
+
+const FRONTEND_DIR = path.resolve(__dirname, '../../rapitas-frontend');
+const BACKEND_DIR = path.resolve(__dirname, '../../rapitas-backend');
+const SCRIPTS_DIR = __dirname;
+
+console.log('=== Building Rapitas for production (SQLite) ===\n');
+
+try {
+  // 0. 既存プロセスを停止してSQLiteスキーマに切り替え
+  console.log('Step 0: Stopping processes and switching to SQLite schema...');
+  try {
+    if (process.platform === 'win32') {
+      execSync('taskkill /F /IM bun.exe 2>nul', { shell: true, stdio: 'ignore' });
+      execSync('taskkill /F /IM rapitas-backend.exe 2>nul', { shell: true, stdio: 'ignore' });
+      execSync('ping -n 2 127.0.0.1 >nul', { shell: true, stdio: 'ignore' });
+    }
+  } catch (e) { /* ignore */ }
+
+  execSync('node scripts/switch-schema.cjs sqlite', {
+    cwd: BACKEND_DIR,
+    stdio: 'inherit',
+    shell: true
+  });
+  execSync('bun run db:generate', {
+    cwd: BACKEND_DIR,
+    stdio: 'inherit',
+    shell: true
+  });
+  console.log('Schema switched to SQLite.\n');
+
+  // 1. バックエンドをビルド
+  console.log('Step 1: Building backend...');
+  execSync(`node "${path.join(SCRIPTS_DIR, 'build-backend.js')}"`, {
+    stdio: 'inherit',
+    shell: true
+  });
+  console.log('Backend build complete.\n');
+
+  // 2. フロントエンドをビルド
+  console.log('Step 2: Building frontend...');
+  execSync('pnpm run build:tauri', {
+    cwd: FRONTEND_DIR,
+    stdio: 'inherit',
+    shell: true
+  });
+  console.log('Frontend build complete.\n');
+
+  console.log('=== All builds complete! ===');
+
+} catch (error) {
+  console.error('Build failed:', error.message);
+  process.exit(1);
+}

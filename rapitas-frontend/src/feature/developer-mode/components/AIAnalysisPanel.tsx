@@ -575,7 +575,7 @@ export function AIAnalysisPanel({
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
       {/* ヘッダー */}
       <div
-        className="px-4 py-3 bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border-b border-zinc-200 dark:border-zinc-700 cursor-pointer"
+        className="px-4 py-3 bg-linear-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border-b border-zinc-200 dark:border-zinc-700 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center justify-between">
@@ -677,133 +677,156 @@ export function AIAnalysisPanel({
                         {analysisResult.summary}
                       </p>
                     </div>
-                    {analysisResult.suggestedSubtasks && analysisResult.suggestedSubtasks.length > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                            提案サブタスク ({analysisResult.suggestedSubtasks.length}件)
-                          </p>
-                          {analysisApprovalId && !subtaskCreationSuccess && (
-                            <button
-                              onClick={() => {
-                                const allIndices = analysisResult.suggestedSubtasks.map((_, i) => i);
-                                if (selectedSubtasks.length === allIndices.length) {
-                                  setSelectedSubtasks([]);
-                                } else {
-                                  setSelectedSubtasks(allIndices);
-                                }
-                              }}
-                              className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
-                            >
-                              {selectedSubtasks.length === analysisResult.suggestedSubtasks.length ? "すべて解除" : "すべて選択"}
-                            </button>
-                          )}
-                        </div>
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {analysisResult.suggestedSubtasks.map((st, i) => (
-                            <div
-                              key={i}
-                              className={`p-2 rounded-lg text-sm flex items-start gap-2 ${
-                                analysisApprovalId && !subtaskCreationSuccess
-                                  ? "bg-violet-50 dark:bg-violet-900/20 cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-900/30"
-                                  : "bg-violet-50 dark:bg-violet-900/20"
-                              }`}
-                              onClick={() => {
-                                if (analysisApprovalId && !subtaskCreationSuccess) {
-                                  setSelectedSubtasks(prev =>
-                                    prev.includes(i)
-                                      ? prev.filter(idx => idx !== i)
-                                      : [...prev, i]
-                                  );
-                                }
-                              }}
-                            >
-                              {analysisApprovalId && !subtaskCreationSuccess && (
-                                <input
-                                  type="checkbox"
-                                  checked={selectedSubtasks.includes(i)}
-                                  onChange={() => {}}
-                                  className="mt-0.5 rounded border-violet-300 text-violet-600 focus:ring-violet-500"
-                                />
-                              )}
-                              <div className="flex-1">
-                                <span className="font-medium text-violet-700 dark:text-violet-300">
-                                  {st.title}
-                                </span>
-                                {st.description && (
-                                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                                    {st.description.length > 100
-                                      ? `${st.description.slice(0, 100)}...`
-                                      : st.description}
-                                  </p>
-                                )}
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className={`px-1.5 py-0.5 text-xs rounded ${
-                                    st.priority === "high"
-                                      ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                                      : st.priority === "medium"
-                                      ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                                      : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                  }`}>
-                                    {st.priority === "high" ? "高" : st.priority === "medium" ? "中" : "低"}
-                                  </span>
-                                  {st.estimatedHours > 0 && (
-                                    <span className="text-xs text-zinc-500">
-                                      {st.estimatedHours}時間
-                                    </span>
+                    {analysisResult.suggestedSubtasks &&
+                      analysisResult.suggestedSubtasks.length > 0 && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                              提案サブタスク (
+                              {analysisResult.suggestedSubtasks.length}件)
+                            </p>
+                            {analysisApprovalId && !subtaskCreationSuccess && (
+                              <button
+                                onClick={() => {
+                                  const allIndices =
+                                    analysisResult.suggestedSubtasks.map(
+                                      (_, i) => i,
+                                    );
+                                  if (
+                                    selectedSubtasks.length ===
+                                    allIndices.length
+                                  ) {
+                                    setSelectedSubtasks([]);
+                                  } else {
+                                    setSelectedSubtasks(allIndices);
+                                  }
+                                }}
+                                className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                              >
+                                {selectedSubtasks.length ===
+                                analysisResult.suggestedSubtasks.length
+                                  ? "すべて解除"
+                                  : "すべて選択"}
+                              </button>
+                            )}
+                          </div>
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {analysisResult.suggestedSubtasks.map((st, i) => (
+                              <div
+                                key={i}
+                                className={`p-2 rounded-lg text-sm flex items-start gap-2 ${
+                                  analysisApprovalId && !subtaskCreationSuccess
+                                    ? "bg-violet-50 dark:bg-violet-900/20 cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-900/30"
+                                    : "bg-violet-50 dark:bg-violet-900/20"
+                                }`}
+                                onClick={() => {
+                                  if (
+                                    analysisApprovalId &&
+                                    !subtaskCreationSuccess
+                                  ) {
+                                    setSelectedSubtasks((prev) =>
+                                      prev.includes(i)
+                                        ? prev.filter((idx) => idx !== i)
+                                        : [...prev, i],
+                                    );
+                                  }
+                                }}
+                              >
+                                {analysisApprovalId &&
+                                  !subtaskCreationSuccess && (
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedSubtasks.includes(i)}
+                                      onChange={() => {}}
+                                      className="mt-0.5 rounded border-violet-300 text-violet-600 focus:ring-violet-500"
+                                    />
                                   )}
+                                <div className="flex-1">
+                                  <span className="font-medium text-violet-700 dark:text-violet-300">
+                                    {st.title}
+                                  </span>
+                                  {st.description && (
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                                      {st.description.length > 100
+                                        ? `${st.description.slice(0, 100)}...`
+                                        : st.description}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span
+                                      className={`px-1.5 py-0.5 text-xs rounded ${
+                                        st.priority === "high"
+                                          ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                          : st.priority === "medium"
+                                            ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                            : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                      }`}
+                                    >
+                                      {st.priority === "high"
+                                        ? "高"
+                                        : st.priority === "medium"
+                                          ? "中"
+                                          : "低"}
+                                    </span>
+                                    {st.estimatedHours > 0 && (
+                                      <span className="text-xs text-zinc-500">
+                                        {st.estimatedHours}時間
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
 
-                        {/* サブタスク作成ボタン */}
-                        {analysisApprovalId && !subtaskCreationSuccess && (
-                          <div className="mt-3 flex items-center justify-end gap-2">
-                            <span className="text-xs text-zinc-500">
-                              {selectedSubtasks.length}件選択中
-                            </span>
-                            <button
-                              onClick={async () => {
-                                setIsCreatingSubtasks(true);
-                                try {
-                                  const result = await onApproveSubtasks(
-                                    selectedSubtasks.length > 0 ? selectedSubtasks : undefined
-                                  );
-                                  if (result) {
-                                    setSubtaskCreationSuccess(true);
-                                    setSelectedSubtasks([]);
-                                    onSubtasksCreated?.();
+                          {/* サブタスク作成ボタン */}
+                          {analysisApprovalId && !subtaskCreationSuccess && (
+                            <div className="mt-3 flex items-center justify-end gap-2">
+                              <span className="text-xs text-zinc-500">
+                                {selectedSubtasks.length}件選択中
+                              </span>
+                              <button
+                                onClick={async () => {
+                                  setIsCreatingSubtasks(true);
+                                  try {
+                                    const result = await onApproveSubtasks(
+                                      selectedSubtasks.length > 0
+                                        ? selectedSubtasks
+                                        : undefined,
+                                    );
+                                    if (result) {
+                                      setSubtaskCreationSuccess(true);
+                                      setSelectedSubtasks([]);
+                                      onSubtasksCreated?.();
+                                    }
+                                  } finally {
+                                    setIsCreatingSubtasks(false);
                                   }
-                                } finally {
-                                  setIsCreatingSubtasks(false);
-                                }
-                              }}
-                              disabled={isCreatingSubtasks}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-                            >
-                              {isCreatingSubtasks ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Plus className="w-4 h-4" />
-                              )}
-                              サブタスクを作成
-                            </button>
-                          </div>
-                        )}
+                                }}
+                                disabled={isCreatingSubtasks}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                {isCreatingSubtasks ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Plus className="w-4 h-4" />
+                                )}
+                                サブタスクを作成
+                              </button>
+                            </div>
+                          )}
 
-                        {/* 作成成功メッセージ */}
-                        {subtaskCreationSuccess && (
-                          <div className="mt-3 flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                            <CheckCircle2 className="w-4 h-4 text-green-500" />
-                            <span className="text-sm text-green-700 dark:text-green-300">
-                              サブタスクを作成しました
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                          {/* 作成成功メッセージ */}
+                          {subtaskCreationSuccess && (
+                            <div className="mt-3 flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                              <CheckCircle2 className="w-4 h-4 text-green-500" />
+                              <span className="text-sm text-green-700 dark:text-green-300">
+                                サブタスクを作成しました
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                     {/* 再分析ボタン */}
                     <div className="flex justify-end">
@@ -1053,7 +1076,9 @@ export function AIAnalysisPanel({
                       className="p-1.5 text-zinc-400 hover:text-zinc-600 rounded"
                       title="更新"
                     >
-                      <RefreshCw className={`w-4 h-4 ${isLoadingPrompts ? "animate-spin" : ""}`} />
+                      <RefreshCw
+                        className={`w-4 h-4 ${isLoadingPrompts ? "animate-spin" : ""}`}
+                      />
                     </button>
                     <button
                       onClick={generateAllPrompts}
@@ -1087,12 +1112,15 @@ export function AIAnalysisPanel({
                     <div className="p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg text-xs">
                       <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
                         <Target className="w-3 h-3" />
-                        <span className="font-medium">{promptsData.task.title}</span>
-                        {promptsData.task.hasSubtasks && promptsData.subtasks && (
-                          <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
-                            サブタスク: {promptsData.subtasks.length}件
-                          </span>
-                        )}
+                        <span className="font-medium">
+                          {promptsData.task.title}
+                        </span>
+                        {promptsData.task.hasSubtasks &&
+                          promptsData.subtasks && (
+                            <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
+                              サブタスク: {promptsData.subtasks.length}件
+                            </span>
+                          )}
                       </div>
                     </div>
 
@@ -1111,8 +1139,11 @@ export function AIAnalysisPanel({
                       <div className="space-y-2 max-h-64 overflow-y-auto">
                         {promptsData.prompts.map((prompt) => {
                           const isEditing = editingPromptId === prompt.id;
-                          const subtask = promptsData.subtasks?.find(st => st.id === prompt.taskId);
-                          const isParentTask = prompt.taskId === promptsData.task.id;
+                          const subtask = promptsData.subtasks?.find(
+                            (st) => st.id === prompt.taskId,
+                          );
+                          const isParentTask =
+                            prompt.taskId === promptsData.task.id;
 
                           return (
                             <div
@@ -1123,7 +1154,9 @@ export function AIAnalysisPanel({
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2 mb-1">
                                     <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                                      {isParentTask ? promptsData.task.title : subtask?.title || "不明"}
+                                      {isParentTask
+                                        ? promptsData.task.title
+                                        : subtask?.title || "不明"}
                                     </span>
                                     {isParentTask ? (
                                       <span className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-xs rounded">
@@ -1135,7 +1168,9 @@ export function AIAnalysisPanel({
                                       </span>
                                     )}
                                     {prompt.qualityScore && (
-                                      <span className={`text-xs ${prompt.qualityScore >= 80 ? "text-green-600" : prompt.qualityScore >= 60 ? "text-yellow-600" : "text-red-600"}`}>
+                                      <span
+                                        className={`text-xs ${prompt.qualityScore >= 80 ? "text-green-600" : prompt.qualityScore >= 60 ? "text-yellow-600" : "text-red-600"}`}
+                                      >
                                         スコア: {prompt.qualityScore}
                                       </span>
                                     )}
@@ -1145,7 +1180,12 @@ export function AIAnalysisPanel({
                                   {isEditing ? (
                                     <>
                                       <button
-                                        onClick={() => updatePrompt(prompt.id, editingPromptText)}
+                                        onClick={() =>
+                                          updatePrompt(
+                                            prompt.id,
+                                            editingPromptText,
+                                          )
+                                        }
                                         className="p-1 text-green-500 hover:text-green-600"
                                       >
                                         <Save className="w-3 h-3" />
@@ -1165,7 +1205,9 @@ export function AIAnalysisPanel({
                                       <button
                                         onClick={() => {
                                           setEditingPromptId(prompt.id);
-                                          setEditingPromptText(prompt.optimizedPrompt);
+                                          setEditingPromptText(
+                                            prompt.optimizedPrompt,
+                                          );
                                         }}
                                         className="p-1 text-zinc-400 hover:text-zinc-600"
                                         title="編集"
@@ -1174,7 +1216,9 @@ export function AIAnalysisPanel({
                                       </button>
                                       <button
                                         onClick={() => {
-                                          navigator.clipboard.writeText(prompt.optimizedPrompt);
+                                          navigator.clipboard.writeText(
+                                            prompt.optimizedPrompt,
+                                          );
                                         }}
                                         className="p-1 text-zinc-400 hover:text-zinc-600"
                                         title="コピー"
@@ -1195,7 +1239,9 @@ export function AIAnalysisPanel({
                               {isEditing ? (
                                 <textarea
                                   value={editingPromptText}
-                                  onChange={(e) => setEditingPromptText(e.target.value)}
+                                  onChange={(e) =>
+                                    setEditingPromptText(e.target.value)
+                                  }
                                   className="w-full p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs font-mono resize-none"
                                   rows={4}
                                 />

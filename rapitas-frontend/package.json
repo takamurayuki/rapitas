@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:tauri": "node scripts/prepare-tauri-build.js backup && cross-env TAURI_BUILD=true next build && node scripts/prepare-tauri-build.js restore",
+    "build:tauri:no-restore": "node scripts/prepare-tauri-build.js backup && cross-env TAURI_BUILD=true next build",
     "start": "next start",
     "lint": "eslint"
   },
@@ -21,6 +23,11 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@storybook/addon-essentials": "8.6.14",
+    "cross-env": "^7.0.3",
+    "@storybook/nextjs": "^8.6.14",
+    "@storybook/react": "^8.6.14",
+    "@storybook/react-dom-shim": "8.6.14",
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^20",
@@ -28,6 +35,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.0.1",
+    "storybook": "^8.6.14",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

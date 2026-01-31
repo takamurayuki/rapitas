@@ -1,8 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { useEffect, useMemo } from "react";
 
 interface TaskSlidePanelProps {
   taskId: number | null;
@@ -17,7 +14,20 @@ export default function TaskSlidePanel({
   onClose,
   onTaskUpdated,
 }: TaskSlidePanelProps) {
-  const [loading, setLoading] = useState(false);
+  // iframeのURLを構築（Tauri開発時はlocalhost絶対URL、それ以外は相対パス）
+  const iframeSrc = useMemo(() => {
+    if (!taskId) return "";
+
+    // Tauri環境かどうかを検出
+    const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+
+    if (isTauri && process.env.NODE_ENV === 'development') {
+      // Tauri開発モードでは絶対URLを使用
+      return `http://localhost:3000/tasks/${taskId}?hideHeader=true`;
+    }
+    // 通常のWeb環境では相対パス
+    return `/tasks/${taskId}?hideHeader=true`;
+  }, [taskId]);
 
   // Escキーで閉じる
   useEffect(() => {
@@ -91,22 +101,13 @@ export default function TaskSlidePanel({
         {/* コンテンツ */}
         <div className="h-[calc(100%-72px)] overflow-y-auto relative pointer-events-none">
           <iframe
-            src={`/tasks/${taskId}?hideHeader=true`}
+            src={iframeSrc}
             className="w-full h-full border-0 pointer-events-auto"
             title="タスク詳細"
             onLoad={() => {
-              setLoading(false);
               if (onTaskUpdated) onTaskUpdated();
             }}
           />
-
-          {loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-zinc-950/80 pointer-events-none">
-              <div className="text-zinc-600 dark:text-zinc-400">
-                読み込み中...
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

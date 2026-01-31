@@ -172,7 +172,7 @@ export function useGitHubIntegration(): UseGitHubIntegrationReturn {
 
   const createTaskFromIssue = useCallback(
     (issueId: number, options?: { projectId?: number; themeId?: number }) => {
-      return request(`/github/issues/${issueId}/create-task`, {
+      return request<{ taskId: number; task: unknown }>(`/github/issues/${issueId}/create-task`, {
         method: "POST",
         body: JSON.stringify(options || {}),
       });

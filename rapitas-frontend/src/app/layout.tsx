@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
 import KeyboardShortcuts from "@/components/KeyboardShortcuts";
+import { FloatingAIMenuWrapper } from "@/components/floating-ai-menu";
 import { Suspense } from "react";
 import { ToastProvider } from "@/components/ui/toast/ToastContainer";
 import { PomodoroProvider } from "@/feature/tasks/pomodoro/PomodoroProvider";
@@ -41,6 +42,7 @@ export default function RootLayout({
             <Suspense fallback={null}>
               <KeyboardShortcuts />
             </Suspense>
+            <FloatingAIMenuWrapper />
           </ToastProvider>
         </PomodoroProvider>
       </body>

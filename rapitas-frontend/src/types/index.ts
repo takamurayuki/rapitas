@@ -473,7 +473,7 @@ export type NotificationMetadata = {
 
 export type Notification = {
   id: number;
-  type: "approval_request" | "task_completed" | "agent_error" | "daily_summary";
+  type: "approval_request" | "task_completed" | "agent_error" | "daily_summary" | "pr_review_requested" | "agent_execution_started";
   title: string;
   message: string;
   link?: string | null;
@@ -742,4 +742,39 @@ export type ReviewComment = {
   line?: number;
   content: string;
   type: "comment" | "change_request" | "question";
+};
+
+// ==================== Floating AI Menu ====================
+
+export type AIChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+};
+
+export type AIChatState = {
+  messages: AIChatMessage[];
+  isLoading: boolean;
+  error: string | null;
+  isExpanded: boolean;
+};
+
+export type AIChatAction =
+  | { type: "ADD_MESSAGE"; payload: AIChatMessage }
+  | { type: "SET_LOADING"; payload: boolean }
+  | { type: "SET_ERROR"; payload: string | null }
+  | { type: "SET_EXPANDED"; payload: boolean }
+  | { type: "CLEAR_MESSAGES" };
+
+export type AIServiceConfig = {
+  apiKey: string;
+  model?: string;
+  maxTokens?: number;
+};
+
+export type AIServiceResponse = {
+  success: boolean;
+  message?: string;
+  error?: string;
 };

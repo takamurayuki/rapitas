@@ -15,7 +15,9 @@
 
 # next.js
 /.next/
+/.next-tauri/
 /out/
+/.dynamic-routes-backup/
 
 # production
 /build

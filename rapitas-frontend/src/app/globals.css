@@ -51,3 +51,83 @@ body {
 .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: #71717a;
 }
+
+/* StatusCard アニメーション */
+.status-card-animated {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.status-card-enter {
+  animation: statusCardEnter 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes statusCardEnter {
+  0% {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* StatusCard フェードイン */
+@keyframes statusCardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.status-card-fade-in {
+  animation: statusCardFadeIn 0.25s ease-out forwards;
+}
+
+/* StatusCard パルスエフェクト（実行中用） */
+@keyframes statusCardPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0);
+  }
+}
+
+.status-card-pulse {
+  animation: statusCardPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Floating AI Menu アニメーション */
+.floating-ai-menu-button {
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3);
+}
+
+.floating-ai-menu-button:hover {
+  box-shadow: 0 8px 30px rgba(59, 130, 246, 0.4);
+}
+
+.floating-ai-menu-panel {
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  .floating-ai-menu-button {
+    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+  }
+
+  .floating-ai-menu-button:hover {
+    box-shadow: 0 8px 30px rgba(99, 102, 241, 0.5);
+  }
+
+  .floating-ai-menu-panel {
+    box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+}
