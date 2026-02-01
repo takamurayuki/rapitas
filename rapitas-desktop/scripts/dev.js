@@ -149,19 +149,40 @@ const frontend = spawn('pnpm', ['run', 'dev'], {
   shell: true
 });
 
-// プロセス終了時のクリーンアップ
-process.on('SIGINT', () => {
+// クリーンアップ関数
+function cleanup() {
   console.log('\nStopping development servers...');
-  backend.kill();
-  frontend.kill();
-  process.exit();
-});
 
-process.on('SIGTERM', () => {
-  backend.kill();
-  frontend.kill();
+  // バックエンドとフロントエンドを停止
+  try {
+    backend.kill();
+  } catch {}
+  try {
+    frontend.kill();
+  } catch {}
+
+  // Claude Codeプロセスをクリーンアップ（Windowsのみ）
+  if (process.platform === 'win32') {
+    try {
+      console.log('Cleaning up Claude Code processes...');
+      execSync('taskkill /F /IM claude.exe /T 2>nul', { stdio: 'ignore' });
+    } catch {
+      // プロセスが存在しない場合は無視
+    }
+  }
+
+  console.log('Cleanup complete.');
   process.exit();
-});
+}
+
+// プロセス終了時のクリーンアップ
+process.on('SIGINT', cleanup);
+process.on('SIGTERM', cleanup);
+
+// Windowsでのコンソール終了イベント
+if (process.platform === 'win32') {
+  process.on('SIGHUP', cleanup);
+}
 
 // 子プロセスのエラーハンドリング
 backend.on('error', (err) => {
@@ -170,4 +191,17 @@ backend.on('error', (err) => {
 
 frontend.on('error', (err) => {
   console.error('Frontend error:', err);
+});
+
+// バックエンドが終了したらフロントエンドも停止
+backend.on('close', (code) => {
+  if (code !== 0) {
+    console.log(`Backend exited with code ${code}`);
+  }
+});
+
+frontend.on('close', (code) => {
+  if (code !== 0) {
+    console.log(`Frontend exited with code ${code}`);
+  }
 });

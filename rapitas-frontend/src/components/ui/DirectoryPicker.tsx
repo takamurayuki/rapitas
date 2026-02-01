@@ -5,8 +5,6 @@ import {
   Folder,
   FolderOpen,
   ChevronRight,
-  ChevronLeft,
-  Home,
   HardDrive,
   X,
   Check,
@@ -17,7 +15,6 @@ import {
   Star,
   StarOff,
   Trash2,
-  ChevronDown,
 } from "lucide-react";
 
 const API_BASE_URL =
@@ -381,8 +378,18 @@ export function DirectoryPicker({
                 className="px-3 py-2.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border-l border-zinc-300 dark:border-zinc-700 transition-colors"
                 title="パスを直接入力"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                  />
                 </svg>
               </button>
             </div>
@@ -468,9 +475,13 @@ export function DirectoryPicker({
                         ? "text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-400"
                         : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                     }`}
-                    title={showFavorites ? "お気に入りを非表示" : "お気に入りを表示"}
+                    title={
+                      showFavorites ? "お気に入りを非表示" : "お気に入りを表示"
+                    }
                   >
-                    <Star className={`w-3.5 h-3.5 ${showFavorites ? "fill-current" : ""}`} />
+                    <Star
+                      className={`w-3.5 h-3.5 ${showFavorites ? "fill-current" : ""}`}
+                    />
                     <span className="hidden sm:inline">{favorites.length}</span>
                   </button>
 
@@ -490,7 +501,11 @@ export function DirectoryPicker({
                           ? "text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400"
                           : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                       }`}
-                      title={isFavorite(currentPath) ? "お気に入りから削除" : "お気に入りに追加"}
+                      title={
+                        isFavorite(currentPath)
+                          ? "お気に入りから削除"
+                          : "お気に入りに追加"
+                      }
                     >
                       {isFavorite(currentPath) ? (
                         <>
@@ -537,7 +552,7 @@ export function DirectoryPicker({
             {/* Favorites Only Mode - お気に入りがある場合の初期表示 */}
             {favoritesOnlyMode && favorites.length > 0 ? (
               <div className="h-72 flex flex-col">
-                <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/10 dark:to-amber-900/10 border-b border-yellow-100 dark:border-yellow-900/30">
+                <div className="flex items-center justify-between px-4 py-3 bg-linear-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/10 dark:to-amber-900/10 border-b border-yellow-100 dark:border-yellow-900/30">
                   <div className="flex items-center gap-2">
                     <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
                     <div>
@@ -620,7 +635,7 @@ export function DirectoryPicker({
                 {/* Favorites Section - 通常モード時のお気に入り表示 */}
                 {showFavorites && favorites.length > 0 && (
                   <div className="border-b border-zinc-200 dark:border-zinc-700">
-                    <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/10 dark:to-amber-900/10">
+                    <div className="flex items-center justify-between px-4 py-2 bg-linear-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/10 dark:to-amber-900/10">
                       <div className="flex items-center gap-2">
                         <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
                         <span className="text-xs font-medium text-yellow-700 dark:text-yellow-400">

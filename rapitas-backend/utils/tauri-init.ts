@@ -5,6 +5,9 @@
 import * as fs from "fs";
 import * as path from "path";
 import { PrismaClient } from "@prisma/client";
+
+// Type alias for PrismaClient when shims are used
+type PrismaInstance = InstanceType<typeof PrismaClient>;
 import { execSync } from "child_process";
 
 export const isTauriBuild = process.env.TAURI_BUILD === "true" || process.env.RAPITAS_SQLITE === "true";
@@ -63,7 +66,7 @@ export function initTauriEnvironment(): void {
 /**
  * Create or update the SQLite database schema
  */
-export async function initializeDatabase(prisma: PrismaClient): Promise<void> {
+export async function initializeDatabase(prisma: PrismaInstance): Promise<void> {
   if (!isTauriBuild) {
     return;
   }
@@ -105,13 +108,13 @@ export async function initializeDatabase(prisma: PrismaClient): Promise<void> {
 /**
  * Create tables if they don't exist (for compiled binary without Prisma CLI)
  */
-async function createTablesIfNeeded(prisma: PrismaClient): Promise<void> {
+async function createTablesIfNeeded(prisma: PrismaInstance): Promise<void> {
   try {
     // Check if Theme table exists by trying to query it
     await prisma.$queryRawUnsafe(`SELECT name FROM sqlite_master WHERE type='table' AND name='Theme'`);
 
     // If we get here without error, check if tables exist
-    const tables: any[] = await prisma.$queryRawUnsafe(
+    const tables: { name: string }[] = await prisma.$queryRawUnsafe(
       `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_prisma_%'`
     );
 
@@ -129,7 +132,7 @@ async function createTablesIfNeeded(prisma: PrismaClient): Promise<void> {
 /**
  * Create SQLite schema manually (when Prisma CLI is not available)
  */
-async function createSQLiteSchema(prisma: PrismaClient): Promise<void> {
+async function createSQLiteSchema(prisma: PrismaInstance): Promise<void> {
   const createTableStatements = [
     // Theme
     `CREATE TABLE IF NOT EXISTS "Theme" (
@@ -357,10 +360,11 @@ async function createSQLiteSchema(prisma: PrismaClient): Promise<void> {
   for (const sql of createTableStatements) {
     try {
       await prisma.$executeRawUnsafe(sql);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Ignore "table already exists" errors
-      if (!error.message?.includes("already exists")) {
-        console.error("[Tauri Init] Error creating table:", error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!errorMessage.includes("already exists")) {
+        console.error("[Tauri Init] Error creating table:", errorMessage);
       }
     }
   }
