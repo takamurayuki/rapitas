@@ -2,10 +2,12 @@
 /**
  * 開発モード用スクリプト
  * フロントエンドとバックエンドを並行して起動
+ * ホットリロード対応
  */
 const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const FRONTEND_DIR = path.resolve(__dirname, '../../rapitas-frontend');
 const BACKEND_DIR = path.resolve(__dirname, '../../rapitas-backend');
@@ -23,34 +25,102 @@ if (!fs.existsSync(BINARIES_DIR)) {
 
 if (!fs.existsSync(dummyBinaryPath)) {
   console.log('Creating dummy sidecar binary for development...');
-  // 空の実行ファイルを作成（開発モードでは使用されない）
   fs.writeFileSync(dummyBinaryPath, '');
   console.log(`Created: ${dummyBinaryPath}`);
 }
 
-// 既存のバックエンドプロセスを停止（ファイルロック解除のため）
-console.log('Stopping existing backend processes...');
-try {
-  if (process.platform === 'win32') {
-    execSync('taskkill /F /IM bun.exe 2>nul', { shell: true, stdio: 'ignore' });
-    execSync('taskkill /F /IM rapitas-backend.exe 2>nul', { shell: true, stdio: 'ignore' });
-  } else {
-    execSync('pkill -f "bun.*index.ts" || true', { shell: true, stdio: 'ignore' });
-  }
-  // 少し待機してファイルロックが解除されるのを待つ
-  execSync('ping -n 2 127.0.0.1 >nul', { shell: true, stdio: 'ignore' });
-} catch (err) {
-  // プロセスが存在しない場合は無視
+// SQLiteデータベースのパスを設定
+const appDataPath = process.env.APPDATA || process.env.HOME || '.';
+const dbDir = path.join(appDataPath, 'rapitas');
+const dbPath = path.join(dbDir, 'rapitas.db');
+const schemaHashPath = path.join(dbDir, '.schema-hash');
+
+// データベースディレクトリを作成
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+  console.log(`Created database directory: ${dbDir}`);
 }
 
-// SQLiteスキーマに切り替え
-console.log('Switching to SQLite schema...');
-try {
-  execSync('node scripts/switch-schema.cjs sqlite', { cwd: BACKEND_DIR, stdio: 'inherit' });
-  execSync('bun run db:generate', { cwd: BACKEND_DIR, stdio: 'inherit' });
-} catch (err) {
-  console.error('Failed to switch schema:', err.message);
-  process.exit(1);
+const sqliteDbUrl = `file:${dbPath}`;
+
+// スキーマファイルのハッシュを計算
+function getSchemaHash() {
+  const schemaPath = path.join(BACKEND_DIR, 'prisma', 'schema.sqlite.prisma');
+  if (!fs.existsSync(schemaPath)) return null;
+  const content = fs.readFileSync(schemaPath, 'utf-8');
+  return crypto.createHash('md5').update(content).digest('hex');
+}
+
+// スキーマが変更されたかチェック
+function isSchemaChanged() {
+  const currentHash = getSchemaHash();
+  if (!currentHash) return true;
+
+  if (!fs.existsSync(schemaHashPath)) return true;
+
+  const savedHash = fs.readFileSync(schemaHashPath, 'utf-8').trim();
+  return currentHash !== savedHash;
+}
+
+// スキーマハッシュを保存
+function saveSchemaHash() {
+  const hash = getSchemaHash();
+  if (hash) {
+    fs.writeFileSync(schemaHashPath, hash);
+  }
+}
+
+// データベースが存在し、スキーマが変更されていない場合はスキップ
+const dbExists = fs.existsSync(dbPath);
+const schemaChanged = isSchemaChanged();
+
+if (dbExists && !schemaChanged) {
+  console.log('Database exists and schema unchanged, skipping DB setup...');
+  console.log(`SQLite database path: ${dbPath}`);
+} else {
+  // 既存のバックエンドプロセスを停止（ファイルロック解除のため）
+  console.log('Stopping existing backend processes for DB setup...');
+  try {
+    if (process.platform === 'win32') {
+      execSync('taskkill /F /IM bun.exe 2>nul', { shell: true, stdio: 'ignore' });
+    } else {
+      execSync('pkill -f "bun.*index.ts" || true', { shell: true, stdio: 'ignore' });
+    }
+    execSync(process.platform === 'win32' ? 'ping -n 2 127.0.0.1 >nul' : 'sleep 1', { shell: true, stdio: 'ignore' });
+  } catch (err) {}
+
+  console.log('Setting up SQLite database...');
+  console.log(`SQLite database path: ${dbPath}`);
+
+  try {
+    // SQLiteスキーマに切り替え
+    execSync('node scripts/switch-schema.cjs sqlite', { cwd: BACKEND_DIR, stdio: 'inherit' });
+    execSync('bun run db:generate', { cwd: BACKEND_DIR, stdio: 'inherit' });
+
+    // スキーマが変更された場合、既存のデータベースを削除
+    if (schemaChanged && dbExists) {
+      console.log('Schema changed, recreating database...');
+      fs.unlinkSync(dbPath);
+    }
+
+    // SQLiteデータベースにテーブルを作成
+    console.log('Pushing schema to SQLite database...');
+    execSync('bunx prisma db push --skip-generate', {
+      cwd: BACKEND_DIR,
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        DATABASE_URL: sqliteDbUrl
+      }
+    });
+
+    // スキーマハッシュを保存
+    saveSchemaHash();
+    console.log('Database setup complete!');
+  } catch (err) {
+    console.error('Failed to setup database:', err.message);
+    process.exit(1);
+  }
 }
 
 // バックエンドを起動 (SQLiteモード)
@@ -61,7 +131,8 @@ const backend = spawn('bun', ['run', 'dev:simple'], {
   env: {
     ...process.env,
     TAURI_BUILD: 'true',
-    RAPITAS_SQLITE: 'true'
+    RAPITAS_SQLITE: 'true',
+    DATABASE_URL: sqliteDbUrl
   }
 });
 

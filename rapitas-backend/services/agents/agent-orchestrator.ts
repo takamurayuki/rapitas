@@ -17,6 +17,13 @@ import type {
 
 const execAsync = promisify(exec);
 
+// JSONフィールドをSQLite互換の文字列に変換するヘルパー関数
+function toJsonString(value: any): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') return value;
+  return JSON.stringify(value);
+}
+
 export type ExecutionOptions = {
   taskId: number;
   sessionId: number;
@@ -267,18 +274,14 @@ export class AgentOrchestrator {
         data: {
           status: executionStatus,
           output: result.output,
-          artifacts: result.artifacts
-            ? JSON.parse(JSON.stringify(result.artifacts))
-            : null,
+          artifacts: toJsonString(result.artifacts),
           completedAt: result.waitingForInput ? null : new Date(),
           tokensUsed: result.tokensUsed || 0,
           executionTimeMs: result.executionTimeMs,
           errorMessage: result.errorMessage,
           question: result.question || null,
           questionType: result.questionType || null,
-          questionDetails: result.questionDetails
-            ? JSON.parse(JSON.stringify(result.questionDetails))
-            : null,
+          questionDetails: toJsonString(result.questionDetails),
           // 新しい構造化キー情報（questionKeyフィールドがDBに追加されたら有効化）
           // questionKey: result.questionKey
           //   ? JSON.parse(JSON.stringify(result.questionKey))
@@ -546,7 +549,7 @@ export class AgentOrchestrator {
           status: executionStatus,
           output: state.output + "\n" + result.output,
           artifacts: result.artifacts
-            ? JSON.parse(JSON.stringify(result.artifacts))
+            ? toJsonString(result.artifacts)
             : execution.artifacts,
           completedAt: result.waitingForInput ? null : new Date(),
           tokensUsed: (execution.tokensUsed || 0) + (result.tokensUsed || 0),
@@ -555,9 +558,7 @@ export class AgentOrchestrator {
           errorMessage: result.errorMessage,
           question: result.question || null,
           questionType: result.questionType || null,
-          questionDetails: result.questionDetails
-            ? JSON.parse(JSON.stringify(result.questionDetails))
-            : null,
+          questionDetails: toJsonString(result.questionDetails),
           // 新しい構造化キー情報（questionKeyフィールドがDBに追加されたら有効化）
           // questionKey: result.questionKey
           //   ? JSON.parse(JSON.stringify(result.questionKey))

@@ -13,6 +13,7 @@ import {
   ArrowRightCircle,
 } from "lucide-react";
 import type { GitHubIssue, GitHubIntegration } from "@/types";
+import { getLabelsArray, hasLabels } from "@/utils/labels";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
@@ -188,9 +189,9 @@ export default function IssuesPage() {
                     <span>by {issue.authorLogin}</span>
                     <span>{new Date(issue.createdAt).toLocaleDateString("ja-JP")}</span>
                   </div>
-                  {issue.labels.length > 0 && (
+                  {hasLabels(issue.labels) && (
                     <div className="flex items-center gap-2 mt-2">
-                      {issue.labels.map((label) => (
+                      {getLabelsArray(issue.labels).map((label) => (
                         <span
                           key={label}
                           className="px-2 py-0.5 text-xs bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 rounded"

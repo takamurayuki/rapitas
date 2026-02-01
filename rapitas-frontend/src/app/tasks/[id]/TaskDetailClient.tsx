@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { getLabelsArray } from "@/utils/labels";
 import type {
   Task,
   TimeEntry,
@@ -34,6 +35,9 @@ import {
   Copy,
   ChevronDown,
   ChevronUp,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -131,6 +135,14 @@ export default function TaskDetailClient() {
   const [newComment, setNewComment] = useState("");
   const [isAddingComment, setIsAddingComment] = useState(false);
   const [isCommentsExpanded, setIsCommentsExpanded] = useState(false);
+
+  // サブタスクアコーディオン用の状態
+  const [isSubtasksExpanded, setIsSubtasksExpanded] = useState(true);
+
+  // サブタスク編集用の状態
+  const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
+  const [editingSubtaskTitle, setEditingSubtaskTitle] = useState("");
+  const [editingSubtaskDescription, setEditingSubtaskDescription] = useState("");
 
   // ポモドーロモーダル用の状態
   const [showPomodoroModal, setShowPomodoroModal] = useState(false);
@@ -236,23 +248,41 @@ export default function TaskDetailClient() {
   }, [resolvedTaskId, fetchDevModeConfig]);
 
   const updateStatus = async (taskId: number, newStatus: string) => {
+    // 楽観的UI更新: APIレスポンスを待たずに即座にUIを更新
+    const previousTask = task;
+    setTask((prev) => {
+      if (!prev) return prev;
+      // メインタスクのステータス更新
+      if (prev.id === taskId) {
+        return { ...prev, status: newStatus as Task["status"] };
+      }
+      // サブタスクのステータス更新
+      if (prev.subtasks) {
+        const updatedSubtasks = prev.subtasks.map((subtask) =>
+          subtask.id === taskId
+            ? { ...subtask, status: newStatus as Task["status"] }
+            : subtask
+        );
+        return { ...prev, subtasks: updatedSubtasks };
+      }
+      return prev;
+    });
+
     try {
       const res = await fetch(`${API_BASE}/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (!res.ok) throw new Error("ステータス更新に失敗しました");
-
-      setTask((prev) => {
-        if (!prev) return prev;
-        if (prev.id === taskId) {
-          return { ...prev, status: newStatus as Task["status"] };
-        }
-        return prev;
-      });
+      if (!res.ok) {
+        // エラー時は元の状態に戻す
+        setTask(previousTask);
+        throw new Error("ステータス更新に失敗しました");
+      }
     } catch (err) {
       console.error(err);
+      // エラー時は元の状態に戻す
+      setTask(previousTask);
     }
   };
 
@@ -323,7 +353,7 @@ export default function TaskDetailClient() {
     setEditTitle(task.title);
     setEditDescription(task.description || "");
     setEditStatus(task.status);
-    setEditLabels(task.labels?.join(", ") || "");
+    setEditLabels(getLabelsArray(task.labels).join(", "));
     setEditLabelIds(task.taskLabels?.map((tl) => tl.labelId) || []);
     setEditEstimatedHours(task.estimatedHours?.toString() || "");
     setIsEditing(true);
@@ -443,6 +473,52 @@ export default function TaskDetailClient() {
     await rejectRequest(pendingApprovalId);
     setAnalysisResult(null);
     setPendingApprovalId(null);
+  };
+
+  // サブタスク編集開始
+  const startEditingSubtask = (subtask: Task) => {
+    setEditingSubtaskId(subtask.id);
+    setEditingSubtaskTitle(subtask.title);
+    setEditingSubtaskDescription(subtask.description || "");
+  };
+
+  // サブタスク編集キャンセル
+  const cancelEditingSubtask = () => {
+    setEditingSubtaskId(null);
+    setEditingSubtaskTitle("");
+    setEditingSubtaskDescription("");
+  };
+
+  // サブタスク更新
+  const updateSubtask = async (subtaskId: number, data: { title?: string; description?: string }) => {
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${subtaskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("サブタスクの更新に失敗しました");
+
+      // タスクを再取得してサブタスクを更新
+      const taskRes = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
+      if (taskRes.ok) {
+        setTask(await taskRes.json());
+      }
+      cancelEditingSubtask();
+    } catch (err) {
+      console.error(err);
+      alert("サブタスクの更新に失敗しました");
+    }
+  };
+
+  // サブタスク編集保存
+  const saveSubtaskEdit = () => {
+    if (editingSubtaskId && editingSubtaskTitle.trim()) {
+      updateSubtask(editingSubtaskId, {
+        title: editingSubtaskTitle,
+        description: editingSubtaskDescription || undefined,
+      });
+    }
   };
 
   const duplicateTask = async () => {
@@ -612,15 +688,33 @@ export default function TaskDetailClient() {
         {isEditing ? (
           /* Edit Mode */
           <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
-            {/* Title Input */}
+            {/* Title Input with Status */}
             <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
-              <input
-                type="text"
-                className="w-full text-2xl font-bold bg-transparent border-none outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-600"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                placeholder="タスクのタイトル"
-              />
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <input
+                  type="text"
+                  className="flex-1 min-w-0 text-2xl font-bold bg-transparent border-none outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-600"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="タスクのタイトル"
+                />
+                <div className="flex items-center gap-1 shrink-0">
+                  {(["todo", "in-progress", "done"] as const).map((status) => {
+                    const config = sharedStatusConfig[status];
+                    return (
+                      <TaskStatusChange
+                        key={status}
+                        status={status}
+                        currentStatus={editStatus}
+                        config={config}
+                        renderIcon={renderStatusIcon}
+                        onClick={(newStatus: string) => setEditStatus(newStatus)}
+                        size="md"
+                      />
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* Description */}
@@ -645,31 +739,6 @@ export default function TaskDetailClient() {
                 onChange={(e) => setEditDescription(e.target.value)}
                 placeholder="マークダウン形式で記述..."
               />
-            </div>
-
-            {/* Status */}
-            <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
-              <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-3">
-                <Circle className="w-4 h-4" />
-                <span className="text-sm font-medium">ステータス</span>
-              </div>
-              <div className="flex gap-2">
-                {(["todo", "in-progress", "done"] as const).map((status) => {
-                  const config = sharedStatusConfig[status];
-                  return (
-                    <TaskStatusChange
-                      key={status}
-                      status={status}
-                      currentStatus={editStatus}
-                      config={config}
-                      renderIcon={renderStatusIcon}
-                      onClick={(status: string) => setEditStatus(status)}
-                      size="lg"
-                      showLabel={true}
-                    />
-                  );
-                })}
-              </div>
             </div>
 
             {/* Labels */}
@@ -767,72 +836,146 @@ export default function TaskDetailClient() {
               </div>
             )}
 
-            {/* Subtasks Section (AI生成含む) */}
+            {/* Subtasks Section (AI生成含む) - アコーディオン表示 */}
             {task.subtasks && task.subtasks.length > 0 && (
               <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden mb-6">
-                <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
-                  <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-50">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                    <h2 className="text-lg font-bold">サブタスク</h2>
-                    <span className="ml-1 px-2 py-0.5 text-xs font-medium bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-full">
-                      {task.subtasks.length}
-                    </span>
-                  </div>
-                </div>
-                <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                  {task.subtasks.map((subtask) => (
-                    <div
-                      key={subtask.id}
-                      className="p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
-                    >
-                      <div className="flex items-start gap-3">
-                        <button
-                          onClick={() =>
-                            updateStatus(
-                              subtask.id,
-                              subtask.status === "done" ? "todo" : "done",
-                            )
-                          }
-                          className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                            subtask.status === "done"
-                              ? "border-emerald-500 bg-emerald-500"
-                              : "border-zinc-300 dark:border-zinc-600 hover:border-emerald-400"
-                          }`}
-                        >
-                          {subtask.status === "done" && (
-                            <svg
-                              className="w-3 h-3 text-white"
-                              fill="currentColor"
-                              viewBox="0 0 12 12"
-                            >
-                              <path d="M10.28 2.28a.75.75 0 00-1.06-1.06L4.5 5.94 2.78 4.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.06 0l5.25-5.25z" />
-                            </svg>
-                          )}
-                        </button>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`font-medium ${subtask.status === "done" ? "text-zinc-400 line-through" : "text-zinc-900 dark:text-zinc-50"}`}
-                            >
-                              {subtask.title}
-                            </span>
-                            {subtask.agentGenerated && (
-                              <span className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded">
-                                <Bot className="w-3 h-3" />
-                                AI
-                              </span>
-                            )}
-                          </div>
-                          {subtask.description && (
-                            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                              {subtask.description}
-                            </p>
-                          )}
+                <div
+                  className="p-4 border-b border-zinc-100 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
+                  onClick={() => setIsSubtasksExpanded(!isSubtasksExpanded)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-50">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                      <h2 className="text-lg font-bold">サブタスク</h2>
+                      <span className="ml-1 px-2 py-0.5 text-xs font-medium bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-full">
+                        {task.subtasks.filter(s => s.status === "done").length}/{task.subtasks.length}
+                      </span>
+                      {/* 進捗バー（コンパクト） */}
+                      <div className="hidden sm:flex items-center gap-2 ml-2">
+                        <div className="w-24 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-500 transition-all duration-300"
+                            style={{ width: `${Math.round((task.subtasks.filter(s => s.status === "done").length / task.subtasks.length) * 100)}%` }}
+                          />
                         </div>
+                        <span className="text-xs text-zinc-500">
+                          {Math.round((task.subtasks.filter(s => s.status === "done").length / task.subtasks.length) * 100)}%
+                        </span>
                       </div>
                     </div>
-                  ))}
+                    {isSubtasksExpanded ? (
+                      <ChevronUp className="w-5 h-5 text-zinc-400" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-zinc-400" />
+                    )}
+                  </div>
                 </div>
+                {isSubtasksExpanded && (
+                  <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                    {task.subtasks.map((subtask) => (
+                      <div
+                        key={subtask.id}
+                        className="p-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
+                      >
+                        {editingSubtaskId === subtask.id ? (
+                          /* サブタスク編集モード */
+                          <div className="space-y-3">
+                            <input
+                              type="text"
+                              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              value={editingSubtaskTitle}
+                              onChange={(e) => setEditingSubtaskTitle(e.target.value)}
+                              placeholder="サブタスクタイトル"
+                              autoFocus
+                            />
+                            <textarea
+                              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              value={editingSubtaskDescription}
+                              onChange={(e) => setEditingSubtaskDescription(e.target.value)}
+                              placeholder="説明（マークダウン対応）"
+                              rows={3}
+                            />
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={saveSubtaskEdit}
+                                disabled={!editingSubtaskTitle.trim()}
+                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                              >
+                                <Check className="w-4 h-4" />
+                                保存
+                              </button>
+                              <button
+                                onClick={cancelEditingSubtask}
+                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors"
+                              >
+                                <X className="w-4 h-4" />
+                                キャンセル
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          /* サブタスク表示モード - コンパクト化 */
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {/* ステータスアイコン */}
+                              <div className="shrink-0">
+                                {subtask.status === "done" ? (
+                                  <div className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
+                                    <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                  </div>
+                                ) : subtask.status === "in-progress" ? (
+                                  <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
+                                    <Circle className="w-3 h-3 text-blue-600 dark:text-blue-400 animate-pulse" />
+                                  </div>
+                                ) : (
+                                  <div className="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+                                    <Circle className="w-3 h-3 text-zinc-400" />
+                                  </div>
+                                )}
+                              </div>
+                              <span
+                                className={`text-sm truncate ${subtask.status === "done" ? "text-zinc-400 line-through" : "text-zinc-900 dark:text-zinc-50"}`}
+                              >
+                                {subtask.title}
+                              </span>
+                              {subtask.agentGenerated && (
+                                <span className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded shrink-0">
+                                  <Bot className="w-3 h-3" />
+                                  AI
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {/* ステータス変更ボタン（コンパクト版） */}
+                              {(["todo", "in-progress", "done"] as const).map((status) => {
+                                const config = sharedStatusConfig[status];
+                                return (
+                                  <TaskStatusChange
+                                    key={status}
+                                    status={status}
+                                    currentStatus={subtask.status}
+                                    config={config}
+                                    renderIcon={renderStatusIcon}
+                                    onClick={(newStatus) => updateStatus(subtask.id, newStatus)}
+                                    size="sm"
+                                  />
+                                );
+                              })}
+                              {/* 編集ボタン */}
+                              <button
+                                onClick={() => startEditingSubtask(subtask)}
+                                className="w-6 h-6 rounded flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                                title="編集"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

@@ -15,6 +15,7 @@ import {
   ChevronsUp,
 } from "lucide-react";
 import type { Priority } from "@/types";
+import { getLabelsArray, hasLabels } from "@/utils/labels";
 
 // 優先度アイコンの設定
 const priorityIcons: Record<
@@ -191,10 +192,10 @@ export default function TaskCard({
               </>
             )}
 
-            {task.labels && task.labels.length > 0 && (
+            {hasLabels(task.labels) && (
               <>
                 <span className="text-zinc-300 dark:text-zinc-700">•</span>
-                <span className="shrink-0">🏷 {task.labels.length}</span>
+                <span className="shrink-0">🏷 {getLabelsArray(task.labels).length}</span>
               </>
             )}
           </div>

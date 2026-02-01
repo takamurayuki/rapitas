@@ -25,7 +25,7 @@ type PromptClarificationQuestion = {
   question: string;
   options?: string[];
   isRequired: boolean;
-  category: "scope" | "technical" | "requirements" | "constraints";
+  category: "scope" | "technical" | "requirements" | "constraints" | "integration" | "testing" | "deliverables";
 };
 
 type StructuredSections = {
@@ -37,8 +37,23 @@ type StructuredSections = {
   technicalDetails?: string;
 };
 
+type ScoreBreakdownItem = {
+  score: number;
+  reason: string;
+  missing?: string[];
+};
+
+type ScoreBreakdown = {
+  clarity: ScoreBreakdownItem;
+  completeness: ScoreBreakdownItem;
+  technicalSpecificity: ScoreBreakdownItem;
+  executability: ScoreBreakdownItem;
+  context: ScoreBreakdownItem;
+};
+
 type PromptQuality = {
   score: number;
+  breakdown?: ScoreBreakdown;
   issues: string[];
   suggestions: string[];
 };
@@ -166,6 +181,9 @@ export function PromptOptimizationPanel({
       technical: "技術的",
       requirements: "要件",
       constraints: "制約",
+      integration: "統合",
+      testing: "テスト",
+      deliverables: "成果物",
     };
     return labels[category] || category;
   };
@@ -179,6 +197,12 @@ export function PromptOptimizationPanel({
         "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
       constraints:
         "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+      integration:
+        "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
+      testing:
+        "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+      deliverables:
+        "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400",
     };
     return (
       colors[category] ||
@@ -280,7 +304,11 @@ export function PromptOptimizationPanel({
   }
 
   // 質問がある場合
-  if (result?.hasQuestions && result.clarificationQuestions.length > 0) {
+  const hasQuestionsFlag = result?.hasQuestions ?? false;
+  const questionsArray = result?.clarificationQuestions ?? [];
+  const shouldShowQuestions = hasQuestionsFlag && questionsArray.length > 0;
+
+  if (shouldShowQuestions) {
     return (
       <div
         className={`bg-white dark:bg-zinc-900 rounded-xl border border-amber-200 dark:border-amber-700 overflow-hidden ${className}`}
@@ -304,7 +332,7 @@ export function PromptOptimizationPanel({
 
         {/* 質問リスト */}
         <div className="px-6 py-4 space-y-4">
-          {result.clarificationQuestions.map((q) => (
+          {questionsArray.map((q) => (
             <div key={q.id} className="space-y-2">
               <div className="flex items-start gap-2">
                 <MessageSquare className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
@@ -441,6 +469,104 @@ export function PromptOptimizationPanel({
             {result.optimizedPrompt}
           </div>
         </div>
+
+        {/* スコア内訳 */}
+        {result.promptQuality.breakdown && (
+          <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-700">
+            <button
+              onClick={() => setShowDetails(!showDetails)}
+              className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+            >
+              {showDetails ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+              スコア内訳を{showDetails ? "非表示" : "表示"}
+            </button>
+
+            {showDetails && (
+              <div className="mt-4 space-y-3">
+                {/* 明確性 */}
+                <div className="flex items-center gap-3">
+                  <div className="w-28 text-sm text-zinc-600 dark:text-zinc-400">明確性</div>
+                  <div className="flex-1 h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all ${result.promptQuality.breakdown.clarity.score >= 15 ? "bg-green-500" : result.promptQuality.breakdown.clarity.score >= 10 ? "bg-yellow-500" : "bg-red-500"}`}
+                      style={{ width: `${(result.promptQuality.breakdown.clarity.score / 20) * 100}%` }}
+                    />
+                  </div>
+                  <div className="w-12 text-right text-sm font-medium">{result.promptQuality.breakdown.clarity.score}/20</div>
+                </div>
+
+                {/* 完全性 */}
+                <div className="flex items-center gap-3">
+                  <div className="w-28 text-sm text-zinc-600 dark:text-zinc-400">完全性</div>
+                  <div className="flex-1 h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all ${result.promptQuality.breakdown.completeness.score >= 20 ? "bg-green-500" : result.promptQuality.breakdown.completeness.score >= 12 ? "bg-yellow-500" : "bg-red-500"}`}
+                      style={{ width: `${(result.promptQuality.breakdown.completeness.score / 25) * 100}%` }}
+                    />
+                  </div>
+                  <div className="w-12 text-right text-sm font-medium">{result.promptQuality.breakdown.completeness.score}/25</div>
+                </div>
+
+                {/* 技術的具体性 */}
+                <div className="flex items-center gap-3">
+                  <div className="w-28 text-sm text-zinc-600 dark:text-zinc-400">技術的具体性</div>
+                  <div className="flex-1 h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all ${result.promptQuality.breakdown.technicalSpecificity.score >= 15 ? "bg-green-500" : result.promptQuality.breakdown.technicalSpecificity.score >= 10 ? "bg-yellow-500" : "bg-red-500"}`}
+                      style={{ width: `${(result.promptQuality.breakdown.technicalSpecificity.score / 20) * 100}%` }}
+                    />
+                  </div>
+                  <div className="w-12 text-right text-sm font-medium">{result.promptQuality.breakdown.technicalSpecificity.score}/20</div>
+                </div>
+
+                {/* 実行可能性 */}
+                <div className="flex items-center gap-3">
+                  <div className="w-28 text-sm text-zinc-600 dark:text-zinc-400">実行可能性</div>
+                  <div className="flex-1 h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all ${result.promptQuality.breakdown.executability.score >= 15 ? "bg-green-500" : result.promptQuality.breakdown.executability.score >= 10 ? "bg-yellow-500" : "bg-red-500"}`}
+                      style={{ width: `${(result.promptQuality.breakdown.executability.score / 20) * 100}%` }}
+                    />
+                  </div>
+                  <div className="w-12 text-right text-sm font-medium">{result.promptQuality.breakdown.executability.score}/20</div>
+                </div>
+
+                {/* コンテキスト */}
+                <div className="flex items-center gap-3">
+                  <div className="w-28 text-sm text-zinc-600 dark:text-zinc-400">コンテキスト</div>
+                  <div className="flex-1 h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all ${result.promptQuality.breakdown.context.score >= 12 ? "bg-green-500" : result.promptQuality.breakdown.context.score >= 8 ? "bg-yellow-500" : "bg-red-500"}`}
+                      style={{ width: `${(result.promptQuality.breakdown.context.score / 15) * 100}%` }}
+                    />
+                  </div>
+                  <div className="w-12 text-right text-sm font-medium">{result.promptQuality.breakdown.context.score}/15</div>
+                </div>
+
+                {/* 欠けている要素がある場合 */}
+                {result.promptQuality.breakdown.completeness.missing && result.promptQuality.breakdown.completeness.missing.length > 0 && (
+                  <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-amber-700 dark:text-amber-400">不足している情報:</p>
+                        <ul className="mt-1 text-sm text-amber-600 dark:text-amber-300 list-disc list-inside">
+                          {result.promptQuality.breakdown.completeness.missing.map((item, i) => (
+                            <li key={i}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 品質問題と提案 */}
         {(result.promptQuality.issues.length > 0 ||

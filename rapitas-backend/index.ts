@@ -33,6 +33,54 @@ const prisma = new PrismaClient({
   datasourceUrl: dbUrl,
 });
 
+// ラベルを配列として取得するヘルパー関数（SQLite/PostgreSQL両対応）
+function getLabelsArray(labels: any): string[] {
+  if (!labels) return [];
+
+  // 文字列の場合（SQLite JSON）
+  if (typeof labels === 'string') {
+    try {
+      const parsed = JSON.parse(labels);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  // 配列の場合
+  if (Array.isArray(labels)) {
+    // オブジェクトの配列（PostgreSQLリレーション）
+    if (labels.length > 0 && typeof labels[0] === 'object' && labels[0]?.name) {
+      return labels.map((l: any) => l.name);
+    }
+    // 文字列の配列
+    return labels.filter((l: any) => typeof l === 'string');
+  }
+
+  return [];
+}
+
+// JSONフィールドをSQLite互換の文字列に変換するヘルパー関数
+function toJsonString(value: any): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') return value;
+  return JSON.stringify(value);
+}
+
+// SQLiteから読み取ったJSON文字列をオブジェクトに変換するヘルパー関数
+function fromJsonString<T = any>(value: any): T | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return null;
+    }
+  }
+  // すでにオブジェクトの場合はそのまま返す（PostgreSQL互換）
+  return value as T;
+}
+
 app.use(cors());
 
 // エラーハンドリング
@@ -2114,7 +2162,7 @@ app.post("/templates/:id/apply", async ({ params }: { params: any }) => {
   });
   if (!template) return { error: "Template not found" };
 
-  const data = template.templateData as any;
+  const data = fromJsonString<any>(template.templateData);
   const task = await prisma.task.create({
     data: {
       title: data.title || template.name,
@@ -2483,8 +2531,8 @@ app.post(
           sessionId: session.id,
           actionType: "analysis",
           targetTaskId: taskIdNum,
-          input: { taskTitle: task.title },
-          output: result,
+          input: toJsonString({ taskTitle: task.title }),
+          output: toJsonString(result),
           tokensUsed,
           status: "success",
         },
@@ -2536,13 +2584,13 @@ app.post(
           requestType: "subtask_creation",
           title: `「${task.title}」のサブタスク提案`,
           description: result.summary,
-          proposedChanges: {
+          proposedChanges: toJsonString({
             subtasks: result.suggestedSubtasks,
             reasoning: result.reasoning,
             tips: result.tips,
             complexity: result.complexity,
             estimatedTotalHours: result.estimatedTotalHours,
-          },
+          }),
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7日後
         },
       });
@@ -2555,7 +2603,7 @@ app.post(
             title: "サブタスク提案",
             message: `「${task.title}」に${result.suggestedSubtasks.length}個のサブタスクが提案されました`,
             link: `/tasks/${taskIdNum}`,
-            metadata: { approvalRequestId: approvalRequest.id },
+            metadata: toJsonString({ approvalRequestId: approvalRequest.id }),
           },
         });
       }
@@ -2642,7 +2690,7 @@ app.post(
 
     let analysisResult = null;
     if (config?.agentSessions?.[0]?.agentActions?.[0]?.output) {
-      analysisResult = config.agentSessions[0].agentActions[0].output as any;
+      analysisResult = fromJsonString(config.agentSessions[0].agentActions[0].output);
     }
 
     try {
@@ -2652,7 +2700,7 @@ app.post(
           title: task.title,
           description: task.description,
           priority: task.priority,
-          labels: task.labels?.map((l: any) => l.name) || [],
+          labels: getLabelsArray(task.labels),
         },
         analysisResult,
         clarificationAnswers,
@@ -2684,7 +2732,7 @@ app.post(
             name: `${task.title} - 最適化プロンプト`,
             originalDescription: task.description,
             optimizedPrompt: result.optimizedPrompt,
-            structuredSections: result.structuredSections as any,
+            structuredSections: toJsonString(result.structuredSections),
             qualityScore: result.promptQuality.score,
             isActive: true,
           },
@@ -2692,13 +2740,16 @@ app.post(
         savedPromptId = savedPrompt.id;
       }
 
+      const questionsCount = result.clarificationQuestions?.length || 0;
+      const hasQuestions = questionsCount > 0;
+
       return {
         optimizedPrompt: result.optimizedPrompt,
         structuredSections: result.structuredSections,
         clarificationQuestions: result.clarificationQuestions || [],
         promptQuality: result.promptQuality,
         tokensUsed,
-        hasQuestions: (result.clarificationQuestions?.length || 0) > 0,
+        hasQuestions,
         savedPromptId,
         taskInfo: {
           id: task.id,
@@ -3000,7 +3051,7 @@ app.post(
           title: task.title,
           description: task.description,
           priority: task.priority,
-          labels: task.labels?.map((l: any) => l.name) || [],
+          labels: getLabelsArray(task.labels),
         });
 
         // プロンプトを保存
@@ -3010,7 +3061,7 @@ app.post(
             name: `${task.title} - 最適化プロンプト`,
             originalDescription: task.description,
             optimizedPrompt: result.optimizedPrompt,
-            structuredSections: result.structuredSections as any,
+            structuredSections: toJsonString(result.structuredSections),
             qualityScore: result.promptQuality.score,
             isActive: true,
           },
@@ -3040,7 +3091,7 @@ app.post(
             title: subtask.title,
             description: subtask.description,
             priority: subtask.priority,
-            labels: subtask.labels?.map((l: any) => l.name) || [],
+            labels: getLabelsArray(subtask.labels),
           });
 
           // プロンプトを保存
@@ -3050,7 +3101,7 @@ app.post(
               name: `${subtask.title} - 最適化プロンプト`,
               originalDescription: subtask.description,
               optimizedPrompt: result.optimizedPrompt,
-              structuredSections: result.structuredSections as any,
+              structuredSections: toJsonString(result.structuredSections),
               qualityScore: result.promptQuality.score,
               isActive: true,
             },
@@ -3083,6 +3134,301 @@ app.post(
       results,
       successCount: results.filter((r) => r.success).length,
       failureCount: results.filter((r) => !r.success).length,
+    };
+  },
+);
+
+// ==================== Task Dependency Analysis API ====================
+
+// タスクの依存度分析（ファイル共有ベース）
+app.get(
+  "/tasks/:id/dependency-analysis",
+  async ({ params }: { params: { id: string } }) => {
+    const taskIdNum = parseInt(params.id);
+
+    // 親タスクとサブタスクを取得
+    const task = await prisma.task.findUnique({
+      where: { id: taskIdNum },
+      include: {
+        subtasks: {
+          include: {
+            prompts: true,
+          },
+        },
+        prompts: true,
+      },
+    });
+
+    if (!task) {
+      return { error: "タスクが見つかりません" };
+    }
+
+    // プロンプトからファイルパスを抽出する関数
+    const extractFilePaths = (text: string | null): string[] => {
+      if (!text) return [];
+
+      // 各種ファイルパスパターンを検出
+      const patterns = [
+        // Unix/Mac パス
+        /(?:^|\s|["'`])([\/][\w\-\.\/]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
+        // Windows パス
+        /(?:^|\s|["'`])([A-Za-z]:[\\\/][\w\-\.\\\/]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
+        // 相対パス
+        /(?:^|\s|["'`])(\.{0,2}[\/\\][\w\-\.\/\\]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
+        // src/components/... 形式
+        /(?:^|\s|["'`])((?:src|lib|app|components|pages|features?|services?|utils?|hooks?|types?|api|routes?)[\w\-\.\/\\]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
+      ];
+
+      const files = new Set<string>();
+      for (const pattern of patterns) {
+        let match;
+        while ((match = pattern.exec(text)) !== null) {
+          const filePath = match[1]
+            .replace(/\\/g, "/")
+            .replace(/^\.\//, "")
+            .toLowerCase();
+
+          // 拡張子のあるファイルのみ
+          if (/\.[a-zA-Z]{1,10}$/.test(filePath)) {
+            files.add(filePath);
+          }
+        }
+      }
+      return Array.from(files);
+    };
+
+    // ファイル名のみを取得（ディレクトリを無視）
+    const getFileName = (path: string): string => {
+      const parts = path.split("/");
+      return parts[parts.length - 1];
+    };
+
+    // 各サブタスクのファイル情報を収集
+    type SubtaskFileInfo = {
+      id: number;
+      title: string;
+      files: string[];
+      fileNames: string[];
+    };
+
+    const subtaskFiles: SubtaskFileInfo[] = [];
+
+    // サブタスクがない場合は親タスクのプロンプトを分析
+    if (task.subtasks.length === 0) {
+      const parentFiles: string[] = [];
+      for (const prompt of task.prompts) {
+        parentFiles.push(...extractFilePaths(prompt.optimizedPrompt));
+        parentFiles.push(...extractFilePaths(prompt.originalDescription));
+      }
+      // 説明からも抽出
+      parentFiles.push(...extractFilePaths(task.description));
+
+      const uniqueFiles = Array.from(new Set(parentFiles));
+      subtaskFiles.push({
+        id: task.id,
+        title: task.title,
+        files: uniqueFiles,
+        fileNames: uniqueFiles.map(getFileName),
+      });
+    } else {
+      // サブタスクごとにファイルを収集
+      for (const subtask of task.subtasks) {
+        const files: string[] = [];
+
+        for (const prompt of subtask.prompts) {
+          files.push(...extractFilePaths(prompt.optimizedPrompt));
+          files.push(...extractFilePaths(prompt.originalDescription));
+        }
+        // 説明からも抽出
+        files.push(...extractFilePaths(subtask.description));
+
+        const uniqueFiles = Array.from(new Set(files));
+        subtaskFiles.push({
+          id: subtask.id,
+          title: subtask.title,
+          files: uniqueFiles,
+          fileNames: uniqueFiles.map(getFileName),
+        });
+      }
+    }
+
+    // 依存度を計算（共有ファイル数に基づく）
+    type DependencyInfo = {
+      taskId: number;
+      title: string;
+      files: string[];
+      dependencies: Array<{
+        taskId: number;
+        title: string;
+        sharedFiles: string[];
+        dependencyScore: number; // 0-100
+      }>;
+      independenceScore: number; // 独立性スコア 0-100
+      canRunParallel: boolean;
+    };
+
+    const dependencyAnalysis: DependencyInfo[] = [];
+
+    for (const current of subtaskFiles) {
+      const dependencies: DependencyInfo["dependencies"] = [];
+
+      for (const other of subtaskFiles) {
+        if (current.id === other.id) continue;
+
+        // 共有ファイルを検出（ファイル名ベース）
+        const sharedFiles = current.fileNames.filter(fn =>
+          other.fileNames.includes(fn)
+        );
+
+        if (sharedFiles.length > 0) {
+          // 依存度スコア: 共有ファイル数 / 現在タスクのファイル数 * 100
+          const score = current.files.length > 0
+            ? Math.round((sharedFiles.length / current.files.length) * 100)
+            : 0;
+
+          dependencies.push({
+            taskId: other.id,
+            title: other.title,
+            sharedFiles,
+            dependencyScore: score,
+          });
+        }
+      }
+
+      // 独立性スコア: 他タスクと共有しているファイルがない場合は100
+      const totalSharedFiles = new Set(dependencies.flatMap(d => d.sharedFiles)).size;
+      const independenceScore = current.files.length > 0
+        ? Math.round(((current.files.length - totalSharedFiles) / current.files.length) * 100)
+        : 100;
+
+      dependencyAnalysis.push({
+        taskId: current.id,
+        title: current.title,
+        files: current.files,
+        dependencies: dependencies.sort((a, b) => b.dependencyScore - a.dependencyScore),
+        independenceScore,
+        canRunParallel: dependencies.length === 0 || independenceScore >= 70,
+      });
+    }
+
+    // ツリー構造を生成
+    type TreeNode = {
+      id: number;
+      title: string;
+      files: string[];
+      independenceScore: number;
+      canRunParallel: boolean;
+      level: number;
+      children: TreeNode[];
+      dependsOn: Array<{ id: number; title: string; sharedFiles: string[] }>;
+    };
+
+    // 依存度でソート（独立性の高い順）
+    const sortedTasks = [...dependencyAnalysis].sort(
+      (a, b) => b.independenceScore - a.independenceScore
+    );
+
+    // ツリーを構築
+    const buildTree = (): TreeNode[] => {
+      const nodes: TreeNode[] = [];
+      const processed = new Set<number>();
+
+      // 独立性の高いタスクから処理
+      for (const task of sortedTasks) {
+        if (processed.has(task.taskId)) continue;
+
+        const node: TreeNode = {
+          id: task.taskId,
+          title: task.title,
+          files: task.files,
+          independenceScore: task.independenceScore,
+          canRunParallel: task.canRunParallel,
+          level: 0,
+          children: [],
+          dependsOn: task.dependencies.map(d => ({
+            id: d.taskId,
+            title: d.title,
+            sharedFiles: d.sharedFiles,
+          })),
+        };
+
+        // 依存しているタスクを子として追加
+        for (const dep of task.dependencies) {
+          if (!processed.has(dep.taskId)) {
+            const depTask = sortedTasks.find(t => t.taskId === dep.taskId);
+            if (depTask) {
+              node.children.push({
+                id: depTask.taskId,
+                title: depTask.title,
+                files: depTask.files,
+                independenceScore: depTask.independenceScore,
+                canRunParallel: depTask.canRunParallel,
+                level: 1,
+                children: [],
+                dependsOn: depTask.dependencies.map(d => ({
+                  id: d.taskId,
+                  title: d.title,
+                  sharedFiles: d.sharedFiles,
+                })),
+              });
+              processed.add(depTask.taskId);
+            }
+          }
+        }
+
+        nodes.push(node);
+        processed.add(task.taskId);
+      }
+
+      return nodes;
+    };
+
+    const tree = buildTree();
+
+    // 並列実行可能なグループを作成
+    const parallelGroups: Array<{
+      groupId: number;
+      tasks: Array<{ id: number; title: string }>;
+      canRunTogether: boolean;
+    }> = [];
+
+    const independentTasks = dependencyAnalysis.filter(t => t.canRunParallel);
+    const dependentTasks = dependencyAnalysis.filter(t => !t.canRunParallel);
+
+    if (independentTasks.length > 0) {
+      parallelGroups.push({
+        groupId: 1,
+        tasks: independentTasks.map(t => ({ id: t.taskId, title: t.title })),
+        canRunTogether: true,
+      });
+    }
+
+    if (dependentTasks.length > 0) {
+      parallelGroups.push({
+        groupId: 2,
+        tasks: dependentTasks.map(t => ({ id: t.taskId, title: t.title })),
+        canRunTogether: false,
+      });
+    }
+
+    return {
+      taskId: task.id,
+      taskTitle: task.title,
+      hasSubtasks: task.subtasks.length > 0,
+      subtaskCount: task.subtasks.length,
+      analysis: dependencyAnalysis,
+      tree,
+      parallelGroups,
+      summary: {
+        totalTasks: subtaskFiles.length,
+        independentTasks: independentTasks.length,
+        dependentTasks: dependentTasks.length,
+        totalFiles: new Set(subtaskFiles.flatMap(t => t.files)).size,
+        averageIndependence: Math.round(
+          dependencyAnalysis.reduce((sum, t) => sum + t.independenceScore, 0) /
+          dependencyAnalysis.length || 0
+        ),
+      },
     };
   },
 );
@@ -3163,11 +3509,15 @@ app.post(
     // リクエストタイプに応じた処理
     if (approval.requestType === "task_execution") {
       // タスク実行の承認 → 自動的にエージェント実行を開始
-      const proposedChanges = approval.proposedChanges as {
+      const proposedChanges = fromJsonString<{
         taskId: number;
         agentConfigId?: number;
         workingDirectory?: string;
-      };
+      }>(approval.proposedChanges);
+
+      if (!proposedChanges) {
+        return { error: "Invalid proposed changes data" };
+      }
 
       const task = approval.config.task;
 
@@ -3186,7 +3536,7 @@ app.post(
           title: "エージェント実行開始",
           message: `承認されたタスク「${task.title}」の自動実行を開始しました`,
           link: `/tasks/${task.id}`,
-          metadata: { sessionId: session.id, taskId: task.id },
+          metadata: toJsonString({ sessionId: session.id, taskId: task.id }),
         },
       });
 
@@ -3219,11 +3569,11 @@ app.post(
                 ? `「${task.title}」の自動実行が完了しました`
                 : `「${task.title}」の自動実行が失敗しました: ${result.errorMessage}`,
               link: `/tasks/${task.id}`,
-              metadata: {
+              metadata: toJsonString({
                 sessionId: session.id,
                 taskId: task.id,
                 success: result.success,
-              },
+              }),
             },
           });
 
@@ -3254,13 +3604,17 @@ app.post(
       };
     } else if (approval.requestType === "code_review") {
       // コードレビュー承認 → コミット＆PR作成
-      const proposedChanges = approval.proposedChanges as {
+      const proposedChanges = fromJsonString<{
         taskId: number;
         sessionId: number;
         workingDirectory: string;
         branchName?: string;
         diff: string;
-      };
+      }>(approval.proposedChanges);
+
+      if (!proposedChanges) {
+        return { error: "Invalid proposed changes data" };
+      }
 
       const task = approval.config.task;
       const workDir = proposedChanges.workingDirectory;
@@ -3323,12 +3677,12 @@ Task ID: ${task.id}
             title: "PR作成完了",
             message: `「${task.title}」のPRが作成されました`,
             link: prResult.prUrl || `/tasks/${task.id}`,
-            metadata: {
+            metadata: toJsonString({
               taskId: task.id,
               commitHash: commitResult.commitHash,
               prUrl: prResult.prUrl,
               prNumber: prResult.prNumber,
-            },
+            }),
           },
         });
 
@@ -3346,7 +3700,7 @@ Task ID: ${task.id}
             title: "PR作成失敗",
             message: `「${task.title}」のPR作成に失敗しました: ${prResult.error}`,
             link: `/tasks/${task.id}`,
-            metadata: { commitHash: commitResult.commitHash },
+            metadata: toJsonString({ commitHash: commitResult.commitHash }),
           },
         });
 
@@ -3358,9 +3712,13 @@ Task ID: ${task.id}
       }
     } else if (approval.requestType === "subtask_creation") {
       // サブタスク作成の承認
-      const proposedChanges = approval.proposedChanges as {
+      const proposedChanges = fromJsonString<{
         subtasks: SubtaskProposal[];
-      };
+      }>(approval.proposedChanges);
+
+      if (!proposedChanges) {
+        return { error: "Invalid proposed changes data" };
+      }
 
       // 選択されたサブタスクのみを作成（指定がなければ全て）
       const subtasksToCreate = selectedSubtasks
@@ -3449,9 +3807,13 @@ app.post(
 
     // コードレビュー却下の場合は変更を元に戻す
     if (approval.requestType === "code_review") {
-      const proposedChanges = approval.proposedChanges as {
+      const proposedChanges = fromJsonString<{
         workingDirectory: string;
-      };
+      }>(approval.proposedChanges);
+
+      if (!proposedChanges) {
+        return { error: "Invalid proposed changes data" };
+      }
 
       const reverted = await orchestrator.revertChanges(
         proposedChanges.workingDirectory,
@@ -3507,13 +3869,13 @@ app.post(
       return { error: "This endpoint is only for code_review requests" };
     }
 
-    const proposedChanges = approval.proposedChanges as {
+    const proposedChanges = fromJsonString<{
       workingDirectory?: string;
       files?: string[];
-    };
+    }>(approval.proposedChanges);
 
     const workingDirectory =
-      proposedChanges.workingDirectory ||
+      proposedChanges?.workingDirectory ||
       approval.config.task?.theme?.workingDirectory;
 
     if (!workingDirectory) {
@@ -3560,11 +3922,11 @@ app.post(
           title: "PR作成完了",
           message: `「${approval.config.task.title}」のPRを作成しました`,
           link: prResult.prUrl || `/tasks/${approval.config.taskId}`,
-          metadata: {
+          metadata: toJsonString({
             prNumber: prResult.prNumber,
             prUrl: prResult.prUrl,
             commitHash: commitResult.hash,
-          },
+          }),
         },
       });
 
@@ -3610,12 +3972,12 @@ app.post(
       return { error: "This endpoint is only for code_review requests" };
     }
 
-    const proposedChanges = approval.proposedChanges as {
+    const proposedChanges = fromJsonString<{
       workingDirectory?: string;
-    };
+    }>(approval.proposedChanges);
 
     const workingDirectory =
-      proposedChanges.workingDirectory ||
+      proposedChanges?.workingDirectory ||
       approval.config.task?.theme?.workingDirectory;
 
     if (!workingDirectory) {
@@ -3687,14 +4049,14 @@ app.post(
       return { error: "This endpoint is only for code_review requests" };
     }
 
-    const proposedChanges = approval.proposedChanges as {
+    const proposedChanges = fromJsonString<{
       workingDirectory?: string;
       sessionId?: number;
       implementationSummary?: string;
-    };
+    }>(approval.proposedChanges);
 
     const workingDirectory =
-      proposedChanges.workingDirectory ||
+      proposedChanges?.workingDirectory ||
       approval.config.task?.theme?.workingDirectory;
 
     if (!workingDirectory) {
@@ -3736,7 +4098,7 @@ app.post(
       const additionalInstructions = feedbackInstructions.join("\n");
 
       // 元の実装説明を含める（コンテキスト用）
-      const previousImplementation = proposedChanges.implementationSummary
+      const previousImplementation = proposedChanges?.implementationSummary
         ? `\n\n## 前回の実装内容（参考）:\n${proposedChanges.implementationSummary.substring(0, 1000)}`
         : "";
 
@@ -3773,10 +4135,10 @@ ${previousImplementation}
         data: {
           configId: approval.configId,
           status: "pending",
-          metadata: {
+          metadata: toJsonString({
             previousApprovalId: parseInt(id),
             feedbackIteration: true,
-          },
+          }),
         },
       });
 
@@ -3820,7 +4182,7 @@ ${previousImplementation}
                   requestType: "code_review",
                   title: `「${task.title}」のコードレビュー（修正版）`,
                   description: implementationSummary,
-                  proposedChanges: {
+                  proposedChanges: toJsonString({
                     taskId: task.id,
                     sessionId: session.id,
                     workingDirectory,
@@ -3831,12 +4193,12 @@ ${previousImplementation}
                     feedbackIteration: true,
                     previousFeedback: feedback,
                     previousComments: comments,
-                  },
-                  estimatedChanges: {
+                  }),
+                  estimatedChanges: toJsonString({
                     diff,
                     filesChanged: structuredDiff.length,
                     summary: implementationSummary.substring(0, 500),
-                  },
+                  }),
                   expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
                 },
               });
@@ -3886,12 +4248,12 @@ app.get(
       return { error: "Approval request not found" };
     }
 
-    const proposedChanges = approval.proposedChanges as {
+    const proposedChanges = fromJsonString<{
       workingDirectory?: string;
-    };
+    }>(approval.proposedChanges);
 
     const workingDirectory =
-      proposedChanges.workingDirectory ||
+      proposedChanges?.workingDirectory ||
       approval.config.task?.theme?.workingDirectory;
 
     if (!workingDirectory) {
@@ -3935,11 +4297,11 @@ app.post(
 
         if (approval.requestType === "task_execution") {
           // タスク実行の承認 → 自動実行開始
-          const proposedChanges = approval.proposedChanges as {
+          const proposedChanges = fromJsonString<{
             taskId: number;
             agentConfigId?: number;
             workingDirectory?: string;
-          };
+          }>(approval.proposedChanges);
           const task = approval.config.task;
 
           const session = await prisma.agentSession.create({
@@ -3957,13 +4319,13 @@ app.post(
                 title: task.title,
                 description: task.description,
                 context: task.executionInstructions || undefined,
-                workingDirectory: proposedChanges.workingDirectory,
+                workingDirectory: proposedChanges?.workingDirectory,
               },
               {
                 taskId: task.id,
                 sessionId: session.id,
-                agentConfigId: proposedChanges.agentConfigId,
-                workingDirectory: proposedChanges.workingDirectory,
+                agentConfigId: proposedChanges?.agentConfigId,
+                workingDirectory: proposedChanges?.workingDirectory,
               },
             )
             .then(async (result) => {
@@ -3993,11 +4355,11 @@ app.post(
           results.push({ id, success: true, autoExecutionStarted: true });
         } else if (approval.requestType === "subtask_creation") {
           // サブタスク作成
-          const proposedChanges = approval.proposedChanges as {
+          const proposedChanges = fromJsonString<{
             subtasks: SubtaskProposal[];
-          };
+          }>(approval.proposedChanges);
 
-          for (const subtask of proposedChanges.subtasks) {
+          for (const subtask of proposedChanges?.subtasks || []) {
             await prisma.task.create({
               data: {
                 title: subtask.title,
@@ -5535,7 +5897,7 @@ app.post(
         title: "エージェント実行開始",
         message: `「${task.title}」の自動実行を開始しました`,
         link: `/tasks/${taskIdNum}`,
-        metadata: { sessionId: session.id, taskId: taskIdNum },
+        metadata: toJsonString({ sessionId: session.id, taskId: taskIdNum }),
       },
     });
 
@@ -5590,8 +5952,8 @@ app.post(
 
       if (latestAnalysisAction?.output) {
         try {
-          const analysisOutput = latestAnalysisAction.output as any;
-          if (analysisOutput.summary && analysisOutput.suggestedSubtasks) {
+          const analysisOutput = fromJsonString<any>(latestAnalysisAction.output);
+          if (analysisOutput?.summary && analysisOutput?.suggestedSubtasks) {
             analysisInfo = {
               summary: analysisOutput.summary,
               complexity: analysisOutput.complexity || "medium",
@@ -5659,7 +6021,7 @@ app.post(
                 requestType: "code_review",
                 title: `「${task.title}」のコードレビュー`,
                 description: implementationSummary,
-                proposedChanges: {
+                proposedChanges: toJsonString({
                   taskId: taskIdNum,
                   sessionId: session.id,
                   workingDirectory: workDir,
@@ -5668,13 +6030,13 @@ app.post(
                   structuredDiff, // 構造化された差分情報
                   implementationSummary, // Claude Codeの出力
                   executionTimeMs: result.executionTimeMs,
-                },
+                }),
                 executionType: "code_review",
-                estimatedChanges: {
+                estimatedChanges: toJsonString({
                   diff,
                   filesChanged: structuredDiff.length,
                   summary: implementationSummary.substring(0, 500),
-                },
+                }),
                 expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7日間
               },
             });
@@ -5686,11 +6048,11 @@ app.post(
                 title: "コードレビュー依頼",
                 message: `「${task.title}」の実装が完了しました。レビューをお願いします。`,
                 link: `/approvals/${approvalRequest.id}`,
-                metadata: {
+                metadata: toJsonString({
                   approvalRequestId: approvalRequest.id,
                   sessionId: session.id,
                   taskId: taskIdNum,
-                },
+                }),
               },
             });
           } else {
@@ -5701,7 +6063,7 @@ app.post(
                 title: "エージェント実行完了（変更なし）",
                 message: `「${task.title}」の実行が完了しましたが、コード変更はありませんでした。`,
                 link: `/tasks/${taskIdNum}`,
-                metadata: { sessionId: session.id, taskId: taskIdNum },
+                metadata: toJsonString({ sessionId: session.id, taskId: taskIdNum }),
               },
             });
           }
@@ -5713,7 +6075,7 @@ app.post(
               title: "エージェント実行失敗",
               message: `「${task.title}」の自動実行が失敗しました: ${result.errorMessage}`,
               link: `/tasks/${taskIdNum}`,
-              metadata: { sessionId: session.id, taskId: taskIdNum },
+              metadata: toJsonString({ sessionId: session.id, taskId: taskIdNum }),
             },
           });
         }
@@ -6044,7 +6406,7 @@ app.post(
                   requestType: "code_review",
                   title: `「${config.task.title}」のコードレビュー`,
                   description: implementationSummary,
-                  proposedChanges: {
+                  proposedChanges: toJsonString({
                     taskId,
                     sessionId: session.id,
                     workingDirectory,
@@ -6052,12 +6414,12 @@ app.post(
                     structuredDiff,
                     implementationSummary,
                     executionTimeMs: result.executionTimeMs,
-                  },
-                  estimatedChanges: {
+                  }),
+                  estimatedChanges: toJsonString({
                     diff,
                     filesChanged: structuredDiff.length,
                     summary: implementationSummary.substring(0, 500),
-                  },
+                  }),
                   expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
                 },
               });

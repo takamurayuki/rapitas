@@ -7,6 +7,7 @@ import {
   statusConfig,
   renderStatusIcon,
 } from "@/feature/tasks/config/StatusConfig";
+import { getLabelsArray, hasLabels } from "@/utils/labels";
 
 interface TaskDetailProps {
   task: Task;
@@ -56,18 +57,36 @@ export default function TaskDetail({
       {isEditing ? (
         /* 編集モード */
         <div className="space-y-6">
-          {/* タイトル */}
+          {/* タイトルとステータス（一行でコンパクトに表示） */}
           <div>
             <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
               タイトル <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 text-lg font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={editTitle}
-              onChange={(e) => onEditTitleChange(e.target.value)}
-              required
-            />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <input
+                type="text"
+                className="flex-1 min-w-0 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 text-lg font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={editTitle}
+                onChange={(e) => onEditTitleChange(e.target.value)}
+                required
+              />
+              <div className="flex items-center gap-1 shrink-0">
+                {(["todo", "in-progress", "done"] as const).map((status) => {
+                  const config = statusConfig[status];
+                  return (
+                    <TaskStatusChange
+                      key={status}
+                      status={status}
+                      currentStatus={editStatus}
+                      config={config}
+                      renderIcon={renderStatusIcon}
+                      onClick={(newStatus) => onEditStatusChange(newStatus)}
+                      size="md"
+                    />
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* 説明 */}
@@ -117,29 +136,6 @@ export default function TaskDetail({
               <span className="font-semibold">ファイル・画像:</span>{" "}
               ドラッグ&ドロップで添付可能
             </p>
-          </div>
-
-          {/* ステータス */}
-          <div>
-            <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
-              ステータス
-            </label>
-            <div className="flex items-center gap-2">
-              {(["todo", "in-progress", "done"] as const).map((status) => {
-                const config = statusConfig[status];
-                return (
-                  <TaskStatusChange
-                    key={status}
-                    status={status}
-                    currentStatus={editStatus}
-                    config={config}
-                    renderIcon={renderStatusIcon}
-                    onClick={(newStatus) => onEditStatusChange(newStatus)}
-                    showLabel
-                  />
-                );
-              })}
-            </div>
           </div>
 
           {/* ラベルと見積もり時間 */}
@@ -244,13 +240,13 @@ export default function TaskDetail({
           )}
 
           <div className="grid grid-cols-2 gap-4 mb-6">
-            {task.labels && task.labels.length > 0 && (
+            {hasLabels(task.labels) && (
               <div>
                 <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
                   ラベル
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {task.labels.map((label, idx) => (
+                  {getLabelsArray(task.labels).map((label, idx) => (
                     <span
                       key={idx}
                       className="px-3 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 text-sm"

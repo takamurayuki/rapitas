@@ -58,6 +58,21 @@ type AnalysisResult = {
   tips?: string[];
 };
 
+type PromptClarificationQuestion = {
+  id: string;
+  question: string;
+  options?: string[];
+  isRequired: boolean;
+  category: "scope" | "technical" | "requirements" | "constraints" | "integration" | "testing" | "deliverables";
+};
+
+type PromptResult = {
+  optimizedPrompt: string;
+  promptQuality: { score: number };
+  hasQuestions: boolean;
+  clarificationQuestions?: PromptClarificationQuestion[];
+};
+
 type Props = {
   taskId: number;
   // AIAnalysisPanel props
@@ -145,12 +160,11 @@ export function AIAccordionPanel({
   const [isCreatingSubtasks, setIsCreatingSubtasks] = useState(false);
   const [subtaskCreationSuccess, setSubtaskCreationSuccess] = useState(false);
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
-  const [promptResult, setPromptResult] = useState<{
-    optimizedPrompt: string;
-    promptQuality: { score: number };
-  } | null>(null);
+  const [promptResult, setPromptResult] = useState<PromptResult | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [questionAnswers, setQuestionAnswers] = useState<Record<string, string>>({});
+  const [isSubmittingAnswers, setIsSubmittingAnswers] = useState(false);
 
   // 実行パネルの状態
   const [showOptions, setShowOptions] = useState(false);
@@ -202,7 +216,7 @@ export function AIAccordionPanel({
   };
 
   // プロンプト生成
-  const generatePrompt = useCallback(async () => {
+  const generatePrompt = useCallback(async (clarificationAnswers?: Record<string, string>) => {
     setIsGeneratingPrompt(true);
     setPromptError(null);
 
@@ -212,7 +226,7 @@ export function AIAccordionPanel({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
+          body: JSON.stringify({ clarificationAnswers }),
         },
       );
 
@@ -221,7 +235,7 @@ export function AIAccordionPanel({
         throw new Error(errData.error || "プロンプト生成に失敗しました");
       }
 
-      const data = await response.json();
+      const data: PromptResult = await response.json();
       setPromptResult(data);
 
       if (!data.hasQuestions && onPromptGenerated) {
@@ -235,6 +249,51 @@ export function AIAccordionPanel({
       setIsGeneratingPrompt(false);
     }
   }, [taskId, onPromptGenerated]);
+
+  // 質問への回答を送信
+  const handleSubmitAnswers = useCallback(async () => {
+    if (!promptResult?.clarificationQuestions) return;
+
+    // 必須質問の回答チェック
+    const requiredQuestions = promptResult.clarificationQuestions.filter(q => q.isRequired);
+    const unansweredRequired = requiredQuestions.filter(q => !questionAnswers[q.id]?.trim());
+    if (unansweredRequired.length > 0) {
+      setPromptError("必須の質問に回答してください");
+      return;
+    }
+
+    setIsSubmittingAnswers(true);
+    setPromptError(null);
+
+    // 質問IDをキーにした回答を質問テキストをキーにした回答に変換
+    const clarificationAnswers: Record<string, string> = {};
+    promptResult.clarificationQuestions.forEach(q => {
+      if (questionAnswers[q.id]) {
+        clarificationAnswers[q.question] = questionAnswers[q.id];
+      }
+    });
+
+    try {
+      await generatePrompt(clarificationAnswers);
+      setQuestionAnswers({});
+    } finally {
+      setIsSubmittingAnswers(false);
+    }
+  }, [promptResult, questionAnswers, generatePrompt]);
+
+  // カテゴリラベル取得
+  const getCategoryLabel = (category: string) => {
+    const labels: Record<string, string> = {
+      scope: "スコープ",
+      technical: "技術",
+      requirements: "要件",
+      constraints: "制約",
+      integration: "統合",
+      testing: "テスト",
+      deliverables: "成果物",
+    };
+    return labels[category] || category;
+  };
 
   const handleCopyPrompt = useCallback(() => {
     if (promptResult?.optimizedPrompt) {
@@ -789,7 +848,82 @@ export function AIAccordionPanel({
                       再試行
                     </button>
                   </div>
+                ) : promptResult?.hasQuestions && promptResult.clarificationQuestions && promptResult.clarificationQuestions.length > 0 ? (
+                  /* 質問がある場合 */
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                      <HelpCircle className="w-3.5 h-3.5" />
+                      <span className="text-[11px] font-medium">追加情報が必要です</span>
+                    </div>
+                    <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-2">
+                      スコア: {promptResult.promptQuality.score}/100 - より良いプロンプトを生成するために回答してください
+                    </div>
+                    <div className="space-y-2.5 max-h-48 overflow-y-auto">
+                      {promptResult.clarificationQuestions.map((q) => (
+                        <div key={q.id} className="space-y-1">
+                          <div className="flex items-start gap-1.5">
+                            <span className="text-[10px] text-zinc-700 dark:text-zinc-300 flex-1">
+                              {q.question}
+                              {q.isRequired && <span className="text-red-500 ml-0.5">*</span>}
+                            </span>
+                            <span className="text-[9px] px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 rounded shrink-0">
+                              {getCategoryLabel(q.category)}
+                            </span>
+                          </div>
+                          {q.options && q.options.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {q.options.map((option, i) => (
+                                <button
+                                  key={i}
+                                  onClick={() => setQuestionAnswers(prev => ({ ...prev, [q.id]: option }))}
+                                  className={`px-2 py-0.5 text-[9px] rounded border transition-colors ${
+                                    questionAnswers[q.id] === option
+                                      ? "border-amber-500 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                                      : "border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
+                                  }`}
+                                >
+                                  {option}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <input
+                              type="text"
+                              value={questionAnswers[q.id] || ""}
+                              onChange={(e) => setQuestionAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                              placeholder="回答を入力..."
+                              className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-amber-500/30 focus:border-amber-500"
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-end gap-1.5 pt-1">
+                      <button
+                        onClick={() => {
+                          setPromptResult(null);
+                          setQuestionAnswers({});
+                        }}
+                        className="text-[10px] text-zinc-500 hover:text-zinc-700 px-2 py-1"
+                      >
+                        キャンセル
+                      </button>
+                      <button
+                        onClick={handleSubmitAnswers}
+                        disabled={isSubmittingAnswers}
+                        className="flex items-center gap-1 px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
+                      >
+                        {isSubmittingAnswers ? (
+                          <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                        ) : (
+                          <Send className="w-2.5 h-2.5" />
+                        )}
+                        回答を送信
+                      </button>
+                    </div>
+                  </div>
                 ) : promptResult ? (
+                  /* 質問がない場合（通常の結果表示） */
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
@@ -841,7 +975,7 @@ export function AIAccordionPanel({
                       タスク説明をAIエージェント向けに最適化
                     </p>
                     <button
-                      onClick={generatePrompt}
+                      onClick={() => generatePrompt()}
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded-lg transition-colors"
                     >
                       <Sparkles className="w-3 h-3" />

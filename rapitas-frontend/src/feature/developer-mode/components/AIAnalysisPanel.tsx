@@ -31,8 +31,10 @@ import {
   RefreshCw,
   FileText,
   Zap,
+  GitBranch,
 } from "lucide-react";
 import type { DeveloperModeConfig } from "@/types";
+import { DependencyTree } from "./DependencyTree";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -137,7 +139,7 @@ type Props = {
   onSubtasksCreated?: () => void;
 };
 
-type TabType = "analysis" | "prompt" | "prompts" | "settings";
+type TabType = "analysis" | "prompt" | "prompts" | "dependency" | "settings";
 
 export function AIAnalysisPanel({
   taskId,
@@ -635,6 +637,17 @@ export function AIAnalysisPanel({
             >
               <List className="w-4 h-4" />
               管理
+            </button>
+            <button
+              onClick={() => setActiveTab("dependency")}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
+                activeTab === "dependency"
+                  ? "text-violet-600 dark:text-violet-400 border-b-2 border-violet-600 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/10"
+                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+              }`}
+            >
+              <GitBranch className="w-4 h-4" />
+              依存度
             </button>
             <button
               onClick={() => setActiveTab("settings")}
@@ -1267,6 +1280,11 @@ export function AIAnalysisPanel({
                   </div>
                 )}
               </div>
+            )}
+
+            {/* 依存度分析タブ */}
+            {activeTab === "dependency" && (
+              <DependencyTree taskId={taskId} />
             )}
 
             {/* 設定タブ */}

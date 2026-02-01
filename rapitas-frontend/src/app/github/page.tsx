@@ -16,6 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import type { GitHubIntegration, GitHubPullRequest, GitHubIssue } from "@/types";
+import { getLabelsArray, hasLabels } from "@/utils/labels";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
@@ -288,7 +289,7 @@ export default function GitHubPage() {
                   </p>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-sm text-zinc-500 dark:text-zinc-400">{issue.authorLogin}</span>
-                    {issue.labels.slice(0, 3).map((label) => (
+                    {getLabelsArray(issue.labels).slice(0, 3).map((label) => (
                       <span
                         key={label}
                         className="px-2 py-0.5 text-xs bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 rounded"
