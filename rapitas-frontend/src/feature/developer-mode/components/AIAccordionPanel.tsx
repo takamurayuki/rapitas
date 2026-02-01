@@ -1027,7 +1027,71 @@ export function AIAccordionPanel({
               )}
             </div>
             <div className="flex items-center gap-1.5">
-              {expandedSection !== "execution" && !isRunning && (
+              {/* 実行中: 停止ボタン */}
+              {isRunning && !isWaitingForInput && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStopExecution();
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300 text-[10px] font-medium rounded transition-colors"
+                  aria-label="実行を停止"
+                >
+                  <Square className="w-2.5 h-2.5" />
+                  停止
+                </button>
+              )}
+              {/* 完了: リセット、承認ページ */}
+              {isCompleted && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleReset();
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
+                  >
+                    <RefreshCw className="w-2.5 h-2.5" />
+                    リセット
+                  </button>
+                  <a
+                    href="/approvals"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-medium rounded transition-colors"
+                  >
+                    <ExternalLink className="w-2.5 h-2.5" />
+                    承認
+                  </a>
+                </>
+              )}
+              {/* キャンセル: 再実行 */}
+              {isCancelled && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleReset();
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-[10px] font-medium rounded transition-colors"
+                >
+                  <RefreshCw className="w-2.5 h-2.5" />
+                  再実行
+                </button>
+              )}
+              {/* エラー: 再試行 */}
+              {isFailed && !isRunning && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleReset();
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] font-medium rounded transition-colors"
+                >
+                  <RefreshCw className="w-2.5 h-2.5" />
+                  再試行
+                </button>
+              )}
+              {/* 初期状態: 実行開始 */}
+              {!isRunning && !isCompleted && !isCancelled && !isFailed && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1054,19 +1118,6 @@ export function AIAccordionPanel({
               {/* 実行中 */}
               {isRunning ? (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-end">
-                    {!isWaitingForInput && (
-                      <button
-                        onClick={handleStopExecution}
-                        className="flex items-center gap-1 px-1.5 py-1 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300 text-[10px] font-medium rounded transition-colors"
-                        aria-label="実行を停止"
-                      >
-                        <Square className="w-2.5 h-2.5" />
-                        停止
-                      </button>
-                    )}
-                  </div>
-
                   {/* 質問入力 */}
                   {hasQuestion && (
                     <div className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
@@ -1128,22 +1179,6 @@ export function AIAccordionPanel({
                       実行完了
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={handleReset}
-                      className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
-                    >
-                      <RefreshCw className="w-2.5 h-2.5" />
-                      リセット
-                    </button>
-                    <a
-                      href="/approvals"
-                      className="flex items-center gap-1 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-medium rounded transition-colors"
-                    >
-                      <ExternalLink className="w-2.5 h-2.5" />
-                      承認ページ
-                    </a>
-                  </div>
                   {logs.length > 0 && showLogs && (
                     <ExecutionLogViewer
                       logs={logs}
@@ -1157,37 +1192,19 @@ export function AIAccordionPanel({
                 </div>
               ) : isCancelled ? (
                 /* キャンセル */
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                    <Square className="w-3.5 h-3.5 text-yellow-500" />
-                    <span className="text-xs text-yellow-700 dark:text-yellow-300">
-                      実行を停止しました
-                    </span>
-                  </div>
-                  <button
-                    onClick={handleReset}
-                    className="flex items-center gap-1 px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-[10px] font-medium rounded transition-colors"
-                  >
-                    <RefreshCw className="w-2.5 h-2.5" />
-                    再実行
-                  </button>
+                <div className="flex items-center gap-1.5 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                  <Square className="w-3.5 h-3.5 text-yellow-500" />
+                  <span className="text-xs text-yellow-700 dark:text-yellow-300">
+                    実行を停止しました
+                  </span>
                 </div>
               ) : isFailed ? (
                 /* エラー */
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1.5 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                    <AlertCircle className="w-3.5 h-3.5 text-red-500" />
-                    <span className="text-xs text-red-600 dark:text-red-400 line-clamp-2">
-                      {executionError || pollingError || "エラーが発生しました"}
-                    </span>
-                  </div>
-                  <button
-                    onClick={handleReset}
-                    className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] font-medium rounded transition-colors"
-                  >
-                    <RefreshCw className="w-2.5 h-2.5" />
-                    再試行
-                  </button>
+                <div className="flex items-center gap-1.5 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                  <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+                  <span className="text-xs text-red-600 dark:text-red-400 line-clamp-2">
+                    {executionError || pollingError || "エラーが発生しました"}
+                  </span>
                 </div>
               ) : (
                 /* 初期状態 */
@@ -1252,16 +1269,6 @@ export function AIAccordionPanel({
                       </div>
                     </div>
                   )}
-
-                  <button
-                    onClick={handleExecute}
-                    disabled={isExecuting}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
-                    aria-label="実行開始"
-                  >
-                    <Play className="w-3.5 h-3.5" />
-                    実行開始
-                  </button>
                 </div>
               )}
             </div>
