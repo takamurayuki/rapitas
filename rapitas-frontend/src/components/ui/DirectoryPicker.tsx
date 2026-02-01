@@ -311,130 +311,90 @@ export function DirectoryPicker({
     }
   };
 
+  // テーマの作業ディレクトリが設定されているかチェック
+  const hasThemeDirectory = !!value;
+
   return (
     <div className={`relative ${className}`}>
-      {/* Path Display with Favorites Dropdown and Browse Button */}
+      {/* Path Display - シンプルで直感的なデザイン */}
       <div className="flex gap-2">
-        <div className="flex-1 flex">
-          {/* パス表示 / インライン編集 */}
+        {/* パス入力/表示エリア */}
+        <div className="flex-1 relative">
           {isEditing ? (
-            <input
-              ref={editInputRef}
-              type="text"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleEditComplete();
-                } else if (e.key === "Escape") {
-                  handleEditCancel();
-                }
-              }}
-              onBlur={handleEditComplete}
-              className="flex-1 rounded-l-lg border border-r-0 border-purple-500 dark:border-purple-400 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all font-mono"
-            />
+            /* 編集モード */
+            <div className="flex items-center">
+              <input
+                ref={editInputRef}
+                type="text"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleEditComplete();
+                  } else if (e.key === "Escape") {
+                    handleEditCancel();
+                  }
+                }}
+                className="flex-1 rounded-lg border-2 border-purple-500 dark:border-purple-400 bg-white dark:bg-zinc-800 px-4 py-2.5 pr-24 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-all font-mono"
+                placeholder="パスを入力..."
+              />
+              <div className="absolute right-2 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleEditComplete}
+                  className="p-1.5 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors"
+                  title="確定"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEditCancel}
+                  className="p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded transition-colors"
+                  title="キャンセル"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           ) : (
-            <div
-              onDoubleClick={handleStartEdit}
-              className="flex-1 flex items-center rounded-l-lg border border-r-0 border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 cursor-text hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors"
-              title="ダブルクリックで編集"
-            >
-              {value ? (
-                <span className="text-sm font-mono text-zinc-700 dark:text-zinc-300 truncate">
-                  {value}
-                </span>
-              ) : (
-                <span className="text-sm text-zinc-400 dark:text-zinc-500 truncate">
-                  {placeholder}
-                </span>
-              )}
+            /* 表示モード */
+            <div className="flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 overflow-hidden">
+              <div className="flex-1 flex items-center px-4 py-2.5 min-w-0">
+                {value ? (
+                  <>
+                    <Folder className="w-4 h-4 text-amber-500 shrink-0 mr-2" />
+                    <span className="text-sm font-mono text-zinc-700 dark:text-zinc-300 truncate">
+                      {value}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-sm text-zinc-400 dark:text-zinc-500">
+                    {placeholder}
+                  </span>
+                )}
+              </div>
+              {/* 編集ボタン - 常に表示 */}
+              <button
+                type="button"
+                onClick={handleStartEdit}
+                className="px-3 py-2.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border-l border-zinc-300 dark:border-zinc-700 transition-colors"
+                title="パスを直接入力"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
             </div>
           )}
-          {/* お気に入りドロップダウンボタン */}
-          <div className="relative" ref={dropdownRef}>
-            <button
-              type="button"
-              onClick={() => setShowFavoritesDropdown(!showFavoritesDropdown)}
-              className={`flex items-center gap-1 px-3 py-2.5 border border-l-0 border-zinc-300 dark:border-zinc-700 rounded-r-lg transition-all ${
-                favorites.length > 0
-                  ? "bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400"
-                  : "bg-zinc-50 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed"
-              }`}
-              title={
-                favorites.length > 0
-                  ? "お気に入りから選択"
-                  : "お気に入りがありません"
-              }
-              disabled={favorites.length === 0}
-            >
-              <Star
-                className={`w-4 h-4 ${favorites.length > 0 ? "fill-current" : ""}`}
-              />
-              <ChevronDown className="w-3 h-3" />
-            </button>
-
-            {/* お気に入りドロップダウンメニュー */}
-            {showFavoritesDropdown && favorites.length > 0 && (
-              <div className="absolute right-0 top-full mt-1 z-50 w-80 bg-white dark:bg-zinc-900 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-                <div className="px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 border-b border-yellow-100 dark:border-yellow-900/30 flex items-center gap-2">
-                  <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                  <span className="text-sm font-medium text-yellow-700 dark:text-yellow-400">
-                    お気に入りから選択
-                  </span>
-                </div>
-                <div className="max-h-64 overflow-y-auto">
-                  {favorites.map((fav) => {
-                    const isCurrentValue = value && fav.path === value;
-                    return (
-                      <button
-                        key={fav.id}
-                        type="button"
-                        onClick={() => {
-                          onChange(fav.path);
-                          setShowFavoritesDropdown(false);
-                        }}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 transition-colors text-left ${
-                          isCurrentValue
-                            ? "bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-500"
-                            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                        }`}
-                      >
-                        <Folder
-                          className={`w-4 h-4 shrink-0 ${isCurrentValue ? "text-purple-500" : "text-yellow-500"}`}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div
-                            className={`text-sm font-medium truncate ${isCurrentValue ? "text-purple-700 dark:text-purple-300" : "text-zinc-700 dark:text-zinc-300"}`}
-                          >
-                            {fav.name || fav.path.split(/[\\/]/).pop()}
-                            {isCurrentValue && (
-                              <span className="ml-2 text-xs font-normal text-purple-500 dark:text-purple-400">
-                                (現在選択中)
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-zinc-400 dark:text-zinc-500 truncate font-mono">
-                            {fav.path}
-                          </div>
-                        </div>
-                        {fav.isGitRepo && (
-                          <span className="flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded text-xs shrink-0">
-                            <GitBranch className="w-3 h-3" />
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
+
+        {/* 参照ボタン */}
         <button
           type="button"
           onClick={handleOpen}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-all text-sm font-medium shrink-0"
-          title="フォルダを選択"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-all text-sm font-medium shrink-0"
+          title="フォルダを参照"
         >
           <FolderOpen className="w-4 h-4" />
           参照
@@ -464,36 +424,28 @@ export function DirectoryPicker({
             {/* Navigation Bar - お気に入りモード時は非表示 */}
             {!favoritesOnlyMode && (
               <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-200 dark:border-zinc-700">
-                <button
-                  onClick={handleGoUp}
-                  disabled={isLoading}
-                  className="p-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="上のフォルダへ"
-                >
-                  <ArrowUp className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={handleGoToDrives}
-                  disabled={isLoading}
-                  className="p-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors disabled:opacity-50"
-                  title="ドライブ一覧"
-                >
-                  <Monitor className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setShowFavorites(!showFavorites)}
-                  className={`p-2 rounded-md transition-colors ${
-                    showFavorites
-                      ? "text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20"
-                      : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                  }`}
-                  title={
-                    showFavorites ? "お気に入りを非表示" : "お気に入りを表示"
-                  }
-                >
-                  <Star className="w-4 h-4" />
-                </button>
-                <div className="flex-1 flex items-center gap-1 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg overflow-x-auto">
+                {/* ナビゲーションボタン */}
+                <div className="flex items-center gap-1 border-r border-zinc-200 dark:border-zinc-700 pr-2 mr-1">
+                  <button
+                    onClick={handleGoUp}
+                    disabled={isLoading}
+                    className="p-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="上のフォルダへ"
+                  >
+                    <ArrowUp className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleGoToDrives}
+                    disabled={isLoading}
+                    className="p-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors disabled:opacity-50"
+                    title="ドライブ一覧"
+                  >
+                    <Monitor className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* 現在のパス表示 */}
+                <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg overflow-x-auto min-w-0">
                   <HardDrive className="w-4 h-4 text-zinc-400 shrink-0" />
                   <span className="text-sm font-mono text-zinc-700 dark:text-zinc-300 truncate">
                     {currentPath || "ドライブ一覧"}
@@ -505,35 +457,55 @@ export function DirectoryPicker({
                     </span>
                   )}
                 </div>
-                {/* お気に入り追加/削除ボタン */}
-                {currentPath && (
+
+                {/* お気に入り操作ボタン */}
+                <div className="flex items-center gap-1 border-l border-zinc-200 dark:border-zinc-700 pl-2 ml-1">
+                  {/* お気に入り表示切り替え */}
                   <button
-                    onClick={() => {
-                      if (isFavorite(currentPath)) {
-                        const favId = getFavoriteId(currentPath);
-                        if (favId) removeFromFavorites(favId);
-                      } else {
-                        addToFavorites(currentPath);
-                      }
-                    }}
-                    className={`p-2 rounded-md transition-colors ${
-                      isFavorite(currentPath)
-                        ? "text-yellow-500 hover:text-yellow-600"
-                        : "text-zinc-400 hover:text-yellow-500"
+                    onClick={() => setShowFavorites(!showFavorites)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      showFavorites
+                        ? "text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-400"
+                        : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                     }`}
-                    title={
-                      isFavorite(currentPath)
-                        ? "お気に入りから削除"
-                        : "お気に入りに追加"
-                    }
+                    title={showFavorites ? "お気に入りを非表示" : "お気に入りを表示"}
                   >
-                    {isFavorite(currentPath) ? (
-                      <Star className="w-4 h-4 fill-current" />
-                    ) : (
-                      <StarOff className="w-4 h-4" />
-                    )}
+                    <Star className={`w-3.5 h-3.5 ${showFavorites ? "fill-current" : ""}`} />
+                    <span className="hidden sm:inline">{favorites.length}</span>
                   </button>
-                )}
+
+                  {/* 現在のパスをお気に入りに追加/削除 */}
+                  {currentPath && (
+                    <button
+                      onClick={() => {
+                        if (isFavorite(currentPath)) {
+                          const favId = getFavoriteId(currentPath);
+                          if (favId) removeFromFavorites(favId);
+                        } else {
+                          addToFavorites(currentPath);
+                        }
+                      }}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        isFavorite(currentPath)
+                          ? "text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400"
+                          : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      }`}
+                      title={isFavorite(currentPath) ? "お気に入りから削除" : "お気に入りに追加"}
+                    >
+                      {isFavorite(currentPath) ? (
+                        <>
+                          <Star className="w-3.5 h-3.5 fill-current" />
+                          <span className="hidden sm:inline">登録済</span>
+                        </>
+                      ) : (
+                        <>
+                          <StarOff className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">追加</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -565,19 +537,24 @@ export function DirectoryPicker({
             {/* Favorites Only Mode - お気に入りがある場合の初期表示 */}
             {favoritesOnlyMode && favorites.length > 0 ? (
               <div className="h-72 flex flex-col">
-                <div className="flex items-center justify-between px-4 py-2 bg-yellow-50 dark:bg-yellow-900/10 border-b border-yellow-100 dark:border-yellow-900/30">
+                <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/10 dark:to-amber-900/10 border-b border-yellow-100 dark:border-yellow-900/30">
                   <div className="flex items-center gap-2">
-                    <Star className="w-4 h-4 text-yellow-500" />
-                    <span className="text-sm font-medium text-yellow-700 dark:text-yellow-400">
-                      お気に入りから選択
-                    </span>
+                    <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+                    <div>
+                      <span className="text-sm font-medium text-yellow-700 dark:text-yellow-400">
+                        お気に入りから選択
+                      </span>
+                      <span className="text-xs text-yellow-600/70 dark:text-yellow-500/70 ml-2">
+                        ({favorites.length}件)
+                      </span>
+                    </div>
                   </div>
                   <button
                     onClick={handleStartBrowsing}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-md transition-colors border border-zinc-200 dark:border-zinc-700"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 bg-white dark:bg-zinc-800 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-md transition-colors border border-purple-200 dark:border-purple-800"
                   >
                     <FolderOpen className="w-3.5 h-3.5" />
-                    フォルダを参照
+                    別のフォルダを選択
                   </button>
                 </div>
                 <div className="flex-1 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -643,11 +620,19 @@ export function DirectoryPicker({
                 {/* Favorites Section - 通常モード時のお気に入り表示 */}
                 {showFavorites && favorites.length > 0 && (
                   <div className="border-b border-zinc-200 dark:border-zinc-700">
-                    <div className="flex items-center gap-2 px-4 py-2 bg-yellow-50 dark:bg-yellow-900/10">
-                      <Star className="w-4 h-4 text-yellow-500" />
-                      <span className="text-xs font-medium text-yellow-700 dark:text-yellow-400">
-                        お気に入り
-                      </span>
+                    <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/10 dark:to-amber-900/10">
+                      <div className="flex items-center gap-2">
+                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                        <span className="text-xs font-medium text-yellow-700 dark:text-yellow-400">
+                          お気に入り ({favorites.length})
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setShowFavorites(false)}
+                        className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                      >
+                        非表示
+                      </button>
                     </div>
                     <div className="max-h-32 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800">
                       {favorites.map((fav) => {
