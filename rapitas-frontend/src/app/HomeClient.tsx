@@ -11,7 +11,7 @@ import {
   statusConfig,
   renderStatusIcon,
 } from "@/feature/tasks/config/StatusConfig";
-import { SwatchBook, Star } from "lucide-react";
+import { SwatchBook, Star, ChevronDown, ChevronsUpDown, ChevronUp, ChevronsUp, X } from "lucide-react";
 import { getIconComponent } from "@/components/category/IconData";
 
 const API_BASE =
@@ -50,6 +50,9 @@ export default function HomeClientPage() {
   // ページネーション
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // フィルターアコーディオン
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
 
   const fetchTasks = async () => {
     try {
@@ -576,11 +579,72 @@ export default function HomeClientPage() {
           </div>
         )}
 
-        {/* ステータスフィルター */}
+        {/* 統合フィルターバー（アコーディオン） */}
         {!loading && !isSelectionMode && !isQuickAdding && (
-          <>
-            <div className="mb-4 bg-white dark:bg-zinc-900 rounded-lg p-3 shadow-sm border border-zinc-200 dark:border-zinc-800">
-              <div className="flex items-center gap-4">
+          <div className="mb-4 bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+            {/* テーマ選択（アコーディオンヘッダー） */}
+            <div className="flex items-center gap-2 px-3 py-2.5">
+              {/* テーマボタン */}
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700 scrollbar-track-transparent flex-1">
+                <button
+                  onClick={() => setThemeFilter(null)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                    themeFilter === null
+                      ? "bg-purple-600 text-white shadow-lg"
+                      : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-700"
+                  }`}
+                >
+                  すべて
+                </button>
+                {themes.map((theme) => {
+                  const IconComponent = getIconComponent(theme.icon || "") || SwatchBook;
+                  return (
+                    <button
+                      key={theme.id}
+                      onClick={() => setThemeFilter(theme.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                        themeFilter === theme.id
+                          ? "shadow-lg"
+                          : "border border-zinc-300 dark:border-zinc-700 hover:border-current"
+                      }`}
+                      style={{
+                        backgroundColor: themeFilter === theme.id ? theme.color : undefined,
+                        color: themeFilter === theme.id ? "#ffffff" : theme.color,
+                        borderColor: themeFilter === theme.id ? theme.color : undefined,
+                      }}
+                    >
+                      <IconComponent className="w-3.5 h-3.5" />
+                      {theme.name}
+                      {theme.isDefault && <Star className="w-3 h-3 fill-current" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* アコーディオントグル */}
+              <button
+                onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
+                  isFilterExpanded
+                    ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200"
+                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                <span className="hidden sm:inline">フィルター</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isFilterExpanded ? "rotate-180" : ""}`} />
+              </button>
+            </div>
+
+            {/* フィルター・ソート（アコーディオンコンテンツ） */}
+            <div
+              className={`overflow-hidden transition-all duration-200 ease-in-out ${
+                isFilterExpanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+              }`}
+            >
+              <div className="flex flex-wrap items-center gap-4 px-3 py-2.5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
                 {/* ステータス */}
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
@@ -588,15 +652,13 @@ export default function HomeClientPage() {
                   </span>
                   <div className="flex items-center gap-1">
                     {["all", "todo", "in-progress", "done"].map((status) => {
-                      const statusConfig = {
+                      const statusConfigLocal = {
                         all: { label: "すべて", color: "purple" },
                         todo: { label: "未着手", color: "zinc" },
                         "in-progress": { label: "進行中", color: "blue" },
                         done: { label: "完了", color: "green" },
                       };
-                      const config =
-                        statusConfig[status as keyof typeof statusConfig];
-                      // テーマ、優先度、検索フィルターを適用した上でカウント
+                      const config = statusConfigLocal[status as keyof typeof statusConfigLocal];
                       const count = tasks.filter((t) => {
                         if (t.parentId) return false;
                         if (status !== "all" && t.status !== status) return false;
@@ -619,13 +681,11 @@ export default function HomeClientPage() {
                                   : config.color === "green"
                                     ? "bg-green-600 text-white shadow-md"
                                     : "bg-zinc-600 text-white shadow-md"
-                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                              : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700"
                           }`}
                         >
                           {config.label}
-                          <span className="text-[10px] opacity-75">
-                            ({count})
-                          </span>
+                          <span className="text-[10px] opacity-75">({count})</span>
                         </button>
                       );
                     })}
@@ -640,21 +700,32 @@ export default function HomeClientPage() {
                   <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
                     優先度:
                   </span>
-                  <select
-                    value={priorityFilter || ""}
-                    onChange={(e) =>
-                      setPriorityFilter(
-                        e.target.value ? (e.target.value as Priority) : null,
-                      )
-                    }
-                    className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-nowrap"
-                  >
-                    <option value="">すべて</option>
-                    <option value="low">低</option>
-                    <option value="medium">中</option>
-                    <option value="high">高</option>
-                    <option value="urgent">緊急</option>
-                  </select>
+                  <div className="flex items-center gap-1">
+                    {[
+                      { value: "", label: "すべて", icon: null, iconColor: "", bgColor: "bg-purple-600" },
+                      { value: "urgent", label: "緊急", icon: <ChevronsUp className="w-3.5 h-3.5" />, iconColor: "text-red-500", bgColor: "bg-red-500" },
+                      { value: "high", label: "高", icon: <ChevronUp className="w-3.5 h-3.5" />, iconColor: "text-orange-500", bgColor: "bg-orange-500" },
+                      { value: "medium", label: "中", icon: <ChevronsUpDown className="w-3.5 h-3.5" />, iconColor: "text-blue-500", bgColor: "bg-blue-500" },
+                      { value: "low", label: "低", icon: <ChevronDown className="w-3.5 h-3.5" />, iconColor: "text-zinc-400", bgColor: "bg-zinc-500" },
+                    ].map((priority) => (
+                      <button
+                        key={priority.value}
+                        onClick={() => setPriorityFilter(priority.value ? (priority.value as Priority) : null)}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                          (priorityFilter || "") === priority.value
+                            ? `${priority.bgColor} text-white shadow-md`
+                            : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700"
+                        }`}
+                      >
+                        {priority.icon && (
+                          <span className={(priorityFilter || "") === priority.value ? "text-white" : priority.iconColor}>
+                            {priority.icon}
+                          </span>
+                        )}
+                        {priority.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* 区切り線 */}
@@ -675,9 +746,7 @@ export default function HomeClientPage() {
                     <option value="priority">優先度</option>
                   </select>
                   <button
-                    onClick={() =>
-                      setSortOrder((o) => (o === "asc" ? "desc" : "asc"))
-                    }
+                    onClick={() => setSortOrder((o) => (o === "asc" ? "desc" : "asc"))}
                     className="p-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
                     title={sortOrder === "asc" ? "昇順" : "降順"}
                   >
@@ -700,110 +769,21 @@ export default function HomeClientPage() {
                 </div>
               </div>
             </div>
-          </>
-        )}
-
-        {/* テーマ選択とフィルター */}
-        {!loading && !isSelectionMode && !isQuickAdding && (
-          <>
-            <div className="mb-4 bg-white dark:bg-zinc-900 rounded-lg p-3 shadow-sm border border-zinc-200 dark:border-zinc-800">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                  {themeFilter ? (
-                    <>
-                      <span className="text-purple-600 dark:text-purple-400">
-                        {themes.find((t) => t.id === themeFilter)?.name}
-                      </span>
-                      <span className="text-zinc-500 dark:text-zinc-400">
-                        {" "}
-                        でタスクを管理中
-                      </span>
-                      <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-2">
-                        (新規作成時も自動的にこのテーマに紐づきます)
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-zinc-500 dark:text-zinc-400">
-                      テーマを選択してタスクを管理
-                    </span>
-                  )}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700 scrollbar-track-transparent pb-1">
-                {/* テーマボタン */}
-                <button
-                  onClick={() => setThemeFilter(null)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap shrink-0 ${
-                    themeFilter === null
-                      ? "bg-purple-600 text-white shadow-lg"
-                      : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-700"
-                  }`}
-                >
-                  すべて
-                </button>
-                {themes.map((theme) => {
-                  const IconComponent =
-                    getIconComponent(theme.icon || "") || SwatchBook;
-                  return (
-                    <button
-                      key={theme.id}
-                      onClick={() => setThemeFilter(theme.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap shrink-0 ${
-                        themeFilter === theme.id
-                          ? "shadow-lg scale-105"
-                          : "hover:scale-105 border border-zinc-300 dark:border-zinc-700"
-                      }`}
-                      style={{
-                        backgroundColor:
-                          themeFilter === theme.id ? theme.color : undefined,
-                        color:
-                          themeFilter === theme.id ? "#ffffff" : theme.color,
-                        borderColor:
-                          themeFilter === theme.id ? theme.color : undefined,
-                      }}
-                    >
-                      <IconComponent className="w-3.5 h-3.5" />
-                      {theme.name}
-                      {theme.isDefault && (
-                        <Star className="w-3 h-3 fill-current" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </>
+          </div>
         )}
 
         {loading ? (
           <div className="animate-pulse space-y-4">
-            {/* フィルターUIスケルトン */}
-            <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 shadow-sm border border-zinc-200 dark:border-zinc-800">
-              <div className="flex items-center gap-4">
-                <div className="h-4 w-16 bg-zinc-200 dark:bg-zinc-700 rounded" />
-                <div className="flex gap-1">
+            {/* 統合フィルターUIスケルトン（アコーディオン） */}
+            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
+              {/* テーマ選択スケルトン */}
+              <div className="flex items-center gap-2 px-3 py-2.5">
+                <div className="flex items-center gap-2 flex-1">
                   {[1, 2, 3, 4].map((i) => (
-                    <div
-                      key={i}
-                      className="h-7 w-16 bg-zinc-200 dark:bg-zinc-700 rounded-md"
-                    />
+                    <div key={i} className="h-8 w-20 bg-zinc-200 dark:bg-zinc-700 rounded-lg" />
                   ))}
                 </div>
-                <div className="w-px h-6 bg-zinc-300 dark:bg-zinc-700" />
-                <div className="h-7 w-20 bg-zinc-200 dark:bg-zinc-700 rounded-md" />
-              </div>
-            </div>
-
-            {/* テーマセレクタスケルトン */}
-            <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 shadow-sm border border-zinc-200 dark:border-zinc-800">
-              <div className="h-4 w-48 bg-zinc-200 dark:bg-zinc-700 rounded mb-2" />
-              <div className="flex items-center gap-2">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div
-                    key={i}
-                    className="h-8 w-20 bg-zinc-200 dark:bg-zinc-700 rounded-lg"
-                  />
-                ))}
+                <div className="h-8 w-24 bg-zinc-200 dark:bg-zinc-700 rounded-lg" />
               </div>
             </div>
 
@@ -815,14 +795,15 @@ export default function HomeClientPage() {
                   className="bg-white dark:bg-zinc-900 rounded-lg p-4 shadow-sm border border-zinc-200 dark:border-zinc-800"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="w-5 h-5 bg-zinc-200 dark:bg-zinc-700 rounded-full shrink-0 mt-0.5" />
+                    <div className="w-7 h-7 bg-zinc-200 dark:bg-zinc-700 rounded-md shrink-0" />
                     <div className="flex-1 space-y-2">
                       <div className="h-5 w-3/4 bg-zinc-200 dark:bg-zinc-700 rounded" />
                       <div className="h-4 w-1/2 bg-zinc-200 dark:bg-zinc-700 rounded" />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="h-6 w-14 bg-zinc-200 dark:bg-zinc-700 rounded" />
-                      <div className="h-6 w-16 bg-zinc-200 dark:bg-zinc-700 rounded-full" />
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3].map((j) => (
+                        <div key={j} className="h-7 w-7 bg-zinc-200 dark:bg-zinc-700 rounded-md" />
+                      ))}
                     </div>
                   </div>
                 </div>

@@ -2,7 +2,7 @@
 import React from "react";
 import { Loader2 } from "lucide-react";
 
-export type ButtonVariant =
+export type IconButtonVariant =
   | "primary"
   | "secondary"
   | "success"
@@ -10,24 +10,22 @@ export type ButtonVariant =
   | "warning"
   | "ghost";
 
-export type ButtonSize = "sm" | "md" | "lg";
+export type IconButtonSize = "sm" | "md" | "lg";
 
 type Props = {
   onClick?: () => void;
-  children?: React.ReactNode;
   className?: string;
   title?: string;
   type?: "button" | "submit" | "reset";
-  variant?: ButtonVariant;
-  size?: ButtonSize;
+  variant?: IconButtonVariant;
+  size?: IconButtonSize;
   disabled?: boolean;
   loading?: boolean;
-  icon?: React.ReactNode;
-  iconPosition?: "left" | "right";
-  fullWidth?: boolean;
+  icon: React.ReactNode;
+  "aria-label": string;
 };
 
-const variantStyles: Record<ButtonVariant, string> = {
+const variantStyles: Record<IconButtonVariant, string> = {
   primary:
     "bg-purple-600 hover:bg-purple-700 text-white border-transparent dark:bg-purple-600 dark:hover:bg-purple-500",
   secondary:
@@ -39,42 +37,38 @@ const variantStyles: Record<ButtonVariant, string> = {
   warning:
     "bg-amber-500 hover:bg-amber-600 text-white border-transparent dark:bg-amber-500 dark:hover:bg-amber-400",
   ghost:
-    "bg-transparent hover:bg-zinc-100 text-zinc-700 border-transparent dark:text-zinc-300 dark:hover:bg-zinc-800",
+    "bg-transparent hover:bg-zinc-100 text-zinc-600 border-transparent dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200",
 };
 
-const sizeStyles: Record<ButtonSize, string> = {
-  sm: "px-2.5 py-1.5 text-xs gap-1.5",
-  md: "px-4 py-2 text-sm gap-2",
-  lg: "px-5 py-2.5 text-base gap-2.5",
+const sizeStyles: Record<IconButtonSize, string> = {
+  sm: "p-1.5",
+  md: "p-2",
+  lg: "p-2.5",
 };
 
-const iconSizeStyles: Record<ButtonSize, string> = {
-  sm: "w-3.5 h-3.5",
-  md: "w-4 h-4",
-  lg: "w-5 h-5",
+const iconSizeStyles: Record<IconButtonSize, string> = {
+  sm: "w-4 h-4",
+  md: "w-5 h-5",
+  lg: "w-6 h-6",
 };
 
-export default function Button({
+export default function IconButton({
   onClick,
-  children,
   className = "",
   title,
   type = "button",
-  variant = "secondary",
+  variant = "ghost",
   size = "md",
   disabled = false,
   loading = false,
   icon,
-  iconPosition = "left",
-  fullWidth = false,
+  "aria-label": ariaLabel,
 }: Props) {
   const base =
-    "inline-flex items-center justify-center font-medium rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900";
+    "inline-flex items-center justify-center rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900";
 
   const disabledStyles =
     "disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none";
-
-  const widthStyle = fullWidth ? "w-full" : "";
 
   const renderIcon = (iconElement: React.ReactNode) => {
     if (React.isValidElement(iconElement)) {
@@ -96,17 +90,17 @@ export default function Button({
       onClick={onClick}
       title={title}
       disabled={disabled || loading}
-      className={`${base} ${variantStyles[variant]} ${sizeStyles[size]} ${disabledStyles} ${widthStyle} ${className}`}
+      aria-label={ariaLabel}
+      className={`${base} ${variantStyles[variant]} ${sizeStyles[size]} ${disabledStyles} ${className}`}
     >
-      {loading && (
+      {loading ? (
         <Loader2 className={`${iconSizeStyles[size]} animate-spin`} />
+      ) : (
+        renderIcon(icon)
       )}
-      {!loading && icon && iconPosition === "left" && renderIcon(icon)}
-      {children}
-      {!loading && icon && iconPosition === "right" && renderIcon(icon)}
     </button>
   );
 }
 
 // Named export for convenience
-export { Button };
+export { IconButton };
