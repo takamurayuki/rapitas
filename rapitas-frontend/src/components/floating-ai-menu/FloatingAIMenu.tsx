@@ -186,7 +186,7 @@ export default function FloatingAIMenu({
     >
       {/* 展開時のチャットパネル */}
       <div
-        className={`floating-ai-menu-panel absolute bottom-16 ${
+        className={`floating-ai-menu-panel absolute bottom-12 ${
           position === "bottom-right" ? "right-0" : "left-0"
         } w-80 sm:w-96 bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden transition-all duration-300 ease-out ${
           isExpanded
@@ -329,7 +329,7 @@ export default function FloatingAIMenu({
             toggleExpanded();
           }
         }}
-        className={`floating-ai-menu-button group relative w-14 h-14 rounded-full shadow-lg transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+        className={`floating-ai-menu-button group relative w-10 h-10 rounded-full shadow-lg transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
           isExpanded
             ? "bg-zinc-700 hover:bg-zinc-800 rotate-0"
             : "bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 hover:scale-110"
@@ -342,20 +342,15 @@ export default function FloatingAIMenu({
             isExpanded ? "opacity-100 rotate-0" : "opacity-0 rotate-90"
           }`}
         >
-          <ChevronDown className="w-6 h-6 text-white" />
+          <ChevronDown className="w-5 h-5 text-white" />
         </span>
         <span
           className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${
             isExpanded ? "opacity-0 -rotate-90" : "opacity-100 rotate-0"
           }`}
         >
-          <Sparkles className="w-6 h-6 text-white" />
+          <Sparkles className="w-5 h-5 text-white" />
         </span>
-
-        {/* パルスアニメーション（未展開時のみ） */}
-        {!isExpanded && (
-          <span className="absolute inset-0 rounded-full bg-blue-400 animate-ping opacity-20" />
-        )}
 
         {/* ツールチップ */}
         {!isExpanded && (

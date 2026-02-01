@@ -6,6 +6,7 @@ import type { Task, Theme, Priority, Status } from "@/types";
 import TaskSlidePanel from "@/feature/tasks/components/TaskSlidePanel";
 import TaskCard from "@/feature/tasks/components/TaskCard";
 import { useToast } from "@/components/ui/toast/ToastContainer";
+import { useTaskDetailVisibilityStore } from "@/stores/taskDetailVisibilityStore";
 import {
   statusConfig,
   renderStatusIcon,
@@ -21,6 +22,7 @@ export default function HomeClientPage() {
   const searchParams = useSearchParams();
   const searchQuery = searchParams.get("search") || "";
   const { showToast } = useToast();
+  const { showTaskDetail, hideTaskDetail } = useTaskDetailVisibilityStore();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [themes, setThemes] = useState<Theme[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,10 +118,12 @@ export default function HomeClientPage() {
   const openTaskPanel = (taskId: number) => {
     setSelectedTaskId(taskId);
     setIsPanelOpen(true);
+    showTaskDetail();
   };
 
   const closeTaskPanel = () => {
     setIsPanelOpen(false);
+    hideTaskDetail();
     setTimeout(() => setSelectedTaskId(null), 300);
   };
 

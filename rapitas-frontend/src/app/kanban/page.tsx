@@ -12,6 +12,7 @@ import {
 } from "@hello-pangea/dnd";
 import TaskSlidePanel from "@/feature/tasks/components/TaskSlidePanel";
 import { getLabelsArray, hasLabels } from "@/utils/labels";
+import { useTaskDetailVisibilityStore } from "@/stores/taskDetailVisibilityStore";
 
 type Task = {
   id: number;
@@ -40,6 +41,7 @@ export default function KanbanPage() {
   const [loading, setLoading] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const { showTaskDetail, hideTaskDetail } = useTaskDetailVisibilityStore();
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -91,10 +93,12 @@ export default function KanbanPage() {
   const openTaskPanel = (taskId: number) => {
     setSelectedTaskId(taskId);
     setIsPanelOpen(true);
+    showTaskDetail();
   };
 
   const closeTaskPanel = () => {
     setIsPanelOpen(false);
+    hideTaskDetail();
     setTimeout(() => setSelectedTaskId(null), 300);
   };
 

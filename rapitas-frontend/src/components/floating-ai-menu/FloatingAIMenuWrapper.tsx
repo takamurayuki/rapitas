@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import FloatingAIMenu from "./FloatingAIMenu";
+import { useTaskDetailVisibilityStore } from "@/stores/taskDetailVisibilityStore";
 
 /**
  * FloatingAIMenuのラッパーコンポーネント
@@ -11,6 +12,9 @@ import FloatingAIMenu from "./FloatingAIMenu";
 export default function FloatingAIMenuWrapper() {
   const pathname = usePathname();
   const [windowPathname, setWindowPathname] = useState<string | null>(null);
+  const isTaskDetailVisible = useTaskDetailVisibilityStore(
+    (state) => state.isTaskDetailVisible
+  );
 
   // TauriのiframeではusePathname()が正しく動作しない場合があるため、
   // window.locationからパスを直接取得するフォールバックを追加
@@ -25,7 +29,8 @@ export default function FloatingAIMenuWrapper() {
   const currentPath = pathname || windowPathname || "";
   const isTaskDetailPage = /^\/tasks\/\d+$/.test(currentPath);
 
-  if (isTaskDetailPage) {
+  // タスク詳細ページまたはタスク詳細パネルが表示されている場合は非表示
+  if (isTaskDetailPage || isTaskDetailVisible) {
     return null;
   }
 
