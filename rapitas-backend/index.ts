@@ -1757,26 +1757,21 @@ app.post("/achievements/check", async () => {
   for (const achievement of achievements) {
     if (achievement.unlockedBy.length > 0) continue;
 
-    const condition = achievement.condition as {
-      type: string;
-      count?: number;
-      days?: number;
-      hours?: number;
-    };
+    const condition = achievement.condition as any;
     let shouldUnlock = false;
 
     switch (condition.type) {
       case "tasks_completed":
-        shouldUnlock = completedTasks >= (condition.count ?? 0);
+        shouldUnlock = completedTasks >= condition.count;
         break;
       case "streak":
-        shouldUnlock = currentStreak >= (condition.days ?? 0);
+        shouldUnlock = currentStreak >= condition.days;
         break;
       case "study_hours":
-        shouldUnlock = totalHours >= (condition.hours ?? 0);
+        shouldUnlock = totalHours >= condition.hours;
         break;
       case "exam_completed":
-        shouldUnlock = completedExams >= (condition.count ?? 0);
+        shouldUnlock = completedExams >= condition.count;
         break;
     }
 
@@ -7442,58 +7437,6 @@ app.get("/events/status", () => {
     clients: realtimeService.getClients(),
   };
 });
-
-// Graceful shutdown - すべてのエージェントプロセスを停止
-async function gracefulShutdown(signal: string) {
-  console.log(`\n[Shutdown] Received ${signal}, cleaning up...`);
-
-  try {
-    // アクティブなエージェントをすべて停止
-    const activeExecutions = orchestrator.getActiveExecutions();
-    if (activeExecutions.length > 0) {
-      console.log(`[Shutdown] Stopping ${activeExecutions.length} active agent executions...`);
-      for (const execution of activeExecutions) {
-        try {
-          await orchestrator.stopExecution(execution.executionId);
-          console.log(`[Shutdown] Stopped execution ${execution.executionId}`);
-        } catch (e) {
-          console.error(`[Shutdown] Failed to stop execution ${execution.executionId}:`, e);
-        }
-      }
-    }
-
-    // Windowsでは追加でClaude Codeプロセスをクリーンアップ
-    if (process.platform === "win32") {
-      try {
-        const { execSync } = require("child_process");
-        // claude.exeプロセスを終了（存在する場合のみ）
-        execSync('taskkill /F /IM claude.exe /T 2>nul', { stdio: 'ignore' });
-      } catch {
-        // プロセスが存在しない場合は無視
-      }
-    }
-
-    // リアルタイムサービスをシャットダウン
-    realtimeService.shutdown();
-
-    // Prisma接続を閉じる
-    await prisma.$disconnect();
-    console.log("[Shutdown] Cleanup complete");
-  } catch (error) {
-    console.error("[Shutdown] Error during cleanup:", error);
-  }
-
-  process.exit(0);
-}
-
-// シャットダウンシグナルを登録
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-
-// Windowsでのコンソール終了イベント
-if (process.platform === "win32") {
-  process.on("SIGHUP", () => gracefulShutdown("SIGHUP"));
-}
 
 // Initialize database and start server
 async function startServer() {

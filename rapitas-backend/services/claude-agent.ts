@@ -778,7 +778,7 @@ AIエージェントが直接実行できる、構造化された明確なプロ
     }
 
     // スコアのbreakdownが存在する場合はログ出力
-    const breakdown = result.promptQuality?.breakdown;
+    const breakdown = (result.promptQuality as any)?.breakdown;
     if (breakdown) {
       console.log(`[Prompt Optimization] Score breakdown:`, {
         clarity: breakdown.clarity?.score,
