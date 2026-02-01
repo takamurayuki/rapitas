@@ -5084,9 +5084,25 @@ app.delete(
   "/notifications/:id",
   async ({ params }: { params: { id: string } }) => {
     const { id } = params;
-    return await prisma.notification.delete({
-      where: { id: parseInt(id) },
+    const notificationId = parseInt(id);
+
+    // 存在確認
+    const existing = await prisma.notification.findUnique({
+      where: { id: notificationId },
     });
+
+    if (!existing) {
+      return new Response(JSON.stringify({ error: "Notification not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    await prisma.notification.delete({
+      where: { id: notificationId },
+    });
+
+    return { success: true, id: notificationId };
   },
 );
 

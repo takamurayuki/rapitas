@@ -58,6 +58,9 @@ import { DeveloperModeConfigModal } from "@/feature/developer-mode/components/De
 import { AIAccordionPanel } from "@/feature/developer-mode/components/AIAccordionPanel";
 import { Bot } from "lucide-react";
 import SaveAsTemplateDialog from "@/feature/tasks/components/dialog/SaveAsTemplateDialog";
+import DropdownMenu, {
+  DropdownMenuItem,
+} from "@/components/ui/dropdown/DropdownMenu";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -682,42 +685,29 @@ export default function TaskDetailClient() {
                 onClick={startEditing}
                 className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl hover:border-gray-300 dark:hover:border-gray-700 transition-all"
               >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                  />
-                </svg>
+                <Pencil className="w-4 h-4" />
                 編集
               </Button>
-              <button
-                onClick={duplicateTask}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl hover:border-gray-300 dark:hover:border-gray-700 transition-all"
-              >
-                <Copy className="w-4 h-4" />
-                複製
-              </button>
-              <button
-                onClick={() => setShowSaveTemplateDialog(true)}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl hover:border-violet-300 dark:hover:border-violet-700 hover:text-violet-600 dark:hover:text-violet-400 transition-all"
-              >
-                <FileStack className="w-4 h-4" />
-                テンプレート保存
-              </button>
-              <button
-                onClick={deleteTask}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-red-500 rounded-xl hover:bg-red-600 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                削除
-              </button>
+              <DropdownMenu
+                items={[
+                  {
+                    label: "複製",
+                    icon: <Copy className="w-4 h-4" />,
+                    onClick: duplicateTask,
+                  },
+                  {
+                    label: "テンプレート保存",
+                    icon: <FileStack className="w-4 h-4" />,
+                    onClick: () => setShowSaveTemplateDialog(true),
+                  },
+                  {
+                    label: "削除",
+                    icon: <Trash2 className="w-4 h-4" />,
+                    onClick: deleteTask,
+                    variant: "danger",
+                  },
+                ]}
+              />
             </>
           ) : (
             <>

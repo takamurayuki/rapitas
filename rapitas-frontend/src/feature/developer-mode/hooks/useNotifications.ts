@@ -103,6 +103,9 @@ export function useNotifications() {
           return prev.filter((n) => n.id !== id);
         });
         return true;
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        console.error("Failed to delete notification:", res.status, errorData);
       }
     } catch (err) {
       console.error("Failed to delete notification:", err);

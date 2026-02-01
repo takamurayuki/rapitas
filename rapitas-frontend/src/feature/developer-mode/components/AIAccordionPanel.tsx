@@ -406,13 +406,13 @@ export function AIAccordionPanel({
         }),
       });
 
+      const data = await res.json();
       if (res.ok) {
-        const data = await res.json();
         if (data.branchName) {
           setBranchName(data.branchName);
         }
       } else {
-        console.error("Failed to generate branch name");
+        console.error("Failed to generate branch name:", data.error || data.details || "Unknown error");
       }
     } catch (error) {
       console.error("Error generating branch name:", error);
@@ -470,6 +470,13 @@ export function AIAccordionPanel({
     setSessionId(null);
     hasRestoredRef.current = false;
     onReset();
+  };
+
+  // リセット後に実行を開始する
+  const handleRerunExecution = async () => {
+    handleReset();
+    // リセット後に実行を開始
+    await handleExecute();
   };
 
   // 質問検出
@@ -1091,7 +1098,7 @@ export function AIAccordionPanel({
                     リセット
                   </button>
                   <a
-                    href="/approvals"
+                    href="/approvals?hideHeader=true"
                     onClick={(e) => e.stopPropagation()}
                     className="flex items-center gap-1 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-medium rounded transition-colors"
                   >
@@ -1105,7 +1112,7 @@ export function AIAccordionPanel({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleReset();
+                    handleRerunExecution();
                   }}
                   className="flex items-center gap-1 px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-[10px] font-medium rounded transition-colors"
                 >
@@ -1118,7 +1125,7 @@ export function AIAccordionPanel({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleReset();
+                    handleRerunExecution();
                   }}
                   className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] font-medium rounded transition-colors"
                 >

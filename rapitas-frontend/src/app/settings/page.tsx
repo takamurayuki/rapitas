@@ -213,16 +213,16 @@ export default function SettingsPage() {
             {/* APIキーが設定済みの場合 */}
             {settings?.claudeApiKeyConfigured && maskedApiKey && !isEditingApiKey && (
               <div className="mt-4 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">
                       現在のAPIキー
                     </p>
-                    <code className="px-2 py-1 bg-zinc-200 dark:bg-zinc-700 rounded text-sm font-mono">
+                    <code className="block px-2 py-1 bg-zinc-200 dark:bg-zinc-700 rounded text-sm font-mono truncate">
                       {maskedApiKey}
                     </code>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <button
                       onClick={() => setIsEditingApiKey(true)}
                       className="px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
