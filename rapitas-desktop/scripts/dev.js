@@ -70,12 +70,22 @@ function saveSchemaHash() {
   }
 }
 
-// データベースが存在し、スキーマが変更されていない場合はスキップ
+// 常にSQLiteスキーマに切り替え（Web版からの切り替え対応）
+console.log('Switching to SQLite schema...');
+try {
+  execSync('node scripts/switch-schema.cjs sqlite', { cwd: BACKEND_DIR, stdio: 'inherit' });
+  execSync('bun run db:generate', { cwd: BACKEND_DIR, stdio: 'inherit' });
+} catch (err) {
+  console.error('Failed to switch to SQLite schema:', err.message);
+  process.exit(1);
+}
+
+// データベースが存在し、スキーマが変更されていない場合はDB作成をスキップ
 const dbExists = fs.existsSync(dbPath);
 const schemaChanged = isSchemaChanged();
 
 if (dbExists && !schemaChanged) {
-  console.log('Database exists and schema unchanged, skipping DB setup...');
+  console.log('Database exists and schema unchanged, skipping DB creation...');
   console.log(`SQLite database path: ${dbPath}`);
 } else {
   // 既存のバックエンドプロセスを停止（ファイルロック解除のため）
@@ -93,10 +103,6 @@ if (dbExists && !schemaChanged) {
   console.log(`SQLite database path: ${dbPath}`);
 
   try {
-    // SQLiteスキーマに切り替え
-    execSync('node scripts/switch-schema.cjs sqlite', { cwd: BACKEND_DIR, stdio: 'inherit' });
-    execSync('bun run db:generate', { cwd: BACKEND_DIR, stdio: 'inherit' });
-
     // スキーマが変更された場合、既存のデータベースを削除
     if (schemaChanged && dbExists) {
       console.log('Schema changed, recreating database...');

@@ -295,7 +295,11 @@ export function AgentExecutionPanel({
 
   // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新
   useEffect(() => {
-    if (pollingStatus === "completed" || pollingStatus === "failed" || pollingStatus === "cancelled") {
+    if (
+      pollingStatus === "completed" ||
+      pollingStatus === "failed" ||
+      pollingStatus === "cancelled"
+    ) {
       // 親コンポーネントの状態を更新して実行完了を通知
       if (onExecutionComplete) {
         onExecutionComplete();
@@ -982,7 +986,7 @@ export function AgentExecutionPanel({
                 className="h-11 flex items-center gap-2 px-6 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
               >
                 <Play className="w-4 h-4" />
-                実行開始
+                実行
               </button>
             </div>
 
