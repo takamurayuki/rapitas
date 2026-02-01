@@ -358,8 +358,9 @@ export function AIAccordionPanel({
   }, [isExecuting, isPollingRunning, startPolling]);
 
   // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新
+  // ただし、キャンセルは handleStopExecution で既に処理されているため、completed と failed のみ処理
   useEffect(() => {
-    if (pollingStatus === "completed" || pollingStatus === "failed" || pollingStatus === "cancelled") {
+    if (pollingStatus === "completed" || pollingStatus === "failed") {
       // 親コンポーネントの状態を更新して実行完了を通知
       if (onStopExecution) {
         onStopExecution();

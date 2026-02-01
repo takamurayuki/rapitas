@@ -326,6 +326,12 @@ export function useExecutionPolling(taskId: number | null) {
     }
 
     const poll = async () => {
+      // キャンセル状態の場合はポーリングをスキップ（キャンセル後のステータス上書きを防止）
+      if (lastProcessedStatusRef.current === "cancelled") {
+        console.log("[ExecutionPolling] Skipping poll - already cancelled");
+        return;
+      }
+
       try {
         // タイムアウト付きのfetch（10秒）
         const controller = new AbortController();
@@ -335,6 +341,12 @@ export function useExecutionPolling(taskId: number | null) {
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
+
+        // キャンセル状態になった場合は結果を無視
+        if (lastProcessedStatusRef.current === "cancelled") {
+          console.log("[ExecutionPolling] Ignoring result - cancelled during fetch");
+          return;
+        }
 
         if (!res.ok) {
           console.log("[ExecutionPolling] Response not ok:", res.status);
@@ -443,6 +455,10 @@ export function useExecutionPolling(taskId: number | null) {
           }));
           stopPolling();
         } else if (data.executionStatus === "waiting_for_input" || data.waitingForInput) {
+          // キャンセル状態の場合は上書きしない
+          if (lastProcessedStatusRef.current === "cancelled") {
+            return;
+          }
           console.log("[ExecutionPolling] Waiting for input:", data.question, "questionType:", data.questionType);
           setState((prev) => ({
             ...prev,
@@ -453,6 +469,10 @@ export function useExecutionPolling(taskId: number | null) {
             questionType: data.questionType || "pattern_match",
           }));
         } else if (data.executionStatus === "running") {
+          // キャンセル状態の場合は上書きしない
+          if (lastProcessedStatusRef.current === "cancelled") {
+            return;
+          }
           // 実行中の場合、isRunningをtrueに維持
           setState((prev) => ({
             ...prev,

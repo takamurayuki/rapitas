@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "bun run scripts/dev.ts",
     "dev:simple": "bun --watch index.ts",
+    "dev:stable": "bun index.ts",
     "dev:web": "node scripts/switch-schema.cjs postgres && prisma generate && bun --watch index.ts",
     "dev:tauri": "node scripts/switch-schema.cjs sqlite && prisma generate && bun --watch index.ts",
+    "dev:tauri:stable": "node scripts/switch-schema.cjs sqlite && prisma generate && bun index.ts",
     "start": "bun index.ts",
     "test": "bun test",
     "test:watch": "bun test --watch",

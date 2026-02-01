@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "description": "Rapitas - AI-Powered Task Management Desktop App",
   "scripts": {
-    "dev": "tauri dev",
-    "dev:only": "tauri dev --no-dev-server",
-    "build": "tauri build",
-    "tauri": "tauri"
+    "dev": "node scripts/dev.js",
+    "dev:watch": "node scripts/dev.js --watch",
+    "tauri": "tauri dev",
+    "tauri:only": "tauri dev --no-dev-server",
+    "build": "tauri build"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",

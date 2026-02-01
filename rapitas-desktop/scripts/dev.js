@@ -2,18 +2,36 @@
 /**
  * 開発モード用スクリプト
  * フロントエンドとバックエンドを並行して起動
- * ホットリロード対応
+ *
+ * オプション:
+ *   --watch    バックエンドのホットリロードを有効化（デフォルト: 無効）
+ *              ※ AIエージェント実行中にファイル変更すると再起動で中断される
+ *
+ * 使用例:
+ *   node scripts/dev.js          # 安定モード（AIエージェント実行向け）
+ *   node scripts/dev.js --watch  # ホットリロードモード（バックエンド開発向け）
  */
 const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
+// コマンドライン引数をパース
+const args = process.argv.slice(2);
+const useWatch = args.includes('--watch');
+
 const FRONTEND_DIR = path.resolve(__dirname, '../../rapitas-frontend');
 const BACKEND_DIR = path.resolve(__dirname, '../../rapitas-backend');
 const BINARIES_DIR = path.resolve(__dirname, '../src-tauri/binaries');
 
-console.log('Starting development servers for Tauri (SQLite mode)...');
+if (useWatch) {
+  console.log('Starting development servers for Tauri (SQLite mode) with HOT RELOAD...');
+  console.log('⚠️  注意: ファイル変更時にバックエンドが再起動します。AIエージェント実行中は中断される可能性があります。');
+} else {
+  console.log('Starting development servers for Tauri (SQLite mode) in STABLE mode...');
+  console.log('ℹ️  バックエンドのホットリロードは無効です。コード変更後は手動で再起動してください。');
+  console.log('ℹ️  ホットリロードを有効にするには: node scripts/dev.js --watch');
+}
 
 // 開発モード用にダミーのsidecarバイナリを作成（Tauriがパスを検証するため）
 const targetTriple = 'x86_64-pc-windows-msvc';
@@ -130,7 +148,11 @@ if (dbExists && !schemaChanged) {
 }
 
 // バックエンドを起動 (SQLiteモード)
-const backend = spawn('bun', ['run', 'dev:simple'], {
+// --watch オプションに応じてホットリロードの有無を切り替え
+const backendScript = useWatch ? 'dev:simple' : 'dev:stable';
+console.log(`\nBackend mode: ${useWatch ? 'dev:simple (hot reload)' : 'dev:stable (stable)'}`);
+
+const backend = spawn('bun', ['run', backendScript], {
   cwd: BACKEND_DIR,
   stdio: 'inherit',
   shell: true,

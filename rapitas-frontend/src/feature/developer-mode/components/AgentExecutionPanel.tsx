@@ -534,10 +534,10 @@ export function AgentExecutionPanel({
               <div className="flex justify-end mt-4">
                 <button
                   onClick={handleStopExecution}
-                  className="flex items-center gap-2 px-4 py-2 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg font-medium transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-800/50 text-red-700 dark:text-red-300 rounded-lg font-medium transition-colors"
                 >
                   <Square className="w-4 h-4" />
-                  停止
+                  キャンセル
                 </button>
               </div>
             )}
@@ -733,7 +733,7 @@ export function AgentExecutionPanel({
     );
   }
 
-  // 実行停止（キャンセル）
+  // 実行キャンセル
   if (isCancelled) {
     return (
       <>
@@ -745,10 +745,10 @@ export function AgentExecutionPanel({
               </div>
               <div className="flex-1">
                 <h3 className="font-bold text-lg text-zinc-900 dark:text-zinc-50">
-                  実行を停止しました
+                  実行をキャンセルしました
                 </h3>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                  AIエージェントの実行が停止されました。
+                  AIエージェントの実行がキャンセルされ、変更が元に戻されました。
                 </p>
               </div>
               <button

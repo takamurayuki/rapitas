@@ -7190,11 +7190,17 @@ app.post(
   },
 );
 
-// タスクの実行を停止
+// タスクの実行をキャンセル（変更をロールバック）
 app.post(
   "/tasks/:id/stop-execution",
   async ({ params }: { params: { id: string } }) => {
     const taskId = parseInt(params.id);
+
+    // タスクの作業ディレクトリを取得
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { workingDirectory: true },
+    });
 
     // タスクの最新の実行中セッションを取得
     const config = await prisma.developerModeConfig.findUnique({
@@ -7235,12 +7241,22 @@ app.post(
             data: {
               status: "cancelled",
               completedAt: new Date(),
-              errorMessage: "Manually stopped",
+              errorMessage: "Cancelled by user",
             },
           });
         }
 
-        return { success: true, message: "Execution stopped" };
+        // 作業ディレクトリがあれば変更をロールバック
+        if (task?.workingDirectory) {
+          try {
+            await orchestrator.revertChanges(task.workingDirectory);
+            console.log(`[stop-execution] Reverted changes in ${task.workingDirectory}`);
+          } catch (revertError) {
+            console.error(`[stop-execution] Failed to revert changes:`, revertError);
+          }
+        }
+
+        return { success: true, message: "Execution cancelled and changes reverted" };
       }
 
       return { success: false, message: "No running execution found" };
@@ -7268,7 +7284,7 @@ app.post(
         data: {
           status: "cancelled",
           completedAt: new Date(),
-          errorMessage: "Manually stopped",
+          errorMessage: "Cancelled by user",
         },
       });
     }
@@ -7279,11 +7295,21 @@ app.post(
       data: {
         status: "failed",
         completedAt: new Date(),
-        errorMessage: "Manually stopped",
+        errorMessage: "Cancelled by user",
       },
     });
 
-    return { success: true, sessionId: session.id };
+    // 作業ディレクトリがあれば変更をロールバック
+    if (task?.workingDirectory) {
+      try {
+        await orchestrator.revertChanges(task.workingDirectory);
+        console.log(`[stop-execution] Reverted changes in ${task.workingDirectory}`);
+      } catch (revertError) {
+        console.error(`[stop-execution] Failed to revert changes:`, revertError);
+      }
+    }
+
+    return { success: true, sessionId: session.id, message: "Execution cancelled and changes reverted" };
   },
 );
 
