@@ -5,16 +5,11 @@ import Link from "next/link";
 import {
   Cpu,
   Plus,
-  Play,
-  Pause,
-  Square,
   Settings,
   Loader2,
   CheckCircle2,
   XCircle,
-  AlertCircle,
   Terminal,
-  Clock,
   Zap,
   Activity,
 } from "lucide-react";
@@ -42,7 +37,6 @@ export default function AgentsPage() {
     }>;
     available: string[];
   } | null>(null);
-  const [recentSessions, setRecentSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -173,7 +167,7 @@ export default function AgentsPage() {
                 {agentTypeInfo.capabilities && (
                   <div className="mt-3 flex flex-wrap gap-1">
                     {Object.entries(agentTypeInfo.capabilities)
-                      .filter(([_, v]) => v)
+                      .filter(([, v]) => v)
                       .map(([key]) => (
                         <span
                           key={key}

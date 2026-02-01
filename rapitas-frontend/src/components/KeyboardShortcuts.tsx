@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Command, Keyboard } from "lucide-react";
+import { X, Keyboard } from "lucide-react";
 
 type ShortcutConfig = {
   key: string;

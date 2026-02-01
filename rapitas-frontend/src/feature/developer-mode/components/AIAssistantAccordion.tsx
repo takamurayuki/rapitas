@@ -12,7 +12,7 @@ import {
   Play,
   Loader2,
 } from "lucide-react";
-import type { DeveloperModeConfig } from "@/types";
+import type { DeveloperModeConfig, TaskAnalysisResult } from "@/types";
 import type {
   ExecutionStatus,
   ExecutionResult,
@@ -20,19 +20,7 @@ import type {
 import { AIAnalysisPanel } from "./AIAnalysisPanel";
 import { AgentExecutionPanel } from "./AgentExecutionPanel";
 
-type AnalysisResult = {
-  summary: string;
-  suggestedSubtasks: Array<{
-    title: string;
-    description: string;
-    estimatedHours: number;
-    priority: "high" | "medium" | "low";
-  }>;
-  complexity: "simple" | "medium" | "complex";
-  estimatedTotalHours: number;
-  reasoning: string;
-  tips?: string[];
-};
+// TaskAnalysisResult is imported from @/types
 
 type Props = {
   // 共通
@@ -42,7 +30,7 @@ type Props = {
 
   // AI分析関連
   isAnalyzing: boolean;
-  analysisResult: AnalysisResult | null;
+  analysisResult: TaskAnalysisResult | null;
   analysisError: string | null;
   analysisApprovalId: number | null;
   onAnalyze: () => Promise<void>;
@@ -135,13 +123,6 @@ export function AIAssistantAccordion({
     [onPromptGenerated],
   );
 
-  // エージェント実行が進行中かどうか
-  const isAgentRunning =
-    isExecuting ||
-    executionStatus === "running" ||
-    executionStatus === "completed" ||
-    executionStatus === "failed";
-
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
       {/* メインヘッダー */}
@@ -220,7 +201,7 @@ export function AIAssistantAccordion({
               taskId={taskId}
               config={config}
               isAnalyzing={isAnalyzing}
-              analysisResult={analysisResult as any}
+              analysisResult={analysisResult}
               analysisError={analysisError}
               analysisApprovalId={analysisApprovalId}
               onAnalyze={onAnalyze}

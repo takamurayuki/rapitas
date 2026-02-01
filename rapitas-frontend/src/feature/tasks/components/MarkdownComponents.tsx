@@ -1,6 +1,9 @@
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
-import type { ReactNode, HTMLAttributes } from "react";
+import type { ReactNode, HTMLAttributes, CSSProperties } from "react";
+
+// vscDarkPlusのスタイル型
+type SyntaxHighlighterStyle = { [key: string]: CSSProperties };
 
 type MarkdownNode = {
   children?: Array<{
@@ -39,10 +42,12 @@ export const createMarkdownComponents = (
     }
     return <p {...props}>{children}</p>;
   },
-  code({ inline, className, children, ...props }: CodeProps) {
+  code({ inline, className, children, style: _style, ...props }: CodeProps) {
     const match = /language-(\w+)/.exec(className || "");
     const language = match ? match[1] : "";
     const codeString = String(children).replace(/\n$/, "");
+    // _styleは使用しない（SyntaxHighlighterのstyleと競合するため）
+    void _style;
 
     // インラインコード
     if (inline) {
@@ -74,7 +79,7 @@ export const createMarkdownComponents = (
             )}
           </div>
           <SyntaxHighlighter
-            style={vscDarkPlus as any}
+            style={vscDarkPlus as unknown as SyntaxHighlighterStyle}
             language={language}
             PreTag="div"
             className="mt-0! mb-0! rounded-lg! text-sm!"

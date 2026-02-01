@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bot, CheckCircle, AlertCircle, Loader2, Sparkles } from "lucide-react";
+import { Bot, AlertCircle, Loader2 } from "lucide-react";
 import type { UserSettings } from "@/types";
 import { useToast } from "@/components/ui/toast/ToastContainer";
 
@@ -27,7 +27,7 @@ export default function DeveloperModeSettingsPage() {
         const data = await res.json();
         setSettings(data);
       }
-    } catch (err) {
+    } catch {
       setError("設定の取得に失敗しました");
     } finally {
       setIsLoading(false);

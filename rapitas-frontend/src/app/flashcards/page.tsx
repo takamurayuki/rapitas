@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { FlashcardDeck, Flashcard } from "@/types";
+import type { FlashcardDeck } from "@/types";
 import {
   Plus,
   Trash2,
@@ -25,7 +25,7 @@ export default function FlashcardsPage() {
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [deckName, setDeckName] = useState("");
-  const [deckColor, setDeckColor] = useState("#3B82F6");
+  const [deckColor] = useState("#3B82F6");
   const [cardFront, setCardFront] = useState("");
   const [cardBack, setCardBack] = useState("");
 

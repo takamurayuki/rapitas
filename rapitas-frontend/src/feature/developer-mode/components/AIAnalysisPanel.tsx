@@ -33,26 +33,13 @@ import {
   Zap,
   GitBranch,
 } from "lucide-react";
-import type { DeveloperModeConfig } from "@/types";
+import type { DeveloperModeConfig, TaskAnalysisResult } from "@/types";
 import { DependencyTree } from "./DependencyTree";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
-// Types
-type AnalysisResult = {
-  summary: string;
-  suggestedSubtasks: Array<{
-    title: string;
-    description: string;
-    estimatedHours: number;
-    priority: "high" | "medium" | "low";
-  }>;
-  complexity: "simple" | "medium" | "complex";
-  estimatedTotalHours: number;
-  reasoning: string;
-  tips?: string[];
-};
+// TaskAnalysisResult is imported from @/types
 
 type PromptClarificationQuestion = {
   id: string;
@@ -126,7 +113,7 @@ type Props = {
   taskId: number;
   config: DeveloperModeConfig | null;
   isAnalyzing: boolean;
-  analysisResult: AnalysisResult | null;
+  analysisResult: TaskAnalysisResult | null;
   analysisError: string | null;
   analysisApprovalId: number | null;
   onAnalyze: () => Promise<void>;
@@ -781,7 +768,7 @@ export function AIAnalysisPanel({
                                           ? "中"
                                           : "低"}
                                     </span>
-                                    {st.estimatedHours > 0 && (
+                                    {st.estimatedHours != null && st.estimatedHours > 0 && (
                                       <span className="text-xs text-zinc-500">
                                         {st.estimatedHours}時間
                                       </span>

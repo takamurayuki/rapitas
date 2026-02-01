@@ -14,12 +14,13 @@ import {
   Moon,
   Brain,
   Lock,
+  type LucideIcon,
 } from "lucide-react";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
-const ICON_MAP: Record<string, any> = {
+const ICON_MAP: Record<string, LucideIcon> = {
   Star,
   Zap,
   Award,

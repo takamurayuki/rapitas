@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Lightbulb,
   Target,
-  Play,
   ListTodo,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast/ToastContainer";

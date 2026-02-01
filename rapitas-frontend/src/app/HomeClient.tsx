@@ -102,18 +102,6 @@ export default function HomeClientPage() {
     }
   };
 
-  const deleteTask = async (id: number) => {
-    const oldTasks = [...tasks];
-    setTasks((prev: Task[]) => prev.filter((t: Task) => t.id !== id));
-
-    try {
-      const res = await fetch(`${API_BASE}/tasks/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("削除に失敗しました");
-    } catch (e) {
-      console.error(e);
-      setTasks(oldTasks);
-    }
-  };
 
   const openTaskPanel = (taskId: number) => {
     setSelectedTaskId(taskId);
@@ -145,7 +133,6 @@ export default function HomeClientPage() {
       });
 
       if (!res.ok) throw new Error("作成に失敗しました");
-      const newTask = await res.json();
       setQuickTaskTitle("");
       setIsQuickAdding(false);
       showToast("タスクを作成しました", "success");
@@ -188,7 +175,7 @@ export default function HomeClientPage() {
       showToast(`${taskIds.length}件のタスクを更新しました`, "success");
       setSelectedTasks(new Set());
       setIsSelectionMode(false);
-    } catch (e) {
+    } catch {
       showToast("一括更新に失敗しました", "error");
     }
   };
@@ -209,7 +196,7 @@ export default function HomeClientPage() {
       showToast(`${taskIds.length}件のタスクを削除しました`, "success");
       setSelectedTasks(new Set());
       setIsSelectionMode(false);
-    } catch (e) {
+    } catch {
       showToast("一括削除に失敗しました", "error");
     }
   };
@@ -333,13 +320,6 @@ export default function HomeClientPage() {
       setCurrentPage(totalPages);
     }
   }, [totalPages, currentPage]);
-
-  const statusColors = {
-    todo: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-    "in-progress":
-      "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-    done: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-  };
 
   return (
     <div className="min-h-screen bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">

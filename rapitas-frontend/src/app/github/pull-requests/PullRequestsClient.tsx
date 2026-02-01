@@ -11,7 +11,6 @@ import {
   ArrowLeft,
   Loader2,
   GitMerge,
-  CheckCircle,
   XCircle,
 } from "lucide-react";
 import type { GitHubPullRequest, GitHubIntegration } from "@/types";

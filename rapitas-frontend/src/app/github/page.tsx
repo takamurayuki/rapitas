@@ -16,7 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import type { GitHubIntegration, GitHubPullRequest, GitHubIssue } from "@/types";
-import { getLabelsArray, hasLabels } from "@/utils/labels";
+import { getLabelsArray } from "@/utils/labels";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 

@@ -43,7 +43,7 @@ export default function SettingsPage() {
         const data = await res.json();
         setSettings(data);
       }
-    } catch (err) {
+    } catch {
       setError("設定の取得に失敗しました");
     } finally {
       setIsLoading(false);

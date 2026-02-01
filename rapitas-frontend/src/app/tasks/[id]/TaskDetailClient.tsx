@@ -6,13 +6,9 @@ import type {
   Task,
   TimeEntry,
   Comment,
-  Label,
-  DeveloperModeConfig,
   UserSettings,
 } from "@/types";
-import LabelSelector, {
-  SelectedLabelsDisplay,
-} from "@/feature/tasks/components/LabelSelector";
+import LabelSelector from "@/feature/tasks/components/LabelSelector";
 import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
 import {
   statusConfig as sharedStatusConfig,
@@ -43,7 +39,6 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { createMarkdownComponents } from "@/feature/tasks/components/MarkdownComponents";
 import PomodoroTimer from "@/feature/tasks/components/PomodoroTimer";
 import Button from "@/components/ui/button/Button";
 import {
@@ -58,9 +53,7 @@ import { DeveloperModeConfigModal } from "@/feature/developer-mode/components/De
 import { AIAccordionPanel } from "@/feature/developer-mode/components/AIAccordionPanel";
 import { Bot } from "lucide-react";
 import SaveAsTemplateDialog from "@/feature/tasks/components/dialog/SaveAsTemplateDialog";
-import DropdownMenu, {
-  DropdownMenuItem,
-} from "@/components/ui/dropdown/DropdownMenu";
+import DropdownMenu from "@/components/ui/dropdown/DropdownMenu";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -88,7 +81,6 @@ const PROGRAMMING_LANGUAGES = [
 export default function TaskDetailClient() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   // TauriのiframeではuseParams()が正しく動作しない場合があるため、
   // window.locationからIDを直接抽出するフォールバックを追加
@@ -171,7 +163,6 @@ export default function TaskDetailClient() {
     executionResult,
     analysisResult,
     analysisApprovalId,
-    error: devModeError,
     analysisError,
     fetchConfig: fetchDevModeConfig,
     enableDeveloperMode,
@@ -638,9 +629,6 @@ export default function TaskDetailClient() {
     );
   }
 
-  const currentStatus =
-    sharedStatusConfig[task.status as keyof typeof sharedStatusConfig];
-
   return (
     <div className="min-h-screen bg-linear-to-br from-zinc-50 via-white to-violet-50/30 dark:from-zinc-950 dark:via-zinc-900 dark:to-violet-950/10">
       <div className="max-w-4xl mx-auto px-4 py-8">
@@ -848,7 +836,7 @@ export default function TaskDetailClient() {
                   onOpenSettings={() => setShowDevModeConfig(true)}
                   // AI分析関連
                   isAnalyzing={isAnalyzing}
-                  analysisResult={analysisResult as any}
+                  analysisResult={analysisResult}
                   analysisError={analysisError}
                   analysisApprovalId={analysisApprovalId}
                   onAnalyze={handleAnalyze}

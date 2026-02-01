@@ -8,7 +8,6 @@ import {
   Filter,
   ArrowLeft,
   Loader2,
-  CheckCircle2,
   Plus,
   ArrowRightCircle,
 } from "lucide-react";
@@ -79,7 +78,6 @@ export default function IssuesPage() {
       });
 
       if (res.ok) {
-        const task = await res.json();
         // 成功通知（省略可能）
         await fetchIssues();
       }

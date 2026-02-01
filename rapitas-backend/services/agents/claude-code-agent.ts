@@ -308,31 +308,44 @@ export class ClaudeCodeAgent extends BaseAgent {
           clearInterval(idleCheckInterval);
         };
 
-        // タイムアウト設定
-        const timeoutId = setTimeout(() => {
+        // タイムアウト設定（出力がない場合のみタイムアウトを適用）
+        // 一定間隔でチェックし、最後の出力からtimeout時間経過した場合にタイムアウト
+        const timeoutCheckInterval = setInterval(() => {
           if (this.process && !this.process.killed) {
-            console.log(`[Claude Code] TIMEOUT after ${timeout}ms`);
-            console.log(
-              `[Claude Code] Output so far: ${this.outputBuffer.substring(0, 500)}`,
-            );
-            console.log(
-              `[Claude Code] Error so far: ${this.errorBuffer.substring(0, 500)}`,
-            );
-            console.log(
-              `[Claude Code] LineBuffer: ${this.lineBuffer.substring(0, 500)}`,
-            );
-            cleanupIdleCheck(); // アイドルチェックを停止
-            this.emitOutput("\n[Claude Code] Execution timed out\n", true);
-            this.process.kill("SIGTERM");
-            this.status = "failed";
-            resolve({
-              success: false,
-              output: this.outputBuffer,
-              errorMessage: `Execution timed out after ${timeout / 1000}s`,
-              executionTimeMs: Date.now() - startTime,
-            });
+            const timeSinceLastOutput = Date.now() - lastOutputTime;
+
+            // 最後の出力からtimeout時間経過した場合のみタイムアウト
+            if (timeSinceLastOutput >= timeout) {
+              console.log(`[Claude Code] TIMEOUT: No output for ${timeout / 1000}s`);
+              console.log(`[Claude Code] Last output was ${Math.floor(timeSinceLastOutput / 1000)}s ago`);
+              console.log(
+                `[Claude Code] Output so far: ${this.outputBuffer.substring(0, 500)}`,
+              );
+              console.log(
+                `[Claude Code] Error so far: ${this.errorBuffer.substring(0, 500)}`,
+              );
+              console.log(
+                `[Claude Code] LineBuffer: ${this.lineBuffer.substring(0, 500)}`,
+              );
+              clearInterval(timeoutCheckInterval); // タイムアウトチェックを停止
+              cleanupIdleCheck(); // アイドルチェックを停止
+              this.emitOutput(`\n[Claude Code] Execution timed out (no output for ${timeout / 1000}s)\n`, true);
+              this.process.kill("SIGTERM");
+              this.status = "failed";
+              resolve({
+                success: false,
+                output: this.outputBuffer,
+                errorMessage: `Execution timed out (no output for ${timeout / 1000}s)`,
+                executionTimeMs: Date.now() - startTime,
+              });
+            }
           }
-        }, timeout);
+        }, 10000); // 10秒ごとにチェック
+
+        // タイムアウトチェックのクリーンアップ関数
+        const cleanupTimeoutCheck = () => {
+          clearInterval(timeoutCheckInterval);
+        };
 
         this.process.stdout?.on("data", (data: Buffer) => {
           const chunk = data.toString();
@@ -468,6 +481,7 @@ export class ClaudeCodeAgent extends BaseAgent {
         this.process.stderr?.on("data", (data: Buffer) => {
           const output = data.toString();
           this.errorBuffer += output;
+          lastOutputTime = Date.now(); // stderrも出力として扱い、タイムアウトをリセット
           console.log(
             `[Claude Code] stderr (${output.length} chars): ${output.substring(0, 200)}`,
           );
@@ -475,7 +489,7 @@ export class ClaudeCodeAgent extends BaseAgent {
         });
 
         this.process.on("close", (code: number | null) => {
-          clearTimeout(timeoutId);
+          cleanupTimeoutCheck(); // タイムアウトチェックを停止
           cleanupIdleCheck(); // アイドルチェックを停止
           cleanupPromptFile(); // 一時ファイルを削除
           const executionTimeMs = Date.now() - startTime;
@@ -571,7 +585,7 @@ export class ClaudeCodeAgent extends BaseAgent {
         });
 
         this.process.on("error", (error: Error) => {
-          clearTimeout(timeoutId);
+          cleanupTimeoutCheck(); // タイムアウトチェックを停止
           cleanupIdleCheck(); // アイドルチェックを停止
           cleanupPromptFile(); // 一時ファイルを削除
           this.status = "failed";

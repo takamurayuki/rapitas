@@ -27,7 +27,7 @@ import {
   ListTodo,
   FileText,
 } from "lucide-react";
-import type { DeveloperModeConfig } from "@/types";
+import type { DeveloperModeConfig, TaskAnalysisResult } from "@/types";
 import type {
   ExecutionStatus,
   ExecutionResult,
@@ -44,19 +44,7 @@ import {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
-type AnalysisResult = {
-  summary: string;
-  suggestedSubtasks: Array<{
-    title: string;
-    description: string;
-    estimatedHours: number;
-    priority: "high" | "medium" | "low";
-  }>;
-  complexity: "simple" | "medium" | "complex";
-  estimatedTotalHours: number;
-  reasoning: string;
-  tips?: string[];
-};
+// TaskAnalysisResult is imported from @/types
 
 type PromptClarificationQuestion = {
   id: string;
@@ -80,7 +68,7 @@ type Props = {
   // AIAnalysisPanel props
   config: DeveloperModeConfig | null;
   isAnalyzing: boolean;
-  analysisResult: AnalysisResult | null;
+  analysisResult: TaskAnalysisResult | null;
   analysisError: string | null;
   analysisApprovalId: number | null;
   onAnalyze: () => Promise<void>;

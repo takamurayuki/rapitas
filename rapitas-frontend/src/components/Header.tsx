@@ -23,7 +23,6 @@ import {
   FileText,
   Calendar,
   Keyboard,
-  Command,
   Bot,
   CheckCircle,
   Settings,
@@ -31,8 +30,6 @@ import {
   GitPullRequest,
   CircleDot,
   Cpu,
-  Play,
-  History,
   Key,
   Pin,
   PinOff,
@@ -41,9 +38,6 @@ import AppIcon from "@/components/AppIcon";
 import GlobalPomodoroWidget from "@/feature/tasks/pomodoro/GlobalPomodoroWidget";
 import { OPEN_SHORTCUTS_EVENT } from "@/components/KeyboardShortcuts";
 import NotificationBell from "@/components/NotificationBell";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
 type NavItem = {
   href: string;
@@ -63,7 +57,6 @@ export default function Header() {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const menuRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // ピン止め状態をlocalStorageから復元
