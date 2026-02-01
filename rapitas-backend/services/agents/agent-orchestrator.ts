@@ -173,36 +173,48 @@ export class AgentOrchestrator {
     let pendingDbUpdate = false;
 
     agent.setOutputHandler(async (output, isError) => {
-      state.output += output;
-      if (options.onOutput) {
-        options.onOutput(output, isError);
-      }
+      try {
+        state.output += output;
+        if (options.onOutput) {
+          try {
+            options.onOutput(output, isError);
+          } catch (e) {
+            console.error("Error in onOutput callback:", e);
+          }
+        }
 
-      // イベントを発火（リアルタイム通知用）
-      this.emitEvent({
-        type: "execution_output",
-        executionId: execution.id,
-        sessionId: options.sessionId,
-        taskId: options.taskId,
-        data: { output, isError },
-        timestamp: new Date(),
-      });
-
-      // 定期的にDBを更新（ポーリング用）
-      const now = Date.now();
-      if (now - lastDbUpdate > DB_UPDATE_INTERVAL && !pendingDbUpdate) {
-        pendingDbUpdate = true;
-        lastDbUpdate = now;
+        // イベントを発火（リアルタイム通知用）
         try {
-          await this.prisma.agentExecution.update({
-            where: { id: execution.id },
-            data: { output: state.output },
+          this.emitEvent({
+            type: "execution_output",
+            executionId: execution.id,
+            sessionId: options.sessionId,
+            taskId: options.taskId,
+            data: { output, isError },
+            timestamp: new Date(),
           });
         } catch (e) {
-          console.error("Failed to update execution output:", e);
-        } finally {
-          pendingDbUpdate = false;
+          console.error("Error emitting event:", e);
         }
+
+        // 定期的にDBを更新（ポーリング用）
+        const now = Date.now();
+        if (now - lastDbUpdate > DB_UPDATE_INTERVAL && !pendingDbUpdate) {
+          pendingDbUpdate = true;
+          lastDbUpdate = now;
+          try {
+            await this.prisma.agentExecution.update({
+              where: { id: execution.id },
+              data: { output: state.output },
+            });
+          } catch (e) {
+            console.error("Failed to update execution output:", e);
+          } finally {
+            pendingDbUpdate = false;
+          }
+        }
+      } catch (e) {
+        console.error("Critical error in output handler:", e);
       }
     });
 
@@ -472,34 +484,46 @@ export class AgentOrchestrator {
     let pendingDbUpdate = false;
 
     agent.setOutputHandler(async (output, isError) => {
-      state.output += output;
-      if (options.onOutput) {
-        options.onOutput(output, isError);
-      }
+      try {
+        state.output += output;
+        if (options.onOutput) {
+          try {
+            options.onOutput(output, isError);
+          } catch (e) {
+            console.error("Error in onOutput callback:", e);
+          }
+        }
 
-      this.emitEvent({
-        type: "execution_output",
-        executionId: execution.id,
-        sessionId: execution.sessionId,
-        taskId,
-        data: { output, isError },
-        timestamp: new Date(),
-      });
-
-      const now = Date.now();
-      if (now - lastDbUpdate > DB_UPDATE_INTERVAL && !pendingDbUpdate) {
-        pendingDbUpdate = true;
-        lastDbUpdate = now;
         try {
-          await this.prisma.agentExecution.update({
-            where: { id: execution.id },
-            data: { output: state.output },
+          this.emitEvent({
+            type: "execution_output",
+            executionId: execution.id,
+            sessionId: execution.sessionId,
+            taskId,
+            data: { output, isError },
+            timestamp: new Date(),
           });
         } catch (e) {
-          console.error("Failed to update execution output:", e);
-        } finally {
-          pendingDbUpdate = false;
+          console.error("Error emitting event:", e);
         }
+
+        const now = Date.now();
+        if (now - lastDbUpdate > DB_UPDATE_INTERVAL && !pendingDbUpdate) {
+          pendingDbUpdate = true;
+          lastDbUpdate = now;
+          try {
+            await this.prisma.agentExecution.update({
+              where: { id: execution.id },
+              data: { output: state.output },
+            });
+          } catch (e) {
+            console.error("Failed to update execution output:", e);
+          } finally {
+            pendingDbUpdate = false;
+          }
+        }
+      } catch (e) {
+        console.error("Critical error in output handler:", e);
       }
     });
 
@@ -513,6 +537,8 @@ export class AgentOrchestrator {
       data: {
         status: "running",
         question: null, // 質問をクリア
+        questionType: null, // 質問タイプもクリア
+        questionDetails: null, // 質問詳細もクリア
         output: state.output,
       },
     });

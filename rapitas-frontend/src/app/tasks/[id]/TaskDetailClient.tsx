@@ -8,6 +8,7 @@ import type {
   Comment,
   Label,
   DeveloperModeConfig,
+  UserSettings,
 } from "@/types";
 import LabelSelector, {
   SelectedLabelsDisplay,
@@ -38,6 +39,7 @@ import {
   Pencil,
   Check,
   X,
+  FileStack,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -55,10 +57,10 @@ import { useApprovals } from "@/feature/developer-mode/hooks/useApprovals";
 import { DeveloperModeConfigModal } from "@/feature/developer-mode/components/DeveloperModeConfig";
 import { AIAccordionPanel } from "@/feature/developer-mode/components/AIAccordionPanel";
 import { Bot } from "lucide-react";
+import SaveAsTemplateDialog from "@/feature/tasks/components/dialog/SaveAsTemplateDialog";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
-
 
 const PROGRAMMING_LANGUAGES = [
   { value: "javascript", label: "JavaScript" },
@@ -88,7 +90,7 @@ export default function TaskDetailClient() {
   // TauriのiframeではuseParams()が正しく動作しない場合があるため、
   // window.locationからIDを直接抽出するフォールバックを追加
   const getTaskIdFromUrl = (): string | null => {
-    if (typeof window === 'undefined') return null;
+    if (typeof window === "undefined") return null;
     const match = window.location.pathname.match(/\/tasks\/(\d+)/);
     return match ? match[1] : null;
   };
@@ -99,10 +101,13 @@ export default function TaskDetailClient() {
   const resolvedTaskId = taskIdFromParams || taskIdFromUrl;
 
   // デバッグログ
-  console.log('[TaskDetailClient] params:', params);
-  console.log('[TaskDetailClient] window.location:', typeof window !== 'undefined' ? window.location.href : 'SSR');
-  console.log('[TaskDetailClient] params.id:', params?.id);
-  console.log('[TaskDetailClient] resolvedTaskId:', resolvedTaskId);
+  console.log("[TaskDetailClient] params:", params);
+  console.log(
+    "[TaskDetailClient] window.location:",
+    typeof window !== "undefined" ? window.location.href : "SSR",
+  );
+  console.log("[TaskDetailClient] params.id:", params?.id);
+  console.log("[TaskDetailClient] resolvedTaskId:", resolvedTaskId);
 
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
@@ -142,7 +147,8 @@ export default function TaskDetailClient() {
   // サブタスク編集用の状態
   const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState("");
-  const [editingSubtaskDescription, setEditingSubtaskDescription] = useState("");
+  const [editingSubtaskDescription, setEditingSubtaskDescription] =
+    useState("");
 
   // ポモドーロモーダル用の状態
   const [showPomodoroModal, setShowPomodoroModal] = useState(false);
@@ -189,19 +195,14 @@ export default function TaskDetailClient() {
     null,
   );
 
-  // AIタスク分析モードの状態（localStorageからグローバルに保持）
-  const [showTaskAnalysis, setShowTaskAnalysis] = useState(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("showTaskAnalysis");
-      return saved === "true";
-    }
-    return false;
-  });
+  // グローバル設定の状態
+  const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(null);
 
-  // showTaskAnalysis の変更時にlocalStorageに保存
-  useEffect(() => {
-    localStorage.setItem("showTaskAnalysis", String(showTaskAnalysis));
-  }, [showTaskAnalysis]);
+  // AIタスク分析モードの状態（グローバル設定から初期化）
+  const [showTaskAnalysis, setShowTaskAnalysis] = useState(false);
+
+  // テンプレート保存モーダル用の状態
+  const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
 
   // 最適化されたプロンプト用の状態
   const [optimizedPrompt, setOptimizedPrompt] = useState<string | null>(null);
@@ -223,7 +224,9 @@ export default function TaskDetailClient() {
 
     const fetchTimeEntries = async () => {
       try {
-        const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/time-entries`);
+        const res = await fetch(
+          `${API_BASE}/tasks/${resolvedTaskId}/time-entries`,
+        );
         if (res.ok) setTimeEntries(await res.json());
       } catch (err) {
         console.error("Failed to fetch time entries:", err);
@@ -239,13 +242,45 @@ export default function TaskDetailClient() {
       }
     };
 
+    const fetchGlobalSettings = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/settings`);
+        if (res.ok) {
+          const data = await res.json();
+          setGlobalSettings(data);
+          // グローバル設定からAIタスク分析モードを初期化
+          if (data.aiTaskAnalysisDefault) {
+            setShowTaskAnalysis(true);
+          }
+          // グローバル設定から開発者モードをデフォルト有効化（設定が有効な場合のみ）
+          if (data.developerModeDefault) {
+            // enableDeveloperModeは別途useEffectで処理
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch global settings:", err);
+      }
+    };
+
     if (resolvedTaskId) {
       fetchTask();
       fetchTimeEntries();
       fetchComments();
       fetchDevModeConfig();
+      fetchGlobalSettings();
     }
   }, [resolvedTaskId, fetchDevModeConfig]);
+
+  // グローバル設定に基づいて開発者モードを自動有効化
+  useEffect(() => {
+    const autoEnableDeveloperMode = async () => {
+      // グローバル設定がロードされ、開発者モードがデフォルト有効で、まだ有効化されていない場合
+      if (globalSettings?.developerModeDefault && devModeConfig === null && !devModeLoading && taskId) {
+        await enableDeveloperMode();
+      }
+    };
+    autoEnableDeveloperMode();
+  }, [globalSettings, devModeConfig, devModeLoading, taskId, enableDeveloperMode]);
 
   const updateStatus = async (taskId: number, newStatus: string) => {
     // 楽観的UI更新: APIレスポンスを待たずに即座にUIを更新
@@ -261,7 +296,7 @@ export default function TaskDetailClient() {
         const updatedSubtasks = prev.subtasks.map((subtask) =>
           subtask.id === taskId
             ? { ...subtask, status: newStatus as Task["status"] }
-            : subtask
+            : subtask,
         );
         return { ...prev, subtasks: updatedSubtasks };
       }
@@ -422,16 +457,23 @@ export default function TaskDetailClient() {
 
   // 開発者モードのトグル
   const handleToggleDeveloperMode = async () => {
-    if (devModeConfig?.isEnabled) {
-      await disableDeveloperMode();
-      setTask((prev) => (prev ? { ...prev, isDeveloperMode: false } : prev));
-    } else {
-      await enableDeveloperMode();
-      setTask((prev) => (prev ? { ...prev, isDeveloperMode: true } : prev));
+    try {
+      if (devModeConfig?.isEnabled) {
+        await disableDeveloperMode();
+        setTask((prev) => (prev ? { ...prev, isDeveloperMode: false } : prev));
+      } else {
+        await enableDeveloperMode();
+        setTask((prev) => (prev ? { ...prev, isDeveloperMode: true } : prev));
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  const handleToggleAIAnalysisMode = async () => {};
+  // AIタスク分析モードのトグル（UIの状態変更のみ、タスクごとの保存は行わない）
+  const handleToggleAIAnalysisMode = () => {
+    setShowTaskAnalysis(!showTaskAnalysis);
+  };
 
   // AI分析の実行
   const handleAnalyze = async () => {
@@ -449,23 +491,23 @@ export default function TaskDetailClient() {
   };
 
   // 承認
-    const handleApproveAnalysis = async (arg?: number | number[]) => {
-      // arg may be approvalId (number) when called from AIAnalysisPanel
-      // or selectedSubtasks (number[]) when called locally.
-      const approvalId = typeof arg === "number" ? arg : pendingApprovalId;
-      const selectedSubtasks = Array.isArray(arg) ? arg : undefined;
-      if (!approvalId) return;
-      const result = await approveRequest(approvalId, selectedSubtasks);
-      if (result?.success) {
-        setAnalysisResult(null);
-        setPendingApprovalId(null);
-        // タスクを再取得してサブタスクを表示
-        const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
-        if (res.ok) {
-          setTask(await res.json());
-        }
+  const handleApproveAnalysis = async (arg?: number | number[]) => {
+    // arg may be approvalId (number) when called from AIAnalysisPanel
+    // or selectedSubtasks (number[]) when called locally.
+    const approvalId = typeof arg === "number" ? arg : pendingApprovalId;
+    const selectedSubtasks = Array.isArray(arg) ? arg : undefined;
+    if (!approvalId) return;
+    const result = await approveRequest(approvalId, selectedSubtasks);
+    if (result?.success) {
+      setAnalysisResult(null);
+      setPendingApprovalId(null);
+      // タスクを再取得してサブタスクを表示
+      const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
+      if (res.ok) {
+        setTask(await res.json());
       }
-    };
+    }
+  };
 
   // 却下
   const handleRejectAnalysis = async () => {
@@ -490,7 +532,10 @@ export default function TaskDetailClient() {
   };
 
   // サブタスク更新
-  const updateSubtask = async (subtaskId: number, data: { title?: string; description?: string }) => {
+  const updateSubtask = async (
+    subtaskId: number,
+    data: { title?: string; description?: string },
+  ) => {
     try {
       const res = await fetch(`${API_BASE}/tasks/${subtaskId}`, {
         method: "PATCH",
@@ -590,7 +635,8 @@ export default function TaskDetailClient() {
     );
   }
 
-  const currentStatus = sharedStatusConfig[task.status as keyof typeof sharedStatusConfig];
+  const currentStatus =
+    sharedStatusConfig[task.status as keyof typeof sharedStatusConfig];
 
   return (
     <div className="min-h-screen bg-linear-to-br from-zinc-50 via-white to-violet-50/30 dark:from-zinc-950 dark:via-zinc-900 dark:to-violet-950/10">
@@ -659,6 +705,13 @@ export default function TaskDetailClient() {
                 複製
               </button>
               <button
+                onClick={() => setShowSaveTemplateDialog(true)}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl hover:border-violet-300 dark:hover:border-violet-700 hover:text-violet-600 dark:hover:text-violet-400 transition-all"
+              >
+                <FileStack className="w-4 h-4" />
+                テンプレート保存
+              </button>
+              <button
                 onClick={deleteTask}
                 className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-red-500 rounded-xl hover:bg-red-600 transition-colors"
               >
@@ -708,7 +761,9 @@ export default function TaskDetailClient() {
                         currentStatus={editStatus}
                         config={config}
                         renderIcon={renderStatusIcon}
-                        onClick={(newStatus: string) => setEditStatus(newStatus)}
+                        onClick={(newStatus: string) =>
+                          setEditStatus(newStatus)
+                        }
                         size="md"
                       />
                     );
@@ -785,7 +840,7 @@ export default function TaskDetailClient() {
                 onStatusUpdate={updateStatus}
                 onEditCode={handleEditCode}
                 showTaskAnalysis={showTaskAnalysis}
-                onToggleTaskAnalysis={() => setShowTaskAnalysis(!showTaskAnalysis)}
+                onToggleTaskAnalysis={handleToggleAIAnalysisMode}
                 devModeConfig={devModeConfig}
                 devModeLoading={devModeLoading}
                 onToggleDeveloperMode={handleToggleDeveloperMode}
@@ -797,6 +852,8 @@ export default function TaskDetailClient() {
               <div className="mb-6">
                 <AIAccordionPanel
                   taskId={taskId}
+                  taskTitle={task.title}
+                  taskDescription={task.description}
                   config={devModeConfig}
                   onOpenSettings={() => setShowDevModeConfig(true)}
                   // AI分析関連
@@ -812,14 +869,19 @@ export default function TaskDetailClient() {
                   onPromptGenerated={(prompt) => setOptimizedPrompt(prompt)}
                   onSubtasksCreated={async () => {
                     // タスクを再取得してサブタスクを更新
-                    const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
+                    const res = await fetch(
+                      `${API_BASE}/tasks/${resolvedTaskId}`,
+                    );
                     if (res.ok) {
                       const data = await res.json();
                       setTask(data);
                     }
                   }}
                   // エージェント実行関連
-                  showAgentPanel={devModeConfig?.isEnabled === true && task.theme?.isDevelopment === true}
+                  showAgentPanel={
+                    devModeConfig?.isEnabled === true &&
+                    task.theme?.isDevelopment === true
+                  }
                   isExecuting={isExecuting}
                   executionStatus={executionStatus}
                   executionResult={executionResult}
@@ -848,18 +910,30 @@ export default function TaskDetailClient() {
                       <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                       <h2 className="text-lg font-bold">サブタスク</h2>
                       <span className="ml-1 px-2 py-0.5 text-xs font-medium bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-full">
-                        {task.subtasks.filter(s => s.status === "done").length}/{task.subtasks.length}
+                        {
+                          task.subtasks.filter((s) => s.status === "done")
+                            .length
+                        }
+                        /{task.subtasks.length}
                       </span>
                       {/* 進捗バー（コンパクト） */}
                       <div className="hidden sm:flex items-center gap-2 ml-2">
                         <div className="w-24 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-emerald-500 transition-all duration-300"
-                            style={{ width: `${Math.round((task.subtasks.filter(s => s.status === "done").length / task.subtasks.length) * 100)}%` }}
+                            style={{
+                              width: `${Math.round((task.subtasks.filter((s) => s.status === "done").length / task.subtasks.length) * 100)}%`,
+                            }}
                           />
                         </div>
                         <span className="text-xs text-zinc-500">
-                          {Math.round((task.subtasks.filter(s => s.status === "done").length / task.subtasks.length) * 100)}%
+                          {Math.round(
+                            (task.subtasks.filter((s) => s.status === "done")
+                              .length /
+                              task.subtasks.length) *
+                              100,
+                          )}
+                          %
                         </span>
                       </div>
                     </div>
@@ -884,14 +958,18 @@ export default function TaskDetailClient() {
                               type="text"
                               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                               value={editingSubtaskTitle}
-                              onChange={(e) => setEditingSubtaskTitle(e.target.value)}
+                              onChange={(e) =>
+                                setEditingSubtaskTitle(e.target.value)
+                              }
                               placeholder="サブタスクタイトル"
                               autoFocus
                             />
                             <textarea
                               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                               value={editingSubtaskDescription}
-                              onChange={(e) => setEditingSubtaskDescription(e.target.value)}
+                              onChange={(e) =>
+                                setEditingSubtaskDescription(e.target.value)
+                              }
                               placeholder="説明（マークダウン対応）"
                               rows={3}
                             />
@@ -947,20 +1025,24 @@ export default function TaskDetailClient() {
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
                               {/* ステータス変更ボタン（コンパクト版） */}
-                              {(["todo", "in-progress", "done"] as const).map((status) => {
-                                const config = sharedStatusConfig[status];
-                                return (
-                                  <TaskStatusChange
-                                    key={status}
-                                    status={status}
-                                    currentStatus={subtask.status}
-                                    config={config}
-                                    renderIcon={renderStatusIcon}
-                                    onClick={(newStatus) => updateStatus(subtask.id, newStatus)}
-                                    size="sm"
-                                  />
-                                );
-                              })}
+                              {(["todo", "in-progress", "done"] as const).map(
+                                (status) => {
+                                  const config = sharedStatusConfig[status];
+                                  return (
+                                    <TaskStatusChange
+                                      key={status}
+                                      status={status}
+                                      currentStatus={subtask.status}
+                                      config={config}
+                                      renderIcon={renderStatusIcon}
+                                      onClick={(newStatus) =>
+                                        updateStatus(subtask.id, newStatus)
+                                      }
+                                      size="sm"
+                                    />
+                                  );
+                                },
+                              )}
                               {/* 編集ボタン */}
                               <button
                                 onClick={() => startEditingSubtask(subtask)}
@@ -1035,7 +1117,9 @@ export default function TaskDetailClient() {
                         >
                           <div className="flex justify-between items-start mb-2">
                             <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                              {new Date(comment.createdAt).toLocaleString("ja-JP")}
+                              {new Date(comment.createdAt).toLocaleString(
+                                "ja-JP",
+                              )}
                             </span>
                             <button
                               onClick={() => handleDeleteComment(comment.id)}
@@ -1199,6 +1283,19 @@ export default function TaskDetailClient() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Save as Template Dialog */}
+      {task && (
+        <SaveAsTemplateDialog
+          task={task}
+          isOpen={showSaveTemplateDialog}
+          onClose={() => setShowSaveTemplateDialog(false)}
+          onSuccess={() => {
+            // テンプレート保存成功時の通知（任意）
+            alert("テンプレートとして保存しました");
+          }}
+        />
       )}
     </div>
   );

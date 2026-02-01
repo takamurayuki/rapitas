@@ -190,6 +190,7 @@ async function createSQLiteSchema(prisma: PrismaClient): Promise<void> {
       "milestoneId" INTEGER,
       "examGoalId" INTEGER,
       "isDeveloperMode" BOOLEAN NOT NULL DEFAULT false,
+      "isAiTaskAnalysis" BOOLEAN NOT NULL DEFAULT false,
       "agentGenerated" BOOLEAN NOT NULL DEFAULT false,
       "agentExecutable" BOOLEAN NOT NULL DEFAULT false,
       "executionInstructions" TEXT,

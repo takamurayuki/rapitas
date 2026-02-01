@@ -327,7 +327,15 @@ export function useExecutionPolling(taskId: number | null) {
 
     const poll = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-status`);
+        // タイムアウト付きのfetch（10秒）
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-status`, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
         if (!res.ok) {
           console.log("[ExecutionPolling] Response not ok:", res.status);
           return;
@@ -453,6 +461,17 @@ export function useExecutionPolling(taskId: number | null) {
           }));
         }
       } catch (error) {
+        // AbortErrorはタイムアウトによるもの - 静かにスキップ
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.log("[ExecutionPolling] Request timed out, will retry");
+          return;
+        }
+        // TypeError: Failed to fetchはネットワークエラー - バックエンドが応答しない可能性
+        if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+          console.warn("[ExecutionPolling] Network error - backend may be unresponsive");
+          // 連続エラーをカウントし、一定回数超えたらエラー状態にする処理も可能
+          return;
+        }
         console.error("[ExecutionPolling] Error:", error);
       }
     };
@@ -523,6 +542,20 @@ export function useExecutionPolling(taskId: number | null) {
     });
   }, []);
 
+  /**
+   * 質問への回答が送信された後に質問状態をクリアする
+   * ステータスは running に戻し、ログは保持する
+   */
+  const clearQuestion = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      status: "running",
+      waitingForInput: false,
+      question: undefined,
+      questionType: "none",
+    }));
+  }, []);
+
   useEffect(() => {
     return () => {
       stopPolling();
@@ -535,5 +568,6 @@ export function useExecutionPolling(taskId: number | null) {
     stopPolling,
     clearLogs,
     setCancelled,
+    clearQuestion,
   };
 }

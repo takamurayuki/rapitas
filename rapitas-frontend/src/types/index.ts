@@ -318,6 +318,13 @@ export type TaskTemplate = {
   templateData: TaskTemplateData;
   isPublic: boolean;
   useCount: number;
+  themeId?: number | null;
+  theme?: {
+    id: number;
+    name: string;
+    color: string;
+    icon?: string | null;
+  } | null;
   createdAt: string;
   updatedAt: string;
 };

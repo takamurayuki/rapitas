@@ -11,19 +11,20 @@ datasource db {
 }
 
 model Theme {
-  id               Int      @id @default(autoincrement())
+  id               Int            @id @default(autoincrement())
   name             String
   description      String?
-  color            String   @default("#8B5CF6")
+  color            String         @default("#8B5CF6")
   icon             String?
-  isDefault        Boolean  @default(false)
-  isDevelopment    Boolean  @default(false)
+  isDefault        Boolean        @default(false)
+  isDevelopment    Boolean        @default(false)
   repositoryUrl    String?
   workingDirectory String?
-  defaultBranch    String?  @default("main")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  defaultBranch    String?        @default("main")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
   tasks            Task[]
+  taskTemplates    TaskTemplate[]
 }
 
 model Project {
@@ -80,6 +81,7 @@ model Task {
   taskLabels            TaskLabel[]
   resources             Resource[]
   isDeveloperMode       Boolean       @default(false)
+  isAiTaskAnalysis      Boolean       @default(false)
   agentGenerated        Boolean       @default(false)
   agentExecutable       Boolean       @default(false)
   executionInstructions String?
@@ -280,6 +282,8 @@ model TaskTemplate {
   templateData  String   // JSON stored as string
   isPublic      Boolean  @default(false)
   useCount      Int      @default(0)
+  themeId       Int?
+  theme         Theme?   @relation(fields: [themeId], references: [id], onDelete: SetNull)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }

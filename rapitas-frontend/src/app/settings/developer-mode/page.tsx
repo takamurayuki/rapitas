@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Bot, CheckCircle, AlertCircle, Loader2, Sparkles } from "lucide-react";
 import type { UserSettings } from "@/types";
+import { useToast } from "@/components/ui/toast/ToastContainer";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -12,7 +13,7 @@ export default function DeveloperModeSettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     fetchSettings();
@@ -36,7 +37,6 @@ export default function DeveloperModeSettingsPage() {
   const updateSettings = async (updates: Partial<UserSettings>) => {
     setIsSaving(true);
     setError(null);
-    setSuccessMessage(null);
     try {
       const res = await fetch(`${API_BASE_URL}/settings`, {
         method: "PATCH",
@@ -46,13 +46,13 @@ export default function DeveloperModeSettingsPage() {
       if (res.ok) {
         const data = await res.json();
         setSettings((prev) => (prev ? { ...prev, ...data } : data));
-        setSuccessMessage("設定を保存しました");
-        setTimeout(() => setSuccessMessage(null), 3000);
+        showToast("設定を保存しました", "success");
       } else {
         throw new Error("更新に失敗しました");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "エラーが発生しました");
+      showToast("設定の保存に失敗しました", "error");
     } finally {
       setIsSaving(false);
     }
@@ -95,35 +95,26 @@ export default function DeveloperModeSettingsPage() {
         </div>
       )}
 
-      {successMessage && (
-        <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-          <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-            <CheckCircle className="w-5 h-5" />
-            <span>{successMessage}</span>
-          </div>
-        </div>
-      )}
-
       <div className="space-y-6">
-        {/* 開発者モード設定 */}
+        {/* AIアシスタント設定 */}
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-3">
               <Bot className="w-5 h-5 text-violet-500" />
               <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                開発者モード設定
+                AIアシスタント設定
               </h2>
             </div>
           </div>
           <div className="p-6 space-y-6">
-            {/* 開発者モードデフォルト設定 */}
+            {/* AIアシスタントデフォルト設定 */}
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                  新規タスクで開発者モードをデフォルト有効
+                  開発者モードを有効にする
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                  新しく作成するタスクで自動的に開発者モードを有効にします
+                  すべてのタスク詳細画面で開発者モードを有効にします
                 </p>
               </div>
               <button
@@ -150,10 +141,10 @@ export default function DeveloperModeSettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                  新規タスクでAIタスク分析をデフォルト有効
+                  AIタスク分析を有効にする
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                  新しく作成するタスクで自動的にAIタスク分析を有効にします
+                  すべてのタスク詳細画面でAIアシスタントパネルを表示します
                 </p>
               </div>
               <button
@@ -175,69 +166,6 @@ export default function DeveloperModeSettingsPage() {
                   }`}
                 />
               </button>
-            </div>
-          </div>
-        </div>
-
-        {/* AIタスク分析設定 */}
-        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-          <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
-            <div className="flex items-center gap-3">
-              <Sparkles className="w-5 h-5 text-amber-500" />
-              <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                AIタスク分析について
-              </h2>
-            </div>
-          </div>
-          <div className="p-6">
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3">
-              AIタスク分析を有効にすると、タスク作成時にAIがタスクを分析し、効率的なサブタスクを自動的に提案します。
-            </p>
-            <ul className="text-sm text-zinc-600 dark:text-zinc-400 space-y-1">
-              <li className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                タスクの複雑度を自動判定
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                最適なサブタスクの分割を提案
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                見積もり時間の算出
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        {/* 情報 */}
-        <div className="bg-linear-to-br from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 rounded-xl p-6 border border-violet-100 dark:border-violet-800">
-          <div className="flex items-start gap-4">
-            <div className="p-2 bg-violet-100 dark:bg-violet-900/40 rounded-lg">
-              <Bot className="w-6 h-6 text-violet-600 dark:text-violet-400" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
-                開発者モードについて
-              </h3>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3">
-                開発者モードを有効にすると、AIがタスクを分析し、効率的なサブタスクを自動的に提案します。
-                提案されたサブタスクは承認後に作成されます。
-              </p>
-              <ul className="text-sm text-zinc-600 dark:text-zinc-400 space-y-1">
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  タスクの自動分析・サブタスク提案
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  承認フローによる安全な運用
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  アプリ内通知でリアルタイム確認
-                </li>
-              </ul>
             </div>
           </div>
         </div>

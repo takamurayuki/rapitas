@@ -859,3 +859,62 @@ export function formatPromptForAgent(
 
   return promptParts.join("\n");
 }
+
+/**
+ * タスク情報から意味のあるブランチ名を生成する
+ */
+export async function generateBranchName(
+  taskTitle: string,
+  taskDescription?: string | null,
+): Promise<{ branchName: string }> {
+  const client = await getAnthropicClient();
+  if (!client) {
+    throw new Error("Claude APIキーが設定されていません。設定ページでAPIキーを登録してください。");
+  }
+
+  const systemPrompt = `あなたはGitブランチ名を生成する専門家です。
+タスクのタイトルと説明から、適切なGitブランチ名を生成してください。
+
+ブランチ名のルール:
+1. 英語で記述する（日本語は英語に翻訳する）
+2. 小文字のケバブケース（単語はハイフンで区切る）
+3. 適切なプレフィックスを使用: feature/, fix/, refactor/, docs/, chore/
+4. 簡潔で内容が分かりやすい名前（全体で50文字以内推奨）
+5. 特殊文字は使用しない
+
+出力形式:
+ブランチ名のみを出力してください。説明や余計なテキストは不要です。
+
+例:
+- 「ログイン機能の追加」→ feature/add-login-functionality
+- 「ボタンの色がおかしい」→ fix/button-color-issue
+- 「コードのリファクタリング」→ refactor/code-cleanup
+- 「READMEの更新」→ docs/update-readme`;
+
+  const userPrompt = `タイトル: ${taskTitle}
+${taskDescription ? `説明: ${taskDescription}` : ""}
+
+上記のタスク情報から適切なGitブランチ名を生成してください。`;
+
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 100,
+    system: systemPrompt,
+    messages: [
+      {
+        role: "user",
+        content: userPrompt,
+      },
+    ],
+  });
+
+  const content = response.content[0];
+  if (content.type !== "text") {
+    throw new Error("ブランチ名の生成に失敗しました");
+  }
+
+  // 生成されたブランチ名をクリーンアップ
+  const branchName = content.text.trim().replace(/^["']|["']$/g, "");
+
+  return { branchName };
+}

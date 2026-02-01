@@ -75,6 +75,8 @@ type PromptResult = {
 
 type Props = {
   taskId: number;
+  taskTitle: string;
+  taskDescription?: string | null;
   // AIAnalysisPanel props
   config: DeveloperModeConfig | null;
   isAnalyzing: boolean;
@@ -122,6 +124,8 @@ type AnalysisTabType = "subtasks" | "prompt";
 
 export function AIAccordionPanel({
   taskId,
+  taskTitle,
+  taskDescription,
   // AIAnalysisPanel props
   config,
   isAnalyzing,
@@ -167,10 +171,10 @@ export function AIAccordionPanel({
   const [isSubmittingAnswers, setIsSubmittingAnswers] = useState(false);
 
   // 実行パネルの状態
-  const [showOptions, setShowOptions] = useState(false);
   const [showLogs, setShowLogs] = useState(true);
   const [instruction, setInstruction] = useState("");
   const [branchName, setBranchName] = useState("");
+  const [isGeneratingBranchName, setIsGeneratingBranchName] = useState(false);
   const [userResponse, setUserResponse] = useState("");
   const [isSendingResponse, setIsSendingResponse] = useState(false);
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -200,6 +204,7 @@ export function AIAccordionPanel({
     stopPolling,
     clearLogs: clearPollingLogs,
     setCancelled: setPollingCancelled,
+    clearQuestion: clearPollingQuestion,
   } = useExecutionPolling(taskId);
 
   const logs = useMemo(() => {
@@ -387,6 +392,35 @@ export function AIAccordionPanel({
     }
   };
 
+  const handleGenerateBranchName = async () => {
+    if (isGeneratingBranchName) return;
+
+    setIsGeneratingBranchName(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/developer-mode/generate-branch-name`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: taskTitle,
+          description: taskDescription || undefined,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.branchName) {
+          setBranchName(data.branchName);
+        }
+      } else {
+        console.error("Failed to generate branch name");
+      }
+    } catch (error) {
+      console.error("Error generating branch name:", error);
+    } finally {
+      setIsGeneratingBranchName(false);
+    }
+  };
+
   const handleSendResponse = async () => {
     if (!userResponse.trim() || isSendingResponse) return;
 
@@ -400,6 +434,8 @@ export function AIAccordionPanel({
 
       if (res.ok) {
         setUserResponse("");
+        // 回答送信成功時、即座に質問UIを非表示にする
+        clearPollingQuestion();
       }
     } catch (error) {
       console.error("Error sending response:", error);
@@ -1218,57 +1254,51 @@ export function AIAccordionPanel({
                     </div>
                   )}
 
-                  {/* 詳細オプション - 展開メニュー */}
-                  <button
-                    onClick={() => setShowOptions(!showOptions)}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                    aria-expanded={showOptions}
-                    aria-controls="execution-options"
-                  >
-                    <span className="text-[10px] text-zinc-600 dark:text-zinc-400">
-                      詳細オプション
-                    </span>
-                    {showOptions ? (
-                      <ChevronUp className="w-3 h-3 text-zinc-400" />
-                    ) : (
-                      <ChevronDown className="w-3 h-3 text-zinc-400" />
-                    )}
-                  </button>
-
-                  {showOptions && (
-                    <div
-                      id="execution-options"
-                      className="space-y-2 p-2.5 bg-zinc-50 dark:bg-zinc-800/30 rounded-lg"
-                    >
-                      <div>
-                        <label className="text-[10px] text-zinc-600 dark:text-zinc-400 mb-1 block">
-                          追加指示
-                        </label>
-                        <textarea
-                          value={instruction}
-                          onChange={(e) => setInstruction(e.target.value)}
-                          placeholder="追加の実装指示..."
-                          rows={2}
-                          className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] resize-none"
-                          aria-label="追加の実装指示"
-                        />
-                      </div>
-                      <div>
-                        <label className="flex items-center gap-1 text-[10px] text-zinc-600 dark:text-zinc-400 mb-1">
-                          <GitBranch className="w-2.5 h-2.5" />
-                          ブランチ名
-                        </label>
+                  {/* 詳細オプション - 常時表示 */}
+                  <div className="space-y-2 p-2.5 bg-zinc-50 dark:bg-zinc-800/30 rounded-lg">
+                    <div>
+                      <label className="text-[10px] text-zinc-600 dark:text-zinc-400 mb-1 block">
+                        追加指示
+                      </label>
+                      <textarea
+                        value={instruction}
+                        onChange={(e) => setInstruction(e.target.value)}
+                        placeholder="追加の実装指示..."
+                        rows={2}
+                        className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] resize-none"
+                        aria-label="追加の実装指示"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1 text-[10px] text-zinc-600 dark:text-zinc-400 mb-1">
+                        <GitBranch className="w-2.5 h-2.5" />
+                        ブランチ名
+                      </label>
+                      <div className="flex gap-1.5">
                         <input
                           type="text"
                           value={branchName}
                           onChange={(e) => setBranchName(e.target.value)}
                           placeholder="feature/..."
-                          className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono"
+                          className="flex-1 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono"
                           aria-label="ブランチ名"
                         />
+                        <button
+                          onClick={handleGenerateBranchName}
+                          disabled={isGeneratingBranchName}
+                          className="px-2 py-1 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded text-[10px] hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-colors disabled:opacity-50 flex items-center gap-1"
+                          title="AIでブランチ名を生成"
+                        >
+                          {isGeneratingBranchName ? (
+                            <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                          ) : (
+                            <Wand2 className="w-2.5 h-2.5" />
+                          )}
+                          <span>生成</span>
+                        </button>
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
             </div>

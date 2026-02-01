@@ -49,7 +49,8 @@ export default function CompactTaskDetailCard({
   devModeLoading = false,
   onToggleDeveloperMode,
 }: CompactTaskDetailCardProps) {
-  const hasMetaInfo = (task.taskLabels && task.taskLabels.length > 0) || task.estimatedHours;
+  const hasMetaInfo =
+    (task.taskLabels && task.taskLabels.length > 0) || task.estimatedHours;
   const hasAIFeatures = onToggleTaskAnalysis || onToggleDeveloperMode;
 
   return (
@@ -186,24 +187,29 @@ export default function CompactTaskDetailCard({
           <AccordionContent id="details">
             <div className="space-y-4">
               {/* Timestamps */}
-              <div className="flex flex-wrap items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
+              <div className="flex flex-wrap items-center gap-4 pt-3 text-sm text-zinc-500 dark:text-zinc-400">
                 <div className="flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5" />
-                  <span>作成: {new Date(task.createdAt).toLocaleString("ja-JP")}</span>
+                  <span>
+                    作成: {new Date(task.createdAt).toLocaleString("ja-JP")}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5" />
-                  <span>更新: {new Date(task.updatedAt).toLocaleString("ja-JP")}</span>
+                  <span>
+                    更新: {new Date(task.updatedAt).toLocaleString("ja-JP")}
+                  </span>
                 </div>
               </div>
 
               {/* AI Features Toggle */}
               {hasAIFeatures && (
-                <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                <div className="flex justify-end pt-3 border-t border-zinc-100 dark:border-zinc-800">
                   <div className="flex flex-wrap items-center gap-3">
                     {onToggleTaskAnalysis && (
                       <ToggleButton
                         label="AIタスク分析"
+                        description="AIアシスタントパネルを自動表示"
                         icon={BrainCircuit}
                         isEnabled={showTaskAnalysis}
                         onToggle={onToggleTaskAnalysis}
@@ -212,6 +218,7 @@ export default function CompactTaskDetailCard({
                     {onToggleDeveloperMode && (
                       <ToggleButton
                         label="開発者モード"
+                        description="AIエージェントによる自動実行機能を有効化"
                         icon={Bot}
                         isEnabled={devModeConfig?.isEnabled ?? false}
                         isLoading={devModeLoading}

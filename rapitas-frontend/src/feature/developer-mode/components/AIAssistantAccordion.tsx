@@ -13,7 +13,10 @@ import {
   Loader2,
 } from "lucide-react";
 import type { DeveloperModeConfig } from "@/types";
-import type { ExecutionStatus, ExecutionResult } from "../hooks/useDeveloperMode";
+import type {
+  ExecutionStatus,
+  ExecutionResult,
+} from "../hooks/useDeveloperMode";
 import { AIAnalysisPanel } from "./AIAnalysisPanel";
 import { AgentExecutionPanel } from "./AgentExecutionPanel";
 
@@ -113,9 +116,9 @@ export function AIAssistantAccordion({
   onStopExecution,
 }: Props) {
   const [isExpanded, setIsExpanded] = useState(true);
-  const [localOptimizedPrompt, setLocalOptimizedPrompt] = useState<string | null>(
-    optimizedPrompt || null
-  );
+  const [localOptimizedPrompt, setLocalOptimizedPrompt] = useState<
+    string | null
+  >(optimizedPrompt || null);
 
   // 親からのoptimizedPromptの変更を反映
   useEffect(() => {
@@ -129,7 +132,7 @@ export function AIAssistantAccordion({
       setLocalOptimizedPrompt(prompt);
       onPromptGenerated?.(prompt);
     },
-    [onPromptGenerated]
+    [onPromptGenerated],
   );
 
   // エージェント実行が進行中かどうか
@@ -143,7 +146,7 @@ export function AIAssistantAccordion({
     <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
       {/* メインヘッダー */}
       <div
-        className="px-6 py-4 bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border-b border-zinc-200 dark:border-zinc-700 cursor-pointer"
+        className="px-6 py-4 bg-linear-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border-b border-zinc-200 dark:border-zinc-700 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center justify-between">

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -12,12 +12,12 @@ import {
   Trash2,
   Calendar,
   BookOpen,
-  Bot,
   SwatchBook,
   CheckCircle2,
   Settings2,
+  FileStack,
 } from "lucide-react";
-import type { Priority, Theme, UserSettings } from "@/types";
+import type { Priority, Theme, TaskTemplate } from "@/types";
 import LabelSelector from "@/feature/tasks/components/LabelSelector";
 import { getIconComponent } from "@/components/category/IconData";
 import {
@@ -25,6 +25,8 @@ import {
   InlineFieldGroup,
   FieldItem,
 } from "@/components/ui/accordion";
+import ApplyTemplateDialog from "@/feature/tasks/components/dialog/ApplyTemplateDialog";
+import { useToast } from "@/components/ui/toast/ToastContainer";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -32,6 +34,7 @@ const API_BASE =
 export default function NewTaskClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showToast } = useToast();
 
   // 基本フィールド
   const [title, setTitle] = useState("");
@@ -46,19 +49,20 @@ export default function NewTaskClient() {
   const [dueDate, setDueDate] = useState("");
   const [subject, setSubject] = useState("");
 
-  // タスクの設定
-  const [isDeveloperMode, setIsDeveloperMode] = useState(false);
-  const [isAiTaskAnalysis, setIsAiTaskAnalysis] = useState(false);
-
   // データ
   const [themes, setThemes] = useState<Theme[]>([]);
-  const [settings, setSettings] = useState<UserSettings | null>(null);
 
   // UI状態
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [appliedTemplate, setAppliedTemplate] = useState<TaskTemplate | null>(
+    null
+  );
 
   // サブタスク
-  const [subtasks, setSubtasks] = useState<{ id: string; title: string }[]>([]);
+  const [subtasks, setSubtasks] = useState<
+    { id: string; title: string; description?: string; estimatedHours?: number }[]
+  >([]);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
 
   useEffect(() => {
@@ -67,27 +71,7 @@ export default function NewTaskClient() {
       setThemeId(Number(themeIdParam));
     }
     fetchThemes();
-    fetchSettings();
   }, [searchParams]);
-
-  const fetchSettings = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/settings`);
-      if (res.ok) {
-        const data = await res.json();
-        setSettings(data);
-        // 設定からデフォルト値を適用
-        if (data.developerModeDefault) {
-          setIsDeveloperMode(true);
-        }
-        if (data.aiTaskAnalysisDefault) {
-          setIsAiTaskAnalysis(true);
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
   const fetchThemes = async () => {
     try {
@@ -99,18 +83,6 @@ export default function NewTaskClient() {
         const defaultTheme = data.find((t: Theme) => t.isDefault);
         if (defaultTheme) {
           setThemeId(defaultTheme.id);
-          // 開発テーマの場合は自動で開発者モードを有効化
-          if (defaultTheme.isDevelopment) {
-            setIsDeveloperMode(true);
-          }
-        }
-      } else {
-        // URLパラメータで指定されたテーマの場合
-        const selectedTheme = data.find(
-          (t: Theme) => t.id === Number(themeIdParam),
-        );
-        if (selectedTheme?.isDevelopment) {
-          setIsDeveloperMode(true);
         }
       }
     } catch (e) {
@@ -121,9 +93,43 @@ export default function NewTaskClient() {
   // テーマ選択時の処理
   const handleThemeSelect = (theme: Theme) => {
     setThemeId(theme.id);
-    // 開発テーマの場合は自動で開発者モードを有効化
-    if (theme.isDevelopment) {
-      setIsDeveloperMode(true);
+  };
+
+  // 選択中のテーマを取得
+  const selectedTheme = useMemo(() => {
+    return themes.find((t) => t.id === themeId) || null;
+  }, [themes, themeId]);
+
+  // テンプレート適用時の処理
+  const handleApplyTemplate = (template: TaskTemplate) => {
+    setAppliedTemplate(template);
+
+    // テンプレートデータを適用
+    const data = template.templateData;
+
+    if (data.title) {
+      setTitle(data.title);
+    }
+    if (data.description) {
+      setDescription(data.description);
+    }
+    if (data.priority) {
+      setPriority(data.priority);
+    }
+    if (data.estimatedHours) {
+      setEstimatedHours(data.estimatedHours.toString());
+    }
+
+    // サブタスクを適用
+    if (data.subtasks && Array.isArray(data.subtasks)) {
+      setSubtasks(
+        data.subtasks.map((st, idx) => ({
+          id: `template-${idx}-${Date.now()}`,
+          title: st.title,
+          description: st.description,
+          estimatedHours: st.estimatedHours,
+        }))
+      );
     }
   };
 
@@ -167,8 +173,6 @@ export default function NewTaskClient() {
             : undefined,
           dueDate: dueDate || undefined,
           subject: subject || undefined,
-          isDeveloperMode: isDeveloperMode || undefined,
-          isAiTaskAnalysis: isAiTaskAnalysis || undefined,
         }),
       });
 
@@ -194,10 +198,11 @@ export default function NewTaskClient() {
         );
       }
 
+      showToast("タスクを作成しました", "success");
       router.push("/");
     } catch (e) {
       console.error(e);
-      alert("タスクの作成に失敗しました");
+      showToast("タスクの作成に失敗しました", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -247,18 +252,32 @@ export default function NewTaskClient() {
             <ArrowLeft className="w-5 h-5" />
             <span className="text-sm font-medium">戻る</span>
           </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!title.trim() || isSubmitting}
-            className="px-5 py-2 bg-blue-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {isSubmitting ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <Plus className="w-4 h-4" />
-            )}
-            作成
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowTemplateDialog(true)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                appliedTemplate
+                  ? "bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700"
+                  : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-violet-400 dark:hover:border-violet-600 hover:text-violet-600 dark:hover:text-violet-400"
+              }`}
+            >
+              <FileStack className="w-4 h-4" />
+              {appliedTemplate ? appliedTemplate.name : "テンプレート"}
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={!title.trim() || isSubmitting}
+              className="px-5 py-2 bg-blue-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isSubmitting ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Plus className="w-4 h-4" />
+              )}
+              作成
+            </button>
+          </div>
         </div>
       </div>
 
@@ -350,6 +369,7 @@ export default function NewTaskClient() {
                   })()}
                 </div>
               </FieldItem>
+
             </InlineFieldGroup>
           </div>
 
@@ -438,68 +458,6 @@ export default function NewTaskClient() {
             </div>
           </CompactAccordionGroup>
 
-          {/* AI Settings - Collapsible */}
-          <CompactAccordionGroup
-            title="AI設定"
-            icon={<Bot className="w-3.5 h-3.5" />}
-            defaultExpanded={false}
-          >
-            <div className="p-3 bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 rounded-xl space-y-3">
-              {/* 開発者モード */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                    開発者モード
-                  </p>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                    開発プロジェクト向けの機能を有効化
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsDeveloperMode(!isDeveloperMode)}
-                  className={`relative w-10 h-5 rounded-full transition-colors ${
-                    isDeveloperMode
-                      ? "bg-violet-500"
-                      : "bg-zinc-300 dark:bg-zinc-600"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                      isDeveloperMode ? "translate-x-5" : ""
-                    }`}
-                  />
-                </button>
-              </div>
-              {/* AIタスク分析 */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                    AIタスク分析
-                  </p>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                    AIがサブタスクを自動提案
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsAiTaskAnalysis(!isAiTaskAnalysis)}
-                  className={`relative w-10 h-5 rounded-full transition-colors ${
-                    isAiTaskAnalysis
-                      ? "bg-violet-500"
-                      : "bg-zinc-300 dark:bg-zinc-600"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                      isAiTaskAnalysis ? "translate-x-5" : ""
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-          </CompactAccordionGroup>
-
           {/* Subtasks Section - Collapsible */}
           <CompactAccordionGroup
             title="サブタスク"
@@ -563,6 +521,14 @@ export default function NewTaskClient() {
           </CompactAccordionGroup>
         </div>
       </form>
+
+      {/* Template Dialog */}
+      <ApplyTemplateDialog
+        isOpen={showTemplateDialog}
+        onClose={() => setShowTemplateDialog(false)}
+        selectedTheme={selectedTheme}
+        onApply={handleApplyTemplate}
+      />
     </div>
   );
 }

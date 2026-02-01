@@ -15,7 +15,15 @@ import {
   Link2,
   Unlink,
   Info,
+  RotateCcw,
+  XCircle,
 } from "lucide-react";
+import {
+  useSSE,
+  type SSEErrorData,
+  type SSERollbackData,
+  type SSERetryData,
+} from "@/hooks/use-sse";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -104,7 +112,9 @@ function TreeNodeItem({
     <div className="select-none">
       <div
         className={`flex items-center gap-2 py-2 px-3 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors ${
-          depth > 0 ? "ml-6 border-l-2 border-zinc-200 dark:border-zinc-700" : ""
+          depth > 0
+            ? "ml-6 border-l-2 border-zinc-200 dark:border-zinc-700"
+            : ""
         }`}
       >
         {/* 展開ボタン */}
@@ -123,9 +133,9 @@ function TreeNodeItem({
 
         {/* ステータスアイコン */}
         {node.canRunParallel ? (
-          <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+          <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
         ) : (
-          <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
         )}
 
         {/* タスク名 */}
@@ -161,7 +171,10 @@ function TreeNodeItem({
               </div>
               <div className="space-y-1">
                 {node.dependsOn.map((dep) => (
-                  <div key={dep.id} className="text-xs text-amber-600 dark:text-amber-400">
+                  <div
+                    key={dep.id}
+                    className="text-xs text-amber-600 dark:text-amber-400"
+                  >
                     <span className="font-medium">{dep.title}</span>
                     <span className="text-amber-500 dark:text-amber-500 ml-2">
                       ({dep.sharedFiles.join(", ")})
@@ -214,18 +227,54 @@ function TreeNodeItem({
 }
 
 export function DependencyTree({ taskId }: Props) {
-  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<"tree" | "list" | "groups">("tree");
+  const [useSSEMode, setUseSSEMode] = useState(true);
 
-  const fetchAnalysis = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  // SSE フックを使用
+  const {
+    isLoading,
+    progress,
+    progressMessage,
+    data: sseData,
+    error: sseError,
+    retryInfo,
+    rollbackInfo,
+    connect,
+    reset,
+  } = useSSE<AnalysisResult>({
+    onComplete: () => {
+      console.log("SSE analysis completed");
+    },
+    onError: (error) => {
+      console.error("SSE error:", error);
+    },
+    onRetry: (info) => {
+      console.log("Retrying:", info);
+    },
+    onRollback: (info) => {
+      console.log("Rollback:", info);
+    },
+  });
+
+  // 通常のフェッチ用の状態
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [isLoadingFallback, setIsLoadingFallback] = useState(false);
+  const [errorFallback, setErrorFallback] = useState<string | null>(null);
+
+  // SSE分析を開始
+  const startSSEAnalysis = useCallback(() => {
+    reset();
+    connect(`${API_BASE_URL}/tasks/${taskId}/dependency-analysis/stream`);
+  }, [taskId, connect, reset]);
+
+  // フォールバック用の通常フェッチ
+  const fetchAnalysisFallback = useCallback(async () => {
+    setIsLoadingFallback(true);
+    setErrorFallback(null);
     try {
       const res = await fetch(
-        `${API_BASE_URL}/tasks/${taskId}/dependency-analysis`
+        `${API_BASE_URL}/tasks/${taskId}/dependency-analysis`,
       );
       if (res.ok) {
         const data = await res.json();
@@ -235,15 +284,22 @@ export function DependencyTree({ taskId }: Props) {
         throw new Error(errData.error || "分析に失敗しました");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setErrorFallback(
+        err instanceof Error ? err.message : "エラーが発生しました",
+      );
     } finally {
-      setIsLoading(false);
+      setIsLoadingFallback(false);
     }
   }, [taskId]);
 
+  // 初回マウント時にSSE分析を開始
   useEffect(() => {
-    fetchAnalysis();
-  }, [fetchAnalysis]);
+    if (useSSEMode) {
+      startSSEAnalysis();
+    } else {
+      fetchAnalysisFallback();
+    }
+  }, [useSSEMode, startSSEAnalysis, fetchAnalysisFallback]);
 
   const toggleNode = (nodeId: number) => {
     setExpandedNodes((prev) => {
@@ -257,9 +313,18 @@ export function DependencyTree({ taskId }: Props) {
     });
   };
 
+  // 現在のデータソースを取得
+  const currentAnalysis = useSSEMode ? sseData : analysis;
+  const currentIsLoading = useSSEMode ? isLoading : isLoadingFallback;
+  const currentError = useSSEMode
+    ? sseError
+    : errorFallback
+      ? { error: errorFallback }
+      : null;
+
   const expandAll = () => {
-    if (analysis) {
-      const allIds = new Set(analysis.analysis.map((a) => a.taskId));
+    if (currentAnalysis) {
+      const allIds = new Set(currentAnalysis.analysis.map((a) => a.taskId));
       setExpandedNodes(allIds);
     }
   };
@@ -268,33 +333,131 @@ export function DependencyTree({ taskId }: Props) {
     setExpandedNodes(new Set());
   };
 
-  if (isLoading) {
+  // リトライ中の表示
+  if (retryInfo && isLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="w-6 h-6 text-violet-500 animate-spin" />
-        <span className="ml-2 text-sm text-zinc-500">依存関係を分析中...</span>
+      <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+        <div className="flex items-center gap-3 mb-3">
+          <RotateCcw className="w-5 h-5 text-amber-600 dark:text-amber-400 animate-spin" />
+          <div>
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+              リトライ中... ({retryInfo.retryCount}/{retryInfo.maxRetries})
+            </p>
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              {retryInfo.reason}
+            </p>
+          </div>
+        </div>
+        <div className="w-full bg-amber-200 dark:bg-amber-800 rounded-full h-1.5">
+          <div
+            className="bg-amber-600 h-1.5 rounded-full transition-all duration-300"
+            style={{
+              width: `${(retryInfo.retryCount / retryInfo.maxRetries) * 100}%`,
+            }}
+          />
+        </div>
       </div>
     );
   }
 
-  if (error) {
+  // ロールバック通知
+  if (rollbackInfo) {
     return (
       <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-        <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-          <AlertTriangle className="w-4 h-4" />
-          <span className="text-sm">{error}</span>
+        <div className="flex items-center gap-3 mb-3">
+          <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+          <div>
+            <p className="text-sm font-medium text-red-800 dark:text-red-200">
+              処理に失敗しました
+            </p>
+            <p className="text-xs text-red-600 dark:text-red-400">
+              {rollbackInfo.rollbackReason}
+            </p>
+          </div>
         </div>
-        <button
-          onClick={fetchAnalysis}
-          className="mt-2 text-sm text-red-600 hover:text-red-700 underline"
-        >
-          再試行
-        </button>
+        <p className="text-xs text-red-600 dark:text-red-400 mb-3">
+          エラー詳細: {rollbackInfo.errorDetails}
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={startSSEAnalysis}
+            className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" />
+            再試行
+          </button>
+          <button
+            onClick={() => {
+              setUseSSEMode(false);
+              reset();
+            }}
+            className="px-3 py-1.5 text-red-600 hover:text-red-700 text-sm"
+          >
+            通常モードで試す
+          </button>
+        </div>
       </div>
     );
   }
 
-  if (!analysis) {
+  // 読み込み中（進捗バー付き）
+  if (currentIsLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Loader2 className="w-5 h-5 text-violet-500 animate-spin" />
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">
+            {progressMessage || "依存関係を分析中..."}
+          </span>
+        </div>
+        {useSSEMode && progress > 0 && (
+          <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
+            <div
+              className="bg-violet-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // エラー表示
+  if (currentError) {
+    return (
+      <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+        <div className="flex items-center gap-2 text-red-600 dark:text-red-400 mb-2">
+          <AlertTriangle className="w-4 h-4" />
+          <span className="text-sm font-medium">エラーが発生しました</span>
+        </div>
+        <p className="text-sm text-red-600 dark:text-red-400 mb-3">
+          {currentError.error}
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={useSSEMode ? startSSEAnalysis : fetchAnalysisFallback}
+            className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" />
+            再試行
+          </button>
+          {useSSEMode && (
+            <button
+              onClick={() => {
+                setUseSSEMode(false);
+                reset();
+              }}
+              className="px-3 py-1.5 text-red-600 hover:text-red-700 text-sm"
+            >
+              通常モードで試す
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentAnalysis) {
     return null;
   }
 
@@ -307,15 +470,22 @@ export function DependencyTree({ taskId }: Props) {
           <span className="font-medium text-zinc-900 dark:text-zinc-100">
             依存度分析
           </span>
+          {useSSEMode && (
+            <span className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-xs rounded">
+              SSE
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={fetchAnalysis}
-            disabled={isLoading}
+            onClick={useSSEMode ? startSSEAnalysis : fetchAnalysisFallback}
+            disabled={currentIsLoading}
             className="p-1.5 text-zinc-400 hover:text-zinc-600 rounded"
             title="更新"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`w-4 h-4 ${currentIsLoading ? "animate-spin" : ""}`}
+            />
           </button>
         </div>
       </div>
@@ -328,7 +498,7 @@ export function DependencyTree({ taskId }: Props) {
             タスク数
           </div>
           <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-            {analysis.summary.totalTasks}
+            {currentAnalysis.summary.totalTasks}
           </div>
         </div>
         <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
@@ -337,7 +507,7 @@ export function DependencyTree({ taskId }: Props) {
             独立タスク
           </div>
           <div className="text-lg font-bold text-green-700 dark:text-green-300">
-            {analysis.summary.independentTasks}
+            {currentAnalysis.summary.independentTasks}
           </div>
         </div>
         <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
@@ -346,7 +516,7 @@ export function DependencyTree({ taskId }: Props) {
             依存タスク
           </div>
           <div className="text-lg font-bold text-amber-700 dark:text-amber-300">
-            {analysis.summary.dependentTasks}
+            {currentAnalysis.summary.dependentTasks}
           </div>
         </div>
         <div className="p-3 bg-violet-50 dark:bg-violet-900/20 rounded-lg">
@@ -355,7 +525,7 @@ export function DependencyTree({ taskId }: Props) {
             平均独立性
           </div>
           <div className="text-lg font-bold text-violet-700 dark:text-violet-300">
-            {analysis.summary.averageIndependence}%
+            {currentAnalysis.summary.averageIndependence}%
           </div>
         </div>
       </div>
@@ -411,7 +581,7 @@ export function DependencyTree({ taskId }: Props) {
       <div className="max-h-96 overflow-y-auto">
         {viewMode === "tree" && (
           <div className="space-y-1">
-            {analysis.tree.map((node) => (
+            {currentAnalysis.tree.map((node) => (
               <TreeNodeItem
                 key={node.id}
                 node={node}
@@ -419,7 +589,7 @@ export function DependencyTree({ taskId }: Props) {
                 onToggle={() => toggleNode(node.id)}
               />
             ))}
-            {analysis.tree.length === 0 && (
+            {currentAnalysis.tree.length === 0 && (
               <div className="text-center py-8 text-zinc-500">
                 <Info className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">
@@ -432,7 +602,7 @@ export function DependencyTree({ taskId }: Props) {
 
         {viewMode === "list" && (
           <div className="space-y-2">
-            {analysis.analysis
+            {currentAnalysis.analysis
               .sort((a, b) => b.independenceScore - a.independenceScore)
               .map((item) => (
                 <div
@@ -481,7 +651,7 @@ export function DependencyTree({ taskId }: Props) {
 
         {viewMode === "groups" && (
           <div className="space-y-4">
-            {analysis.parallelGroups.map((group) => (
+            {currentAnalysis.parallelGroups.map((group) => (
               <div
                 key={group.groupId}
                 className={`p-4 rounded-lg border ${
@@ -523,7 +693,7 @@ export function DependencyTree({ taskId }: Props) {
                 </div>
               </div>
             ))}
-            {analysis.parallelGroups.length === 0 && (
+            {currentAnalysis.parallelGroups.length === 0 && (
               <div className="text-center py-8 text-zinc-500">
                 <Info className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">グループ化できるタスクがありません</p>

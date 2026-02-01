@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 import FloatingAIMenu from "./FloatingAIMenu";
 
 /**
@@ -9,10 +10,20 @@ import FloatingAIMenu from "./FloatingAIMenu";
  */
 export default function FloatingAIMenuWrapper() {
   const pathname = usePathname();
+  const [windowPathname, setWindowPathname] = useState<string | null>(null);
+
+  // TauriのiframeではusePathname()が正しく動作しない場合があるため、
+  // window.locationからパスを直接取得するフォールバックを追加
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setWindowPathname(window.location.pathname);
+    }
+  }, []);
 
   // タスク詳細ページ（/tasks/[id]）では非表示にする
   // AIAnalysisPanelとの重複を避けるため
-  const isTaskDetailPage = /^\/tasks\/\d+$/.test(pathname);
+  const currentPath = pathname || windowPathname || "";
+  const isTaskDetailPage = /^\/tasks\/\d+$/.test(currentPath);
 
   if (isTaskDetailPage) {
     return null;

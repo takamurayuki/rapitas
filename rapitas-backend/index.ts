@@ -1,5 +1,23 @@
 // Tauri/SQLite initialization - must be imported first
-import { initTauriEnvironment, initializeDatabase, isTauriBuild, getDatabaseUrl } from "./utils/tauri-init";
+import {
+  initTauriEnvironment,
+  initializeDatabase,
+  isTauriBuild,
+  getDatabaseUrl,
+} from "./utils/tauri-init";
+
+// グローバルエラーハンドラー - サーバークラッシュ防止
+process.on("uncaughtException", (error) => {
+  console.error("[FATAL] Uncaught Exception:", error);
+  console.error("[FATAL] Stack:", error.stack);
+  // サーバーを停止しない - ログのみ
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[FATAL] Unhandled Rejection at:", promise);
+  console.error("[FATAL] Reason:", reason);
+  // サーバーを停止しない - ログのみ
+});
 
 import { Elysia, t } from "elysia";
 import { cors } from "@elysiajs/cors";
@@ -13,6 +31,7 @@ import {
   formatPromptForAgent,
   isApiKeyConfigured,
   isApiKeyConfiguredAsync,
+  generateBranchName,
   type SubtaskProposal,
   type OptimizedPromptResult,
 } from "./services/claude-agent";
@@ -21,12 +40,18 @@ import { agentFactory } from "./services/agents/agent-factory";
 import { createOrchestrator } from "./services/agents/agent-orchestrator";
 import { realtimeService } from "./services/realtime-service";
 import { encrypt, decrypt, maskApiKey } from "./utils/encryption";
+import {
+  SSEStreamController,
+  createSSEHeaders,
+  getUserFriendlyErrorMessage,
+  type RetryConfig,
+} from "./services/sse-utils";
 
 const app = new Elysia();
 
 // データベースURLを明示的に指定してPrismaClientを初期化
 const dbUrl = getDatabaseUrl();
-console.log(`[DB] Connecting to: ${isTauriBuild ? 'SQLite' : 'PostgreSQL'}`);
+console.log(`[DB] Connecting to: ${isTauriBuild ? "SQLite" : "PostgreSQL"}`);
 console.log(`[DB] URL: ${dbUrl.substring(0, 50)}...`);
 
 const prisma = new PrismaClient({
@@ -38,7 +63,7 @@ function getLabelsArray(labels: any): string[] {
   if (!labels) return [];
 
   // 文字列の場合（SQLite JSON）
-  if (typeof labels === 'string') {
+  if (typeof labels === "string") {
     try {
       const parsed = JSON.parse(labels);
       return Array.isArray(parsed) ? parsed : [];
@@ -50,11 +75,11 @@ function getLabelsArray(labels: any): string[] {
   // 配列の場合
   if (Array.isArray(labels)) {
     // オブジェクトの配列（PostgreSQLリレーション）
-    if (labels.length > 0 && typeof labels[0] === 'object' && labels[0]?.name) {
+    if (labels.length > 0 && typeof labels[0] === "object" && labels[0]?.name) {
       return labels.map((l: any) => l.name);
     }
     // 文字列の配列
-    return labels.filter((l: any) => typeof l === 'string');
+    return labels.filter((l: any) => typeof l === "string");
   }
 
   return [];
@@ -63,14 +88,14 @@ function getLabelsArray(labels: any): string[] {
 // JSONフィールドをSQLite互換の文字列に変換するヘルパー関数
 function toJsonString(value: any): string | null {
   if (value === null || value === undefined) return null;
-  if (typeof value === 'string') return value;
+  if (typeof value === "string") return value;
   return JSON.stringify(value);
 }
 
 // SQLiteから読み取ったJSON文字列をオブジェクトに変換するヘルパー関数
 function fromJsonString<T = any>(value: any): T | null {
   if (value === null || value === undefined) return null;
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     try {
       return JSON.parse(value) as T;
     } catch {
@@ -634,6 +659,8 @@ app.post(
       milestoneId,
       themeId,
       examGoalId,
+      isDeveloperMode,
+      isAiTaskAnalysis,
     } = body;
     const task = await prisma.task.create({
       data: {
@@ -651,6 +678,8 @@ app.post(
         ...(milestoneId && { milestoneId }),
         ...(themeId !== undefined && { themeId }),
         ...(examGoalId !== undefined && { examGoalId }),
+        ...(isDeveloperMode !== undefined && { isDeveloperMode }),
+        ...(isAiTaskAnalysis !== undefined && { isAiTaskAnalysis }),
       },
     });
 
@@ -697,6 +726,8 @@ app.post(
       milestoneId: t.Optional(t.Number()),
       themeId: t.Optional(t.Number()),
       examGoalId: t.Optional(t.Number()),
+      isDeveloperMode: t.Optional(t.Boolean()),
+      isAiTaskAnalysis: t.Optional(t.Boolean()),
     }),
   },
 );
@@ -2119,25 +2150,80 @@ app.get("/flashcards/due", async () => {
 });
 
 // ==================== Templates API ====================
-app.get("/templates", async () => {
+app.get("/templates", async ({ query }: { query: any }) => {
+  const { category, search, themeId } = query as {
+    category?: string;
+    search?: string;
+    themeId?: string;
+  };
+
+  const where: any = {};
+
+  if (category) {
+    where.category = category;
+  }
+
+  if (search) {
+    where.OR = [
+      { name: { contains: search } },
+      { description: { contains: search } },
+    ];
+  }
+
+  if (themeId) {
+    where.themeId = parseInt(themeId);
+  }
+
   return await prisma.taskTemplate.findMany({
+    where,
+    include: {
+      theme: {
+        select: {
+          id: true,
+          name: true,
+          color: true,
+          icon: true,
+        },
+      },
+    },
     orderBy: [{ useCount: "desc" }, { createdAt: "desc" }],
   });
+});
+
+// カテゴリ一覧を取得
+app.get("/templates/categories", async () => {
+  const templates = await prisma.taskTemplate.findMany({
+    select: { category: true },
+    distinct: ["category"],
+    orderBy: { category: "asc" },
+  });
+  return templates.map((t: { category: string }) => t.category);
 });
 
 app.get("/templates/:id", async ({ params }: { params: any }) => {
   const { id } = params;
   return await prisma.taskTemplate.findUnique({
     where: { id: parseInt(id) },
+    include: {
+      theme: {
+        select: {
+          id: true,
+          name: true,
+          color: true,
+          icon: true,
+        },
+      },
+    },
   });
 });
 
 app.post("/templates", async ({ body }: { body: any }) => {
-  const { name, description, category, templateData } = body as {
+  const { name, description, category, templateData, themeId } = body as {
     name: string;
     description?: string;
     category: string;
     templateData: any;
+    themeId?: number;
   };
   return await prisma.taskTemplate.create({
     data: {
@@ -2145,9 +2231,105 @@ app.post("/templates", async ({ body }: { body: any }) => {
       category,
       templateData,
       ...(description && { description }),
+      ...(themeId && { themeId }),
+    },
+    include: {
+      theme: {
+        select: {
+          id: true,
+          name: true,
+          color: true,
+          icon: true,
+        },
+      },
     },
   });
 });
+
+// タスクからテンプレートを作成
+app.post(
+  "/templates/from-task/:taskId",
+  async ({ params, body }: { params: any; body: any }) => {
+    const { taskId } = params;
+    const { name, description, category } = body as {
+      name: string;
+      description?: string;
+      category: string;
+    };
+
+    // タスクを取得（サブタスク含む）
+    const task = await prisma.task.findUnique({
+      where: { id: parseInt(taskId) },
+      include: {
+        subtasks: {
+          select: {
+            title: true,
+            description: true,
+            estimatedHours: true,
+          },
+          orderBy: { id: "asc" },
+        },
+        taskLabels: {
+          include: {
+            label: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!task) {
+      return { error: "Task not found" };
+    }
+
+    // テンプレートデータを構築
+    const templateData = {
+      title: task.title,
+      description: task.description,
+      priority: task.priority,
+      estimatedHours: task.estimatedHours,
+      labels:
+        task.taskLabels
+          ?.map((tl: { label: { name: string } }) => tl.label?.name)
+          .filter(Boolean) || [],
+      subtasks: task.subtasks.map(
+        (st: {
+          title: string;
+          description?: string;
+          estimatedHours?: number;
+        }) => ({
+          title: st.title,
+          description: st.description,
+          estimatedHours: st.estimatedHours,
+        }),
+      ),
+    };
+
+    // テンプレートを作成（タスクのテーマも保存）
+    const template = await prisma.taskTemplate.create({
+      data: {
+        name,
+        category,
+        templateData: toJsonString(templateData) ?? "{}",
+        ...(description && { description }),
+        ...(task.themeId && { themeId: task.themeId }),
+      },
+      include: {
+        theme: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+            icon: true,
+          },
+        },
+      },
+    });
+
+    return template;
+  },
+);
 
 app.delete("/templates/:id", async ({ params }: { params: any }) => {
   const { id } = params;
@@ -2155,45 +2337,100 @@ app.delete("/templates/:id", async ({ params }: { params: any }) => {
 });
 
 // テンプレートからタスク作成
-app.post("/templates/:id/apply", async ({ params }: { params: any }) => {
-  const { id } = params;
-  const template = await prisma.taskTemplate.findUnique({
-    where: { id: parseInt(id) },
-  });
-  if (!template) return { error: "Template not found" };
+app.post(
+  "/templates/:id/apply",
+  async ({ params, body }: { params: any; body: any }) => {
+    const { id } = params;
+    const {
+      themeId,
+      projectId,
+      milestoneId,
+      title: customTitle,
+      dueDate,
+    } = (body || {}) as {
+      themeId?: number;
+      projectId?: number;
+      milestoneId?: number;
+      title?: string;
+      dueDate?: string;
+    };
 
-  const data = fromJsonString<any>(template.templateData);
-  const task = await prisma.task.create({
-    data: {
-      title: data.title || template.name,
-      description: data.description,
-      priority: data.priority || "medium",
-      estimatedHours: data.estimatedHours,
-      subject: data.subject,
-    },
-  });
+    const template = await prisma.taskTemplate.findUnique({
+      where: { id: parseInt(id) },
+    });
+    if (!template) return { error: "Template not found" };
 
-  // サブタスクも作成
-  if (data.subtasks && Array.isArray(data.subtasks)) {
-    for (const st of data.subtasks) {
-      await prisma.task.create({
-        data: {
-          title: st.title,
-          parentId: task.id,
-          status: "todo",
+    const data = fromJsonString<any>(template.templateData);
+    const task = await prisma.task.create({
+      data: {
+        title: customTitle || data.title || template.name,
+        description: data.description,
+        priority: data.priority || "medium",
+        estimatedHours: data.estimatedHours,
+        subject: data.subject,
+        ...(themeId && { themeId }),
+        ...(projectId && { projectId }),
+        ...(milestoneId && { milestoneId }),
+        ...(dueDate && { dueDate: new Date(dueDate) }),
+      },
+    });
+
+    // サブタスクも作成（説明とestimatedHoursを含む）
+    if (data.subtasks && Array.isArray(data.subtasks)) {
+      for (const st of data.subtasks) {
+        await prisma.task.create({
+          data: {
+            title: st.title,
+            description: st.description,
+            estimatedHours: st.estimatedHours,
+            parentId: task.id,
+            status: "todo",
+          },
+        });
+      }
+    }
+
+    // ラベルを取得して紐付け（テンプレートに保存されたラベル名から）
+    if (data.labels && Array.isArray(data.labels) && data.labels.length > 0) {
+      const labels = await prisma.label.findMany({
+        where: {
+          name: { in: data.labels },
         },
       });
+
+      if (labels.length > 0) {
+        await prisma.taskLabel.createMany({
+          data: labels.map((label: { id: number }) => ({
+            taskId: task.id,
+            labelId: label.id,
+          })),
+        });
+      }
     }
-  }
 
-  // 使用回数を増やす
-  await prisma.taskTemplate.update({
-    where: { id: parseInt(id) },
-    data: { useCount: { increment: 1 } },
-  });
+    // 使用回数を増やす
+    await prisma.taskTemplate.update({
+      where: { id: parseInt(id) },
+      data: { useCount: { increment: 1 } },
+    });
 
-  return task;
-});
+    // 作成したタスクをリレーション付きで返す
+    const createdTask = await prisma.task.findUnique({
+      where: { id: task.id },
+      include: {
+        subtasks: true,
+        taskLabels: {
+          include: { label: true },
+        },
+        theme: true,
+        project: true,
+        milestone: true,
+      },
+    });
+
+    return createdTask;
+  },
+);
 
 // ==================== Weekly Report API ====================
 app.get("/reports/weekly", async () => {
@@ -2690,7 +2927,9 @@ app.post(
 
     let analysisResult = null;
     if (config?.agentSessions?.[0]?.agentActions?.[0]?.output) {
-      analysisResult = fromJsonString(config.agentSessions[0].agentActions[0].output);
+      analysisResult = fromJsonString(
+        config.agentSessions[0].agentActions[0].output,
+      );
     }
 
     try {
@@ -2824,6 +3063,53 @@ app.post(
           suggestions: t.Array(t.String()),
         }),
       }),
+    }),
+  },
+);
+
+// ブランチ名生成API
+app.post(
+  "/developer-mode/generate-branch-name",
+  async ({
+    body,
+    set,
+  }: {
+    body: { title: string; description?: string };
+    set: any;
+  }) => {
+    const { title, description } = body;
+
+    if (!title) {
+      set.status = 400;
+      return { error: "タスクタイトルは必須です" };
+    }
+
+    // APIキーチェック
+    const apiKeyConfigured = await isApiKeyConfiguredAsync();
+    if (!apiKeyConfigured) {
+      set.status = 400;
+      return {
+        error:
+          "Claude APIキーが設定されていません。設定ページでAPIキーを登録してください。",
+      };
+    }
+
+    try {
+      const result = await generateBranchName(title, description);
+      return result;
+    } catch (error: any) {
+      console.error("Branch name generation error:", error);
+      set.status = 500;
+      return {
+        error: "ブランチ名の生成に失敗しました",
+        details: error.message,
+      };
+    }
+  },
+  {
+    body: t.Object({
+      title: t.String(),
+      description: t.Optional(t.String()),
     }),
   },
 );
@@ -3276,15 +3562,16 @@ app.get(
         if (current.id === other.id) continue;
 
         // 共有ファイルを検出（ファイル名ベース）
-        const sharedFiles = current.fileNames.filter(fn =>
-          other.fileNames.includes(fn)
+        const sharedFiles = current.fileNames.filter((fn) =>
+          other.fileNames.includes(fn),
         );
 
         if (sharedFiles.length > 0) {
           // 依存度スコア: 共有ファイル数 / 現在タスクのファイル数 * 100
-          const score = current.files.length > 0
-            ? Math.round((sharedFiles.length / current.files.length) * 100)
-            : 0;
+          const score =
+            current.files.length > 0
+              ? Math.round((sharedFiles.length / current.files.length) * 100)
+              : 0;
 
           dependencies.push({
             taskId: other.id,
@@ -3296,16 +3583,25 @@ app.get(
       }
 
       // 独立性スコア: 他タスクと共有しているファイルがない場合は100
-      const totalSharedFiles = new Set(dependencies.flatMap(d => d.sharedFiles)).size;
-      const independenceScore = current.files.length > 0
-        ? Math.round(((current.files.length - totalSharedFiles) / current.files.length) * 100)
-        : 100;
+      const totalSharedFiles = new Set(
+        dependencies.flatMap((d) => d.sharedFiles),
+      ).size;
+      const independenceScore =
+        current.files.length > 0
+          ? Math.round(
+              ((current.files.length - totalSharedFiles) /
+                current.files.length) *
+                100,
+            )
+          : 100;
 
       dependencyAnalysis.push({
         taskId: current.id,
         title: current.title,
         files: current.files,
-        dependencies: dependencies.sort((a, b) => b.dependencyScore - a.dependencyScore),
+        dependencies: dependencies.sort(
+          (a, b) => b.dependencyScore - a.dependencyScore,
+        ),
         independenceScore,
         canRunParallel: dependencies.length === 0 || independenceScore >= 70,
       });
@@ -3325,7 +3621,7 @@ app.get(
 
     // 依存度でソート（独立性の高い順）
     const sortedTasks = [...dependencyAnalysis].sort(
-      (a, b) => b.independenceScore - a.independenceScore
+      (a, b) => b.independenceScore - a.independenceScore,
     );
 
     // ツリーを構築
@@ -3345,7 +3641,7 @@ app.get(
           canRunParallel: task.canRunParallel,
           level: 0,
           children: [],
-          dependsOn: task.dependencies.map(d => ({
+          dependsOn: task.dependencies.map((d) => ({
             id: d.taskId,
             title: d.title,
             sharedFiles: d.sharedFiles,
@@ -3355,7 +3651,7 @@ app.get(
         // 依存しているタスクを子として追加
         for (const dep of task.dependencies) {
           if (!processed.has(dep.taskId)) {
-            const depTask = sortedTasks.find(t => t.taskId === dep.taskId);
+            const depTask = sortedTasks.find((t) => t.taskId === dep.taskId);
             if (depTask) {
               node.children.push({
                 id: depTask.taskId,
@@ -3365,7 +3661,7 @@ app.get(
                 canRunParallel: depTask.canRunParallel,
                 level: 1,
                 children: [],
-                dependsOn: depTask.dependencies.map(d => ({
+                dependsOn: depTask.dependencies.map((d) => ({
                   id: d.taskId,
                   title: d.title,
                   sharedFiles: d.sharedFiles,
@@ -3392,13 +3688,13 @@ app.get(
       canRunTogether: boolean;
     }> = [];
 
-    const independentTasks = dependencyAnalysis.filter(t => t.canRunParallel);
-    const dependentTasks = dependencyAnalysis.filter(t => !t.canRunParallel);
+    const independentTasks = dependencyAnalysis.filter((t) => t.canRunParallel);
+    const dependentTasks = dependencyAnalysis.filter((t) => !t.canRunParallel);
 
     if (independentTasks.length > 0) {
       parallelGroups.push({
         groupId: 1,
-        tasks: independentTasks.map(t => ({ id: t.taskId, title: t.title })),
+        tasks: independentTasks.map((t) => ({ id: t.taskId, title: t.title })),
         canRunTogether: true,
       });
     }
@@ -3406,7 +3702,7 @@ app.get(
     if (dependentTasks.length > 0) {
       parallelGroups.push({
         groupId: 2,
-        tasks: dependentTasks.map(t => ({ id: t.taskId, title: t.title })),
+        tasks: dependentTasks.map((t) => ({ id: t.taskId, title: t.title })),
         canRunTogether: false,
       });
     }
@@ -3423,13 +3719,366 @@ app.get(
         totalTasks: subtaskFiles.length,
         independentTasks: independentTasks.length,
         dependentTasks: dependentTasks.length,
-        totalFiles: new Set(subtaskFiles.flatMap(t => t.files)).size,
+        totalFiles: new Set(subtaskFiles.flatMap((t) => t.files)).size,
         averageIndependence: Math.round(
           dependencyAnalysis.reduce((sum, t) => sum + t.independenceScore, 0) /
-          dependencyAnalysis.length || 0
+            dependencyAnalysis.length || 0,
         ),
       },
     };
+  },
+);
+
+// SSE対応の依存度分析API
+app.get(
+  "/tasks/:id/dependency-analysis/stream",
+  async ({ params, set }: { params: { id: string }; set: any }) => {
+    const taskIdNum = parseInt(params.id);
+
+    // SSEヘッダーを設定
+    set.headers = {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Access-Control-Allow-Origin": "*",
+    };
+
+    // SSEストリームコントローラーを作成
+    const sseController = new SSEStreamController({
+      maxRetries: 3,
+      initialDelay: 1000,
+      maxDelay: 5000,
+      backoffMultiplier: 2,
+    });
+
+    const stream = sseController.createStream();
+
+    // 非同期で分析を実行
+    (async () => {
+      try {
+        sseController.sendStart({ taskId: taskIdNum });
+
+        // 初期状態を保存（ロールバック用）
+        sseController.saveState({ taskId: taskIdNum, status: "pending" });
+
+        // タスクを取得（リトライ対応）
+        sseController.sendProgress(10, "タスク情報を取得中...");
+
+        const task = await sseController.executeWithRetry(async () => {
+          const result = await prisma.task.findUnique({
+            where: { id: taskIdNum },
+            include: {
+              subtasks: {
+                include: {
+                  prompts: true,
+                },
+              },
+              prompts: true,
+            },
+          });
+          if (!result) {
+            throw new Error("タスクが見つかりません");
+          }
+          return result;
+        });
+
+        sseController.sendProgress(30, "ファイル情報を抽出中...");
+
+        // ファイルパスを抽出する関数
+        const extractFilePaths = (text: string | null): string[] => {
+          if (!text) return [];
+          const patterns = [
+            /(?:^|\s|["'`])([\/][\w\-\.\/]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
+            /(?:^|\s|["'`])([A-Za-z]:[\\\/][\w\-\.\\\/]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
+            /(?:^|\s|["'`])(\.{0,2}[\/\\][\w\-\.\/\\]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
+            /(?:^|\s|["'`])((?:src|lib|app|components|pages|features?|services?|utils?|hooks?|types?|api|routes?)[\w\-\.\/\\]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
+          ];
+          const files = new Set<string>();
+          for (const pattern of patterns) {
+            let match;
+            while ((match = pattern.exec(text)) !== null) {
+              const filePath = match[1]
+                .replace(/\\/g, "/")
+                .replace(/^\.\//, "")
+                .toLowerCase();
+              if (/\.[a-zA-Z]{1,10}$/.test(filePath)) {
+                files.add(filePath);
+              }
+            }
+          }
+          return Array.from(files);
+        };
+
+        const getFileName = (path: string): string => {
+          const parts = path.split("/");
+          return parts[parts.length - 1];
+        };
+
+        type SubtaskFileInfo = {
+          id: number;
+          title: string;
+          files: string[];
+          fileNames: string[];
+        };
+        const subtaskFiles: SubtaskFileInfo[] = [];
+
+        // サブタスクのファイル情報を収集
+        if (task.subtasks.length === 0) {
+          const parentFiles: string[] = [];
+          for (const prompt of task.prompts) {
+            parentFiles.push(...extractFilePaths(prompt.optimizedPrompt));
+            parentFiles.push(...extractFilePaths(prompt.originalDescription));
+          }
+          parentFiles.push(...extractFilePaths(task.description));
+          const uniqueFiles = Array.from(new Set(parentFiles));
+          subtaskFiles.push({
+            id: task.id,
+            title: task.title,
+            files: uniqueFiles,
+            fileNames: uniqueFiles.map(getFileName),
+          });
+        } else {
+          for (let i = 0; i < task.subtasks.length; i++) {
+            const subtask = task.subtasks[i];
+            const files: string[] = [];
+            for (const prompt of subtask.prompts) {
+              files.push(...extractFilePaths(prompt.optimizedPrompt));
+              files.push(...extractFilePaths(prompt.originalDescription));
+            }
+            files.push(...extractFilePaths(subtask.description));
+            const uniqueFiles = Array.from(new Set(files));
+            subtaskFiles.push({
+              id: subtask.id,
+              title: subtask.title,
+              files: uniqueFiles,
+              fileNames: uniqueFiles.map(getFileName),
+            });
+
+            // 進捗を送信
+            const progress = 30 + Math.round((i / task.subtasks.length) * 30);
+            sseController.sendProgress(
+              progress,
+              `サブタスク ${i + 1}/${task.subtasks.length} を分析中...`,
+            );
+          }
+        }
+
+        sseController.sendProgress(60, "依存関係を分析中...");
+
+        // 依存度を計算
+        type DependencyInfo = {
+          taskId: number;
+          title: string;
+          files: string[];
+          dependencies: Array<{
+            taskId: number;
+            title: string;
+            sharedFiles: string[];
+            dependencyScore: number;
+          }>;
+          independenceScore: number;
+          canRunParallel: boolean;
+        };
+
+        const dependencyAnalysis: DependencyInfo[] = [];
+
+        for (const current of subtaskFiles) {
+          const dependencies: DependencyInfo["dependencies"] = [];
+          for (const other of subtaskFiles) {
+            if (current.id === other.id) continue;
+            const sharedFiles = current.fileNames.filter((fn) =>
+              other.fileNames.includes(fn),
+            );
+            if (sharedFiles.length > 0) {
+              const score =
+                current.files.length > 0
+                  ? Math.round(
+                      (sharedFiles.length / current.files.length) * 100,
+                    )
+                  : 0;
+              dependencies.push({
+                taskId: other.id,
+                title: other.title,
+                sharedFiles,
+                dependencyScore: score,
+              });
+            }
+          }
+          const totalSharedFiles = new Set(
+            dependencies.flatMap((d) => d.sharedFiles),
+          ).size;
+          const independenceScore =
+            current.files.length > 0
+              ? Math.round(
+                  ((current.files.length - totalSharedFiles) /
+                    current.files.length) *
+                    100,
+                )
+              : 100;
+          dependencyAnalysis.push({
+            taskId: current.id,
+            title: current.title,
+            files: current.files,
+            dependencies: dependencies.sort(
+              (a, b) => b.dependencyScore - a.dependencyScore,
+            ),
+            independenceScore,
+            canRunParallel:
+              dependencies.length === 0 || independenceScore >= 70,
+          });
+        }
+
+        sseController.sendProgress(80, "ツリー構造を生成中...");
+
+        // ツリー構造を生成
+        type TreeNode = {
+          id: number;
+          title: string;
+          files: string[];
+          independenceScore: number;
+          canRunParallel: boolean;
+          level: number;
+          children: TreeNode[];
+          dependsOn: Array<{
+            id: number;
+            title: string;
+            sharedFiles: string[];
+          }>;
+        };
+
+        const sortedTasks = [...dependencyAnalysis].sort(
+          (a, b) => b.independenceScore - a.independenceScore,
+        );
+
+        const buildTree = (): TreeNode[] => {
+          const nodes: TreeNode[] = [];
+          const processed = new Set<number>();
+          for (const t of sortedTasks) {
+            if (processed.has(t.taskId)) continue;
+            const node: TreeNode = {
+              id: t.taskId,
+              title: t.title,
+              files: t.files,
+              independenceScore: t.independenceScore,
+              canRunParallel: t.canRunParallel,
+              level: 0,
+              children: [],
+              dependsOn: t.dependencies.map((d) => ({
+                id: d.taskId,
+                title: d.title,
+                sharedFiles: d.sharedFiles,
+              })),
+            };
+            for (const dep of t.dependencies) {
+              if (!processed.has(dep.taskId)) {
+                const depTask = sortedTasks.find(
+                  (st) => st.taskId === dep.taskId,
+                );
+                if (depTask) {
+                  node.children.push({
+                    id: depTask.taskId,
+                    title: depTask.title,
+                    files: depTask.files,
+                    independenceScore: depTask.independenceScore,
+                    canRunParallel: depTask.canRunParallel,
+                    level: 1,
+                    children: [],
+                    dependsOn: depTask.dependencies.map((d) => ({
+                      id: d.taskId,
+                      title: d.title,
+                      sharedFiles: d.sharedFiles,
+                    })),
+                  });
+                  processed.add(depTask.taskId);
+                }
+              }
+            }
+            nodes.push(node);
+            processed.add(t.taskId);
+          }
+          return nodes;
+        };
+
+        const tree = buildTree();
+
+        sseController.sendProgress(90, "結果をまとめています...");
+
+        // 並列実行グループを作成
+        const independentTasks = dependencyAnalysis.filter(
+          (t) => t.canRunParallel,
+        );
+        const dependentTasks = dependencyAnalysis.filter(
+          (t) => !t.canRunParallel,
+        );
+
+        const parallelGroups: Array<{
+          groupId: number;
+          tasks: Array<{ id: number; title: string }>;
+          canRunTogether: boolean;
+        }> = [];
+        if (independentTasks.length > 0) {
+          parallelGroups.push({
+            groupId: 1,
+            tasks: independentTasks.map((t) => ({
+              id: t.taskId,
+              title: t.title,
+            })),
+            canRunTogether: true,
+          });
+        }
+        if (dependentTasks.length > 0) {
+          parallelGroups.push({
+            groupId: 2,
+            tasks: dependentTasks.map((t) => ({
+              id: t.taskId,
+              title: t.title,
+            })),
+            canRunTogether: false,
+          });
+        }
+
+        // 最終結果を送信
+        sseController.sendData({
+          taskId: task.id,
+          taskTitle: task.title,
+          hasSubtasks: task.subtasks.length > 0,
+          subtaskCount: task.subtasks.length,
+          analysis: dependencyAnalysis,
+          tree,
+          parallelGroups,
+          summary: {
+            totalTasks: subtaskFiles.length,
+            independentTasks: independentTasks.length,
+            dependentTasks: dependentTasks.length,
+            totalFiles: new Set(subtaskFiles.flatMap((t) => t.files)).size,
+            averageIndependence: Math.round(
+              dependencyAnalysis.reduce(
+                (sum, t) => sum + t.independenceScore,
+                0,
+              ) / (dependencyAnalysis.length || 1),
+            ),
+          },
+        });
+
+        sseController.sendComplete({ success: true });
+      } catch (error) {
+        const errorMessage = getUserFriendlyErrorMessage(error);
+        sseController.sendError(errorMessage, {
+          originalError: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        sseController.close();
+      }
+    })();
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
   },
 );
 
@@ -4461,14 +5110,19 @@ app.get("/settings", async () => {
 // 設定更新
 app.patch(
   "/settings",
-  async ({ body }: { body: { developerModeDefault?: boolean } }) => {
-    const { developerModeDefault } = body;
+  async ({
+    body,
+  }: {
+    body: { developerModeDefault?: boolean; aiTaskAnalysisDefault?: boolean };
+  }) => {
+    const { developerModeDefault, aiTaskAnalysisDefault } = body;
 
     let settings = await prisma.userSettings.findFirst();
     if (!settings) {
       settings = await prisma.userSettings.create({
         data: {
           developerModeDefault: developerModeDefault ?? false,
+          aiTaskAnalysisDefault: aiTaskAnalysisDefault ?? false,
         },
       });
     } else {
@@ -4476,6 +5130,7 @@ app.patch(
         where: { id: settings.id },
         data: {
           ...(developerModeDefault !== undefined && { developerModeDefault }),
+          ...(aiTaskAnalysisDefault !== undefined && { aiTaskAnalysisDefault }),
         },
       });
     }
@@ -4519,7 +5174,10 @@ app.post(
     const settings = await prisma.userSettings.findFirst();
     if (!settings?.claudeApiKeyEncrypted) {
       set.status = 400;
-      return { error: "APIキーが設定されていません。設定画面でClaude APIキーを設定してください。" };
+      return {
+        error:
+          "APIキーが設定されていません。設定画面でClaude APIキーを設定してください。",
+      };
     }
 
     let apiKey: string;
@@ -4564,7 +5222,7 @@ app.post(
       set.status = 500;
       return { error: error.message || "AIとの通信中にエラーが発生しました" };
     }
-  }
+  },
 );
 
 // AIチャット（ストリーミング）
@@ -4592,7 +5250,10 @@ app.post(
     const settings = await prisma.userSettings.findFirst();
     if (!settings?.claudeApiKeyEncrypted) {
       set.status = 400;
-      return { error: "APIキーが設定されていません。設定画面でClaude APIキーを設定してください。" };
+      return {
+        error:
+          "APIキーが設定されていません。設定画面でClaude APIキーを設定してください。",
+      };
     }
 
     let apiKey: string;
@@ -4643,7 +5304,7 @@ app.post(
               ) {
                 const data = JSON.stringify({ content: event.delta.text });
                 controller.enqueue(
-                  new TextEncoder().encode(`data: ${data}\n\n`)
+                  new TextEncoder().encode(`data: ${data}\n\n`),
                 );
               }
             }
@@ -4656,7 +5317,7 @@ app.post(
               error: error.message || "AIとの通信中にエラーが発生しました",
             });
             controller.enqueue(
-              new TextEncoder().encode(`data: ${errorData}\n\n`)
+              new TextEncoder().encode(`data: ${errorData}\n\n`),
             );
             controller.close();
           }
@@ -4669,9 +5330,9 @@ app.post(
           Connection: "keep-alive",
           "Access-Control-Allow-Origin": "*",
         },
-      }
+      },
     );
-  }
+  },
 );
 
 // APIキーの保存（暗号化）
@@ -5952,7 +6613,9 @@ app.post(
 
       if (latestAnalysisAction?.output) {
         try {
-          const analysisOutput = fromJsonString<any>(latestAnalysisAction.output);
+          const analysisOutput = fromJsonString<any>(
+            latestAnalysisAction.output,
+          );
           if (analysisOutput?.summary && analysisOutput?.suggestedSubtasks) {
             analysisInfo = {
               summary: analysisOutput.summary,
@@ -6063,7 +6726,10 @@ app.post(
                 title: "エージェント実行完了（変更なし）",
                 message: `「${task.title}」の実行が完了しましたが、コード変更はありませんでした。`,
                 link: `/tasks/${taskIdNum}`,
-                metadata: toJsonString({ sessionId: session.id, taskId: taskIdNum }),
+                metadata: toJsonString({
+                  sessionId: session.id,
+                  taskId: taskIdNum,
+                }),
               },
             });
           }
@@ -6075,7 +6741,10 @@ app.post(
               title: "エージェント実行失敗",
               message: `「${task.title}」の自動実行が失敗しました: ${result.errorMessage}`,
               link: `/tasks/${taskIdNum}`,
-              metadata: toJsonString({ sessionId: session.id, taskId: taskIdNum }),
+              metadata: toJsonString({
+                sessionId: session.id,
+                taskId: taskIdNum,
+              }),
             },
           });
         }
@@ -6272,61 +6941,66 @@ app.get("/agents/diagnose", async () => {
 app.get(
   "/tasks/:id/execution-status",
   async ({ params }: { params: { id: string } }) => {
-    const taskId = parseInt(params.id);
+    try {
+      const taskId = parseInt(params.id);
 
-    // 最新のセッションと実行を取得
-    const config = await prisma.developerModeConfig.findUnique({
-      where: { taskId },
-      include: {
-        agentSessions: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          include: {
-            agentExecutions: {
-              orderBy: { createdAt: "desc" },
-              take: 1,
+      // 最新のセッションと実行を取得
+      const config = await prisma.developerModeConfig.findUnique({
+        where: { taskId },
+        include: {
+          agentSessions: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            include: {
+              agentExecutions: {
+                orderBy: { createdAt: "desc" },
+                take: 1,
+              },
             },
           },
         },
-      },
-    });
+      });
 
-    if (!config || !config.agentSessions[0]) {
-      return { status: "none", message: "実行履歴がありません" };
-    }
+      if (!config || !config.agentSessions[0]) {
+        return { status: "none", message: "実行履歴がありません" };
+      }
 
-    const latestSession = config.agentSessions[0];
-    const latestExecution = latestSession.agentExecutions[0];
+      const latestSession = config.agentSessions[0];
+      const latestExecution = latestSession.agentExecutions[0];
 
-    // 質問待ち状態の情報
-    const isWaitingForInput = latestExecution?.status === "waiting_for_input";
-    const questionText = (latestExecution as any)?.question || null;
-    // DBからquestionTypeを取得（保存されていない場合はパターンマッチングにフォールバック）
-    let questionType: "tool_call" | "pattern_match" | "none" =
-      ((latestExecution as any)?.questionType as
-        | "tool_call"
-        | "pattern_match"
-        | "none") || "none";
-
-    // questionTypeがDBに保存されていない場合のフォールバック（後方互換性）
-    if (isWaitingForInput && questionText && questionType === "none") {
-      questionType = "pattern_match";
-    }
-
-    return {
-      sessionId: latestSession.id,
-      sessionStatus: latestSession.status,
-      executionId: latestExecution?.id,
-      executionStatus: latestExecution?.status,
-      output: latestExecution?.output,
-      errorMessage: latestExecution?.errorMessage,
-      startedAt: latestExecution?.startedAt,
-      completedAt: latestExecution?.completedAt,
       // 質問待ち状態の情報
-      waitingForInput: isWaitingForInput,
-      question: questionText,
-      questionType, // 質問の検出方法（tool_call, pattern_match, none）
-    };
+      const isWaitingForInput = latestExecution?.status === "waiting_for_input";
+      const questionText = (latestExecution as any)?.question || null;
+      // DBからquestionTypeを取得（保存されていない場合はパターンマッチングにフォールバック）
+      let questionType: "tool_call" | "pattern_match" | "none" =
+        ((latestExecution as any)?.questionType as
+          | "tool_call"
+          | "pattern_match"
+          | "none") || "none";
+
+      // questionTypeがDBに保存されていない場合のフォールバック（後方互換性）
+      if (isWaitingForInput && questionText && questionType === "none") {
+        questionType = "pattern_match";
+      }
+
+      return {
+        sessionId: latestSession.id,
+        sessionStatus: latestSession.status,
+        executionId: latestExecution?.id,
+        executionStatus: latestExecution?.status,
+        output: latestExecution?.output,
+        errorMessage: latestExecution?.errorMessage,
+        startedAt: latestExecution?.startedAt,
+        completedAt: latestExecution?.completedAt,
+        // 質問待ち状態の情報
+        waitingForInput: isWaitingForInput,
+        question: questionText,
+        questionType, // 質問の検出方法（tool_call, pattern_match, none）
+      };
+    } catch (error) {
+      console.error("[execution-status] Error fetching status:", error);
+      return { status: "error", message: "状態の取得中にエラーが発生しました" };
+    }
   },
 );
 
