@@ -352,7 +352,7 @@ export default function Header() {
               >
                 <Link
                   href={item.href}
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={() => !isMenuPinned && setIsMenuOpen(false)}
                   className={`flex-1 flex items-center gap-3 ${
                     active
                       ? "text-indigo-700 dark:text-indigo-300 font-semibold"
@@ -428,7 +428,7 @@ export default function Header() {
         <Link
           key={item.href}
           href={item.href}
-          onClick={() => setIsMenuOpen(false)}
+          onClick={() => !isMenuPinned && setIsMenuOpen(false)}
           className={`flex items-center justify-between gap-3 px-4 py-3 rounded-md transition-all ${
             active
               ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-semibold border-l-2 border-indigo-500"
@@ -468,7 +468,7 @@ export default function Header() {
                 >
                   <Link
                     href={item.href}
-                    onClick={() => setIsMenuOpen(false)}
+                    onClick={() => !isMenuPinned && setIsMenuOpen(false)}
                     className={`flex-1 flex items-center gap-2.5 ${
                       active
                         ? "text-indigo-700 dark:text-indigo-300 font-semibold"
@@ -542,7 +542,7 @@ export default function Header() {
         <div className="absolute left-0 top-1/2 w-4 h-px bg-zinc-300 dark:bg-zinc-600" />
         <Link
           href={item.href}
-          onClick={() => setIsMenuOpen(false)}
+          onClick={() => !isMenuPinned && setIsMenuOpen(false)}
           className={`ml-5 flex items-center gap-2.5 px-3 py-1.5 rounded-md transition-all ${
             active
               ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-semibold border-l-2 border-indigo-500"
@@ -712,7 +712,9 @@ export default function Header() {
           <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
             <button
               onClick={() => {
-                setIsMenuOpen(false);
+                if (!isMenuPinned) {
+                  setIsMenuOpen(false);
+                }
                 window.dispatchEvent(new CustomEvent(OPEN_SHORTCUTS_EVENT));
               }}
               className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"

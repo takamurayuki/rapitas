@@ -111,7 +111,7 @@ export default function KanbanPage() {
     tasks.filter((t) => t.status === status && !t.parentId);
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
+    <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black scrollbar-thin">
       <div className="mx-auto max-w-7xl px-4 py-8">
         {loading && tasks.length === 0 ? (
           <div className="text-center py-12 text-zinc-500 dark:text-zinc-400">

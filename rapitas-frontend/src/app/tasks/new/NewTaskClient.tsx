@@ -241,7 +241,7 @@ export default function NewTaskClient() {
   ];
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-blue-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-blue-950/20">
+    <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-slate-50 via-white to-blue-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-blue-950/20 scrollbar-thin">
       {/* Header */}
       <div className="max-w-2xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between">

@@ -91,7 +91,8 @@ export default function PullRequestsClient() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black scrollbar-thin">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* ヘッダー */}
       <div className="flex items-center gap-4 mb-6">
         <Link
@@ -208,6 +209,7 @@ export default function PullRequestsClient() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

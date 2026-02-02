@@ -593,7 +593,7 @@ export default function TaskDetailClient({
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 flex items-center justify-center">
+      <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 flex items-center justify-center scrollbar-thin">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-zinc-500 dark:text-zinc-400 text-sm">
@@ -607,7 +607,7 @@ export default function TaskDetailClient({
   // Error state
   if (error || !task) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 flex items-center justify-center">
+      <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 flex items-center justify-center scrollbar-thin">
         <div className="text-center bg-white dark:bg-zinc-900 rounded-2xl p-8 shadow-xl border border-zinc-200 dark:border-zinc-800">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
             <span className="text-3xl">!</span>
@@ -627,7 +627,7 @@ export default function TaskDetailClient({
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-zinc-50 via-white to-violet-50/30 dark:from-zinc-950 dark:via-zinc-900 dark:to-violet-950/10">
+    <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-zinc-50 via-white to-violet-50/30 dark:from-zinc-950 dark:via-zinc-900 dark:to-violet-950/10 scrollbar-thin">
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header Actions */}
         <div className="mb-6 flex items-center justify-end gap-2">
