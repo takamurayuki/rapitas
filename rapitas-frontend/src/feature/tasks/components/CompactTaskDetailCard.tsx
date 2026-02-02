@@ -37,6 +37,8 @@ interface CompactTaskDetailCardProps {
   devModeConfig?: DeveloperModeConfig | null;
   devModeLoading?: boolean;
   onToggleDeveloperMode?: () => void;
+  // 開発プロジェクトが設定されているかどうか（テーマのisDevelopmentフラグ）
+  isDevelopmentProject?: boolean;
 }
 
 export default function CompactTaskDetailCard({
@@ -48,10 +50,13 @@ export default function CompactTaskDetailCard({
   devModeConfig,
   devModeLoading = false,
   onToggleDeveloperMode,
+  isDevelopmentProject = false,
 }: CompactTaskDetailCardProps) {
   const hasMetaInfo =
     (task.taskLabels && task.taskLabels.length > 0) || task.estimatedHours;
-  const hasAIFeatures = onToggleTaskAnalysis || onToggleDeveloperMode;
+  // 開発プロジェクト設定時のみ開発者モードボタンを表示対象にする
+  const showDeveloperModeToggle = isDevelopmentProject && onToggleDeveloperMode;
+  const hasAIFeatures = onToggleTaskAnalysis || showDeveloperModeToggle;
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
@@ -215,7 +220,7 @@ export default function CompactTaskDetailCard({
                         onToggle={onToggleTaskAnalysis}
                       />
                     )}
-                    {onToggleDeveloperMode && (
+                    {showDeveloperModeToggle && (
                       <ToggleButton
                         label="開発者モード"
                         description="AIエージェントによる自動実行機能を有効化"

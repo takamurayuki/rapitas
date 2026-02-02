@@ -2,6 +2,7 @@
 /**
  * 開発モード用スクリプト
  * フロントエンドとバックエンドを並行して起動
+ * 開発時はNext.js開発サーバー(localhost:3000)のホットリロードを使用
  *
  * オプション:
  *   --watch    バックエンドのホットリロードを有効化（デフォルト: 無効）
@@ -45,6 +46,17 @@ if (!fs.existsSync(dummyBinaryPath)) {
   console.log('Creating dummy sidecar binary for development...');
   fs.writeFileSync(dummyBinaryPath, '');
   console.log(`Created: ${dummyBinaryPath}`);
+}
+
+// 開発モード用にダミーの.next-tauriディレクトリを作成（Tauriがパスを検証するため）
+// 実際の開発ではdevUrl (localhost:3000) を使用するが、TauriはfrontendDistの存在を確認する
+const NEXT_TAURI_DIR = path.join(FRONTEND_DIR, '.next-tauri');
+if (!fs.existsSync(NEXT_TAURI_DIR)) {
+  console.log('Creating dummy .next-tauri directory for development...');
+  fs.mkdirSync(NEXT_TAURI_DIR, { recursive: true });
+  // Tauriがindex.htmlの存在も確認する場合に備えてダミーファイルを作成
+  fs.writeFileSync(path.join(NEXT_TAURI_DIR, 'index.html'), '<!-- Dummy file for Tauri dev mode -->');
+  console.log(`Created: ${NEXT_TAURI_DIR}`);
 }
 
 // SQLiteデータベースのパスを設定
@@ -117,18 +129,13 @@ if (dbExists && !schemaChanged) {
     execSync(process.platform === 'win32' ? 'ping -n 2 127.0.0.1 >nul' : 'sleep 1', { shell: true, stdio: 'ignore' });
   } catch (err) {}
 
-  console.log('Setting up SQLite database...');
+  console.log('Updating SQLite database schema...');
   console.log(`SQLite database path: ${dbPath}`);
 
   try {
-    // スキーマが変更された場合、既存のデータベースを削除
-    if (schemaChanged && dbExists) {
-      console.log('Schema changed, recreating database...');
-      fs.unlinkSync(dbPath);
-    }
-
-    // SQLiteデータベースにテーブルを作成
-    console.log('Pushing schema to SQLite database...');
+    // prisma db push はデータを保持しながらスキーマを更新する
+    // 破壊的な変更がある場合のみデータ損失が発生する可能性がある
+    console.log('Pushing schema to SQLite database (preserving data)...');
     execSync('bunx prisma db push --skip-generate', {
       cwd: BACKEND_DIR,
       stdio: 'inherit',
@@ -140,9 +147,14 @@ if (dbExists && !schemaChanged) {
 
     // スキーマハッシュを保存
     saveSchemaHash();
-    console.log('Database setup complete!');
+    console.log('Database schema update complete!');
   } catch (err) {
-    console.error('Failed to setup database:', err.message);
+    // prisma db push が失敗した場合（破壊的な変更など）
+    console.error('Schema update failed:', err.message);
+    console.log('\n⚠️  スキーマの更新に失敗しました。');
+    console.log('破壊的な変更（カラム削除など）がある場合は、以下のコマンドでDBをリセットできます:');
+    console.log(`  rm "${dbPath}"`);
+    console.log('  その後、再度このスクリプトを実行してください。\n');
     process.exit(1);
   }
 }
@@ -170,6 +182,11 @@ const frontend = spawn('pnpm', ['run', 'dev'], {
   stdio: 'inherit',
   shell: true
 });
+
+// 開発モードではNext.js開発サーバー(localhost:3000)を使用
+// .next-tauriは本番ビルド時のみ使用されるため、ここではビルドしない
+console.log('\n🖥️  Development mode: using Next.js dev server at http://localhost:3000');
+console.log('ℹ️  Changes will be reflected via hot reload (no rebuild needed)');
 
 // プロセス終了時のクリーンアップ
 process.on('SIGINT', () => {

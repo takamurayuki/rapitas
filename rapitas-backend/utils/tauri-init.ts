@@ -7,7 +7,8 @@ import * as path from "path";
 import { PrismaClient } from "@prisma/client";
 import { execSync } from "child_process";
 
-export const isTauriBuild = process.env.TAURI_BUILD === "true" || process.env.RAPITAS_SQLITE === "true";
+export const isTauriBuild =
+  process.env.TAURI_BUILD === "true" || process.env.RAPITAS_SQLITE === "true";
 
 /**
  * Get the database path for SQLite
@@ -35,7 +36,10 @@ export function getDatabaseUrl(): string {
     return `file:${dbPath}`;
   }
   // Web mode: use PostgreSQL from .env
-  return process.env.DATABASE_URL || "postgresql://user:password@localhost:5432/rapitas";
+  return (
+    process.env.DATABASE_URL ||
+    "postgresql://user:password@localhost:5432/rapitas"
+  );
 }
 
 /**
@@ -56,7 +60,9 @@ export function initTauriEnvironment(): void {
 
   // Check if database exists
   if (!fs.existsSync(dbPath)) {
-    console.log("[Tauri Init] Database does not exist, will be created on first access");
+    console.log(
+      "[Tauri Init] Database does not exist, will be created on first access",
+    );
   }
 }
 
@@ -95,7 +101,6 @@ export async function initializeDatabase(prisma: PrismaClient): Promise<void> {
 
     // Create tables if they don't exist (for compiled binary)
     await createTablesIfNeeded(prisma);
-
   } catch (error) {
     console.error("[Tauri Init] Failed to initialize database:", error);
     throw error;
@@ -108,11 +113,13 @@ export async function initializeDatabase(prisma: PrismaClient): Promise<void> {
 async function createTablesIfNeeded(prisma: PrismaClient): Promise<void> {
   try {
     // Check if Theme table exists by trying to query it
-    await prisma.$queryRawUnsafe(`SELECT name FROM sqlite_master WHERE type='table' AND name='Theme'`);
+    await prisma.$queryRawUnsafe(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='Theme'`,
+    );
 
     // If we get here without error, check if tables exist
     const tables: any[] = await prisma.$queryRawUnsafe(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_prisma_%'`
+      `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_prisma_%'`,
     );
 
     if (tables.length === 0) {

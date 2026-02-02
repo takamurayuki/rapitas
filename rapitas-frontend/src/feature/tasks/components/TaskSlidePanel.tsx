@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useMemo } from "react";
+import { useEffect, useState } from "react";
+import TaskDetailClient from "@/app/tasks/[id]/TaskDetailClient";
 
 interface TaskSlidePanelProps {
   taskId: number | null;
@@ -8,26 +9,24 @@ interface TaskSlidePanelProps {
   onTaskUpdated?: () => void;
 }
 
+// Tauri環境かどうかを判定
+const isTauri = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return "__TAURI__" in window || "__TAURI_INTERNALS__" in window;
+};
+
 export default function TaskSlidePanel({
   taskId,
   isOpen,
   onClose,
   onTaskUpdated,
 }: TaskSlidePanelProps) {
-  // iframeのURLを構築（Tauri開発時はlocalhost絶対URL、それ以外は相対パス）
-  const iframeSrc = useMemo(() => {
-    if (!taskId) return "";
+  const [isTauriEnv, setIsTauriEnv] = useState(false);
 
-    // Tauri環境かどうかを検出
-    const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
-
-    if (isTauri && process.env.NODE_ENV === 'development') {
-      // Tauri開発モードでは絶対URLを使用
-      return `http://localhost:3000/tasks/${taskId}?hideHeader=true`;
-    }
-    // 通常のWeb環境では相対パス
-    return `/tasks/${taskId}?hideHeader=true`;
-  }, [taskId]);
+  // クライアントサイドでTauri環境を判定
+  useEffect(() => {
+    setIsTauriEnv(isTauri());
+  }, []);
 
   // Escキーで閉じる
   useEffect(() => {
@@ -51,6 +50,19 @@ export default function TaskSlidePanel({
       document.body.style.overflow = "unset";
     };
   }, [isOpen]);
+
+  // Tauri環境でiframe更新後にonTaskUpdatedを呼び出す
+  useEffect(() => {
+    if (!isTauriEnv || !isOpen || !taskId) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "task-updated") {
+        onTaskUpdated?.();
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [isTauriEnv, isOpen, taskId, onTaskUpdated]);
 
   if (!isOpen || !taskId) return null;
 
@@ -99,14 +111,11 @@ export default function TaskSlidePanel({
         </div>
 
         {/* コンテンツ */}
-        <div className="h-[calc(100%-72px)] overflow-y-auto relative pointer-events-none">
+        <div className="h-[calc(100%-72px)] overflow-y-auto">
           <iframe
-            src={iframeSrc}
-            className="w-full h-full border-0 pointer-events-auto"
+            src={`/task-detail?id=${taskId}`}
+            className="w-full h-full border-none"
             title="タスク詳細"
-            onLoad={() => {
-              if (onTaskUpdated) onTaskUpdated();
-            }}
           />
         </div>
       </div>

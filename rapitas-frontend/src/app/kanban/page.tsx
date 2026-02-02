@@ -13,6 +13,7 @@ import {
 import TaskSlidePanel from "@/feature/tasks/components/TaskSlidePanel";
 import { getLabelsArray, hasLabels } from "@/utils/labels";
 import { useTaskDetailVisibilityStore } from "@/stores/taskDetailVisibilityStore";
+import { getTaskDetailPath } from "@/utils/tauri";
 
 type Task = {
   id: number;
@@ -171,7 +172,7 @@ export default function KanbanPage() {
                                       {task.title}
                                     </h3>
                                     <a
-                                      href={`/tasks/${task.id}?hideHeader=true`}
+                                      href={`${getTaskDetailPath(task.id)}${getTaskDetailPath(task.id).includes("?") ? "&" : "?"}hideHeader=true`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300 transition-colors"

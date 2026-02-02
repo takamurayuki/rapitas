@@ -2,12 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { getLabelsArray } from "@/utils/labels";
-import type {
-  Task,
-  TimeEntry,
-  Comment,
-  UserSettings,
-} from "@/types";
+import type { Task, TimeEntry, Comment, UserSettings } from "@/types";
 import LabelSelector from "@/feature/tasks/components/LabelSelector";
 import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
 import {
@@ -37,6 +32,7 @@ import {
   X,
   FileStack,
 } from "lucide-react";
+import { getTaskDetailPath } from "@/utils/tauri";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import PomodoroTimer from "@/feature/tasks/components/PomodoroTimer";
@@ -78,7 +74,17 @@ const PROGRAMMING_LANGUAGES = [
   { value: "plaintext", label: "Plain Text" },
 ];
 
-export default function TaskDetailClient() {
+interface TaskDetailClientProps {
+  taskId?: number;
+  onTaskUpdated?: () => void;
+  onClose?: () => void;
+}
+
+export default function TaskDetailClient({
+  taskId: propTaskId,
+  onTaskUpdated,
+  onClose,
+}: TaskDetailClientProps = {}) {
   const params = useParams();
   const router = useRouter();
 
@@ -90,10 +96,11 @@ export default function TaskDetailClient() {
     return match ? match[1] : null;
   };
 
-  // params.idを優先し、取得できない場合はURLから直接取得
+  // propTaskIdを最優先、次にparams.id、最後にURLから直接取得
   const taskIdFromParams = params?.id as string | undefined;
   const taskIdFromUrl = getTaskIdFromUrl();
-  const resolvedTaskId = taskIdFromParams || taskIdFromUrl;
+  const resolvedTaskId =
+    propTaskId?.toString() || taskIdFromParams || taskIdFromUrl;
 
   // デバッグログ
   console.log("[TaskDetailClient] params:", params);
@@ -190,7 +197,9 @@ export default function TaskDetailClient() {
   );
 
   // グローバル設定の状態
-  const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(null);
+  const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(
+    null,
+  );
 
   // AIタスク分析モードの状態（グローバル設定から初期化）
   const [showTaskAnalysis, setShowTaskAnalysis] = useState(false);
@@ -269,12 +278,23 @@ export default function TaskDetailClient() {
   useEffect(() => {
     const autoEnableDeveloperMode = async () => {
       // グローバル設定がロードされ、開発者モードがデフォルト有効で、まだ有効化されていない場合
-      if (globalSettings?.developerModeDefault && devModeConfig === null && !devModeLoading && taskId) {
+      if (
+        globalSettings?.developerModeDefault &&
+        devModeConfig === null &&
+        !devModeLoading &&
+        taskId
+      ) {
         await enableDeveloperMode();
       }
     };
     autoEnableDeveloperMode();
-  }, [globalSettings, devModeConfig, devModeLoading, taskId, enableDeveloperMode]);
+  }, [
+    globalSettings,
+    devModeConfig,
+    devModeLoading,
+    taskId,
+    enableDeveloperMode,
+  ]);
 
   const updateStatus = async (taskId: number, newStatus: string) => {
     // 楽観的UI更新: APIレスポンスを待たずに即座にUIを更新
@@ -586,7 +606,7 @@ export default function TaskDetailClient() {
       if (!res.ok) throw new Error("複製に失敗しました");
 
       const newTask = await res.json();
-      router.push(`/tasks/${newTask.id}`);
+      router.push(getTaskDetailPath(newTask.id));
     } catch (err) {
       console.error(err);
       alert("タスクの複製に失敗しました");
@@ -701,7 +721,7 @@ export default function TaskDetailClient() {
             <>
               <Button
                 onClick={saveTask}
-                className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-blue-500 shadow-lg transition-all"
+                className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-blue-500 shadow-lg"
               >
                 <Save className="w-4 h-4" />
                 保存
@@ -822,11 +842,15 @@ export default function TaskDetailClient() {
                 devModeConfig={devModeConfig}
                 devModeLoading={devModeLoading}
                 onToggleDeveloperMode={handleToggleDeveloperMode}
+                isDevelopmentProject={task.theme?.isDevelopment === true}
               />
             </div>
 
             {/* AI アシスタント統合パネル（タスク分析 + プロンプト最適化 + エージェント実行） */}
-            {showTaskAnalysis && (
+            {/* AIタスク分析がONまたは開発者モードが有効な開発プロジェクトの場合に表示 */}
+            {(showTaskAnalysis ||
+              (devModeConfig?.isEnabled === true &&
+                task.theme?.isDevelopment === true)) && (
               <div className="mb-6">
                 <AIAccordionPanel
                   taskId={taskId}
@@ -855,7 +879,7 @@ export default function TaskDetailClient() {
                       setTask(data);
                     }
                   }}
-                  // エージェント実行関連
+                  // エージェント実行関連（開発者モードが有効なら表示）
                   showAgentPanel={
                     devModeConfig?.isEnabled === true &&
                     task.theme?.isDevelopment === true

@@ -9,7 +9,7 @@
     "dev:backend": "cd rapitas-backend && bun run dev",
     "dev:backend:simple": "cd rapitas-backend && bun run dev:simple",
     "dev:frontend": "cd rapitas-frontend && cross-env pnpm run dev",
-    "tauri": "cd rapitas-desktop && pnpm run tauri dev",
+    "tauri": "cd rapitas-desktop && pnpm run tauri dev --watch",
     "tauri:build": "cd rapitas-desktop && pnpm run tauri build",
     "build:web": "node scripts/switch-to-postgres.cjs && cd rapitas-frontend && pnpm run build",
     "install:all": "cd rapitas-backend && bun install && cd ../rapitas-frontend && pnpm install && cd ../rapitas-desktop && pnpm install",

@@ -6,6 +6,7 @@ import Link from "next/link";
 import PomodoroTimer from "@/feature/tasks/components/PomodoroTimer";
 import { usePomodoroStore } from "./pomodoroStore";
 import { TimeEntry } from "@/types";
+import { getTaskDetailPath } from "@/utils/tauri";
 
 interface GlobalPomodoroModalProps {
   isOpen: boolean;
@@ -133,7 +134,7 @@ export default function GlobalPomodoroModal({
         {/* タスク名 */}
         <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
           <Link
-            href={`/tasks/${state.taskId}`}
+            href={getTaskDetailPath(state.taskId)}
             className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5 min-w-0"
             onClick={onClose}
           >

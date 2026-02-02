@@ -69,7 +69,7 @@ export default function Button({
   fullWidth = false,
 }: Props) {
   const base =
-    "inline-flex items-center justify-center font-medium rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900";
+    "inline-flex items-center justify-center font-medium rounded-lg border";
 
   const disabledStyles =
     "disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none";
@@ -84,7 +84,7 @@ export default function Button({
         iconElement as React.ReactElement<{ className?: string }>,
         {
           className: `${iconSizeStyles[size]} ${existingClassName}`.trim(),
-        }
+        },
       );
     }
     return iconElement;

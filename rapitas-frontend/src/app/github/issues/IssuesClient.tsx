@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { GitHubIssue, GitHubIntegration } from "@/types";
 import { getLabelsArray, hasLabels } from "@/utils/labels";
+import { getTaskDetailPath } from "@/utils/tauri";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
@@ -208,7 +209,7 @@ export default function IssuesPage() {
                 <div className="flex items-center gap-2">
                   {issue.linkedTaskId ? (
                     <Link
-                      href={`/tasks/${issue.linkedTaskId}`}
+                      href={getTaskDetailPath(issue.linkedTaskId)}
                       className="flex items-center gap-1 px-3 py-1.5 text-sm text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
                     >
                       <ArrowRightCircle className="w-4 h-4" />

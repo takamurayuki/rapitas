@@ -47,11 +47,34 @@ type NavItem = {
   children?: NavItem[];
 };
 
+// パスがタスク詳細ページかどうかを判定するヘルパー関数
+const checkIsTaskDetailPage = (path: string | null): boolean => {
+  if (!path) return false;
+  return (
+    (!!path.match(/^\/tasks\/[^/]+$/) && !path.endsWith("/new")) ||
+    path.startsWith("/task-detail") ||
+    path.startsWith("/tasks/detail")
+  );
+};
+
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const hideHeader = searchParams.get("hideHeader") === "true";
+
+  // タスク詳細ページではヘッダーを非表示
+  // /tasks/[id], /task-detail, /tasks/detail のパターンに対応
+  // クライアントサイドでwindow.location.pathnameも確認（iframeでの読み込み時の対応）
+  const [isTaskDetailPage, setIsTaskDetailPage] = useState(() => checkIsTaskDetailPage(pathname));
+
+  // クライアントサイドでパスを再チェック
+  useEffect(() => {
+    const windowPath = window.location.pathname;
+    const isDetail = checkIsTaskDetailPage(pathname) || checkIsTaskDetailPage(windowPath);
+    setIsTaskDetailPage(isDetail);
+  }, [pathname]);
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isMenuPinned, setIsMenuPinned] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -130,7 +153,7 @@ export default function Header() {
     };
   }, [isMenuOpen, isMenuPinned]);
 
-  if (hideHeader) {
+  if (hideHeader || isTaskDetailPage) {
     return null;
   }
 

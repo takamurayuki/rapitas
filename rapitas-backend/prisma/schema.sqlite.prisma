@@ -24,7 +24,7 @@ model Theme {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   tasks            Task[]
-  taskTemplates    TaskTemplate[]
+  templates        TaskTemplate[]
 }
 
 model Project {

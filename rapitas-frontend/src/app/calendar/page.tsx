@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast/ToastContainer";
+import { getTaskDetailPath } from "@/utils/tauri";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
@@ -360,7 +361,7 @@ export default function CalendarPage() {
                     key={`${event.type}-${event.id}`}
                     onClick={() => {
                       if (event.type === "task") {
-                        router.push(`/tasks/${event.id}`);
+                        router.push(getTaskDetailPath(event.id));
                       }
                     }}
                     className="w-full flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors text-left"

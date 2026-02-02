@@ -20,6 +20,7 @@ import { useApprovals } from "@/feature/developer-mode/hooks/useApprovals";
 import { ExecutionReviewPanel } from "@/feature/developer-mode/components/ExecutionReviewPanel";
 import type { ApprovalRequest, Priority, FileDiff } from "@/types";
 import { priorityColors, priorityLabels } from "@/types";
+import { getTaskDetailPath } from "@/utils/tauri";
 
 export default function ApprovalsClient() {
   const searchParams = useSearchParams();
@@ -466,7 +467,7 @@ function ApprovalCard({
                 </h3>
                 {approval.config?.task && (
                   <Link
-                    href={`/tasks/${approval.config.task.id}`}
+                    href={getTaskDetailPath(approval.config.task.id)}
                     className="text-sm text-violet-600 dark:text-violet-400 hover:underline"
                   >
                     タスク: {approval.config.task.title}
@@ -702,7 +703,7 @@ function CodeReviewCard({
                 </div>
                 {approval.config?.task && (
                   <Link
-                    href={`/tasks/${approval.config.task.id}`}
+                    href={getTaskDetailPath(approval.config.task.id)}
                     className="text-sm text-violet-600 dark:text-violet-400 hover:underline"
                   >
                     タスク: {approval.config.task.title}

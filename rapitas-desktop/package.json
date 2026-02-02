@@ -7,7 +7,7 @@
     "dev:watch": "node scripts/dev.js --watch",
     "tauri": "tauri dev",
     "tauri:only": "tauri dev --no-dev-server",
-    "build": "tauri build"
+    "build": "tauri build --features custom-protocol"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
