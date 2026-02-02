@@ -1,0 +1,168 @@
+/**
+ * Labels API Routes
+ * Handles label CRUD operations and task-label associations
+ */
+import { Elysia } from "elysia";
+import { prisma } from "../config/database";
+import { labelSchema } from "../schemas/label.schema";
+import { NotFoundError, ValidationError } from "../middleware/error-handler";
+
+export const labelsRoutes = new Elysia({ prefix: "/labels" })
+  // Get all labels
+  .get("/", async () => {
+    return await prisma.label.findMany({
+      include: {
+        _count: {
+          select: { tasks: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  })
+
+  // Get label by ID
+  .get("/:id", async ({ params }: { params: { id: string } }) => {
+    const id = parseInt(params.id);
+    if (isNaN(id)) {
+      throw new ValidationError("無効なIDです");
+    }
+
+    const label = await prisma.label.findUnique({
+      where: { id },
+      include: {
+        tasks: {
+          include: {
+            task: true,
+          },
+        },
+      },
+    });
+
+    if (!label) {
+      throw new NotFoundError("ラベルが見つかりません");
+    }
+
+    return label;
+  })
+
+  // Create label
+  .post(
+    "/",
+    async ({ body }: { body: {
+      name: string;
+      description?: string;
+      color?: string;
+      icon?: string;
+    }}) => {
+      const { name, description, color, icon } = body;
+
+      return await prisma.label.create({
+        data: {
+          name,
+          ...(description && { description }),
+          ...(color && { color }),
+          ...(icon && { icon }),
+        },
+      });
+    },
+    {
+      body: labelSchema.create,
+    }
+  )
+
+  // Update label
+  .patch(
+    "/:id",
+    async ({ params, body }: {
+      params: { id: string };
+      body: {
+        name?: string;
+        description?: string;
+        color?: string;
+        icon?: string;
+      }
+    }) => {
+      const id = parseInt(params.id);
+      if (isNaN(id)) {
+        throw new ValidationError("無効なIDです");
+      }
+
+      const { name, description, color, icon } = body;
+
+      return await prisma.label.update({
+        where: { id },
+        data: {
+          ...(name && { name }),
+          ...(description !== undefined && { description }),
+          ...(color && { color }),
+          ...(icon !== undefined && { icon }),
+        },
+      });
+    },
+    {
+      body: labelSchema.update,
+    }
+  )
+
+  // Delete label
+  .delete("/:id", async ({ params }: { params: { id: string } }) => {
+    const id = parseInt(params.id);
+    if (isNaN(id)) {
+      throw new ValidationError("無効なIDです");
+    }
+
+    return await prisma.label.delete({
+      where: { id },
+    });
+  });
+
+/**
+ * Task Labels Routes
+ * Separate route group for task-label associations
+ */
+export const taskLabelsRoutes = new Elysia()
+  // Update task labels (bulk)
+  .put(
+    "/tasks/:id/labels",
+    async ({ params, body }: {
+      params: { id: string };
+      body: { labelIds: number[] }
+    }) => {
+      const taskId = parseInt(params.id);
+      if (isNaN(taskId)) {
+        throw new ValidationError("無効なタスクIDです");
+      }
+
+      const { labelIds } = body;
+
+      // Delete existing associations
+      await prisma.taskLabel.deleteMany({
+        where: { taskId },
+      });
+
+      // Create new associations
+      if (labelIds && labelIds.length > 0) {
+        await prisma.taskLabel.createMany({
+          data: labelIds.map((labelId: number) => ({
+            taskId,
+            labelId,
+          })),
+        });
+      }
+
+      // Return updated task with labels
+      return await prisma.task.findUnique({
+        where: { id: taskId },
+        include: {
+          taskLabels: {
+            include: {
+              label: true,
+            },
+          },
+        },
+      });
+    },
+    {
+      body: labelSchema.taskLabels,
+    }
+  );

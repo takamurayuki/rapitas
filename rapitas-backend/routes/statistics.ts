@@ -1,0 +1,163 @@
+/**
+ * Dashboard Statistics API Routes
+ */
+import { Elysia, t } from "elysia";
+import { prisma } from "../config/database";
+
+export const statisticsRoutes = new Elysia({ prefix: "/statistics" })
+  .get("/overview", async () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    const monthAgo = new Date(today);
+    monthAgo.setDate(monthAgo.getDate() - 30);
+
+    // タスク統計
+    const totalTasks = await prisma.task.count({ where: { parentId: null } });
+    const completedTasks = await prisma.task.count({
+      where: { parentId: null, status: "done" },
+    });
+    const todayCompleted = await prisma.task.count({
+      where: {
+        parentId: null,
+        status: "done",
+        completedAt: { gte: today },
+      },
+    });
+    const weekCompleted = await prisma.task.count({
+      where: {
+        parentId: null,
+        status: "done",
+        completedAt: { gte: weekAgo },
+      },
+    });
+
+    // 学習時間統計
+    const weekTimeEntries = await prisma.timeEntry.findMany({
+      where: { startedAt: { gte: weekAgo } },
+    });
+    const weekStudyHours = weekTimeEntries.reduce(
+      (sum: number, entry: { duration: number }) => sum + entry.duration,
+      0
+    );
+
+    const monthTimeEntries = await prisma.timeEntry.findMany({
+      where: { startedAt: { gte: monthAgo } },
+    });
+    const monthStudyHours = monthTimeEntries.reduce(
+      (sum: number, entry: { duration: number }) => sum + entry.duration,
+      0
+    );
+
+    // 試験目標
+    const upcomingExams = await prisma.examGoal.findMany({
+      where: {
+        examDate: { gte: today },
+        isCompleted: false,
+      },
+      orderBy: { examDate: "asc" },
+      take: 5,
+    });
+
+    // ストリーク
+    const streakData = await prisma.studyStreak.findMany({
+      where: { date: { gte: weekAgo } },
+      orderBy: { date: "asc" },
+    });
+
+    return {
+      tasks: {
+        total: totalTasks,
+        completed: completedTasks,
+        todayCompleted,
+        weekCompleted,
+        completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+      },
+      studyTime: {
+        weekHours: Math.round(weekStudyHours * 10) / 10,
+        monthHours: Math.round(monthStudyHours * 10) / 10,
+      },
+      upcomingExams,
+      streakData,
+    };
+  })
+
+  // 日別学習時間
+  .get("/daily-study", async ({ query }: { query: { days?: string } }) => {
+    const daysNum = query.days ? parseInt(query.days) : 7;
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysNum);
+    startDate.setHours(0, 0, 0, 0);
+
+    const timeEntries = await prisma.timeEntry.findMany({
+      where: { startedAt: { gte: startDate } },
+      orderBy: { startedAt: "asc" },
+    });
+
+    // 日別に集計
+    const dailyData: Record<string, number> = {};
+    for (let i = 0; i < daysNum; i++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      const dateStr = date.toISOString().split("T")[0];
+      dailyData[String(dateStr)] = 0;
+    }
+
+    for (const entry of timeEntries) {
+      const dateStr = entry.startedAt.toISOString().split("T")[0];
+      if (dailyData[dateStr] !== undefined) {
+        dailyData[dateStr] += entry.duration;
+      }
+    }
+
+    return Object.entries(dailyData).map(([date, hours]) => ({
+      date,
+      hours: Math.round(hours * 10) / 10,
+    }));
+  })
+
+  // 科目別学習時間
+  .get("/subject-breakdown", async ({ query }: { query: { days?: string } }) => {
+    const daysNum = query.days ? parseInt(query.days) : 30;
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysNum);
+
+    const tasks = await prisma.task.findMany({
+      where: {
+        subject: { not: null },
+        timeEntries: {
+          some: {
+            startedAt: { gte: startDate },
+          },
+        },
+      },
+      include: {
+        timeEntries: {
+          where: { startedAt: { gte: startDate } },
+        },
+      },
+    });
+
+    const subjectData: Record<string, number> = {};
+    for (const task of tasks) {
+      if (task.subject) {
+        const hours = task.timeEntries.reduce(
+          (sum: number, e: { duration: number }) => sum + e.duration,
+          0
+        );
+        subjectData[task.subject] = (subjectData[task.subject] || 0) + hours;
+      }
+    }
+
+    return Object.entries(subjectData)
+      .map(([subject, hours]) => ({
+        subject,
+        hours: Math.round(hours * 10) / 10,
+      }))
+      .sort((a, b) => b.hours - a.hours);
+  });
