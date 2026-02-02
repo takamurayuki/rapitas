@@ -24,9 +24,7 @@ import {
   type SSERollbackData,
   type SSERetryData,
 } from "@/hooks/use-sse";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 // Types
 type DependencyInfo = {

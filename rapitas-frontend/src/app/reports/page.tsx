@@ -11,9 +11,7 @@ import {
   Clock,
   BarChart3,
 } from "lucide-react";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 export default function ReportsPage() {
   const [report, setReport] = useState<WeeklyReport | null>(null);
@@ -25,7 +23,7 @@ export default function ReportsPage() {
 
   const fetchReport = async () => {
     try {
-      const res = await fetch(`${API_BASE}/reports/weekly`);
+      const res = await fetch(`${API_BASE_URL}/reports/weekly`);
       if (res.ok) {
         setReport(await res.json());
       }
@@ -38,7 +36,7 @@ export default function ReportsPage() {
 
   const handleExport = async () => {
     try {
-      const res = await fetch(`${API_BASE}/export/tasks`);
+      const res = await fetch(`${API_BASE_URL}/export/tasks`);
       if (res.ok) {
         const data = await res.json();
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });

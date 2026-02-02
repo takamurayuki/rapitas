@@ -14,8 +14,7 @@ import {
 import type { GitHubIssue, GitHubIntegration } from "@/types";
 import { getLabelsArray, hasLabels } from "@/utils/labels";
 import { getTaskDetailPath } from "@/utils/tauri";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 export default function IssuesPage() {
   const searchParams = useSearchParams();

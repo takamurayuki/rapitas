@@ -17,8 +17,10 @@ import {
   SHORT_BREAK,
   LONG_BREAK,
 } from "../pomodoro/pomodoroStore";
+import { API_BASE_URL } from "@/utils/api";
 
-export type PomodoroStatus = {
+// タイマーステータス（コールバック用）
+export type PomodoroTimerStatus = {
   isRunning: boolean;
   isPaused: boolean;
   isBreak: boolean;
@@ -33,12 +35,9 @@ interface PomodoroTimerProps {
   actualHours?: number;
   timeEntries: TimeEntry[];
   onUpdate: () => void;
-  onStatusChange?: (status: PomodoroStatus) => void;
+  onStatusChange?: (status: PomodoroTimerStatus) => void;
   showTaskTitle?: boolean;
 }
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
 export default function PomodoroTimer({
   taskId,
@@ -72,7 +71,7 @@ export default function PomodoroTimer({
       store.startTimer(taskId, taskTitle || "タスク");
 
       // タスクのstartedAtを更新
-      await fetch(`${API_BASE}/tasks/${taskId}`, {
+      await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -106,7 +105,7 @@ export default function PomodoroTimer({
       const endTime = new Date();
       const startTime = new Date(store.timerStartTime);
 
-      await fetch(`${API_BASE}/tasks/${taskId}/time-entries`, {
+      await fetch(`${API_BASE_URL}/tasks/${taskId}/time-entries`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -118,7 +117,7 @@ export default function PomodoroTimer({
         }),
       });
 
-      await fetch(`${API_BASE}/tasks/${taskId}`, {
+      await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -144,7 +143,7 @@ export default function PomodoroTimer({
       const endTime = new Date();
       const startTime = new Date(store.timerStartTime);
 
-      await fetch(`${API_BASE}/tasks/${taskId}/time-entries`, {
+      await fetch(`${API_BASE_URL}/tasks/${taskId}/time-entries`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -156,7 +155,7 @@ export default function PomodoroTimer({
         }),
       });
 
-      await fetch(`${API_BASE}/tasks/${taskId}`, {
+      await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

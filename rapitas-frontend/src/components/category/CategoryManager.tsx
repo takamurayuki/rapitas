@@ -18,9 +18,7 @@ import {
   searchIcons,
   getIconComponent,
 } from "./IconData";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 // 後方互換性のためにICON_MAPをエクスポート
 export const ICON_MAP: Record<string, LucideIcon> = Object.fromEntries(
@@ -99,7 +97,7 @@ export default function CategoryManager({ config }: Props) {
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/${config.endpoint}`);
+      const res = await fetch(`${API_BASE_URL}/${config.endpoint}`);
       if (!res.ok) throw new Error("取得に失敗しました");
       setItems(await res.json());
     } catch (e) {
@@ -121,7 +119,7 @@ export default function CategoryManager({ config }: Props) {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/${config.endpoint}`, {
+      const res = await fetch(`${API_BASE_URL}/${config.endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -146,7 +144,7 @@ export default function CategoryManager({ config }: Props) {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/${config.endpoint}/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/${config.endpoint}/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -168,7 +166,7 @@ export default function CategoryManager({ config }: Props) {
     if (!confirm(`「${name}」を削除しますか？`)) return;
 
     try {
-      const res = await fetch(`${API_BASE}/${config.endpoint}/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/${config.endpoint}/${id}`, {
         method: "DELETE",
       });
 
@@ -185,7 +183,7 @@ export default function CategoryManager({ config }: Props) {
   const setDefault = async (id: number) => {
     try {
       const res = await fetch(
-        `${API_BASE}/${config.endpoint}/${id}/set-default`,
+        `${API_BASE_URL}/${config.endpoint}/${id}/set-default`,
         {
           method: "PATCH",
         },

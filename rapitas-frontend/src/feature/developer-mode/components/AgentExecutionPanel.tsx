@@ -39,6 +39,7 @@ import {
   ExecutionLogViewer,
   type ExecutionLogStatus,
 } from "./ExecutionLogViewer";
+import { API_BASE_URL } from "@/utils/api";
 
 type Props = {
   taskId: number;
@@ -325,8 +326,6 @@ export function AgentExecutionPanel({
 
     setIsSendingResponse(true);
     try {
-      const API_BASE_URL =
-        process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
       const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/agent-respond`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -356,9 +355,6 @@ export function AgentExecutionPanel({
     }
 
     try {
-      const API_BASE_URL =
-        process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
-
       // タスクレベルの停止エンドポイントを使用（より確実）
       const res = await fetch(
         `${API_BASE_URL}/tasks/${taskId}/stop-execution`,

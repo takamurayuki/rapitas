@@ -354,6 +354,23 @@ export type WeeklyReport = {
 
 // ==================== 開発者モード関連 ====================
 
+// 実行ステータス（共通）
+export type ExecutionStatus = "idle" | "running" | "completed" | "failed";
+
+// 実行結果（共通）
+export type ExecutionResult = {
+  success: boolean;
+  sessionId?: number;
+  executionId?: number;
+  approvalRequestId?: number;
+  message?: string;
+  error?: string;
+  // 復元された実行の追加情報
+  output?: string;
+  waitingForInput?: boolean;
+  question?: string;
+};
+
 export type DeveloperModeConfig = {
   id: number;
   taskId: number;

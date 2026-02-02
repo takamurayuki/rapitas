@@ -8,9 +8,10 @@ import {
   SHORT_BREAK,
   LONG_BREAK,
   PomodoroState,
+  PomodoroStatus,
 } from "./pomodoroStore";
 
-export type PomodoroStatus = "idle" | "work" | "shortBreak" | "longBreak";
+export type { PomodoroStatus };
 
 export type GlobalPomodoroState = PomodoroState;
 

@@ -11,9 +11,7 @@ import {
   Calendar,
   Award,
 } from "lucide-react";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 type OverviewStats = {
   tasks: {
@@ -58,7 +56,7 @@ export default function DashboardPage() {
 
   const fetchOverview = async () => {
     try {
-      const res = await fetch(`${API_BASE}/statistics/overview`);
+      const res = await fetch(`${API_BASE_URL}/statistics/overview`);
       if (res.ok) {
         setOverview(await res.json());
       }
@@ -69,7 +67,7 @@ export default function DashboardPage() {
 
   const fetchDailyStudy = async () => {
     try {
-      const res = await fetch(`${API_BASE}/statistics/daily-study?days=14`);
+      const res = await fetch(`${API_BASE_URL}/statistics/daily-study?days=14`);
       if (res.ok) {
         setDailyStudy(await res.json());
       }
@@ -80,7 +78,7 @@ export default function DashboardPage() {
 
   const fetchStreakInfo = async () => {
     try {
-      const res = await fetch(`${API_BASE}/study-streaks/current`);
+      const res = await fetch(`${API_BASE_URL}/study-streaks/current`);
       if (res.ok) {
         setStreakInfo(await res.json());
       }

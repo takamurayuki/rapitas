@@ -15,9 +15,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast/ToastContainer";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 type FocusMode = "work" | "break";
 
@@ -64,7 +62,7 @@ export default function FocusClient() {
 
   const fetchTask = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE}/tasks/${id}`);
+      const res = await fetch(`${API_BASE_URL}/tasks/${id}`);
       if (res.ok) {
         setTask(await res.json());
       }
@@ -112,7 +110,7 @@ export default function FocusClient() {
     try {
       // タスクに紐づいている場合は時間を記録
       if (taskId && startTime) {
-        const res = await fetch(`${API_BASE}/tasks/${taskId}/time-entries`, {
+        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/time-entries`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -129,7 +127,7 @@ export default function FocusClient() {
       }
 
       // ストリーク記録（タスクがなくても記録）
-      await fetch(`${API_BASE}/study-streaks/record`, {
+      await fetch(`${API_BASE_URL}/study-streaks/record`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -138,7 +136,7 @@ export default function FocusClient() {
       });
 
       // 実績チェック
-      const achievementRes = await fetch(`${API_BASE}/achievements/check`, { method: "POST" });
+      const achievementRes = await fetch(`${API_BASE_URL}/achievements/check`, { method: "POST" });
       if (achievementRes.ok) {
         const { newlyUnlocked } = await achievementRes.json();
         if (newlyUnlocked && newlyUnlocked.length > 0) {
@@ -206,7 +204,7 @@ export default function FocusClient() {
   const completeTask = async () => {
     if (!taskId) return;
     try {
-      const res = await fetch(`${API_BASE}/tasks/${taskId}`, {
+      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "done" }),

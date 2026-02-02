@@ -17,8 +17,7 @@ import {
 } from "lucide-react";
 import type { GitHubIntegration, GitHubPullRequest, GitHubIssue } from "@/types";
 import { getLabelsArray } from "@/utils/labels";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 export default function GitHubPage() {
   const [integrations, setIntegrations] = useState<GitHubIntegration[]>([]);

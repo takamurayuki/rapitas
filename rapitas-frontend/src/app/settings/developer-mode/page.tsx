@@ -4,9 +4,7 @@ import { useEffect, useState } from "react";
 import { Bot, AlertCircle, Loader2 } from "lucide-react";
 import type { UserSettings } from "@/types";
 import { useToast } from "@/components/ui/toast/ToastContainer";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 export default function DeveloperModeSettingsPage() {
   const [settings, setSettings] = useState<UserSettings | null>(null);

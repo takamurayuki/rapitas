@@ -14,8 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import type { GitHubPullRequest, GitHubIntegration } from "@/types";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 export default function PullRequestsClient() {
   const searchParams = useSearchParams();

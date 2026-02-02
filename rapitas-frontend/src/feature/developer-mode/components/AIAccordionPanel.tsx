@@ -40,9 +40,7 @@ import {
   ExecutionLogViewer,
   type ExecutionLogStatus,
 } from "./ExecutionLogViewer";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 // TaskAnalysisResult is imported from @/types
 

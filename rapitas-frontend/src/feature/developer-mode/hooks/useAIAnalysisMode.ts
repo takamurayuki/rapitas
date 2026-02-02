@@ -5,21 +5,12 @@ import type {
   DeveloperModeConfig,
   TaskAnalysisResult,
   AgentSession,
+  ExecutionStatus,
+  ExecutionResult,
 } from "@/types";
+import { API_BASE_URL } from "@/utils/api";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
-
-export type ExecutionStatus = "idle" | "running" | "completed" | "failed";
-
-export type ExecutionResult = {
-  success: boolean;
-  sessionId?: number;
-  executionId?: number;
-  approvalRequestId?: number;
-  message?: string;
-  error?: string;
-};
+export type { ExecutionStatus, ExecutionResult };
 
 export function useDeveloperMode(taskId: number) {
   const [config, setConfig] = useState<DeveloperModeConfig | null>(null);

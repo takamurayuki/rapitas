@@ -11,9 +11,7 @@ import {
   X,
   Layers,
 } from "lucide-react";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 export default function FlashcardsPage() {
   const [decks, setDecks] = useState<FlashcardDeck[]>([]);
@@ -35,7 +33,7 @@ export default function FlashcardsPage() {
 
   const fetchDecks = async () => {
     try {
-      const res = await fetch(`${API_BASE}/flashcard-decks`);
+      const res = await fetch(`${API_BASE_URL}/flashcard-decks`);
       if (res.ok) {
         setDecks(await res.json());
       }
@@ -48,7 +46,7 @@ export default function FlashcardsPage() {
 
   const fetchDeck = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE}/flashcard-decks/${id}`);
+      const res = await fetch(`${API_BASE_URL}/flashcard-decks/${id}`);
       if (res.ok) {
         setSelectedDeck(await res.json());
       }
@@ -62,7 +60,7 @@ export default function FlashcardsPage() {
     if (!deckName.trim()) return;
 
     try {
-      const res = await fetch(`${API_BASE}/flashcard-decks`, {
+      const res = await fetch(`${API_BASE_URL}/flashcard-decks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: deckName, color: deckColor }),
@@ -80,7 +78,7 @@ export default function FlashcardsPage() {
   const handleDeleteDeck = async (id: number) => {
     if (!confirm("このデッキを削除しますか？")) return;
     try {
-      const res = await fetch(`${API_BASE}/flashcard-decks/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/flashcard-decks/${id}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -100,7 +98,7 @@ export default function FlashcardsPage() {
 
     try {
       const res = await fetch(
-        `${API_BASE}/flashcard-decks/${selectedDeck.id}/cards`,
+        `${API_BASE_URL}/flashcard-decks/${selectedDeck.id}/cards`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -121,7 +119,7 @@ export default function FlashcardsPage() {
   const handleDeleteCard = async (cardId: number) => {
     if (!confirm("このカードを削除しますか？")) return;
     try {
-      const res = await fetch(`${API_BASE}/flashcards/${cardId}`, {
+      const res = await fetch(`${API_BASE_URL}/flashcards/${cardId}`, {
         method: "DELETE",
       });
       if (res.ok && selectedDeck) {
@@ -137,7 +135,7 @@ export default function FlashcardsPage() {
 
     const card = selectedDeck.cards[currentCardIndex];
     try {
-      await fetch(`${API_BASE}/flashcards/${card.id}/review`, {
+      await fetch(`${API_BASE_URL}/flashcards/${card.id}/review`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ quality }),

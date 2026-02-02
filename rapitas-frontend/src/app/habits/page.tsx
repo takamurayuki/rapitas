@@ -3,9 +3,7 @@ import { useEffect, useState } from "react";
 import type { Habit } from "@/types";
 import { Plus, Edit2, Trash2, Check, Target, Flame } from "lucide-react";
 import { getIconComponent } from "@/components/category/IconData";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 const PRESET_COLORS = [
   "#10B981",
@@ -37,7 +35,7 @@ export default function HabitsPage() {
 
   const fetchHabits = async () => {
     try {
-      const res = await fetch(`${API_BASE}/habits`);
+      const res = await fetch(`${API_BASE_URL}/habits`);
       if (res.ok) {
         setHabits(await res.json());
       }
@@ -78,8 +76,8 @@ export default function HabitsPage() {
 
     try {
       const url = editingHabit
-        ? `${API_BASE}/habits/${editingHabit.id}`
-        : `${API_BASE}/habits`;
+        ? `${API_BASE_URL}/habits/${editingHabit.id}`
+        : `${API_BASE_URL}/habits`;
       const method = editingHabit ? "PATCH" : "POST";
 
       const res = await fetch(url, {
@@ -106,7 +104,7 @@ export default function HabitsPage() {
   const handleDelete = async (id: number) => {
     if (!confirm("この習慣を削除しますか？")) return;
     try {
-      const res = await fetch(`${API_BASE}/habits/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/habits/${id}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -119,7 +117,7 @@ export default function HabitsPage() {
 
   const handleLog = async (habitId: number) => {
     try {
-      const res = await fetch(`${API_BASE}/habits/${habitId}/log`, {
+      const res = await fetch(`${API_BASE_URL}/habits/${habitId}/log`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),

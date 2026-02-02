@@ -7,14 +7,12 @@ import PomodoroTimer from "@/feature/tasks/components/PomodoroTimer";
 import { usePomodoroStore } from "./pomodoroStore";
 import { TimeEntry } from "@/types";
 import { getTaskDetailPath } from "@/utils/tauri";
+import { API_BASE_URL } from "@/utils/api";
 
 interface GlobalPomodoroModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
 
 export default function GlobalPomodoroModal({
   isOpen,
@@ -37,7 +35,7 @@ export default function GlobalPomodoroModal({
   // タスクのtime entriesとタスクデータを取得
   useEffect(() => {
     if (state.taskId && isOpen) {
-      fetch(`${API_BASE}/tasks/${state.taskId}/time-entries`)
+      fetch(`${API_BASE_URL}/tasks/${state.taskId}/time-entries`)
         .then((res) => {
           if (!res.ok) return [];
           return res.json();
@@ -45,7 +43,7 @@ export default function GlobalPomodoroModal({
         .then((data) => setTimeEntries(data))
         .catch((err) => console.error("Failed to fetch time entries:", err));
 
-      fetch(`${API_BASE}/tasks/${state.taskId}`)
+      fetch(`${API_BASE_URL}/tasks/${state.taskId}`)
         .then((res) => {
           if (!res.ok) {
             // タスクが見つからない場合はタイマーを停止してモーダルを閉じる
@@ -74,7 +72,7 @@ export default function GlobalPomodoroModal({
 
   const handleUpdate = () => {
     if (state.taskId) {
-      fetch(`${API_BASE}/tasks/${state.taskId}/time-entries`)
+      fetch(`${API_BASE_URL}/tasks/${state.taskId}/time-entries`)
         .then((res) => {
           if (!res.ok) return [];
           return res.json();
@@ -82,7 +80,7 @@ export default function GlobalPomodoroModal({
         .then((data) => setTimeEntries(data))
         .catch((err) => console.error("Failed to fetch time entries:", err));
 
-      fetch(`${API_BASE}/tasks/${state.taskId}`)
+      fetch(`${API_BASE_URL}/tasks/${state.taskId}`)
         .then((res) => {
           if (!res.ok) {
             // タスクが見つからない場合はタイマーを停止してモーダルを閉じる

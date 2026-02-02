@@ -10,9 +10,7 @@ import {
   LONG_BREAK,
   PomodoroState,
 } from "./pomodoroStore";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 export default function GlobalPomodoroWidget() {
   const [showModal, setShowModal] = useState(false);
@@ -55,7 +53,7 @@ export default function GlobalPomodoroWidget() {
 
     const checkTaskExists = async () => {
       try {
-        const res = await fetch(`${API_BASE}/tasks/${state.taskId}`);
+        const res = await fetch(`${API_BASE_URL}/tasks/${state.taskId}`);
         if (!res.ok) {
           // タスクが見つからない場合はタイマーを停止
           console.log("Task not found, stopping timer");

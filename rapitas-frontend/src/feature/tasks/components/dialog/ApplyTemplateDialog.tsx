@@ -14,9 +14,7 @@ import {
 } from "lucide-react";
 import type { TaskTemplate, Theme } from "@/types";
 import { getIconComponent } from "@/components/category/IconData";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 type Props = {
   isOpen: boolean;
@@ -55,7 +53,7 @@ export default function ApplyTemplateDialog({
           params.append("themeId", selectedTheme.id.toString());
         }
 
-        const res = await fetch(`${API_BASE}/templates?${params.toString()}`);
+        const res = await fetch(`${API_BASE_URL}/templates?${params.toString()}`);
         if (!res.ok) {
           throw new Error("テンプレートの取得に失敗しました");
         }

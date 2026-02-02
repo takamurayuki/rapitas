@@ -1,6 +1,11 @@
 "use client";
 import TaskStatusChange from "./TaskStatusChange";
 import { statusConfig, renderStatusIcon } from "../config/StatusConfig";
+import { API_BASE_URL } from "@/utils/api";
+import type { Status } from "@/types";
+
+// ステータスの配列を共通で定義
+export const STATUS_OPTIONS: Status[] = ["todo", "in-progress", "done"];
 
 interface SubtaskStatusButtonsProps {
   taskId: number;
@@ -17,7 +22,7 @@ export default function SubtaskStatusButtons({
 }: SubtaskStatusButtonsProps) {
   const handleStatusChange = async (newStatus: string) => {
     try {
-      const response = await fetch(`http://localhost:3001/tasks/${taskId}`, {
+      const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
@@ -31,9 +36,38 @@ export default function SubtaskStatusButtons({
   };
 
   return (
-    <div className="flex items-center gap-1 shrink-0">
-      {["todo", "in-progress", "done"].map((status) => {
-        const config = statusConfig[status as keyof typeof statusConfig];
+    <StatusButtonGroup
+      currentStatus={currentStatus}
+      onStatusChange={handleStatusChange}
+      size={size}
+    />
+  );
+}
+
+/**
+ * ステータスボタングループ - タスクのステータス変更用の共通コンポーネント
+ */
+interface StatusButtonGroupProps {
+  currentStatus: string;
+  onStatusChange: (newStatus: string) => void;
+  size?: "sm" | "md" | "lg";
+  showLabel?: boolean;
+  className?: string;
+}
+
+export function StatusButtonGroup({
+  currentStatus,
+  onStatusChange,
+  size = "md",
+  showLabel = false,
+  className = "",
+}: StatusButtonGroupProps) {
+  const gapClass = showLabel ? "gap-2" : "gap-1";
+
+  return (
+    <div className={`flex items-center ${gapClass} shrink-0 ${className}`}>
+      {STATUS_OPTIONS.map((status) => {
+        const config = statusConfig[status];
         return (
           <TaskStatusChange
             key={status}
@@ -41,8 +75,9 @@ export default function SubtaskStatusButtons({
             currentStatus={currentStatus}
             config={config}
             renderIcon={renderStatusIcon}
-            onClick={handleStatusChange}
+            onClick={onStatusChange}
             size={size}
+            showLabel={showLabel}
           />
         );
       })}

@@ -14,6 +14,7 @@ import TaskSlidePanel from "@/feature/tasks/components/TaskSlidePanel";
 import { getLabelsArray, hasLabels } from "@/utils/labels";
 import { useTaskDetailVisibilityStore } from "@/stores/taskDetailVisibilityStore";
 import { getTaskDetailPath } from "@/utils/tauri";
+import { API_BASE_URL } from "@/utils/api";
 
 type Task = {
   id: number;
@@ -28,8 +29,7 @@ type Task = {
   updatedAt: string;
 };
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+const API_BASE = API_BASE_URL;
 
 const columns = [
   { id: "todo", label: "未着手", color: "bg-gray-100 dark:bg-gray-800" },

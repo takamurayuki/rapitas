@@ -14,9 +14,7 @@ import {
   ListTodo,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast/ToastContainer";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 export default function StudyPlansPage() {
   const { showToast } = useToast();
@@ -51,7 +49,7 @@ export default function StudyPlansPage() {
 
   const fetchExamGoals = async () => {
     try {
-      const res = await fetch(`${API_BASE}/exam-goals`);
+      const res = await fetch(`${API_BASE_URL}/exam-goals`);
       if (res.ok) {
         const data = await res.json();
         setExamGoals(data.filter((g: ExamGoal) => !g.isCompleted));
@@ -63,7 +61,7 @@ export default function StudyPlansPage() {
 
   const fetchStudyPlans = async () => {
     try {
-      const res = await fetch(`${API_BASE}/study-plans`);
+      const res = await fetch(`${API_BASE_URL}/study-plans`);
       if (res.ok) {
         setStudyPlans(await res.json());
       }
@@ -80,7 +78,7 @@ export default function StudyPlansPage() {
     setGeneratedResult(null);
 
     try {
-      const res = await fetch(`${API_BASE}/study-plans/generate`, {
+      const res = await fetch(`${API_BASE_URL}/study-plans/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -101,7 +99,7 @@ export default function StudyPlansPage() {
     if (!generatedResult) return;
 
     try {
-      const res = await fetch(`${API_BASE}/study-plans`, {
+      const res = await fetch(`${API_BASE_URL}/study-plans`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -133,7 +131,7 @@ export default function StudyPlansPage() {
   const handleDelete = async (id: number) => {
     if (!confirm("この学習計画を削除しますか？")) return;
     try {
-      const res = await fetch(`${API_BASE}/study-plans/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/study-plans/${id}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -158,7 +156,7 @@ export default function StudyPlansPage() {
 
     setApplying(true);
     try {
-      const res = await fetch(`${API_BASE}/study-plans/${plan.id}/apply`, {
+      const res = await fetch(`${API_BASE_URL}/study-plans/${plan.id}/apply`, {
         method: "POST",
       });
       if (res.ok) {

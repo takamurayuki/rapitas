@@ -19,6 +19,7 @@ import {
   HelpCircle,
   Send,
 } from "lucide-react";
+import { API_BASE_URL } from "@/utils/api";
 
 type PromptClarificationQuestion = {
   id: string;
@@ -88,9 +89,6 @@ export function PromptOptimizationPanel({
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isSubmittingAnswers, setIsSubmittingAnswers] = useState(false);
 
-  const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
-
   const generatePrompt = useCallback(
     async (clarificationAnswers?: Record<string, string>) => {
       setIsGenerating(true);
@@ -124,7 +122,7 @@ export function PromptOptimizationPanel({
         setIsGenerating(false);
       }
     },
-    [taskId, API_BASE_URL, onPromptGenerated],
+    [taskId, onPromptGenerated],
   );
 
   const handleSubmitAnswers = useCallback(async () => {

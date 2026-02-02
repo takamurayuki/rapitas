@@ -16,9 +16,7 @@ import {
   ICON_DATA,
   searchIcons,
 } from "@/components/category/IconData";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 const PRESET_COLORS = [
   "#10B981", // emerald
@@ -53,7 +51,7 @@ export default function ExamGoalsPage() {
 
   const fetchExamGoals = async () => {
     try {
-      const res = await fetch(`${API_BASE}/exam-goals`);
+      const res = await fetch(`${API_BASE_URL}/exam-goals`);
       if (res.ok) {
         const data = await res.json();
         setExamGoals(data);
@@ -99,8 +97,8 @@ export default function ExamGoalsPage() {
 
     try {
       const url = editingGoal
-        ? `${API_BASE}/exam-goals/${editingGoal.id}`
-        : `${API_BASE}/exam-goals`;
+        ? `${API_BASE_URL}/exam-goals/${editingGoal.id}`
+        : `${API_BASE_URL}/exam-goals`;
       const method = editingGoal ? "PATCH" : "POST";
 
       const res = await fetch(url, {
@@ -128,7 +126,7 @@ export default function ExamGoalsPage() {
   const handleDelete = async (id: number) => {
     if (!confirm("この試験目標を削除しますか？")) return;
     try {
-      const res = await fetch(`${API_BASE}/exam-goals/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/exam-goals/${id}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -142,7 +140,7 @@ export default function ExamGoalsPage() {
   const handleComplete = async (goal: ExamGoal) => {
     const actualScore = prompt("実際のスコア/結果を入力してください（任意）:");
     try {
-      const res = await fetch(`${API_BASE}/exam-goals/${goal.id}`, {
+      const res = await fetch(`${API_BASE_URL}/exam-goals/${goal.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

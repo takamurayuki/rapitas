@@ -27,9 +27,9 @@ import {
 } from "@/components/ui/accordion";
 import ApplyTemplateDialog from "@/feature/tasks/components/dialog/ApplyTemplateDialog";
 import { useToast } from "@/components/ui/toast/ToastContainer";
+import { API_BASE_URL } from "@/utils/api";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+const API_BASE = API_BASE_URL;
 
 export default function NewTaskClient() {
   const router = useRouter();

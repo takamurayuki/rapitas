@@ -21,6 +21,7 @@ import { ExecutionReviewPanel } from "@/feature/developer-mode/components/Execut
 import type { ApprovalRequest, Priority, FileDiff } from "@/types";
 import { priorityColors, priorityLabels } from "@/types";
 import { getTaskDetailPath } from "@/utils/tauri";
+import { API_BASE_URL } from "@/utils/api";
 
 export default function ApprovalsClient() {
   const searchParams = useSearchParams();
@@ -134,8 +135,6 @@ export default function ApprovalsClient() {
     comments: { file?: string; content: string; type: string }[],
   ) => {
     setProcessingId(id);
-    const API_BASE_URL =
-      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
     try {
       const res = await fetch(
         `${API_BASE_URL}/approvals/${id}/request-changes`,

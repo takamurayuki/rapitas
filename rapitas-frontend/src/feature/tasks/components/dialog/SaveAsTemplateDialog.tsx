@@ -3,9 +3,7 @@
 import { useState, useEffect } from "react";
 import { FileStack, X, FolderPlus, Check } from "lucide-react";
 import type { Task, TaskTemplate } from "@/types";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 // デフォルトカテゴリ
 const DEFAULT_CATEGORIES = [
@@ -53,7 +51,7 @@ export default function SaveAsTemplateDialog({
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const res = await fetch(`${API_BASE}/templates/categories`);
+        const res = await fetch(`${API_BASE_URL}/templates/categories`);
         if (res.ok) {
           const data = await res.json();
           // デフォルトカテゴリと既存カテゴリをマージ
@@ -85,7 +83,7 @@ export default function SaveAsTemplateDialog({
     setError(null);
 
     try {
-      const res = await fetch(`${API_BASE}/templates/from-task/${task.id}`, {
+      const res = await fetch(`${API_BASE_URL}/templates/from-task/${task.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

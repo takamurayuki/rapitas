@@ -23,9 +23,7 @@ import {
   getIconComponent,
 } from "@/components/category/IconData";
 import type { Theme } from "@/types";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 // 作業ディレクトリをお気に入りに自動登録する関数
 const addWorkingDirectoryToFavorites = async (path: string) => {
@@ -33,7 +31,7 @@ const addWorkingDirectoryToFavorites = async (path: string) => {
 
   try {
     // まず既にお気に入りに登録されているか確認
-    const checkRes = await fetch(`${API_BASE}/directories/favorites`);
+    const checkRes = await fetch(`${API_BASE_URL}/directories/favorites`);
     const favorites = await checkRes.json();
 
     if (!Array.isArray(favorites)) return;
@@ -44,7 +42,7 @@ const addWorkingDirectoryToFavorites = async (path: string) => {
     if (isAlreadyFavorite) return;
 
     // お気に入りに追加
-    await fetch(`${API_BASE}/directories/favorites`, {
+    await fetch(`${API_BASE_URL}/directories/favorites`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path }),
@@ -88,7 +86,7 @@ export default function ThemesPage() {
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/themes`);
+      const res = await fetch(`${API_BASE_URL}/themes`);
       if (!res.ok) throw new Error("取得に失敗しました");
       setItems(await res.json());
     } catch (e) {
@@ -110,7 +108,7 @@ export default function ThemesPage() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/themes`, {
+      const res = await fetch(`${API_BASE_URL}/themes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -141,7 +139,7 @@ export default function ThemesPage() {
 
     try {
       console.log("Updating theme with data:", formData);
-      const res = await fetch(`${API_BASE}/themes/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/themes/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -188,7 +186,7 @@ export default function ThemesPage() {
     if (!confirm(`「${name}」を削除しますか？`)) return;
 
     try {
-      const res = await fetch(`${API_BASE}/themes/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/themes/${id}`, {
         method: "DELETE",
       });
 
@@ -204,7 +202,7 @@ export default function ThemesPage() {
 
   const setDefault = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE}/themes/${id}/set-default`, {
+      const res = await fetch(`${API_BASE_URL}/themes/${id}/set-default`, {
         method: "PATCH",
       });
 

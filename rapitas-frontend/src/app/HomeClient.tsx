@@ -21,9 +21,9 @@ import {
   X,
 } from "lucide-react";
 import { getIconComponent } from "@/components/category/IconData";
+import { API_BASE_URL } from "@/utils/api";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+const API_BASE = API_BASE_URL;
 
 export default function HomeClientPage() {
   const router = useRouter();

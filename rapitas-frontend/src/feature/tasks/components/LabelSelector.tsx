@@ -3,9 +3,7 @@ import { useEffect, useState } from "react";
 import type { Label } from "@/types";
 import { Check } from "lucide-react";
 import { getIconComponent, ICON_DATA } from "@/components/category/IconData";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 type LabelSelectorProps = {
   selectedLabelIds: number[];
@@ -24,7 +22,7 @@ export default function LabelSelector({
   useEffect(() => {
     const fetchLabels = async () => {
       try {
-        const res = await fetch(`${API_BASE}/labels`);
+        const res = await fetch(`${API_BASE_URL}/labels`);
         if (res.ok) {
           const data = await res.json();
           setLabels(data);

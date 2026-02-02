@@ -16,9 +16,7 @@ import {
   Lock,
   type LucideIcon,
 } from "lucide-react";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+import { API_BASE_URL } from "@/utils/api";
 
 const ICON_MAP: Record<string, LucideIcon> = {
   Star,
@@ -78,7 +76,7 @@ export default function AchievementsPage() {
 
   const fetchAchievements = async () => {
     try {
-      const res = await fetch(`${API_BASE}/achievements`);
+      const res = await fetch(`${API_BASE_URL}/achievements`);
       if (res.ok) {
         setAchievements(await res.json());
       }
