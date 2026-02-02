@@ -26,9 +26,32 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* カスタムスクロールバースタイル */
+/* カスタムスクロールバースタイル - あふれる場合のみ表示 */
+.scrollbar-thin {
+  scrollbar-width: none; /* Firefox: デフォルトで非表示 */
+  -ms-overflow-style: none; /* IE/Edge: デフォルトで非表示 */
+}
+
+/* スクロール可能な場合のみスクロールバーを表示 */
+.scrollbar-thin:hover {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d4d8 transparent;
+}
+
+.dark .scrollbar-thin:hover {
+  scrollbar-color: #52525b transparent;
+}
+
+/* WebKit (Chrome, Safari, Edge): デフォルトで非表示 */
 .scrollbar-thin::-webkit-scrollbar {
+  height: 0;
+  width: 0;
+}
+
+/* ホバー時のみスクロールバーを表示 */
+.scrollbar-thin:hover::-webkit-scrollbar {
   height: 6px;
+  width: 6px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-track {
@@ -36,11 +59,15 @@ body {
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
+  background: transparent;
   border-radius: 3px;
 }
 
-.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+}
+
+.dark .scrollbar-thin:hover::-webkit-scrollbar-thumb {
   background: #52525b;
 }
 

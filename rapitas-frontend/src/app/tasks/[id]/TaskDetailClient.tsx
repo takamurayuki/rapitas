@@ -719,13 +719,13 @@ export default function TaskDetailClient({
             </>
           ) : (
             <>
-              <Button
+              <button
                 onClick={saveTask}
-                className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-blue-500 shadow-lg"
+                className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg transition-colors"
               >
                 <Save className="w-4 h-4" />
                 保存
-              </Button>
+              </button>
               <button
                 onClick={cancelEditing}
                 className="px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"

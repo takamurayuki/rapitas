@@ -11,7 +11,15 @@ import {
   statusConfig,
   renderStatusIcon,
 } from "@/feature/tasks/config/StatusConfig";
-import { SwatchBook, Star, ChevronDown, ChevronsUpDown, ChevronUp, ChevronsUp, X } from "lucide-react";
+import {
+  SwatchBook,
+  Star,
+  ChevronDown,
+  ChevronsUpDown,
+  ChevronUp,
+  ChevronsUp,
+  X,
+} from "lucide-react";
 import { getIconComponent } from "@/components/category/IconData";
 
 const API_BASE =
@@ -104,7 +112,6 @@ export default function HomeClientPage() {
       setTasks(oldTasks);
     }
   };
-
 
   const openTaskPanel = (taskId: number) => {
     setSelectedTaskId(taskId);
@@ -325,7 +332,7 @@ export default function HomeClientPage() {
   }, [totalPages, currentPage]);
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
+    <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
       <div className="mx-auto max-w-6xl px-4 py-4">
         {/* ヘッダー - アクションボタン */}
         {!isPanelOpen && (
@@ -440,15 +447,22 @@ export default function HomeClientPage() {
                         if (selectedTasks.size === paginatedTasks.length) {
                           setSelectedTasks(new Set());
                         } else {
-                          setSelectedTasks(new Set(paginatedTasks.map((t) => t.id)));
+                          setSelectedTasks(
+                            new Set(paginatedTasks.map((t) => t.id)),
+                          );
                         }
                       }}
                       className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
-                        selectedTasks.size === paginatedTasks.length && paginatedTasks.length > 0
+                        selectedTasks.size === paginatedTasks.length &&
+                        paginatedTasks.length > 0
                           ? "bg-blue-500 dark:bg-blue-600 text-white shadow-sm"
                           : "bg-blue-50 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30"
                       }`}
-                      title={selectedTasks.size === paginatedTasks.length ? "全解除" : "全選択"}
+                      title={
+                        selectedTasks.size === paginatedTasks.length
+                          ? "全解除"
+                          : "全選択"
+                      }
                     >
                       <svg
                         className="w-4 h-4"
@@ -456,7 +470,8 @@ export default function HomeClientPage() {
                         stroke="currentColor"
                         viewBox="0 0 24 24"
                       >
-                        {selectedTasks.size === paginatedTasks.length && paginatedTasks.length > 0 ? (
+                        {selectedTasks.size === paginatedTasks.length &&
+                        paginatedTasks.length > 0 ? (
                           /* 全解除: 四角から外れるアイコン */
                           <path
                             strokeLinecap="round"
@@ -475,7 +490,8 @@ export default function HomeClientPage() {
                         )}
                       </svg>
                       <span>
-                        {selectedTasks.size === paginatedTasks.length && paginatedTasks.length > 0
+                        {selectedTasks.size === paginatedTasks.length &&
+                        paginatedTasks.length > 0
                           ? "全解除"
                           : "全選択"}
                       </span>
@@ -597,7 +613,8 @@ export default function HomeClientPage() {
                   すべて
                 </button>
                 {themes.map((theme) => {
-                  const IconComponent = getIconComponent(theme.icon || "") || SwatchBook;
+                  const IconComponent =
+                    getIconComponent(theme.icon || "") || SwatchBook;
                   return (
                     <button
                       key={theme.id}
@@ -608,14 +625,19 @@ export default function HomeClientPage() {
                           : "border border-zinc-300 dark:border-zinc-700 hover:border-current"
                       }`}
                       style={{
-                        backgroundColor: themeFilter === theme.id ? theme.color : undefined,
-                        color: themeFilter === theme.id ? "#ffffff" : theme.color,
-                        borderColor: themeFilter === theme.id ? theme.color : undefined,
+                        backgroundColor:
+                          themeFilter === theme.id ? theme.color : undefined,
+                        color:
+                          themeFilter === theme.id ? "#ffffff" : theme.color,
+                        borderColor:
+                          themeFilter === theme.id ? theme.color : undefined,
                       }}
                     >
                       <IconComponent className="w-3.5 h-3.5" />
                       {theme.name}
-                      {theme.isDefault && <Star className="w-3 h-3 fill-current" />}
+                      {theme.isDefault && (
+                        <Star className="w-3 h-3 fill-current" />
+                      )}
                     </button>
                   );
                 })}
@@ -630,11 +652,23 @@ export default function HomeClientPage() {
                     : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
                 }`}
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                  />
                 </svg>
                 <span className="hidden sm:inline">フィルター</span>
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isFilterExpanded ? "rotate-180" : ""}`} />
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${isFilterExpanded ? "rotate-180" : ""}`}
+                />
               </button>
             </div>
 
@@ -658,13 +692,28 @@ export default function HomeClientPage() {
                         "in-progress": { label: "進行中", color: "blue" },
                         done: { label: "完了", color: "green" },
                       };
-                      const config = statusConfigLocal[status as keyof typeof statusConfigLocal];
+                      const config =
+                        statusConfigLocal[
+                          status as keyof typeof statusConfigLocal
+                        ];
                       const count = tasks.filter((t) => {
                         if (t.parentId) return false;
-                        if (status !== "all" && t.status !== status) return false;
-                        if (themeFilter !== null && t.themeId !== themeFilter) return false;
-                        if (priorityFilter !== null && t.priority !== priorityFilter) return false;
-                        if (searchQuery && !t.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+                        if (status !== "all" && t.status !== status)
+                          return false;
+                        if (themeFilter !== null && t.themeId !== themeFilter)
+                          return false;
+                        if (
+                          priorityFilter !== null &&
+                          t.priority !== priorityFilter
+                        )
+                          return false;
+                        if (
+                          searchQuery &&
+                          !t.title
+                            .toLowerCase()
+                            .includes(searchQuery.toLowerCase())
+                        )
+                          return false;
                         return true;
                       }).length;
 
@@ -685,7 +734,9 @@ export default function HomeClientPage() {
                           }`}
                         >
                           {config.label}
-                          <span className="text-[10px] opacity-75">({count})</span>
+                          <span className="text-[10px] opacity-75">
+                            ({count})
+                          </span>
                         </button>
                       );
                     })}
@@ -702,15 +753,51 @@ export default function HomeClientPage() {
                   </span>
                   <div className="flex items-center gap-1">
                     {[
-                      { value: "", label: "すべて", icon: null, iconColor: "", bgColor: "bg-purple-600" },
-                      { value: "urgent", label: "緊急", icon: <ChevronsUp className="w-3.5 h-3.5" />, iconColor: "text-red-500", bgColor: "bg-red-500" },
-                      { value: "high", label: "高", icon: <ChevronUp className="w-3.5 h-3.5" />, iconColor: "text-orange-500", bgColor: "bg-orange-500" },
-                      { value: "medium", label: "中", icon: <ChevronsUpDown className="w-3.5 h-3.5" />, iconColor: "text-blue-500", bgColor: "bg-blue-500" },
-                      { value: "low", label: "低", icon: <ChevronDown className="w-3.5 h-3.5" />, iconColor: "text-zinc-400", bgColor: "bg-zinc-500" },
+                      {
+                        value: "",
+                        label: "すべて",
+                        icon: null,
+                        iconColor: "",
+                        bgColor: "bg-purple-600",
+                      },
+                      {
+                        value: "urgent",
+                        label: "緊急",
+                        icon: <ChevronsUp className="w-3.5 h-3.5" />,
+                        iconColor: "text-red-500",
+                        bgColor: "bg-red-500",
+                      },
+                      {
+                        value: "high",
+                        label: "高",
+                        icon: <ChevronUp className="w-3.5 h-3.5" />,
+                        iconColor: "text-orange-500",
+                        bgColor: "bg-orange-500",
+                      },
+                      {
+                        value: "medium",
+                        label: "中",
+                        icon: <ChevronsUpDown className="w-3.5 h-3.5" />,
+                        iconColor: "text-blue-500",
+                        bgColor: "bg-blue-500",
+                      },
+                      {
+                        value: "low",
+                        label: "低",
+                        icon: <ChevronDown className="w-3.5 h-3.5" />,
+                        iconColor: "text-zinc-400",
+                        bgColor: "bg-zinc-500",
+                      },
                     ].map((priority) => (
                       <button
                         key={priority.value}
-                        onClick={() => setPriorityFilter(priority.value ? (priority.value as Priority) : null)}
+                        onClick={() =>
+                          setPriorityFilter(
+                            priority.value
+                              ? (priority.value as Priority)
+                              : null,
+                          )
+                        }
                         className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
                           (priorityFilter || "") === priority.value
                             ? `${priority.bgColor} text-white shadow-md`
@@ -718,7 +805,13 @@ export default function HomeClientPage() {
                         }`}
                       >
                         {priority.icon && (
-                          <span className={(priorityFilter || "") === priority.value ? "text-white" : priority.iconColor}>
+                          <span
+                            className={
+                              (priorityFilter || "") === priority.value
+                                ? "text-white"
+                                : priority.iconColor
+                            }
+                          >
                             {priority.icon}
                           </span>
                         )}
@@ -746,7 +839,9 @@ export default function HomeClientPage() {
                     <option value="priority">優先度</option>
                   </select>
                   <button
-                    onClick={() => setSortOrder((o) => (o === "asc" ? "desc" : "asc"))}
+                    onClick={() =>
+                      setSortOrder((o) => (o === "asc" ? "desc" : "asc"))
+                    }
                     className="p-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
                     title={sortOrder === "asc" ? "昇順" : "降順"}
                   >
@@ -780,7 +875,10 @@ export default function HomeClientPage() {
               <div className="flex items-center gap-2 px-3 py-2.5">
                 <div className="flex items-center gap-2 flex-1">
                   {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="h-8 w-20 bg-zinc-200 dark:bg-zinc-700 rounded-lg" />
+                    <div
+                      key={i}
+                      className="h-8 w-20 bg-zinc-200 dark:bg-zinc-700 rounded-lg"
+                    />
                   ))}
                 </div>
                 <div className="h-8 w-24 bg-zinc-200 dark:bg-zinc-700 rounded-lg" />
@@ -802,7 +900,10 @@ export default function HomeClientPage() {
                     </div>
                     <div className="flex items-center gap-1">
                       {[1, 2, 3].map((j) => (
-                        <div key={j} className="h-7 w-7 bg-zinc-200 dark:bg-zinc-700 rounded-md" />
+                        <div
+                          key={j}
+                          className="h-7 w-7 bg-zinc-200 dark:bg-zinc-700 rounded-md"
+                        />
                       ))}
                     </div>
                   </div>
