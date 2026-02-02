@@ -62,9 +62,11 @@ export default function Header() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const hideHeader = searchParams.get("hideHeader") === "true";
+  const showHeader = searchParams.get("showHeader") === "true";
 
   // タスク詳細ページではヘッダーを非表示
   // /tasks/[id], /task-detail, /tasks/detail のパターンに対応
+  // ただし、showHeader=true のパラメータがある場合は表示
   // クライアントサイドでwindow.location.pathnameも確認（iframeでの読み込み時の対応）
   const [isTaskDetailPage, setIsTaskDetailPage] = useState(() => checkIsTaskDetailPage(pathname));
 
@@ -153,7 +155,8 @@ export default function Header() {
     };
   }, [isMenuOpen, isMenuPinned]);
 
-  if (hideHeader || isTaskDetailPage) {
+  // showHeader=true の場合はタスク詳細ページでもヘッダーを表示
+  if (hideHeader || (isTaskDetailPage && !showHeader)) {
     return null;
   }
 

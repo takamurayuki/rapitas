@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   DragDropContext,
   Droppable,
@@ -15,6 +16,7 @@ import { getLabelsArray, hasLabels } from "@/utils/labels";
 import { useTaskDetailVisibilityStore } from "@/stores/taskDetailVisibilityStore";
 import { getTaskDetailPath } from "@/utils/tauri";
 import { API_BASE_URL } from "@/utils/api";
+import { ExternalLink } from "lucide-react";
 
 type Task = {
   id: number;
@@ -38,6 +40,7 @@ const columns = [
 ];
 
 export default function KanbanPage() {
+  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
@@ -101,6 +104,11 @@ export default function KanbanPage() {
     setIsPanelOpen(false);
     hideTaskDetail();
     setTimeout(() => setSelectedTaskId(null), 300);
+  };
+
+  // タスクをページとして開く（ヘッダー表示モード）
+  const openTaskInPage = (taskId: number) => {
+    router.push(`/tasks/${taskId}?showHeader=true`);
   };
 
   useEffect(() => {
@@ -171,28 +179,16 @@ export default function KanbanPage() {
                                     <h3 className="flex-1 text-sm font-medium text-zinc-900 dark:text-zinc-50">
                                       {task.title}
                                     </h3>
-                                    <a
-                                      href={`${getTaskDetailPath(task.id)}${getTaskDetailPath(task.id).includes("?") ? "&" : "?"}hideHeader=true`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300 transition-colors"
-                                      onClick={(e) => e.stopPropagation()}
-                                      title="別タブで開く (Ctrl+クリック)"
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openTaskInPage(task.id);
+                                      }}
+                                      className="text-zinc-500 hover:text-blue-600 dark:text-zinc-400 dark:hover:text-blue-400 transition-colors"
+                                      title="ページで開く"
                                     >
-                                      <svg
-                                        className="w-4 h-4"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={2}
-                                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                                        />
-                                      </svg>
-                                    </a>
+                                      <ExternalLink className="w-4 h-4" />
+                                    </button>
                                   </div>
 
                                   {/* メタ情報 */}

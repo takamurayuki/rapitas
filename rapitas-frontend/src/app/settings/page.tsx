@@ -222,7 +222,7 @@ export default function SettingsPage() {
                         {maskedApiKey}
                       </code>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => setIsEditingApiKey(true)}
                         className="px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"

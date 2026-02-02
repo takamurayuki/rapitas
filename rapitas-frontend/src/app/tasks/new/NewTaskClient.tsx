@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import type { Priority, Theme, TaskTemplate } from "@/types";
 import LabelSelector from "@/feature/tasks/components/LabelSelector";
+import TaskTitleAutocomplete from "@/feature/tasks/components/TaskTitleAutocomplete";
 import { getIconComponent } from "@/components/category/IconData";
 import {
   CompactAccordionGroup,
@@ -286,13 +287,12 @@ export default function NewTaskClient() {
         <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
           {/* Title Section */}
           <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
-            <input
-              type="text"
+            <TaskTitleAutocomplete
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={setTitle}
               placeholder="タスクのタイトル"
-              className="w-full text-xl font-semibold bg-transparent border-none outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-600"
               autoFocus
+              themeId={themeId}
             />
           </div>
 

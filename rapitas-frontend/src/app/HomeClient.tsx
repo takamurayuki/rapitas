@@ -125,6 +125,11 @@ export default function HomeClientPage() {
     setTimeout(() => setSelectedTaskId(null), 300);
   };
 
+  // タスクをページとして開く（ヘッダー表示モード）
+  const openTaskInPage = (taskId: number) => {
+    router.push(`/tasks/${taskId}?showHeader=true`);
+  };
+
   // クイックタスク追加
   const handleQuickAdd = async () => {
     if (!quickTaskTitle.trim()) return;
@@ -969,6 +974,7 @@ export default function HomeClientPage() {
                   }}
                   onToggleSelect={toggleTaskSelection}
                   onTaskUpdated={fetchTasks}
+                  onOpenInPage={openTaskInPage}
                 />
               ))}
             </div>
@@ -987,7 +993,7 @@ export default function HomeClientPage() {
                       }}
                       className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
                         itemsPerPage === count
-                          ? "bg-purple-600 text-white"
+                          ? "bg-indigo-400 text-white"
                           : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
                       }`}
                     >
@@ -1063,7 +1069,7 @@ export default function HomeClientPage() {
                           onClick={() => setCurrentPage(page)}
                           className={`min-w-28px px-2.5 py-1 rounded text-xs font-medium transition-all ${
                             currentPage === page
-                              ? "bg-purple-600 text-white"
+                              ? "bg-indigo-400 text-white"
                               : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
                           }`}
                         >

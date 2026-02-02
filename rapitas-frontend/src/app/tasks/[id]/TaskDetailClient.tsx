@@ -32,6 +32,7 @@ import {
   X,
   FileStack,
   Bot,
+  ArrowLeft,
 } from "lucide-react";
 import { getTaskDetailPath } from "@/utils/tauri";
 import ReactMarkdown from "react-markdown";
@@ -87,6 +88,10 @@ export default function TaskDetailClient({
 }: TaskDetailClientProps = {}) {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // ページモード（ヘッダー表示フラグ）の確認
+  const isPageMode = searchParams.get("showHeader") === "true";
 
   // TauriのiframeではuseParams()が正しく動作しない場合があるため、
   // window.locationからIDを直接抽出するフォールバックを追加
@@ -630,7 +635,20 @@ export default function TaskDetailClient({
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-zinc-50 via-white to-violet-50/30 dark:from-zinc-950 dark:via-zinc-900 dark:to-violet-950/10 scrollbar-thin">
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header Actions */}
-        <div className="mb-6 flex items-center justify-end gap-2">
+        <div className="mb-6 flex items-center justify-between gap-2">
+          {/* 戻るボタン（ページモード時のみ表示） */}
+          <div>
+            {isPageMode && (
+              <button
+                onClick={() => router.back()}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl hover:border-gray-300 dark:hover:border-gray-700 transition-all"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                戻る
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
           {!isEditing && (
             <button
               onClick={() => setShowPomodoroModal(true)}
@@ -711,6 +729,7 @@ export default function TaskDetailClient({
               </button>
             </>
           )}
+          </div>
         </div>
 
         {isEditing ? (

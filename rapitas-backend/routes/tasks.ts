@@ -7,6 +7,56 @@ import { prisma } from "../config/database";
 import { ValidationError } from "../middleware/error-handler";
 
 export const tasksRoutes = new Elysia({ prefix: "/tasks" })
+  // Search task titles for autocomplete
+  .get(
+    "/search",
+    async ({ query }: {
+      query: { q?: string; limit?: string; themeId?: string; projectId?: string }
+    }) => {
+      const { q, limit, themeId, projectId } = query;
+      const searchQuery = q?.trim() ?? "";
+      const resultLimit = Math.min(parseInt(limit ?? "10"), 20);
+
+      if (!searchQuery) {
+        return [];
+      }
+
+      return await prisma.task.findMany({
+        where: {
+          parentId: null,
+          title: {
+            contains: searchQuery,
+          },
+          ...(themeId && { themeId: parseInt(themeId) }),
+          ...(projectId && { projectId: parseInt(projectId) }),
+        },
+        select: {
+          id: true,
+          title: true,
+          priority: true,
+          status: true,
+          theme: {
+            select: {
+              id: true,
+              name: true,
+              color: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: resultLimit,
+      });
+    },
+    {
+      query: t.Object({
+        q: t.Optional(t.String()),
+        limit: t.Optional(t.String()),
+        themeId: t.Optional(t.String()),
+        projectId: t.Optional(t.String()),
+      }),
+    }
+  )
+
   // Get all tasks
   .get(
     "/",

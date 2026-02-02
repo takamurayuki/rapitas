@@ -13,6 +13,7 @@ import {
   ChevronsUpDown,
   ChevronUp,
   ChevronsUp,
+  ExternalLink,
 } from "lucide-react";
 import type { Priority } from "@/types";
 import { getLabelsArray, hasLabels } from "@/utils/labels";
@@ -52,6 +53,7 @@ interface TaskCardProps {
   onStatusChange: (taskId: number, status: Status) => void;
   onToggleSelect?: (taskId: number) => void;
   onTaskUpdated?: () => void;
+  onOpenInPage?: (taskId: number) => void;
 }
 
 export default function TaskCard({
@@ -62,8 +64,8 @@ export default function TaskCard({
   onStatusChange,
   onToggleSelect,
   onTaskUpdated,
+  onOpenInPage,
 }: TaskCardProps) {
-  const [showQuickActions, setShowQuickActions] = useState(false);
   const [expandedSubtasks, setExpandedSubtasks] = useState(false);
 
   const currentStatus =
@@ -88,8 +90,6 @@ export default function TaskCard({
       className={`group relative rounded-lg border-l-4 border-t border-r border-b transition-all duration-150 ${
         currentStatus.borderColor
       } ${`border-zinc-200 dark:border-zinc-800 ${currentStatus.bgColor} hover:shadow-sm`}`}
-      onMouseEnter={() => !isSelectionMode && setShowQuickActions(true)}
-      onMouseLeave={() => setShowQuickActions(false)}
     >
       <div
         className="flex items-center gap-3 px-3 py-2.5 cursor-pointer"
@@ -215,15 +215,9 @@ export default function TaskCard({
             )}
         </div>
 
-        {/* 右: クイックアクション */}
+        {/* 右: クイックアクション（常に表示） */}
         {!isSelectionMode && (
-          <div
-            className={`flex items-center gap-1 transition-opacity duration-150 ${
-              showQuickActions
-                ? "opacity-100"
-                : "opacity-0 group-hover:opacity-100"
-            }`}
-          >
+          <div className="flex items-center gap-1">
             <>
               {/* ステータス変更ボタン */}
               {["todo", "in-progress", "done"].map((status) => {
@@ -243,6 +237,19 @@ export default function TaskCard({
                   />
                 );
               })}
+              {/* ページで開くボタン */}
+              {onOpenInPage && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenInPage(task.id);
+                  }}
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
+                  title="ページで開く"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </button>
+              )}
             </>
           </div>
         )}

@@ -39,7 +39,6 @@ export default function TaskDetail({
   editStatus,
   editLabels,
   editEstimatedHours,
-  isDragging,
   onEditTitleChange,
   onEditDescriptionChange,
   onEditStatusChange,
@@ -57,7 +56,7 @@ export default function TaskDetail({
       {isEditing ? (
         /* 編集モード */
         <div className="space-y-6">
-          {/* タイトルとステータス（一行でコンパクトに表示） */}
+          {/* タイトルとステータス */}
           <div>
             <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
               タイトル <span className="text-red-500">*</span>
