@@ -97,7 +97,7 @@ export default function TaskDetail({
               <button
                 type="button"
                 onClick={onShowCodeBlockDialog}
-                className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-md transition-colors"
+                className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-md border border-zinc-300 dark:border-zinc-600 hover:border-zinc-400 dark:hover:border-zinc-500 transition-colors"
               >
                 <svg
                   className="w-3.5 h-3.5"

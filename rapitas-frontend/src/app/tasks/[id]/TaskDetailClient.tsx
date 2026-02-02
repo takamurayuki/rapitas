@@ -641,10 +641,10 @@ export default function TaskDetailClient({
             {isPageMode && (
               <button
                 onClick={() => router.back()}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl hover:border-gray-300 dark:hover:border-gray-700 transition-all"
+                className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
               >
-                <ArrowLeft className="w-4 h-4" />
-                戻る
+                <ArrowLeft className="w-5 h-5" />
+                <span className="text-sm font-medium">戻る</span>
               </button>
             )}
           </div>

@@ -58,16 +58,19 @@ export default function TaskStatusChange({
   // アイコンのみのコンパクトなボタン（一覧・表示モード用）
   const sizeClass = size === "sm" ? "w-6 h-6" : "w-7 h-7";
 
+  // ボーダー色の設定
+  const borderColor = config.borderColor.replace("border-l-", "border-");
+
   return (
     <button
       onClick={(e) => {
         e.stopPropagation();
         onClick(status);
       }}
-      className={`${sizeClass} rounded flex items-center justify-center transition-all ${
+      className={`${sizeClass} rounded flex items-center justify-center transition-all border ${
         isCurrent
-          ? `${config.bgColor} ${config.color} ${size === "sm" ? "ring-1 ring-current" : ""}`
-          : `hover:bg-${size === "sm" ? "zinc-200 dark:hover:bg-zinc-700" : "zinc-100 dark:hover:bg-zinc-800"} text-zinc-${size === "sm" ? "400 dark:text-zinc-500" : "300 dark:text-zinc-600"}`
+          ? `${config.bgColor} ${config.color} ${borderColor}`
+          : `border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 dark:text-zinc-500`
       }`}
       title={config.label}
     >
