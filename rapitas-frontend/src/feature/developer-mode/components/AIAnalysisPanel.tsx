@@ -145,7 +145,7 @@ export function AIAnalysisPanel({
   onSubtasksCreated,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabType>("analysis");
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // サブタスク作成の状態
   const [selectedSubtasks, setSelectedSubtasks] = useState<number[]>([]);

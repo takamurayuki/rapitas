@@ -103,7 +103,7 @@ export function AIAssistantAccordion({
   onRestoreExecutionState,
   onStopExecution,
 }: Props) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [localOptimizedPrompt, setLocalOptimizedPrompt] = useState<
     string | null
   >(optimizedPrompt || null);

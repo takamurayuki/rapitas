@@ -1,6 +1,6 @@
 "use client";
 
-import { Task, Label, DeveloperModeConfig } from "@/types";
+import { Task, Label } from "@/types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { createMarkdownComponents } from "@/feature/tasks/components/MarkdownComponents";
@@ -16,47 +16,27 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion/Accordion";
 import { SelectedLabelsDisplay } from "@/feature/tasks/components/LabelSelector";
-import { ToggleButton } from "@/components/ui/button/ToggleButton";
 import {
   Clock,
   Calendar,
   Tag,
   FileText,
   Info,
-  BrainCircuit,
-  Bot,
 } from "lucide-react";
 
 interface CompactTaskDetailCardProps {
   task: Task;
   onStatusUpdate: (taskId: number, newStatus: string) => void;
   onEditCode?: (language: string, code: string) => void;
-  // AI機能関連
-  showTaskAnalysis?: boolean;
-  onToggleTaskAnalysis?: () => void;
-  devModeConfig?: DeveloperModeConfig | null;
-  devModeLoading?: boolean;
-  onToggleDeveloperMode?: () => void;
-  // 開発プロジェクトが設定されているかどうか（テーマのisDevelopmentフラグ）
-  isDevelopmentProject?: boolean;
 }
 
 export default function CompactTaskDetailCard({
   task,
   onStatusUpdate,
   onEditCode,
-  showTaskAnalysis = false,
-  onToggleTaskAnalysis,
-  devModeConfig,
-  devModeLoading = false,
-  onToggleDeveloperMode,
-  isDevelopmentProject = false,
 }: CompactTaskDetailCardProps) {
   const hasMetaInfo =
     (task.taskLabels && task.taskLabels.length > 0) || task.estimatedHours;
-  // 開発プロジェクト設定時のみ開発者モードボタンを表示対象にする
-  const showDeveloperModeToggle = isDevelopmentProject && onToggleDeveloperMode;
-  const hasAIFeatures = onToggleTaskAnalysis || showDeveloperModeToggle;
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
@@ -190,49 +170,20 @@ export default function CompactTaskDetailCard({
             詳細情報
           </AccordionTrigger>
           <AccordionContent id="details">
-            <div className="space-y-4">
-              {/* Timestamps */}
-              <div className="flex flex-wrap items-center gap-4 pt-3 text-sm text-zinc-500 dark:text-zinc-400">
-                <div className="flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>
-                    作成: {new Date(task.createdAt).toLocaleString("ja-JP")}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>
-                    更新: {new Date(task.updatedAt).toLocaleString("ja-JP")}
-                  </span>
-                </div>
+            {/* Timestamps */}
+            <div className="flex flex-wrap items-center gap-4 pt-3 text-sm text-zinc-500 dark:text-zinc-400">
+              <div className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5" />
+                <span>
+                  作成: {new Date(task.createdAt).toLocaleString("ja-JP")}
+                </span>
               </div>
-
-              {/* AI Features Toggle */}
-              {hasAIFeatures && (
-                <div className="flex justify-end pt-3 border-t border-zinc-100 dark:border-zinc-800">
-                  <div className="flex flex-wrap items-center gap-3">
-                    {onToggleTaskAnalysis && (
-                      <ToggleButton
-                        label="AIタスク分析"
-                        description="AIアシスタントパネルを自動表示"
-                        icon={BrainCircuit}
-                        isEnabled={showTaskAnalysis}
-                        onToggle={onToggleTaskAnalysis}
-                      />
-                    )}
-                    {showDeveloperModeToggle && (
-                      <ToggleButton
-                        label="開発者モード"
-                        description="AIエージェントによる自動実行機能を有効化"
-                        icon={Bot}
-                        isEnabled={devModeConfig?.isEnabled ?? false}
-                        isLoading={devModeLoading}
-                        onToggle={onToggleDeveloperMode}
-                      />
-                    )}
-                  </div>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" />
+                <span>
+                  更新: {new Date(task.updatedAt).toLocaleString("ja-JP")}
+                </span>
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>

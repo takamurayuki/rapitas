@@ -492,7 +492,6 @@ export type Notification = {
 
 export type UserSettings = {
   id: number;
-  developerModeDefault: boolean;
   aiTaskAnalysisDefault: boolean;
   claudeApiKeyConfigured?: boolean;
   claudeApiKeyMasked?: string | null;

@@ -31,6 +31,7 @@ import {
   Check,
   X,
   FileStack,
+  Bot,
 } from "lucide-react";
 import { getTaskDetailPath } from "@/utils/tauri";
 import ReactMarkdown from "react-markdown";
@@ -47,7 +48,6 @@ import CompactTaskDetailCard from "@/feature/tasks/components/CompactTaskDetailC
 import { useApprovals } from "@/feature/developer-mode/hooks/useApprovals";
 import { DeveloperModeConfigModal } from "@/feature/developer-mode/components/DeveloperModeConfig";
 import { AIAccordionPanel } from "@/feature/developer-mode/components/AIAccordionPanel";
-import { Bot } from "lucide-react";
 import SaveAsTemplateDialog from "@/feature/tasks/components/dialog/SaveAsTemplateDialog";
 import DropdownMenu from "@/components/ui/dropdown/DropdownMenu";
 
@@ -173,7 +173,6 @@ export default function TaskDetailClient({
     analysisError,
     fetchConfig: fetchDevModeConfig,
     enableDeveloperMode,
-    disableDeveloperMode,
     updateConfig: updateDevModeConfig,
     analyzeTask,
     setAnalysisResult,
@@ -201,8 +200,8 @@ export default function TaskDetailClient({
     null,
   );
 
-  // AIタスク分析モードの状態（グローバル設定から初期化）
-  const [showTaskAnalysis, setShowTaskAnalysis] = useState(false);
+  // AIアシスタントパネルの表示状態（グローバル設定から初期化）
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
 
   // テンプレート保存モーダル用の状態
   const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
@@ -251,13 +250,9 @@ export default function TaskDetailClient({
         if (res.ok) {
           const data = await res.json();
           setGlobalSettings(data);
-          // グローバル設定からAIタスク分析モードを初期化
+          // グローバル設定からAIアシスタントパネルを初期化
           if (data.aiTaskAnalysisDefault) {
-            setShowTaskAnalysis(true);
-          }
-          // グローバル設定から開発者モードをデフォルト有効化（設定が有効な場合のみ）
-          if (data.developerModeDefault) {
-            // enableDeveloperModeは別途useEffectで処理
+            setShowAIAssistant(true);
           }
         }
       } catch (err) {
@@ -274,12 +269,13 @@ export default function TaskDetailClient({
     }
   }, [resolvedTaskId, fetchDevModeConfig]);
 
-  // グローバル設定に基づいて開発者モードを自動有効化
+  // グローバル設定に基づいて開発者モードを自動有効化（開発プロジェクトかつAIアシスタント有効の場合）
   useEffect(() => {
     const autoEnableDeveloperMode = async () => {
-      // グローバル設定がロードされ、開発者モードがデフォルト有効で、まだ有効化されていない場合
+      // グローバル設定がロードされ、AIアシスタントがデフォルト有効で、開発プロジェクトで、まだ有効化されていない場合
       if (
-        globalSettings?.developerModeDefault &&
+        globalSettings?.aiTaskAnalysisDefault &&
+        task?.theme?.isDevelopment === true &&
         devModeConfig === null &&
         !devModeLoading &&
         taskId
@@ -290,6 +286,7 @@ export default function TaskDetailClient({
     autoEnableDeveloperMode();
   }, [
     globalSettings,
+    task?.theme?.isDevelopment,
     devModeConfig,
     devModeLoading,
     taskId,
@@ -467,26 +464,6 @@ export default function TaskDetailClient({
       console.error(err);
       alert("タスクの削除に失敗しました");
     }
-  };
-
-  // 開発者モードのトグル
-  const handleToggleDeveloperMode = async () => {
-    try {
-      if (devModeConfig?.isEnabled) {
-        await disableDeveloperMode();
-        setTask((prev) => (prev ? { ...prev, isDeveloperMode: false } : prev));
-      } else {
-        await enableDeveloperMode();
-        setTask((prev) => (prev ? { ...prev, isDeveloperMode: true } : prev));
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // AIタスク分析モードのトグル（UIの状態変更のみ、タスクごとの保存は行わない）
-  const handleToggleAIAnalysisMode = () => {
-    setShowTaskAnalysis(!showTaskAnalysis);
   };
 
   // AI分析の実行
@@ -837,20 +814,12 @@ export default function TaskDetailClient({
                 task={task}
                 onStatusUpdate={updateStatus}
                 onEditCode={handleEditCode}
-                showTaskAnalysis={showTaskAnalysis}
-                onToggleTaskAnalysis={handleToggleAIAnalysisMode}
-                devModeConfig={devModeConfig}
-                devModeLoading={devModeLoading}
-                onToggleDeveloperMode={handleToggleDeveloperMode}
-                isDevelopmentProject={task.theme?.isDevelopment === true}
               />
             </div>
 
             {/* AI アシスタント統合パネル（タスク分析 + プロンプト最適化 + エージェント実行） */}
-            {/* AIタスク分析がONまたは開発者モードが有効な開発プロジェクトの場合に表示 */}
-            {(showTaskAnalysis ||
-              (devModeConfig?.isEnabled === true &&
-                task.theme?.isDevelopment === true)) && (
+            {/* 開発プロジェクトかつAIアシスタント設定が有効な場合に表示 */}
+            {task.theme?.isDevelopment === true && showAIAssistant && (
               <div className="mb-6">
                 <AIAccordionPanel
                   taskId={taskId}
@@ -880,17 +849,14 @@ export default function TaskDetailClient({
                     }
                   }}
                   // エージェント実行関連（開発者モードが有効なら表示）
-                  showAgentPanel={
-                    devModeConfig?.isEnabled === true &&
-                    task.theme?.isDevelopment === true
-                  }
+                  showAgentPanel={devModeConfig?.isEnabled === true}
                   isExecuting={isExecuting}
                   executionStatus={executionStatus}
                   executionResult={executionResult}
                   executionError={executionResult?.error || null}
                   workingDirectory={task.theme?.workingDirectory || undefined}
                   defaultBranch={task.theme?.defaultBranch || "main"}
-                  useTaskAnalysis={showTaskAnalysis && !!analysisResult}
+                  useTaskAnalysis={!!analysisResult}
                   optimizedPrompt={optimizedPrompt}
                   onExecute={executeAgent}
                   onReset={resetExecutionState}

@@ -51,7 +51,14 @@ type PromptClarificationQuestion = {
   question: string;
   options?: string[];
   isRequired: boolean;
-  category: "scope" | "technical" | "requirements" | "constraints" | "integration" | "testing" | "deliverables";
+  category:
+    | "scope"
+    | "technical"
+    | "requirements"
+    | "constraints"
+    | "integration"
+    | "testing"
+    | "deliverables";
 };
 
 type PromptResult = {
@@ -134,8 +141,6 @@ export function AIAccordionPanel({
   executionStatus,
   executionResult,
   executionError,
-  workingDirectory,
-  defaultBranch,
   useTaskAnalysis,
   optimizedPrompt,
   onExecute,
@@ -144,7 +149,7 @@ export function AIAccordionPanel({
   onStopExecution,
 }: Props) {
   const [expandedSection, setExpandedSection] =
-    useState<AccordionSection | null>("analysis");
+    useState<AccordionSection | null>(null);
   const [analysisTab, setAnalysisTab] = useState<AnalysisTabType>("subtasks");
 
   // 分析パネルの状態
@@ -155,7 +160,9 @@ export function AIAccordionPanel({
   const [promptResult, setPromptResult] = useState<PromptResult | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [questionAnswers, setQuestionAnswers] = useState<Record<string, string>>({});
+  const [questionAnswers, setQuestionAnswers] = useState<
+    Record<string, string>
+  >({});
   const [isSubmittingAnswers, setIsSubmittingAnswers] = useState(false);
 
   // 実行パネルの状態
@@ -209,47 +216,54 @@ export function AIAccordionPanel({
   };
 
   // プロンプト生成
-  const generatePrompt = useCallback(async (clarificationAnswers?: Record<string, string>) => {
-    setIsGeneratingPrompt(true);
-    setPromptError(null);
+  const generatePrompt = useCallback(
+    async (clarificationAnswers?: Record<string, string>) => {
+      setIsGeneratingPrompt(true);
+      setPromptError(null);
 
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/developer-mode/optimize-prompt/${taskId}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clarificationAnswers }),
-        },
-      );
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/developer-mode/optimize-prompt/${taskId}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clarificationAnswers }),
+          },
+        );
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || "プロンプト生成に失敗しました");
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || "プロンプト生成に失敗しました");
+        }
+
+        const data: PromptResult = await response.json();
+        setPromptResult(data);
+
+        if (!data.hasQuestions && onPromptGenerated) {
+          onPromptGenerated(data.optimizedPrompt);
+        }
+      } catch (err) {
+        setPromptError(
+          err instanceof Error ? err.message : "エラーが発生しました",
+        );
+      } finally {
+        setIsGeneratingPrompt(false);
       }
-
-      const data: PromptResult = await response.json();
-      setPromptResult(data);
-
-      if (!data.hasQuestions && onPromptGenerated) {
-        onPromptGenerated(data.optimizedPrompt);
-      }
-    } catch (err) {
-      setPromptError(
-        err instanceof Error ? err.message : "エラーが発生しました",
-      );
-    } finally {
-      setIsGeneratingPrompt(false);
-    }
-  }, [taskId, onPromptGenerated]);
+    },
+    [taskId, onPromptGenerated],
+  );
 
   // 質問への回答を送信
   const handleSubmitAnswers = useCallback(async () => {
     if (!promptResult?.clarificationQuestions) return;
 
     // 必須質問の回答チェック
-    const requiredQuestions = promptResult.clarificationQuestions.filter(q => q.isRequired);
-    const unansweredRequired = requiredQuestions.filter(q => !questionAnswers[q.id]?.trim());
+    const requiredQuestions = promptResult.clarificationQuestions.filter(
+      (q) => q.isRequired,
+    );
+    const unansweredRequired = requiredQuestions.filter(
+      (q) => !questionAnswers[q.id]?.trim(),
+    );
     if (unansweredRequired.length > 0) {
       setPromptError("必須の質問に回答してください");
       return;
@@ -260,7 +274,7 @@ export function AIAccordionPanel({
 
     // 質問IDをキーにした回答を質問テキストをキーにした回答に変換
     const clarificationAnswers: Record<string, string> = {};
-    promptResult.clarificationQuestions.forEach(q => {
+    promptResult.clarificationQuestions.forEach((q) => {
       if (questionAnswers[q.id]) {
         clarificationAnswers[q.question] = questionAnswers[q.id];
       }
@@ -386,14 +400,17 @@ export function AIAccordionPanel({
 
     setIsGeneratingBranchName(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/developer-mode/generate-branch-name`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: taskTitle,
-          description: taskDescription || undefined,
-        }),
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/developer-mode/generate-branch-name`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: taskTitle,
+            description: taskDescription || undefined,
+          }),
+        },
+      );
 
       const data = await res.json();
       if (res.ok) {
@@ -401,7 +418,10 @@ export function AIAccordionPanel({
           setBranchName(data.branchName);
         }
       } else {
-        console.error("Failed to generate branch name:", data.error || data.details || "Unknown error");
+        console.error(
+          "Failed to generate branch name:",
+          data.error || data.details || "Unknown error",
+        );
       }
     } catch (error) {
       console.error("Error generating branch name:", error);
@@ -514,8 +534,7 @@ export function AIAccordionPanel({
         ? pollingStatus
         : executionStatus;
   // 完了判定: ステータスが完了であれば完了とみなす（ポーリング状態に依存しない）
-  const isCompleted =
-    finalStatus === "completed" && !isWaitingForInput;
+  const isCompleted = finalStatus === "completed" && !isWaitingForInput;
   const isCancelled = finalStatus === "cancelled";
   const isFailed =
     finalStatus === "failed" || executionError || pollingError || sseError;
@@ -880,15 +899,20 @@ export function AIAccordionPanel({
                       再試行
                     </button>
                   </div>
-                ) : promptResult?.hasQuestions && promptResult.clarificationQuestions && promptResult.clarificationQuestions.length > 0 ? (
+                ) : promptResult?.hasQuestions &&
+                  promptResult.clarificationQuestions &&
+                  promptResult.clarificationQuestions.length > 0 ? (
                   /* 質問がある場合 */
                   <div className="space-y-3">
                     <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
                       <HelpCircle className="w-3.5 h-3.5" />
-                      <span className="text-[11px] font-medium">追加情報が必要です</span>
+                      <span className="text-[11px] font-medium">
+                        追加情報が必要です
+                      </span>
                     </div>
                     <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-2">
-                      スコア: {promptResult.promptQuality.score}/100 - より良いプロンプトを生成するために回答してください
+                      スコア: {promptResult.promptQuality.score}/100 -
+                      より良いプロンプトを生成するために回答してください
                     </div>
                     <div className="space-y-2.5 max-h-48 overflow-y-auto">
                       {promptResult.clarificationQuestions.map((q) => (
@@ -896,7 +920,9 @@ export function AIAccordionPanel({
                           <div className="flex items-start gap-1.5">
                             <span className="text-[10px] text-zinc-700 dark:text-zinc-300 flex-1">
                               {q.question}
-                              {q.isRequired && <span className="text-red-500 ml-0.5">*</span>}
+                              {q.isRequired && (
+                                <span className="text-red-500 ml-0.5">*</span>
+                              )}
                             </span>
                             <span className="text-[9px] px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 rounded shrink-0">
                               {getCategoryLabel(q.category)}
@@ -907,7 +933,12 @@ export function AIAccordionPanel({
                               {q.options.map((option, i) => (
                                 <button
                                   key={i}
-                                  onClick={() => setQuestionAnswers(prev => ({ ...prev, [q.id]: option }))}
+                                  onClick={() =>
+                                    setQuestionAnswers((prev) => ({
+                                      ...prev,
+                                      [q.id]: option,
+                                    }))
+                                  }
                                   className={`px-2 py-0.5 text-[9px] rounded border transition-colors ${
                                     questionAnswers[q.id] === option
                                       ? "border-amber-500 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
@@ -922,7 +953,12 @@ export function AIAccordionPanel({
                             <input
                               type="text"
                               value={questionAnswers[q.id] || ""}
-                              onChange={(e) => setQuestionAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                              onChange={(e) =>
+                                setQuestionAnswers((prev) => ({
+                                  ...prev,
+                                  [q.id]: e.target.value,
+                                }))
+                              }
                               placeholder="回答を入力..."
                               className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-amber-500/30 focus:border-amber-500"
                             />

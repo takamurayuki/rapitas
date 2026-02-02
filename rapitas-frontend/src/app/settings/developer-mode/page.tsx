@@ -107,44 +107,14 @@ export default function DeveloperModeSettingsPage() {
             </div>
           </div>
           <div className="p-6 space-y-6">
-            {/* AIアシスタントデフォルト設定 */}
+            {/* AIアシスタント有効設定 */}
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                  開発者モードを有効にする
+                  AIアシスタントを有効にする
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                  すべてのタスク詳細画面で開発者モードを有効にします
-                </p>
-              </div>
-              <button
-                onClick={() =>
-                  updateSettings({
-                    developerModeDefault: !settings?.developerModeDefault,
-                  })
-                }
-                disabled={isSaving}
-                className={`relative w-11 h-6 rounded-full transition-colors ${
-                  settings?.developerModeDefault
-                    ? "bg-violet-500"
-                    : "bg-zinc-300 dark:bg-zinc-600"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                    settings?.developerModeDefault ? "translate-x-5" : ""
-                  }`}
-                />
-              </button>
-            </div>
-            {/* AIタスク分析デフォルト設定 */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                  AIタスク分析を有効にする
-                </h3>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                  すべてのタスク詳細画面でAIアシスタントパネルを表示します
+                  開発プロジェクトのタスク詳細画面でAIアシスタントパネルを表示します
                 </p>
               </div>
               <button

@@ -377,7 +377,7 @@ export default function NewTaskClient() {
           <CompactAccordionGroup
             title="説明"
             icon={<FileText className="w-3.5 h-3.5" />}
-            defaultExpanded={false}
+            defaultExpanded={true}
           >
             <textarea
               value={description}
