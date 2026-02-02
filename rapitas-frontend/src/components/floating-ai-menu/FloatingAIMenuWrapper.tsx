@@ -4,10 +4,12 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import FloatingAIMenu from "./FloatingAIMenu";
 import { useTaskDetailVisibilityStore } from "@/stores/taskDetailVisibilityStore";
+import { useFloatingAIMenuStore } from "@/stores/floatingAIMenuStore";
 import { isTauri } from "@/utils/tauri";
 
 /**
  * FloatingAIMenuのラッパーコンポーネント
+ * Ctrl+Yで表示/非表示切替可能
  * タスク詳細ページおよびタスク詳細パネル表示時は非表示にする
  */
 export default function FloatingAIMenuWrapper() {
@@ -17,6 +19,7 @@ export default function FloatingAIMenuWrapper() {
   const isTaskDetailVisible = useTaskDetailVisibilityStore(
     (state) => state.isTaskDetailVisible
   );
+  const isEnabled = useFloatingAIMenuStore((state) => state.isEnabled);
 
   // Tauri環境の検出とパス取得
   useEffect(() => {
@@ -25,6 +28,11 @@ export default function FloatingAIMenuWrapper() {
       setIsTauriEnv(isTauri());
     }
   }, []);
+
+  // ユーザーがCtrl+Yで無効化している場合は非表示
+  if (!isEnabled) {
+    return null;
+  }
 
   // タスク詳細ページでは非表示にする
   // Web環境: /tasks/[id] 形式

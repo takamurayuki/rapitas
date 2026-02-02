@@ -18,7 +18,8 @@ export type AgentConfigInput = {
   workingDirectory?: string;
   timeout?: number;
   dangerouslySkipPermissions?: boolean;
-  continueConversation?: boolean; // 前回の会話を継続するか
+  continueConversation?: boolean; // 前回の会話を継続するか（--continue）
+  resumeSessionId?: string; // --resumeで使用するセッションID
   customConfig?: Record<string, unknown>;
 };
 
@@ -120,6 +121,7 @@ export class AgentFactory {
           dangerouslySkipPermissions: config.dangerouslySkipPermissions,
           timeout: config.timeout,
           continueConversation: config.continueConversation,
+          resumeSessionId: config.resumeSessionId,
         };
         const agent = new ClaudeCodeAgent(id, config.name, claudeConfig);
         this.activeAgents.set(id, agent);

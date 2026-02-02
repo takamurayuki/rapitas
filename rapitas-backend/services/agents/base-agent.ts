@@ -81,6 +81,8 @@ export type AgentExecutionResult = {
   questionDetails?: import("./question-detection").QuestionDetails;
   /** 構造化キー情報（新方式） */
   questionKey?: import("./question-detection").QuestionKey;
+  /** Claude Code CLIのセッションID（--resumeで会話を継続するため） */
+  claudeSessionId?: string;
 };
 
 export type AgentArtifact = {

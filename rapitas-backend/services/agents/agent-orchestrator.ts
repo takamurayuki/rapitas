@@ -280,7 +280,7 @@ export class AgentOrchestrator {
         console.log(`[Orchestrator] Setting status to failed`);
       }
 
-      // 実行レコードを更新
+      // 実行レコードを更新（claudeSessionIdを含む）
       await this.prisma.agentExecution.update({
         where: { id: execution.id },
         data: {
@@ -294,10 +294,7 @@ export class AgentOrchestrator {
           question: result.question || null,
           questionType: result.questionType || null,
           questionDetails: toJsonString(result.questionDetails),
-          // 新しい構造化キー情報（questionKeyフィールドがDBに追加されたら有効化）
-          // questionKey: result.questionKey
-          //   ? JSON.parse(JSON.stringify(result.questionKey))
-          //   : null,
+          claudeSessionId: result.claudeSessionId || null,
         },
       });
 
@@ -432,14 +429,19 @@ export class AgentOrchestrator {
     // タスク情報を取得
     const task = execution.session.config?.task;
 
-    // エージェント設定を取得
+    // 保存されているClaudeセッションIDを取得
+    const claudeSessionId = (execution as any).claudeSessionId as string | null;
+    console.log(`[Orchestrator] Resuming execution with claudeSessionId: ${claudeSessionId}`);
+
+    // エージェント設定を取得（--resumeでセッションを再開）
     let agentConfig: AgentConfigInput = {
       type: "claude-code",
       name: "Claude Code Agent",
       workingDirectory: task?.workingDirectory || undefined,
       timeout: options.timeout,
       dangerouslySkipPermissions: true,
-      continueConversation: true, // 前回の会話を継続
+      resumeSessionId: claudeSessionId || undefined, // --resumeで使用
+      continueConversation: !claudeSessionId, // セッションIDがない場合のフォールバック
     };
 
     if (execution.agentConfigId) {
@@ -455,7 +457,8 @@ export class AgentOrchestrator {
           workingDirectory: task?.workingDirectory || undefined,
           timeout: options.timeout,
           dangerouslySkipPermissions: true,
-          continueConversation: true, // 前回の会話を継続
+          resumeSessionId: claudeSessionId || undefined, // --resumeで使用
+          continueConversation: !claudeSessionId, // セッションIDがない場合のフォールバック
         };
       }
     }
@@ -568,7 +571,7 @@ export class AgentOrchestrator {
         state.status = "failed";
       }
 
-      // 実行レコードを更新
+      // 実行レコードを更新（claudeSessionIdを更新して会話継続に備える）
       await this.prisma.agentExecution.update({
         where: { id: execution.id },
         data: {
@@ -585,10 +588,8 @@ export class AgentOrchestrator {
           question: result.question || null,
           questionType: result.questionType || null,
           questionDetails: toJsonString(result.questionDetails),
-          // 新しい構造化キー情報（questionKeyフィールドがDBに追加されたら有効化）
-          // questionKey: result.questionKey
-          //   ? JSON.parse(JSON.stringify(result.questionKey))
-          //   : null,
+          // セッションIDを更新（新しいセッションが作成された場合）
+          claudeSessionId: result.claudeSessionId || (execution as any).claudeSessionId || null,
         },
       });
 

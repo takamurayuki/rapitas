@@ -2,6 +2,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Keyboard } from "lucide-react";
+import { useFloatingAIMenuStore } from "@/stores/floatingAIMenuStore";
+
+// OS検出用のユーティリティ
+const getIsMac = () => {
+  if (typeof window === "undefined") return false;
+  return navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+};
 
 type ShortcutConfig = {
   key: string;
@@ -18,6 +25,13 @@ export const OPEN_SHORTCUTS_EVENT = "openKeyboardShortcuts";
 export default function KeyboardShortcuts() {
   const router = useRouter();
   const [showHelp, setShowHelp] = useState(false);
+  const [isMac, setIsMac] = useState(false);
+  const toggleFloatingAIMenu = useFloatingAIMenuStore((state) => state.toggle);
+
+  // クライアントサイドでOS検出
+  useEffect(() => {
+    setIsMac(getIsMac());
+  }, []);
 
   // 外部からモーダルを開くためのイベントリスナー
   useEffect(() => {
@@ -52,7 +66,7 @@ export default function KeyboardShortcuts() {
       action: () => router.push("/kanban"),
     },
     {
-      key: "c",
+      key: "l",
       meta: true,
       description: "カレンダー",
       action: () => router.push("/calendar"),
@@ -69,6 +83,12 @@ export default function KeyboardShortcuts() {
       meta: true,
       description: "ショートカットヘルプ",
       action: () => setShowHelp(true),
+    },
+    {
+      key: "e",
+      ctrl: true,
+      description: "AIアシスタント表示切替",
+      action: () => toggleFloatingAIMenu(),
     },
     {
       key: "Escape",
@@ -89,7 +109,13 @@ export default function KeyboardShortcuts() {
       }
 
       for (const shortcut of shortcuts) {
-        const metaMatch = shortcut.meta ? (e.metaKey || e.ctrlKey) : !(e.metaKey || e.ctrlKey);
+        // ctrlのみ指定されている場合はctrlキーのみをチェック
+        const ctrlOnly = shortcut.ctrl && !shortcut.meta;
+        const metaMatch = ctrlOnly
+          ? e.ctrlKey && !e.metaKey
+          : shortcut.meta
+            ? e.metaKey || e.ctrlKey
+            : !(e.metaKey || e.ctrlKey);
         const shiftMatch = shortcut.shift ? e.shiftKey : !e.shiftKey;
         const keyMatch = e.key.toLowerCase() === shortcut.key.toLowerCase();
 
@@ -107,8 +133,9 @@ export default function KeyboardShortcuts() {
 
   const formatShortcut = (shortcut: ShortcutConfig) => {
     const parts = [];
-    if (shortcut.meta) parts.push("⌘");
-    if (shortcut.shift) parts.push("⇧");
+    if (shortcut.ctrl) parts.push("Ctrl");
+    if (shortcut.meta) parts.push(isMac ? "⌘" : "Ctrl");
+    if (shortcut.shift) parts.push(isMac ? "⇧" : "Shift");
     parts.push(shortcut.key === "Escape" ? "Esc" : shortcut.key.toUpperCase());
     return parts.join(" + ");
   };
@@ -159,7 +186,9 @@ export default function KeyboardShortcuts() {
 
         <div className="p-4 border-t border-zinc-200 dark:border-zinc-700 text-center">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            ⌘ は Mac では Command、Windows では Ctrl キー
+            {isMac
+              ? "⌘ は Command キー、⇧ は Shift キー"
+              : "Ctrl は Control キー"}
           </p>
         </div>
       </div>

@@ -413,6 +413,7 @@ model AgentExecution {
   question          String?
   questionType      String?
   questionDetails   String?   // JSON stored as string
+  claudeSessionId   String?   // Claude Code CLI session ID for --resume
   createdAt         DateTime  @default(now())
   gitCommits        GitCommit[]
 }

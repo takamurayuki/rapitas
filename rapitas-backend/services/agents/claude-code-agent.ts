@@ -37,6 +37,7 @@ export type ClaudeCodeAgentConfig = {
   timeout?: number; // milliseconds
   maxTokens?: number;
   continueConversation?: boolean; // 前回の会話を継続するか
+  resumeSessionId?: string; // --resumeで使用するセッションID
 };
 
 export class ClaudeCodeAgent extends BaseAgent {
@@ -48,6 +49,8 @@ export class ClaudeCodeAgent extends BaseAgent {
   /** 質問待機状態（新しいキーベース判定システム） */
   private detectedQuestion: QuestionWaitingState = createInitialWaitingState();
   private activeTools: Map<string, { name: string; startTime: number; info: string }> = new Map();
+  /** Claude CodeのセッションID（--resumeで会話を継続するため） */
+  private claudeSessionId: string | null = null;
 
   constructor(id: string, name: string, config: ClaudeCodeAgentConfig = {}) {
     super(id, name, "claude-code");
@@ -79,6 +82,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     this.lineBuffer = "";
     this.detectedQuestion = createInitialWaitingState();
     this.activeTools.clear();
+    this.claudeSessionId = null;
     const startTime = Date.now();
 
     // タイムアウトのデフォルト値を確実に設定
@@ -151,8 +155,12 @@ export class ClaudeCodeAgent extends BaseAgent {
       args.push("--verbose"); // より詳細な出力を取得（リアルタイム性向上）
       args.push("--output-format", "stream-json"); // JSONストリーミング形式で出力
 
-      // 前回の会話を継続する場合
-      if (this.config.continueConversation) {
+      // 前回の会話を継続する場合（--resumeでセッションIDを指定）
+      if (this.config.resumeSessionId) {
+        args.push("--resume", this.config.resumeSessionId);
+        console.log(`[Claude Code] Resuming session: ${this.config.resumeSessionId}`);
+      } else if (this.config.continueConversation) {
+        // フォールバック: 最新の会話を継続
         args.push("--continue");
       }
 
@@ -459,6 +467,11 @@ export class ClaudeCodeAgent extends BaseAgent {
                   }
                   break;
                 case "system":
+                  // initイベントからセッションIDをキャプチャ
+                  if (json.subtype === "init" && json.session_id) {
+                    this.claudeSessionId = json.session_id;
+                    console.log(`[Claude Code] Session ID captured: ${this.claudeSessionId}`);
+                  }
                   displayOutput += `[System: ${json.subtype || "info"}]\n`;
                   break;
                 default:
@@ -551,6 +564,7 @@ export class ClaudeCodeAgent extends BaseAgent {
             console.log(`[Claude Code] Setting status to waiting_for_input (exitCode: ${code})`);
             console.log(`[Claude Code] Question detected (${questionType}): ${question.substring(0, 200)}`);
             console.log(`[Claude Code] Question key:`, questionKey);
+            console.log(`[Claude Code] Session ID for resume: ${this.claudeSessionId}`);
             this.emitOutput("\n[Claude Code] 回答を待っています...\n");
             resolve({
               success: true, // 技術的には成功だが、完了ではない
@@ -563,6 +577,7 @@ export class ClaudeCodeAgent extends BaseAgent {
               questionType,
               questionDetails,
               questionKey, // 新しい構造化キー情報
+              claudeSessionId: this.claudeSessionId || undefined,
             });
             return;
           }
@@ -577,6 +592,7 @@ export class ClaudeCodeAgent extends BaseAgent {
             commits,
             executionTimeMs,
             waitingForInput: false,
+            claudeSessionId: this.claudeSessionId || undefined,
             errorMessage:
               code !== 0
                 ? this.errorBuffer || `Process exited with code ${code}`
