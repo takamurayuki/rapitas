@@ -30,7 +30,7 @@ import {
   Github,
   GitPullRequest,
   CircleDot,
-  Cpu,
+  Code,
   Key,
   Pin,
   PinOff,
@@ -251,7 +251,7 @@ export default function Header() {
     {
       href: "#",
       label: "開発",
-      icon: Bot,
+      icon: Code,
       children: [
         {
           href: "#",
@@ -261,7 +261,7 @@ export default function Header() {
             {
               href: "/github",
               label: "ダッシュボード",
-              icon: Github,
+              icon: BarChart3,
             },
             {
               href: "/github/pull-requests",
@@ -278,7 +278,7 @@ export default function Header() {
         {
           href: "/agents",
           label: "エージェント管理",
-          icon: Cpu,
+          icon: Bot,
         },
         {
           href: "/approvals",
@@ -309,7 +309,10 @@ export default function Header() {
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/" || pathname === "/kanban";
     if (href === "#") return false;
-    return pathname?.startsWith(href);
+    // 完全一致のみをアクティブとする
+    // 子要素がアクティブな場合は isChildActive で別途ハイライトされるため、
+    // ここでは完全一致のみを判定することで、複数項目が同時に選択される問題を防ぐ
+    return pathname === href;
   };
 
   // 再帰的に子要素がアクティブかチェック
