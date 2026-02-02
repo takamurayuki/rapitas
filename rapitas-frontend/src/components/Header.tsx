@@ -16,12 +16,13 @@ import {
   ChevronRight,
   Target,
   BarChart3,
-  Sparkles,
+  ClipboardList,
   Trophy,
   Flame,
   Brain,
   FileText,
   Calendar,
+  GraduationCap,
   Keyboard,
   Bot,
   CheckCircle,
@@ -206,7 +207,7 @@ export default function Header() {
     {
       href: "#",
       label: "学習",
-      icon: Sparkles,
+      icon: GraduationCap,
       children: [
         {
           href: "/exam-goals",
@@ -216,7 +217,7 @@ export default function Header() {
         {
           href: "/study-plans",
           label: "AI学習計画",
-          icon: Sparkles,
+          icon: ClipboardList,
         },
         {
           href: "/flashcards",
