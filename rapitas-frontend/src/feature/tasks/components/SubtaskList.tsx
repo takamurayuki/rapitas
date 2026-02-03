@@ -8,7 +8,11 @@ import {
   statusConfig,
   renderStatusIcon,
 } from "@/feature/tasks/config/StatusConfig";
-import { Pencil, Check, X, Bot } from "lucide-react";
+import { Pencil, Check, X, Bot, Loader2 } from "lucide-react";
+import {
+  SubtaskTitleIndicator,
+  type ParallelExecutionStatus,
+} from "./SubtaskExecutionStatus";
 
 interface SubtaskListProps {
   subtasks?: Task[];
@@ -27,6 +31,10 @@ interface SubtaskListProps {
   onAddSubtask: () => void;
   onCancelAddingSubtask: () => void;
   onUpdateSubtask?: (subtaskId: number, data: { title?: string; description?: string }) => void;
+  /** 並列実行ステータスを取得する関数（サブタスクIDを渡すとステータスを返す） */
+  getExecutionStatus?: (subtaskId: number) => ParallelExecutionStatus | undefined;
+  /** 並列実行中かどうか */
+  isParallelExecutionRunning?: boolean;
 }
 
 export default function SubtaskList({
@@ -46,6 +54,8 @@ export default function SubtaskList({
   onAddSubtask,
   onCancelAddingSubtask,
   onUpdateSubtask,
+  getExecutionStatus,
+  isParallelExecutionRunning = false,
 }: SubtaskListProps) {
   const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
@@ -166,6 +176,13 @@ export default function SubtaskList({
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
+                          {/* 並列実行ステータスインジケーター */}
+                          {isParallelExecutionRunning && getExecutionStatus && (
+                            <SubtaskTitleIndicator
+                              executionStatus={getExecutionStatus(subtask.id)}
+                              size="md"
+                            />
+                          )}
                           <h4 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
                             {subtask.title}
                           </h4>
@@ -285,6 +302,13 @@ export default function SubtaskList({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 flex-1">
+                    {/* 並列実行ステータスインジケーター（完了タスクでも表示） */}
+                    {isParallelExecutionRunning && getExecutionStatus && (
+                      <SubtaskTitleIndicator
+                        executionStatus={getExecutionStatus(subtask.id)}
+                        size="sm"
+                      />
+                    )}
                     <h4 className="text-base font-medium text-zinc-900 dark:text-zinc-50 line-through">
                       {subtask.title}
                     </h4>

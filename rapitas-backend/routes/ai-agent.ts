@@ -80,7 +80,8 @@ export const aiAgentRoutes = new Elysia()
       };
     }) => {
       const { id } = params;
-      const { name, endpoint, modelId, capabilities, isDefault, isActive } = body;
+      const { name, endpoint, modelId, capabilities, isDefault, isActive } =
+        body;
 
       if (isDefault) {
         await prisma.aIAgentConfig.updateMany({
@@ -250,7 +251,9 @@ export const aiAgentRoutes = new Elysia()
           })
           .join("\n");
         fullInstruction += `\n\n## 添付ファイル\n以下のファイルがタスクに添付されています。必要に応じて参照してください:\n${attachmentInfo}`;
-        console.log(`[API] Added ${attachments.length} attachments to instruction`);
+        console.log(
+          `[API] Added ${attachments.length} attachments to instruction`,
+        );
       }
 
       let analysisInfo:
@@ -490,7 +493,8 @@ export const aiAgentRoutes = new Elysia()
         resolve({
           success: code === 0,
           output: stdout.trim(),
-          error: stderr.trim() || (code !== 0 ? `Exit code: ${code}` : undefined),
+          error:
+            stderr.trim() || (code !== 0 ? `Exit code: ${code}` : undefined),
           duration: Date.now() - startTime,
         });
       });
@@ -633,19 +637,22 @@ export const aiAgentRoutes = new Elysia()
         const latestSession = config.agentSessions[0];
         const latestExecution = latestSession.agentExecutions[0];
 
-        const isWaitingForInput = latestExecution?.status === "waiting_for_input";
+        const isWaitingForInput =
+          latestExecution?.status === "waiting_for_input";
         const questionText = (latestExecution as any)?.question || null;
         // questionTypeはDBの値をそのまま使用（tool_call または none）
         // pattern_matchへのフォールバックは削除 - AIエージェントからの明確なステータスのみを信頼
         const questionType: "tool_call" | "none" =
-          ((latestExecution as any)?.questionType === "tool_call")
+          (latestExecution as any)?.questionType === "tool_call"
             ? "tool_call"
             : "none";
 
         // タイムアウト情報を取得
         let questionTimeoutInfo = null;
         if (isWaitingForInput && latestExecution?.id) {
-          const timeoutInfo = orchestrator.getQuestionTimeoutInfo(latestExecution.id);
+          const timeoutInfo = orchestrator.getQuestionTimeoutInfo(
+            latestExecution.id,
+          );
           if (timeoutInfo) {
             questionTimeoutInfo = {
               remainingSeconds: timeoutInfo.remainingSeconds,
@@ -671,7 +678,10 @@ export const aiAgentRoutes = new Elysia()
         };
       } catch (error) {
         console.error("[execution-status] Error fetching status:", error);
-        return { status: "error", message: "状態の取得中にエラーが発生しました" };
+        return {
+          status: "error",
+          message: "状態の取得中にエラーが発生しました",
+        };
       }
     },
   )
@@ -693,64 +703,77 @@ export const aiAgentRoutes = new Elysia()
         return { error: "Response is required" };
       }
 
-      // トランザクションを使用して、ステータスの確認と更新を原子的に行う（重複処理防止）
-      const result = await prisma.$transaction(async (tx: typeof prisma) => {
-        const config = await tx.developerModeConfig.findUnique({
-          where: { taskId },
-          include: {
-            task: { include: { theme: true } },
-            agentSessions: {
-              orderBy: { createdAt: "desc" },
-              take: 1,
-              include: {
-                agentExecutions: {
-                  orderBy: { createdAt: "desc" },
-                  take: 1,
-                },
+      // まず実行情報を取得してロックとタイムアウトキャンセルを試みる
+      const config = await prisma.developerModeConfig.findUnique({
+        where: { taskId },
+        include: {
+          task: { include: { theme: true } },
+          agentSessions: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            include: {
+              agentExecutions: {
+                orderBy: { createdAt: "desc" },
+                take: 1,
               },
             },
           },
-        });
+        },
+      });
 
-        if (!config || !config.agentSessions[0]) {
-          return { error: "No active session found" };
-        }
+      if (!config || !config.agentSessions[0]) {
+        return { error: "No active session found" };
+      }
 
-        const session = config.agentSessions[0];
-        const latestExecution = session.agentExecutions[0];
+      const session = config.agentSessions[0];
+      const latestExecution = session.agentExecutions[0];
 
-        if (!latestExecution || latestExecution.status !== "waiting_for_input") {
+      if (!latestExecution) {
+        return { error: "No execution found" };
+      }
+
+      // オーケストレーターでロックを取得（他のプロセスと競合防止）
+      if (
+        !orchestrator.tryAcquireContinuationLock(
+          latestExecution.id,
+          "user_response",
+        )
+      ) {
+        console.log(
+          `[agent-respond] Execution ${latestExecution.id} is already being processed`,
+        );
+        return {
+          error: "This execution is already being processed",
+          currentStatus: "processing",
+        };
+      }
+
+      try {
+        // タイムアウトをキャンセル（ロック取得後に行う）
+        orchestrator.cancelQuestionTimeout(latestExecution.id);
+
+        // ステータス確認
+        if (latestExecution.status !== "waiting_for_input") {
+          orchestrator.releaseContinuationLock(latestExecution.id);
           return {
             error: "No execution waiting for input",
-            currentStatus: latestExecution?.status,
+            currentStatus: latestExecution.status,
           };
         }
 
-        // 即座にステータスを running に更新して重複リクエストを防止
-        await tx.agentExecution.update({
+        // ステータスを running に更新
+        await prisma.agentExecution.update({
           where: { id: latestExecution.id },
           data: { status: "running" },
         });
 
-        return {
-          success: true,
-          config,
-          session,
-          latestExecution,
-          workingDirectory: config.task.theme?.workingDirectory || process.cwd(),
-        };
-      });
+        const workingDirectory =
+          config.task.theme?.workingDirectory || process.cwd();
 
-      // エラーの場合は即座に返す
-      if ("error" in result) {
-        return result;
-      }
-
-      const { config, session, latestExecution, workingDirectory } = result;
-
-      try {
+        // 非同期で実行を継続
+        // 注意: ロックは既にこのAPI内で取得済みなので、executeContinuationWithLockを使用
         orchestrator
-          .executeContinuation(latestExecution.id, response.trim(), {
+          .executeContinuationWithLock(latestExecution.id, response.trim(), {
             timeout: 900000,
           })
           .then(async (execResult) => {
@@ -797,7 +820,10 @@ export const aiAgentRoutes = new Elysia()
               }
             }
           })
-          .catch(console.error);
+          .catch((error) => {
+            console.error("Agent respond execution failed:", error);
+            // エラー時もロックは自動的に解放される（executeContinuation内で）
+          });
 
         return {
           success: true,
@@ -806,11 +832,14 @@ export const aiAgentRoutes = new Elysia()
         };
       } catch (error: any) {
         console.error("Agent respond failed:", error);
-        // エラー時はステータスを元に戻す
-        await prisma.agentExecution.update({
-          where: { id: latestExecution.id },
-          data: { status: "waiting_for_input" },
-        }).catch(() => {});
+        // エラー時はロックを解放してステータスを元に戻す
+        orchestrator.releaseContinuationLock(latestExecution.id);
+        await prisma.agentExecution
+          .update({
+            where: { id: latestExecution.id },
+            data: { status: "waiting_for_input" },
+          })
+          .catch(() => {});
         return { error: error.message || "Failed to send response" };
       }
     },
@@ -936,13 +965,21 @@ export const aiAgentRoutes = new Elysia()
         executionId: latestExecution.id,
         sessionId: latestSession.id,
         status: latestExecution.status,
-        logs: logs.map((log) => ({
-          id: log.id,
-          chunk: log.logChunk,
-          type: log.logType,
-          sequence: log.sequenceNumber,
-          timestamp: log.timestamp,
-        })),
+        logs: logs.map(
+          (log: {
+            id: number;
+            logChunk: string;
+            logType: string;
+            sequenceNumber: number;
+            timestamp: Date;
+          }) => ({
+            id: log.id,
+            chunk: log.logChunk,
+            type: log.logType,
+            sequence: log.sequenceNumber,
+            timestamp: log.timestamp,
+          }),
+        ),
         lastSequence,
         output: latestExecution.output,
         errorMessage: latestExecution.errorMessage,
@@ -994,13 +1031,17 @@ export const aiAgentRoutes = new Elysia()
 
         if (runningExecution) {
           // オーケストレーターで停止を試みる
-          const stopped = await orchestrator.stopExecution(runningExecution.id).catch(() => false);
+          const stopped = await orchestrator
+            .stopExecution(runningExecution.id)
+            .catch(() => false);
 
           // 実行ログを削除
           await prisma.agentExecutionLog.deleteMany({
             where: { executionId: runningExecution.id },
           });
-          console.log(`[stop-execution] Deleted execution logs for execution ${runningExecution.id}`);
+          console.log(
+            `[stop-execution] Deleted execution logs for execution ${runningExecution.id}`,
+          );
 
           // オーケストレーターで停止できなかった場合（メモリに存在しない場合など）でも
           // DBのステータスを確実に更新する
@@ -1013,7 +1054,9 @@ export const aiAgentRoutes = new Elysia()
                 errorMessage: "Cancelled by user",
               },
             });
-            console.log(`[stop-execution] Updated DB status for execution ${runningExecution.id} (not found in orchestrator)`);
+            console.log(
+              `[stop-execution] Updated DB status for execution ${runningExecution.id} (not found in orchestrator)`,
+            );
           }
 
           if (task?.workingDirectory) {
@@ -1106,7 +1149,9 @@ export const aiAgentRoutes = new Elysia()
     try {
       // First, mark any "running" executions that are not actively running as "interrupted"
       // This handles the case where the server was restarted while an execution was in progress
-      const activeExecutionIds = orchestrator.getActiveExecutions().map((e) => e.executionId);
+      const activeExecutionIds = orchestrator
+        .getActiveExecutions()
+        .map((e) => e.executionId);
 
       // Find executions that are marked as "running" but not actually running in memory
       const staleRunningExecutions = await prisma.agentExecution.findMany({
@@ -1118,7 +1163,9 @@ export const aiAgentRoutes = new Elysia()
 
       // Update stale executions to "interrupted" status
       if (staleRunningExecutions.length > 0) {
-        console.log(`[resumable-executions] Found ${staleRunningExecutions.length} stale running executions, marking as interrupted`);
+        console.log(
+          `[resumable-executions] Found ${staleRunningExecutions.length} stale running executions, marking as interrupted`,
+        );
 
         for (const exec of staleRunningExecutions) {
           await prisma.agentExecution.update({
@@ -1285,7 +1332,7 @@ export const aiAgentRoutes = new Elysia()
       });
 
       return { success: true, message: "Execution acknowledged" };
-    }
+    },
   )
 
   // Resume interrupted execution
@@ -1369,8 +1416,10 @@ export const aiAgentRoutes = new Elysia()
             if (result.success && !result.waitingForInput) {
               const diff = await orchestrator.getFullGitDiff(workingDirectory);
               if (diff && diff !== "No changes detected") {
-                const structuredDiff = await orchestrator.getDiff(workingDirectory);
-                const implementationSummary = result.output || "再開した作業が完了しました。";
+                const structuredDiff =
+                  await orchestrator.getDiff(workingDirectory);
+                const implementationSummary =
+                  result.output || "再開した作業が完了しました。";
 
                 const config = execution.session.config;
                 if (config) {
@@ -1446,16 +1495,20 @@ export const aiAgentRoutes = new Elysia()
           executionId,
           taskId: task.id,
           taskTitle: task.title,
-          message: "中断された実行を再開しています。進捗はリアルタイムで確認できます。",
+          message:
+            "中断された実行を再開しています。進捗はリアルタイムで確認できます。",
         };
       } catch (error) {
         console.error("[resume] Error:", error);
         return {
           success: false,
-          error: error instanceof Error ? error.message : "Failed to resume execution",
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to resume execution",
         };
       }
-    }
+    },
   )
 
   // Reset execution state for a task (allows re-running)
@@ -1490,7 +1543,12 @@ export const aiAgentRoutes = new Elysia()
         const latestExecution = latestSession?.agentExecutions[0];
 
         // If there's a running execution, stop it first
-        if (latestExecution && ["running", "pending", "waiting_for_input"].includes(latestExecution.status)) {
+        if (
+          latestExecution &&
+          ["running", "pending", "waiting_for_input"].includes(
+            latestExecution.status,
+          )
+        ) {
           // Try to stop via orchestrator
           await orchestrator.stopExecution(latestExecution.id).catch(() => {});
         }
@@ -1527,7 +1585,9 @@ export const aiAgentRoutes = new Elysia()
           });
         }
 
-        console.log(`[reset-execution-state] Task ${taskId} execution state reset`);
+        console.log(
+          `[reset-execution-state] Task ${taskId} execution state reset`,
+        );
 
         return {
           success: true,
@@ -1539,8 +1599,11 @@ export const aiAgentRoutes = new Elysia()
         console.error("[reset-execution-state] Error:", error);
         return {
           success: false,
-          error: error instanceof Error ? error.message : "Failed to reset execution state",
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to reset execution state",
         };
       }
-    }
+    },
   );

@@ -32,3 +32,4 @@ export { taskDependencyRoutes } from "./task-dependency";
 export { githubRoutes, taskGithubRoutes } from "./github";
 export { approvalsRoutes, orchestrator } from "./approvals";
 export { aiAgentRoutes } from "./ai-agent";
+export { parallelExecutionRoutes } from "./parallel-execution";

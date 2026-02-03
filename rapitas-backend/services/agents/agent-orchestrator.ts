@@ -91,6 +91,16 @@ type QuestionTimeoutInfo = {
 };
 
 /**
+ * 継続実行のロック状態を管理
+ * 同一executionIdに対する重複実行を防止
+ */
+type ContinuationLockInfo = {
+  executionId: number;
+  lockedAt: Date;
+  source: "user_response" | "auto_timeout";
+};
+
+/**
  * エージェントオーケストレータークラス
  */
 export class AgentOrchestrator {
@@ -103,6 +113,8 @@ export class AgentOrchestrator {
   private shutdownPromise: Promise<void> | null = null;
   /** 質問タイムアウト管理用マップ（executionId -> QuestionTimeoutInfo） */
   private questionTimeouts: Map<number, QuestionTimeoutInfo> = new Map();
+  /** 継続実行のロック管理用マップ（executionId -> ContinuationLockInfo）*/
+  private continuationLocks: Map<number, ContinuationLockInfo> = new Map();
 
   private constructor(prisma: any) {
     this.prisma = prisma;
@@ -399,6 +411,44 @@ export class AgentOrchestrator {
   }
 
   /**
+   * 継続実行のロックを取得
+   * @returns ロック取得に成功した場合はtrue、既にロックされている場合はfalse
+   */
+  tryAcquireContinuationLock(executionId: number, source: "user_response" | "auto_timeout"): boolean {
+    const existingLock = this.continuationLocks.get(executionId);
+    if (existingLock) {
+      console.log(`[Orchestrator] Continuation lock already held for execution ${executionId} by ${existingLock.source}`);
+      return false;
+    }
+
+    this.continuationLocks.set(executionId, {
+      executionId,
+      lockedAt: new Date(),
+      source,
+    });
+    console.log(`[Orchestrator] Continuation lock acquired for execution ${executionId} by ${source}`);
+    return true;
+  }
+
+  /**
+   * 継続実行のロックを解放
+   */
+  releaseContinuationLock(executionId: number): void {
+    const lock = this.continuationLocks.get(executionId);
+    if (lock) {
+      this.continuationLocks.delete(executionId);
+      console.log(`[Orchestrator] Continuation lock released for execution ${executionId}`);
+    }
+  }
+
+  /**
+   * 継続実行のロックが取得されているか確認
+   */
+  hasContinuationLock(executionId: number): boolean {
+    return this.continuationLocks.has(executionId);
+  }
+
+  /**
    * 質問タイムアウト発生時の処理
    * エージェントに自動的に継続を指示
    */
@@ -408,52 +458,76 @@ export class AgentOrchestrator {
       const timeoutInfo = this.questionTimeouts.get(executionId);
       this.questionTimeouts.delete(executionId);
 
-      // 実行状態を確認
-      const execution = await this.prisma.agentExecution.findUnique({
-        where: { id: executionId },
-        include: {
-          session: true,
-        },
-      });
-
-      if (!execution) {
-        console.log(`[Orchestrator] Execution ${executionId} not found for timeout handling`);
+      // ロックを取得（既に処理中なら早期リターン）
+      if (!this.tryAcquireContinuationLock(executionId, "auto_timeout")) {
+        console.log(`[Orchestrator] Skipping timeout handling for execution ${executionId} - already being processed`);
         return;
       }
 
-      // まだ waiting_for_input 状態かどうか確認
-      if (execution.status !== "waiting_for_input") {
-        console.log(`[Orchestrator] Execution ${executionId} is no longer waiting for input (status: ${execution.status})`);
-        return;
+      try {
+        // 実行状態を確認
+        const execution = await this.prisma.agentExecution.findUnique({
+          where: { id: executionId },
+          include: {
+            session: true,
+          },
+        });
+
+        if (!execution) {
+          console.log(`[Orchestrator] Execution ${executionId} not found for timeout handling`);
+          return;
+        }
+
+        // まだ waiting_for_input 状態かどうか確認
+        if (execution.status !== "waiting_for_input") {
+          console.log(`[Orchestrator] Execution ${executionId} is no longer waiting for input (status: ${execution.status})`);
+          return;
+        }
+
+        // DBステータスを running に更新（競合防止）
+        await this.prisma.agentExecution.update({
+          where: { id: executionId },
+          data: { status: "running" },
+        });
+
+        console.log(`[Orchestrator] Auto-continuing execution ${executionId} after timeout`);
+
+        // 質問のタイプに応じてデフォルト回答を生成
+        const defaultResponse = this.generateDefaultResponse(
+          timeoutInfo?.questionKey,
+          (execution as any).question,
+          (execution as any).questionDetails
+        );
+
+        // タイムアウトイベントを発火（フロントエンドに通知）
+        this.emitEvent({
+          type: "execution_output",
+          executionId,
+          sessionId: execution.sessionId,
+          taskId,
+          data: {
+            questionTimeoutTriggered: true,
+            autoResponse: defaultResponse,
+            message: "タイムアウトにより自動的に継続します",
+          },
+          timestamp: new Date(),
+        });
+
+        // 自動継続を実行（内部でロックは解放される）
+        await this.executeContinuationInternal(executionId, defaultResponse, {
+          timeout: 900000,
+        });
+      } catch (error) {
+        // エラー時はステータスを元に戻す
+        await this.prisma.agentExecution.update({
+          where: { id: executionId },
+          data: { status: "waiting_for_input" },
+        }).catch(() => {});
+        throw error;
+      } finally {
+        // ロックを解放
+        this.releaseContinuationLock(executionId);
       }
-
-      console.log(`[Orchestrator] Auto-continuing execution ${executionId} after timeout`);
-
-      // 質問のタイプに応じてデフォルト回答を生成
-      const defaultResponse = this.generateDefaultResponse(
-        timeoutInfo?.questionKey,
-        (execution as any).question,
-        (execution as any).questionDetails
-      );
-
-      // タイムアウトイベントを発火（フロントエンドに通知）
-      this.emitEvent({
-        type: "execution_output",
-        executionId,
-        sessionId: execution.sessionId,
-        taskId,
-        data: {
-          questionTimeoutTriggered: true,
-          autoResponse: defaultResponse,
-          message: "タイムアウトにより自動的に継続します",
-        },
-        timestamp: new Date(),
-      });
-
-      // 自動継続を実行
-      await this.executeContinuation(executionId, defaultResponse, {
-        timeout: 900000,
-      });
     } catch (error) {
       console.error(`[Orchestrator] Error handling question timeout for execution ${executionId}:`, error);
     }
@@ -977,9 +1051,100 @@ export class AgentOrchestrator {
   }
 
   /**
-   * 会話を継続（質問への回答）
+   * 会話を継続（質問への回答）- 外部API用
+   * ロック取得とステータス確認を行い、重複実行を防止する
    */
   async executeContinuation(
+    executionId: number,
+    response: string,
+    options: Partial<ExecutionOptions> = {},
+  ): Promise<AgentExecutionResult> {
+    // ロックを取得（既に処理中なら早期リターン）
+    if (!this.tryAcquireContinuationLock(executionId, "user_response")) {
+      console.log(`[Orchestrator] Skipping continuation for execution ${executionId} - already being processed`);
+      return {
+        success: false,
+        output: "",
+        errorMessage: "This execution is already being processed",
+      };
+    }
+
+    try {
+      // 既存の実行を取得
+      const execution = await this.prisma.agentExecution.findUnique({
+        where: { id: executionId },
+        include: {
+          session: {
+            include: {
+              config: {
+                include: {
+                  task: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!execution) {
+        throw new Error(`Execution not found: ${executionId}`);
+      }
+
+      // ステータスチェック: running の場合は既に処理中
+      if (execution.status === "running") {
+        console.log(`[Orchestrator] Execution ${executionId} is already running, skipping continuation`);
+        return {
+          success: false,
+          output: "",
+          errorMessage: "Execution is already running",
+        };
+      }
+
+      if (execution.status !== "waiting_for_input") {
+        console.log(`[Orchestrator] Execution ${executionId} is not waiting for input (status: ${execution.status})`);
+        return {
+          success: false,
+          output: "",
+          errorMessage: `Execution is not waiting for input: ${execution.status}`,
+        };
+      }
+
+      // ユーザーからの応答があったので、既存の質問タイムアウトをキャンセル
+      this.cancelQuestionTimeout(executionId);
+
+      // 内部処理を実行（ロックは継承）
+      return await this.executeContinuationInternal(executionId, response, options);
+    } catch (error) {
+      throw error;
+    } finally {
+      // ロックを解放
+      this.releaseContinuationLock(executionId);
+    }
+  }
+
+  /**
+   * 会話を継続（質問への回答）- ロック取得済みの場合用
+   * APIルートで既にロックを取得している場合に使用
+   */
+  async executeContinuationWithLock(
+    executionId: number,
+    response: string,
+    options: Partial<ExecutionOptions> = {},
+  ): Promise<AgentExecutionResult> {
+    try {
+      // 内部処理を実行
+      return await this.executeContinuationInternal(executionId, response, options);
+    } finally {
+      // ロックを解放
+      this.releaseContinuationLock(executionId);
+    }
+  }
+
+  /**
+   * 会話を継続（質問への回答）- 内部用
+   * ロック取得済みの状態で呼び出される
+   */
+  private async executeContinuationInternal(
     executionId: number,
     response: string,
     options: Partial<ExecutionOptions> = {},
@@ -1004,14 +1169,8 @@ export class AgentOrchestrator {
       throw new Error(`Execution not found: ${executionId}`);
     }
 
-    if (execution.status !== "waiting_for_input") {
-      throw new Error(
-        `Execution is not waiting for input: ${execution.status}`,
-      );
-    }
-
-    // ユーザーからの応答があったので、既存の質問タイムアウトをキャンセル
-    this.cancelQuestionTimeout(executionId);
+    // この時点ではステータスは running（タイムアウトハンドラ）または waiting_for_input（API経由）
+    // どちらでも処理を続行する
 
     // タスク情報を取得
     const task = execution.session.config?.task;
@@ -1423,6 +1582,9 @@ export class AgentOrchestrator {
   async stopExecution(executionId: number): Promise<boolean> {
     // 質問タイムアウトがあればキャンセル
     this.cancelQuestionTimeout(executionId);
+
+    // 継続ロックがあれば解放
+    this.releaseContinuationLock(executionId);
 
     const state = this.activeExecutions.get(executionId);
     if (!state) {

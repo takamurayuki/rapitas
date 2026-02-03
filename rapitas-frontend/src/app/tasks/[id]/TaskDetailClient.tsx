@@ -33,7 +33,13 @@ import {
   FileStack,
   Bot,
   ArrowLeft,
+  Loader2,
 } from "lucide-react";
+import {
+  SubtaskTitleIndicator,
+  type ParallelExecutionStatus,
+} from "@/feature/tasks/components/SubtaskExecutionStatus";
+import { useParallelExecutionStatus } from "@/feature/tasks/hooks/useParallelExecutionStatus";
 import { getTaskDetailPath } from "@/utils/tauri";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -216,6 +222,17 @@ export default function TaskDetailClient({
 
   // 最適化されたプロンプト用の状態
   const [optimizedPrompt, setOptimizedPrompt] = useState<string | null>(null);
+
+  // 並列実行ステータス管理
+  const {
+    sessionId: parallelSessionId,
+    sessionState: parallelSessionState,
+    isRunning: isParallelExecutionRunning,
+    getSubtaskStatus,
+  } = useParallelExecutionStatus({
+    taskId,
+    enableSSE: true,
+  });
 
   useEffect(() => {
     const fetchTask = async () => {
@@ -1001,22 +1018,30 @@ export default function TaskDetailClient({
                           /* サブタスク表示モード - コンパクト化 */
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2 flex-1 min-w-0">
-                              {/* ステータスアイコン */}
-                              <div className="shrink-0">
-                                {subtask.status === "done" ? (
-                                  <div className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
-                                    <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                                  </div>
-                                ) : subtask.status === "in-progress" ? (
-                                  <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
-                                    <Circle className="w-3 h-3 text-blue-600 dark:text-blue-400 animate-pulse" />
-                                  </div>
-                                ) : (
-                                  <div className="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-                                    <Circle className="w-3 h-3 text-zinc-400" />
-                                  </div>
-                                )}
-                              </div>
+                              {/* 並列実行ステータスアイコン（実行中の場合） */}
+                              {isParallelExecutionRunning && getSubtaskStatus(subtask.id) ? (
+                                <SubtaskTitleIndicator
+                                  executionStatus={getSubtaskStatus(subtask.id)}
+                                  size="sm"
+                                />
+                              ) : (
+                                /* 通常のステータスアイコン */
+                                <div className="shrink-0">
+                                  {subtask.status === "done" ? (
+                                    <div className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
+                                      <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                    </div>
+                                  ) : subtask.status === "in-progress" ? (
+                                    <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
+                                      <Circle className="w-3 h-3 text-blue-600 dark:text-blue-400 animate-pulse" />
+                                    </div>
+                                  ) : (
+                                    <div className="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+                                      <Circle className="w-3 h-3 text-zinc-400" />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                               <span
                                 className={`text-sm truncate ${subtask.status === "done" ? "text-zinc-400 line-through" : "text-zinc-900 dark:text-zinc-50"}`}
                               >
