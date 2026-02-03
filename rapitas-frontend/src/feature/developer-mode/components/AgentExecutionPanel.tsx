@@ -26,6 +26,7 @@ import {
   HelpCircle,
   FileText,
   Settings,
+  Clock,
 } from "lucide-react";
 import type {
   ExecutionStatus,
@@ -100,6 +101,8 @@ export function AgentExecutionPanel({
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
   const hasRestoredRef = useRef(false);
+  // 質問タイムアウトのカウントダウン（残り秒数）
+  const [timeoutCountdown, setTimeoutCountdown] = useState<number | null>(null);
 
   // SSEベースのリアルタイムログ取得
   const {
@@ -120,6 +123,7 @@ export function AgentExecutionPanel({
     waitingForInput: pollingWaitingForInput,
     question: pollingQuestion,
     questionType: pollingQuestionType,
+    questionTimeout: pollingQuestionTimeout,
     startPolling,
     stopPolling,
     clearLogs: clearPollingLogs,
@@ -137,86 +141,48 @@ export function AgentExecutionPanel({
     clearPollingLogs();
   }, [clearSseLogs, clearPollingLogs]);
 
-  // 質問の検出方法タイプ
-  type QuestionType = "tool_call" | "pattern_match" | "none";
+  // 質問の検出方法タイプ（pattern_matchは廃止、AIエージェントからの明確なステータスのみを信頼）
+  type QuestionType = "tool_call" | "none";
 
-  // 質問検出: APIからの状態を優先、なければログから検出
-  const detectQuestion = (
-    logText: string,
-  ): { hasQuestion: boolean; question: string; questionType: QuestionType } => {
-    // APIから質問待ち状態が返されている場合はそれを使用（最も信頼性が高い）
+  // 質問検出: APIからの状態のみを使用（パターンマッチングは廃止）
+  // AIエージェントがAskUserQuestionツールを呼び出した場合のみ質問として認識
+  const detectQuestion = (): {
+    hasQuestion: boolean;
+    question: string;
+    questionType: QuestionType;
+  } => {
+    // APIから質問待ち状態が返されている場合のみ質問として認識
+    // pollingWaitingForInputはDBのstatus === "waiting_for_input"を反映
+    // pollingQuestionTypeはAIエージェントからのAskUserQuestionツール呼び出しを反映
     if (pollingWaitingForInput && pollingQuestion) {
       return {
         hasQuestion: true,
         question: pollingQuestion,
-        questionType: pollingQuestionType || "pattern_match",
+        // tool_callの場合のみ質問として認識、それ以外はnone
+        questionType:
+          pollingQuestionType === "tool_call" ? "tool_call" : "none",
       };
     }
 
-    if (!logText)
-      return { hasQuestion: false, question: "", questionType: "none" };
-
-    // 最後の数行を取得
-    const lines = logText.split("\n").filter((l) => l.trim());
-    const lastLines = lines.slice(-5).join("\n");
-
-    // 質問パターンを検出
-    const questionPatterns = [
-      /\?[\s]*$/m, // ?で終わる行
-      /please (choose|select|specify|confirm|provide|enter)/i,
-      /which (one|option|file|directory)/i,
-      /do you want/i,
-      /would you like/i,
-      /should I/i,
-      /can you (tell|specify|provide)/i,
-      /what (is|are|should)/i,
-      /enter (your|a|the)/i,
-      /input:/i,
-      /y\/n/i,
-      /\[y\/N\]/i,
-      /\[Y\/n\]/i,
-    ];
-
-    const hasQuestion = questionPatterns.some((pattern) =>
-      pattern.test(lastLines),
-    );
-
-    if (hasQuestion) {
-      // 質問部分を抽出
-      const questionLines = lines
-        .slice(-3)
-        .filter(
-          (l) =>
-            questionPatterns.some((p) => p.test(l)) || l.trim().endsWith("?"),
-        );
-      return {
-        hasQuestion: true,
-        question: questionLines.join("\n") || lastLines,
-        questionType: "pattern_match", // フロントエンドでの検出はパターンマッチング
-      };
-    }
-
+    // APIから質問状態が返されていない場合は質問なし
+    // パターンマッチングによるフォールバックは削除
     return { hasQuestion: false, question: "", questionType: "none" };
   };
 
   const currentLogText = useMemo(() => logs.join(""), [logs]);
 
-  // 質問検出の結果をメモ化
+  // 質問検出の結果をメモ化（APIからのステータスのみを使用）
   const { hasQuestion, question, questionType } = useMemo(() => {
-    return detectQuestion(currentLogText);
-  }, [
-    currentLogText,
-    pollingWaitingForInput,
-    pollingQuestion,
-    pollingQuestionType,
-  ]);
+    return detectQuestion();
+  }, [pollingWaitingForInput, pollingQuestion, pollingQuestionType]);
 
   // questionTypeがtool_callの場合はより確実に質問があることを示す
   const isConfirmedQuestion = questionType === "tool_call";
 
-  // waiting_for_input状態の場合は、完了とは見なさない
-  // ただし、pollingStatusまたはsseStatusが終了状態（completed, failed, cancelled）の場合は
-  // 質問待ちではないと判断する（過去のログに質問パターンが残っていても無視）
+  // waiting_for_input状態の判定
+  // APIからのステータスのみを信頼（パターンマッチングは廃止）
+  // pollingStatus === "waiting_for_input" はDBのstatusを反映
+  // pollingWaitingForInput はAPI応答のwaitingForInputフラグを反映
   const isTerminalStatus =
     pollingStatus === "completed" ||
     pollingStatus === "failed" ||
@@ -224,11 +190,42 @@ export function AgentExecutionPanel({
     sseStatus === "completed" ||
     sseStatus === "failed" ||
     sseStatus === "cancelled";
+  // AIエージェントからの明確なステータス（DBのstatus、APIのwaitingForInput）のみを使用
+  // hasQuestion（旧パターンマッチング結果）は判定に使用しない
   const isWaitingForInput =
     !isTerminalStatus &&
-    (pollingStatus === "waiting_for_input" ||
-      pollingWaitingForInput ||
-      hasQuestion);
+    (pollingStatus === "waiting_for_input" || pollingWaitingForInput);
+
+  // 質問タイムアウトのカウントダウン処理
+  useEffect(() => {
+    // 質問待ち状態でない場合はカウントダウンをクリア
+    if (!isWaitingForInput || !pollingQuestionTimeout) {
+      setTimeoutCountdown(null);
+      return;
+    }
+
+    // 初期値を設定
+    setTimeoutCountdown(pollingQuestionTimeout.remainingSeconds);
+
+    // 1秒ごとにカウントダウン
+    const interval = setInterval(() => {
+      setTimeoutCountdown((prev) => {
+        if (prev === null || prev <= 0) {
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isWaitingForInput, pollingQuestionTimeout]);
+
+  // カウントダウンの表示用フォーマット
+  const formatCountdown = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
 
   // マウント時に実行状態を復元
   useEffect(() => {
@@ -349,6 +346,9 @@ export function AgentExecutionPanel({
     // 即座にUIをキャンセル状態に更新（ユーザーに素早くフィードバックを提供）
     setPollingCancelled();
 
+    // ローカルのログもクリア（バックエンドでも削除されるため同期）
+    clearLogs();
+
     // 親コンポーネントの状態も更新
     if (onStopExecution) {
       onStopExecution();
@@ -380,7 +380,7 @@ export function AgentExecutionPanel({
     } catch (error) {
       console.error("Error stopping execution:", error);
     }
-  }, [taskId, sessionId, setPollingCancelled, onStopExecution]);
+  }, [taskId, sessionId, setPollingCancelled, clearLogs, onStopExecution]);
 
   const handleReset = () => {
     stopPolling();
@@ -512,31 +512,18 @@ export function AgentExecutionPanel({
                     ? "以下の質問に回答してください。回答後、実行が継続されます。"
                     : "Claude Codeがタスクの実装を進めています..."}
                 </p>
-                {/* {workingDirectory && (
-                <div
-                  className={`mt-2 flex items-center gap-2 text-xs ${
-                    showWaitingUI
-                      ? "text-amber-700 dark:text-amber-300"
-                      : "text-blue-700 dark:text-blue-300"
-                  }`}
-                >
-                  <FolderOpen className="w-3 h-3" />
-                  <span className="font-mono">{workingDirectory}</span>
-                </div>
-              )} */}
               </div>
             </div>
-            {!showWaitingUI && (
-              <div className="flex justify-end mt-4">
-                <button
-                  onClick={handleStopExecution}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-800/50 text-red-700 dark:text-red-300 rounded-lg font-medium transition-colors"
-                >
-                  <Square className="w-4 h-4" />
-                  キャンセル
-                </button>
-              </div>
-            )}
+            {/* 停止ボタン - 質問表示時もヘッダーに常に表示 */}
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={handleStopExecution}
+                className="flex items-center gap-2 px-4 py-2 bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-800/50 text-red-700 dark:text-red-300 rounded-lg font-medium transition-colors"
+              >
+                <Square className="w-4 h-4" />
+                停止
+              </button>
+            </div>
           </div>
 
           {/* 質問検出時の応答入力 */}
@@ -577,6 +564,30 @@ export function AgentExecutionPanel({
                   {question}
                 </p>
               </div>
+              {/* タイムアウトカウントダウン表示 */}
+              {timeoutCountdown !== null && timeoutCountdown > 0 && (
+                <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
+                  <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm text-blue-700 dark:text-blue-300">
+                    回答がない場合、
+                    <span className="font-mono font-medium">
+                      {formatCountdown(timeoutCountdown)}
+                    </span>{" "}
+                    後に自動的に続行します
+                  </span>
+                </div>
+              )}
+              {/* タイムアウト直前の警告表示 */}
+              {timeoutCountdown !== null &&
+                timeoutCountdown > 0 &&
+                timeoutCountdown <= 30 && (
+                  <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 rounded-lg animate-pulse">
+                    <AlertCircle className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                    <span className="text-sm text-orange-700 dark:text-orange-300 font-medium">
+                      まもなく自動的に続行します
+                    </span>
+                  </div>
+                )}
               <div className="flex items-center gap-2">
                 <input
                   type="text"

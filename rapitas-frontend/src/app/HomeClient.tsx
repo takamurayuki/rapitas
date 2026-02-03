@@ -337,7 +337,7 @@ export default function HomeClientPage() {
   }, [totalPages, currentPage]);
 
   return (
-    <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
+    <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
       <div className="mx-auto max-w-6xl px-4 py-4">
         {/* ヘッダー - アクションボタン */}
         {!isPanelOpen && (

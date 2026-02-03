@@ -18,11 +18,24 @@ export type ExecutionEvent = {
 
 /**
  * 質問の種類を表す型
- * - 'tool_call': Claude CodeのAskUserQuestionツール呼び出しによる質問（最も信頼性が高い）
- * - 'pattern_match': テキストパターンマッチングによる質問検出
+ * - 'tool_call': Claude CodeのAskUserQuestionツール呼び出しによる質問（AIエージェントからの明確なステータス）
  * - 'none': 質問なし
+ *
+ * 注意: 'pattern_match'は廃止。AIエージェントからの明確なステータスのみを信頼する。
  */
-export type QuestionType = "tool_call" | "pattern_match" | "none";
+export type QuestionType = "tool_call" | "none";
+
+/**
+ * 質問タイムアウト情報
+ */
+export type QuestionTimeoutInfo = {
+  /** 残り秒数 */
+  remainingSeconds: number;
+  /** タイムアウト期限 */
+  deadline: string;
+  /** トータル秒数 */
+  totalSeconds: number;
+};
 
 export type ExecutionStreamState = {
   isConnected: boolean;
@@ -33,8 +46,10 @@ export type ExecutionStreamState = {
   result: unknown | null;
   waitingForInput?: boolean;
   question?: string;
-  /** 質問の検出方法（tool_call: AskUserQuestionツール, pattern_match: パターンマッチング, none: 質問なし） */
+  /** 質問の検出方法（tool_call: AskUserQuestionツール呼び出し, none: 質問なし） */
   questionType?: QuestionType;
+  /** 質問タイムアウト情報（質問待ち状態の場合のみ） */
+  questionTimeout?: QuestionTimeoutInfo;
 };
 
 // SSEは現在無効化（ポーリングをメインで使用）
@@ -266,6 +281,7 @@ export function useExecutionPolling(taskId: number | null) {
     waitingForInput: false,
     question: undefined,
     questionType: "none",
+    questionTimeout: undefined,
   });
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -461,18 +477,26 @@ export function useExecutionPolling(taskId: number | null) {
             return;
           }
 
-          // 同じ質問を既に処理済みの場合はスキップ（重複防止）
+          // 同じ質問を既に処理済みの場合はタイムアウト情報のみ更新
           const currentQuestion = data.question || "";
-          if (
-            lastProcessedStatusRef.current === "waiting_for_input" &&
-            lastProcessedQuestionRef.current === currentQuestion
-          ) {
-            return;
-          }
+          const isNewQuestion =
+            lastProcessedStatusRef.current !== "waiting_for_input" ||
+            lastProcessedQuestionRef.current !== currentQuestion;
 
-          console.log("[ExecutionPolling] Waiting for input:", currentQuestion, "questionType:", data.questionType);
-          lastProcessedStatusRef.current = "waiting_for_input";
-          lastProcessedQuestionRef.current = currentQuestion;
+          // タイムアウト情報を取得
+          const timeoutInfo: QuestionTimeoutInfo | undefined = data.questionTimeout
+            ? {
+                remainingSeconds: data.questionTimeout.remainingSeconds,
+                deadline: data.questionTimeout.deadline,
+                totalSeconds: data.questionTimeout.totalSeconds,
+              }
+            : undefined;
+
+          if (isNewQuestion) {
+            console.log("[ExecutionPolling] Waiting for input:", currentQuestion, "questionType:", data.questionType, "timeout:", timeoutInfo);
+            lastProcessedStatusRef.current = "waiting_for_input";
+            lastProcessedQuestionRef.current = currentQuestion;
+          }
 
           setState((prev) => ({
             ...prev,
@@ -480,7 +504,10 @@ export function useExecutionPolling(taskId: number | null) {
             status: "waiting_for_input",
             waitingForInput: true,
             question: currentQuestion,
-            questionType: data.questionType || "pattern_match",
+            // questionTypeはAPIからの値のみを使用（pattern_matchへのフォールバックは削除）
+            // AIエージェントからの明確なステータス（tool_call）のみを信頼
+            questionType: data.questionType === "tool_call" ? "tool_call" : "none",
+            questionTimeout: timeoutInfo,
           }));
         } else if (data.executionStatus === "running") {
           // キャンセル状態の場合は上書きしない
@@ -574,6 +601,7 @@ export function useExecutionPolling(taskId: number | null) {
       waitingForInput: false,
       question: undefined,
       questionType: "none",
+      questionTimeout: undefined,
     });
   }, []);
 
@@ -591,6 +619,7 @@ export function useExecutionPolling(taskId: number | null) {
       waitingForInput: false,
       question: undefined,
       questionType: "none",
+      questionTimeout: undefined,
     }));
   }, []);
 

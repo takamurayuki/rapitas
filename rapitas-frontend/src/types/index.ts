@@ -515,6 +515,7 @@ export type Notification = {
 export type UserSettings = {
   id: number;
   aiTaskAnalysisDefault: boolean;
+  autoResumeInterruptedTasks: boolean;
   claudeApiKeyConfigured?: boolean;
   claudeApiKeyMasked?: string | null;
   createdAt: string;

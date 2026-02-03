@@ -1067,7 +1067,7 @@ export default function TaskDetailClient({
               </div>
             )}
 
-            {/* Comments Section */}
+            {/* Comments Section - メモ・気付きログ */}
             <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
               <div
                 className="p-4 border-b border-zinc-100 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
@@ -1075,10 +1075,10 @@ export default function TaskDetailClient({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-50">
-                    <MessageSquare className="w-5 h-5 text-blue-500" />
-                    <h2 className="text-lg font-bold">コメント</h2>
+                    <MessageSquare className="w-5 h-5 text-amber-500" />
+                    <h2 className="text-lg font-bold">メモ・気付き</h2>
                     {comments.length > 0 && (
-                      <span className="ml-1 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full">
+                      <span className="ml-1 px-2 py-0.5 text-xs font-medium bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 rounded-full">
                         {comments.length}
                       </span>
                     )}
@@ -1093,62 +1093,144 @@ export default function TaskDetailClient({
 
               {isCommentsExpanded && (
                 <>
-                  {/* Add Comment */}
-                  <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
-                    <div className="flex gap-3">
-                      <textarea
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                        rows={2}
-                        placeholder="コメントを追加..."
-                      />
+                  {/* クイック入力 */}
+                  <div className="p-4 bg-amber-50/50 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-900/30">
+                    <div className="flex gap-2">
+                      <div className="w-2 h-2 rounded-full bg-amber-400 mt-3 shrink-0" />
+                      <div className="flex-1">
+                        <textarea
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              if (newComment.trim()) {
+                                handleAddComment();
+                              }
+                            }
+                          }}
+                          className="w-full bg-white dark:bg-zinc-800 rounded-lg px-3 py-2 text-sm border border-amber-200 dark:border-amber-800/50 outline-none resize-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 transition-all placeholder:text-zinc-400"
+                          rows={1}
+                          placeholder="気付いたことをメモ... (Enter で投稿)"
+                        />
+                        <p className="text-[10px] text-zinc-400 mt-1">
+                          Shift + Enter で改行
+                        </p>
+                      </div>
                       <button
                         onClick={handleAddComment}
                         disabled={!newComment.trim() || isAddingComment}
-                        className="self-end px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="self-start mt-0.5 p-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Send className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
 
-                  {/* Comments List */}
+                  {/* タイムライン形式のコメント一覧 */}
                   {comments.length > 0 && (
-                    <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                      {comments.map((comment) => (
-                        <div
-                          key={comment.id}
-                          className="p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                              {new Date(comment.createdAt).toLocaleString(
-                                "ja-JP",
-                              )}
-                            </span>
-                            <button
-                              onClick={() => handleDeleteComment(comment.id)}
-                              className="p-1 text-zinc-400 hover:text-red-500 rounded transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                          <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {comment.content}
-                            </ReactMarkdown>
-                          </div>
+                    <div className="p-4">
+                      <div className="relative">
+                        {/* タイムラインの縦線 */}
+                        <div className="absolute left-[3px] top-0 bottom-0 w-0.5 bg-zinc-200 dark:bg-zinc-700" />
+
+                        <div className="space-y-4">
+                          {comments.map((comment, index) => {
+                            const date = new Date(comment.createdAt);
+                            const now = new Date();
+                            const diffMs = now.getTime() - date.getTime();
+                            const diffMins = Math.floor(diffMs / 60000);
+                            const diffHours = Math.floor(diffMins / 60);
+                            const diffDays = Math.floor(diffHours / 24);
+
+                            let relativeTime: string;
+                            if (diffMins < 1) {
+                              relativeTime = "たった今";
+                            } else if (diffMins < 60) {
+                              relativeTime = `${diffMins}分前`;
+                            } else if (diffHours < 24) {
+                              relativeTime = `${diffHours}時間前`;
+                            } else if (diffDays < 7) {
+                              relativeTime = `${diffDays}日前`;
+                            } else {
+                              relativeTime = date.toLocaleDateString("ja-JP", {
+                                month: "short",
+                                day: "numeric",
+                              });
+                            }
+
+                            // 日付区切りを表示するか
+                            const showDateSeparator =
+                              index === 0 ||
+                              new Date(
+                                comments[index - 1].createdAt
+                              ).toDateString() !== date.toDateString();
+
+                            return (
+                              <div key={comment.id}>
+                                {showDateSeparator && (
+                                  <div className="flex items-center gap-2 mb-3 ml-4">
+                                    <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded">
+                                      {date.toLocaleDateString("ja-JP", {
+                                        year: "numeric",
+                                        month: "long",
+                                        day: "numeric",
+                                        weekday: "short",
+                                      })}
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="flex gap-3 group">
+                                  {/* タイムラインドット */}
+                                  <div className="relative z-10 w-2 h-2 rounded-full bg-amber-400 dark:bg-amber-500 mt-1.5 shrink-0 ring-2 ring-white dark:ring-zinc-900" />
+
+                                  {/* コメント本体 */}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-[11px] text-zinc-400 dark:text-zinc-500">
+                                        {relativeTime}
+                                      </span>
+                                      <span className="text-[10px] text-zinc-300 dark:text-zinc-600">
+                                        {date.toLocaleTimeString("ja-JP", {
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })}
+                                      </span>
+                                      <button
+                                        onClick={() =>
+                                          handleDeleteComment(comment.id)
+                                        }
+                                        className="p-0.5 text-zinc-300 dark:text-zinc-600 hover:text-red-500 dark:hover:text-red-400 rounded opacity-0 group-hover:opacity-100 transition-all"
+                                        title="削除"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                    <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none text-zinc-700 dark:text-zinc-300">
+                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {comment.content}
+                                      </ReactMarkdown>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      ))}
+                      </div>
                     </div>
                   )}
 
                   {comments.length === 0 && (
                     <div className="p-8 text-center">
-                      <MessageSquare className="w-10 h-10 mx-auto mb-3 text-zinc-200 dark:text-zinc-700" />
-                      <p className="text-sm text-zinc-400 dark:text-zinc-500">
-                        コメントはまだありません
+                      <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                        <MessageSquare className="w-6 h-6 text-amber-500" />
+                      </div>
+                      <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                        まだメモがありません
+                      </p>
+                      <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                        作業中の気付きやアイデアを記録しましょう
                       </p>
                     </div>
                   )}

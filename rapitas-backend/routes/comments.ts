@@ -4,7 +4,7 @@
  */
 import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
-import { ValidationError } from "../middleware/error-handler";
+import { ValidationError, NotFoundError } from "../middleware/error-handler";
 
 export const commentsRoutes = new Elysia()
   // Get comments for a task
@@ -23,9 +23,12 @@ export const commentsRoutes = new Elysia()
   // Create comment for a task
   .post(
     "/tasks/:id/comments",
-    async ({ params, body }: {
+    async ({
+      params,
+      body,
+    }: {
       params: { id: string };
-      body: { content: string }
+      body: { content: string };
     }) => {
       const taskId = parseInt(params.id);
       if (isNaN(taskId)) {
@@ -45,4 +48,26 @@ export const commentsRoutes = new Elysia()
         content: t.String({ minLength: 1 }),
       }),
     }
-  );
+  )
+
+  // Delete comment
+  .delete("/comments/:id", async ({ params }: { params: { id: string } }) => {
+    const commentId = parseInt(params.id);
+    if (isNaN(commentId)) {
+      throw new ValidationError("無効なコメントIDです");
+    }
+
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+    });
+
+    if (!comment) {
+      throw new NotFoundError("コメントが見つかりません");
+    }
+
+    await prisma.comment.delete({
+      where: { id: commentId },
+    });
+
+    return { success: true };
+  });

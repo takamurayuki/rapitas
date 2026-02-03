@@ -36,11 +36,30 @@ type Task = {
   updatedAt: string;
 };
 
-const priorityConfig: Record<Priority, { label: string; color: string; bg: string }> = {
-  low: { label: "低", color: "text-slate-600", bg: "bg-slate-100 dark:bg-slate-800" },
-  medium: { label: "中", color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-900" },
-  high: { label: "高", color: "text-amber-600", bg: "bg-amber-100 dark:bg-amber-900" },
-  urgent: { label: "緊急", color: "text-rose-600", bg: "bg-rose-100 dark:bg-rose-900" },
+const priorityConfig: Record<
+  Priority,
+  { label: string; color: string; bg: string }
+> = {
+  low: {
+    label: "低",
+    color: "text-slate-600",
+    bg: "bg-slate-100 dark:bg-slate-800",
+  },
+  medium: {
+    label: "中",
+    color: "text-blue-600",
+    bg: "bg-blue-100 dark:bg-blue-900",
+  },
+  high: {
+    label: "高",
+    color: "text-amber-600",
+    bg: "bg-amber-100 dark:bg-amber-900",
+  },
+  urgent: {
+    label: "緊急",
+    color: "text-rose-600",
+    bg: "bg-rose-100 dark:bg-rose-900",
+  },
 };
 
 const API_BASE = API_BASE_URL;
@@ -73,19 +92,24 @@ export default function KanbanPage() {
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const matchesTitle = task.title.toLowerCase().includes(query);
-        const matchesDescription = task.description?.toLowerCase().includes(query);
+        const matchesDescription = task.description
+          ?.toLowerCase()
+          .includes(query);
         if (!matchesTitle && !matchesDescription) return false;
       }
 
       // 優先度フィルター
       if (selectedPriorities.length > 0) {
-        if (!task.priority || !selectedPriorities.includes(task.priority)) return false;
+        if (!task.priority || !selectedPriorities.includes(task.priority))
+          return false;
       }
 
       // ラベルフィルター
       if (selectedLabelIds.length > 0) {
         const taskLabelIds = task.taskLabels?.map((tl) => tl.label.id) || [];
-        const hasMatchingLabel = selectedLabelIds.some((id) => taskLabelIds.includes(id));
+        const hasMatchingLabel = selectedLabelIds.some((id) =>
+          taskLabelIds.includes(id),
+        );
         if (!hasMatchingLabel) return false;
       }
 
@@ -93,7 +117,8 @@ export default function KanbanPage() {
     });
   }, [tasks, searchQuery, selectedPriorities, selectedLabelIds]);
 
-  const hasActiveFilters = searchQuery || selectedPriorities.length > 0 || selectedLabelIds.length > 0;
+  const hasActiveFilters =
+    searchQuery || selectedPriorities.length > 0 || selectedLabelIds.length > 0;
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -103,13 +128,17 @@ export default function KanbanPage() {
 
   const togglePriority = (priority: Priority) => {
     setSelectedPriorities((prev) =>
-      prev.includes(priority) ? prev.filter((p) => p !== priority) : [...prev, priority]
+      prev.includes(priority)
+        ? prev.filter((p) => p !== priority)
+        : [...prev, priority],
     );
   };
 
   const toggleLabel = (labelId: number) => {
     setSelectedLabelIds((prev) =>
-      prev.includes(labelId) ? prev.filter((id) => id !== labelId) : [...prev, labelId]
+      prev.includes(labelId)
+        ? prev.filter((id) => id !== labelId)
+        : [...prev, labelId],
     );
   };
 
@@ -195,7 +224,7 @@ export default function KanbanPage() {
     filteredTasks.filter((t) => t.status === status && !t.parentId);
 
   return (
-    <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black scrollbar-thin">
+    <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black scrollbar-thin">
       <div className="mx-auto max-w-7xl px-4 py-8">
         {/* Filter Bar */}
         <div className="mb-6 space-y-3">
@@ -233,7 +262,9 @@ export default function KanbanPage() {
               <span className="text-sm font-medium">フィルター</span>
               {hasActiveFilters && (
                 <span className="px-1.5 py-0.5 text-xs bg-blue-500 text-white rounded-full">
-                  {selectedPriorities.length + selectedLabelIds.length + (searchQuery ? 1 : 0)}
+                  {selectedPriorities.length +
+                    selectedLabelIds.length +
+                    (searchQuery ? 1 : 0)}
                 </span>
               )}
             </button>
@@ -259,23 +290,25 @@ export default function KanbanPage() {
                   優先度
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {(Object.keys(priorityConfig) as Priority[]).map((priority) => {
-                    const config = priorityConfig[priority];
-                    const isSelected = selectedPriorities.includes(priority);
-                    return (
-                      <button
-                        key={priority}
-                        onClick={() => togglePriority(priority)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                          isSelected
-                            ? `${config.bg} ${config.color} ring-1 ring-current`
-                            : "bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
-                        }`}
-                      >
-                        {config.label}
-                      </button>
-                    );
-                  })}
+                  {(Object.keys(priorityConfig) as Priority[]).map(
+                    (priority) => {
+                      const config = priorityConfig[priority];
+                      const isSelected = selectedPriorities.includes(priority);
+                      return (
+                        <button
+                          key={priority}
+                          onClick={() => togglePriority(priority)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                            isSelected
+                              ? `${config.bg} ${config.color} ring-1 ring-current`
+                              : "bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+                          }`}
+                        >
+                          {config.label}
+                        </button>
+                      );
+                    },
+                  )}
                 </div>
               </div>
 
@@ -299,7 +332,9 @@ export default function KanbanPage() {
                               : "opacity-70 hover:opacity-100"
                           }`}
                           style={{
-                            backgroundColor: isSelected ? label.color : `${label.color}20`,
+                            backgroundColor: isSelected
+                              ? label.color
+                              : `${label.color}20`,
                             color: isSelected ? "#fff" : label.color,
                             ["--tw-ring-color" as string]: label.color,
                           }}
@@ -317,7 +352,8 @@ export default function KanbanPage() {
           {/* Results count */}
           {hasActiveFilters && (
             <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              {filteredTasks.filter((t) => !t.parentId).length}件のタスクが見つかりました
+              {filteredTasks.filter((t) => !t.parentId).length}
+              件のタスクが見つかりました
             </div>
           )}
         </div>
@@ -494,9 +530,12 @@ export default function KanbanPage() {
                                             {label}
                                           </span>
                                         ))}
-                                      {getLabelsArray(task.labels).length > 3 && (
+                                      {getLabelsArray(task.labels).length >
+                                        3 && (
                                         <span className="text-xs text-zinc-500">
-                                          +{getLabelsArray(task.labels).length - 3}
+                                          +
+                                          {getLabelsArray(task.labels).length -
+                                            3}
                                         </span>
                                       )}
                                     </div>

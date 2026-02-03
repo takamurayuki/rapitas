@@ -14,6 +14,10 @@ import type {
   AgentStatus,
   TaskAnalysisInfo,
 } from "./base-agent";
+import {
+  DEFAULT_QUESTION_TIMEOUT_SECONDS,
+  type QuestionKey,
+} from "./question-detection";
 
 const execAsync = promisify(exec);
 
@@ -76,6 +80,17 @@ type ActiveAgentInfo = {
 };
 
 /**
+ * 質問タイムアウト管理情報
+ */
+type QuestionTimeoutInfo = {
+  executionId: number;
+  taskId: number;
+  questionKey?: QuestionKey;
+  questionStartedAt: Date;
+  timeoutTimer: NodeJS.Timeout;
+};
+
+/**
  * エージェントオーケストレータークラス
  */
 export class AgentOrchestrator {
@@ -86,6 +101,8 @@ export class AgentOrchestrator {
   private eventListeners: Set<EventListener> = new Set();
   private isShuttingDown: boolean = false;
   private shutdownPromise: Promise<void> | null = null;
+  /** 質問タイムアウト管理用マップ（executionId -> QuestionTimeoutInfo） */
+  private questionTimeouts: Map<number, QuestionTimeoutInfo> = new Map();
 
   private constructor(prisma: any) {
     this.prisma = prisma;
@@ -319,6 +336,219 @@ export class AgentOrchestrator {
     }
   }
 
+  // ==================== 質問タイムアウト管理 ====================
+
+  /**
+   * 質問タイムアウトを開始
+   * @param executionId 実行ID
+   * @param taskId タスクID
+   * @param questionKey 質問キー情報
+   */
+  startQuestionTimeout(
+    executionId: number,
+    taskId: number,
+    questionKey?: QuestionKey
+  ): void {
+    // 既存のタイムアウトがあればキャンセル
+    this.cancelQuestionTimeout(executionId);
+
+    const timeoutSeconds = questionKey?.timeout_seconds || DEFAULT_QUESTION_TIMEOUT_SECONDS;
+    const timeoutMs = timeoutSeconds * 1000;
+
+    console.log(`[Orchestrator] Starting question timeout for execution ${executionId}: ${timeoutSeconds}s`);
+
+    const timeoutTimer = setTimeout(async () => {
+      console.log(`[Orchestrator] Question timeout triggered for execution ${executionId}`);
+      await this.handleQuestionTimeout(executionId, taskId);
+    }, timeoutMs);
+
+    this.questionTimeouts.set(executionId, {
+      executionId,
+      taskId,
+      questionKey,
+      questionStartedAt: new Date(),
+      timeoutTimer,
+    });
+
+    // タイムアウトイベントを発火（フロントエンドでカウントダウン表示用）
+    this.emitEvent({
+      type: "execution_output",
+      executionId,
+      sessionId: 0, // セッションIDは後で取得
+      taskId,
+      data: {
+        questionTimeoutStarted: true,
+        questionTimeoutSeconds: timeoutSeconds,
+        questionTimeoutDeadline: new Date(Date.now() + timeoutMs).toISOString(),
+      },
+      timestamp: new Date(),
+    });
+  }
+
+  /**
+   * 質問タイムアウトをキャンセル
+   * @param executionId 実行ID
+   */
+  cancelQuestionTimeout(executionId: number): void {
+    const timeoutInfo = this.questionTimeouts.get(executionId);
+    if (timeoutInfo) {
+      clearTimeout(timeoutInfo.timeoutTimer);
+      this.questionTimeouts.delete(executionId);
+      console.log(`[Orchestrator] Question timeout cancelled for execution ${executionId}`);
+    }
+  }
+
+  /**
+   * 質問タイムアウト発生時の処理
+   * エージェントに自動的に継続を指示
+   */
+  private async handleQuestionTimeout(executionId: number, taskId: number): Promise<void> {
+    try {
+      // タイムアウト情報を取得して削除
+      const timeoutInfo = this.questionTimeouts.get(executionId);
+      this.questionTimeouts.delete(executionId);
+
+      // 実行状態を確認
+      const execution = await this.prisma.agentExecution.findUnique({
+        where: { id: executionId },
+        include: {
+          session: true,
+        },
+      });
+
+      if (!execution) {
+        console.log(`[Orchestrator] Execution ${executionId} not found for timeout handling`);
+        return;
+      }
+
+      // まだ waiting_for_input 状態かどうか確認
+      if (execution.status !== "waiting_for_input") {
+        console.log(`[Orchestrator] Execution ${executionId} is no longer waiting for input (status: ${execution.status})`);
+        return;
+      }
+
+      console.log(`[Orchestrator] Auto-continuing execution ${executionId} after timeout`);
+
+      // 質問のタイプに応じてデフォルト回答を生成
+      const defaultResponse = this.generateDefaultResponse(
+        timeoutInfo?.questionKey,
+        (execution as any).question,
+        (execution as any).questionDetails
+      );
+
+      // タイムアウトイベントを発火（フロントエンドに通知）
+      this.emitEvent({
+        type: "execution_output",
+        executionId,
+        sessionId: execution.sessionId,
+        taskId,
+        data: {
+          questionTimeoutTriggered: true,
+          autoResponse: defaultResponse,
+          message: "タイムアウトにより自動的に継続します",
+        },
+        timestamp: new Date(),
+      });
+
+      // 自動継続を実行
+      await this.executeContinuation(executionId, defaultResponse, {
+        timeout: 900000,
+      });
+    } catch (error) {
+      console.error(`[Orchestrator] Error handling question timeout for execution ${executionId}:`, error);
+    }
+  }
+
+  /**
+   * 質問タイプに応じたデフォルト回答を生成
+   */
+  private generateDefaultResponse(
+    questionKey?: QuestionKey,
+    questionText?: string,
+    questionDetails?: any
+  ): string {
+    // 質問詳細からオプションがある場合は最初の選択肢を使用
+    if (questionDetails) {
+      let details = questionDetails;
+      if (typeof questionDetails === "string") {
+        try {
+          details = JSON.parse(questionDetails);
+        } catch {
+          details = null;
+        }
+      }
+
+      if (details?.options && Array.isArray(details.options) && details.options.length > 0) {
+        // 最初の選択肢（通常は推奨オプション）を選択
+        const firstOption = details.options[0];
+        return firstOption.label || "1";
+      }
+    }
+
+    // 質問カテゴリに応じたデフォルト回答
+    if (questionKey?.question_type) {
+      switch (questionKey.question_type) {
+        case "confirmation":
+          // 確認系の質問には「はい」で回答
+          return "はい";
+        case "selection":
+          // 選択系の質問には最初の選択肢
+          return "1";
+        case "clarification":
+        default:
+          // 明確化の質問には「デフォルトの設定で続行してください」
+          return "デフォルトの設定で続行してください";
+      }
+    }
+
+    // 質問テキストから推測
+    if (questionText) {
+      const text = questionText.toLowerCase();
+
+      // Yes/No系の質問
+      if (text.includes("y/n") || text.includes("[y/n]") || text.includes("(yes/no)")) {
+        return "y";
+      }
+
+      // 確認系のキーワード
+      if (
+        text.includes("よろしいですか") ||
+        text.includes("続けますか") ||
+        text.includes("proceed") ||
+        text.includes("continue")
+      ) {
+        return "はい";
+      }
+    }
+
+    // デフォルト: 続行を指示
+    return "続行してください";
+  }
+
+  /**
+   * 特定の実行の質問タイムアウト情報を取得
+   */
+  getQuestionTimeoutInfo(executionId: number): {
+    remainingSeconds: number;
+    deadline: Date;
+    questionKey?: QuestionKey;
+  } | null {
+    const timeoutInfo = this.questionTimeouts.get(executionId);
+    if (!timeoutInfo) {
+      return null;
+    }
+
+    const timeoutSeconds = timeoutInfo.questionKey?.timeout_seconds || DEFAULT_QUESTION_TIMEOUT_SECONDS;
+    const deadline = new Date(timeoutInfo.questionStartedAt.getTime() + timeoutSeconds * 1000);
+    const remainingSeconds = Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / 1000));
+
+    return {
+      remainingSeconds,
+      deadline,
+      questionKey: timeoutInfo.questionKey,
+    };
+  }
+
   /**
    * タスクを実行
    */
@@ -418,6 +648,12 @@ export class AgentOrchestrator {
         // 状態も更新
         state.status = "waiting_for_input" as any;
 
+        // 質問タイムアウトを開始
+        this.startQuestionTimeout(execution.id, options.taskId, info.questionKey);
+
+        // タイムアウト情報を取得
+        const timeoutInfo = this.getQuestionTimeoutInfo(execution.id);
+
         // イベントを発火（リアルタイム通知用）
         this.emitEvent({
           type: "execution_output",
@@ -431,6 +667,9 @@ export class AgentOrchestrator {
             questionType: info.questionType,
             questionDetails: info.questionDetails,
             questionKey: info.questionKey,
+            // タイムアウト情報を追加
+            questionTimeoutSeconds: timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
+            questionTimeoutDeadline: timeoutInfo?.deadline?.toISOString(),
           },
           timestamp: new Date(),
         });
@@ -771,6 +1010,9 @@ export class AgentOrchestrator {
       );
     }
 
+    // ユーザーからの応答があったので、既存の質問タイムアウトをキャンセル
+    this.cancelQuestionTimeout(executionId);
+
     // タスク情報を取得
     const task = execution.session.config?.task;
 
@@ -867,6 +1109,12 @@ export class AgentOrchestrator {
         // 状態も更新
         state.status = "waiting_for_input" as any;
 
+        // 質問タイムアウトを開始
+        this.startQuestionTimeout(execution.id, taskId, info.questionKey);
+
+        // タイムアウト情報を取得
+        const timeoutInfo = this.getQuestionTimeoutInfo(execution.id);
+
         // イベントを発火（リアルタイム通知用）
         this.emitEvent({
           type: "execution_output",
@@ -880,6 +1128,9 @@ export class AgentOrchestrator {
             questionType: info.questionType,
             questionDetails: info.questionDetails,
             questionKey: info.questionKey,
+            // タイムアウト情報を追加
+            questionTimeoutSeconds: timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
+            questionTimeoutDeadline: timeoutInfo?.deadline?.toISOString(),
           },
           timestamp: new Date(),
         });
@@ -1170,6 +1421,9 @@ export class AgentOrchestrator {
    * 実行を停止
    */
   async stopExecution(executionId: number): Promise<boolean> {
+    // 質問タイムアウトがあればキャンセル
+    this.cancelQuestionTimeout(executionId);
+
     const state = this.activeExecutions.get(executionId);
     if (!state) {
       console.log(`[Orchestrator] stopExecution: No active execution found for ${executionId}`);
@@ -1217,6 +1471,513 @@ export class AgentOrchestrator {
 
     console.log(`[Orchestrator] Execution ${executionId} stopped and cleaned up`);
     return true;
+  }
+
+  /**
+   * 中断された実行を再開する
+   * 前回の実行ログとタスク情報を基に、エージェントに作業再開を指示
+   */
+  async resumeInterruptedExecution(
+    executionId: number,
+    options: Partial<ExecutionOptions> = {},
+  ): Promise<AgentExecutionResult> {
+    // 中断された実行を取得
+    const execution = await this.prisma.agentExecution.findUnique({
+      where: { id: executionId },
+      include: {
+        session: {
+          include: {
+            config: {
+              include: {
+                task: {
+                  include: {
+                    theme: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        executionLogs: {
+          orderBy: { sequenceNumber: "asc" },
+        },
+      },
+    });
+
+    if (!execution) {
+      throw new Error(`Execution not found: ${executionId}`);
+    }
+
+    if (execution.status !== "interrupted") {
+      throw new Error(
+        `Execution is not in interrupted state: ${execution.status}`,
+      );
+    }
+
+    const task = execution.session.config?.task;
+    if (!task) {
+      throw new Error(`Task not found for execution: ${executionId}`);
+    }
+
+    const workingDirectory = task.theme?.workingDirectory || options.workingDirectory || process.cwd();
+    const claudeSessionId = (execution as any).claudeSessionId as string | null;
+
+    console.log(`[Orchestrator] Resuming interrupted execution ${executionId}`);
+    console.log(`[Orchestrator] Task: ${task.title} (ID: ${task.id})`);
+    console.log(`[Orchestrator] Claude Session ID: ${claudeSessionId}`);
+    console.log(`[Orchestrator] Working Directory: ${workingDirectory}`);
+
+    // 前回の実行ログを取得して要約を作成
+    const previousOutput = execution.output || "";
+    const lastOutput = previousOutput.slice(-3000); // 最後の3000文字
+
+    // 実行ログからコンテキストを構築
+    const logSummary = execution.executionLogs
+      .slice(-50) // 最後の50件のログ
+      .map((log: any) => log.logChunk)
+      .join("");
+
+    // 再開用のプロンプトを構築
+    const resumePrompt = this.buildResumePrompt(
+      task,
+      lastOutput,
+      logSummary.slice(-2000),
+      (execution as any).errorMessage,
+    );
+
+    // エージェント設定を取得
+    let agentConfig: AgentConfigInput = {
+      type: "claude-code",
+      name: "Claude Code Agent",
+      workingDirectory,
+      timeout: options.timeout || 900000, // 15分
+      dangerouslySkipPermissions: true,
+      resumeSessionId: claudeSessionId || undefined,
+      continueConversation: !claudeSessionId,
+    };
+
+    if (execution.agentConfigId) {
+      const dbConfig = await this.prisma.aIAgentConfig.findUnique({
+        where: { id: execution.agentConfigId },
+      });
+      if (dbConfig) {
+        agentConfig = {
+          type: dbConfig.agentType as "claude-code",
+          name: dbConfig.name,
+          endpoint: dbConfig.endpoint || undefined,
+          modelId: dbConfig.modelId || undefined,
+          workingDirectory,
+          timeout: options.timeout || 900000,
+          dangerouslySkipPermissions: true,
+          resumeSessionId: claudeSessionId || undefined,
+          continueConversation: !claudeSessionId,
+        };
+      }
+    }
+
+    // エージェントを作成
+    const agent = agentFactory.createAgent(agentConfig);
+
+    // タスクIDを取得
+    const taskId = task.id;
+
+    // 実行状態を追跡
+    const state: ExecutionState = {
+      executionId: execution.id,
+      sessionId: execution.sessionId,
+      agentId: agent.id,
+      taskId,
+      status: "running",
+      startedAt: new Date(),
+      output: previousOutput, // 前回の出力を引き継ぐ
+    };
+    this.activeExecutions.set(execution.id, state);
+
+    // アクティブエージェントを登録
+    const agentInfo: ActiveAgentInfo = {
+      agent,
+      executionId: execution.id,
+      sessionId: execution.sessionId,
+      taskId,
+      state,
+      lastOutput: lastOutput,
+      lastSavedAt: new Date(),
+    };
+    this.activeAgents.set(execution.id, agentInfo);
+
+    // シャットダウン中は新しい実行を拒否
+    if (this.isShuttingDown) {
+      this.activeAgents.delete(execution.id);
+      this.activeExecutions.delete(execution.id);
+      throw new Error("Server is shutting down, cannot resume execution");
+    }
+
+    // 質問検出ハンドラを設定
+    agent.setQuestionDetectedHandler(async (info) => {
+      console.log(`[Orchestrator] Question detected during resume!`);
+      console.log(`[Orchestrator] Question: ${info.question.substring(0, 100)}`);
+
+      try {
+        await this.prisma.agentExecution.update({
+          where: { id: execution.id },
+          data: {
+            status: "waiting_for_input",
+            question: info.question || null,
+            questionType: info.questionType || null,
+            questionDetails: toJsonString(info.questionDetails),
+          },
+        });
+
+        state.status = "waiting_for_input" as any;
+        this.startQuestionTimeout(execution.id, taskId, info.questionKey);
+
+        const timeoutInfo = this.getQuestionTimeoutInfo(execution.id);
+
+        this.emitEvent({
+          type: "execution_output",
+          executionId: execution.id,
+          sessionId: execution.sessionId,
+          taskId,
+          data: {
+            output: `\n[質問] ${info.question}\n`,
+            waitingForInput: true,
+            question: info.question,
+            questionType: info.questionType,
+            questionDetails: info.questionDetails,
+            questionKey: info.questionKey,
+            questionTimeoutSeconds: timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
+            questionTimeoutDeadline: timeoutInfo?.deadline?.toISOString(),
+          },
+          timestamp: new Date(),
+        });
+      } catch (error) {
+        console.error(`[Orchestrator] Failed to update DB on question detection:`, error);
+      }
+    });
+
+    // 出力ハンドラを設定
+    let lastDbUpdate = Date.now();
+    const DB_UPDATE_INTERVAL = 200;
+    let pendingDbUpdate = false;
+
+    // 既存のログのシーケンス番号を取得
+    const existingLogs = await this.prisma.agentExecutionLog.findMany({
+      where: { executionId: execution.id },
+      orderBy: { sequenceNumber: "desc" },
+      take: 1,
+    });
+    let logSequenceNumber = existingLogs.length > 0 ? existingLogs[0].sequenceNumber + 1 : 0;
+    let pendingLogChunks: { chunk: string; isError: boolean; timestamp: Date }[] = [];
+    let pendingLogSave = false;
+    const LOG_BATCH_INTERVAL = 500;
+
+    const flushLogChunks = async () => {
+      if (pendingLogSave || pendingLogChunks.length === 0) return;
+      pendingLogSave = true;
+      const chunksToSave = [...pendingLogChunks];
+      pendingLogChunks = [];
+
+      try {
+        const logEntries = chunksToSave.map((chunk) => ({
+          executionId: execution.id,
+          logChunk: chunk.chunk,
+          logType: chunk.isError ? "stderr" : "stdout",
+          sequenceNumber: logSequenceNumber++,
+          timestamp: chunk.timestamp,
+        }));
+
+        await this.prisma.agentExecutionLog.createMany({
+          data: logEntries,
+        });
+      } catch (e) {
+        console.error("Failed to save log chunks:", e);
+        pendingLogChunks = [...chunksToSave, ...pendingLogChunks];
+      } finally {
+        pendingLogSave = false;
+      }
+    };
+
+    const logFlushInterval = setInterval(flushLogChunks, LOG_BATCH_INTERVAL);
+
+    const cleanupLogHandler = async () => {
+      clearInterval(logFlushInterval);
+      await flushLogChunks();
+    };
+
+    agent.setOutputHandler(async (output, isError) => {
+      try {
+        state.output += output;
+
+        if (agentInfo) {
+          agentInfo.lastOutput = state.output.slice(-2000);
+          agentInfo.lastSavedAt = new Date();
+        }
+
+        pendingLogChunks.push({
+          chunk: output,
+          isError: isError ?? false,
+          timestamp: new Date(),
+        });
+
+        if (isError && output.trim()) {
+          try {
+            await this.prisma.agentExecution.update({
+              where: { id: execution.id },
+              data: {
+                output: state.output,
+                errorMessage: output.slice(-500),
+              },
+            });
+            lastDbUpdate = Date.now();
+          } catch (e) {
+            console.error("Failed to save error output immediately:", e);
+          }
+        }
+
+        if (options.onOutput) {
+          try {
+            options.onOutput(output, isError);
+          } catch (e) {
+            console.error("Error in onOutput callback:", e);
+          }
+        }
+
+        try {
+          this.emitEvent({
+            type: "execution_output",
+            executionId: execution.id,
+            sessionId: execution.sessionId,
+            taskId,
+            data: { output, isError },
+            timestamp: new Date(),
+          });
+        } catch (e) {
+          console.error("Error emitting event:", e);
+        }
+
+        const now = Date.now();
+        if (now - lastDbUpdate > DB_UPDATE_INTERVAL && !pendingDbUpdate) {
+          pendingDbUpdate = true;
+          lastDbUpdate = now;
+          try {
+            await this.prisma.agentExecution.update({
+              where: { id: execution.id },
+              data: { output: state.output },
+            });
+          } catch (e) {
+            console.error("Failed to update execution output:", e);
+          } finally {
+            pendingDbUpdate = false;
+          }
+        }
+      } catch (e) {
+        console.error("Critical error in output handler:", e);
+      }
+    });
+
+    // 再開メッセージを追加
+    const resumeMessage = `\n[再開] 中断された作業を再開します...\n`;
+    state.output += resumeMessage;
+
+    // 実行レコードを更新（再開）
+    await this.prisma.agentExecution.update({
+      where: { id: execution.id },
+      data: {
+        status: "running",
+        errorMessage: null, // エラーメッセージをクリア
+        output: state.output,
+      },
+    });
+
+    // 実行開始イベント
+    this.emitEvent({
+      type: "execution_started",
+      executionId: execution.id,
+      sessionId: execution.sessionId,
+      taskId,
+      data: { resumed: true },
+      timestamp: new Date(),
+    });
+
+    try {
+      // 再開用タスクを作成
+      const agentTask: AgentTask = {
+        id: taskId,
+        title: task.title,
+        description: resumePrompt,
+        workingDirectory,
+      };
+
+      // エージェントを実行
+      const result = await agent.execute(agentTask);
+
+      // ステータス判定
+      let executionStatus: string;
+      if (result.waitingForInput) {
+        executionStatus = "waiting_for_input";
+        state.status = "waiting_for_input" as any;
+      } else if (result.success) {
+        executionStatus = "completed";
+        state.status = "completed";
+      } else {
+        executionStatus = "failed";
+        state.status = "failed";
+      }
+
+      // 実行レコードを更新
+      await this.prisma.agentExecution.update({
+        where: { id: execution.id },
+        data: {
+          status: executionStatus,
+          output: state.output + "\n" + result.output,
+          artifacts: result.artifacts
+            ? toJsonString(result.artifacts)
+            : (execution as any).artifacts,
+          completedAt: result.waitingForInput ? null : new Date(),
+          tokensUsed: (execution.tokensUsed || 0) + (result.tokensUsed || 0),
+          executionTimeMs:
+            (execution.executionTimeMs || 0) + (result.executionTimeMs || 0),
+          errorMessage: result.errorMessage,
+          question: result.question || null,
+          questionType: result.questionType || null,
+          questionDetails: toJsonString(result.questionDetails),
+          claudeSessionId: result.claudeSessionId || (execution as any).claudeSessionId || null,
+        },
+      });
+
+      // セッションのトークン使用量を更新
+      if (result.tokensUsed) {
+        await this.prisma.agentSession.update({
+          where: { id: execution.sessionId },
+          data: {
+            totalTokensUsed: {
+              increment: result.tokensUsed,
+            },
+            lastActivityAt: new Date(),
+          },
+        });
+      }
+
+      // Gitコミットを記録
+      if (result.commits && result.commits.length > 0) {
+        for (const commit of result.commits) {
+          await this.prisma.gitCommit.create({
+            data: {
+              executionId: execution.id,
+              commitHash: commit.hash,
+              message: commit.message,
+              branch: commit.branch,
+              filesChanged: commit.filesChanged,
+              additions: commit.additions,
+              deletions: commit.deletions,
+            },
+          });
+        }
+      }
+
+      // イベント発火
+      if (result.waitingForInput) {
+        this.emitEvent({
+          type: "execution_output",
+          executionId: execution.id,
+          sessionId: execution.sessionId,
+          taskId,
+          data: {
+            output: result.output,
+            waitingForInput: true,
+            question: result.question,
+            questionType: result.questionType,
+            questionDetails: result.questionDetails,
+            questionKey: result.questionKey,
+          },
+          timestamp: new Date(),
+        });
+      } else {
+        this.emitEvent({
+          type: result.success ? "execution_completed" : "execution_failed",
+          executionId: execution.id,
+          sessionId: execution.sessionId,
+          taskId,
+          data: result,
+          timestamp: new Date(),
+        });
+      }
+
+      return result;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      state.status = "failed";
+
+      await this.prisma.agentExecution.update({
+        where: { id: execution.id },
+        data: {
+          status: "failed",
+          output: state.output,
+          completedAt: new Date(),
+          errorMessage,
+        },
+      });
+
+      this.emitEvent({
+        type: "execution_failed",
+        executionId: execution.id,
+        sessionId: execution.sessionId,
+        taskId,
+        data: { errorMessage },
+        timestamp: new Date(),
+      });
+
+      throw error;
+    } finally {
+      await cleanupLogHandler();
+      this.activeExecutions.delete(execution.id);
+      this.activeAgents.delete(execution.id);
+      await agentFactory.removeAgent(agent.id);
+    }
+  }
+
+  /**
+   * 再開用のプロンプトを構築
+   */
+  private buildResumePrompt(
+    task: any,
+    lastOutput: string,
+    logSummary: string,
+    errorMessage: string | null,
+  ): string {
+    let prompt = `# 作業再開
+
+このタスクは以前のセッションで中断されました。作業を途中から再開してください。
+
+## タスク情報
+- タイトル: ${task.title}
+- 説明: ${task.description || "なし"}
+
+## 前回の作業状況
+以下は中断前の出力の最後の部分です：
+
+\`\`\`
+${lastOutput}
+\`\`\`
+`;
+
+    if (errorMessage) {
+      prompt += `
+## 中断理由
+${errorMessage}
+`;
+    }
+
+    prompt += `
+## 指示
+上記の情報を基に、中断されたタスクを続行してください。
+- 既に完了した作業は繰り返さないでください
+- 中断された地点から作業を再開してください
+- 不明な点があれば質問してください
+`;
+
+    return prompt;
   }
 
   /**

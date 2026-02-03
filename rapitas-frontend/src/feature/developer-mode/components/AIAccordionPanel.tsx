@@ -27,7 +27,11 @@ import {
   ListTodo,
   FileText,
 } from "lucide-react";
-import type { DeveloperModeConfig, TaskAnalysisResult, Resource } from "@/types";
+import type {
+  DeveloperModeConfig,
+  TaskAnalysisResult,
+  Resource,
+} from "@/types";
 import type {
   ExecutionStatus,
   ExecutionResult,
@@ -395,7 +399,11 @@ export function AIAccordionPanel({
     clearLogs();
     // ファイルリソースを添付情報として送信
     const fileResources = resources?.filter(
-      (r) => r.filePath || r.type === "file" || r.type === "image" || r.type === "pdf"
+      (r) =>
+        r.filePath ||
+        r.type === "file" ||
+        r.type === "image" ||
+        r.type === "pdf",
     );
     const attachments = fileResources?.map((r) => ({
       id: r.id,
@@ -412,7 +420,8 @@ export function AIAccordionPanel({
       branchName: branchName.trim() || undefined,
       useTaskAnalysis,
       optimizedPrompt: optimizedPrompt || undefined,
-      attachments: attachments && attachments.length > 0 ? attachments : undefined,
+      attachments:
+        attachments && attachments.length > 0 ? attachments : undefined,
     });
     if (result?.sessionId) {
       setShowLogs(true);
@@ -512,31 +521,26 @@ export function AIAccordionPanel({
     await handleExecute();
   };
 
-  // 質問検出
-  const currentLogText = useMemo(() => logs.join(""), [logs]);
-
-  const { hasQuestion, question } = useMemo(() => {
+  // 質問検出（APIからのステータスのみを使用、パターンマッチングは廃止）
+  // AIエージェントがAskUserQuestionツールを呼び出した場合のみ質問として認識
+  const { hasQuestion, question, questionType } = useMemo(() => {
+    // APIから質問待ち状態が返されている場合のみ質問として認識
+    // pollingWaitingForInputはDBのstatus === "waiting_for_input"を反映
+    // pollingQuestionTypeはAIエージェントからのAskUserQuestionツール呼び出しを反映
     if (pollingWaitingForInput && pollingQuestion) {
-      return { hasQuestion: true, question: pollingQuestion };
+      return {
+        hasQuestion: true,
+        question: pollingQuestion,
+        // tool_callの場合のみ質問として認識、それ以外はnone
+        questionType:
+          pollingQuestionType === "tool_call" ? "tool_call" : "none",
+      };
     }
-    if (!currentLogText) return { hasQuestion: false, question: "" };
 
-    const lines = currentLogText.split("\n").filter((l) => l.trim());
-    const lastLines = lines.slice(-5).join("\n");
-
-    const questionPatterns = [
-      /\?[\s]*$/m,
-      /please (choose|select|specify|confirm|provide|enter)/i,
-      /which (one|option|file|directory)/i,
-      /do you want/i,
-      /would you like/i,
-      /should I/i,
-      /y\/n/i,
-    ];
-
-    const hasQ = questionPatterns.some((p) => p.test(lastLines));
-    return { hasQuestion: hasQ, question: hasQ ? lastLines : "" };
-  }, [currentLogText, pollingWaitingForInput, pollingQuestion]);
+    // APIから質問状態が返されていない場合は質問なし
+    // パターンマッチングによるフォールバックは削除
+    return { hasQuestion: false, question: "", questionType: "none" as const };
+  }, [pollingWaitingForInput, pollingQuestion, pollingQuestionType]);
 
   const isTerminalStatus =
     pollingStatus === "completed" ||
@@ -545,11 +549,11 @@ export function AIAccordionPanel({
     sseStatus === "completed" ||
     sseStatus === "failed" ||
     sseStatus === "cancelled";
+  // AIエージェントからの明確なステータス（DBのstatus、APIのwaitingForInput）のみを使用
+  // hasQuestion（旧パターンマッチング結果）は判定に使用しない
   const isWaitingForInput =
     !isTerminalStatus &&
-    (pollingStatus === "waiting_for_input" ||
-      pollingWaitingForInput ||
-      hasQuestion);
+    (pollingStatus === "waiting_for_input" || pollingWaitingForInput);
 
   const finalStatus =
     sseStatus !== "idle"
@@ -1120,7 +1124,7 @@ export function AIAccordionPanel({
             </div>
             <div className="flex items-center gap-1.5">
               {/* 実行中: 停止ボタン */}
-              {isRunning && !isWaitingForInput && (
+              {isRunning && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();

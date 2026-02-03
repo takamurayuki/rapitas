@@ -322,38 +322,50 @@ export default function FileUploader({
                 >
                   <ExternalLink className="w-4 h-4" />
                 </a>
-                <button
-                  onClick={() =>
-                    handleDownload(
-                      resource.id,
-                      getDownloadUrl(resource),
-                      resource.fileName || resource.title || "download",
-                    )
-                  }
-                  disabled={downloadStates[resource.id] === "downloading"}
-                  className={`p-1.5 rounded-lg transition-all duration-300 ${
-                    downloadStates[resource.id] === "completed"
-                      ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 scale-110"
-                      : downloadStates[resource.id] === "downloading"
-                        ? "text-blue-500 bg-blue-50 dark:bg-blue-900/30"
-                        : "text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30"
-                  }`}
-                  title={
-                    downloadStates[resource.id] === "completed"
-                      ? "ダウンロード完了"
-                      : downloadStates[resource.id] === "downloading"
-                        ? "ダウンロード中..."
-                        : "ダウンロード"
-                  }
-                >
-                  {downloadStates[resource.id] === "completed" ? (
-                    <Check className="w-4 h-4 animate-[bounce_0.5s_ease-in-out]" />
-                  ) : downloadStates[resource.id] === "downloading" ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Download className="w-4 h-4" />
+                <div className="relative">
+                  <button
+                    onClick={() =>
+                      handleDownload(
+                        resource.id,
+                        getDownloadUrl(resource),
+                        resource.fileName || resource.title || "download",
+                      )
+                    }
+                    disabled={downloadStates[resource.id] === "downloading"}
+                    className={`relative p-1.5 rounded-lg transition-all duration-300 ${
+                      downloadStates[resource.id] === "completed"
+                        ? "text-emerald-500 bg-emerald-100 dark:bg-emerald-900/40 scale-110"
+                        : downloadStates[resource.id] === "downloading"
+                          ? "text-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                          : "text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                    }`}
+                    title={
+                      downloadStates[resource.id] === "completed"
+                        ? "ダウンロード完了"
+                        : downloadStates[resource.id] === "downloading"
+                          ? "ダウンロード中..."
+                          : "ダウンロード"
+                    }
+                  >
+                    {downloadStates[resource.id] === "completed" ? (
+                      <Check className="w-4 h-4 animate-[successPop_0.4s_ease-out]" />
+                    ) : downloadStates[resource.id] === "downloading" ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                    {/* Ripple effect on completion */}
+                    {downloadStates[resource.id] === "completed" && (
+                      <span className="absolute inset-0 rounded-lg bg-emerald-400/30 animate-[ripple_0.6s_ease-out]" />
+                    )}
+                  </button>
+                  {/* Success tooltip */}
+                  {downloadStates[resource.id] === "completed" && (
+                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 rounded-md whitespace-nowrap animate-[fadeInUp_0.3s_ease-out] shadow-sm">
+                      完了!
+                    </span>
                   )}
-                </button>
+                </div>
                 <button
                   onClick={() => handleDelete(resource.id)}
                   className="p-1.5 text-zinc-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors"

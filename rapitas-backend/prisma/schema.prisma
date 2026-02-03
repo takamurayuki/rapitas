@@ -377,12 +377,13 @@ model Notification {
 }
 
 model UserSettings {
-  id                      Int       @id @default(autoincrement())
-  developerModeDefault    Boolean   @default(false)
-  aiTaskAnalysisDefault   Boolean   @default(false)
-  claudeApiKeyEncrypted   String?
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+  id                          Int       @id @default(autoincrement())
+  developerModeDefault        Boolean   @default(false)
+  aiTaskAnalysisDefault       Boolean   @default(false)
+  autoResumeInterruptedTasks  Boolean   @default(false)
+  claudeApiKeyEncrypted       String?
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
 }
 
 model AIAgentConfig {

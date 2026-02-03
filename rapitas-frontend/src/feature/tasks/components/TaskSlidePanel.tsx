@@ -111,7 +111,7 @@ export default function TaskSlidePanel({
         </div>
 
         {/* コンテンツ */}
-        <div className="h-[calc(100%-72px)] overflow-y-auto">
+        <div className="h-full overflow-y-auto">
           <iframe
             src={`/task-detail?id=${taskId}`}
             className="w-full h-full border-none"

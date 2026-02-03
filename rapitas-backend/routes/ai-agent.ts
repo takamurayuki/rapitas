@@ -635,14 +635,24 @@ export const aiAgentRoutes = new Elysia()
 
         const isWaitingForInput = latestExecution?.status === "waiting_for_input";
         const questionText = (latestExecution as any)?.question || null;
-        let questionType: "tool_call" | "pattern_match" | "none" =
-          ((latestExecution as any)?.questionType as
-            | "tool_call"
-            | "pattern_match"
-            | "none") || "none";
+        // questionTypeはDBの値をそのまま使用（tool_call または none）
+        // pattern_matchへのフォールバックは削除 - AIエージェントからの明確なステータスのみを信頼
+        const questionType: "tool_call" | "none" =
+          ((latestExecution as any)?.questionType === "tool_call")
+            ? "tool_call"
+            : "none";
 
-        if (isWaitingForInput && questionText && questionType === "none") {
-          questionType = "pattern_match";
+        // タイムアウト情報を取得
+        let questionTimeoutInfo = null;
+        if (isWaitingForInput && latestExecution?.id) {
+          const timeoutInfo = orchestrator.getQuestionTimeoutInfo(latestExecution.id);
+          if (timeoutInfo) {
+            questionTimeoutInfo = {
+              remainingSeconds: timeoutInfo.remainingSeconds,
+              deadline: timeoutInfo.deadline.toISOString(),
+              totalSeconds: timeoutInfo.questionKey?.timeout_seconds || 300,
+            };
+          }
         }
 
         return {
@@ -657,6 +667,7 @@ export const aiAgentRoutes = new Elysia()
           waitingForInput: isWaitingForInput,
           question: questionText,
           questionType,
+          questionTimeout: questionTimeoutInfo,
         };
       } catch (error) {
         console.error("[execution-status] Error fetching status:", error);
@@ -959,6 +970,12 @@ export const aiAgentRoutes = new Elysia()
           // オーケストレーターで停止を試みる
           const stopped = await orchestrator.stopExecution(runningExecution.id).catch(() => false);
 
+          // 実行ログを削除
+          await prisma.agentExecutionLog.deleteMany({
+            where: { executionId: runningExecution.id },
+          });
+          console.log(`[stop-execution] Deleted execution logs for execution ${runningExecution.id}`);
+
           // オーケストレーターで停止できなかった場合（メモリに存在しない場合など）でも
           // DBのステータスを確実に更新する
           if (!stopped) {
@@ -1011,6 +1028,11 @@ export const aiAgentRoutes = new Elysia()
       });
 
       for (const execution of pendingExecutions) {
+        // 実行ログを削除
+        await prisma.agentExecutionLog.deleteMany({
+          where: { executionId: execution.id },
+        });
+
         await prisma.agentExecution.update({
           where: { id: execution.id },
           data: {
@@ -1052,7 +1074,89 @@ export const aiAgentRoutes = new Elysia()
     },
   )
 
-  // Get interrupted executions (for recovery after server restart)
+  // Get resumable executions (interrupted or stale running)
+  // This handles both intentionally interrupted executions and ones left in "running" state after server restart
+  .get("/agents/resumable-executions", async () => {
+    try {
+      // First, mark any "running" executions that are not actively running as "interrupted"
+      // This handles the case where the server was restarted while an execution was in progress
+      const activeExecutionIds = orchestrator.getActiveExecutions().map((e) => e.executionId);
+
+      // Find executions that are marked as "running" but not actually running in memory
+      const staleRunningExecutions = await prisma.agentExecution.findMany({
+        where: {
+          status: { in: ["running", "pending"] },
+          id: { notIn: activeExecutionIds },
+        },
+      });
+
+      // Update stale executions to "interrupted" status
+      if (staleRunningExecutions.length > 0) {
+        console.log(`[resumable-executions] Found ${staleRunningExecutions.length} stale running executions, marking as interrupted`);
+
+        for (const exec of staleRunningExecutions) {
+          await prisma.agentExecution.update({
+            where: { id: exec.id },
+            data: {
+              status: "interrupted",
+              errorMessage: `サーバー再起動により中断されました。\n\n【最後の出力】\n${(exec.output || "").slice(-1000)}`,
+            },
+          });
+        }
+      }
+
+      // Now get all resumable executions (interrupted status)
+      const resumableExecutions = await prisma.agentExecution.findMany({
+        where: {
+          status: "interrupted",
+        },
+        include: {
+          session: {
+            include: {
+              config: {
+                include: {
+                  task: {
+                    select: {
+                      id: true,
+                      title: true,
+                      theme: {
+                        select: {
+                          workingDirectory: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      });
+
+      return resumableExecutions.map((exec: any) => ({
+        id: exec.id,
+        taskId: exec.session.config?.task?.id,
+        taskTitle: exec.session.config?.task?.title,
+        sessionId: exec.sessionId,
+        status: exec.status,
+        claudeSessionId: exec.claudeSessionId,
+        errorMessage: exec.errorMessage,
+        output: exec.output?.slice(-500), // 最後の500文字のみ
+        startedAt: exec.startedAt,
+        completedAt: exec.completedAt,
+        createdAt: exec.createdAt,
+        workingDirectory: exec.session.config?.task?.theme?.workingDirectory,
+        canResume: true, // All interrupted executions can be resumed
+      }));
+    } catch (error) {
+      console.error("[resumable-executions] Error:", error);
+      return [];
+    }
+  })
+
+  // Legacy endpoint for backwards compatibility
   .get("/agents/interrupted-executions", async () => {
     try {
       const interruptedExecutions = await prisma.agentExecution.findMany({
@@ -1155,6 +1259,176 @@ export const aiAgentRoutes = new Elysia()
       });
 
       return { success: true, message: "Execution acknowledged" };
+    }
+  )
+
+  // Resume interrupted execution
+  .post(
+    "/agents/executions/:id/resume",
+    async ({
+      params,
+      body,
+    }: {
+      params: { id: string };
+      body?: { timeout?: number };
+    }) => {
+      const executionId = parseInt(params.id);
+
+      try {
+        // 中断された実行を取得して情報を確認
+        const execution = await prisma.agentExecution.findUnique({
+          where: { id: executionId },
+          include: {
+            session: {
+              include: {
+                config: {
+                  include: {
+                    task: {
+                      select: {
+                        id: true,
+                        title: true,
+                        theme: {
+                          select: {
+                            workingDirectory: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        if (!execution) {
+          return { success: false, error: "Execution not found" };
+        }
+
+        if (execution.status !== "interrupted") {
+          return {
+            success: false,
+            error: `Cannot resume execution with status: ${execution.status}`,
+          };
+        }
+
+        const task = execution.session.config?.task;
+        if (!task) {
+          return { success: false, error: "Task not found for this execution" };
+        }
+
+        const workingDirectory = task.theme?.workingDirectory || process.cwd();
+
+        // 通知を作成
+        await prisma.notification.create({
+          data: {
+            type: "agent_execution_resumed",
+            title: "エージェント実行再開",
+            message: `「${task.title}」の中断された作業を再開しています`,
+            link: `/tasks/${task.id}`,
+            metadata: toJsonString({
+              executionId,
+              sessionId: execution.sessionId,
+              taskId: task.id,
+            }),
+          },
+        });
+
+        // 非同期で実行を再開
+        orchestrator
+          .resumeInterruptedExecution(executionId, {
+            timeout: body?.timeout || 900000,
+          })
+          .then(async (result) => {
+            if (result.success && !result.waitingForInput) {
+              const diff = await orchestrator.getFullGitDiff(workingDirectory);
+              if (diff && diff !== "No changes detected") {
+                const structuredDiff = await orchestrator.getDiff(workingDirectory);
+                const implementationSummary = result.output || "再開した作業が完了しました。";
+
+                const config = execution.session.config;
+                if (config) {
+                  const approvalRequest = await prisma.approvalRequest.create({
+                    data: {
+                      configId: config.id,
+                      requestType: "code_review",
+                      title: `「${task.title}」のコードレビュー（再開後）`,
+                      description: implementationSummary,
+                      proposedChanges: toJsonString({
+                        taskId: task.id,
+                        sessionId: execution.sessionId,
+                        workingDirectory,
+                        diff,
+                        structuredDiff,
+                        implementationSummary,
+                        executionTimeMs: result.executionTimeMs,
+                        resumed: true,
+                      }),
+                      estimatedChanges: toJsonString({
+                        diff,
+                        filesChanged: structuredDiff.length,
+                        summary: implementationSummary.substring(0, 500),
+                      }),
+                      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                    },
+                  });
+
+                  await prisma.notification.create({
+                    data: {
+                      type: "pr_review_requested",
+                      title: "コードレビュー依頼（再開後）",
+                      message: `「${task.title}」の再開した作業が完了しました。レビューをお願いします。`,
+                      link: `/approvals/${approvalRequest.id}`,
+                    },
+                  });
+                }
+              } else {
+                await prisma.notification.create({
+                  data: {
+                    type: "agent_execution_complete",
+                    title: "エージェント実行完了（変更なし）",
+                    message: `「${task.title}」の再開した作業が完了しましたが、コード変更はありませんでした。`,
+                    link: `/tasks/${task.id}`,
+                  },
+                });
+              }
+            } else if (!result.success) {
+              await prisma.notification.create({
+                data: {
+                  type: "agent_error",
+                  title: "再開した実行が失敗",
+                  message: `「${task.title}」の再開した作業が失敗しました: ${result.errorMessage}`,
+                  link: `/tasks/${task.id}`,
+                },
+              });
+            }
+          })
+          .catch(async (error) => {
+            console.error("[resume] Resume execution error:", error);
+            await prisma.notification.create({
+              data: {
+                type: "agent_error",
+                title: "実行再開エラー",
+                message: `「${task.title}」の再開中にエラーが発生しました: ${error.message}`,
+                link: `/tasks/${task.id}`,
+              },
+            });
+          });
+
+        return {
+          success: true,
+          executionId,
+          taskId: task.id,
+          taskTitle: task.title,
+          message: "中断された実行を再開しています。進捗はリアルタイムで確認できます。",
+        };
+      } catch (error) {
+        console.error("[resume] Error:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to resume execution",
+        };
+      }
     }
   )
 

@@ -28,9 +28,10 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       body: {
         developerModeDefault?: boolean;
         aiTaskAnalysisDefault?: boolean;
+        autoResumeInterruptedTasks?: boolean;
       }
     }) => {
-      const { developerModeDefault, aiTaskAnalysisDefault } = body;
+      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks } = body;
 
       let settings = await prisma.userSettings.findFirst();
       if (!settings) {
@@ -38,6 +39,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
           data: {
             developerModeDefault: developerModeDefault ?? false,
             aiTaskAnalysisDefault: aiTaskAnalysisDefault ?? false,
+            autoResumeInterruptedTasks: autoResumeInterruptedTasks ?? false,
           },
         });
       } else {
@@ -46,6 +48,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
           data: {
             ...(developerModeDefault !== undefined && { developerModeDefault }),
             ...(aiTaskAnalysisDefault !== undefined && { aiTaskAnalysisDefault }),
+            ...(autoResumeInterruptedTasks !== undefined && { autoResumeInterruptedTasks }),
           },
         });
       }
@@ -56,6 +59,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       body: t.Object({
         developerModeDefault: t.Optional(t.Boolean()),
         aiTaskAnalysisDefault: t.Optional(t.Boolean()),
+        autoResumeInterruptedTasks: t.Optional(t.Boolean()),
       }),
     }
   )

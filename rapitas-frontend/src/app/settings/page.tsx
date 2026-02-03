@@ -11,6 +11,8 @@ import {
   EyeOff,
   Trash2,
   Save,
+  Settings,
+  RefreshCw,
 } from "lucide-react";
 import type { UserSettings } from "@/types";
 import { API_BASE_URL } from "@/utils/api";
@@ -27,6 +29,7 @@ export default function SettingsPage() {
   const [maskedApiKey, setMaskedApiKey] = useState<string | null>(null);
   const [isEditingApiKey, setIsEditingApiKey] = useState(false);
   const [isSavingApiKey, setIsSavingApiKey] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -126,6 +129,31 @@ export default function SettingsPage() {
     }
   };
 
+  const updateSettings = async (updates: Partial<{ autoResumeInterruptedTasks: boolean }>) => {
+    setIsSavingSettings(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSettings((prev) => (prev ? { ...prev, ...data } : data));
+        setSuccessMessage("設定を保存しました");
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        throw new Error("設定の保存に失敗しました");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -141,14 +169,14 @@ export default function SettingsPage() {
       {/* Header */}
       <div className="flex items-center gap-3 mb-8">
         <div className="p-2.5 bg-violet-100 dark:bg-violet-900/30 rounded-xl">
-          <Key className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+          <Settings className="w-6 h-6 text-violet-600 dark:text-violet-400" />
         </div>
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            APIキー設定
+            設定
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            AI機能に必要なAPIキーを管理
+            アプリケーションの動作を管理
           </p>
         </div>
       </div>
@@ -314,6 +342,59 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* AIエージェント設定 */}
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-3">
+              <RefreshCw className="w-5 h-5 text-zinc-400" />
+              <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                AIエージェント設定
+              </h2>
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                  中断タスクの自動再開
+                </h3>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 max-w-md">
+                  アプリ起動時に、中断されたAIエージェントのタスクを自動的に再開します。
+                  無効の場合は、手動で再開するか通知から選択できます。
+                </p>
+              </div>
+              <div className="flex items-center gap-3 ml-4">
+                {isSavingSettings && (
+                  <Loader2 className="w-4 h-4 text-violet-500 animate-spin" />
+                )}
+                <button
+                  onClick={() =>
+                    updateSettings({
+                      autoResumeInterruptedTasks: !settings?.autoResumeInterruptedTasks,
+                    })
+                  }
+                  disabled={isSavingSettings}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    settings?.autoResumeInterruptedTasks
+                      ? "bg-violet-600"
+                      : "bg-zinc-200 dark:bg-zinc-700"
+                  }`}
+                  role="switch"
+                  aria-checked={settings?.autoResumeInterruptedTasks ?? false}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      settings?.autoResumeInterruptedTasks
+                        ? "translate-x-5"
+                        : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

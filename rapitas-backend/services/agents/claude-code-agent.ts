@@ -526,6 +526,17 @@ export class ClaudeCodeAgent extends BaseAgent {
                           });
 
                           displayOutput += `\n[質問] ${detectionResult.questionText}\n`;
+
+                          // AskUserQuestionツールが検出されたら、プロセスを停止
+                          // stdin が閉じられているため、応答を待ち続けるとエラーが連続発生する
+                          // プロセスを停止して、ユーザーの回答後に --continue で再開する
+                          console.log(
+                            `[Claude Code] Stopping process to wait for user response`,
+                          );
+                          if (this.process && !this.process.killed) {
+                            // SIGTERMで丁寧に終了（出力バッファのフラッシュを待つ）
+                            this.process.kill("SIGTERM");
+                          }
                         } else {
                           // ツール呼び出しの詳細情報を表示
                           const toolInfo = this.formatToolInfo(

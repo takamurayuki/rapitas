@@ -5,6 +5,24 @@
  * パターンマッチングから特定キー返却方式への移行を実現
  */
 
+// ==================== 定数 ====================
+
+/**
+ * 質問タイムアウトのデフォルト秒数（5分 = 300秒）
+ * ユーザーからの回答がない場合、この時間経過後にエージェントが自動的に継続
+ */
+export const DEFAULT_QUESTION_TIMEOUT_SECONDS = 300;
+
+/**
+ * 質問タイムアウトの最小秒数（30秒）
+ */
+export const MIN_QUESTION_TIMEOUT_SECONDS = 30;
+
+/**
+ * 質問タイムアウトの最大秒数（30分 = 1800秒）
+ */
+export const MAX_QUESTION_TIMEOUT_SECONDS = 1800;
+
 // ==================== 型定義 ====================
 
 /**
@@ -237,13 +255,79 @@ export function createQuestionKeyFromToolCall(
   input: Record<string, unknown> | undefined,
   timeoutSeconds?: number
 ): QuestionKey {
+  // タイムアウト秒数を正規化（範囲内に収める）
+  const normalizedTimeout = normalizeTimeoutSeconds(timeoutSeconds);
+
   return {
     status: "awaiting_user_input",
     question_id: generateQuestionId(),
     question_type: inferQuestionCategory(input),
     requires_response: true,
-    timeout_seconds: timeoutSeconds,
+    timeout_seconds: normalizedTimeout,
   };
+}
+
+/**
+ * タイムアウト秒数を正規化（範囲内に収める）
+ */
+export function normalizeTimeoutSeconds(timeoutSeconds?: number): number {
+  if (timeoutSeconds === undefined || timeoutSeconds === null) {
+    return DEFAULT_QUESTION_TIMEOUT_SECONDS;
+  }
+
+  if (timeoutSeconds < MIN_QUESTION_TIMEOUT_SECONDS) {
+    return MIN_QUESTION_TIMEOUT_SECONDS;
+  }
+
+  if (timeoutSeconds > MAX_QUESTION_TIMEOUT_SECONDS) {
+    return MAX_QUESTION_TIMEOUT_SECONDS;
+  }
+
+  return Math.floor(timeoutSeconds);
+}
+
+/**
+ * 質問タイムアウト期限を計算
+ * @param questionKey 質問キー情報
+ * @param startTime 質問開始時刻（省略時は現在時刻）
+ * @returns タイムアウト期限のDate
+ */
+export function calculateTimeoutDeadline(
+  questionKey: QuestionKey,
+  startTime?: Date
+): Date {
+  const start = startTime || new Date();
+  const timeoutMs = (questionKey.timeout_seconds || DEFAULT_QUESTION_TIMEOUT_SECONDS) * 1000;
+  return new Date(start.getTime() + timeoutMs);
+}
+
+/**
+ * 質問がタイムアウトしたかどうかを判定
+ * @param questionKey 質問キー情報
+ * @param startTime 質問開始時刻
+ * @returns タイムアウトしていればtrue
+ */
+export function isQuestionTimedOut(
+  questionKey: QuestionKey,
+  startTime: Date
+): boolean {
+  const deadline = calculateTimeoutDeadline(questionKey, startTime);
+  return new Date() >= deadline;
+}
+
+/**
+ * タイムアウトまでの残り秒数を取得
+ * @param questionKey 質問キー情報
+ * @param startTime 質問開始時刻
+ * @returns 残り秒数（0以下の場合はタイムアウト済み）
+ */
+export function getRemainingTimeoutSeconds(
+  questionKey: QuestionKey,
+  startTime: Date
+): number {
+  const deadline = calculateTimeoutDeadline(questionKey, startTime);
+  const remaining = Math.ceil((deadline.getTime() - Date.now()) / 1000);
+  return Math.max(0, remaining);
 }
 
 /**
