@@ -128,6 +128,7 @@ export function AgentExecutionPanel({
     stopPolling,
     clearLogs: clearPollingLogs,
     setCancelled: setPollingCancelled,
+    clearQuestion: clearPollingQuestion,
   } = useExecutionPolling(taskId);
 
   // SSEが接続されている場合はSSEのログを優先、そうでなければポーリングのログを使用
@@ -318,26 +319,41 @@ export function AgentExecutionPanel({
     }
   };
 
-  const handleSendResponse = async () => {
-    if (!userResponse.trim() || isSendingResponse) return;
+  // 送信中のリクエストIDを追跡（重複送信防止）
+  const sendingResponseRef = useRef(false);
 
+  const handleSendResponse = async () => {
+    const trimmedResponse = userResponse.trim();
+    if (!trimmedResponse || isSendingResponse || sendingResponseRef.current) return;
+
+    // 即座にrefをセットして重複送信を防止
+    sendingResponseRef.current = true;
     setIsSendingResponse(true);
+
+    // 送信前に質問UIを非表示にする（楽観的UI更新）
+    clearPollingQuestion();
+    const savedResponse = trimmedResponse;
+    setUserResponse("");
+
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/agent-respond`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ response: userResponse.trim() }),
+        body: JSON.stringify({ response: savedResponse }),
       });
 
-      if (res.ok) {
-        setUserResponse("");
-      } else {
-        console.error("Failed to send response");
+      if (!res.ok) {
+        // エラー時は質問を復元（ユーザーが再試行できるように）
+        console.error("Failed to send response:", res.status);
+        setUserResponse(savedResponse);
       }
     } catch (error) {
       console.error("Error sending response:", error);
+      // エラー時は回答を復元
+      setUserResponse(savedResponse);
     } finally {
       setIsSendingResponse(false);
+      sendingResponseRef.current = false;
     }
   };
 
@@ -840,13 +856,23 @@ export function AgentExecutionPanel({
                     "不明なエラーが発生しました"}
                 </p>
               </div>
-              <button
-                onClick={handleReset}
-                className="flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
-              >
-                <RefreshCw className="w-4 h-4" />
-                再試行
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleReset}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg font-medium transition-colors border border-zinc-300 dark:border-zinc-600"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  リセット
+                </button>
+                <button
+                  onClick={handleExecute}
+                  disabled={isExecuting}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Play className="w-4 h-4" />
+                  再実行
+                </button>
+              </div>
             </div>
           </div>
 

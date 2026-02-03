@@ -463,26 +463,41 @@ export function AIAccordionPanel({
     }
   };
 
-  const handleSendResponse = async () => {
-    if (!userResponse.trim() || isSendingResponse) return;
+  // 送信中のリクエストIDを追跡（重複送信防止）
+  const sendingResponseRef = useRef(false);
 
+  const handleSendResponse = async () => {
+    const trimmedResponse = userResponse.trim();
+    if (!trimmedResponse || isSendingResponse || sendingResponseRef.current) return;
+
+    // 即座にrefをセットして重複送信を防止
+    sendingResponseRef.current = true;
     setIsSendingResponse(true);
+
+    // 送信前に質問UIを非表示にする（楽観的UI更新）
+    clearPollingQuestion();
+    const savedResponse = trimmedResponse;
+    setUserResponse("");
+
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/agent-respond`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ response: userResponse.trim() }),
+        body: JSON.stringify({ response: savedResponse }),
       });
 
-      if (res.ok) {
-        setUserResponse("");
-        // 回答送信成功時、即座に質問UIを非表示にする
-        clearPollingQuestion();
+      if (!res.ok) {
+        // エラー時は質問を復元（ユーザーが再試行できるように）
+        console.error("Failed to send response:", res.status);
+        setUserResponse(savedResponse);
       }
     } catch (error) {
       console.error("Error sending response:", error);
+      // エラー時は回答を復元
+      setUserResponse(savedResponse);
     } finally {
       setIsSendingResponse(false);
+      sendingResponseRef.current = false;
     }
   };
 
@@ -1173,18 +1188,30 @@ export function AIAccordionPanel({
                   再実行
                 </button>
               )}
-              {/* エラー: 再試行 */}
+              {/* エラー: リセット + 再試行 */}
               {isFailed && !isRunning && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRerunExecution();
-                  }}
-                  className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] font-medium rounded transition-colors"
-                >
-                  <RefreshCw className="w-2.5 h-2.5" />
-                  再試行
-                </button>
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleReset();
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
+                  >
+                    <RefreshCw className="w-2.5 h-2.5" />
+                    リセット
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRerunExecution();
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] font-medium rounded transition-colors"
+                  >
+                    <RefreshCw className="w-2.5 h-2.5" />
+                    再試行
+                  </button>
+                </>
               )}
               {/* 初期状態: 実行開始 */}
               {!isRunning && !isCompleted && !isCancelled && !isFailed && (

@@ -693,53 +693,74 @@ export const aiAgentRoutes = new Elysia()
         return { error: "Response is required" };
       }
 
-      const config = await prisma.developerModeConfig.findUnique({
-        where: { taskId },
-        include: {
-          task: { include: { theme: true } },
-          agentSessions: {
-            orderBy: { createdAt: "desc" },
-            take: 1,
-            include: {
-              agentExecutions: {
-                orderBy: { createdAt: "desc" },
-                take: 1,
+      // トランザクションを使用して、ステータスの確認と更新を原子的に行う（重複処理防止）
+      const result = await prisma.$transaction(async (tx: typeof prisma) => {
+        const config = await tx.developerModeConfig.findUnique({
+          where: { taskId },
+          include: {
+            task: { include: { theme: true } },
+            agentSessions: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              include: {
+                agentExecutions: {
+                  orderBy: { createdAt: "desc" },
+                  take: 1,
+                },
               },
             },
           },
-        },
+        });
+
+        if (!config || !config.agentSessions[0]) {
+          return { error: "No active session found" };
+        }
+
+        const session = config.agentSessions[0];
+        const latestExecution = session.agentExecutions[0];
+
+        if (!latestExecution || latestExecution.status !== "waiting_for_input") {
+          return {
+            error: "No execution waiting for input",
+            currentStatus: latestExecution?.status,
+          };
+        }
+
+        // 即座にステータスを running に更新して重複リクエストを防止
+        await tx.agentExecution.update({
+          where: { id: latestExecution.id },
+          data: { status: "running" },
+        });
+
+        return {
+          success: true,
+          config,
+          session,
+          latestExecution,
+          workingDirectory: config.task.theme?.workingDirectory || process.cwd(),
+        };
       });
 
-      if (!config || !config.agentSessions[0]) {
-        return { error: "No active session found" };
+      // エラーの場合は即座に返す
+      if ("error" in result) {
+        return result;
       }
 
-      const session = config.agentSessions[0];
-      const latestExecution = session.agentExecutions[0];
-
-      if (!latestExecution || latestExecution.status !== "waiting_for_input") {
-        return {
-          error: "No execution waiting for input",
-          currentStatus: latestExecution?.status,
-        };
-      }
-
-      const workingDirectory =
-        config.task.theme?.workingDirectory || process.cwd();
+      const { config, session, latestExecution, workingDirectory } = result;
 
       try {
         orchestrator
           .executeContinuation(latestExecution.id, response.trim(), {
             timeout: 900000,
           })
-          .then(async (result) => {
-            if (result.success && !result.waitingForInput) {
+          .then(async (execResult) => {
+            if (execResult.success && !execResult.waitingForInput) {
               const diff = await orchestrator.getFullGitDiff(workingDirectory);
               if (diff && diff !== "No changes detected") {
                 const structuredDiff =
                   await orchestrator.getDiff(workingDirectory);
                 const implementationSummary =
-                  result.output || "実装が完了しました。";
+                  execResult.output || "実装が完了しました。";
 
                 const approvalRequest = await prisma.approvalRequest.create({
                   data: {
@@ -754,7 +775,7 @@ export const aiAgentRoutes = new Elysia()
                       diff,
                       structuredDiff,
                       implementationSummary,
-                      executionTimeMs: result.executionTimeMs,
+                      executionTimeMs: execResult.executionTimeMs,
                     }),
                     estimatedChanges: toJsonString({
                       diff,
@@ -785,6 +806,11 @@ export const aiAgentRoutes = new Elysia()
         };
       } catch (error: any) {
         console.error("Agent respond failed:", error);
+        // エラー時はステータスを元に戻す
+        await prisma.agentExecution.update({
+          where: { id: latestExecution.id },
+          data: { status: "waiting_for_input" },
+        }).catch(() => {});
         return { error: error.message || "Failed to send response" };
       }
     },
