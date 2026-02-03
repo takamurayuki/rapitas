@@ -13,9 +13,9 @@ import { fruit } from "@lucide/lab";
 import {
   usePomodoroStore,
   formatTime,
-  POMODORO_DURATION,
-  SHORT_BREAK,
-  LONG_BREAK,
+  DEFAULT_POMODORO_DURATION,
+  DEFAULT_SHORT_BREAK,
+  DEFAULT_LONG_BREAK,
 } from "../pomodoro/pomodoroStore";
 import { API_BASE_URL } from "@/utils/api";
 
@@ -185,11 +185,14 @@ export default function PomodoroTimer({
   };
 
   // 円形プログレスバー用の計算
-  const breakDuration = pomodoroCount % 4 === 0 ? LONG_BREAK : SHORT_BREAK;
-  const currentDuration = isBreakTime ? breakDuration : POMODORO_DURATION;
+  const breakDuration =
+    pomodoroCount % 4 === 0 ? DEFAULT_LONG_BREAK : DEFAULT_SHORT_BREAK;
+  const currentDuration = isBreakTime
+    ? breakDuration
+    : DEFAULT_POMODORO_DURATION;
   const remainingTime = isBreakTime
     ? breakDuration - pomodoroSeconds
-    : POMODORO_DURATION - pomodoroSeconds;
+    : DEFAULT_POMODORO_DURATION - pomodoroSeconds;
   const progress = Math.max(
     0,
     Math.min(((currentDuration - remainingTime) / currentDuration) * 100, 100),

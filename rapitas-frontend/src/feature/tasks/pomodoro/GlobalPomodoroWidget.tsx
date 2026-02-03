@@ -5,9 +5,9 @@ import GlobalPomodoroModal from "./GlobalPomodoroModal";
 import {
   usePomodoroStore,
   formatTime,
-  POMODORO_DURATION,
-  SHORT_BREAK,
-  LONG_BREAK,
+  DEFAULT_POMODORO_DURATION,
+  DEFAULT_SHORT_BREAK,
+  DEFAULT_LONG_BREAK,
   PomodoroState,
 } from "./pomodoroStore";
 import { API_BASE_URL } from "@/utils/api";
@@ -35,6 +35,7 @@ export default function GlobalPomodoroWidget() {
         taskTitle: store.taskTitle,
         pomodoroCount: store.pomodoroCount,
         pomodoroSeconds: store.pomodoroSeconds,
+        settings: store.settings,
       });
     };
 
@@ -86,6 +87,7 @@ export default function GlobalPomodoroWidget() {
     taskTitle,
     pomodoroCount,
     pomodoroSeconds,
+    settings,
   } = state;
 
   // Hydration完了まで何も表示しない
@@ -96,11 +98,15 @@ export default function GlobalPomodoroWidget() {
 
   // 残り時間を計算
   const getRemainingTimeLocal = () => {
+    const pomodoroDuration = settings?.pomodoroDuration || DEFAULT_POMODORO_DURATION;
+    const shortBreakDuration = settings?.shortBreakDuration || DEFAULT_SHORT_BREAK;
+    const longBreakDuration = settings?.longBreakDuration || DEFAULT_LONG_BREAK;
+
     if (isBreakTime) {
-      const breakDuration = (pomodoroCount || 0) % 4 === 0 ? LONG_BREAK : SHORT_BREAK;
+      const breakDuration = (pomodoroCount || 0) % 4 === 0 ? longBreakDuration : shortBreakDuration;
       return breakDuration - (pomodoroSeconds || 0);
     }
-    return POMODORO_DURATION - (pomodoroSeconds || 0);
+    return pomodoroDuration - (pomodoroSeconds || 0);
   };
 
   const remainingTime = getRemainingTimeLocal();

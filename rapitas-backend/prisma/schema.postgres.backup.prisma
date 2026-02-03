@@ -257,6 +257,11 @@ model Resource {
   url         String?
   type        String   // link, file, note, video
   description String?
+  // File upload fields
+  filePath    String?
+  fileName    String?
+  fileSize    Int?
+  mimeType    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -443,8 +448,24 @@ model AgentExecution {
   question          String?   @db.Text // 質問待ち時のClaude Codeからの質問
   questionType      String?   // 質問検出方法: tool_call (AskUserQuestion), none
   questionDetails   Json?     // 質問詳細（選択肢、ヘッダー等）
+  claudeSessionId   String?   // Claude Code CLI session ID for --resume
   createdAt         DateTime  @default(now())
   gitCommits        GitCommit[]
+  executionLogs     AgentExecutionLog[]
+}
+
+// エージェント実行ログ（リアルタイムログ保存用）
+model AgentExecutionLog {
+  id                Int       @id @default(autoincrement())
+  executionId       Int
+  execution         AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  logChunk          String    @db.Text
+  logType           String    @default("stdout") // stdout, stderr, system
+  sequenceNumber    Int
+  timestamp         DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+
+  @@index([executionId, sequenceNumber])
 }
 
 // GitHub連携設定

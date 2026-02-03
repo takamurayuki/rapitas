@@ -63,16 +63,33 @@ export type OrchestratorEvent = {
 export type EventListener = (event: OrchestratorEvent) => void;
 
 /**
+ * アクティブなエージェントの追跡情報
+ */
+type ActiveAgentInfo = {
+  agent: import("./base-agent").BaseAgent;
+  executionId: number;
+  sessionId: number;
+  taskId: number;
+  state: ExecutionState;
+  lastOutput: string;
+  lastSavedAt: Date;
+};
+
+/**
  * エージェントオーケストレータークラス
  */
 export class AgentOrchestrator {
   private static instance: AgentOrchestrator;
   private prisma: any;
   private activeExecutions: Map<number, ExecutionState> = new Map();
+  private activeAgents: Map<number, ActiveAgentInfo> = new Map();
   private eventListeners: Set<EventListener> = new Set();
+  private isShuttingDown: boolean = false;
+  private shutdownPromise: Promise<void> | null = null;
 
   private constructor(prisma: any) {
     this.prisma = prisma;
+    this.setupSignalHandlers();
   }
 
   static getInstance(prisma: any): AgentOrchestrator {
@@ -80,6 +97,199 @@ export class AgentOrchestrator {
       AgentOrchestrator.instance = new AgentOrchestrator(prisma);
     }
     return AgentOrchestrator.instance;
+  }
+
+  /**
+   * シグナルハンドラーを設定（グレースフルシャットダウン用）
+   */
+  private setupSignalHandlers(): void {
+    const handleShutdown = async (signal: string) => {
+      console.log(`[Orchestrator] Received ${signal}, initiating graceful shutdown...`);
+      await this.gracefulShutdown();
+    };
+
+    // プロセス終了シグナルをキャッチ
+    process.on("SIGTERM", () => handleShutdown("SIGTERM"));
+    process.on("SIGINT", () => handleShutdown("SIGINT"));
+
+    // 未処理の例外やリジェクションでもシャットダウン
+    process.on("uncaughtException", async (error) => {
+      console.error("[Orchestrator] Uncaught exception:", error);
+      await this.gracefulShutdown();
+      process.exit(1);
+    });
+
+    process.on("unhandledRejection", async (reason) => {
+      console.error("[Orchestrator] Unhandled rejection:", reason);
+      // シャットダウンはしないが、実行中のエージェントの状態を保存
+      await this.saveAllAgentStates();
+    });
+
+    console.log("[Orchestrator] Signal handlers registered for graceful shutdown");
+  }
+
+  /**
+   * グレースフルシャットダウン
+   * 全てのアクティブなエージェントを停止し、状態を保存
+   */
+  async gracefulShutdown(): Promise<void> {
+    if (this.isShuttingDown) {
+      console.log("[Orchestrator] Shutdown already in progress, waiting...");
+      return this.shutdownPromise || Promise.resolve();
+    }
+
+    this.isShuttingDown = true;
+    console.log(`[Orchestrator] Starting graceful shutdown with ${this.activeAgents.size} active agents`);
+
+    this.shutdownPromise = (async () => {
+      const shutdownTimeout = 30000; // 30秒のタイムアウト
+      const startTime = Date.now();
+
+      try {
+        // 全てのアクティブなエージェントを停止
+        const stopPromises = Array.from(this.activeAgents.entries()).map(
+          async ([executionId, info]) => {
+            try {
+              console.log(`[Orchestrator] Stopping agent for execution ${executionId}...`);
+
+              // エージェントを停止
+              await Promise.race([
+                info.agent.stop(),
+                new Promise((_, reject) =>
+                  setTimeout(() => reject(new Error("Stop timeout")), 10000)
+                ),
+              ]);
+
+              // 最終状態をDBに保存
+              await this.saveAgentState(executionId, info, "interrupted");
+              console.log(`[Orchestrator] Agent for execution ${executionId} stopped and state saved`);
+            } catch (error) {
+              console.error(`[Orchestrator] Error stopping agent ${executionId}:`, error);
+              // エラーでも状態保存を試みる
+              try {
+                await this.saveAgentState(executionId, info, "interrupted");
+              } catch (saveError) {
+                console.error(`[Orchestrator] Failed to save state for ${executionId}:`, saveError);
+              }
+            }
+          }
+        );
+
+        // タイムアウト付きで全エージェントの停止を待機
+        await Promise.race([
+          Promise.all(stopPromises),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Shutdown timeout")),
+              shutdownTimeout - (Date.now() - startTime)
+            )
+          ),
+        ]);
+
+        console.log("[Orchestrator] Graceful shutdown completed");
+      } catch (error) {
+        console.error("[Orchestrator] Graceful shutdown error:", error);
+        // 強制的に状態を保存
+        await this.saveAllAgentStates();
+      } finally {
+        this.activeAgents.clear();
+        this.activeExecutions.clear();
+      }
+    })();
+
+    return this.shutdownPromise;
+  }
+
+  /**
+   * 特定のエージェントの状態をDBに保存
+   */
+  private async saveAgentState(
+    executionId: number,
+    info: ActiveAgentInfo,
+    status: "interrupted" | "failed"
+  ): Promise<void> {
+    const errorMessage = status === "interrupted"
+      ? `プロセスが中断されました。\n\n【最後の出力】\n${info.lastOutput.slice(-1000)}`
+      : `プロセスが異常終了しました。\n\n【最後の出力】\n${info.lastOutput.slice(-1000)}`;
+
+    await this.prisma.agentExecution.update({
+      where: { id: executionId },
+      data: {
+        status,
+        output: info.state.output,
+        errorMessage,
+        completedAt: new Date(),
+      },
+    });
+  }
+
+  /**
+   * 全てのアクティブなエージェントの状態を保存
+   */
+  private async saveAllAgentStates(): Promise<void> {
+    console.log(`[Orchestrator] Saving state for ${this.activeAgents.size} active agents...`);
+
+    for (const [executionId, info] of this.activeAgents) {
+      try {
+        await this.saveAgentState(executionId, info, "interrupted");
+      } catch (error) {
+        console.error(`[Orchestrator] Failed to save state for execution ${executionId}:`, error);
+      }
+    }
+  }
+
+  /**
+   * 中断されたセッションを取得
+   */
+  async getInterruptedExecutions(): Promise<Array<{
+    id: number;
+    sessionId: number;
+    taskId: number;
+    status: string;
+    claudeSessionId: string | null;
+    output: string;
+    createdAt: Date;
+  }>> {
+    return await this.prisma.agentExecution.findMany({
+      where: {
+        status: "interrupted",
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+  }
+
+  /**
+   * シャットダウン中かどうか
+   */
+  isInShutdown(): boolean {
+    return this.isShuttingDown;
+  }
+
+  /**
+   * アクティブな実行数を取得
+   */
+  getActiveExecutionCount(): number {
+    return this.activeAgents.size;
+  }
+
+  /**
+   * アクティブなエージェント情報一覧を取得（グレースフルシャットダウン用）
+   */
+  getActiveAgentInfos(): Array<{
+    executionId: number;
+    sessionId: number;
+    taskId: number;
+    startedAt: Date;
+    lastOutput: string;
+  }> {
+    return Array.from(this.activeAgents.values()).map((info) => ({
+      executionId: info.executionId,
+      sessionId: info.sessionId,
+      taskId: info.taskId,
+      startedAt: info.state.startedAt,
+      lastOutput: info.lastOutput,
+    }));
   }
 
   /**
@@ -167,14 +377,141 @@ export class AgentOrchestrator {
     };
     this.activeExecutions.set(execution.id, state);
 
+    // アクティブエージェントを登録（グレースフルシャットダウン用）
+    const agentInfo: ActiveAgentInfo = {
+      agent,
+      executionId: execution.id,
+      sessionId: options.sessionId,
+      taskId: options.taskId,
+      state,
+      lastOutput: "",
+      lastSavedAt: new Date(),
+    };
+    this.activeAgents.set(execution.id, agentInfo);
+
+    // シャットダウン中は新しい実行を拒否
+    if (this.isShuttingDown) {
+      this.activeAgents.delete(execution.id);
+      this.activeExecutions.delete(execution.id);
+      throw new Error("Server is shutting down, cannot start new execution");
+    }
+
+    // 質問検出ハンドラを設定（質問が検出されたら即座にDBを更新）
+    agent.setQuestionDetectedHandler(async (info) => {
+      console.log(`[Orchestrator] Question detected during streaming!`);
+      console.log(`[Orchestrator] Question: ${info.question.substring(0, 100)}`);
+      console.log(`[Orchestrator] Question type: ${info.questionType}`);
+
+      try {
+        // 即座にDBステータスを waiting_for_input に更新
+        await this.prisma.agentExecution.update({
+          where: { id: execution.id },
+          data: {
+            status: "waiting_for_input",
+            question: info.question || null,
+            questionType: info.questionType || null,
+            questionDetails: toJsonString(info.questionDetails),
+          },
+        });
+        console.log(`[Orchestrator] DB updated to waiting_for_input for execution ${execution.id}`);
+
+        // 状態も更新
+        state.status = "waiting_for_input" as any;
+
+        // イベントを発火（リアルタイム通知用）
+        this.emitEvent({
+          type: "execution_output",
+          executionId: execution.id,
+          sessionId: options.sessionId,
+          taskId: options.taskId,
+          data: {
+            output: `\n[質問] ${info.question}\n`,
+            waitingForInput: true,
+            question: info.question,
+            questionType: info.questionType,
+            questionDetails: info.questionDetails,
+            questionKey: info.questionKey,
+          },
+          timestamp: new Date(),
+        });
+      } catch (error) {
+        console.error(`[Orchestrator] Failed to update DB on question detection:`, error);
+      }
+    });
+
     // 出力ハンドラを設定（リアルタイムでDBに保存）
     let lastDbUpdate = Date.now();
     const DB_UPDATE_INTERVAL = 200; // 0.2秒ごとにDBを更新（リアルタイム表示のため）
     let pendingDbUpdate = false;
+    let logSequenceNumber = 0; // ログのシーケンス番号
+    let pendingLogChunks: { chunk: string; isError: boolean; timestamp: Date }[] = [];
+    let pendingLogSave = false;
+    const LOG_BATCH_INTERVAL = 500; // 0.5秒ごとにログを一括保存
+
+    // ログチャンクを一括保存する関数
+    const flushLogChunks = async () => {
+      if (pendingLogSave || pendingLogChunks.length === 0) return;
+      pendingLogSave = true;
+      const chunksToSave = [...pendingLogChunks];
+      pendingLogChunks = [];
+
+      try {
+        const logEntries = chunksToSave.map((chunk) => ({
+          executionId: execution.id,
+          logChunk: chunk.chunk,
+          logType: chunk.isError ? "stderr" : "stdout",
+          sequenceNumber: logSequenceNumber++,
+          timestamp: chunk.timestamp,
+        }));
+
+        await this.prisma.agentExecutionLog.createMany({
+          data: logEntries,
+        });
+      } catch (e) {
+        console.error("Failed to save log chunks:", e);
+        // 失敗した場合はチャンクを戻す（再試行のため）
+        pendingLogChunks = [...chunksToSave, ...pendingLogChunks];
+      } finally {
+        pendingLogSave = false;
+      }
+    };
+
+    // 定期的にログを一括保存
+    const logFlushInterval = setInterval(flushLogChunks, LOG_BATCH_INTERVAL);
 
     agent.setOutputHandler(async (output, isError) => {
       try {
         state.output += output;
+
+        // アクティブエージェント情報を更新（グレースフルシャットダウン用）
+        if (agentInfo) {
+          agentInfo.lastOutput = state.output.slice(-2000); // 最後の2000文字を保持
+          agentInfo.lastSavedAt = new Date();
+        }
+
+        // ログチャンクをキューに追加
+        pendingLogChunks.push({
+          chunk: output,
+          isError: isError ?? false,
+          timestamp: new Date(),
+        });
+
+        // エラー出力は即座にDBに保存（重要な情報のため）
+        if (isError && output.trim()) {
+          try {
+            await this.prisma.agentExecution.update({
+              where: { id: execution.id },
+              data: {
+                output: state.output,
+                errorMessage: output.slice(-500), // 最後の500文字をエラーメッセージに
+              },
+            });
+            lastDbUpdate = Date.now();
+          } catch (e) {
+            console.error("Failed to save error output immediately:", e);
+          }
+        }
+
         if (options.onOutput) {
           try {
             options.onOutput(output, isError);
@@ -217,6 +554,12 @@ export class AgentOrchestrator {
         console.error("Critical error in output handler:", e);
       }
     });
+
+    // クリーンアップ時にログをフラッシュ
+    const cleanupLogHandler = async () => {
+      clearInterval(logFlushInterval);
+      await flushLogChunks(); // 残りのログを保存
+    };
 
     // 実行開始イベント
     this.emitEvent({
@@ -387,7 +730,9 @@ export class AgentOrchestrator {
       throw error;
     } finally {
       // クリーンアップ
+      await cleanupLogHandler(); // ログをフラッシュ
       this.activeExecutions.delete(execution.id);
+      this.activeAgents.delete(execution.id); // アクティブエージェントから削除
       await agentFactory.removeAgent(agent.id);
     }
   }
@@ -481,14 +826,150 @@ export class AgentOrchestrator {
     };
     this.activeExecutions.set(execution.id, state);
 
-    // 出力ハンドラを設定
+    // アクティブエージェントを登録（グレースフルシャットダウン用）
+    const agentInfo: ActiveAgentInfo = {
+      agent,
+      executionId: execution.id,
+      sessionId: execution.sessionId,
+      taskId,
+      state,
+      lastOutput: execution.output || "",
+      lastSavedAt: new Date(),
+    };
+    this.activeAgents.set(execution.id, agentInfo);
+
+    // シャットダウン中は新しい実行を拒否
+    if (this.isShuttingDown) {
+      this.activeAgents.delete(execution.id);
+      this.activeExecutions.delete(execution.id);
+      throw new Error("Server is shutting down, cannot continue execution");
+    }
+
+    // 質問検出ハンドラを設定（質問が検出されたら即座にDBを更新）
+    agent.setQuestionDetectedHandler(async (info) => {
+      console.log(`[Orchestrator] Question detected during continuation!`);
+      console.log(`[Orchestrator] Question: ${info.question.substring(0, 100)}`);
+      console.log(`[Orchestrator] Question type: ${info.questionType}`);
+
+      try {
+        // 即座にDBステータスを waiting_for_input に更新
+        await this.prisma.agentExecution.update({
+          where: { id: execution.id },
+          data: {
+            status: "waiting_for_input",
+            question: info.question || null,
+            questionType: info.questionType || null,
+            questionDetails: toJsonString(info.questionDetails),
+          },
+        });
+        console.log(`[Orchestrator] DB updated to waiting_for_input for execution ${execution.id}`);
+
+        // 状態も更新
+        state.status = "waiting_for_input" as any;
+
+        // イベントを発火（リアルタイム通知用）
+        this.emitEvent({
+          type: "execution_output",
+          executionId: execution.id,
+          sessionId: execution.sessionId,
+          taskId,
+          data: {
+            output: `\n[質問] ${info.question}\n`,
+            waitingForInput: true,
+            question: info.question,
+            questionType: info.questionType,
+            questionDetails: info.questionDetails,
+            questionKey: info.questionKey,
+          },
+          timestamp: new Date(),
+        });
+      } catch (error) {
+        console.error(`[Orchestrator] Failed to update DB on question detection:`, error);
+      }
+    });
+
+    // 出力ハンドラを設定（ログ保存機能付き）
     let lastDbUpdate = Date.now();
     const DB_UPDATE_INTERVAL = 200; // 0.2秒ごとにDBを更新
     let pendingDbUpdate = false;
 
+    // 既存のログのシーケンス番号を取得
+    const existingLogs = await this.prisma.agentExecutionLog.findMany({
+      where: { executionId: execution.id },
+      orderBy: { sequenceNumber: "desc" },
+      take: 1,
+    });
+    let logSequenceNumber = existingLogs.length > 0 ? existingLogs[0].sequenceNumber + 1 : 0;
+    let pendingLogChunks: { chunk: string; isError: boolean; timestamp: Date }[] = [];
+    let pendingLogSave = false;
+    const LOG_BATCH_INTERVAL = 500;
+
+    const flushLogChunks = async () => {
+      if (pendingLogSave || pendingLogChunks.length === 0) return;
+      pendingLogSave = true;
+      const chunksToSave = [...pendingLogChunks];
+      pendingLogChunks = [];
+
+      try {
+        const logEntries = chunksToSave.map((chunk) => ({
+          executionId: execution.id,
+          logChunk: chunk.chunk,
+          logType: chunk.isError ? "stderr" : "stdout",
+          sequenceNumber: logSequenceNumber++,
+          timestamp: chunk.timestamp,
+        }));
+
+        await this.prisma.agentExecutionLog.createMany({
+          data: logEntries,
+        });
+      } catch (e) {
+        console.error("Failed to save log chunks:", e);
+        pendingLogChunks = [...chunksToSave, ...pendingLogChunks];
+      } finally {
+        pendingLogSave = false;
+      }
+    };
+
+    const logFlushInterval = setInterval(flushLogChunks, LOG_BATCH_INTERVAL);
+
+    const cleanupLogHandler = async () => {
+      clearInterval(logFlushInterval);
+      await flushLogChunks();
+    };
+
     agent.setOutputHandler(async (output, isError) => {
       try {
         state.output += output;
+
+        // アクティブエージェント情報を更新（グレースフルシャットダウン用）
+        if (agentInfo) {
+          agentInfo.lastOutput = state.output.slice(-2000); // 最後の2000文字を保持
+          agentInfo.lastSavedAt = new Date();
+        }
+
+        // ログチャンクをキューに追加
+        pendingLogChunks.push({
+          chunk: output,
+          isError: isError ?? false,
+          timestamp: new Date(),
+        });
+
+        // エラー出力は即座にDBに保存（重要な情報のため）
+        if (isError && output.trim()) {
+          try {
+            await this.prisma.agentExecution.update({
+              where: { id: execution.id },
+              data: {
+                output: state.output,
+                errorMessage: output.slice(-500), // 最後の500文字をエラーメッセージに
+              },
+            });
+            lastDbUpdate = Date.now();
+          } catch (e) {
+            console.error("Failed to save error output immediately:", e);
+          }
+        }
+
         if (options.onOutput) {
           try {
             options.onOutput(output, isError);
@@ -678,7 +1159,9 @@ export class AgentOrchestrator {
 
       throw error;
     } finally {
+      await cleanupLogHandler(); // ログをフラッシュ
       this.activeExecutions.delete(execution.id);
+      this.activeAgents.delete(execution.id); // アクティブエージェントから削除
       await agentFactory.removeAgent(agent.id);
     }
   }
@@ -689,15 +1172,24 @@ export class AgentOrchestrator {
   async stopExecution(executionId: number): Promise<boolean> {
     const state = this.activeExecutions.get(executionId);
     if (!state) {
+      console.log(`[Orchestrator] stopExecution: No active execution found for ${executionId}`);
       return false;
     }
 
     const agent = agentFactory.getAgent(state.agentId);
     if (!agent) {
+      console.log(`[Orchestrator] stopExecution: No agent found for ${state.agentId}`);
+      // エージェントが見つからなくてもDBとマップはクリーンアップ
+      this.activeExecutions.delete(executionId);
+      this.activeAgents.delete(executionId);
       return false;
     }
 
-    await agent.stop();
+    try {
+      await agent.stop();
+    } catch (error) {
+      console.error(`[Orchestrator] Error stopping agent:`, error);
+    }
 
     // 実行レコードを更新
     await this.prisma.agentExecution.update({
@@ -706,8 +1198,14 @@ export class AgentOrchestrator {
         status: "cancelled",
         output: state.output,
         completedAt: new Date(),
+        errorMessage: "Cancelled by user",
       },
     });
+
+    // マップからクリーンアップ
+    this.activeExecutions.delete(executionId);
+    this.activeAgents.delete(executionId);
+    await agentFactory.removeAgent(state.agentId);
 
     this.emitEvent({
       type: "execution_cancelled",
@@ -717,6 +1215,7 @@ export class AgentOrchestrator {
       timestamp: new Date(),
     });
 
+    console.log(`[Orchestrator] Execution ${executionId} stopped and cleaned up`);
     return true;
   }
 

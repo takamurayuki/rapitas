@@ -794,7 +794,8 @@ ${previousImplementation}
           .then(async (result) => {
             if (result.success) {
               const diff = await orchestrator.getFullGitDiff(workingDirectory);
-              const structuredDiff = await orchestrator.getDiff(workingDirectory);
+              const structuredDiff =
+                await orchestrator.getDiff(workingDirectory);
 
               if (diff && diff !== "No changes detected") {
                 const implementationSummary =
@@ -853,154 +854,148 @@ ${previousImplementation}
   )
 
   // Get diff
-  .get(
-    "/:id/diff",
-    async ({ params }: { params: { id: string } }) => {
-      const { id } = params;
+  .get("/:id/diff", async ({ params }: { params: { id: string } }) => {
+    const { id } = params;
 
-      const approval = await prisma.approvalRequest.findUnique({
-        where: { id: parseInt(id) },
-        include: {
-          config: {
-            include: { task: { include: { theme: true } } },
-          },
+    const approval = await prisma.approvalRequest.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        config: {
+          include: { task: { include: { theme: true } } },
         },
-      });
+      },
+    });
 
-      if (!approval) {
-        return { error: "Approval request not found" };
-      }
+    if (!approval) {
+      return { error: "Approval request not found" };
+    }
 
-      const proposedChanges = fromJsonString<{
-        workingDirectory?: string;
-      }>(approval.proposedChanges);
+    const proposedChanges = fromJsonString<{
+      workingDirectory?: string;
+    }>(approval.proposedChanges);
 
-      const workingDirectory =
-        proposedChanges?.workingDirectory ||
-        approval.config.task?.theme?.workingDirectory;
+    const workingDirectory =
+      proposedChanges?.workingDirectory ||
+      approval.config.task?.theme?.workingDirectory;
 
-      if (!workingDirectory) {
-        return { error: "Working directory not found" };
-      }
+    if (!workingDirectory) {
+      return { error: "Working directory not found" };
+    }
 
-      try {
-        const diff = await orchestrator.getDiff(workingDirectory);
-        return { files: diff };
-      } catch (error: any) {
-        console.error("Failed to get diff:", error);
-        return { error: error.message || "Failed to get diff" };
-      }
-    },
-  )
+    try {
+      const diff = await orchestrator.getDiff(workingDirectory);
+      return { files: diff };
+    } catch (error: any) {
+      console.error("Failed to get diff:", error);
+      return { error: error.message || "Failed to get diff" };
+    }
+  })
 
   // Bulk approve
-  .post(
-    "/bulk-approve",
-    async ({ body }: { body: { ids: number[] } }) => {
-      const { ids } = body;
+  .post("/bulk-approve", async ({ body }: { body: { ids: number[] } }) => {
+    const { ids } = body;
 
-      const results = [];
-      for (const id of ids) {
-        try {
-          const approval = await prisma.approvalRequest.findUnique({
-            where: { id },
-            include: {
-              config: {
-                include: { task: true },
-              },
+    const results = [];
+    for (const id of ids) {
+      try {
+        const approval = await prisma.approvalRequest.findUnique({
+          where: { id },
+          include: {
+            config: {
+              include: { task: true },
+            },
+          },
+        });
+
+        if (!approval || approval.status !== "pending") continue;
+
+        await prisma.approvalRequest.update({
+          where: { id },
+          data: { status: "approved", approvedAt: new Date() },
+        });
+
+        if (approval.requestType === "task_execution") {
+          const proposedChanges = fromJsonString<{
+            taskId: number;
+            agentConfigId?: number;
+            workingDirectory?: string;
+          }>(approval.proposedChanges);
+          const task = approval.config.task;
+
+          const session = await prisma.agentSession.create({
+            data: {
+              configId: approval.config.id,
+              status: "pending",
             },
           });
 
-          if (!approval || approval.status !== "pending") continue;
-
-          await prisma.approvalRequest.update({
-            where: { id },
-            data: { status: "approved", approvedAt: new Date() },
-          });
-
-          if (approval.requestType === "task_execution") {
-            const proposedChanges = fromJsonString<{
-              taskId: number;
-              agentConfigId?: number;
-              workingDirectory?: string;
-            }>(approval.proposedChanges);
-            const task = approval.config.task;
-
-            const session = await prisma.agentSession.create({
-              data: {
-                configId: approval.config.id,
-                status: "pending",
+          orchestrator
+            .executeTask(
+              {
+                id: task.id,
+                title: task.title,
+                description: task.description,
+                context: task.executionInstructions || undefined,
+                workingDirectory: proposedChanges?.workingDirectory,
               },
-            });
-
-            orchestrator
-              .executeTask(
-                {
-                  id: task.id,
-                  title: task.title,
-                  description: task.description,
-                  context: task.executionInstructions || undefined,
-                  workingDirectory: proposedChanges?.workingDirectory,
-                },
-                {
-                  taskId: task.id,
-                  sessionId: session.id,
-                  agentConfigId: proposedChanges?.agentConfigId,
-                  workingDirectory: proposedChanges?.workingDirectory,
-                },
-              )
-              .then(async (result) => {
-                await prisma.notification.create({
-                  data: {
-                    type: result.success
-                      ? "agent_execution_complete"
-                      : "agent_error",
-                    title: result.success
-                      ? "エージェント実行完了"
-                      : "エージェント実行失敗",
-                    message: result.success
-                      ? `「${task.title}」の自動実行が完了しました`
-                      : `「${task.title}」の自動実行が失敗しました`,
-                    link: `/tasks/${task.id}`,
-                  },
-                });
-                if (result.success) {
-                  await prisma.task.update({
-                    where: { id: task.id },
-                    data: { status: "done", completedAt: new Date() },
-                  });
-                }
-              })
-              .catch(console.error);
-
-            results.push({ id, success: true, autoExecutionStarted: true });
-          } else if (approval.requestType === "subtask_creation") {
-            const proposedChanges = fromJsonString<{
-              subtasks: SubtaskProposal[];
-            }>(approval.proposedChanges);
-
-            for (const subtask of proposedChanges?.subtasks || []) {
-              await prisma.task.create({
+              {
+                taskId: task.id,
+                sessionId: session.id,
+                agentConfigId: proposedChanges?.agentConfigId,
+                workingDirectory: proposedChanges?.workingDirectory,
+              },
+            )
+            .then(async (result) => {
+              await prisma.notification.create({
                 data: {
-                  title: subtask.title,
-                  description: subtask.description,
-                  priority: subtask.priority,
-                  estimatedHours: subtask.estimatedHours,
-                  parentId: approval.config.taskId,
-                  agentGenerated: true,
+                  type: result.success
+                    ? "agent_execution_complete"
+                    : "agent_error",
+                  title: result.success
+                    ? "エージェント実行完了"
+                    : "エージェント実行失敗",
+                  message: result.success
+                    ? `「${task.title}」の自動実行が完了しました`
+                    : `「${task.title}」の自動実行が失敗しました`,
+                  link: `/tasks/${task.id}`,
                 },
               });
-            }
+              if (result.success) {
+                await prisma.task.update({
+                  where: { id: task.id },
+                  data: { status: "done", completedAt: new Date() },
+                });
+              }
+            })
+            .catch(console.error);
 
-            results.push({ id, success: true });
-          } else {
-            results.push({ id, success: true });
+          results.push({ id, success: true, autoExecutionStarted: true });
+        } else if (approval.requestType === "subtask_creation") {
+          const proposedChanges = fromJsonString<{
+            subtasks: SubtaskProposal[];
+          }>(approval.proposedChanges);
+
+          for (const subtask of proposedChanges?.subtasks || []) {
+            await prisma.task.create({
+              data: {
+                title: subtask.title,
+                description: subtask.description,
+                priority: subtask.priority,
+                estimatedHours: subtask.estimatedHours,
+                parentId: approval.config.taskId,
+                agentGenerated: true,
+              },
+            });
           }
-        } catch (error) {
-          results.push({ id, success: false });
-        }
-      }
 
-      return { results };
-    },
-  );
+          results.push({ id, success: true });
+        } else {
+          results.push({ id, success: true });
+        }
+      } catch (error) {
+        results.push({ id, success: false });
+      }
+    }
+
+    return { results };
+  });

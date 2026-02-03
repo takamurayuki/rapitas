@@ -168,7 +168,7 @@ export const achievementsRoutes = new Elysia({ prefix: "/achievements" })
           icon: a.icon,
           color: a.color,
           category: a.category,
-          condition: a.condition,
+          condition: JSON.stringify(a.condition),
           rarity: a.rarity,
         })),
       });
@@ -217,11 +217,18 @@ export const achievementsRoutes = new Elysia({ prefix: "/achievements" })
     });
 
     // ストリークをチェック
-    const streakRes = await fetch("http://localhost:3001/study-streaks/current");
-    const streakData = (await streakRes.json()) as { currentStreak: number };
-    const currentStreak = streakData.currentStreak || 0;
+    let currentStreak = 0;
+    try {
+      const streakRes = await fetch("http://localhost:3001/study-streaks/current");
+      if (streakRes.ok) {
+        const streakData = (await streakRes.json()) as { currentStreak: number };
+        currentStreak = streakData.currentStreak || 0;
+      }
+    } catch (e) {
+      console.debug("Failed to fetch streak data:", e);
+    }
 
-    // 学習時間をチェック
+    // 学習時間をチェック (hours単位)
     const timeEntries = await prisma.timeEntry.findMany();
     const totalHours = timeEntries.reduce(
       (sum: number, e: { duration: number }) => sum + e.duration,
@@ -232,6 +239,31 @@ export const achievementsRoutes = new Elysia({ prefix: "/achievements" })
     const completedExams = await prisma.examGoal.count({
       where: { isCompleted: true },
     });
+
+    // フラッシュカードレビュー数をチェック
+    const flashcardReviews = await prisma.flashcard.aggregate({
+      _sum: { reviewCount: true },
+    });
+    const totalReviews = flashcardReviews._sum.reviewCount || 0;
+
+    // 現在時刻をチェック（早朝/深夜学習）
+    const currentHour = new Date().getHours();
+    const isEarlyMorning = currentHour < 6;
+    const isLateNight = currentHour >= 0 && currentHour < 4;
+
+    // 今日の学習があるかチェック
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStreak = await prisma.studyStreak.findFirst({
+      where: {
+        date: { gte: today },
+        OR: [
+          { studyMinutes: { gt: 0 } },
+          { tasksCompleted: { gt: 0 } },
+        ],
+      },
+    });
+    const hasStudiedToday = !!todayStreak;
 
     const achievements = await prisma.achievement.findMany({
       include: { unlockedBy: true },
@@ -261,13 +293,26 @@ export const achievementsRoutes = new Elysia({ prefix: "/achievements" })
         case "exam_completed":
           shouldUnlock = completedExams >= (condition.count || 0);
           break;
+        case "flashcard_reviews":
+          shouldUnlock = totalReviews >= (condition.count || 0);
+          break;
+        case "early_study":
+          shouldUnlock = isEarlyMorning && hasStudiedToday;
+          break;
+        case "night_study":
+          shouldUnlock = isLateNight && hasStudiedToday;
+          break;
       }
 
       if (shouldUnlock) {
         await prisma.userAchievement.create({
           data: { achievementId: achievement.id },
         });
-        newlyUnlocked.push(achievement);
+        newlyUnlocked.push({
+          ...achievement,
+          isUnlocked: true,
+          unlockedAt: new Date(),
+        });
       }
     }
 

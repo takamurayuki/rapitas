@@ -49,39 +49,68 @@ export function useDeveloperMode(taskId: number) {
   /**
    * 進行中の実行状態を復元する
    * コンポーネントのマウント時に呼び出して、実行中のエージェントがあれば状態を復元する
+   * アプリ再起動後もログを復元できるようにDBからログ履歴を取得する
    */
   const restoreExecutionState = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-status`);
-      if (!res.ok) return null;
+      // まず実行ステータスを確認
+      const statusRes = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-status`);
+      if (!statusRes.ok) return null;
 
-      const data = await res.json();
+      const statusData = await statusRes.json();
 
       // 実行データがない場合はスキップ
-      if (!data.executionStatus || data.status === "none") {
+      if (!statusData.executionStatus || statusData.status === "none") {
         return null;
       }
 
-      // 実行中または入力待ちの場合のみ復元
-      if (data.executionStatus === "running" || data.executionStatus === "waiting_for_input") {
-        setIsExecuting(true);
-        setExecutionStatus("running");
+      // 実行中、入力待ち、または完了した実行がある場合はログ履歴を取得
+      if (statusData.executionStatus === "running" ||
+          statusData.executionStatus === "waiting_for_input" ||
+          statusData.executionStatus === "completed" ||
+          statusData.executionStatus === "failed") {
+
+        // ログ履歴を取得
+        let fullOutput = statusData.output || "";
+        try {
+          const logsRes = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-logs`);
+          if (logsRes.ok) {
+            const logsData = await logsRes.json();
+            if (logsData.logs && logsData.logs.length > 0) {
+              // ログチャンクを結合して完全な出力を復元
+              fullOutput = logsData.logs.map((log: { chunk: string }) => log.chunk).join("");
+              console.log(`[restoreExecutionState] Restored ${logsData.logs.length} log chunks`);
+            }
+          }
+        } catch (logErr) {
+          console.warn("Failed to fetch execution logs, using status output:", logErr);
+        }
+
+        // 実行中または入力待ちの場合のみUI状態を更新
+        if (statusData.executionStatus === "running" || statusData.executionStatus === "waiting_for_input") {
+          setIsExecuting(true);
+          setExecutionStatus("running");
+        }
+
         setExecutionResult({
           success: true,
-          sessionId: data.sessionId,
-          executionId: data.executionId,
-          message: "実行中のエージェントを復元しました",
-          output: data.output,
-          waitingForInput: data.waitingForInput,
-          question: data.question,
+          sessionId: statusData.sessionId,
+          executionId: statusData.executionId,
+          message: "実行状態を復元しました",
+          output: fullOutput,
+          waitingForInput: statusData.waitingForInput,
+          question: statusData.question,
         });
+
         return {
-          sessionId: data.sessionId,
-          executionId: data.executionId,
-          output: data.output,
-          status: data.executionStatus,
-          waitingForInput: data.waitingForInput,
-          question: data.question,
+          sessionId: statusData.sessionId,
+          executionId: statusData.executionId,
+          output: fullOutput,
+          status: statusData.executionStatus,
+          waitingForInput: statusData.waitingForInput,
+          question: statusData.question,
+          questionType: statusData.questionType,
+          questionDetails: statusData.questionDetails,
         };
       }
 
@@ -277,6 +306,15 @@ export function useDeveloperMode(taskId: number) {
       workingDirectory?: string;
       useTaskAnalysis?: boolean; // AIタスク分析を使用するか
       optimizedPrompt?: string; // 最適化されたプロンプト
+      attachments?: Array<{
+        id: number;
+        title: string;
+        type: string;
+        fileName?: string;
+        filePath?: string;
+        mimeType?: string;
+        description?: string;
+      }>;
     }) => {
       setIsExecuting(true);
       setExecutionStatus("running");
@@ -317,14 +355,30 @@ export function useDeveloperMode(taskId: number) {
   );
 
   /**
-   * 実行状態をリセット
+   * 実行状態をリセット（DBとローカル状態の両方をリセット）
    */
-  const resetExecutionState = useCallback(() => {
+  const resetExecutionState = useCallback(async () => {
+    // ローカル状態をリセット
     setIsExecuting(false);
     setExecutionStatus("idle");
     setExecutionResult(null);
     setError(null);
-  }, []);
+
+    // DBの実行状態もリセット
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/reset-execution-state`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        console.log("[useDeveloperMode] Execution state reset:", data);
+      } else {
+        console.error("[useDeveloperMode] Failed to reset execution state in DB");
+      }
+    } catch (err) {
+      console.error("[useDeveloperMode] Error resetting execution state:", err);
+    }
+  }, [taskId]);
 
   /**
    * 実行を停止してUIを復元

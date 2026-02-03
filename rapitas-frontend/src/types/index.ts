@@ -264,6 +264,11 @@ export type Resource = {
   url?: string | null;
   type: string;
   description?: string | null;
+  // File upload fields
+  filePath?: string | null;
+  fileName?: string | null;
+  fileSize?: number | null;
+  mimeType?: string | null;
   createdAt: string;
   updatedAt: string;
 };

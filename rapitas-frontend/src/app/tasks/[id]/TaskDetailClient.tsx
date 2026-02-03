@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { getLabelsArray } from "@/utils/labels";
-import type { Task, TimeEntry, Comment, UserSettings } from "@/types";
+import type { Task, TimeEntry, Comment, UserSettings, Resource } from "@/types";
 import LabelSelector from "@/feature/tasks/components/LabelSelector";
 import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
 import {
@@ -148,6 +148,9 @@ export default function TaskDetailClient({
   const [isAddingComment, setIsAddingComment] = useState(false);
   const [isCommentsExpanded, setIsCommentsExpanded] = useState(false);
 
+  // リソース/添付ファイル用の状態
+  const [resources, setResources] = useState<Resource[]>([]);
+
   // サブタスクアコーディオン用の状態
   const [isSubtasksExpanded, setIsSubtasksExpanded] = useState(true);
 
@@ -249,6 +252,15 @@ export default function TaskDetailClient({
       }
     };
 
+    const fetchResources = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/resources`);
+        if (res.ok) setResources(await res.json());
+      } catch (err) {
+        console.error("Failed to fetch resources:", err);
+      }
+    };
+
     const fetchGlobalSettings = async () => {
       try {
         const res = await fetch(`${API_BASE}/settings`);
@@ -269,6 +281,7 @@ export default function TaskDetailClient({
       fetchTask();
       fetchTimeEntries();
       fetchComments();
+      fetchResources();
       fetchDevModeConfig();
       fetchGlobalSettings();
     }
@@ -833,6 +846,11 @@ export default function TaskDetailClient({
                 task={task}
                 onStatusUpdate={updateStatus}
                 onEditCode={handleEditCode}
+                resources={resources}
+                onResourcesChange={async () => {
+                  const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/resources`);
+                  if (res.ok) setResources(await res.json());
+                }}
               />
             </div>
 
@@ -877,6 +895,7 @@ export default function TaskDetailClient({
                   defaultBranch={task.theme?.defaultBranch || "main"}
                   useTaskAnalysis={!!analysisResult}
                   optimizedPrompt={optimizedPrompt}
+                  resources={resources}
                   onExecute={executeAgent}
                   onReset={resetExecutionState}
                   onRestoreExecutionState={restoreExecutionState}

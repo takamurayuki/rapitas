@@ -3,10 +3,14 @@
  * Agent configuration, task execution, and session management
  */
 import { Elysia } from "elysia";
+import { join } from "path";
 import { prisma } from "../config/database";
 import { agentFactory } from "../services/agents/agent-factory";
 import { orchestrator } from "./approvals";
 import { toJsonString, fromJsonString } from "../utils/db-helpers";
+
+// Upload directory for attachments
+const UPLOAD_DIR = join(process.cwd(), "uploads");
 
 export const aiAgentRoutes = new Elysia()
   // Agent configuration list
@@ -135,6 +139,15 @@ export const aiAgentRoutes = new Elysia()
         branchName?: string;
         useTaskAnalysis?: boolean;
         optimizedPrompt?: string;
+        attachments?: Array<{
+          id: number;
+          title: string;
+          type: string;
+          fileName?: string;
+          filePath?: string;
+          mimeType?: string;
+          description?: string;
+        }>;
       };
       set: any;
     }) => {
@@ -148,6 +161,7 @@ export const aiAgentRoutes = new Elysia()
         branchName,
         useTaskAnalysis,
         optimizedPrompt,
+        attachments,
       } = body;
 
       const task = await prisma.task.findUnique({
@@ -219,6 +233,24 @@ export const aiAgentRoutes = new Elysia()
         fullInstruction = instruction
           ? `${task.description || task.title}\n\n追加指示:\n${instruction}`
           : task.description || task.title;
+      }
+
+      // 添付ファイル情報を指示に追加
+      if (attachments && attachments.length > 0) {
+        const attachmentInfo = attachments
+          .map((a) => {
+            let info = `- ${a.title} (${a.type})`;
+            if (a.fileName) info += ` - ファイル名: ${a.fileName}`;
+            if (a.description) info += ` - 説明: ${a.description}`;
+            if (a.filePath) {
+              const fullPath = join(UPLOAD_DIR, a.filePath);
+              info += `\n  パス: ${fullPath}`;
+            }
+            return info;
+          })
+          .join("\n");
+        fullInstruction += `\n\n## 添付ファイル\n以下のファイルがタスクに添付されています。必要に応じて参照してください:\n${attachmentInfo}`;
+        console.log(`[API] Added ${attachments.length} attachments to instruction`);
       }
 
       let analysisInfo:
@@ -773,10 +805,24 @@ export const aiAgentRoutes = new Elysia()
     async ({ params }: { params: { id: string } }) => {
       const sessionId = parseInt(params.id);
 
+      // オーケストレーターで停止を試みる
       const executions = orchestrator.getSessionExecutions(sessionId);
       for (const execution of executions) {
-        await orchestrator.stopExecution(execution.executionId);
+        await orchestrator.stopExecution(execution.executionId).catch(() => {});
       }
+
+      // DBで実行中/待機中の実行をすべてキャンセル
+      await prisma.agentExecution.updateMany({
+        where: {
+          sessionId,
+          status: { in: ["running", "pending", "waiting_for_input"] },
+        },
+        data: {
+          status: "cancelled",
+          completedAt: new Date(),
+          errorMessage: "Manually stopped",
+        },
+      });
 
       await prisma.agentSession.update({
         where: { id: sessionId },
@@ -788,6 +834,87 @@ export const aiAgentRoutes = new Elysia()
       });
 
       return { success: true };
+    },
+  )
+
+  // Get execution logs (for recovery after app restart)
+  .get(
+    "/tasks/:id/execution-logs",
+    async ({
+      params,
+      query,
+    }: {
+      params: { id: string };
+      query: { executionId?: string; afterSequence?: string };
+    }) => {
+      const taskId = parseInt(params.id);
+      const executionId = query.executionId
+        ? parseInt(query.executionId)
+        : undefined;
+      const afterSequence = query.afterSequence
+        ? parseInt(query.afterSequence)
+        : undefined;
+
+      const config = await prisma.developerModeConfig.findUnique({
+        where: { taskId },
+        include: {
+          agentSessions: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            include: {
+              agentExecutions: {
+                where: executionId ? { id: executionId } : {},
+                orderBy: { createdAt: "desc" },
+                take: 1,
+                include: {
+                  executionLogs: {
+                    where: afterSequence
+                      ? { sequenceNumber: { gt: afterSequence } }
+                      : {},
+                    orderBy: { sequenceNumber: "asc" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!config || !config.agentSessions[0]) {
+        return { logs: [], lastSequence: 0, status: "none" };
+      }
+
+      const latestSession = config.agentSessions[0];
+      const latestExecution = latestSession.agentExecutions[0];
+
+      if (!latestExecution) {
+        return { logs: [], lastSequence: 0, status: "none" };
+      }
+
+      const logs = latestExecution.executionLogs || [];
+      const lastSequence =
+        logs.length > 0 ? logs[logs.length - 1].sequenceNumber : 0;
+
+      return {
+        executionId: latestExecution.id,
+        sessionId: latestSession.id,
+        status: latestExecution.status,
+        logs: logs.map((log) => ({
+          id: log.id,
+          chunk: log.logChunk,
+          type: log.logType,
+          sequence: log.sequenceNumber,
+          timestamp: log.timestamp,
+        })),
+        lastSequence,
+        output: latestExecution.output,
+        errorMessage: latestExecution.errorMessage,
+        question: (latestExecution as any).question,
+        questionType: (latestExecution as any).questionType,
+        questionDetails: (latestExecution as any).questionDetails,
+        startedAt: latestExecution.startedAt,
+        completedAt: latestExecution.completedAt,
+      };
     },
   )
 
@@ -829,9 +956,12 @@ export const aiAgentRoutes = new Elysia()
         });
 
         if (runningExecution) {
-          try {
-            await orchestrator.stopExecution(runningExecution.id);
-          } catch (e) {
+          // オーケストレーターで停止を試みる
+          const stopped = await orchestrator.stopExecution(runningExecution.id).catch(() => false);
+
+          // オーケストレーターで停止できなかった場合（メモリに存在しない場合など）でも
+          // DBのステータスを確実に更新する
+          if (!stopped) {
             await prisma.agentExecution.update({
               where: { id: runningExecution.id },
               data: {
@@ -840,6 +970,7 @@ export const aiAgentRoutes = new Elysia()
                 errorMessage: "Cancelled by user",
               },
             });
+            console.log(`[stop-execution] Updated DB status for execution ${runningExecution.id} (not found in orchestrator)`);
           }
 
           if (task?.workingDirectory) {
@@ -919,4 +1050,197 @@ export const aiAgentRoutes = new Elysia()
         message: "Execution cancelled and changes reverted",
       };
     },
+  )
+
+  // Get interrupted executions (for recovery after server restart)
+  .get("/agents/interrupted-executions", async () => {
+    try {
+      const interruptedExecutions = await prisma.agentExecution.findMany({
+        where: {
+          status: "interrupted",
+        },
+        include: {
+          session: {
+            include: {
+              config: {
+                include: {
+                  task: {
+                    select: {
+                      id: true,
+                      title: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      });
+
+      return interruptedExecutions.map((exec: any) => ({
+        id: exec.id,
+        taskId: exec.session.config?.task?.id,
+        taskTitle: exec.session.config?.task?.title,
+        sessionId: exec.sessionId,
+        status: exec.status,
+        claudeSessionId: exec.claudeSessionId,
+        errorMessage: exec.errorMessage,
+        output: exec.output?.slice(-500), // 最後の500文字のみ
+        startedAt: exec.startedAt,
+        completedAt: exec.completedAt,
+        createdAt: exec.createdAt,
+        canResume: !!exec.claudeSessionId, // Claude Session IDがあれば再開可能
+      }));
+    } catch (error) {
+      console.error("[interrupted-executions] Error:", error);
+      return [];
+    }
+  })
+
+  // Get system status (including shutdown state)
+  .get("/agents/system-status", async () => {
+    const activeExecutions = orchestrator.getActiveExecutionCount?.() || 0;
+    const isShuttingDown = orchestrator.isInShutdown();
+
+    // 実行中の状態が残っている実行を取得
+    const runningExecutions = await prisma.agentExecution.count({
+      where: {
+        status: { in: ["running", "pending"] },
+      },
+    });
+
+    // 中断された実行を取得
+    const interruptedExecutions = await prisma.agentExecution.count({
+      where: {
+        status: "interrupted",
+      },
+    });
+
+    return {
+      isShuttingDown,
+      activeExecutions,
+      runningExecutions,
+      interruptedExecutions,
+      serverTime: new Date().toISOString(),
+    };
+  })
+
+  // Mark interrupted execution as acknowledged (to clear it from the list)
+  .post(
+    "/agents/executions/:id/acknowledge",
+    async ({ params }: { params: { id: string } }) => {
+      const executionId = parseInt(params.id);
+
+      const execution = await prisma.agentExecution.findUnique({
+        where: { id: executionId },
+      });
+
+      if (!execution) {
+        return { success: false, error: "Execution not found" };
+      }
+
+      if (execution.status !== "interrupted") {
+        return { success: false, error: "Execution is not interrupted" };
+      }
+
+      // ステータスを「確認済み」として更新
+      await prisma.agentExecution.update({
+        where: { id: executionId },
+        data: {
+          status: "acknowledged",
+          completedAt: new Date(),
+        },
+      });
+
+      return { success: true, message: "Execution acknowledged" };
+    }
+  )
+
+  // Reset execution state for a task (allows re-running)
+  .post(
+    "/tasks/:id/reset-execution-state",
+    async ({ params }: { params: { id: string } }) => {
+      const taskId = parseInt(params.id);
+
+      try {
+        // Find the developer mode config for this task
+        const config = await prisma.developerModeConfig.findUnique({
+          where: { taskId },
+          include: {
+            agentSessions: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              include: {
+                agentExecutions: {
+                  orderBy: { createdAt: "desc" },
+                  take: 1,
+                },
+              },
+            },
+          },
+        });
+
+        if (!config) {
+          return { success: false, error: "Developer mode config not found" };
+        }
+
+        const latestSession = config.agentSessions[0];
+        const latestExecution = latestSession?.agentExecutions[0];
+
+        // If there's a running execution, stop it first
+        if (latestExecution && ["running", "pending", "waiting_for_input"].includes(latestExecution.status)) {
+          // Try to stop via orchestrator
+          await orchestrator.stopExecution(latestExecution.id).catch(() => {});
+        }
+
+        // Reset the latest execution status
+        if (latestExecution) {
+          await prisma.agentExecution.update({
+            where: { id: latestExecution.id },
+            data: {
+              status: "reset",
+              completedAt: new Date(),
+              errorMessage: null,
+              question: null,
+              questionType: null,
+              questionDetails: null,
+            },
+          });
+
+          // Delete execution logs to free up space
+          await prisma.agentExecutionLog.deleteMany({
+            where: { executionId: latestExecution.id },
+          });
+        }
+
+        // Reset the session status
+        if (latestSession) {
+          await prisma.agentSession.update({
+            where: { id: latestSession.id },
+            data: {
+              status: "reset",
+              completedAt: new Date(),
+              errorMessage: null,
+            },
+          });
+        }
+
+        console.log(`[reset-execution-state] Task ${taskId} execution state reset`);
+
+        return {
+          success: true,
+          message: "Execution state reset successfully",
+          resetSessionId: latestSession?.id,
+          resetExecutionId: latestExecution?.id,
+        };
+      } catch (error) {
+        console.error("[reset-execution-state] Error:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to reset execution state",
+        };
+      }
+    }
   );

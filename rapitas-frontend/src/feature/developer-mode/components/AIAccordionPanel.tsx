@@ -27,7 +27,7 @@ import {
   ListTodo,
   FileText,
 } from "lucide-react";
-import type { DeveloperModeConfig, TaskAnalysisResult } from "@/types";
+import type { DeveloperModeConfig, TaskAnalysisResult, Resource } from "@/types";
 import type {
   ExecutionStatus,
   ExecutionResult,
@@ -94,11 +94,21 @@ type Props = {
   defaultBranch?: string;
   useTaskAnalysis?: boolean;
   optimizedPrompt?: string | null;
+  resources?: Resource[];
   onExecute: (options?: {
     instruction?: string;
     branchName?: string;
     useTaskAnalysis?: boolean;
     optimizedPrompt?: string;
+    attachments?: Array<{
+      id: number;
+      title: string;
+      type: string;
+      fileName?: string;
+      filePath?: string;
+      mimeType?: string;
+      description?: string;
+    }>;
   }) => Promise<{ sessionId?: number; message?: string } | null>;
   onReset: () => void;
   onRestoreExecutionState?: () => Promise<{
@@ -141,6 +151,7 @@ export function AIAccordionPanel({
   executionError,
   useTaskAnalysis,
   optimizedPrompt,
+  resources,
   onExecute,
   onReset,
   onRestoreExecutionState,
@@ -382,11 +393,26 @@ export function AIAccordionPanel({
 
   const handleExecute = async () => {
     clearLogs();
+    // ファイルリソースを添付情報として送信
+    const fileResources = resources?.filter(
+      (r) => r.filePath || r.type === "file" || r.type === "image" || r.type === "pdf"
+    );
+    const attachments = fileResources?.map((r) => ({
+      id: r.id,
+      title: r.title,
+      type: r.type,
+      fileName: r.fileName || undefined,
+      filePath: r.filePath || undefined,
+      mimeType: r.mimeType || undefined,
+      description: r.description || undefined,
+    }));
+
     const result = await onExecute({
       instruction: instruction.trim() || undefined,
       branchName: branchName.trim() || undefined,
       useTaskAnalysis,
       optimizedPrompt: optimizedPrompt || undefined,
+      attachments: attachments && attachments.length > 0 ? attachments : undefined,
     });
     if (result?.sessionId) {
       setShowLogs(true);

@@ -4,9 +4,9 @@ import {
   usePomodoroStore,
   formatTime,
   getRemainingTime,
-  POMODORO_DURATION,
-  SHORT_BREAK,
-  LONG_BREAK,
+  DEFAULT_POMODORO_DURATION,
+  DEFAULT_SHORT_BREAK,
+  DEFAULT_LONG_BREAK,
   PomodoroState,
   PomodoroStatus,
 } from "./pomodoroStore";
@@ -50,4 +50,10 @@ export function usePomodoro() {
 }
 
 // ヘルパー関数をre-export
-export { formatTime, getRemainingTime, POMODORO_DURATION, SHORT_BREAK, LONG_BREAK };
+export {
+  formatTime,
+  getRemainingTime,
+  DEFAULT_POMODORO_DURATION,
+  DEFAULT_SHORT_BREAK,
+  DEFAULT_LONG_BREAK,
+};

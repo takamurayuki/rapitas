@@ -12,6 +12,7 @@ import {
   Award,
 } from "lucide-react";
 import { API_BASE_URL } from "@/utils/api";
+import BurndownChart from "@/components/BurndownChart";
 
 type OverviewStats = {
   tasks: {
@@ -378,6 +379,11 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* バーンダウンチャート */}
+      <div className="mt-6">
+        <BurndownChart days={14} />
       </div>
     </div>
   );

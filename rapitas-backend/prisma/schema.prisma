@@ -245,6 +245,11 @@ model Resource {
   url         String?
   type        String
   description String?
+  // File upload fields
+  filePath    String?
+  fileName    String?
+  fileSize    Int?
+  mimeType    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -416,6 +421,20 @@ model AgentExecution {
   claudeSessionId   String?   // Claude Code CLI session ID for --resume
   createdAt         DateTime  @default(now())
   gitCommits        GitCommit[]
+  executionLogs     AgentExecutionLog[]
+}
+
+model AgentExecutionLog {
+  id                Int       @id @default(autoincrement())
+  executionId       Int
+  execution         AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  logChunk          String
+  logType           String    @default("stdout") // stdout, stderr, system
+  sequenceNumber    Int
+  timestamp         DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+
+  @@index([executionId, sequenceNumber])
 }
 
 model GitHubIntegration {

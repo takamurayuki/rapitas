@@ -1,6 +1,6 @@
 "use client";
 
-import { Task, Label } from "@/types";
+import { Task, Label, Resource } from "@/types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { createMarkdownComponents } from "@/feature/tasks/components/MarkdownComponents";
@@ -16,25 +16,34 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion/Accordion";
 import { SelectedLabelsDisplay } from "@/feature/tasks/components/LabelSelector";
+import FileUploader from "@/feature/tasks/components/FileUploader";
 import {
   Clock,
   Calendar,
   Tag,
   FileText,
   Info,
+  Paperclip,
 } from "lucide-react";
 
 interface CompactTaskDetailCardProps {
   task: Task;
   onStatusUpdate: (taskId: number, newStatus: string) => void;
   onEditCode?: (language: string, code: string) => void;
+  resources?: Resource[];
+  onResourcesChange?: () => void;
 }
 
 export default function CompactTaskDetailCard({
   task,
   onStatusUpdate,
   onEditCode,
+  resources = [],
+  onResourcesChange,
 }: CompactTaskDetailCardProps) {
+  const fileResources = resources.filter(
+    (r) => r.filePath || r.type === "file" || r.type === "image" || r.type === "pdf"
+  );
   const hasMetaInfo =
     (task.taskLabels && task.taskLabels.length > 0) || task.estimatedHours;
 
@@ -185,6 +194,36 @@ export default function CompactTaskDetailCard({
                 </span>
               </div>
             </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Attachments - Collapsible */}
+        <AccordionItem id="attachments">
+          <AccordionTrigger
+            id="attachments"
+            icon={<Paperclip className="w-4 h-4" />}
+            badge={
+              fileResources.length > 0 ? (
+                <span className="px-1.5 py-0.5 text-xs font-medium bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 rounded-full">
+                  {fileResources.length}
+                </span>
+              ) : undefined
+            }
+          >
+            添付ファイル
+          </AccordionTrigger>
+          <AccordionContent id="attachments">
+            {onResourcesChange ? (
+              <FileUploader
+                taskId={task.id}
+                resources={resources}
+                onResourcesChange={onResourcesChange}
+              />
+            ) : (
+              <div className="text-sm text-zinc-500 dark:text-zinc-400">
+                ファイルの追加には編集権限が必要です
+              </div>
+            )}
           </AccordionContent>
         </AccordionItem>
       </Accordion>

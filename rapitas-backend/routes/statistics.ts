@@ -160,4 +160,140 @@ export const statisticsRoutes = new Elysia({ prefix: "/statistics" })
         hours: Math.round(hours * 10) / 10,
       }))
       .sort((a, b) => b.hours - a.hours);
-  });
+  })
+
+  // バーンダウンチャートデータ
+  .get(
+    "/burndown",
+    async ({
+      query,
+    }: {
+      query: { days?: string; themeId?: string; projectId?: string };
+    }) => {
+      const daysNum = query.days ? parseInt(query.days) : 14;
+      const themeId = query.themeId ? parseInt(query.themeId) : undefined;
+      const projectId = query.projectId ? parseInt(query.projectId) : undefined;
+
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - daysNum);
+      startDate.setHours(0, 0, 0, 0);
+
+      const endDate = new Date();
+      endDate.setHours(23, 59, 59, 999);
+
+      // フィルター条件を構築
+      const whereBase = {
+        parentId: null,
+        ...(themeId && { themeId }),
+        ...(projectId && { projectId }),
+      };
+
+      // 期間開始時点での総タスク数（期間開始前に作成された未完了タスク + 期間中に作成されたタスク）
+      const tasksAtStart = await prisma.task.count({
+        where: {
+          ...whereBase,
+          createdAt: { lte: startDate },
+          OR: [
+            { status: { not: "done" } },
+            { completedAt: { gt: startDate } },
+          ],
+        },
+      });
+
+      // 期間中に作成されたタスク
+      const tasksCreatedInPeriod = await prisma.task.findMany({
+        where: {
+          ...whereBase,
+          createdAt: { gt: startDate, lte: endDate },
+        },
+        select: { id: true, createdAt: true },
+      });
+
+      // 期間中に完了したタスク
+      const tasksCompletedInPeriod = await prisma.task.findMany({
+        where: {
+          ...whereBase,
+          status: "done",
+          completedAt: { gte: startDate, lte: endDate },
+        },
+        select: { id: true, completedAt: true },
+      });
+
+      // 日別データを構築
+      const dailyData: {
+        date: string;
+        remaining: number;
+        ideal: number;
+        completed: number;
+        added: number;
+      }[] = [];
+
+      let totalTasks = tasksAtStart;
+      const initialTotal = tasksAtStart + tasksCreatedInPeriod.length;
+      let remainingTasks = totalTasks;
+
+      for (let i = 0; i <= daysNum; i++) {
+        const date = new Date(startDate);
+        date.setDate(date.getDate() + i);
+        const dateStr = date.toISOString().split("T")[0];
+
+        // この日に追加されたタスク数
+        const addedToday = tasksCreatedInPeriod.filter((t) => {
+          const created = t.createdAt.toISOString().split("T")[0];
+          return created === dateStr;
+        }).length;
+
+        // この日に完了したタスク数
+        const completedToday = tasksCompletedInPeriod.filter((t) => {
+          if (!t.completedAt) return false;
+          const completed = t.completedAt.toISOString().split("T")[0];
+          return completed === dateStr;
+        }).length;
+
+        totalTasks += addedToday;
+        remainingTasks = remainingTasks + addedToday - completedToday;
+
+        // 理想線（初日から最終日まで線形減少）
+        const idealRemaining = Math.max(
+          0,
+          initialTotal - (initialTotal / daysNum) * i
+        );
+
+        dailyData.push({
+          date: dateStr,
+          remaining: Math.max(0, remainingTasks),
+          ideal: Math.round(idealRemaining * 10) / 10,
+          completed: completedToday,
+          added: addedToday,
+        });
+      }
+
+      // 集計情報
+      const totalCompleted = tasksCompletedInPeriod.length;
+      const totalAdded = tasksCreatedInPeriod.length;
+      const currentRemaining = remainingTasks;
+
+      return {
+        period: {
+          start: startDate.toISOString().split("T")[0],
+          end: endDate.toISOString().split("T")[0],
+          days: daysNum,
+        },
+        summary: {
+          initialTasks: tasksAtStart,
+          totalAdded,
+          totalCompleted,
+          currentRemaining,
+          velocity: Math.round((totalCompleted / daysNum) * 10) / 10,
+        },
+        dailyData,
+      };
+    },
+    {
+      query: t.Object({
+        days: t.Optional(t.String()),
+        themeId: t.Optional(t.String()),
+        projectId: t.Optional(t.String()),
+      }),
+    }
+  );

@@ -274,6 +274,8 @@ export function useExecutionPolling(taskId: number | null) {
   const hasAddedFinalLogRef = useRef(false);
   // 最後に処理したステータスを追跡（同一ステータスの重複処理防止）
   const lastProcessedStatusRef = useRef<string | null>(null);
+  // 最後に処理した質問を追跡（質問の重複処理防止）
+  const lastProcessedQuestionRef = useRef<string | null>(null);
 
   /**
    * ポーリングを開始する
@@ -292,6 +294,7 @@ export function useExecutionPolling(taskId: number | null) {
     // 終了ログフラグとステータス追跡をリセット
     hasAddedFinalLogRef.current = false;
     lastProcessedStatusRef.current = null;
+    lastProcessedQuestionRef.current = null;
 
     // 初期出力がある場合はその長さから開始（復元時）
     if (options?.initialOutput) {
@@ -457,13 +460,26 @@ export function useExecutionPolling(taskId: number | null) {
           if (lastProcessedStatusRef.current === "cancelled") {
             return;
           }
-          console.log("[ExecutionPolling] Waiting for input:", data.question, "questionType:", data.questionType);
+
+          // 同じ質問を既に処理済みの場合はスキップ（重複防止）
+          const currentQuestion = data.question || "";
+          if (
+            lastProcessedStatusRef.current === "waiting_for_input" &&
+            lastProcessedQuestionRef.current === currentQuestion
+          ) {
+            return;
+          }
+
+          console.log("[ExecutionPolling] Waiting for input:", currentQuestion, "questionType:", data.questionType);
+          lastProcessedStatusRef.current = "waiting_for_input";
+          lastProcessedQuestionRef.current = currentQuestion;
+
           setState((prev) => ({
             ...prev,
             isRunning: true,
             status: "waiting_for_input",
             waitingForInput: true,
-            question: data.question || "",
+            question: currentQuestion,
             questionType: data.questionType || "pattern_match",
           }));
         } else if (data.executionStatus === "running") {
@@ -547,6 +563,7 @@ export function useExecutionPolling(taskId: number | null) {
     lastOutputLengthRef.current = 0;
     hasAddedFinalLogRef.current = false;
     lastProcessedStatusRef.current = null;
+    lastProcessedQuestionRef.current = null;
     setState({
       isConnected: false,
       isRunning: false,
@@ -565,6 +582,9 @@ export function useExecutionPolling(taskId: number | null) {
    * ステータスは running に戻し、ログは保持する
    */
   const clearQuestion = useCallback(() => {
+    // 質問のステータス追跡をリセットして、新しい質問を受け付けられるようにする
+    lastProcessedStatusRef.current = "running";
+    lastProcessedQuestionRef.current = null;
     setState((prev) => ({
       ...prev,
       status: "running",

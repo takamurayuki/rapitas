@@ -127,9 +127,45 @@ async function createTablesIfNeeded(prisma: PrismaClient): Promise<void> {
       await createSQLiteSchema(prisma);
     } else {
       console.log(`[Tauri Init] Found ${tables.length} existing tables`);
+      // Always run schema updates to add missing tables/columns
+      await createSQLiteSchema(prisma);
+      await migrateSchema(prisma);
     }
   } catch (error) {
     console.error("[Tauri Init] Error checking tables:", error);
+  }
+}
+
+/**
+ * Migrate schema - add new columns to existing tables
+ */
+async function migrateSchema(prisma: PrismaClient): Promise<void> {
+  const migrations = [
+    // Add file upload fields to Resource table
+    { table: "Resource", column: "filePath", sql: `ALTER TABLE "Resource" ADD COLUMN "filePath" TEXT` },
+    { table: "Resource", column: "fileName", sql: `ALTER TABLE "Resource" ADD COLUMN "fileName" TEXT` },
+    { table: "Resource", column: "fileSize", sql: `ALTER TABLE "Resource" ADD COLUMN "fileSize" INTEGER` },
+    { table: "Resource", column: "mimeType", sql: `ALTER TABLE "Resource" ADD COLUMN "mimeType" TEXT` },
+  ];
+
+  for (const migration of migrations) {
+    try {
+      // Check if column exists
+      const columns: any[] = await prisma.$queryRawUnsafe(
+        `PRAGMA table_info("${migration.table}")`
+      );
+      const columnExists = columns.some((col: any) => col.name === migration.column);
+
+      if (!columnExists) {
+        await prisma.$executeRawUnsafe(migration.sql);
+        console.log(`[Tauri Init] Added column ${migration.column} to ${migration.table}`);
+      }
+    } catch (error: any) {
+      // Ignore errors (column might already exist or table doesn't exist)
+      if (!error.message?.includes("duplicate column")) {
+        console.debug(`[Tauri Init] Migration skipped: ${migration.column} on ${migration.table}`);
+      }
+    }
   }
 }
 
@@ -358,6 +394,314 @@ async function createSQLiteSchema(prisma: PrismaClient): Promise<void> {
       "isGitRepo" BOOLEAN NOT NULL DEFAULT false,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL
+    )`,
+
+    // Resource
+    `CREATE TABLE IF NOT EXISTS "Resource" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "taskId" INTEGER,
+      "title" TEXT NOT NULL,
+      "url" TEXT,
+      "type" TEXT NOT NULL,
+      "description" TEXT,
+      "filePath" TEXT,
+      "fileName" TEXT,
+      "fileSize" INTEGER,
+      "mimeType" TEXT,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL,
+      FOREIGN KEY ("taskId") REFERENCES "Task"("id") ON DELETE CASCADE
+    )`,
+
+    // Achievement
+    `CREATE TABLE IF NOT EXISTS "Achievement" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "key" TEXT NOT NULL UNIQUE,
+      "name" TEXT NOT NULL,
+      "description" TEXT NOT NULL,
+      "icon" TEXT NOT NULL,
+      "color" TEXT NOT NULL DEFAULT '#FFD700',
+      "category" TEXT NOT NULL,
+      "condition" TEXT NOT NULL,
+      "rarity" TEXT NOT NULL DEFAULT 'common',
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+
+    // UserAchievement
+    `CREATE TABLE IF NOT EXISTS "UserAchievement" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "achievementId" INTEGER NOT NULL UNIQUE,
+      "unlockedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("achievementId") REFERENCES "Achievement"("id") ON DELETE CASCADE
+    )`,
+
+    // Habit
+    `CREATE TABLE IF NOT EXISTS "Habit" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "name" TEXT NOT NULL,
+      "description" TEXT,
+      "icon" TEXT,
+      "color" TEXT NOT NULL DEFAULT '#10B981',
+      "frequency" TEXT NOT NULL DEFAULT 'daily',
+      "targetCount" INTEGER NOT NULL DEFAULT 1,
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL
+    )`,
+
+    // HabitLog
+    `CREATE TABLE IF NOT EXISTS "HabitLog" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "habitId" INTEGER NOT NULL,
+      "date" DATETIME NOT NULL,
+      "count" INTEGER NOT NULL DEFAULT 1,
+      "note" TEXT,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("habitId") REFERENCES "Habit"("id") ON DELETE CASCADE,
+      UNIQUE("habitId", "date")
+    )`,
+
+    // FlashcardDeck
+    `CREATE TABLE IF NOT EXISTS "FlashcardDeck" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "name" TEXT NOT NULL,
+      "description" TEXT,
+      "color" TEXT NOT NULL DEFAULT '#3B82F6',
+      "taskId" INTEGER,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL
+    )`,
+
+    // Flashcard
+    `CREATE TABLE IF NOT EXISTS "Flashcard" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "deckId" INTEGER NOT NULL,
+      "front" TEXT NOT NULL,
+      "back" TEXT NOT NULL,
+      "nextReview" DATETIME,
+      "interval" INTEGER NOT NULL DEFAULT 1,
+      "easeFactor" REAL NOT NULL DEFAULT 2.5,
+      "reviewCount" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL,
+      FOREIGN KEY ("deckId") REFERENCES "FlashcardDeck"("id") ON DELETE CASCADE
+    )`,
+
+    // TaskTemplate
+    `CREATE TABLE IF NOT EXISTS "TaskTemplate" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "name" TEXT NOT NULL,
+      "description" TEXT,
+      "category" TEXT NOT NULL,
+      "templateData" TEXT NOT NULL,
+      "isPublic" BOOLEAN NOT NULL DEFAULT false,
+      "useCount" INTEGER NOT NULL DEFAULT 0,
+      "themeId" INTEGER,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL,
+      FOREIGN KEY ("themeId") REFERENCES "Theme"("id") ON DELETE SET NULL
+    )`,
+
+    // AgentSession
+    `CREATE TABLE IF NOT EXISTS "AgentSession" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "configId" INTEGER NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "startedAt" DATETIME,
+      "completedAt" DATETIME,
+      "lastActivityAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "totalTokensUsed" INTEGER NOT NULL DEFAULT 0,
+      "errorMessage" TEXT,
+      "metadata" TEXT,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL,
+      FOREIGN KEY ("configId") REFERENCES "DeveloperModeConfig"("id") ON DELETE CASCADE
+    )`,
+
+    // AgentAction
+    `CREATE TABLE IF NOT EXISTS "AgentAction" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "sessionId" INTEGER NOT NULL,
+      "actionType" TEXT NOT NULL,
+      "targetTaskId" INTEGER,
+      "input" TEXT,
+      "output" TEXT,
+      "tokensUsed" INTEGER NOT NULL DEFAULT 0,
+      "durationMs" INTEGER,
+      "status" TEXT NOT NULL DEFAULT 'success',
+      "errorMessage" TEXT,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("sessionId") REFERENCES "AgentSession"("id") ON DELETE CASCADE
+    )`,
+
+    // ApprovalRequest
+    `CREATE TABLE IF NOT EXISTS "ApprovalRequest" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "configId" INTEGER NOT NULL,
+      "requestType" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "description" TEXT,
+      "proposedChanges" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "expiresAt" DATETIME,
+      "approvedAt" DATETIME,
+      "rejectedAt" DATETIME,
+      "rejectionReason" TEXT,
+      "notificationSent" BOOLEAN NOT NULL DEFAULT false,
+      "executionType" TEXT,
+      "estimatedChanges" TEXT,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL,
+      FOREIGN KEY ("configId") REFERENCES "DeveloperModeConfig"("id") ON DELETE CASCADE
+    )`,
+
+    // AIAgentConfig
+    `CREATE TABLE IF NOT EXISTS "AIAgentConfig" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "agentType" TEXT NOT NULL,
+      "name" TEXT NOT NULL,
+      "apiKeyEncrypted" TEXT,
+      "endpoint" TEXT,
+      "modelId" TEXT,
+      "isDefault" BOOLEAN NOT NULL DEFAULT false,
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "capabilities" TEXT NOT NULL DEFAULT '{}',
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL
+    )`,
+
+    // AgentExecution
+    `CREATE TABLE IF NOT EXISTS "AgentExecution" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "sessionId" INTEGER NOT NULL,
+      "agentConfigId" INTEGER,
+      "command" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "output" TEXT,
+      "artifacts" TEXT,
+      "startedAt" DATETIME,
+      "completedAt" DATETIME,
+      "tokensUsed" INTEGER NOT NULL DEFAULT 0,
+      "executionTimeMs" INTEGER,
+      "errorMessage" TEXT,
+      "question" TEXT,
+      "questionType" TEXT,
+      "questionDetails" TEXT,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("sessionId") REFERENCES "AgentSession"("id") ON DELETE CASCADE,
+      FOREIGN KEY ("agentConfigId") REFERENCES "AIAgentConfig"("id") ON DELETE SET NULL
+    )`,
+
+    // GitHubIntegration
+    `CREATE TABLE IF NOT EXISTS "GitHubIntegration" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "repositoryUrl" TEXT NOT NULL UNIQUE,
+      "repositoryName" TEXT NOT NULL,
+      "ownerName" TEXT NOT NULL,
+      "accessTokenEnc" TEXT,
+      "webhookSecret" TEXT,
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "syncIssues" BOOLEAN NOT NULL DEFAULT true,
+      "syncPullRequests" BOOLEAN NOT NULL DEFAULT true,
+      "autoLinkTasks" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL
+    )`,
+
+    // GitHubPullRequest
+    `CREATE TABLE IF NOT EXISTS "GitHubPullRequest" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "integrationId" INTEGER NOT NULL,
+      "prNumber" INTEGER NOT NULL,
+      "title" TEXT NOT NULL,
+      "body" TEXT,
+      "state" TEXT NOT NULL,
+      "headBranch" TEXT NOT NULL,
+      "baseBranch" TEXT NOT NULL,
+      "authorLogin" TEXT NOT NULL,
+      "url" TEXT NOT NULL,
+      "linkedTaskId" INTEGER,
+      "lastSyncedAt" DATETIME NOT NULL,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL,
+      FOREIGN KEY ("integrationId") REFERENCES "GitHubIntegration"("id") ON DELETE CASCADE,
+      UNIQUE("integrationId", "prNumber")
+    )`,
+
+    // GitHubPRReview
+    `CREATE TABLE IF NOT EXISTS "GitHubPRReview" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "pullRequestId" INTEGER NOT NULL,
+      "reviewId" INTEGER NOT NULL,
+      "state" TEXT NOT NULL,
+      "body" TEXT,
+      "authorLogin" TEXT NOT NULL,
+      "submittedAt" DATETIME NOT NULL,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("pullRequestId") REFERENCES "GitHubPullRequest"("id") ON DELETE CASCADE
+    )`,
+
+    // GitHubPRComment
+    `CREATE TABLE IF NOT EXISTS "GitHubPRComment" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "pullRequestId" INTEGER NOT NULL,
+      "commentId" INTEGER NOT NULL,
+      "body" TEXT NOT NULL,
+      "path" TEXT,
+      "line" INTEGER,
+      "authorLogin" TEXT NOT NULL,
+      "isFromRapitas" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL,
+      FOREIGN KEY ("pullRequestId") REFERENCES "GitHubPullRequest"("id") ON DELETE CASCADE
+    )`,
+
+    // GitHubIssue
+    `CREATE TABLE IF NOT EXISTS "GitHubIssue" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "integrationId" INTEGER NOT NULL,
+      "issueNumber" INTEGER NOT NULL,
+      "title" TEXT NOT NULL,
+      "body" TEXT,
+      "state" TEXT NOT NULL,
+      "labels" TEXT NOT NULL DEFAULT '[]',
+      "authorLogin" TEXT NOT NULL,
+      "url" TEXT NOT NULL,
+      "linkedTaskId" INTEGER,
+      "lastSyncedAt" DATETIME NOT NULL,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL,
+      FOREIGN KEY ("integrationId") REFERENCES "GitHubIntegration"("id") ON DELETE CASCADE,
+      UNIQUE("integrationId", "issueNumber")
+    )`,
+
+    // GitCommit
+    `CREATE TABLE IF NOT EXISTS "GitCommit" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "executionId" INTEGER NOT NULL,
+      "commitHash" TEXT NOT NULL,
+      "message" TEXT NOT NULL,
+      "branch" TEXT NOT NULL,
+      "filesChanged" INTEGER NOT NULL DEFAULT 0,
+      "additions" INTEGER NOT NULL DEFAULT 0,
+      "deletions" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("executionId") REFERENCES "AgentExecution"("id") ON DELETE CASCADE
+    )`,
+
+    // TaskPrompt
+    `CREATE TABLE IF NOT EXISTS "TaskPrompt" (
+      "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+      "taskId" INTEGER NOT NULL,
+      "name" TEXT,
+      "originalDescription" TEXT,
+      "optimizedPrompt" TEXT NOT NULL,
+      "structuredSections" TEXT,
+      "qualityScore" INTEGER,
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL,
+      FOREIGN KEY ("taskId") REFERENCES "Task"("id") ON DELETE CASCADE
     )`,
   ];
 

@@ -279,6 +279,9 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
           update: { tasksCompleted: { increment: 1 } },
           create: { date: today, studyMinutes: 0, tasksCompleted: 1 },
         });
+
+        // Check for achievement unlocks (fire and forget)
+        fetch("http://localhost:3001/achievements/check", { method: "POST" }).catch(() => {});
       }
 
       await prisma.task.update({

@@ -103,9 +103,21 @@ export type GitCommitInfo = {
 
 export type AgentOutputHandler = (output: string, isError?: boolean) => void;
 
+/**
+ * 質問検出時のコールバックハンドラ
+ * ストリーミング中に質問が検出された際に即座に呼び出される
+ */
+export type QuestionDetectedHandler = (info: {
+  question: string;
+  questionType: QuestionType;
+  questionDetails?: import("./question-detection").QuestionDetails;
+  questionKey?: import("./question-detection").QuestionKey;
+}) => void;
+
 export abstract class BaseAgent {
   protected status: AgentStatus = 'idle';
   protected outputHandler?: AgentOutputHandler;
+  protected questionDetectedHandler?: QuestionDetectedHandler;
 
   constructor(
     public readonly id: string,
@@ -154,6 +166,23 @@ export abstract class BaseAgent {
    */
   setOutputHandler(handler: AgentOutputHandler): void {
     this.outputHandler = handler;
+  }
+
+  /**
+   * 質問検出ハンドラを設定
+   * ストリーミング中に質問が検出された際に即座にコールバックされる
+   */
+  setQuestionDetectedHandler(handler: QuestionDetectedHandler): void {
+    this.questionDetectedHandler = handler;
+  }
+
+  /**
+   * 質問検出を通知
+   */
+  protected emitQuestionDetected(info: Parameters<QuestionDetectedHandler>[0]): void {
+    if (this.questionDetectedHandler) {
+      this.questionDetectedHandler(info);
+    }
   }
 
   /**

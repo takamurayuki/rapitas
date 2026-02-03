@@ -5,7 +5,7 @@
   "identifier": "com.rapitas.app",
   "build": {
     "beforeBuildCommand": "node scripts/build-all.js",
-    "beforeDevCommand": "node scripts/dev.js",
+    "beforeDevCommand": "node scripts/dev.js --watch",
     "devUrl": "http://localhost:3000",
     "frontendDist": "../../rapitas-frontend/.next-tauri"
   },
@@ -21,7 +21,8 @@
         "minHeight": 600,
         "resizable": true,
         "fullscreen": false,
-        "center": true
+        "center": true,
+        "dragDropEnabled": false
       }
     ],
     "security": {
