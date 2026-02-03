@@ -54,56 +54,62 @@ export default function FileUploader({
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [downloadStates, setDownloadStates] = useState<Record<number, DownloadState>>({});
+  const [downloadStates, setDownloadStates] = useState<
+    Record<number, DownloadState>
+  >({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ダウンロード処理（アニメーション付き）
-  const handleDownload = useCallback(async (resourceId: number, url: string, fileName: string) => {
-    setDownloadStates(prev => ({ ...prev, [resourceId]: "downloading" }));
-    try {
-      await downloadFile(url, fileName);
-      setDownloadStates(prev => ({ ...prev, [resourceId]: "completed" }));
-      // 2秒後にアイドル状態に戻す
-      setTimeout(() => {
-        setDownloadStates(prev => ({ ...prev, [resourceId]: "idle" }));
-      }, 2000);
-    } catch (e) {
-      setDownloadStates(prev => ({ ...prev, [resourceId]: "idle" }));
-      setError(e instanceof Error ? e.message : "ダウンロードに失敗しました");
-    }
-  }, []);
+  const handleDownload = useCallback(
+    async (resourceId: number, url: string, fileName: string) => {
+      setDownloadStates((prev) => ({ ...prev, [resourceId]: "downloading" }));
+      try {
+        await downloadFile(url, fileName);
+        setDownloadStates((prev) => ({ ...prev, [resourceId]: "completed" }));
+        // 2秒後にアイドル状態に戻す
+        setTimeout(() => {
+          setDownloadStates((prev) => ({ ...prev, [resourceId]: "idle" }));
+        }, 2000);
+      } catch (e) {
+        setDownloadStates((prev) => ({ ...prev, [resourceId]: "idle" }));
+        setError(e instanceof Error ? e.message : "ダウンロードに失敗しました");
+      }
+    },
+    [],
+  );
 
   // ファイルをアップロード（FileList用）
-  const uploadFiles = useCallback(async (files: FileList) => {
-    setIsUploading(true);
-    setError(null);
+  const uploadFiles = useCallback(
+    async (files: FileList) => {
+      setIsUploading(true);
+      setError(null);
 
-    try {
-      for (const file of Array.from(files)) {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("taskId", taskId.toString());
+      try {
+        for (const file of Array.from(files)) {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("taskId", taskId.toString());
 
-        const res = await fetch(`${API_BASE_URL}/resources/upload`, {
-          method: "POST",
-          body: formData,
-        });
+          const res = await fetch(`${API_BASE_URL}/resources/upload`, {
+            method: "POST",
+            body: formData,
+          });
 
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          throw new Error(errorData.message || "アップロードに失敗しました");
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.message || "アップロードに失敗しました");
+          }
         }
+
+        onResourcesChange();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "アップロードに失敗しました");
+      } finally {
+        setIsUploading(false);
       }
-
-      onResourcesChange();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "アップロードに失敗しました");
-    } finally {
-      setIsUploading(false);
-    }
-  }, [taskId, onResourcesChange]);
-
-
+    },
+    [taskId, onResourcesChange],
+  );
 
   // ブラウザのネイティブドラッグイベント（Tauri環境でもdragDropEnabled: trueで動作）
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -130,20 +136,27 @@ export default function FileUploader({
     e.stopPropagation();
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    console.log("[FileUploader] handleDrop", e.dataTransfer.files, e.dataTransfer.types);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragActive(false);
+      console.log(
+        "[FileUploader] handleDrop",
+        e.dataTransfer.files,
+        e.dataTransfer.types,
+      );
 
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      console.log("[FileUploader] Uploading files:", files.length);
-      uploadFiles(files);
-    } else {
-      console.log("[FileUploader] No files in dataTransfer");
-    }
-  }, [uploadFiles]);
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        console.log("[FileUploader] Uploading files:", files.length);
+        uploadFiles(files);
+      } else {
+        console.log("[FileUploader] No files in dataTransfer");
+      }
+    },
+    [uploadFiles],
+  );
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -203,7 +216,10 @@ export default function FileUploader({
     return resource.url || "#";
   };
 
-  const fileResources = resources.filter((r) => r.filePath || r.type === "file" || r.type === "image" || r.type === "pdf");
+  const fileResources = resources.filter(
+    (r) =>
+      r.filePath || r.type === "file" || r.type === "image" || r.type === "pdf",
+  );
 
   return (
     <div className="space-y-3">
@@ -236,7 +252,9 @@ export default function FileUploader({
           )}
           <div>
             <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              {isUploading ? "アップロード中..." : "ファイルをドラッグ&ドロップ"}
+              {isUploading
+                ? "アップロード中..."
+                : "ファイルをドラッグ&ドロップ"}
             </p>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
               または クリックして選択（最大10MB）
@@ -269,7 +287,7 @@ export default function FileUploader({
             >
               {/* Preview or Icon */}
               {resource.type === "image" && resource.filePath ? (
-                <div className="w-10 h-10 rounded-lg overflow-hidden bg-zinc-200 dark:bg-zinc-700 flex-shrink-0">
+                <div className="w-10 h-10 rounded-lg overflow-hidden bg-zinc-200 dark:bg-zinc-700 shrink-0">
                   <img
                     src={getFileUrl(resource)}
                     alt={resource.title}
@@ -277,7 +295,7 @@ export default function FileUploader({
                   />
                 </div>
               ) : (
-                <div className="w-10 h-10 rounded-lg bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-lg bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center shrink-0">
                   {getFileIcon(resource)}
                 </div>
               )}
@@ -305,7 +323,13 @@ export default function FileUploader({
                   <ExternalLink className="w-4 h-4" />
                 </a>
                 <button
-                  onClick={() => handleDownload(resource.id, getDownloadUrl(resource), resource.fileName || resource.title || "download")}
+                  onClick={() =>
+                    handleDownload(
+                      resource.id,
+                      getDownloadUrl(resource),
+                      resource.fileName || resource.title || "download",
+                    )
+                  }
                   disabled={downloadStates[resource.id] === "downloading"}
                   className={`p-1.5 rounded-lg transition-all duration-300 ${
                     downloadStates[resource.id] === "completed"
