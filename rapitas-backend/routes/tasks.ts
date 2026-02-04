@@ -158,6 +158,39 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
         isAiTaskAnalysis,
       } = body;
 
+      // サブタスク作成時の重複チェック（ガード節）
+      if (parentId) {
+        const existingSubtask = await prisma.task.findFirst({
+          where: {
+            parentId,
+            title: {
+              equals: title,
+              mode: 'insensitive', // 大文字小文字を無視
+            },
+          },
+        });
+
+        if (existingSubtask) {
+          console.log(`[tasks] Duplicate subtask prevented: "${title}" already exists for parent ${parentId}`);
+          // 既存のサブタスクを返す（重複作成を防止）
+          return await prisma.task.findUnique({
+            where: { id: existingSubtask.id },
+            include: {
+              subtasks: true,
+              theme: true,
+              project: true,
+              milestone: true,
+              examGoal: true,
+              taskLabels: {
+                include: {
+                  label: true,
+                },
+              },
+            },
+          });
+        }
+      }
+
       const task = await prisma.task.create({
         data: {
           title,
@@ -349,4 +382,128 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
     return await prisma.task.delete({
       where: { id },
     });
+  })
+
+  // 重複サブタスクを削除（特定のタスク配下）
+  .post("/:id/cleanup-duplicates", async ({ params }: { params: { id: string } }) => {
+    const parentId = parseInt(params.id);
+    if (isNaN(parentId)) {
+      throw new ValidationError("無効なIDです");
+    }
+
+    // 親タスクの存在確認
+    const parentTask = await prisma.task.findUnique({
+      where: { id: parentId },
+    });
+
+    if (!parentTask) {
+      throw new ValidationError("タスクが見つかりません");
+    }
+
+    // サブタスクを取得
+    const subtasks = await prisma.task.findMany({
+      where: { parentId },
+      orderBy: { createdAt: "asc" }, // 古い順（最初に作成されたものを残す）
+    });
+
+    // タイトルでグループ化して重複を検出
+    const titleMap = new Map<string, typeof subtasks>();
+    for (const subtask of subtasks) {
+      const normalizedTitle = subtask.title.toLowerCase().trim();
+      if (!titleMap.has(normalizedTitle)) {
+        titleMap.set(normalizedTitle, []);
+      }
+      titleMap.get(normalizedTitle)!.push(subtask);
+    }
+
+    // 重複を削除（最初の1つを残す）
+    const deletedIds: number[] = [];
+    for (const [title, duplicates] of titleMap) {
+      if (duplicates.length > 1) {
+        // 最初の1つを残して残りを削除
+        const toDelete = duplicates.slice(1);
+        for (const subtask of toDelete) {
+          await prisma.task.delete({
+            where: { id: subtask.id },
+          });
+          deletedIds.push(subtask.id);
+          console.log(`[tasks] Deleted duplicate subtask: "${subtask.title}" (id: ${subtask.id})`);
+        }
+      }
+    }
+
+    return {
+      success: true,
+      deletedCount: deletedIds.length,
+      deletedIds,
+      message: deletedIds.length > 0
+        ? `${deletedIds.length}件の重複サブタスクを削除しました`
+        : "重複サブタスクはありませんでした",
+    };
+  })
+
+  // 全タスクの重複サブタスクを一括削除
+  .post("/cleanup-all-duplicates", async () => {
+    // 親タスクを持つサブタスクをすべて取得
+    const allSubtasks = await prisma.task.findMany({
+      where: {
+        parentId: { not: null },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    // 親タスクごとにグループ化
+    const parentMap = new Map<number, typeof allSubtasks>();
+    for (const subtask of allSubtasks) {
+      const parentId = subtask.parentId!;
+      if (!parentMap.has(parentId)) {
+        parentMap.set(parentId, []);
+      }
+      parentMap.get(parentId)!.push(subtask);
+    }
+
+    // 各親タスク配下で重複を削除
+    const deletedIds: number[] = [];
+    const affectedParents: number[] = [];
+
+    for (const [parentId, subtasks] of parentMap) {
+      const titleMap = new Map<string, typeof subtasks>();
+      for (const subtask of subtasks) {
+        const normalizedTitle = subtask.title.toLowerCase().trim();
+        if (!titleMap.has(normalizedTitle)) {
+          titleMap.set(normalizedTitle, []);
+        }
+        titleMap.get(normalizedTitle)!.push(subtask);
+      }
+
+      let parentHadDuplicates = false;
+      for (const [title, duplicates] of titleMap) {
+        if (duplicates.length > 1) {
+          parentHadDuplicates = true;
+          const toDelete = duplicates.slice(1);
+          for (const subtask of toDelete) {
+            await prisma.task.delete({
+              where: { id: subtask.id },
+            });
+            deletedIds.push(subtask.id);
+            console.log(`[tasks] Deleted duplicate subtask: "${subtask.title}" (id: ${subtask.id}, parent: ${parentId})`);
+          }
+        }
+      }
+
+      if (parentHadDuplicates) {
+        affectedParents.push(parentId);
+      }
+    }
+
+    return {
+      success: true,
+      deletedCount: deletedIds.length,
+      deletedIds,
+      affectedParentCount: affectedParents.length,
+      affectedParentIds: affectedParents,
+      message: deletedIds.length > 0
+        ? `${affectedParents.length}件のタスクから${deletedIds.length}件の重複サブタスクを削除しました`
+        : "重複サブタスクはありませんでした",
+    };
   });

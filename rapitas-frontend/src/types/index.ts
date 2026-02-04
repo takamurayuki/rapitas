@@ -172,12 +172,57 @@ export type TimeEntry = {
   updatedAt: string;
 };
 
+// Linked comment summary (used in link relations)
+export type LinkedCommentSummary = {
+  id: number;
+  content: string;
+  taskId: number;
+  createdAt: string;
+};
+
+// Comment link relation
+export type CommentLink = {
+  id: number;
+  fromCommentId: number;
+  toCommentId: number;
+  label?: string | null;
+  fromComment?: LinkedCommentSummary;
+  toComment?: LinkedCommentSummary;
+  createdAt: string;
+};
+
+// Combined link for UI display
+export type CommentLinkDisplay = {
+  id: number;
+  direction: "outgoing" | "incoming";
+  label?: string | null;
+  linkedComment: LinkedCommentSummary;
+  createdAt: string;
+};
+
 export type Comment = {
   id: number;
   taskId: number;
   content: string;
+  parentId?: number | null;
+  replies?: Comment[];
+  // Link relations
+  linksFrom?: CommentLink[];
+  linksTo?: CommentLink[];
   createdAt: string;
   updatedAt: string;
+};
+
+// Search result for comment linking
+export type CommentSearchResult = {
+  id: number;
+  content: string;
+  taskId: number;
+  createdAt: string;
+  task?: {
+    id: number;
+    title: string;
+  };
 };
 
 export type ActivityLogChanges = Record<string, unknown>;

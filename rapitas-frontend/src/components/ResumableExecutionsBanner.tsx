@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   AlertTriangle,
   Play,
@@ -14,6 +14,9 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { API_BASE_URL } from "@/utils/api";
+
+// セッション中に自動再開が実行済みかどうかを追跡するグローバルフラグ
+const AUTO_RESUME_SESSION_KEY = "rapitas_auto_resume_triggered";
 
 type ResumableExecution = {
   id: number;
@@ -46,7 +49,9 @@ export function ResumableExecutionsBanner({
   const [isDismissed, setIsDismissed] = useState(false);
   const [resumingIds, setResumingIds] = useState<Set<number>>(new Set());
   const [dismissingIds, setDismissingIds] = useState<Set<number>>(new Set());
-  const [autoResumeTriggered, setAutoResumeTriggered] = useState(false);
+
+  // セッション中に一度だけ自動再開を実行するためのフラグ
+  const autoResumeCheckedRef = useRef(false);
 
   // Fetch resumable executions on mount
   const fetchResumableExecutions = useCallback(async () => {
@@ -69,33 +74,47 @@ export function ResumableExecutionsBanner({
     fetchResumableExecutions();
   }, [fetchResumableExecutions]);
 
-  // Auto-resume logic
+  // Auto-resume logic - セッション中に一度だけ実行
   useEffect(() => {
-    if (
-      autoResume &&
-      !autoResumeTriggered &&
-      !isLoading &&
-      executions.length > 0
-    ) {
-      setAutoResumeTriggered(true);
-      // Auto-resume all executions
-      const resumeAll = async () => {
-        for (const exec of executions) {
-          if (exec.canResume) {
-            await handleResume(exec.id, true);
-          }
-        }
-        onAutoResumeComplete?.();
-      };
-      resumeAll();
+    // 既にチェック済みなら何もしない
+    if (autoResumeCheckedRef.current) {
+      return;
     }
-  }, [
-    autoResume,
-    autoResumeTriggered,
-    isLoading,
-    executions,
-    onAutoResumeComplete,
-  ]);
+
+    // ローディング中は待機
+    if (isLoading) {
+      return;
+    }
+
+    // チェック済みとしてマーク（再レンダリング防止）
+    autoResumeCheckedRef.current = true;
+
+    // 自動再開が無効、または実行対象がない場合は終了
+    if (!autoResume || executions.length === 0) {
+      return;
+    }
+
+    // sessionStorageでセッション中に既に実行済みかチェック
+    const alreadyTriggered = sessionStorage.getItem(AUTO_RESUME_SESSION_KEY);
+    if (alreadyTriggered === "true") {
+      console.log("[AutoResume] Already triggered in this session, skipping");
+      return;
+    }
+
+    // 自動再開を実行
+    console.log(`[AutoResume] Starting auto-resume for ${executions.length} executions`);
+    sessionStorage.setItem(AUTO_RESUME_SESSION_KEY, "true");
+
+    const resumeAll = async () => {
+      for (const exec of executions) {
+        if (exec.canResume) {
+          await handleResume(exec.id, true);
+        }
+      }
+      onAutoResumeComplete?.();
+    };
+    resumeAll();
+  }, [autoResume, isLoading, executions, onAutoResumeComplete]);
 
   // Resume a specific execution
   const handleResume = async (executionId: number, isAutoResume = false) => {

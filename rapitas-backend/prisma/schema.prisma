@@ -1,12 +1,11 @@
-// SQLite version of Prisma schema for Tauri builds
-// This schema is used when running as a desktop application
+// Prisma schema for PostgreSQL
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -109,12 +108,33 @@ model TimeEntry {
 }
 
 model Comment {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   taskId    Int
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   content   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  parentId  Int?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  // Many-to-many links between comments
+  linksFrom CommentLink[] @relation("CommentLinkFrom")
+  linksTo   CommentLink[] @relation("CommentLinkTo")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// Many-to-many relation table for linking comments
+model CommentLink {
+  id            Int      @id @default(autoincrement())
+  fromCommentId Int
+  toCommentId   Int
+  fromComment   Comment  @relation("CommentLinkFrom", fields: [fromCommentId], references: [id], onDelete: Cascade)
+  toComment     Comment  @relation("CommentLinkTo", fields: [toCommentId], references: [id], onDelete: Cascade)
+  label         String?  // Optional label for the link (e.g., "関連", "参照", "補足")
+  createdAt     DateTime @default(now())
+
+  @@unique([fromCommentId, toCommentId])
+  @@index([fromCommentId])
+  @@index([toCommentId])
 }
 
 model ActivityLog {

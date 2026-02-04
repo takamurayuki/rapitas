@@ -1,4 +1,4 @@
 /**
  * Configuration exports
  */
-export { prisma, isTauriBuild } from "./database";
+export { prisma } from "./database";

@@ -15,7 +15,6 @@
 const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const crypto = require('crypto');
 
 // コマンドライン引数をパース
 const args = process.argv.slice(2);
@@ -26,10 +25,10 @@ const BACKEND_DIR = path.resolve(__dirname, '../../rapitas-backend');
 const BINARIES_DIR = path.resolve(__dirname, '../src-tauri/binaries');
 
 if (useWatch) {
-  console.log('Starting development servers for Tauri (SQLite mode) with HOT RELOAD...');
+  console.log('Starting development servers for Tauri (PostgreSQL) with HOT RELOAD...');
   console.log('⚠️  注意: ファイル変更時にバックエンドが再起動します。AIエージェント実行中は中断される可能性があります。');
 } else {
-  console.log('Starting development servers for Tauri (SQLite mode) in STABLE mode...');
+  console.log('Starting development servers for Tauri (PostgreSQL) in STABLE mode...');
   console.log('ℹ️  バックエンドのホットリロードは無効です。コード変更後は手動で再起動してください。');
   console.log('ℹ️  ホットリロードを有効にするには: node scripts/dev.js --watch');
 }
@@ -59,107 +58,26 @@ if (!fs.existsSync(NEXT_TAURI_DIR)) {
   console.log(`Created: ${NEXT_TAURI_DIR}`);
 }
 
-// SQLiteデータベースのパスを設定
-const appDataPath = process.env.APPDATA || process.env.HOME || '.';
-const dbDir = path.join(appDataPath, 'rapitas');
-const dbPath = path.join(dbDir, 'rapitas.db');
-const schemaHashPath = path.join(dbDir, '.schema-hash');
-
-// データベースディレクトリを作成
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
-  console.log(`Created database directory: ${dbDir}`);
-}
-
-const sqliteDbUrl = `file:${dbPath}`;
-
-// スキーマファイルのハッシュを計算
-function getSchemaHash() {
-  const schemaPath = path.join(BACKEND_DIR, 'prisma', 'schema.sqlite.prisma');
-  if (!fs.existsSync(schemaPath)) return null;
-  const content = fs.readFileSync(schemaPath, 'utf-8');
-  return crypto.createHash('md5').update(content).digest('hex');
-}
-
-// スキーマが変更されたかチェック
-function isSchemaChanged() {
-  const currentHash = getSchemaHash();
-  if (!currentHash) return true;
-
-  if (!fs.existsSync(schemaHashPath)) return true;
-
-  const savedHash = fs.readFileSync(schemaHashPath, 'utf-8').trim();
-  return currentHash !== savedHash;
-}
-
-// スキーマハッシュを保存
-function saveSchemaHash() {
-  const hash = getSchemaHash();
-  if (hash) {
-    fs.writeFileSync(schemaHashPath, hash);
-  }
-}
-
-// 常にSQLiteスキーマに切り替え（Web版からの切り替え対応）
-console.log('Switching to SQLite schema...');
+// データベーススキーマを同期してPrisma Clientを生成
+console.log('Syncing database schema...');
 try {
-  execSync('node scripts/switch-schema.cjs sqlite', { cwd: BACKEND_DIR, stdio: 'inherit' });
-  execSync('bun run db:generate', { cwd: BACKEND_DIR, stdio: 'inherit' });
+  execSync('bunx prisma db push --skip-generate', { cwd: BACKEND_DIR, stdio: 'inherit' });
+  console.log('Database schema synced.');
 } catch (err) {
-  console.error('Failed to switch to SQLite schema:', err.message);
+  console.error('Failed to sync database schema:', err.message);
+  console.log('⚠️  PostgreSQLが起動していることを確認してください。');
   process.exit(1);
 }
 
-// データベースが存在し、スキーマが変更されていない場合はDB作成をスキップ
-const dbExists = fs.existsSync(dbPath);
-const schemaChanged = isSchemaChanged();
-
-if (dbExists && !schemaChanged) {
-  console.log('Database exists and schema unchanged, skipping DB creation...');
-  console.log(`SQLite database path: ${dbPath}`);
-} else {
-  // 既存のバックエンドプロセスを停止（ファイルロック解除のため）
-  console.log('Stopping existing backend processes for DB setup...');
-  try {
-    if (process.platform === 'win32') {
-      execSync('taskkill /F /IM bun.exe 2>nul', { shell: true, stdio: 'ignore' });
-    } else {
-      execSync('pkill -f "bun.*index.ts" || true', { shell: true, stdio: 'ignore' });
-    }
-    execSync(process.platform === 'win32' ? 'ping -n 2 127.0.0.1 >nul' : 'sleep 1', { shell: true, stdio: 'ignore' });
-  } catch (err) {}
-
-  console.log('Updating SQLite database schema...');
-  console.log(`SQLite database path: ${dbPath}`);
-
-  try {
-    // prisma db push はデータを保持しながらスキーマを更新する
-    // 破壊的な変更がある場合のみデータ損失が発生する可能性がある
-    console.log('Pushing schema to SQLite database (preserving data)...');
-    execSync('bunx prisma db push --skip-generate', {
-      cwd: BACKEND_DIR,
-      stdio: 'inherit',
-      env: {
-        ...process.env,
-        DATABASE_URL: sqliteDbUrl
-      }
-    });
-
-    // スキーマハッシュを保存
-    saveSchemaHash();
-    console.log('Database schema update complete!');
-  } catch (err) {
-    // prisma db push が失敗した場合（破壊的な変更など）
-    console.error('Schema update failed:', err.message);
-    console.log('\n⚠️  スキーマの更新に失敗しました。');
-    console.log('破壊的な変更（カラム削除など）がある場合は、以下のコマンドでDBをリセットできます:');
-    console.log(`  rm "${dbPath}"`);
-    console.log('  その後、再度このスクリプトを実行してください。\n');
-    process.exit(1);
-  }
+console.log('Generating Prisma Client...');
+try {
+  execSync('bun run db:generate', { cwd: BACKEND_DIR, stdio: 'inherit' });
+} catch (err) {
+  console.error('Failed to generate Prisma Client:', err.message);
+  process.exit(1);
 }
 
-// バックエンドを起動 (SQLiteモード)
+// バックエンドを起動 (PostgreSQLモード)
 // --watch オプションに応じてホットリロードの有無を切り替え
 const backendScript = useWatch ? 'dev:simple' : 'dev:stable';
 console.log(`\nBackend mode: ${useWatch ? 'dev:simple (hot reload)' : 'dev:stable (stable)'}`);
@@ -170,9 +88,7 @@ const backend = spawn('bun', ['run', backendScript], {
   shell: true,
   env: {
     ...process.env,
-    TAURI_BUILD: 'true',
-    RAPITAS_SQLITE: 'true',
-    DATABASE_URL: sqliteDbUrl
+    TAURI_BUILD: 'true'
   }
 });
 

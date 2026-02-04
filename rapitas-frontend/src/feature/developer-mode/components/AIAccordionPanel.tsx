@@ -6,6 +6,8 @@ import {
   BrainCircuit,
   ChevronDown,
   ChevronUp,
+  ChevronsUp,
+  ChevronsUpDown,
   Rocket,
   Sparkles,
   CheckCircle2,
@@ -31,6 +33,7 @@ import type {
   DeveloperModeConfig,
   TaskAnalysisResult,
   Resource,
+  Task,
 } from "@/types";
 import type {
   ExecutionStatus,
@@ -44,7 +47,9 @@ import {
   ExecutionLogViewer,
   type ExecutionLogStatus,
 } from "./ExecutionLogViewer";
+import { SubtaskLogTabs } from "./SubtaskLogTabs";
 import { API_BASE_URL } from "@/utils/api";
+import type { ParallelExecutionStatus } from "@/feature/tasks/components/SubtaskExecutionStatus";
 
 // TaskAnalysisResult is imported from @/types
 
@@ -124,6 +129,15 @@ type Props = {
     question?: string;
   } | null>;
   onStopExecution?: () => void;
+  // 並列実行関連
+  subtasks?: Task[];
+  onStartParallelExecution?: (config?: { maxConcurrentAgents?: number }) => Promise<string | null>;
+  isParallelExecutionRunning?: boolean;
+  getSubtaskStatus?: (subtaskId: number) => ParallelExecutionStatus | undefined;
+  // 並列実行ログ関連
+  parallelSessionId?: string | null;
+  subtaskLogs?: Map<number, { logs: Array<{ timestamp: string; message: string; level: string }> }>;
+  onRefreshSubtaskLogs?: (taskId?: number) => void;
 };
 
 type AccordionSection = "analysis" | "execution";
@@ -160,6 +174,15 @@ export function AIAccordionPanel({
   onReset,
   onRestoreExecutionState,
   onStopExecution,
+  // 並列実行関連
+  subtasks,
+  onStartParallelExecution,
+  isParallelExecutionRunning,
+  getSubtaskStatus,
+  // 並列実行ログ関連
+  parallelSessionId,
+  subtaskLogs,
+  onRefreshSubtaskLogs,
 }: Props) {
   const [expandedSection, setExpandedSection] =
     useState<AccordionSection | null>(null);
@@ -395,8 +418,23 @@ export function AIAccordionPanel({
     }
   }, [pollingStatus, onStopExecution]);
 
+  // サブタスクが存在するかどうか
+  const hasSubtasks = subtasks && subtasks.length > 0;
+
   const handleExecute = async () => {
     clearLogs();
+
+    // サブタスクがある場合は並列実行
+    if (hasSubtasks && onStartParallelExecution) {
+      const parallelSessionId = await onStartParallelExecution();
+      if (parallelSessionId) {
+        setShowLogs(true);
+        setExpandedSection("execution");
+      }
+      return;
+    }
+
+    // サブタスクがない場合は通常実行
     // ファイルリソースを添付情報として送信
     const fileResources = resources?.filter(
       (r) =>
@@ -581,7 +619,7 @@ export function AIAccordionPanel({
   const isCancelled = finalStatus === "cancelled";
   const isFailed =
     finalStatus === "failed" || executionError || pollingError || sseError;
-  // 実行中判定: 終了ステータスの場合は実行中ではない
+  // 実行中判定: 終了ステータスの場合は実行中ではない（並列実行も含む）
   const isRunning =
     !isTerminalStatus &&
     (isExecuting ||
@@ -589,7 +627,8 @@ export function AIAccordionPanel({
       isSseRunning ||
       pollingStatus === "running" ||
       sseStatus === "running" ||
-      isWaitingForInput);
+      isWaitingForInput ||
+      isParallelExecutionRunning);
 
   const logViewerStatus: ExecutionLogStatus = useMemo(() => {
     if (isRunning) return "running";
@@ -833,14 +872,21 @@ export function AIAccordionPanel({
                                 </span>
                                 <div className="flex items-center gap-1 mt-0.5">
                                   <span
-                                    className={`px-1 py-0.5 rounded text-[9px] ${
+                                    className={`flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] ${
                                       st.priority === "high"
-                                        ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                        ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
                                         : st.priority === "medium"
-                                          ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                                          : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                          : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
                                     }`}
                                   >
+                                    {st.priority === "high" ? (
+                                      <ChevronUp className="w-2.5 h-2.5" />
+                                    ) : st.priority === "medium" ? (
+                                      <ChevronsUpDown className="w-2.5 h-2.5" />
+                                    ) : (
+                                      <ChevronDown className="w-2.5 h-2.5" />
+                                    )}
                                     {st.priority === "high"
                                       ? "高"
                                       : st.priority === "medium"
@@ -1220,12 +1266,12 @@ export function AIAccordionPanel({
                     e.stopPropagation();
                     handleExecute();
                   }}
-                  disabled={isExecuting}
+                  disabled={isExecuting || isParallelExecutionRunning}
                   className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
-                  aria-label="実行開始"
+                  aria-label={hasSubtasks ? "サブタスクを実行" : "実行開始"}
                 >
                   <Play className="w-2.5 h-2.5" />
-                  実行
+                  {hasSubtasks ? "サブタスクを実行" : "実行"}
                 </button>
               )}
               {expandedSection === "execution" ? (
@@ -1280,7 +1326,20 @@ export function AIAccordionPanel({
                   )}
 
                   {/* ログ表示 */}
-                  {logs.length > 0 && (
+                  {hasSubtasks && subtaskLogs && parallelSessionId ? (
+                    /* サブタスクがある場合はタブ表示 */
+                    <div id="execution-logs">
+                      <SubtaskLogTabs
+                        subtasks={subtasks || []}
+                        getSubtaskStatus={getSubtaskStatus}
+                        subtaskLogs={subtaskLogs}
+                        isRunning={isRunning}
+                        onRefreshLogs={onRefreshSubtaskLogs}
+                        maxHeight={180}
+                      />
+                    </div>
+                  ) : logs.length > 0 ? (
+                    /* 通常のログ表示 */
                     <div id="execution-logs">
                       <ExecutionLogViewer
                         logs={logs}
@@ -1291,7 +1350,7 @@ export function AIAccordionPanel({
                         maxHeight={150}
                       />
                     </div>
-                  )}
+                  ) : null}
                 </div>
               ) : isCompleted ? (
                 /* 完了 */
@@ -1302,7 +1361,17 @@ export function AIAccordionPanel({
                       実行完了
                     </span>
                   </div>
-                  {logs.length > 0 && showLogs && (
+                  {hasSubtasks && subtaskLogs && parallelSessionId ? (
+                    /* サブタスクがある場合はタブ表示 */
+                    <SubtaskLogTabs
+                      subtasks={subtasks || []}
+                      getSubtaskStatus={getSubtaskStatus}
+                      subtaskLogs={subtaskLogs}
+                      isRunning={false}
+                      onRefreshLogs={onRefreshSubtaskLogs}
+                      maxHeight={180}
+                    />
+                  ) : logs.length > 0 && showLogs ? (
                     <ExecutionLogViewer
                       logs={logs}
                       status={logViewerStatus}
@@ -1311,7 +1380,7 @@ export function AIAccordionPanel({
                       collapsible={false}
                       maxHeight={150}
                     />
-                  )}
+                  ) : null}
                 </div>
               ) : isCancelled ? (
                 /* キャンセル */

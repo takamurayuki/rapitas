@@ -115,7 +115,7 @@ export class ParallelScheduler {
     }
 
     // 依存タスクが多いほど優先度を上げる（ブロッカーを早く完了）
-    priority += node.dependents.length * 5;
+    priority += (node.dependents?.length || 0) * 5;
 
     // 推定時間が長いタスクは優先度を下げる（短いタスクを先に）
     priority -= Math.min(20, node.estimatedHours * 2);
@@ -311,7 +311,7 @@ export class ParallelScheduler {
 
     // 依存タスクをブロック状態に
     const node = this.nodes.get(taskId);
-    if (node) {
+    if (node && node.dependents) {
       for (const dependentId of node.dependents) {
         this.blockedTasks.add(dependentId);
         const depScheduled = this.scheduledTasks.get(dependentId);

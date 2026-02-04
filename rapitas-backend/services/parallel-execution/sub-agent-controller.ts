@@ -61,8 +61,12 @@ class SubAgent extends EventEmitter {
     const startTime = Date.now();
     this.state.status = 'running';
     this.state.startedAt = new Date();
+    this.state.lastActivityAt = new Date();
 
     return new Promise((resolve, reject) => {
+      let timeoutCheckInterval: NodeJS.Timeout | null = null;
+      let isTimedOut = false;
+
       try {
         // Claude Code CLIコマンドを構築
         const args = this.buildClaudeArgs(task);
@@ -79,13 +83,25 @@ class SubAgent extends EventEmitter {
           },
         });
 
-        // タイムアウト設定
-        const timeout = setTimeout(() => {
-          if (this.process) {
-            this.process.kill('SIGTERM');
-            reject(new Error(`Task execution timed out after ${this.config.timeout}ms`));
+        // アクティビティベースのタイムアウトチェック（10秒ごとに確認）
+        timeoutCheckInterval = setInterval(() => {
+          const now = Date.now();
+          const lastActivity = this.state.lastActivityAt.getTime();
+          const idleTime = now - lastActivity;
+
+          if (idleTime > this.config.timeout) {
+            isTimedOut = true;
+            if (timeoutCheckInterval) {
+              clearInterval(timeoutCheckInterval);
+              timeoutCheckInterval = null;
+            }
+            if (this.process) {
+              console.log(`[SubAgent ${this.config.agentId}] No activity for ${Math.round(idleTime / 1000)}s, timing out...`);
+              this.process.kill('SIGTERM');
+              reject(new Error(`Task execution timed out after ${Math.round(idleTime / 1000)}s of inactivity`));
+            }
           }
-        }, this.config.timeout);
+        }, 10000); // 10秒ごとにチェック
 
         // 標準出力の処理
         this.process.stdout?.on('data', (data) => {
@@ -112,8 +128,14 @@ class SubAgent extends EventEmitter {
 
         // プロセス終了時の処理
         this.process.on('close', (code) => {
-          clearTimeout(timeout);
+          if (timeoutCheckInterval) {
+            clearInterval(timeoutCheckInterval);
+            timeoutCheckInterval = null;
+          }
           this.state.executionTimeMs = Date.now() - startTime;
+
+          // タイムアウトで既にrejectされている場合は何もしない
+          if (isTimedOut) return;
 
           if (code === 0) {
             this.state.status = 'completed';
@@ -138,13 +160,19 @@ class SubAgent extends EventEmitter {
 
         // エラーハンドリング
         this.process.on('error', (error) => {
-          clearTimeout(timeout);
+          if (timeoutCheckInterval) {
+            clearInterval(timeoutCheckInterval);
+            timeoutCheckInterval = null;
+          }
           this.state.status = 'failed';
           this.state.executionTimeMs = Date.now() - startTime;
           reject(error);
         });
 
       } catch (error) {
+        if (timeoutCheckInterval) {
+          clearInterval(timeoutCheckInterval);
+        }
         this.state.status = 'failed';
         reject(error);
       }

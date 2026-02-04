@@ -21,7 +21,7 @@ import {
 
 const execAsync = promisify(exec);
 
-// JSONフィールドをSQLite互換の文字列に変換するヘルパー関数
+// JSONフィールドを文字列に変換するヘルパー関数
 function toJsonString(value: any): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value === 'string') return value;

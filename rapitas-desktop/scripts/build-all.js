@@ -10,11 +10,11 @@ const FRONTEND_DIR = path.resolve(__dirname, '../../rapitas-frontend');
 const BACKEND_DIR = path.resolve(__dirname, '../../rapitas-backend');
 const SCRIPTS_DIR = __dirname;
 
-console.log('=== Building Rapitas for production (SQLite) ===\n');
+console.log('=== Building Rapitas for production (PostgreSQL) ===\n');
 
 try {
-  // 0. 既存プロセスを停止してSQLiteスキーマに切り替え
-  console.log('Step 0: Stopping processes and switching to SQLite schema...');
+  // 0. 既存プロセスを停止してPrisma Clientを生成
+  console.log('Step 0: Stopping processes and generating Prisma Client...');
   try {
     if (process.platform === 'win32') {
       execSync('taskkill /F /IM bun.exe 2>nul', { shell: true, stdio: 'ignore' });
@@ -23,17 +23,21 @@ try {
     }
   } catch (e) { /* ignore */ }
 
-  execSync('node scripts/switch-schema.cjs sqlite', {
+  // データベーススキーマを同期
+  console.log('Syncing database schema...');
+  execSync('bunx prisma db push --skip-generate', {
     cwd: BACKEND_DIR,
     stdio: 'inherit',
     shell: true
   });
+  console.log('Database schema synced.');
+
   execSync('bun run db:generate', {
     cwd: BACKEND_DIR,
     stdio: 'inherit',
     shell: true
   });
-  console.log('Schema switched to SQLite.\n');
+  console.log('Prisma Client generated.\n');
 
   // 1. バックエンドをビルド
   console.log('Step 1: Building backend...');

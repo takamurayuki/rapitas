@@ -50,12 +50,77 @@ type ParallelExecutionEventListener = (event: ParallelExecutionEvent) => void;
 const DEFAULT_CONFIG: ParallelExecutionConfig = {
   maxConcurrentAgents: 3,
   questionTimeoutSeconds: 300,
-  taskTimeoutSeconds: 900,
+  taskTimeoutSeconds: 300,
   retryOnFailure: true,
   maxRetries: 2,
   logSharing: true,
   coordinationEnabled: true,
 };
+
+/**
+ * DB操作用のミューテックス（同時書き込み時の競合防止）
+ */
+class DatabaseMutex {
+  private locked = false;
+  private queue: Array<() => void> = [];
+
+  async acquire(): Promise<void> {
+    if (!this.locked) {
+      this.locked = true;
+      return;
+    }
+
+    return new Promise((resolve) => {
+      this.queue.push(resolve);
+    });
+  }
+
+  release(): void {
+    if (this.queue.length > 0) {
+      const next = this.queue.shift();
+      next?.();
+    } else {
+      this.locked = false;
+    }
+  }
+}
+
+/**
+ * リトライ付きでDB操作を実行
+ */
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries = 3,
+  baseDelay = 100
+): Promise<T> {
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const isRetryable =
+        lastError.message.includes('Socket timeout') ||
+        lastError.message.includes('deadlock detected') ||
+        lastError.message.includes('could not serialize access');
+
+      if (!isRetryable || attempt === maxRetries - 1) {
+        throw lastError;
+      }
+
+      // 指数バックオフ
+      const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 100;
+      console.log(`[ParallelExecutor] DB operation failed, retrying in ${Math.round(delay)}ms (attempt ${attempt + 1}/${maxRetries})`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
+
+// グローバルなDBミューテックス
+const dbMutex = new DatabaseMutex();
 
 /**
  * 並列実行オーケストレーター
@@ -89,18 +154,53 @@ export class ParallelExecutor extends EventEmitter {
     this.setupEventHandlers();
   }
 
+  // ログシーケンス番号を追跡（executionId -> sequenceNumber）
+  private logSequenceNumbers: Map<number, number> = new Map();
+
   /**
    * イベントハンドラーを設定
    */
   private setupEventHandlers(): void {
-    // エージェント出力をログに集約
-    this.agentController.on('agent_output', (data) => {
+    // エージェント出力をログに集約し、DBに保存
+    this.agentController.on('agent_output', async (data) => {
+      // ログアグリゲーターにも追加
       this.logAggregator.addLog({
         timestamp: data.timestamp,
         agentId: data.agentId,
         taskId: data.taskId,
         level: data.isError ? 'error' : 'info',
         message: data.chunk,
+      });
+
+      // DBに実行ログを保存
+      try {
+        const sequenceNumber = this.logSequenceNumbers.get(data.executionId) || 0;
+        this.logSequenceNumbers.set(data.executionId, sequenceNumber + 1);
+
+        await this.prisma.agentExecutionLog.create({
+          data: {
+            executionId: data.executionId,
+            logChunk: data.chunk,
+            logType: data.isError ? 'stderr' : 'stdout',
+            sequenceNumber,
+            timestamp: data.timestamp,
+          },
+        });
+      } catch (error) {
+        console.error(`[ParallelExecutor] Failed to save execution log:`, error);
+      }
+
+      // イベントを発火（リアルタイム通知用）
+      this.emitEvent({
+        type: 'progress_updated',
+        sessionId: '',
+        taskId: data.taskId,
+        timestamp: data.timestamp,
+        data: {
+          output: data.chunk,
+          isError: data.isError,
+          executionId: data.executionId,
+        },
       });
     });
 
@@ -194,6 +294,8 @@ export class ParallelExecutor extends EventEmitter {
       activeAgents: new Map(),
       completedTasks: [],
       failedTasks: [],
+      nodes,
+      workingDirectory,
       startedAt: new Date(),
       lastActivityAt: new Date(),
       totalTokensUsed: 0,
@@ -302,28 +404,39 @@ export class ParallelExecutor extends EventEmitter {
     console.log(`[ParallelExecutor] Starting task ${taskId}: ${node.title}`);
 
     try {
-      // AgentExecutionをDBに作成
-      const agentSession = await this.prisma.agentSession.findFirst({
-        where: {
-          config: {
-            taskId: session.parentTaskId,
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
+      // AgentExecutionをDBに作成（ミューテックスとリトライで保護）
+      await dbMutex.acquire();
+      let agentSession;
+      let execution;
+      try {
+        agentSession = await withRetry(async () => {
+          return await this.prisma.agentSession.findFirst({
+            where: {
+              config: {
+                taskId: session.parentTaskId,
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+        });
 
-      if (!agentSession) {
-        throw new Error(`No agent session found for parent task ${session.parentTaskId}`);
+        if (!agentSession) {
+          throw new Error(`No agent session found for parent task ${session.parentTaskId}`);
+        }
+
+        execution = await withRetry(async () => {
+          return await this.prisma.agentExecution.create({
+            data: {
+              sessionId: agentSession!.id,
+              command: node.description || node.title,
+              status: 'running',
+              startedAt: new Date(),
+            },
+          });
+        });
+      } finally {
+        dbMutex.release();
       }
-
-      const execution = await this.prisma.agentExecution.create({
-        data: {
-          sessionId: agentSession.id,
-          command: node.description || node.title,
-          status: 'running',
-          startedAt: new Date(),
-        },
-      });
 
       // サブエージェントを作成
       const agentId = this.agentController.createAgent(
@@ -354,15 +467,20 @@ export class ParallelExecutor extends EventEmitter {
         timestamp: new Date(),
       });
 
-      // DBのサブタスクステータスを「進行中」に更新
+      // DBのサブタスクステータスを「進行中」に更新（ミューテックスとリトライで保護）
       try {
-        await this.prisma.task.update({
-          where: { id: taskId },
-          data: { status: 'in-progress' },
+        await dbMutex.acquire();
+        await withRetry(async () => {
+          await this.prisma.task.update({
+            where: { id: taskId },
+            data: { status: 'in-progress' },
+          });
         });
         console.log(`[ParallelExecutor] Updated task ${taskId} status to 'in-progress'`);
       } catch (error) {
         console.error(`[ParallelExecutor] Failed to update task status:`, error);
+      } finally {
+        dbMutex.release();
       }
 
       // タスクを実行
@@ -375,18 +493,25 @@ export class ParallelExecutor extends EventEmitter {
 
       const result = await this.agentController.executeTask(agentId, task);
 
-      // 結果をDBに保存
-      await this.prisma.agentExecution.update({
-        where: { id: execution.id },
-        data: {
-          status: result.success ? 'completed' : 'failed',
-          output: result.output,
-          completedAt: new Date(),
-          tokensUsed: result.tokensUsed || 0,
-          executionTimeMs: result.executionTimeMs,
-          errorMessage: result.errorMessage,
-        },
-      });
+      // 結果をDBに保存（ミューテックスとリトライで保護）
+      try {
+        await dbMutex.acquire();
+        await withRetry(async () => {
+          await this.prisma.agentExecution.update({
+            where: { id: execution.id },
+            data: {
+              status: result.success ? 'completed' : 'failed',
+              output: result.output,
+              completedAt: new Date(),
+              tokensUsed: result.tokensUsed || 0,
+              executionTimeMs: result.executionTimeMs,
+              errorMessage: result.errorMessage,
+            },
+          });
+        });
+      } finally {
+        dbMutex.release();
+      }
 
       if (result.success) {
         this.handleTaskCompletion(sessionId, taskId, result);
@@ -428,18 +553,23 @@ export class ParallelExecutor extends EventEmitter {
     session.totalTokensUsed += result.tokensUsed || 0;
     session.totalExecutionTimeMs += result.executionTimeMs || 0;
 
-    // DBのサブタスクステータスを「完了」に更新
+    // DBのサブタスクステータスを「完了」に更新（ミューテックスとリトライで保護）
     try {
-      await this.prisma.task.update({
-        where: { id: taskId },
-        data: {
-          status: 'done',
-          actualHours: result.executionTimeMs ? result.executionTimeMs / 3600000 : undefined,
-        },
+      await dbMutex.acquire();
+      await withRetry(async () => {
+        await this.prisma.task.update({
+          where: { id: taskId },
+          data: {
+            status: 'done',
+            actualHours: result.executionTimeMs ? result.executionTimeMs / 3600000 : undefined,
+          },
+        });
       });
       console.log(`[ParallelExecutor] Updated task ${taskId} status to 'done'`);
     } catch (error) {
       console.error(`[ParallelExecutor] Failed to update task status:`, error);
+    } finally {
+      dbMutex.release();
     }
 
     // タスク完了イベント
@@ -469,9 +599,8 @@ export class ParallelExecutor extends EventEmitter {
       },
     });
 
-    // 次のバッチを実行
-    // NOTE: この時点でnodesへの参照がないため、セッションに保存する必要がある
-    // 実際の実装では、セッションにnodesを保存するか、別の方法で管理する
+    // 次のバッチを実行（セッションからnodes/workingDirectoryを取得）
+    await this.executeNextBatch(sessionId, session.nodes, session.workingDirectory);
   }
 
   /**
@@ -496,15 +625,20 @@ export class ParallelExecutor extends EventEmitter {
     session.failedTasks.push(taskId);
     session.lastActivityAt = new Date();
 
-    // DBのサブタスクステータスを「未着手」に戻す（失敗時は元の状態に戻す）
+    // DBのサブタスクステータスを「未着手」に戻す（失敗時は元の状態に戻す、ミューテックスとリトライで保護）
     try {
-      await this.prisma.task.update({
-        where: { id: taskId },
-        data: { status: 'todo' },
+      await dbMutex.acquire();
+      await withRetry(async () => {
+        await this.prisma.task.update({
+          where: { id: taskId },
+          data: { status: 'todo' },
+        });
       });
       console.log(`[ParallelExecutor] Reverted task ${taskId} status to 'todo' due to failure`);
     } catch (error) {
       console.error(`[ParallelExecutor] Failed to update task status:`, error);
+    } finally {
+      dbMutex.release();
     }
 
     // タスク失敗イベント
@@ -531,6 +665,9 @@ export class ParallelExecutor extends EventEmitter {
         failed: status.failed.length,
       },
     });
+
+    // 失敗しても他のタスクは続行（依存タスクはスケジューラーでブロック）
+    await this.executeNextBatch(sessionId, session.nodes, session.workingDirectory);
   }
 
   /**

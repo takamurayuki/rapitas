@@ -8,6 +8,16 @@ import { prisma } from "../config/database";
 import { agentFactory } from "../services/agents/agent-factory";
 import { orchestrator } from "./approvals";
 import { toJsonString, fromJsonString } from "../utils/db-helpers";
+import { ParallelExecutor } from "../services/parallel-execution/parallel-executor";
+
+// Parallel executor instance
+let parallelExecutor: ParallelExecutor | null = null;
+function getParallelExecutor(): ParallelExecutor {
+  if (!parallelExecutor) {
+    parallelExecutor = new ParallelExecutor(prisma);
+  }
+  return parallelExecutor;
+}
 
 // Upload directory for attachments
 const UPLOAD_DIR = join(process.cwd(), "uploads");
@@ -224,6 +234,16 @@ export const aiAgentRoutes = new Elysia()
         },
       });
 
+      // タスクのステータスを「進行中」に更新
+      await prisma.task.update({
+        where: { id: taskIdNum },
+        data: {
+          status: "in-progress",
+          startedAt: task.startedAt || new Date(),
+        },
+      });
+      console.log(`[API] Updated task ${taskIdNum} status to 'in-progress'`);
+
       let fullInstruction: string;
       if (optimizedPrompt) {
         fullInstruction = instruction
@@ -345,6 +365,16 @@ export const aiAgentRoutes = new Elysia()
         )
         .then(async (result) => {
           if (result.success) {
+            // タスクのステータスを「完了」に更新
+            await prisma.task.update({
+              where: { id: taskIdNum },
+              data: {
+                status: "done",
+                completedAt: new Date(),
+              },
+            });
+            console.log(`[API] Updated task ${taskIdNum} status to 'done'`);
+
             const diff = await orchestrator.getFullGitDiff(workDir);
             const structuredDiff = await orchestrator.getDiff(workDir);
 
@@ -406,6 +436,15 @@ export const aiAgentRoutes = new Elysia()
               });
             }
           } else {
+            // タスクのステータスを「未着手」に戻す
+            await prisma.task.update({
+              where: { id: taskIdNum },
+              data: {
+                status: "todo",
+              },
+            });
+            console.log(`[API] Reverted task ${taskIdNum} status to 'todo' due to failure`);
+
             await prisma.notification.create({
               data: {
                 type: "agent_error",
@@ -422,6 +461,16 @@ export const aiAgentRoutes = new Elysia()
         })
         .catch(async (error) => {
           console.error("Agent execution error:", error);
+
+          // エラー時もタスクのステータスを「未着手」に戻す
+          await prisma.task.update({
+            where: { id: taskIdNum },
+            data: {
+              status: "todo",
+            },
+          }).catch(() => {});
+          console.log(`[API] Reverted task ${taskIdNum} status to 'todo' due to error`);
+
           await prisma.notification.create({
             data: {
               type: "agent_error",
@@ -1360,6 +1409,7 @@ export const aiAgentRoutes = new Elysia()
                       select: {
                         id: true,
                         title: true,
+                        description: true,
                         theme: {
                           select: {
                             workingDirectory: true,
@@ -1392,22 +1442,84 @@ export const aiAgentRoutes = new Elysia()
 
         const workingDirectory = task.theme?.workingDirectory || process.cwd();
 
+        // サブタスクの存在を確認（進行中のサブタスクのみ）
+        const subtasks = await prisma.task.findMany({
+          where: {
+            parentId: task.id,
+            status: "in-progress", // 進行中のサブタスクのみ
+          },
+          orderBy: { id: "asc" },
+        });
+
+        const hasSubtasks = subtasks.length > 0;
+        console.log(`[resume] Task ${task.id} has ${subtasks.length} in-progress subtasks`);
+
         // 通知を作成
         await prisma.notification.create({
           data: {
             type: "agent_execution_resumed",
             title: "エージェント実行再開",
-            message: `「${task.title}」の中断された作業を再開しています`,
+            message: `「${task.title}」の中断された作業を再開しています${hasSubtasks ? `（進行中のサブタスク${subtasks.length}件を並列実行）` : ""}`,
             link: `/tasks/${task.id}`,
             metadata: toJsonString({
               executionId,
               sessionId: execution.sessionId,
               taskId: task.id,
+              parallelExecution: hasSubtasks,
             }),
           },
         });
 
-        // 非同期で実行を再開
+        // 進行中のサブタスクがある場合は並列実行
+        if (hasSubtasks) {
+          console.log(`[resume] Starting parallel execution for task ${task.id} with ${subtasks.length} in-progress subtasks`);
+
+          // 並列実行を開始
+          const executor = getParallelExecutor();
+
+          // サブタスクの依存関係を分析
+          const analysisResult = await executor.analyzeDependencies({
+            parentTaskId: task.id,
+            subtasks: subtasks.map((st: any) => ({
+              id: st.id,
+              title: st.title,
+              description: st.description || "",
+              estimatedHours: st.estimatedHours || 1,
+              priority: st.priority || "medium",
+              dependencies: [], // TODO: 依存関係を取得
+            })),
+          });
+
+          // 非同期で並列実行を開始（analysisResult.treeMap.nodesを使用）
+          executor
+            .startSession(task.id, analysisResult.plan, analysisResult.treeMap.nodes, workingDirectory)
+            .then(async (session) => {
+              console.log(`[resume] Parallel execution session started: ${session.sessionId}`);
+            })
+            .catch(async (error) => {
+              console.error("[resume] Parallel execution error:", error);
+              await prisma.notification.create({
+                data: {
+                  type: "agent_error",
+                  title: "並列実行エラー",
+                  message: `「${task.title}」の並列実行中にエラーが発生しました: ${error.message}`,
+                  link: `/tasks/${task.id}`,
+                },
+              });
+            });
+
+          return {
+            success: true,
+            executionId,
+            taskId: task.id,
+            taskTitle: task.title,
+            parallelExecution: true,
+            subtaskCount: subtasks.length,
+            message: `進行中のサブタスク${subtasks.length}件の並列実行を再開しました。進捗はリアルタイムで確認できます。`,
+          };
+        }
+
+        // サブタスクがない場合は通常の再開
         orchestrator
           .resumeInterruptedExecution(executionId, {
             timeout: body?.timeout || 900000,

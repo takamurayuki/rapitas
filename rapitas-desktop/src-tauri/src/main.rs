@@ -14,11 +14,10 @@ mod release {
     pub fn setup_sidecar(app: &tauri::App) {
         let shell = app.shell();
 
-        // サイドカーコマンドを作成（SQLiteモードで起動）
+        // サイドカーコマンドを作成（PostgreSQLモードで起動）
         let sidecar = shell
             .sidecar("rapitas-backend")
             .expect("failed to create sidecar command")
-            .env("RAPITAS_SQLITE", "true")
             .env("TAURI_BUILD", "true");
 
         // サイドカーを起動

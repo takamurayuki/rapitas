@@ -215,8 +215,23 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
 
         // 自動承認の場合は承認リクエストを作成せず、直接サブタスクを作成
         if (config.autoApprove) {
+          // 既存のサブタスクを取得して重複チェック
+          const existingSubtasks = await prisma.task.findMany({
+            where: { parentId: taskId },
+            select: { title: true },
+          });
+          const existingTitles = new Set(existingSubtasks.map(st => st.title.toLowerCase().trim()));
+
           const createdSubtasks = [];
           for (const subtask of result.suggestedSubtasks) {
+            // タイトルが重複する場合はスキップ
+            const normalizedTitle = subtask.title.toLowerCase().trim();
+            if (existingTitles.has(normalizedTitle)) {
+              console.log(`[developer-mode] Skipping duplicate subtask: ${subtask.title}`);
+              continue;
+            }
+            existingTitles.add(normalizedTitle);
+
             const created = await prisma.task.create({
               data: {
                 title: subtask.title,

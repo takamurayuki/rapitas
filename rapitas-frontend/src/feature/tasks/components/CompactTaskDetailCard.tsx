@@ -25,6 +25,7 @@ import {
   Info,
   Paperclip,
 } from "lucide-react";
+import PriorityIcon from "@/feature/tasks/components/PriorityIcon";
 
 interface CompactTaskDetailCardProps {
   task: Task;
@@ -52,10 +53,13 @@ export default function CompactTaskDetailCard({
       {/* Header: Title & Status in one compact row */}
       <div className="p-4">
         <div className="flex items-center justify-between gap-3">
-          {/* Title */}
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 leading-tight flex-1 truncate">
-            {task.title}
-          </h1>
+          {/* Title with Priority Icon */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 leading-tight truncate">
+              {task.title}
+            </h1>
+            <PriorityIcon priority={task.priority} size="md" />
+          </div>
 
           {/* Status Buttons - Compact inline with title */}
           <div className="flex items-center gap-1 shrink-0">

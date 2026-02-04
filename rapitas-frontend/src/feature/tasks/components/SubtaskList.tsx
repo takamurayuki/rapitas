@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getLabelsArray, hasLabels } from "@/utils/labels";
 import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
+import PriorityIcon from "@/feature/tasks/components/PriorityIcon";
 import {
   statusConfig,
   renderStatusIcon,
@@ -186,6 +187,7 @@ export default function SubtaskList({
                           <h4 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
                             {subtask.title}
                           </h4>
+                          <PriorityIcon priority={subtask.priority} size="md" />
                           {subtask.agentGenerated && (
                             <span className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded">
                               <Bot className="w-3 h-3" />
@@ -312,6 +314,7 @@ export default function SubtaskList({
                     <h4 className="text-base font-medium text-zinc-900 dark:text-zinc-50 line-through">
                       {subtask.title}
                     </h4>
+                    <PriorityIcon priority={subtask.priority} size="sm" />
                     {subtask.agentGenerated && (
                       <span className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded">
                         <Bot className="w-3 h-3" />

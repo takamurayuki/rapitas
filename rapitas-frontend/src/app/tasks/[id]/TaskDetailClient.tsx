@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { getLabelsArray } from "@/utils/labels";
 import type { Task, TimeEntry, Comment, UserSettings, Resource } from "@/types";
@@ -40,6 +40,7 @@ import {
   type ParallelExecutionStatus,
 } from "@/feature/tasks/components/SubtaskExecutionStatus";
 import { useParallelExecutionStatus } from "@/feature/tasks/hooks/useParallelExecutionStatus";
+import { useSubtaskLogs } from "@/feature/tasks/hooks/useSubtaskLogs";
 import { getTaskDetailPath } from "@/utils/tauri";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -57,6 +58,8 @@ import { DeveloperModeConfigModal } from "@/feature/developer-mode/components/De
 import { AIAccordionPanel } from "@/feature/developer-mode/components/AIAccordionPanel";
 import SaveAsTemplateDialog from "@/feature/tasks/components/dialog/SaveAsTemplateDialog";
 import DropdownMenu from "@/components/ui/dropdown/DropdownMenu";
+import CommentsSection from "@/feature/tasks/components/CommentsSection";
+import PriorityIcon from "@/feature/tasks/components/PriorityIcon";
 import { API_BASE_URL } from "@/utils/api";
 
 const API_BASE = API_BASE_URL;
@@ -229,9 +232,25 @@ export default function TaskDetailClient({
     sessionState: parallelSessionState,
     isRunning: isParallelExecutionRunning,
     getSubtaskStatus,
+    startSession,
   } = useParallelExecutionStatus({
     taskId,
     enableSSE: true,
+  });
+
+  // サブタスクごとの実行ログ管理
+  const subtasksForLogs = useMemo(() => {
+    return (task?.subtasks || []).map((s) => ({ id: s.id, title: s.title }));
+  }, [task?.subtasks]);
+
+  const {
+    subtaskLogs,
+    refreshLogs: refreshSubtaskLogs,
+  } = useSubtaskLogs({
+    sessionId: parallelSessionId,
+    subtasks: subtasksForLogs,
+    autoRefresh: isParallelExecutionRunning,
+    pollingInterval: 2000,
   });
 
   useEffect(() => {
@@ -391,21 +410,28 @@ export default function TaskDetailClient({
     setShowCodeBlockDialog(true);
   };
 
-  const handleAddComment = async () => {
-    if (!newComment.trim()) return;
+  const handleAddComment = async (content?: string, parentId?: number) => {
+    const commentContent = content || newComment;
+    if (!commentContent.trim()) return;
 
     try {
       setIsAddingComment(true);
       const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: newComment }),
+        body: JSON.stringify({ content: commentContent, parentId }),
       });
 
       if (res.ok) {
-        const comment = await res.json();
-        setComments([...comments, comment]);
-        setNewComment("");
+        // コメント一覧を再取得してツリー構造を更新
+        const commentsRes = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/comments`);
+        if (commentsRes.ok) {
+          setComments(await commentsRes.json());
+        }
+        // メインのコメント入力をクリア（返信の場合は content が渡されるので newComment はクリアしない）
+        if (!content) {
+          setNewComment("");
+        }
       }
     } catch (err) {
       console.error("Failed to add comment:", err);
@@ -413,6 +439,24 @@ export default function TaskDetailClient({
       setIsAddingComment(false);
     }
   };
+
+  const handleUpdateComment = useCallback(async (commentId: number, content: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/comments/${commentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (res.ok) {
+        const updatedComment = await res.json();
+        setComments((prev) =>
+          prev.map((c) => (c.id === commentId ? updatedComment : c))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to update comment:", err);
+    }
+  }, []);
 
   const handleDeleteComment = async (commentId: number) => {
     if (!confirm("このコメントを削除しますか?")) return;
@@ -428,6 +472,42 @@ export default function TaskDetailClient({
       console.error("Failed to delete comment:", err);
     }
   };
+
+  const handleCreateCommentLink = useCallback(async (fromCommentId: number, toCommentId: number, label?: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/comments/${fromCommentId}/links`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toCommentId, label }),
+      });
+      if (res.ok) {
+        // Refresh comments to show new link
+        const commentsRes = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/comments`);
+        if (commentsRes.ok) {
+          setComments(await commentsRes.json());
+        }
+      }
+    } catch (err) {
+      console.error("Failed to create comment link:", err);
+    }
+  }, [resolvedTaskId]);
+
+  const handleDeleteCommentLink = useCallback(async (linkId: number) => {
+    try {
+      const res = await fetch(`${API_BASE}/comment-links/${linkId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        // Refresh comments to reflect removed link
+        const commentsRes = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/comments`);
+        if (commentsRes.ok) {
+          setComments(await commentsRes.json());
+        }
+      }
+    } catch (err) {
+      console.error("Failed to delete comment link:", err);
+    }
+  }, [resolvedTaskId]);
 
   const startEditing = () => {
     if (!task) return;
@@ -917,6 +997,14 @@ export default function TaskDetailClient({
                   onReset={resetExecutionState}
                   onRestoreExecutionState={restoreExecutionState}
                   onStopExecution={setExecutionCancelled}
+                  // 並列実行関連
+                  subtasks={task.subtasks}
+                  onStartParallelExecution={startSession}
+                  isParallelExecutionRunning={isParallelExecutionRunning}
+                  getSubtaskStatus={getSubtaskStatus}
+                  parallelSessionId={parallelSessionId}
+                  subtaskLogs={subtaskLogs}
+                  onRefreshSubtaskLogs={refreshSubtaskLogs}
                 />
               </div>
             )}
@@ -1047,6 +1135,7 @@ export default function TaskDetailClient({
                               >
                                 {subtask.title}
                               </span>
+                              <PriorityIcon priority={subtask.priority} size="sm" />
                               {subtask.agentGenerated && (
                                 <span className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded shrink-0">
                                   <Bot className="w-3 h-3" />
@@ -1093,175 +1182,20 @@ export default function TaskDetailClient({
             )}
 
             {/* Comments Section - メモ・気付きログ */}
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
-              <div
-                className="p-4 border-b border-zinc-100 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
-                onClick={() => setIsCommentsExpanded(!isCommentsExpanded)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-50">
-                    <MessageSquare className="w-5 h-5 text-amber-500" />
-                    <h2 className="text-lg font-bold">メモ・気付き</h2>
-                    {comments.length > 0 && (
-                      <span className="ml-1 px-2 py-0.5 text-xs font-medium bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 rounded-full">
-                        {comments.length}
-                      </span>
-                    )}
-                  </div>
-                  {isCommentsExpanded ? (
-                    <ChevronUp className="w-5 h-5 text-zinc-400" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5 text-zinc-400" />
-                  )}
-                </div>
-              </div>
-
-              {isCommentsExpanded && (
-                <>
-                  {/* クイック入力 */}
-                  <div className="p-4 bg-amber-50/50 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-900/30">
-                    <div className="flex gap-2">
-                      <div className="w-2 h-2 rounded-full bg-amber-400 mt-3 shrink-0" />
-                      <div className="flex-1">
-                        <textarea
-                          value={newComment}
-                          onChange={(e) => setNewComment(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault();
-                              if (newComment.trim()) {
-                                handleAddComment();
-                              }
-                            }
-                          }}
-                          className="w-full bg-white dark:bg-zinc-800 rounded-lg px-3 py-2 text-sm border border-amber-200 dark:border-amber-800/50 outline-none resize-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 transition-all placeholder:text-zinc-400"
-                          rows={1}
-                          placeholder="気付いたことをメモ... (Enter で投稿)"
-                        />
-                        <p className="text-[10px] text-zinc-400 mt-1">
-                          Shift + Enter で改行
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleAddComment}
-                        disabled={!newComment.trim() || isAddingComment}
-                        className="self-start mt-0.5 p-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* タイムライン形式のコメント一覧 */}
-                  {comments.length > 0 && (
-                    <div className="p-4">
-                      <div className="relative">
-                        {/* タイムラインの縦線 */}
-                        <div className="absolute left-[3px] top-0 bottom-0 w-0.5 bg-zinc-200 dark:bg-zinc-700" />
-
-                        <div className="space-y-4">
-                          {comments.map((comment, index) => {
-                            const date = new Date(comment.createdAt);
-                            const now = new Date();
-                            const diffMs = now.getTime() - date.getTime();
-                            const diffMins = Math.floor(diffMs / 60000);
-                            const diffHours = Math.floor(diffMins / 60);
-                            const diffDays = Math.floor(diffHours / 24);
-
-                            let relativeTime: string;
-                            if (diffMins < 1) {
-                              relativeTime = "たった今";
-                            } else if (diffMins < 60) {
-                              relativeTime = `${diffMins}分前`;
-                            } else if (diffHours < 24) {
-                              relativeTime = `${diffHours}時間前`;
-                            } else if (diffDays < 7) {
-                              relativeTime = `${diffDays}日前`;
-                            } else {
-                              relativeTime = date.toLocaleDateString("ja-JP", {
-                                month: "short",
-                                day: "numeric",
-                              });
-                            }
-
-                            // 日付区切りを表示するか
-                            const showDateSeparator =
-                              index === 0 ||
-                              new Date(
-                                comments[index - 1].createdAt
-                              ).toDateString() !== date.toDateString();
-
-                            return (
-                              <div key={comment.id}>
-                                {showDateSeparator && (
-                                  <div className="flex items-center gap-2 mb-3 ml-4">
-                                    <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded">
-                                      {date.toLocaleDateString("ja-JP", {
-                                        year: "numeric",
-                                        month: "long",
-                                        day: "numeric",
-                                        weekday: "short",
-                                      })}
-                                    </span>
-                                  </div>
-                                )}
-                                <div className="flex gap-3 group">
-                                  {/* タイムラインドット */}
-                                  <div className="relative z-10 w-2 h-2 rounded-full bg-amber-400 dark:bg-amber-500 mt-1.5 shrink-0 ring-2 ring-white dark:ring-zinc-900" />
-
-                                  {/* コメント本体 */}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-[11px] text-zinc-400 dark:text-zinc-500">
-                                        {relativeTime}
-                                      </span>
-                                      <span className="text-[10px] text-zinc-300 dark:text-zinc-600">
-                                        {date.toLocaleTimeString("ja-JP", {
-                                          hour: "2-digit",
-                                          minute: "2-digit",
-                                        })}
-                                      </span>
-                                      <button
-                                        onClick={() =>
-                                          handleDeleteComment(comment.id)
-                                        }
-                                        className="p-0.5 text-zinc-300 dark:text-zinc-600 hover:text-red-500 dark:hover:text-red-400 rounded opacity-0 group-hover:opacity-100 transition-all"
-                                        title="削除"
-                                      >
-                                        <Trash2 className="w-3 h-3" />
-                                      </button>
-                                    </div>
-                                    <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none text-zinc-700 dark:text-zinc-300">
-                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {comment.content}
-                                      </ReactMarkdown>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {comments.length === 0 && (
-                    <div className="p-8 text-center">
-                      <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                        <MessageSquare className="w-6 h-6 text-amber-500" />
-                      </div>
-                      <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                        まだメモがありません
-                      </p>
-                      <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                        作業中の気付きやアイデアを記録しましょう
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+            <CommentsSection
+              comments={comments}
+              newComment={newComment}
+              isAddingComment={isAddingComment}
+              isExpanded={isCommentsExpanded}
+              taskId={taskId}
+              onToggleExpand={() => setIsCommentsExpanded(!isCommentsExpanded)}
+              onNewCommentChange={setNewComment}
+              onAddComment={handleAddComment}
+              onUpdateComment={handleUpdateComment}
+              onDeleteComment={handleDeleteComment}
+              onCreateLink={handleCreateCommentLink}
+              onDeleteLink={handleDeleteCommentLink}
+            />
           </>
         )}
       </div>

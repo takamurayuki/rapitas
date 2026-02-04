@@ -1,16 +1,16 @@
 /**
  * Database Helper Utilities
- * Functions for SQLite/PostgreSQL JSON field compatibility
+ * Functions for JSON field handling and ID parsing
  */
 
 /**
- * Get labels as an array (SQLite/PostgreSQL compatible)
- * Handles JSON strings from SQLite and object arrays from PostgreSQL
+ * Get labels as an array
+ * Handles both JSON strings and object arrays
  */
 export function getLabelsArray(labels: unknown): string[] {
   if (!labels) return [];
 
-  // String case (SQLite JSON)
+  // String case (JSON)
   if (typeof labels === "string") {
     try {
       const parsed = JSON.parse(labels);
@@ -34,7 +34,7 @@ export function getLabelsArray(labels: unknown): string[] {
 }
 
 /**
- * Convert value to JSON string for SQLite compatibility
+ * Convert value to JSON string
  */
 export function toJsonString(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -43,8 +43,8 @@ export function toJsonString(value: unknown): string | null {
 }
 
 /**
- * Parse JSON string from SQLite to object
- * Returns the value as-is if already an object (PostgreSQL)
+ * Parse JSON string to object
+ * Returns the value as-is if already an object
  */
 export function fromJsonString<T = unknown>(value: unknown): T | null {
   if (value === null || value === undefined) return null;

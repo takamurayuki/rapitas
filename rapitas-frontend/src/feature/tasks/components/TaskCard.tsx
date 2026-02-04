@@ -4,46 +4,13 @@ import type { Task } from "@/types";
 import { Status } from "@/types";
 import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
 import SubtaskStatusButtons from "@/feature/tasks/components/SubtaskStatusButtons";
+import PriorityIcon from "@/feature/tasks/components/PriorityIcon";
 import {
   statusConfig,
   renderStatusIcon,
 } from "@/feature/tasks/config/StatusConfig";
-import {
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronUp,
-  ChevronsUp,
-  ExternalLink,
-} from "lucide-react";
-import type { Priority } from "@/types";
+import { ExternalLink } from "lucide-react";
 import { getLabelsArray, hasLabels } from "@/utils/labels";
-
-// 優先度アイコンの設定
-const priorityIcons: Record<
-  Priority,
-  { icon: React.ReactNode; color: string; title: string }
-> = {
-  urgent: {
-    icon: <ChevronsUp className="w-4 h-4" />,
-    color: "text-red-500",
-    title: "緊急",
-  },
-  high: {
-    icon: <ChevronUp className="w-4 h-4" />,
-    color: "text-orange-500",
-    title: "高",
-  },
-  medium: {
-    icon: <ChevronsUpDown className="w-4 h-4" />,
-    color: "text-blue-400",
-    title: "中",
-  },
-  low: {
-    icon: <ChevronDown className="w-4 h-4" />,
-    color: "text-gray-400",
-    title: "低",
-  },
-};
 
 interface TaskCardProps {
   task: Task;
@@ -134,14 +101,7 @@ export default function TaskCard({
               {task.title}
             </h3>
             {/* 優先度アイコン */}
-            {task.priority && (
-              <span
-                className={`shrink-0 ${priorityIcons[task.priority].color}`}
-                title={priorityIcons[task.priority].title}
-              >
-                {priorityIcons[task.priority].icon}
-              </span>
-            )}
+            <PriorityIcon priority={task.priority} size="md" />
           </div>
 
           {/* メタ情報 */}

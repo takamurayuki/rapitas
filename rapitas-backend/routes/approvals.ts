@@ -364,8 +364,23 @@ Task ID: ${task.id}
             )
           : proposedChanges.subtasks;
 
+        // 既存のサブタスクを取得して重複チェック
+        const existingSubtasks = await prisma.task.findMany({
+          where: { parentId: approval.config.taskId },
+          select: { title: true },
+        });
+        const existingTitles = new Set(existingSubtasks.map(st => st.title.toLowerCase().trim()));
+
         const createdSubtasks = [];
         for (const subtask of subtasksToCreate) {
+          // タイトルが重複する場合はスキップ
+          const normalizedTitle = subtask.title.toLowerCase().trim();
+          if (existingTitles.has(normalizedTitle)) {
+            console.log(`[approvals] Skipping duplicate subtask: ${subtask.title}`);
+            continue;
+          }
+          existingTitles.add(normalizedTitle);
+
           const created = await prisma.task.create({
             data: {
               title: subtask.title,
@@ -975,7 +990,22 @@ ${previousImplementation}
             subtasks: SubtaskProposal[];
           }>(approval.proposedChanges);
 
+          // 既存のサブタスクを取得して重複チェック
+          const existingSubtasks = await prisma.task.findMany({
+            where: { parentId: approval.config.taskId },
+            select: { title: true },
+          });
+          const existingTitles = new Set(existingSubtasks.map(st => st.title.toLowerCase().trim()));
+
           for (const subtask of proposedChanges?.subtasks || []) {
+            // タイトルが重複する場合はスキップ
+            const normalizedTitle = subtask.title.toLowerCase().trim();
+            if (existingTitles.has(normalizedTitle)) {
+              console.log(`[approvals:bulk] Skipping duplicate subtask: ${subtask.title}`);
+              continue;
+            }
+            existingTitles.add(normalizedTitle);
+
             await prisma.task.create({
               data: {
                 title: subtask.title,

@@ -172,6 +172,10 @@ export type ParallelExecutionSession = {
   completedTasks: number[];
   failedTasks: number[];
 
+  // 実行コンテキスト（次のバッチ実行に必要）
+  nodes: Map<number, TaskNode>;
+  workingDirectory: string;
+
   // タイミング
   startedAt: Date;
   lastActivityAt: Date;

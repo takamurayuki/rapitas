@@ -1,6 +1,3 @@
-// Tauri/SQLite initialization - must be imported first
-import { initializeDatabase, isTauriBuild } from "./utils/tauri-init";
-
 // Setup global error handlers
 import { setupGlobalErrorHandlers, errorHandler } from "./middleware";
 setupGlobalErrorHandlers();
@@ -41,6 +38,7 @@ import {
   taskGithubRoutes,
   approvalsRoutes,
   aiAgentRoutes,
+  parallelExecutionRoutes,
 } from "./routes";
 
 // Import shared database client
@@ -127,25 +125,8 @@ app.use(githubRoutes);
 app.use(taskGithubRoutes);
 app.use(approvalsRoutes);
 app.use(aiAgentRoutes);
+app.use(parallelExecutionRoutes);
 
-// Initialize database and start server
-async function startServer() {
-  try {
-    // Initialize database for Tauri/SQLite builds
-    if (isTauriBuild) {
-      console.log("🔧 Initializing SQLite database for Tauri...");
-      await initializeDatabase(prisma);
-    }
-
-    app.listen(3001);
-    console.log("🚀 Rapitas backend running on http://localhost:3001");
-    if (isTauriBuild) {
-      console.log("📦 Running in Tauri mode with SQLite database");
-    }
-  } catch (error) {
-    console.error("Failed to start server:", error);
-    process.exit(1);
-  }
-}
-
-startServer();
+// Start server
+app.listen(3001);
+console.log("🚀 Rapitas backend running on http://localhost:3001");
