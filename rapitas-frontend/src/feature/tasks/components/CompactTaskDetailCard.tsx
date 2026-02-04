@@ -1,6 +1,6 @@
 "use client";
 
-import { Task, Label, Resource } from "@/types";
+import { Task, Label, Resource, Comment } from "@/types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { createMarkdownComponents } from "@/feature/tasks/components/MarkdownComponents";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/accordion/Accordion";
 import { SelectedLabelsDisplay } from "@/feature/tasks/components/LabelSelector";
 import FileUploader from "@/feature/tasks/components/FileUploader";
+import MemoSection from "@/feature/tasks/components/MemoSection";
 import {
   Clock,
   Calendar,
@@ -24,6 +25,7 @@ import {
   FileText,
   Info,
   Paperclip,
+  StickyNote,
 } from "lucide-react";
 import PriorityIcon from "@/feature/tasks/components/PriorityIcon";
 
@@ -33,6 +35,16 @@ interface CompactTaskDetailCardProps {
   onEditCode?: (language: string, code: string) => void;
   resources?: Resource[];
   onResourcesChange?: () => void;
+  // メモ関連のprops
+  comments?: Comment[];
+  newComment?: string;
+  isAddingComment?: boolean;
+  onNewCommentChange?: (v: string) => void;
+  onAddComment?: (content?: string, parentId?: number) => void;
+  onUpdateComment?: (id: number, content: string) => Promise<void>;
+  onDeleteComment?: (id: number) => void;
+  onCreateLink?: (from: number, to: number, label?: string) => Promise<void>;
+  onDeleteLink?: (id: number) => Promise<void>;
 }
 
 export default function CompactTaskDetailCard({
@@ -41,6 +53,15 @@ export default function CompactTaskDetailCard({
   onEditCode,
   resources = [],
   onResourcesChange,
+  comments = [],
+  newComment = "",
+  isAddingComment = false,
+  onNewCommentChange,
+  onAddComment,
+  onUpdateComment,
+  onDeleteComment,
+  onCreateLink,
+  onDeleteLink,
 }: CompactTaskDetailCardProps) {
   const fileResources = resources.filter(
     (r) => r.filePath || r.type === "file" || r.type === "image" || r.type === "pdf"
@@ -228,6 +249,37 @@ export default function CompactTaskDetailCard({
                 ファイルの追加には編集権限が必要です
               </div>
             )}
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Memos - Collapsible */}
+        <AccordionItem id="memos">
+          <AccordionTrigger
+            id="memos"
+            icon={<StickyNote className="w-4 h-4" />}
+            badge={
+              comments.filter(c => !c.parentId).length > 0 ? (
+                <span className="px-1.5 py-0.5 text-xs font-medium bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 rounded-full">
+                  {comments.filter(c => !c.parentId).length}
+                </span>
+              ) : undefined
+            }
+          >
+            メモ
+          </AccordionTrigger>
+          <AccordionContent id="memos">
+            <MemoSection
+              comments={comments}
+              newComment={newComment}
+              isAddingComment={isAddingComment}
+              taskId={task.id}
+              onNewCommentChange={onNewCommentChange || (() => {})}
+              onAddComment={onAddComment || (() => {})}
+              onUpdateComment={onUpdateComment || (async () => {})}
+              onDeleteComment={onDeleteComment || (() => {})}
+              onCreateLink={onCreateLink}
+              onDeleteLink={onDeleteLink}
+            />
           </AccordionContent>
         </AccordionItem>
       </Accordion>

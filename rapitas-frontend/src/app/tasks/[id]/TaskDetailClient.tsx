@@ -34,6 +34,13 @@ import {
   Bot,
   ArrowLeft,
   Loader2,
+  CheckSquare,
+  Square,
+  StickyNote,
+  Plus,
+  CornerDownRight,
+  Link2,
+  Search,
 } from "lucide-react";
 import {
   SubtaskTitleIndicator,
@@ -58,7 +65,6 @@ import { DeveloperModeConfigModal } from "@/feature/developer-mode/components/De
 import { AIAccordionPanel } from "@/feature/developer-mode/components/AIAccordionPanel";
 import SaveAsTemplateDialog from "@/feature/tasks/components/dialog/SaveAsTemplateDialog";
 import DropdownMenu from "@/components/ui/dropdown/DropdownMenu";
-import CommentsSection from "@/feature/tasks/components/CommentsSection";
 import PriorityIcon from "@/feature/tasks/components/PriorityIcon";
 import { API_BASE_URL } from "@/utils/api";
 
@@ -155,7 +161,6 @@ export default function TaskDetailClient({
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [isAddingComment, setIsAddingComment] = useState(false);
-  const [isCommentsExpanded, setIsCommentsExpanded] = useState(false);
 
   // リソース/添付ファイル用の状態
   const [resources, setResources] = useState<Resource[]>([]);
@@ -163,11 +168,16 @@ export default function TaskDetailClient({
   // サブタスクアコーディオン用の状態
   const [isSubtasksExpanded, setIsSubtasksExpanded] = useState(true);
 
+
   // サブタスク編集用の状態
   const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState("");
   const [editingSubtaskDescription, setEditingSubtaskDescription] =
     useState("");
+  // サブタスク選択削除用の状態
+  const [isSubtaskSelectionMode, setIsSubtaskSelectionMode] = useState(false);
+  const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<Set<number>>(new Set());
+  const [showSubtaskDeleteConfirm, setShowSubtaskDeleteConfirm] = useState<'all' | 'selected' | null>(null);
 
   // ポモドーロモーダル用の状態
   const [showPomodoroModal, setShowPomodoroModal] = useState(false);
@@ -672,6 +682,134 @@ export default function TaskDetailClient({
     }
   };
 
+  // サブタスク選択モードの切り替え
+  const toggleSubtaskSelectionMode = () => {
+    if (isSubtaskSelectionMode) {
+      setSelectedSubtaskIds(new Set());
+    }
+    setIsSubtaskSelectionMode(!isSubtaskSelectionMode);
+  };
+
+  // サブタスクの選択を切り替え
+  const toggleSubtaskSelection = (subtaskId: number) => {
+    setSelectedSubtaskIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(subtaskId)) {
+        newSet.delete(subtaskId);
+      } else {
+        newSet.add(subtaskId);
+      }
+      return newSet;
+    });
+  };
+
+  // 全サブタスクを選択
+  const selectAllSubtasks = () => {
+    if (task?.subtasks) {
+      setSelectedSubtaskIds(new Set(task.subtasks.map((s) => s.id)));
+    }
+  };
+
+  // 全サブタスクの選択を解除
+  const deselectAllSubtasks = () => {
+    setSelectedSubtaskIds(new Set());
+  };
+
+  // 選択したサブタスクを削除
+  const handleDeleteSelectedSubtasks = async () => {
+    if (selectedSubtaskIds.size > 0) {
+      await deleteSelectedSubtasks(Array.from(selectedSubtaskIds));
+      setSelectedSubtaskIds(new Set());
+      setIsSubtaskSelectionMode(false);
+      setShowSubtaskDeleteConfirm(null);
+    }
+  };
+
+  // 全サブタスクを削除
+  const handleDeleteAllSubtasks = async () => {
+    await deleteAllSubtasks();
+    setShowSubtaskDeleteConfirm(null);
+  };
+
+  // タスクを再取得するヘルパー関数
+  const refetchTask = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTask(data);
+      }
+    } catch (err) {
+      console.error("Failed to refetch task:", err);
+    }
+  };
+
+  // サブタスク一括削除
+  const deleteAllSubtasks = async () => {
+    if (!task) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${task.id}/subtasks`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error("削除に失敗しました");
+
+      const result = await res.json();
+      console.log(`[TaskDetail] Deleted all subtasks: ${result.deletedCount} items`);
+
+      // タスクを再取得
+      await refetchTask();
+      onTaskUpdated?.();
+    } catch (err) {
+      console.error(err);
+      alert("サブタスクの削除に失敗しました");
+    }
+  };
+
+  // サブタスク選択削除
+  const deleteSelectedSubtasks = async (subtaskIds: number[]) => {
+    if (!task || subtaskIds.length === 0) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${task.id}/subtasks/delete-selected`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subtaskIds }),
+      });
+
+      if (!res.ok) throw new Error("削除に失敗しました");
+
+      const result = await res.json();
+      console.log(`[TaskDetail] Deleted selected subtasks: ${result.deletedCount} items`);
+
+      // タスクを再取得
+      await refetchTask();
+      onTaskUpdated?.();
+    } catch (err) {
+      console.error(err);
+      alert("サブタスクの削除に失敗しました");
+    }
+  };
+
+  // 単一サブタスク削除
+  const deleteSubtask = async (subtaskId: number) => {
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${subtaskId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error("削除に失敗しました");
+
+      // タスクを再取得
+      await refetchTask();
+      onTaskUpdated?.();
+    } catch (err) {
+      console.error(err);
+      alert("サブタスクの削除に失敗しました");
+    }
+  };
+
   const duplicateTask = async () => {
     if (!task) return;
 
@@ -948,6 +1086,16 @@ export default function TaskDetailClient({
                   const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/resources`);
                   if (res.ok) setResources(await res.json());
                 }}
+                // メモ関連のprops
+                comments={comments}
+                newComment={newComment}
+                isAddingComment={isAddingComment}
+                onNewCommentChange={setNewComment}
+                onAddComment={handleAddComment}
+                onUpdateComment={handleUpdateComment}
+                onDeleteComment={handleDeleteComment}
+                onCreateLink={handleCreateCommentLink}
+                onDeleteLink={handleDeleteCommentLink}
               />
             </div>
 
@@ -1012,12 +1160,12 @@ export default function TaskDetailClient({
             {/* Subtasks Section (AI生成含む) - アコーディオン表示 */}
             {task.subtasks && task.subtasks.length > 0 && (
               <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden mb-6">
-                <div
-                  className="p-4 border-b border-zinc-100 dark:border-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
-                  onClick={() => setIsSubtasksExpanded(!isSubtasksExpanded)}
-                >
+                <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-50">
+                    <div
+                      className="flex items-center gap-2 text-zinc-900 dark:text-zinc-50 cursor-pointer flex-1"
+                      onClick={() => setIsSubtasksExpanded(!isSubtasksExpanded)}
+                    >
                       <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                       <h2 className="text-lg font-bold">サブタスク</h2>
                       <span className="ml-1 px-2 py-0.5 text-xs font-medium bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-full">
@@ -1048,19 +1196,121 @@ export default function TaskDetailClient({
                         </span>
                       </div>
                     </div>
-                    {isSubtasksExpanded ? (
-                      <ChevronUp className="w-5 h-5 text-zinc-400" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-zinc-400" />
-                    )}
+                    {/* 削除操作ボタン */}
+                    <div className="flex items-center gap-2">
+                      {/* 選択モード切り替え */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSubtaskSelectionMode();
+                        }}
+                        className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg transition-colors ${
+                          isSubtaskSelectionMode
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                            : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        {isSubtaskSelectionMode ? (
+                          <>
+                            <X className="w-3.5 h-3.5" />
+                            解除
+                          </>
+                        ) : (
+                          <>
+                            <CheckSquare className="w-3.5 h-3.5" />
+                            選択
+                          </>
+                        )}
+                      </button>
+                      {/* 選択モード時の操作 */}
+                      {isSubtaskSelectionMode && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              selectedSubtaskIds.size === task.subtasks!.length
+                                ? deselectAllSubtasks()
+                                : selectAllSubtasks();
+                            }}
+                            className="px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                          >
+                            {selectedSubtaskIds.size === task.subtasks!.length ? "全解除" : "全選択"}
+                          </button>
+                          {selectedSubtaskIds.size > 0 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowSubtaskDeleteConfirm('selected');
+                              }}
+                              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              {selectedSubtaskIds.size}件削除
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {/* 一括削除ボタン */}
+                      {!isSubtaskSelectionMode && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowSubtaskDeleteConfirm('all');
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          全削除
+                        </button>
+                      )}
+                      {/* アコーディオントグル */}
+                      <button
+                        onClick={() => setIsSubtasksExpanded(!isSubtasksExpanded)}
+                        className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+                      >
+                        {isSubtasksExpanded ? (
+                          <ChevronUp className="w-5 h-5 text-zinc-400" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-zinc-400" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
+                {/* 削除確認ダイアログ */}
+                {showSubtaskDeleteConfirm && (
+                  <div className="p-4 bg-red-50 dark:bg-red-950/30 border-b border-red-200 dark:border-red-800">
+                    <p className="text-sm text-red-700 dark:text-red-300 mb-3">
+                      {showSubtaskDeleteConfirm === 'all'
+                        ? `すべてのサブタスク（${task.subtasks.length}件）を削除しますか？この操作は取り消せません。`
+                        : `選択した${selectedSubtaskIds.size}件のサブタスクを削除しますか？この操作は取り消せません。`}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={showSubtaskDeleteConfirm === 'all' ? handleDeleteAllSubtasks : handleDeleteSelectedSubtasks}
+                        className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                      >
+                        削除する
+                      </button>
+                      <button
+                        onClick={() => setShowSubtaskDeleteConfirm(null)}
+                        className="px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                      >
+                        キャンセル
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {isSubtasksExpanded && (
                   <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
                     {task.subtasks.map((subtask) => (
                       <div
                         key={subtask.id}
-                        className="p-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
+                        className={`p-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors ${
+                          isSubtaskSelectionMode && selectedSubtaskIds.has(subtask.id)
+                            ? "bg-blue-50 dark:bg-blue-950/20 ring-1 ring-blue-500 dark:ring-blue-400"
+                            : ""
+                        }`}
                       >
                         {editingSubtaskId === subtask.id ? (
                           /* サブタスク編集モード */
@@ -1106,13 +1356,26 @@ export default function TaskDetailClient({
                           /* サブタスク表示モード - コンパクト化 */
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {/* 選択モード時のチェックボックス */}
+                              {isSubtaskSelectionMode && (
+                                <button
+                                  onClick={() => toggleSubtaskSelection(subtask.id)}
+                                  className="shrink-0"
+                                >
+                                  {selectedSubtaskIds.has(subtask.id) ? (
+                                    <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                  ) : (
+                                    <Square className="w-5 h-5 text-zinc-400" />
+                                  )}
+                                </button>
+                              )}
                               {/* 並列実行ステータスアイコン（実行中の場合） */}
-                              {isParallelExecutionRunning && getSubtaskStatus(subtask.id) ? (
+                              {!isSubtaskSelectionMode && isParallelExecutionRunning && getSubtaskStatus(subtask.id) ? (
                                 <SubtaskTitleIndicator
                                   executionStatus={getSubtaskStatus(subtask.id)}
                                   size="sm"
                                 />
-                              ) : (
+                              ) : !isSubtaskSelectionMode && (
                                 /* 通常のステータスアイコン */
                                 <div className="shrink-0">
                                   {subtask.status === "done" ? (
@@ -1181,21 +1444,6 @@ export default function TaskDetailClient({
               </div>
             )}
 
-            {/* Comments Section - メモ・気付きログ */}
-            <CommentsSection
-              comments={comments}
-              newComment={newComment}
-              isAddingComment={isAddingComment}
-              isExpanded={isCommentsExpanded}
-              taskId={taskId}
-              onToggleExpand={() => setIsCommentsExpanded(!isCommentsExpanded)}
-              onNewCommentChange={setNewComment}
-              onAddComment={handleAddComment}
-              onUpdateComment={handleUpdateComment}
-              onDeleteComment={handleDeleteComment}
-              onCreateLink={handleCreateCommentLink}
-              onDeleteLink={handleDeleteCommentLink}
-            />
           </>
         )}
       </div>

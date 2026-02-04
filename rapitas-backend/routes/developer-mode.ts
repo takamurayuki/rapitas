@@ -215,35 +215,42 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
 
         // 自動承認の場合は承認リクエストを作成せず、直接サブタスクを作成
         if (config.autoApprove) {
-          // 既存のサブタスクを取得して重複チェック
-          const existingSubtasks = await prisma.task.findMany({
-            where: { parentId: taskId },
-            select: { title: true },
-          });
-          const existingTitles = new Set(existingSubtasks.map(st => st.title.toLowerCase().trim()));
-
-          const createdSubtasks = [];
-          for (const subtask of result.suggestedSubtasks) {
-            // タイトルが重複する場合はスキップ
-            const normalizedTitle = subtask.title.toLowerCase().trim();
-            if (existingTitles.has(normalizedTitle)) {
-              console.log(`[developer-mode] Skipping duplicate subtask: ${subtask.title}`);
-              continue;
-            }
-            existingTitles.add(normalizedTitle);
-
-            const created = await prisma.task.create({
-              data: {
-                title: subtask.title,
-                description: subtask.description,
-                priority: subtask.priority,
-                estimatedHours: subtask.estimatedHours,
-                parentId: taskId,
-                agentGenerated: true,
-              },
+          // トランザクションで重複チェックと作成を原子的に実行
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const createdSubtasks = await prisma.$transaction(async (tx: any) => {
+            // トランザクション内で既存サブタスクを取得
+            const existingSubtasks = await tx.task.findMany({
+              where: { parentId: taskId },
+              select: { title: true },
             });
-            createdSubtasks.push(created);
-          }
+            const existingTitles = new Set(existingSubtasks.map((st: { title: string }) => st.title.toLowerCase().trim()));
+
+            const created = [];
+            for (const subtask of result.suggestedSubtasks) {
+              // タイトルが重複する場合はスキップ
+              const normalizedTitle = subtask.title.toLowerCase().trim();
+              if (existingTitles.has(normalizedTitle)) {
+                console.log(`[developer-mode] Skipping duplicate subtask: ${subtask.title}`);
+                continue;
+              }
+              existingTitles.add(normalizedTitle);
+
+              const newSubtask = await tx.task.create({
+                data: {
+                  title: subtask.title,
+                  description: subtask.description,
+                  priority: subtask.priority,
+                  estimatedHours: subtask.estimatedHours,
+                  parentId: taskId,
+                  agentGenerated: true,
+                },
+              });
+              created.push(newSubtask);
+            }
+            return created;
+          }, {
+            isolationLevel: 'Serializable', // 競合を防ぐための分離レベル
+          });
 
           await prisma.agentSession.update({
             where: { id: session.id },

@@ -55,6 +55,9 @@ async function startServer() {
   if (serverProcess) {
     log.info("サーバーを停止中...");
     serverProcess.kill();
+    // プロセスが完全に終了するまで待機
+    await serverProcess.exited;
+    log.info("サーバーが停止しました");
     serverProcess = null;
   }
 

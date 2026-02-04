@@ -364,35 +364,42 @@ Task ID: ${task.id}
             )
           : proposedChanges.subtasks;
 
-        // 既存のサブタスクを取得して重複チェック
-        const existingSubtasks = await prisma.task.findMany({
-          where: { parentId: approval.config.taskId },
-          select: { title: true },
-        });
-        const existingTitles = new Set(existingSubtasks.map(st => st.title.toLowerCase().trim()));
-
-        const createdSubtasks = [];
-        for (const subtask of subtasksToCreate) {
-          // タイトルが重複する場合はスキップ
-          const normalizedTitle = subtask.title.toLowerCase().trim();
-          if (existingTitles.has(normalizedTitle)) {
-            console.log(`[approvals] Skipping duplicate subtask: ${subtask.title}`);
-            continue;
-          }
-          existingTitles.add(normalizedTitle);
-
-          const created = await prisma.task.create({
-            data: {
-              title: subtask.title,
-              description: subtask.description,
-              priority: subtask.priority,
-              estimatedHours: subtask.estimatedHours,
-              parentId: approval.config.taskId,
-              agentGenerated: true,
-            },
+        // トランザクションで重複チェックと作成を原子的に実行
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const createdSubtasks = await prisma.$transaction(async (tx: any) => {
+          // トランザクション内で既存サブタスクを取得
+          const existingSubtasks = await tx.task.findMany({
+            where: { parentId: approval.config.taskId },
+            select: { title: true },
           });
-          createdSubtasks.push(created);
-        }
+          const existingTitles = new Set(existingSubtasks.map((st: { title: string }) => st.title.toLowerCase().trim()));
+
+          const created = [];
+          for (const subtask of subtasksToCreate) {
+            // タイトルが重複する場合はスキップ
+            const normalizedTitle = subtask.title.toLowerCase().trim();
+            if (existingTitles.has(normalizedTitle)) {
+              console.log(`[approvals] Skipping duplicate subtask: ${subtask.title}`);
+              continue;
+            }
+            existingTitles.add(normalizedTitle);
+
+            const newSubtask = await tx.task.create({
+              data: {
+                title: subtask.title,
+                description: subtask.description,
+                priority: subtask.priority,
+                estimatedHours: subtask.estimatedHours,
+                parentId: approval.config.taskId,
+                agentGenerated: true,
+              },
+            });
+            created.push(newSubtask);
+          }
+          return created;
+        }, {
+          isolationLevel: 'Serializable', // 競合を防ぐための分離レベル
+        });
 
         await prisma.notification.create({
           data: {
@@ -995,7 +1002,7 @@ ${previousImplementation}
             where: { parentId: approval.config.taskId },
             select: { title: true },
           });
-          const existingTitles = new Set(existingSubtasks.map(st => st.title.toLowerCase().trim()));
+          const existingTitles = new Set(existingSubtasks.map((st: { title: string }) => st.title.toLowerCase().trim()));
 
           for (const subtask of proposedChanges?.subtasks || []) {
             // タイトルが重複する場合はスキップ

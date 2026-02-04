@@ -49,6 +49,8 @@ export type AgentTask = {
   analysisInfo?: TaskAnalysisInfo;
   /** 最適化されたプロンプト（AIによる構造化・最適化済み） */
   optimizedPrompt?: string;
+  /** Claude Code CLIのセッションID（--resumeで会話を継続するため） */
+  resumeSessionId?: string;
 };
 
 /**

@@ -335,8 +335,25 @@ export class ParallelExecutor extends EventEmitter {
       }
     });
 
-    // 実行を開始
-    await this.executeNextBatch(sessionId, nodes, workingDirectory);
+    // 実行を開始（非同期で実行し、APIレスポンスをブロックしない）
+    // setImmediateを使用してイベントループの次のティックで実行を開始
+    setImmediate(() => {
+      this.executeNextBatch(sessionId, nodes, workingDirectory).catch((error) => {
+        console.error(`[ParallelExecutor] Error in executeNextBatch:`, error);
+        // エラー発生時はセッションを失敗状態にする
+        const session = this.sessions.get(sessionId);
+        if (session && session.status === 'running') {
+          session.status = 'failed';
+          session.completedAt = new Date();
+          this.emitEvent({
+            type: 'session_failed',
+            sessionId,
+            timestamp: new Date(),
+            data: { error: error instanceof Error ? error.message : String(error) },
+          });
+        }
+      });
+    });
 
     return session;
   }
@@ -483,12 +500,35 @@ export class ParallelExecutor extends EventEmitter {
         dbMutex.release();
       }
 
+      // 以前の実行からセッションIDを取得（再実行の場合）
+      let previousSessionId: string | null = null;
+      try {
+        const previousExecution = await this.prisma.agentExecution.findFirst({
+          where: {
+            session: {
+              config: {
+                taskId: taskId, // サブタスク自体のID
+              },
+            },
+            claudeSessionId: { not: null },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (previousExecution?.claudeSessionId) {
+          previousSessionId = previousExecution.claudeSessionId;
+          console.log(`[ParallelExecutor] Found previous session for task ${taskId}: ${previousSessionId}`);
+        }
+      } catch (error) {
+        console.log(`[ParallelExecutor] No previous session found for task ${taskId}`);
+      }
+
       // タスクを実行
       const task: AgentTask = {
         id: taskId,
         title: node.title,
         description: node.description,
         workingDirectory,
+        resumeSessionId: previousSessionId || undefined,
       };
 
       const result = await this.agentController.executeTask(agentId, task);
@@ -506,9 +546,11 @@ export class ParallelExecutor extends EventEmitter {
               tokensUsed: result.tokensUsed || 0,
               executionTimeMs: result.executionTimeMs,
               errorMessage: result.errorMessage,
+              claudeSessionId: result.claudeSessionId || null,
             },
           });
         });
+        console.log(`[ParallelExecutor] Saved claudeSessionId for task ${taskId}: ${result.claudeSessionId || 'none'}`);
       } finally {
         dbMutex.release();
       }

@@ -158,23 +158,75 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
         isAiTaskAnalysis,
       } = body;
 
-      // サブタスク作成時の重複チェック（ガード節）
+      // サブタスク作成時はトランザクションで重複チェックと作成を原子的に実行
       if (parentId) {
-        const existingSubtask = await prisma.task.findFirst({
-          where: {
-            parentId,
-            title: {
-              equals: title,
-              mode: 'insensitive', // 大文字小文字を無視
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = await prisma.$transaction(async (tx: any) => {
+          // トランザクション内で重複チェック
+          const existingSubtask = await tx.task.findFirst({
+            where: {
+              parentId,
+              title: {
+                equals: title,
+                mode: 'insensitive', // 大文字小文字を無視
+              },
             },
-          },
-        });
+          });
 
-        if (existingSubtask) {
-          console.log(`[tasks] Duplicate subtask prevented: "${title}" already exists for parent ${parentId}`);
-          // 既存のサブタスクを返す（重複作成を防止）
-          return await prisma.task.findUnique({
-            where: { id: existingSubtask.id },
+          if (existingSubtask) {
+            console.log(`[tasks] Duplicate subtask prevented: "${title}" already exists for parent ${parentId}`);
+            // 既存のサブタスクを返す（重複作成を防止）
+            return await tx.task.findUnique({
+              where: { id: existingSubtask.id },
+              include: {
+                subtasks: true,
+                theme: true,
+                project: true,
+                milestone: true,
+                examGoal: true,
+                taskLabels: {
+                  include: {
+                    label: true,
+                  },
+                },
+              },
+            });
+          }
+
+          // トランザクション内でサブタスクを作成
+          const task = await tx.task.create({
+            data: {
+              title,
+              ...(description && { description }),
+              status: status ?? "todo",
+              // @ts-ignore
+              priority: priority ?? "medium",
+              ...(labels && { labels }),
+              ...(estimatedHours && { estimatedHours }),
+              ...(dueDate && { dueDate: new Date(dueDate) }),
+              ...(subject && { subject }),
+              parentId,
+              ...(projectId && { projectId }),
+              ...(milestoneId && { milestoneId }),
+              ...(themeId !== undefined && { themeId }),
+              ...(examGoalId !== undefined && { examGoalId }),
+              ...(isDeveloperMode !== undefined && { isDeveloperMode }),
+              ...(isAiTaskAnalysis !== undefined && { isAiTaskAnalysis }),
+            },
+          });
+
+          // Label associations
+          if (labelIds && labelIds.length > 0) {
+            await tx.taskLabel.createMany({
+              data: labelIds.map((labelId: number) => ({
+                taskId: task.id,
+                labelId,
+              })),
+            });
+          }
+
+          return await tx.task.findUnique({
+            where: { id: task.id },
             include: {
               subtasks: true,
               theme: true,
@@ -188,9 +240,14 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
               },
             },
           });
-        }
+        }, {
+          isolationLevel: 'Serializable', // 競合を防ぐための分離レベル
+        });
+
+        return result;
       }
 
+      // 親タスク作成（parentIdがない場合）
       const task = await prisma.task.create({
         data: {
           title,
@@ -202,7 +259,6 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
           ...(estimatedHours && { estimatedHours }),
           ...(dueDate && { dueDate: new Date(dueDate) }),
           ...(subject && { subject }),
-          ...(parentId && { parentId }),
           ...(projectId && { projectId }),
           ...(milestoneId && { milestoneId }),
           ...(themeId !== undefined && { themeId }),
@@ -506,4 +562,117 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
         ? `${affectedParents.length}件のタスクから${deletedIds.length}件の重複サブタスクを削除しました`
         : "重複サブタスクはありませんでした",
     };
-  });
+  })
+
+  // サブタスクの一括削除（特定のタスク配下のすべてのサブタスクを削除）
+  .delete("/:id/subtasks", async ({ params }: { params: { id: string } }) => {
+    const parentId = parseInt(params.id);
+    if (isNaN(parentId)) {
+      throw new ValidationError("無効なIDです");
+    }
+
+    // 親タスクの存在確認
+    const parentTask = await prisma.task.findUnique({
+      where: { id: parentId },
+    });
+
+    if (!parentTask) {
+      throw new ValidationError("タスクが見つかりません");
+    }
+
+    // サブタスクを取得して削除数を確認
+    const subtasks = await prisma.task.findMany({
+      where: { parentId },
+      select: { id: true },
+    });
+
+    const deletedCount = subtasks.length;
+
+    // 一括削除
+    await prisma.task.deleteMany({
+      where: { parentId },
+    });
+
+    console.log(`[tasks] Deleted all ${deletedCount} subtasks for parent task ${parentId}`);
+
+    return {
+      success: true,
+      deletedCount,
+      message: deletedCount > 0
+        ? `${deletedCount}件のサブタスクを削除しました`
+        : "削除するサブタスクがありませんでした",
+    };
+  })
+
+  // サブタスクの選択削除（指定されたIDのサブタスクを一括削除）
+  .post(
+    "/:id/subtasks/delete-selected",
+    async ({
+      params,
+      body,
+    }: {
+      params: { id: string };
+      body: { subtaskIds: number[] };
+    }) => {
+      const parentId = parseInt(params.id);
+      if (isNaN(parentId)) {
+        throw new ValidationError("無効なIDです");
+      }
+
+      const { subtaskIds } = body;
+
+      if (!subtaskIds || subtaskIds.length === 0) {
+        throw new ValidationError("削除するサブタスクが指定されていません");
+      }
+
+      // 親タスクの存在確認
+      const parentTask = await prisma.task.findUnique({
+        where: { id: parentId },
+      });
+
+      if (!parentTask) {
+        throw new ValidationError("タスクが見つかりません");
+      }
+
+      // 指定されたサブタスクが実際にこの親タスクに属しているか確認
+      const validSubtasks = await prisma.task.findMany({
+        where: {
+          id: { in: subtaskIds },
+          parentId,
+        },
+        select: { id: true },
+      });
+
+      const validIds = validSubtasks.map((s: { id: number }) => s.id);
+      const invalidIds = subtaskIds.filter((id) => !validIds.includes(id));
+
+      if (invalidIds.length > 0) {
+        console.warn(`[tasks] Some subtask IDs are invalid or don't belong to parent ${parentId}: ${invalidIds.join(", ")}`);
+      }
+
+      // 有効なサブタスクのみ削除
+      const deleteResult = await prisma.task.deleteMany({
+        where: {
+          id: { in: validIds },
+          parentId,
+        },
+      });
+
+      console.log(`[tasks] Deleted ${deleteResult.count} selected subtasks for parent task ${parentId}`);
+
+      return {
+        success: true,
+        deletedCount: deleteResult.count,
+        deletedIds: validIds,
+        invalidIds,
+        message: deleteResult.count > 0
+          ? `${deleteResult.count}件のサブタスクを削除しました`
+          : "削除するサブタスクがありませんでした",
+      };
+    },
+    {
+      body: t.Object({
+        subtaskIds: t.Array(t.Number()),
+      }),
+    }
+  );

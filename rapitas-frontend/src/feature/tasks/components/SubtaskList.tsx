@@ -9,7 +9,16 @@ import {
   statusConfig,
   renderStatusIcon,
 } from "@/feature/tasks/config/StatusConfig";
-import { Pencil, Check, X, Bot, Loader2 } from "lucide-react";
+import {
+  Pencil,
+  Check,
+  X,
+  Bot,
+  Loader2,
+  Trash2,
+  CheckSquare,
+  Square,
+} from "lucide-react";
 import {
   SubtaskTitleIndicator,
   type ParallelExecutionStatus,
@@ -31,11 +40,20 @@ interface SubtaskListProps {
   onSubtaskEstimatedHoursChange: (value: string) => void;
   onAddSubtask: () => void;
   onCancelAddingSubtask: () => void;
-  onUpdateSubtask?: (subtaskId: number, data: { title?: string; description?: string }) => void;
+  onUpdateSubtask?: (
+    subtaskId: number,
+    data: { title?: string; description?: string },
+  ) => void;
   /** 並列実行ステータスを取得する関数（サブタスクIDを渡すとステータスを返す） */
-  getExecutionStatus?: (subtaskId: number) => ParallelExecutionStatus | undefined;
+  getExecutionStatus?: (
+    subtaskId: number,
+  ) => ParallelExecutionStatus | undefined;
   /** 並列実行中かどうか */
   isParallelExecutionRunning?: boolean;
+  /** サブタスクの一括削除 */
+  onDeleteAllSubtasks?: () => void;
+  /** サブタスクの選択削除 */
+  onDeleteSelectedSubtasks?: (subtaskIds: number[]) => void;
 }
 
 export default function SubtaskList({
@@ -57,10 +75,19 @@ export default function SubtaskList({
   onUpdateSubtask,
   getExecutionStatus,
   isParallelExecutionRunning = false,
+  onDeleteAllSubtasks,
+  onDeleteSelectedSubtasks,
 }: SubtaskListProps) {
   const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [editingDescription, setEditingDescription] = useState("");
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<Set<number>>(
+    new Set(),
+  );
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<
+    "all" | "selected" | null
+  >(null);
 
   const completedSubtasks = subtasks.filter((s) => s.status === "done") || [];
   const activeSubtasks = subtasks.filter((s) => s.status !== "done") || [];
@@ -92,6 +119,49 @@ export default function SubtaskList({
     }
   };
 
+  const toggleSelectionMode = () => {
+    if (isSelectionMode) {
+      setSelectedSubtaskIds(new Set());
+    }
+    setIsSelectionMode(!isSelectionMode);
+  };
+
+  const toggleSubtaskSelection = (subtaskId: number) => {
+    setSelectedSubtaskIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(subtaskId)) {
+        newSet.delete(subtaskId);
+      } else {
+        newSet.add(subtaskId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllSubtasks = () => {
+    setSelectedSubtaskIds(new Set(subtasks.map((s) => s.id)));
+  };
+
+  const deselectAllSubtasks = () => {
+    setSelectedSubtaskIds(new Set());
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedSubtaskIds.size > 0 && onDeleteSelectedSubtasks) {
+      onDeleteSelectedSubtasks(Array.from(selectedSubtaskIds));
+      setSelectedSubtaskIds(new Set());
+      setIsSelectionMode(false);
+      setShowDeleteConfirm(null);
+    }
+  };
+
+  const handleDeleteAll = () => {
+    if (onDeleteAllSubtasks) {
+      onDeleteAllSubtasks();
+      setShowDeleteConfirm(null);
+    }
+  };
+
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-8">
       <div className="mb-6">
@@ -104,7 +174,101 @@ export default function SubtaskList({
               </span>
             )}
           </h2>
+          {/* 削除操作ボタン */}
+          {totalSubtasks > 0 &&
+            (onDeleteAllSubtasks || onDeleteSelectedSubtasks) && (
+              <div className="flex items-center gap-2">
+                {/* 選択モード切り替え */}
+                {onDeleteSelectedSubtasks && (
+                  <button
+                    onClick={toggleSelectionMode}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                      isSelectionMode
+                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                        : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    {isSelectionMode ? (
+                      <>
+                        <X className="w-4 h-4" />
+                        選択解除
+                      </>
+                    ) : (
+                      <>
+                        <CheckSquare className="w-4 h-4" />
+                        選択
+                      </>
+                    )}
+                  </button>
+                )}
+                {/* 選択モード時の操作 */}
+                {isSelectionMode && (
+                  <>
+                    <button
+                      onClick={
+                        selectedSubtaskIds.size === totalSubtasks
+                          ? deselectAllSubtasks
+                          : selectAllSubtasks
+                      }
+                      className="px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                    >
+                      {selectedSubtaskIds.size === totalSubtasks
+                        ? "全解除"
+                        : "全選択"}
+                    </button>
+                    {selectedSubtaskIds.size > 0 && (
+                      <button
+                        onClick={() => setShowDeleteConfirm("selected")}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {selectedSubtaskIds.size}件削除
+                      </button>
+                    )}
+                  </>
+                )}
+                {/* 一括削除ボタン */}
+                {!isSelectionMode && onDeleteAllSubtasks && (
+                  <button
+                    onClick={() => setShowDeleteConfirm("all")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    全削除
+                  </button>
+                )}
+              </div>
+            )}
         </div>
+
+        {/* 削除確認ダイアログ */}
+        {showDeleteConfirm && (
+          <div className="mb-4 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-sm text-red-700 dark:text-red-300 mb-3">
+              {showDeleteConfirm === "all"
+                ? `すべてのサブタスク（${totalSubtasks}件）を削除しますか？この操作は取り消せません。`
+                : `選択した${selectedSubtaskIds.size}件のサブタスクを削除しますか？この操作は取り消せません。`}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={
+                  showDeleteConfirm === "all"
+                    ? handleDeleteAll
+                    : handleDeleteSelected
+                }
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                削除する
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 進行状況バー */}
         {totalSubtasks > 0 && (
@@ -133,8 +297,28 @@ export default function SubtaskList({
             {activeSubtasks.map((subtask) => (
               <div
                 key={subtask.id}
-                className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-4"
+                className={`rounded-lg border bg-zinc-50 dark:bg-zinc-800 p-4 ${
+                  isSelectionMode && selectedSubtaskIds.has(subtask.id)
+                    ? "border-blue-500 dark:border-blue-400 ring-1 ring-blue-500 dark:ring-blue-400"
+                    : "border-zinc-200 dark:border-zinc-700"
+                }`}
               >
+                {/* 選択モード時のチェックボックス */}
+                {isSelectionMode && (
+                  <div className="flex items-center mb-3">
+                    <button
+                      onClick={() => toggleSubtaskSelection(subtask.id)}
+                      className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
+                    >
+                      {selectedSubtaskIds.has(subtask.id) ? (
+                        <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      ) : (
+                        <Square className="w-5 h-5" />
+                      )}
+                      <span>選択</span>
+                    </button>
+                  </div>
+                )}
                 {editingSubtaskId === subtask.id ? (
                   /* 編集モード */
                   <div className="space-y-3">
@@ -205,20 +389,24 @@ export default function SubtaskList({
                       </div>
                       <div className="flex items-center gap-1 ml-4 shrink-0">
                         {/* ステータス変更ボタン（コンパクト版） */}
-                        {(["todo", "in-progress", "done"] as const).map((status) => {
-                          const config = statusConfig[status];
-                          return (
-                            <TaskStatusChange
-                              key={status}
-                              status={status}
-                              currentStatus={subtask.status}
-                              config={config}
-                              renderIcon={renderStatusIcon}
-                              onClick={(newStatus) => onStatusUpdate(subtask.id, newStatus)}
-                              size="sm"
-                            />
-                          );
-                        })}
+                        {(["todo", "in-progress", "done"] as const).map(
+                          (status) => {
+                            const config = statusConfig[status];
+                            return (
+                              <TaskStatusChange
+                                key={status}
+                                status={status}
+                                currentStatus={subtask.status}
+                                config={config}
+                                renderIcon={renderStatusIcon}
+                                onClick={(newStatus) =>
+                                  onStatusUpdate(subtask.id, newStatus)
+                                }
+                                size="sm"
+                              />
+                            );
+                          },
+                        )}
                         {/* 編集ボタン */}
                         {onUpdateSubtask && (
                           <button
@@ -300,10 +488,27 @@ export default function SubtaskList({
             {completedSubtasks.map((subtask) => (
               <div
                 key={subtask.id}
-                className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3 opacity-60"
+                className={`rounded-lg border bg-zinc-50 dark:bg-zinc-800 p-3 opacity-60 ${
+                  isSelectionMode && selectedSubtaskIds.has(subtask.id)
+                    ? "border-blue-500 dark:border-blue-400 ring-1 ring-blue-500 dark:ring-blue-400 opacity-100"
+                    : "border-zinc-200 dark:border-zinc-700"
+                }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 flex-1">
+                    {/* 選択モード時のチェックボックス */}
+                    {isSelectionMode && (
+                      <button
+                        onClick={() => toggleSubtaskSelection(subtask.id)}
+                        className="shrink-0"
+                      >
+                        {selectedSubtaskIds.has(subtask.id) ? (
+                          <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        ) : (
+                          <Square className="w-5 h-5 text-zinc-400" />
+                        )}
+                      </button>
+                    )}
                     {/* 並列実行ステータスインジケーター（完了タスクでも表示） */}
                     {isParallelExecutionRunning && getExecutionStatus && (
                       <SubtaskTitleIndicator
@@ -324,20 +529,24 @@ export default function SubtaskList({
                   </div>
                   <div className="flex items-center gap-1 ml-4">
                     {/* ステータス変更ボタン（コンパクト版） */}
-                    {(["todo", "in-progress", "done"] as const).map((status) => {
-                      const config = statusConfig[status];
-                      return (
-                        <TaskStatusChange
-                          key={status}
-                          status={status}
-                          currentStatus={subtask.status}
-                          config={config}
-                          renderIcon={renderStatusIcon}
-                          onClick={(newStatus) => onStatusUpdate(subtask.id, newStatus)}
-                          size="sm"
-                        />
-                      );
-                    })}
+                    {(["todo", "in-progress", "done"] as const).map(
+                      (status) => {
+                        const config = statusConfig[status];
+                        return (
+                          <TaskStatusChange
+                            key={status}
+                            status={status}
+                            currentStatus={subtask.status}
+                            config={config}
+                            renderIcon={renderStatusIcon}
+                            onClick={(newStatus) =>
+                              onStatusUpdate(subtask.id, newStatus)
+                            }
+                            size="sm"
+                          />
+                        );
+                      },
+                    )}
                     {/* 編集ボタン */}
                     {onUpdateSubtask && (
                       <button
@@ -420,7 +629,9 @@ export default function SubtaskList({
                   className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="見積もり時間（h）"
                   value={subtaskEstimatedHours}
-                  onChange={(e) => onSubtaskEstimatedHoursChange(e.target.value)}
+                  onChange={(e) =>
+                    onSubtaskEstimatedHoursChange(e.target.value)
+                  }
                 />
               </div>
 

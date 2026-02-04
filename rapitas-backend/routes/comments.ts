@@ -372,11 +372,10 @@ export const commentsRoutes = new Elysia()
       const searchLimit = limit ? parseInt(limit) : 20;
       const excludeCommentId = excludeId ? parseInt(excludeId) : undefined;
 
-      const whereClause: {
-        id?: { not: number };
-        taskId?: number;
-        content?: { contains: string; mode: "insensitive" };
-      } = {};
+      // Build where clause - only search parent comments (not replies)
+      const whereClause: Record<string, unknown> = {
+        parentId: null, // Only parent comments
+      };
 
       if (excludeCommentId) {
         whereClause.id = { not: excludeCommentId };
@@ -386,6 +385,7 @@ export const commentsRoutes = new Elysia()
         whereClause.taskId = parseInt(taskId);
       }
 
+      // If search query provided, filter by content
       if (q && q.trim()) {
         whereClause.content = { contains: q.trim(), mode: "insensitive" };
       }

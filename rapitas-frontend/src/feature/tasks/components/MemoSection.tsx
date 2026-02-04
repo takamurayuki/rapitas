@@ -1,11 +1,10 @@
 "use client";
 
-import { useMemo, useRef, useState, memo, useCallback, useEffect } from "react";
+import { useMemo, useState, memo, useCallback, useEffect } from "react";
 import {
   Plus,
   Trash2,
   Pencil,
-  Check,
   X,
   Link2,
   Search,
@@ -38,9 +37,7 @@ type Props = {
   comments: Comment[];
   newComment: string;
   isAddingComment: boolean;
-  isExpanded: boolean;
   taskId: number;
-  onToggleExpand: () => void;
   onNewCommentChange: (v: string) => void;
   onAddComment: (content?: string, parentId?: number) => void;
   onUpdateComment: (id: number, content: string) => Promise<void>;
@@ -100,7 +97,6 @@ const Note = memo(function Note({
   const isEdit = editId === note.id;
   const isReply = replyId === note.id;
   const hasReplies = note.replies && note.replies.length > 0;
-  // 深い階層でのインデントを制限（最大4段階）
   const indent = Math.min(depth, 4);
 
   return (
@@ -111,7 +107,6 @@ const Note = memo(function Note({
       }
     >
       <div className="group flex gap-1.5 py-1">
-        {/* 折りたたみボタン（返信がある場合） */}
         {hasReplies ? (
           <button
             onClick={() => setCollapsed(!collapsed)}
@@ -155,7 +150,6 @@ const Note = memo(function Note({
             </div>
           ) : (
             <>
-              {/* Content - 1行で表示、クリックで全文 */}
               <div className="text-[11px] text-zinc-700 dark:text-zinc-300 leading-tight line-clamp-2 [&>p]:inline">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
@@ -165,7 +159,6 @@ const Note = memo(function Note({
                 </ReactMarkdown>
               </div>
 
-              {/* Links - インライン表示 */}
               {note.links && note.links.length > 0 && (
                 <div className="flex flex-wrap gap-0.5 mt-0.5">
                   {note.links.map((l) => (
@@ -188,7 +181,6 @@ const Note = memo(function Note({
                 </div>
               )}
 
-              {/* Meta row */}
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="text-[9px] text-zinc-400">{note.time}</span>
                 {hasReplies && (
@@ -229,7 +221,6 @@ const Note = memo(function Note({
                 </div>
               </div>
 
-              {/* Reply input */}
               {isReply && (
                 <div className="flex gap-1 mt-1">
                   <input
@@ -259,7 +250,6 @@ const Note = memo(function Note({
         </div>
       </div>
 
-      {/* Nested replies */}
       {hasReplies &&
         !collapsed &&
         note.replies!.map((r) => (
@@ -398,13 +388,11 @@ const LinkModal = memo(function LinkModal({
 });
 
 // Main
-export default function CommentsSection({
+export default function MemoSection({
   comments,
   newComment,
   isAddingComment,
-  isExpanded,
   taskId,
-  onToggleExpand,
   onNewCommentChange,
   onAddComment,
   onUpdateComment,
@@ -450,13 +438,6 @@ export default function CommentsSection({
     };
     return comments.filter((c) => !c.parentId).map(process);
   }, [comments]);
-
-  const count = comments.filter((c) => !c.parentId).length;
-  const replyCount = comments.filter((c) => c.parentId).length;
-  const linkCount = comments.reduce(
-    (sum, c) => sum + (c.linksFrom?.length || 0),
-    0,
-  );
 
   const handleEdit = useCallback((n: NoteData) => {
     setEditId(n.id);
@@ -507,121 +488,61 @@ export default function CommentsSection({
   };
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
-      {/* Header - AIアシスタントと同じviolet系 */}
-      <div className="px-4 py-2.5 bg-linear-to-r from-violet-50 via-indigo-50 to-purple-50 dark:from-violet-950/30 dark:via-indigo-950/30 dark:to-purple-950/30 border-b border-zinc-200 dark:border-zinc-700">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-violet-100 dark:bg-violet-900/40 rounded-lg">
-            <MessageSquare className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="font-bold text-xs text-zinc-900 dark:text-zinc-50">
-              メモ
-            </h2>
-            <p className="text-[9px] text-zinc-500 dark:text-zinc-400">
-              アイデア・気づき
-            </p>
-          </div>
-          <div className="flex items-center gap-1">
-            {count > 0 && (
-              <span className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-full text-[9px] font-medium">
-                {count}
-              </span>
-            )}
-            {replyCount > 0 && (
-              <span className="px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 rounded-full text-[9px]">
-                +{replyCount}
-              </span>
-            )}
-            {linkCount > 0 && (
-              <span className="flex items-center gap-0.5 px-1 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full text-[9px]">
-                <Link2 className="w-2 h-2" />
-                {linkCount}
-              </span>
-            )}
-          </div>
-        </div>
+    <div>
+      {/* Input */}
+      <div className="flex gap-1.5 mb-2">
+        <input
+          value={newComment}
+          onChange={(e) => onNewCommentChange(e.target.value)}
+          onKeyDown={(e) =>
+            e.key === "Enter" && (e.preventDefault(), handleSubmit())
+          }
+          placeholder="メモを追加..."
+          className="flex-1 px-2 py-1.5 text-[11px] bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-violet-400 placeholder:text-zinc-400"
+          disabled={isAddingComment}
+        />
+        <button
+          onClick={handleSubmit}
+          disabled={!newComment.trim() || isAddingComment}
+          className="px-2.5 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg disabled:opacity-40 transition-colors"
+        >
+          {isAddingComment ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <Plus className="w-3 h-3" />
+          )}
+        </button>
       </div>
 
-      {/* Accordion */}
-      <button
-        onClick={onToggleExpand}
-        className="w-full px-4 py-2 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors border-b border-zinc-100 dark:border-zinc-800"
-      >
-        <div className="flex items-center gap-1.5">
-          <MessageSquare className="w-3.5 h-3.5 text-violet-500" />
-          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-            メモ一覧
-          </span>
-          {count === 0 && (
-            <span className="text-[9px] text-zinc-400">なし</span>
-          )}
-        </div>
-        {isExpanded ? (
-          <ChevronUp className="w-3.5 h-3.5 text-zinc-400" />
-        ) : (
-          <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
-        )}
-      </button>
-
-      {isExpanded && (
-        <div className="px-3 pb-2">
-          {/* Input */}
-          <div className="flex gap-1.5 py-2">
-            <input
-              value={newComment}
-              onChange={(e) => onNewCommentChange(e.target.value)}
-              onKeyDown={(e) =>
-                e.key === "Enter" && (e.preventDefault(), handleSubmit())
-              }
-              placeholder="メモを追加..."
-              className="flex-1 px-2 py-1.5 text-[11px] bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-violet-400 placeholder:text-zinc-400"
-              disabled={isAddingComment}
+      {/* Notes */}
+      {notes.length > 0 ? (
+        <div className="space-y-0.5 max-h-64 overflow-y-auto">
+          {notes.map((n) => (
+            <Note
+              key={n.id}
+              note={n}
+              editId={editId}
+              editText={editText}
+              replyId={replyId}
+              replyText={replyText}
+              onEdit={handleEdit}
+              onEditText={setEditText}
+              onSave={handleSave}
+              onCancel={handleCancel}
+              onDelete={onDeleteComment}
+              onReply={handleReply}
+              onReplyText={setReplyText}
+              onReplySubmit={handleReplySubmit}
+              onReplyCancel={handleReplyCancel}
+              onLink={handleLink}
+              onUnlink={handleUnlink}
             />
-            <button
-              onClick={handleSubmit}
-              disabled={!newComment.trim() || isAddingComment}
-              className="px-2.5 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg disabled:opacity-40 transition-colors"
-            >
-              {isAddingComment ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <Plus className="w-3 h-3" />
-              )}
-            </button>
-          </div>
-
-          {/* Notes */}
-          {notes.length > 0 ? (
-            <div className="space-y-0.5 max-h-64 overflow-y-auto">
-              {notes.map((n) => (
-                <Note
-                  key={n.id}
-                  note={n}
-                  editId={editId}
-                  editText={editText}
-                  replyId={replyId}
-                  replyText={replyText}
-                  onEdit={handleEdit}
-                  onEditText={setEditText}
-                  onSave={handleSave}
-                  onCancel={handleCancel}
-                  onDelete={onDeleteComment}
-                  onReply={handleReply}
-                  onReplyText={setReplyText}
-                  onReplySubmit={handleReplySubmit}
-                  onReplyCancel={handleReplyCancel}
-                  onLink={handleLink}
-                  onUnlink={handleUnlink}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-3">
-              <MessageSquare className="w-5 h-5 text-zinc-300 dark:text-zinc-600 mx-auto mb-1" />
-              <p className="text-[9px] text-zinc-400">メモを追加</p>
-            </div>
-          )}
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-3">
+          <MessageSquare className="w-5 h-5 text-zinc-300 dark:text-zinc-600 mx-auto mb-1" />
+          <p className="text-[9px] text-zinc-400">メモを追加してアイデアを記録</p>
         </div>
       )}
 
