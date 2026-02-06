@@ -34,11 +34,13 @@ import type {
   TaskAnalysisResult,
   Resource,
   Task,
+  AIAgentConfig,
 } from "@/types";
 import type {
   ExecutionStatus,
   ExecutionResult,
 } from "../hooks/useDeveloperMode";
+import { TerminalPanel } from "./TerminalPanel";
 import {
   useExecutionPolling,
   useExecutionStream,
@@ -104,11 +106,16 @@ type Props = {
   useTaskAnalysis?: boolean;
   optimizedPrompt?: string | null;
   resources?: Resource[];
+  agentConfigId?: number | null;
+  // TerminalPanel props
+  agents?: AIAgentConfig[];
+  onAgentChange?: (agentId: number) => void;
   onExecute: (options?: {
     instruction?: string;
     branchName?: string;
     useTaskAnalysis?: boolean;
     optimizedPrompt?: string;
+    agentConfigId?: number;
     attachments?: Array<{
       id: number;
       title: string;
@@ -131,16 +138,21 @@ type Props = {
   onStopExecution?: () => void;
   // 並列実行関連
   subtasks?: Task[];
-  onStartParallelExecution?: (config?: { maxConcurrentAgents?: number }) => Promise<string | null>;
+  onStartParallelExecution?: (config?: {
+    maxConcurrentAgents?: number;
+  }) => Promise<string | null>;
   isParallelExecutionRunning?: boolean;
   getSubtaskStatus?: (subtaskId: number) => ParallelExecutionStatus | undefined;
   // 並列実行ログ関連
   parallelSessionId?: string | null;
-  subtaskLogs?: Map<number, { logs: Array<{ timestamp: string; message: string; level: string }> }>;
+  subtaskLogs?: Map<
+    number,
+    { logs: Array<{ timestamp: string; message: string; level: string }> }
+  >;
   onRefreshSubtaskLogs?: (taskId?: number) => void;
 };
 
-type AccordionSection = "analysis" | "execution";
+type AccordionSection = "analysis" | "execution" | "terminal";
 type AnalysisTabType = "subtasks" | "prompt";
 
 export function AIAccordionPanel({
@@ -169,7 +181,10 @@ export function AIAccordionPanel({
   executionError,
   useTaskAnalysis,
   optimizedPrompt,
+  agentConfigId,
   resources,
+  agents,
+  onAgentChange,
   onExecute,
   onReset,
   onRestoreExecutionState,
@@ -458,6 +473,7 @@ export function AIAccordionPanel({
       branchName: branchName.trim() || undefined,
       useTaskAnalysis,
       optimizedPrompt: optimizedPrompt || undefined,
+      agentConfigId: agentConfigId ?? undefined,
       attachments:
         attachments && attachments.length > 0 ? attachments : undefined,
     });
@@ -506,7 +522,8 @@ export function AIAccordionPanel({
 
   const handleSendResponse = async () => {
     const trimmedResponse = userResponse.trim();
-    if (!trimmedResponse || isSendingResponse || sendingResponseRef.current) return;
+    if (!trimmedResponse || isSendingResponse || sendingResponseRef.current)
+      return;
 
     // 即座にrefをセットして重複送信を防止
     sendingResponseRef.current = true;
@@ -659,7 +676,7 @@ export function AIAccordionPanel({
 
   return (
     <div
-      className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden"
+      className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden"
       role="region"
       aria-label="AI アシスタントパネル"
     >
@@ -1457,6 +1474,50 @@ export function AIAccordionPanel({
                   </div>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ターミナルパネル */}
+      {showAgentPanel && agents && agents.length > 0 && (
+        <div className="border-t border-zinc-100 dark:border-zinc-800">
+          <button
+            onClick={() => toggleSection("terminal")}
+            className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+            aria-expanded={expandedSection === "terminal"}
+            aria-controls="terminal-section-content"
+          >
+            <div className="flex items-center gap-2">
+              <Terminal className="w-4 h-4 text-green-500" />
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                ターミナル
+              </span>
+            </div>
+            {expandedSection === "terminal" ? (
+              <ChevronUp className="w-4 h-4 text-zinc-400" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-zinc-400" />
+            )}
+          </button>
+
+          {expandedSection === "terminal" && (
+            <div id="terminal-section-content" className="px-4 pb-3">
+              <TerminalPanel
+                taskId={taskId}
+                agents={agents}
+                selectedAgentId={agentConfigId ?? null}
+                onAgentChange={onAgentChange ?? (() => {})}
+                isExecuting={isExecuting}
+                executionStatus={executionStatus}
+                executionResult={executionResult}
+                onExecute={onExecute}
+                onReset={onReset}
+                onStopExecution={onStopExecution}
+                onRestoreExecutionState={onRestoreExecutionState}
+                optimizedPrompt={optimizedPrompt}
+                useTaskAnalysis={useTaskAnalysis}
+              />
             </div>
           )}
         </div>

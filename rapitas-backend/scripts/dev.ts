@@ -50,15 +50,36 @@ const log = {
   error: (msg: string) => console.log(`\x1b[31m[DEV]\x1b[0m ${msg}`),
 };
 
+// サーバープロセスを強制終了（開発用：グレースフルシャットダウンを待たない）
+async function killServerProcess(): Promise<void> {
+  if (!serverProcess) return;
+
+  const proc = serverProcess;
+  serverProcess = null;
+
+  // まずSIGTERMを送信
+  proc.kill();
+
+  // 2秒以内に終了しなければ強制終了
+  const forceKillTimeout = setTimeout(() => {
+    try {
+      proc.kill(9); // SIGKILL
+      log.warn("サーバーを強制終了しました（シャットダウンタイムアウト）");
+    } catch {
+      // 既に終了している
+    }
+  }, 2000);
+
+  await proc.exited;
+  clearTimeout(forceKillTimeout);
+}
+
 // サーバープロセスを開始
 async function startServer() {
   if (serverProcess) {
     log.info("サーバーを停止中...");
-    serverProcess.kill();
-    // プロセスが完全に終了するまで待機
-    await serverProcess.exited;
+    await killServerProcess();
     log.info("サーバーが停止しました");
-    serverProcess = null;
   }
 
   log.info("サーバーを起動中...");
@@ -134,8 +155,7 @@ function scheduleRestart() {
 
 // TypeScriptファイルの監視
 function watchTypeScriptFiles() {
-  const servicesDir = join(ROOT_DIR, "services");
-  const utilsDir = join(ROOT_DIR, "utils");
+  const watchDirs = ["services", "utils", "routes", "config", "middleware"];
 
   // index.ts を監視
   watch(INDEX_FILE, (eventType) => {
@@ -145,27 +165,23 @@ function watchTypeScriptFiles() {
     }
   });
 
-  // services ディレクトリを監視
-  watch(servicesDir, { recursive: true }, (eventType, filename) => {
-    if (filename?.endsWith(".ts")) {
-      log.info(`services/${filename} の変更を検出`);
-      scheduleRestart();
+  // 各ディレクトリを監視
+  for (const dirName of watchDirs) {
+    const dirPath = join(ROOT_DIR, dirName);
+    try {
+      watch(dirPath, { recursive: true }, (eventType, filename) => {
+        if (filename?.endsWith(".ts")) {
+          log.info(`${dirName}/${filename} の変更を検出`);
+          scheduleRestart();
+        }
+      });
+    } catch {
+      // ディレクトリが存在しない場合は無視
     }
-  });
-
-  // utils ディレクトリを監視（存在する場合）
-  try {
-    watch(utilsDir, { recursive: true }, (eventType, filename) => {
-      if (filename?.endsWith(".ts")) {
-        log.info(`utils/${filename} の変更を検出`);
-        scheduleRestart();
-      }
-    });
-  } catch {
-    // utils ディレクトリが存在しない場合は無視
   }
 
   log.info("TypeScriptファイルの監視を開始");
+  log.info(`監視対象: index.ts, ${watchDirs.join(", ")}`);
 }
 
 // Prismaスキーマの監視

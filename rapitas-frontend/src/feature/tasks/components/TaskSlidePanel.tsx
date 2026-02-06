@@ -83,7 +83,7 @@ export default function TaskSlidePanel({
         }}
       >
         {/* ヘッダー */}
-        <div className="sticky top-0 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-6 py-4 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-white dark:bg-indigo-dark-900 border-b border-zinc-200 dark:border-zinc-800 px-6 py-4 flex items-center justify-between z-10">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
             タスク詳細
           </h2>

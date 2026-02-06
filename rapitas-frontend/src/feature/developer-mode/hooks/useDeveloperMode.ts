@@ -7,6 +7,7 @@ import type {
   AgentSession,
   ExecutionStatus,
   ExecutionResult,
+  AIAgentConfig,
 } from "@/types";
 import { API_BASE_URL } from "@/utils/api";
 
@@ -25,6 +26,8 @@ export function useDeveloperMode(taskId: number) {
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [agentConfigId, setAgentConfigId] = useState<number | null>(null);
+  const [agents, setAgents] = useState<AIAgentConfig[]>([]);
 
   const fetchConfig = useCallback(async () => {
     setIsLoading(true);
@@ -306,6 +309,7 @@ export function useDeveloperMode(taskId: number) {
       workingDirectory?: string;
       useTaskAnalysis?: boolean; // AIタスク分析を使用するか
       optimizedPrompt?: string; // 最適化されたプロンプト
+      agentConfigId?: number; // 使用するエージェント設定ID
       attachments?: Array<{
         id: number;
         title: string;
@@ -321,10 +325,15 @@ export function useDeveloperMode(taskId: number) {
       setExecutionResult(null);
       setError(null);
       try {
+        // agentConfigIdはoptions内の値を優先し、なければhookの状態値を使用
+        const requestBody = {
+          ...options,
+          agentConfigId: options?.agentConfigId ?? agentConfigId ?? undefined,
+        };
         const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/execute`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(options || {}),
+          body: JSON.stringify(requestBody),
         });
         const data = await res.json();
         if (res.ok) {
@@ -351,7 +360,7 @@ export function useDeveloperMode(taskId: number) {
         setIsExecuting(false);
       }
     },
-    [taskId]
+    [taskId, agentConfigId]
   );
 
   /**
@@ -411,6 +420,25 @@ export function useDeveloperMode(taskId: number) {
     setExecutionStatus("idle");
   }, []);
 
+  const fetchAgents = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/agents`);
+      if (res.ok) {
+        const data = await res.json();
+        const activeAgents = (data as AIAgentConfig[]).filter((a) => a.isActive);
+        setAgents(activeAgents);
+        if (!agentConfigId && activeAgents.length > 0) {
+          const defaultAgent = activeAgents.find((a) => a.isDefault);
+          if (defaultAgent) {
+            setAgentConfigId(defaultAgent.id);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch agents:", err);
+    }
+  }, [agentConfigId]);
+
   return {
     config,
     isLoading,
@@ -423,6 +451,10 @@ export function useDeveloperMode(taskId: number) {
     sessions,
     error,
     analysisError,
+    agentConfigId,
+    setAgentConfigId,
+    agents,
+    fetchAgents,
     fetchConfig,
     enableDeveloperMode,
     disableDeveloperMode,

@@ -519,7 +519,7 @@ export default function ThemesPage() {
 
         {/* 新規追加フォーム */}
         {isAdding && (
-          <div className="mb-6 rounded-xl border-2 border-purple-500 bg-white dark:bg-zinc-900 p-6 shadow-xl">
+          <div className="mb-6 rounded-xl border-2 border-purple-500 bg-white dark:bg-indigo-dark-900 p-6 shadow-xl">
             {renderForm(false)}
           </div>
         )}
@@ -528,7 +528,7 @@ export default function ThemesPage() {
         {loading ? (
           <LoadingSpinner color="purple" />
         ) : items.length === 0 ? (
-          <div className="text-center py-16 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
+          <div className="text-center py-16 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
             <SwatchBook className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
             <p className="text-lg font-medium mb-2">テーマがありません</p>
             <p className="text-sm mb-4">最初のテーマを作成してみましょう</p>
@@ -543,7 +543,7 @@ export default function ThemesPage() {
               .map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:shadow-lg transition-all overflow-hidden"
+                  className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900 hover:shadow-lg transition-all overflow-hidden"
                 >
                   {editingId === item.id ? (
                     <div className="p-6">

@@ -194,7 +194,7 @@ export const AccessibilityExample: React.FC = () => {
  */
 export const StatusCardDemo: React.FC = () => {
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-8">
+    <div className="min-h-screen bg-zinc-50 dark:bg-indigo-dark-900 py-8">
       <div className="max-w-4xl mx-auto px-4">
         <h1 className="text-2xl font-bold text-zinc-800 dark:text-zinc-100 mb-8">
           StatusCard コンポーネント デモ

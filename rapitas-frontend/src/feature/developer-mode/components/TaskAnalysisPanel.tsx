@@ -103,7 +103,7 @@ export function TaskAnalysisPanel({
               AI タスク分析
             </h3>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-              AIがタスクを分析し、効率的なサブタスクを提案します
+              AIがタスクを分析し、効率的なサブタスクを提案
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -133,7 +133,7 @@ export function TaskAnalysisPanel({
   // 分析中
   if (isAnalyzing) {
     return (
-      <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-8 border border-zinc-200 dark:border-zinc-700">
+      <div className="bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-xl p-8 border border-zinc-200 dark:border-zinc-700">
         <div className="flex flex-col items-center justify-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
@@ -182,7 +182,7 @@ export function TaskAnalysisPanel({
   // 分析結果
   if (analysisResult) {
     return (
-      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+      <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
         {/* ヘッダー */}
         <div className="px-6 py-4 bg-linear-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border-b border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center justify-between">
@@ -261,7 +261,7 @@ export function TaskAnalysisPanel({
 
         {/* 理由・ヒント */}
         {(analysisResult.reasoning || analysisResult.tips?.length) && (
-          <div className="px-6 py-4 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-800">
+          <div className="px-6 py-4 bg-zinc-50 dark:bg-indigo-dark-800/50 border-t border-zinc-200 dark:border-zinc-800">
             {analysisResult.reasoning && (
               <div className="mb-3">
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">

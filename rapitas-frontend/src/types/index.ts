@@ -156,6 +156,8 @@ export type Task = {
   agentExecutable?: boolean;
   executionInstructions?: string | null;
   developerModeConfig?: DeveloperModeConfig | null;
+  taskAnalysisConfig?: TaskAnalysisConfig | null;
+  agentExecutionConfig?: AgentExecutionConfig | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -557,6 +559,13 @@ export type Notification = {
   createdAt: string;
 };
 
+export type ApiProvider = "claude" | "chatgpt" | "gemini";
+
+export type ApiKeyStatus = {
+  configured: boolean;
+  maskedKey: string | null;
+};
+
 export type UserSettings = {
   id: number;
   aiTaskAnalysisDefault: boolean;
@@ -572,13 +581,15 @@ export type UserSettings = {
 // AI エージェント設定
 export type AIAgentConfig = {
   id: number;
-  agentType: string; // claude-code, codex, gemini, custom
+  agentType: string; // claude-code, anthropic-api, openai, azure-openai, gemini, custom
   name: string;
   endpoint?: string | null;
   modelId?: string | null;
   isDefault: boolean;
   isActive: boolean;
   capabilities: AgentCapability;
+  hasApiKey?: boolean;
+  maskedApiKey?: string | null;
   createdAt: string;
   updatedAt: string;
   _count?: { executions: number };
@@ -594,7 +605,43 @@ export type AgentCapability = {
   webSearch?: boolean;
 };
 
-export type AgentType = "claude-code" | "codex" | "gemini" | "custom";
+export type AgentType = "claude-code" | "codex" | "gemini" | "custom" | "openai" | "azure-openai";
+
+// エージェント設定フィールドのスキーマ
+export type ConfigFieldSchema = {
+  name: string;
+  label: string;
+  type: "text" | "password" | "url" | "select" | "number" | "boolean";
+  description?: string;
+  required?: boolean;
+  placeholder?: string;
+  options?: Array<{ value: string; label: string }>;
+  validation?: {
+    pattern?: string;
+    minLength?: number;
+    maxLength?: number;
+    min?: number;
+    max?: number;
+  };
+};
+
+// エージェント設定スキーマ
+export type AgentConfigSchema = {
+  agentType: string;
+  displayName: string;
+  description: string;
+  apiKeyRequired: boolean;
+  apiKeyLabel?: string;
+  apiKeyPrefix?: string;
+  apiKeyPlaceholder?: string;
+  endpointRequired: boolean;
+  defaultEndpoint?: string;
+  modelRequired: boolean;
+  availableModels?: Array<{ value: string; label: string }>;
+  defaultModel?: string;
+  additionalFields?: ConfigFieldSchema[];
+  capabilities: AgentCapability;
+};
 
 // エージェント実行
 export type AgentExecution = {
@@ -852,3 +899,99 @@ export type AIServiceResponse = {
   message?: string;
   error?: string;
 };
+
+// ==================== タスク分析設定 ====================
+
+export type AnalysisDepth = "quick" | "standard" | "deep";
+export type PriorityStrategy = "aggressive" | "balanced" | "conservative";
+export type PromptStrategy = "auto" | "detailed" | "concise" | "custom";
+
+export type TaskAnalysisConfig = {
+  id: number;
+  taskId: number;
+
+  // 分析パラメータ
+  analysisDepth: AnalysisDepth;
+  maxSubtasks: number;
+  priorityStrategy: PriorityStrategy;
+  includeEstimates: boolean;
+  includeDependencies: boolean;
+  includeTips: boolean;
+
+  // モデル・プロバイダ設定
+  agentConfigId?: number | null;
+  agentConfig?: Pick<AIAgentConfig, "id" | "agentType" | "name" | "modelId" | "isActive"> | null;
+  modelOverride?: string | null;
+  maxTokens?: number | null;
+  temperature?: number | null;
+
+  // プロンプト戦略
+  promptStrategy: PromptStrategy;
+  customPromptTemplate?: string | null;
+  contextInstructions?: string | null;
+
+  // 自動化設定
+  autoApproveSubtasks: boolean;
+  autoOptimizePrompt: boolean;
+  notifyOnComplete: boolean;
+
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TaskAnalysisConfigInput = Partial<
+  Omit<TaskAnalysisConfig, "id" | "taskId" | "agentConfig" | "createdAt" | "updatedAt">
+>;
+
+// ==================== エージェント実行設定 ====================
+
+export type BranchStrategy = "auto" | "manual" | "none";
+export type ApprovalMode = "always" | "major_only" | "never";
+export type ReviewScope = "changes" | "full" | "none";
+
+export type AgentExecutionConfig = {
+  id: number;
+  taskId: number;
+
+  // エージェント選択
+  agentConfigId?: number | null;
+  agentConfig?: Pick<AIAgentConfig, "id" | "agentType" | "name" | "modelId" | "isActive"> | null;
+
+  // 実行環境設定
+  workingDirectory?: string | null;
+  timeoutMs: number;
+  maxRetries: number;
+
+  // Git設定
+  branchStrategy: BranchStrategy;
+  branchPrefix: string;
+  autoCommit: boolean;
+  autoCreatePR: boolean;
+
+  // 実行制御
+  requireApproval: ApprovalMode;
+  autoExecuteOnAnalysis: boolean;
+  parallelExecution: boolean;
+  maxConcurrentAgents: number;
+
+  // プロンプト設定
+  useOptimizedPrompt: boolean;
+  additionalInstructions?: string | null;
+
+  // コードレビュー設定
+  autoCodeReview: boolean;
+  reviewScope: ReviewScope;
+
+  // 通知設定
+  notifyOnStart: boolean;
+  notifyOnComplete: boolean;
+  notifyOnError: boolean;
+  notifyOnQuestion: boolean;
+
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AgentExecutionConfigInput = Partial<
+  Omit<AgentExecutionConfig, "id" | "taskId" | "agentConfig" | "createdAt" | "updatedAt">
+>;

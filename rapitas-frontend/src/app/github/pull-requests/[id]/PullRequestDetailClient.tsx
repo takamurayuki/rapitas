@@ -381,7 +381,7 @@ export default function PullRequestDetailClient() {
                   </button>
                   {expandedFiles.has(file.filename) && file.patch && (
                     <div className="border-t border-zinc-200 dark:border-zinc-700">
-                      <pre className="p-4 text-xs font-mono overflow-x-auto bg-zinc-50 dark:bg-zinc-900">
+                      <pre className="p-4 text-xs font-mono overflow-x-auto bg-zinc-50 dark:bg-indigo-dark-900">
                         {file.patch.split("\n").map((line, i) => (
                           <div
                             key={i}

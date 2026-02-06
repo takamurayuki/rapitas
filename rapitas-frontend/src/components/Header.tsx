@@ -39,6 +39,7 @@ import AppIcon from "@/components/AppIcon";
 import GlobalPomodoroWidget from "@/feature/tasks/pomodoro/GlobalPomodoroWidget";
 import { OPEN_SHORTCUTS_EVENT } from "@/components/KeyboardShortcuts";
 import NotificationBell from "@/components/NotificationBell";
+import { DarkModeToggle } from "@/components/DarkModeToggle";
 
 type NavItem = {
   href: string;
@@ -665,6 +666,7 @@ export default function Header() {
                 </div>
               )}
 
+              <DarkModeToggle /> {/* Add DarkModeToggle here */}
               {/* 通知ベル（一番右側に配置） */}
               <NotificationBell />
             </div>
@@ -675,7 +677,7 @@ export default function Header() {
       {/* サイドバーメニュー */}
       <nav
         ref={menuRef}
-        className={`fixed left-0 top-0 h-full w-72 bg-white dark:bg-zinc-900 shadow-2xl z-100 transform transition-transform duration-300 ${
+        className={`fixed left-0 top-0 h-full w-72 bg-white dark:bg-indigo-dark-900 shadow-2xl z-100 transform transition-transform duration-300 ${
           isMenuOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

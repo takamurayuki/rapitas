@@ -1,29 +1,89 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* クラスベースのダークモード切り替え */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --background-secondary: #eef2f8;
+  --surface: #ffffff;
+  --surface-muted: #f1f5f9;
+  --border: #e2e8f0;
+  --foreground: #0f172a;
+  --foreground-muted: #475569;
+  --accent: #4f46e5;
+  --accent-soft: #e0e7ff;
+  --card-bg: #ffffff;
+  --card-border: #e2e8f0;
+  --input-bg: #ffffff;
+  --input-border: #d1d5db;
+  --heading: #0f172a;
+  --label: #374151;
+  --placeholder: #9ca3af;
+}
+
+html.dark {
+  --background: #0b1020;
+  --background-secondary: #11182a;
+  --surface: #141b2d;
+  --surface-muted: #1b2438;
+  --border: #27324a;
+  --foreground: #e2e8f0;
+  --foreground-muted: #94a3b8;
+  --accent: #818cf8;
+  --accent-soft: #1f2a44;
+  --dark-secondary-background: #2c3a50;
+  --card-bg: #141b2d;
+  --card-border: #27324a;
+  --input-bg: #1b2438;
+  --input-border: #334155;
+  --heading: #f1f5f9;
+  --label: #cbd5e1;
+  --placeholder: #64748b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-indigo-dark-800: #1a2236;
+  --color-indigo-dark-900: #111827;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
-  background: var(--background);
+  background: linear-gradient(
+    180deg,
+    var(--background),
+    var(--background-secondary)
+  );
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ダークモード: フォーム要素のテキストカラーを自動調整 */
+html.dark input,
+html.dark textarea,
+html.dark select,
+html.dark option {
+  color: var(--foreground);
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: var(--placeholder);
+}
+
+/* ダークモード: リンクテキストの視認性向上 */
+html.dark a {
+  color: inherit;
+}
+
+/* ダークモード: 背景のスムーズな切り替え */
+body,
+html {
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* カスタムスクロールバースタイル - あふれる場合のみ表示 */
@@ -114,13 +174,30 @@ body {
   }
 }
 
+/* StatusCard フェードアウト */
+@keyframes statusCardFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
 .status-card-fade-in {
   animation: statusCardFadeIn 0.25s ease-out forwards;
 }
 
+.status-card-fade-out {
+  animation: statusCardFadeOut 0.25s ease-in forwards;
+}
+
 /* StatusCard パルスエフェクト（実行中用） */
 @keyframes statusCardPulse {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
   }
   50% {
@@ -142,21 +219,23 @@ body {
 }
 
 .floating-ai-menu-panel {
-  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 10px 50px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
 }
 
-@media (prefers-color-scheme: dark) {
-  .floating-ai-menu-button {
-    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
-  }
+.dark .floating-ai-menu-button {
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+}
 
-  .floating-ai-menu-button:hover {
-    box-shadow: 0 8px 30px rgba(99, 102, 241, 0.5);
-  }
+.dark .floating-ai-menu-button:hover {
+  box-shadow: 0 8px 30px rgba(99, 102, 241, 0.5);
+}
 
-  .floating-ai-menu-panel {
-    box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
-  }
+.dark .floating-ai-menu-panel {
+  box-shadow:
+    0 10px 50px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 /* ダウンロード完了アニメーション */
@@ -226,4 +305,61 @@ body {
 
 .comment-ripple {
   animation: commentRipple 0.4s ease-out forwards;
+}
+
+/* タスク完了オーバーレイ アニメーション */
+@keyframes task-complete-grow {
+  0% {
+    transform: scale(0) rotate(0deg);
+    opacity: 0;
+  }
+  15% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  40% {
+    transform: scale(1.1) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(25) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+@keyframes task-complete-ripple {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+
+@keyframes task-complete-fade-out {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-task-complete-grow {
+  animation: task-complete-grow 3s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+}
+
+.animate-task-complete-fade-out {
+  animation: task-complete-fade-out 2.5s ease-in-out forwards;
 }

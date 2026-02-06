@@ -188,7 +188,7 @@ export default function FloatingAIMenu({
       <div
         className={`floating-ai-menu-panel absolute bottom-12 ${
           position === "bottom-right" ? "right-0" : "left-0"
-        } w-80 sm:w-96 bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden transition-all duration-300 ease-out ${
+        } w-80 sm:w-96 bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden transition-all duration-300 ease-out ${
           isExpanded
             ? "opacity-100 translate-y-0 scale-100"
             : "opacity-0 translate-y-4 scale-95 pointer-events-none"
@@ -227,7 +227,7 @@ export default function FloatingAIMenu({
 
         {/* メッセージエリア */}
         <div
-          className="h-72 overflow-y-auto p-4 bg-zinc-50 dark:bg-zinc-900/50 scrollbar-thin"
+          className="h-72 overflow-y-auto p-4 bg-zinc-50 dark:bg-indigo-dark-900/50 scrollbar-thin"
           role="list"
           aria-label="チャット履歴"
         >
@@ -288,7 +288,7 @@ export default function FloatingAIMenu({
         )}
 
         {/* 入力エリア */}
-        <div className="p-3 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-700">
+        <div className="p-3 bg-white dark:bg-indigo-dark-900 border-t border-zinc-200 dark:border-zinc-700">
           <div className="flex items-end gap-2">
             <textarea
               ref={inputRef}

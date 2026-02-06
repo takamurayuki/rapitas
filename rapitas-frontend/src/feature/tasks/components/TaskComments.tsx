@@ -20,7 +20,7 @@ export default function TaskComments({
   onDeleteComment,
 }: TaskCommentsProps) {
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-6 mt-6">
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-6 mt-6">
       <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4 flex items-center gap-2">
         <svg
           className="w-5 h-5"
@@ -43,7 +43,7 @@ export default function TaskComments({
         <textarea
           value={newComment}
           onChange={(e) => onNewCommentChange(e.target.value)}
-          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
           rows={3}
           placeholder="コメントを追加... (マークダウン対応)"
         />
@@ -64,7 +64,7 @@ export default function TaskComments({
           {comments.map((comment) => (
             <div
               key={comment.id}
-              className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-4"
+              className="bg-zinc-50 dark:bg-indigo-dark-800 rounded-lg p-4"
             >
               <div className="flex justify-between items-start mb-2">
                 <span className="text-xs text-zinc-500">

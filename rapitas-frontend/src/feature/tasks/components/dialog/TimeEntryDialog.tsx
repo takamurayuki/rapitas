@@ -17,7 +17,7 @@ export default function TimeEntryDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md p-6">
+      <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md p-6">
         <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-4">
           作業を記録
         </h3>
@@ -28,7 +28,7 @@ export default function TimeEntryDialog({
           <textarea
             value={note}
             onChange={(e) => onNoteChange(e.target.value)}
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             rows={3}
             placeholder="何を作業しましたか?"
           />

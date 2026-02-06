@@ -39,6 +39,8 @@ import {
   approvalsRoutes,
   aiAgentRoutes,
   parallelExecutionRoutes,
+  taskAnalysisConfigRoutes,
+  agentExecutionConfigRoutes,
 } from "./routes";
 
 // Import shared database client
@@ -126,6 +128,8 @@ app.use(taskGithubRoutes);
 app.use(approvalsRoutes);
 app.use(aiAgentRoutes);
 app.use(parallelExecutionRoutes);
+app.use(taskAnalysisConfigRoutes);
+app.use(agentExecutionConfigRoutes);
 
 // Start server
 app.listen(3001);

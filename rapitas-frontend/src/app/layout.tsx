@@ -5,7 +5,6 @@ import Header from "@/components/Header";
 import KeyboardShortcuts from "@/components/KeyboardShortcuts";
 import { FloatingAIMenuWrapper } from "@/components/floating-ai-menu";
 import AchievementNotifications from "@/components/AchievementToast";
-import { ResumableExecutionsWrapper } from "@/components/ResumableExecutionsWrapper";
 import { Suspense } from "react";
 import { ToastProvider } from "@/components/ui/toast/ToastContainer";
 import { PomodoroProvider } from "@/feature/tasks/pomodoro/PomodoroProvider";
@@ -32,6 +31,27 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                const setClassOnDocumentBody = (darkMode) => {
+                  document.documentElement.classList.toggle('dark', darkMode);
+                };
+                const localStorageTheme = localStorage.getItem('theme');
+                if (localStorageTheme === 'dark') {
+                  setClassOnDocumentBody(true);
+                } else if (localStorageTheme === 'light') {
+                  setClassOnDocumentBody(false);
+                } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                  setClassOnDocumentBody(true);
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
@@ -46,9 +66,7 @@ export default function RootLayout({
             </Suspense>
             <FloatingAIMenuWrapper />
             <AchievementNotifications />
-            <Suspense fallback={null}>
-              <ResumableExecutionsWrapper />
-            </Suspense>
+            <Suspense fallback={null}></Suspense>
           </ToastProvider>
         </PomodoroProvider>
       </body>

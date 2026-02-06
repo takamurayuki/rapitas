@@ -27,6 +27,7 @@ import {
   FileText,
   Settings,
   Clock,
+  MessageSquarePlus,
 } from "lucide-react";
 import type {
   ExecutionStatus,
@@ -50,16 +51,18 @@ type Props = {
   error: string | null;
   workingDirectory?: string;
   defaultBranch?: string;
-  useTaskAnalysis?: boolean; // AIタスク分析を使用するか
+  useTaskAnalysis?: boolean; // AIタスク刁E��を使用するぁE
   optimizedPrompt?: string | null; // 最適化されたプロンプト
+  agentConfigId?: number | null;
   onExecute: (options?: {
     instruction?: string;
     branchName?: string;
     useTaskAnalysis?: boolean;
     optimizedPrompt?: string;
+    agentConfigId?: number;
   }) => Promise<{ sessionId?: number; message?: string } | null>;
   onReset: () => void;
-  // 実行状態復元用
+  // 実行状態復允E��
   onRestoreExecutionState?: () => Promise<{
     sessionId: number;
     executionId?: number;
@@ -68,9 +71,9 @@ type Props = {
     waitingForInput?: boolean;
     question?: string;
   } | null>;
-  // 実行停止時のコールバック（親コンポーネントの状態更新用）
+  // 実行停止時�Eコールバック�E�親コンポ�Eネント�E状態更新用�E�E
   onStopExecution?: () => void;
-  // 実行完了時のコールバック（親コンポーネントの状態更新用）
+  // 実行完亁E��のコールバック�E�親コンポ�Eネント�E状態更新用�E�E
   onExecutionComplete?: () => void;
 };
 
@@ -84,6 +87,7 @@ export function AgentExecutionPanel({
   defaultBranch,
   useTaskAnalysis,
   optimizedPrompt,
+  agentConfigId,
   onExecute,
   onReset,
   onRestoreExecutionState,
@@ -93,18 +97,19 @@ export function AgentExecutionPanel({
   const [isExpanded, setIsExpanded] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [showLogs, setShowLogs] = useState(true);
-  const [showLogsExternal, setShowLogsExternal] = useState(false); // 外部（独立）でログを表示するか
+  const [showLogsExternal, setShowLogsExternal] = useState(false); // 外部�E�独立）でログを表示するぁE
   const [instruction, setInstruction] = useState("");
   const [branchName, setBranchName] = useState("");
   const [userResponse, setUserResponse] = useState("");
   const [isSendingResponse, setIsSendingResponse] = useState(false);
+  const [followUpInstruction, setFollowUpInstruction] = useState("");
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
   const hasRestoredRef = useRef(false);
-  // 質問タイムアウトのカウントダウン（残り秒数）
+  // 質問タイムアウト�Eカウントダウン�E�残り秒数�E�E
   const [timeoutCountdown, setTimeoutCountdown] = useState<number | null>(null);
 
-  // SSEベースのリアルタイムログ取得
+  // SSEベ�Eスのリアルタイムログ取征E
   const {
     logs: sseLogs,
     status: sseStatus,
@@ -114,7 +119,7 @@ export function AgentExecutionPanel({
     clearLogs: clearSseLogs,
   } = useExecutionStream(sessionId);
 
-  // ポーリングベースのログ取得（フォールバック＆ステータス確認用）
+  // ポ�Eリングベ�Eスのログ取得（フォールバック�E�E��チE�Eタス確認用�E�E
   const {
     logs: pollingLogs,
     status: pollingStatus,
@@ -131,8 +136,8 @@ export function AgentExecutionPanel({
     clearQuestion: clearPollingQuestion,
   } = useExecutionPolling(taskId);
 
-  // SSEが接続されている場合はSSEのログを優先、そうでなければポーリングのログを使用
-  // logs配列の参照を安定化させるためにuseMemoを使用
+  // SSEが接続されてぁE��場合�ESSEのログを優先、そぁE��なければポ�Eリングのログを使用
+  // logs配�Eの参�Eを安定化させるためにuseMemoを使用
   const logs = useMemo(() => {
     return isSseConnected && sseLogs.length > 0 ? sseLogs : pollingLogs;
   }, [isSseConnected, sseLogs, pollingLogs]);
@@ -142,48 +147,48 @@ export function AgentExecutionPanel({
     clearPollingLogs();
   }, [clearSseLogs, clearPollingLogs]);
 
-  // 質問の検出方法タイプ（pattern_matchは廃止、AIエージェントからの明確なステータスのみを信頼）
+  // 質問�E検�E方法タイプ！Eattern_matchは廁E��、AIエージェントから�E明確なスチE�Eタスのみを信頼�E�E
   type QuestionType = "tool_call" | "none";
 
-  // 質問検出: APIからの状態のみを使用（パターンマッチングは廃止）
-  // AIエージェントがAskUserQuestionツールを呼び出した場合のみ質問として認識
+  // 質問検�E: APIからの状態�Eみを使用�E�パターンマッチングは廁E���E�E
+  // AIエージェントがAskUserQuestionチE�Eルを呼び出した場合�Eみ質問として認譁E
   const detectQuestion = (): {
     hasQuestion: boolean;
     question: string;
     questionType: QuestionType;
   } => {
-    // APIから質問待ち状態が返されている場合のみ質問として認識
+    // APIから質問征E��状態が返されてぁE��場合�Eみ質問として認譁E
     // pollingWaitingForInputはDBのstatus === "waiting_for_input"を反映
-    // pollingQuestionTypeはAIエージェントからのAskUserQuestionツール呼び出しを反映
+    // pollingQuestionTypeはAIエージェントから�EAskUserQuestionチE�Eル呼び出しを反映
     if (pollingWaitingForInput && pollingQuestion) {
       return {
         hasQuestion: true,
         question: pollingQuestion,
-        // tool_callの場合のみ質問として認識、それ以外はnone
+        // tool_callの場合�Eみ質問として認識、それ以外�Enone
         questionType:
           pollingQuestionType === "tool_call" ? "tool_call" : "none",
       };
     }
 
-    // APIから質問状態が返されていない場合は質問なし
+    // APIから質問状態が返されてぁE��ぁE��合�E質問なぁE
     // パターンマッチングによるフォールバックは削除
     return { hasQuestion: false, question: "", questionType: "none" };
   };
 
   const currentLogText = useMemo(() => logs.join(""), [logs]);
 
-  // 質問検出の結果をメモ化（APIからのステータスのみを使用）
+  // 質問検�Eの結果をメモ化！EPIからのスチE�Eタスのみを使用�E�E
   const { hasQuestion, question, questionType } = useMemo(() => {
     return detectQuestion();
   }, [pollingWaitingForInput, pollingQuestion, pollingQuestionType]);
 
-  // questionTypeがtool_callの場合はより確実に質問があることを示す
+  // questionTypeがtool_callの場合�Eより確実に質問があることを示ぁE
   const isConfirmedQuestion = questionType === "tool_call";
 
-  // waiting_for_input状態の判定
-  // APIからのステータスのみを信頼（パターンマッチングは廃止）
+  // waiting_for_input状態�E判宁E
+  // APIからのスチE�Eタスのみを信頼�E�パターンマッチングは廁E���E�E
   // pollingStatus === "waiting_for_input" はDBのstatusを反映
-  // pollingWaitingForInput はAPI応答のwaitingForInputフラグを反映
+  // pollingWaitingForInput はAPI応答�EwaitingForInputフラグを反映
   const isTerminalStatus =
     pollingStatus === "completed" ||
     pollingStatus === "failed" ||
@@ -191,21 +196,21 @@ export function AgentExecutionPanel({
     sseStatus === "completed" ||
     sseStatus === "failed" ||
     sseStatus === "cancelled";
-  // AIエージェントからの明確なステータス（DBのstatus、APIのwaitingForInput）のみを使用
-  // hasQuestion（旧パターンマッチング結果）は判定に使用しない
+  // AIエージェントから�E明確なスチE�Eタス�E�EBのstatus、APIのwaitingForInput�E��Eみを使用
+  // hasQuestion�E�旧パターンマッチング結果�E��E判定に使用しなぁE
   const isWaitingForInput =
     !isTerminalStatus &&
     (pollingStatus === "waiting_for_input" || pollingWaitingForInput);
 
-  // 質問タイムアウトのカウントダウン処理
+  // 質問タイムアウト�Eカウントダウン処琁E
   useEffect(() => {
-    // 質問待ち状態でない場合はカウントダウンをクリア
+    // 質問征E��状態でなぁE��合�Eカウントダウンをクリア
     if (!isWaitingForInput || !pollingQuestionTimeout) {
       setTimeoutCountdown(null);
       return;
     }
 
-    // 初期値を設定
+    // 初期値を設宁E
     setTimeoutCountdown(pollingQuestionTimeout.remainingSeconds);
 
     // 1秒ごとにカウントダウン
@@ -221,21 +226,21 @@ export function AgentExecutionPanel({
     return () => clearInterval(interval);
   }, [isWaitingForInput, pollingQuestionTimeout]);
 
-  // カウントダウンの表示用フォーマット
+  // カウントダウンの表示用フォーマッチE
   const formatCountdown = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // マウント時に実行状態を復元
+  // マウント時に実行状態を復允E
   useEffect(() => {
     const restoreState = async () => {
-      // 既に復元済み、または復元関数がない場合はスキップ
+      // 既に復允E��み、また�E復允E��数がなぁE��合�EスキチE�E
       if (hasRestoredRef.current || !onRestoreExecutionState) {
         return;
       }
-      // 既にsessionIdがある場合（新規実行中）はスキップ
+      // 既にsessionIdがある場合（新規実行中�E��EスキチE�E
       if (sessionId || executionResult?.sessionId) {
         return;
       }
@@ -247,7 +252,7 @@ export function AgentExecutionPanel({
         const restoredState = await onRestoreExecutionState();
         if (restoredState) {
           setSessionId(restoredState.sessionId);
-          // 復元時は既存の出力を初期値として渡す
+          // 復允E��は既存�E出力を初期値として渡ぁE
           startPolling({
             initialOutput: restoredState.output,
             preserveLogs: false,
@@ -255,7 +260,7 @@ export function AgentExecutionPanel({
           setShowLogs(true);
         }
       } catch (err) {
-        // 復元失敗時は静かに失敗
+        // 復允E��敗時は静かに失敁E
       } finally {
         setIsRestoring(false);
       }
@@ -264,16 +269,16 @@ export function AgentExecutionPanel({
     restoreState();
   }, [onRestoreExecutionState]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 実行開始時にSSE接続とポーリングを開始
+  // 実行開始時にSSE接続とポ�Eリングを開姁E
   const executionSessionId = executionResult?.sessionId;
   const executionOutput = executionResult?.output;
 
   useEffect(() => {
     if (executionSessionId) {
-      // SSE接続用にsessionIdを設定
+      // SSE接続用にsessionIdを設宁E
       setSessionId(executionSessionId);
-      // ポーリングも開始（フォールバック用）
-      // 復元された実行の場合は初期出力を渡す
+      // ポ�Eリングも開始（フォールバック用�E�E
+      // 復允E��れた実行�E場合�E初期出力を渡ぁE
       if (executionOutput) {
         startPolling({
           initialOutput: executionOutput,
@@ -285,21 +290,21 @@ export function AgentExecutionPanel({
     }
   }, [executionSessionId, executionOutput, startPolling]);
 
-  // 実行中になったらポーリング開始
+  // 実行中になったらポ�Eリング開姁E
   useEffect(() => {
     if (isExecuting && !isPollingRunning) {
       startPolling();
     }
   }, [isExecuting, isPollingRunning, startPolling]);
 
-  // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新
+  // ポ�EリングのスチE�Eタスが完亁E失敁Eキャンセルになったら親コンポ�Eネントを更新
   useEffect(() => {
     if (
       pollingStatus === "completed" ||
       pollingStatus === "failed" ||
       pollingStatus === "cancelled"
     ) {
-      // 親コンポーネントの状態を更新して実行完了を通知
+      // 親コンポ�Eネント�E状態を更新して実行完亁E��通知
       if (onExecutionComplete) {
         onExecutionComplete();
       }
@@ -311,26 +316,43 @@ export function AgentExecutionPanel({
     const result = await onExecute({
       instruction: instruction.trim() || undefined,
       branchName: branchName.trim() || undefined,
-      useTaskAnalysis, // AIタスク分析を使用するかどうかを渡す
-      optimizedPrompt: optimizedPrompt || undefined, // 最適化されたプロンプトを渡す
+      useTaskAnalysis, // AIタスク刁E��を使用するかどぁE��を渡ぁE
+      optimizedPrompt: optimizedPrompt || undefined, // 最適化されたプロンプトを渡ぁE
+      agentConfigId: agentConfigId ?? undefined, // 選択されたエージェント設定IDを渡ぁE
     });
     if (result?.sessionId) {
       setShowLogs(true);
     }
   };
 
-  // 送信中のリクエストIDを追跡（重複送信防止）
+  // 追加持E��で再実行
+  const handleFollowUpExecute = async () => {
+    const trimmedInstruction = followUpInstruction.trim();
+    if (!trimmedInstruction) return;
+
+    clearLogs();
+    setFollowUpInstruction("");
+    const result = await onExecute({
+      instruction: trimmedInstruction,
+      agentConfigId: agentConfigId ?? undefined,
+    });
+    if (result?.sessionId) {
+      setShowLogs(true);
+    }
+  };
+
+  // 送信中のリクエスチEDを追跡�E�重褁E��信防止�E�E
   const sendingResponseRef = useRef(false);
 
   const handleSendResponse = async () => {
     const trimmedResponse = userResponse.trim();
     if (!trimmedResponse || isSendingResponse || sendingResponseRef.current) return;
 
-    // 即座にrefをセットして重複送信を防止
+    // 即座にrefをセチE��して重褁E��信を防止
     sendingResponseRef.current = true;
     setIsSendingResponse(true);
 
-    // 送信前に質問UIを非表示にする（楽観的UI更新）
+    // 送信前に質問UIを非表示にする�E�楽観的UI更新�E�E
     clearPollingQuestion();
     const savedResponse = trimmedResponse;
     setUserResponse("");
@@ -343,13 +365,13 @@ export function AgentExecutionPanel({
       });
 
       if (!res.ok) {
-        // エラー時は質問を復元（ユーザーが再試行できるように）
+        // エラー時�E質問を復允E��ユーザーが�E試行できるように�E�E
         console.error("Failed to send response:", res.status);
         setUserResponse(savedResponse);
       }
     } catch (error) {
       console.error("Error sending response:", error);
-      // エラー時は回答を復元
+      // エラー時�E回答を復允E
       setUserResponse(savedResponse);
     } finally {
       setIsSendingResponse(false);
@@ -357,21 +379,21 @@ export function AgentExecutionPanel({
     }
   };
 
-  // バックエンドの実行を停止する
+  // バックエンド�E実行を停止する
   const handleStopExecution = useCallback(async () => {
-    // 即座にUIをキャンセル状態に更新（ユーザーに素早くフィードバックを提供）
+    // 即座にUIをキャンセル状態に更新�E�ユーザーに素早くフィードバチE��を提供！E
     setPollingCancelled();
 
-    // ローカルのログもクリア（バックエンドでも削除されるため同期）
+    // ローカルのログもクリア�E�バチE��エンドでも削除されるため同期！E
     clearLogs();
 
-    // 親コンポーネントの状態も更新
+    // 親コンポ�Eネント�E状態も更新
     if (onStopExecution) {
       onStopExecution();
     }
 
     try {
-      // タスクレベルの停止エンドポイントを使用（より確実）
+      // タスクレベルの停止エンド�Eイントを使用�E�より確実！E
       const res = await fetch(
         `${API_BASE_URL}/tasks/${taskId}/stop-execution`,
         {
@@ -380,7 +402,7 @@ export function AgentExecutionPanel({
       );
 
       if (!res.ok) {
-        // 失敗した場合はセッションレベルで試す（フォールバック）
+        // 失敗した場合�EセチE��ョンレベルで試す（フォールバック�E�E
         if (sessionId) {
           const fallbackRes = await fetch(
             `${API_BASE_URL}/agents/sessions/${sessionId}/stop`,
@@ -402,11 +424,11 @@ export function AgentExecutionPanel({
     stopPolling();
     clearLogs();
     setSessionId(null); // SSE接続をリセット
-    hasRestoredRef.current = false; // 次回マウント時に復元を試みる
+    hasRestoredRef.current = false; // 次回�Eウント時に復允E��試みめE
     onReset();
   };
 
-  // 実行中または完了後（ログあり）
+  // 実行中また�E完亁E��（ログあり�E�E
   const showLogPanel =
     (isExecuting || isPollingRunning || isSseRunning || logs.length > 0) &&
     (executionStatus === "completed" ||
@@ -415,14 +437,14 @@ export function AgentExecutionPanel({
       sseStatus === "running" ||
       isWaitingForInput);
 
-  // 実行完了後のステータス判定（SSEの状態も考慮）
+  // 実行完亁E���EスチE�Eタス判定！ESEの状態も老E�E�E�E
   const finalStatus =
     sseStatus !== "idle"
       ? sseStatus
       : pollingStatus !== "idle"
         ? pollingStatus
         : executionStatus;
-  // waiting_for_inputの場合は完了とは見なさない
+  // waiting_for_inputの場合�E完亁E��は見なさなぁE
   const isCompleted =
     finalStatus === "completed" &&
     !isPollingRunning &&
@@ -431,7 +453,7 @@ export function AgentExecutionPanel({
   const isCancelled = finalStatus === "cancelled";
   const isFailed =
     finalStatus === "failed" || error || pollingError || sseError;
-  // waiting_for_inputの場合も実行中として扱う（応答入力を待っている）
+  // waiting_for_inputの場合も実行中として扱ぁE��応答�E力を征E��てぁE���E�E
   const isRunning =
     isExecuting ||
     isPollingRunning ||
@@ -440,7 +462,7 @@ export function AgentExecutionPanel({
     sseStatus === "running" ||
     isWaitingForInput;
 
-  // ExecutionLogViewer用のステータスを計算
+  // ExecutionLogViewer用のスチE�Eタスを計箁E
   const logViewerStatus: ExecutionLogStatus = useMemo(() => {
     if (isRunning) return "running";
     if (isCancelled) return "cancelled";
@@ -449,12 +471,12 @@ export function AgentExecutionPanel({
     return "idle";
   }, [isRunning, isCancelled, isCompleted, isFailed]);
 
-  // ログ表示切り替えのトグル関数
+  // ログ表示刁E��替え�Eトグル関数
   const toggleShowLogsExternal = useCallback(() => {
     setShowLogsExternal((prev) => !prev);
   }, []);
 
-  // 外部ログビューアコンポーネント（独立表示用）
+  // 外部ログビューアコンポ�Eネント（独立表示用�E�E
   const externalLogViewer = showLogsExternal && logs.length > 0 && (
     <div className="mt-4">
       <ExecutionLogViewer
@@ -499,7 +521,7 @@ export function AgentExecutionPanel({
                   )}
                 </div>
                 {!showWaitingUI && (
-                  <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-white dark:bg-zinc-900 flex items-center justify-center shadow-lg">
+                  <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-white dark:bg-indigo-dark-900 flex items-center justify-center shadow-lg">
                     <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
                   </div>
                 )}
@@ -526,7 +548,7 @@ export function AgentExecutionPanel({
                 <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
                   {showWaitingUI
                     ? "以下の質問に回答してください。回答後、実行が継続されます。"
-                    : "Claude Codeがタスクの実装を進めています..."}
+                    : "Claude Codeがタスクの実行を進めています..."}
                 </p>
               </div>
             </div>
@@ -542,12 +564,12 @@ export function AgentExecutionPanel({
             </div>
           </div>
 
-          {/* 質問検出時の応答入力 */}
+          {/* 質問検�E時�E応答�E劁E*/}
           {hasQuestion && (
             <div
               className={`mx-6 mb-4 p-4 rounded-lg ${
                 showWaitingUI
-                  ? "bg-white/60 dark:bg-zinc-900/40 border border-amber-200 dark:border-amber-700"
+                  ? "bg-white/60 dark:bg-indigo-dark-900/40 border border-amber-200 dark:border-amber-700"
                   : "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
               }`}
             >
@@ -589,7 +611,7 @@ export function AgentExecutionPanel({
                     <span className="font-mono font-medium">
                       {formatCountdown(timeoutCountdown)}
                     </span>{" "}
-                    後に自動的に続行します
+                    後に自動的に続行します。
                   </span>
                 </div>
               )}
@@ -600,7 +622,7 @@ export function AgentExecutionPanel({
                   <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 rounded-lg animate-pulse">
                     <AlertCircle className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                     <span className="text-sm text-orange-700 dark:text-orange-300 font-medium">
-                      まもなく自動的に続行します
+                      まもなく自動的に続行します。
                     </span>
                   </div>
                 )}
@@ -630,7 +652,7 @@ export function AgentExecutionPanel({
             </div>
           )}
 
-          {/* ログ表示切り替えボタン */}
+          {/* ログ表示刁E��替え�Eタン */}
           <div className="mx-6 mb-4 flex items-center gap-2">
             <button
               onClick={() => setShowLogs(!showLogs)}
@@ -645,7 +667,7 @@ export function AgentExecutionPanel({
             </button>
           </div>
 
-          {/* カード内にログを表示 */}
+          {/* カード�Eにログを表示 */}
           {showLogs && logs.length > 0 && (
             <div className="mx-6 mb-4">
               <ExecutionLogViewer
@@ -665,7 +687,7 @@ export function AgentExecutionPanel({
     );
   }
 
-  // 実行完了（成功）
+  // 実行完亁E���E功！E
   if (isCompleted && executionResult?.success) {
     return (
       <>
@@ -680,7 +702,7 @@ export function AgentExecutionPanel({
                   実行完了
                 </h3>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                  AIエージェントによる実装が完了しました。
+                  AIエージェントによる実行が完了しました。
                 </p>
                 <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-2">
                   承認ページでコードレビューを行い、変更をコミットしてください。
@@ -703,6 +725,41 @@ export function AgentExecutionPanel({
                 </a>
               </div>
             </div>
+          </div>
+
+          {/* 追加持E��入力欁E*/}
+          <div className="px-6 py-4 border-t border-emerald-200 dark:border-emerald-800 bg-white/50 dark:bg-indigo-dark-900/30">
+            <div className="flex items-center gap-2 mb-2">
+              <MessageSquarePlus className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                追加の指示を送る
+              </span>
+            </div>
+            <div className="flex items-start gap-2">
+              <textarea
+                value={followUpInstruction}
+                onChange={(e) => setFollowUpInstruction(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                    handleFollowUpExecute();
+                  }
+                }}
+                placeholder="追加の修正や変更の指示を入力してください..."
+                rows={2}
+                className="flex-1 px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 transition-all resize-none"
+              />
+              <button
+                onClick={handleFollowUpExecute}
+                disabled={!followUpInstruction.trim() || isExecuting}
+                className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              >
+                <Play className="w-4 h-4" />
+                実行
+              </button>
+            </div>
+            <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+              Ctrl+Enter で実行
+            </p>
           </div>
 
           {/* ログ表示オプション */}
@@ -927,10 +984,10 @@ export function AgentExecutionPanel({
     );
   }
 
-  // 初期状態（折りたたみ可能な展開メニュー）
+  // 初期状態（折りたたみ可能な展開メニュー�E�E
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-      {/* ヘッダー（クリックで展開/折りたたみ） */}
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+      {/* ヘッダー�E�クリチE��で展開/折りたたみ�E�E*/}
       <div
         className="px-4 py-3 bg-linear-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 border-b border-zinc-200 dark:border-zinc-700 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -949,7 +1006,7 @@ export function AgentExecutionPanel({
             )}
           </div>
           <div className="flex items-center gap-2">
-            {/* 展開していない時でも実行ボタンを表示 */}
+            {/* 展開してぁE��ぁE��でも実行�Eタンを表示 */}
             {!isExpanded && (
               <button
                 onClick={(e) => {
@@ -972,32 +1029,32 @@ export function AgentExecutionPanel({
         </div>
       </div>
 
-      {/* 展開時のコンテンツ */}
+      {/* 展開時�EコンチE��チE*/}
       {isExpanded && (
         <>
           {/* メインセクション */}
           <div className="p-4">
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
               Claude
-              Codeがこのタスクを自動で実装します。完了後、差分をレビューしてコミット・PRを作成できます。
+              Codeがこのタスクを自動で実行します。完了後、差分をレビューしてコミットやPRを作成できます。
             </p>
 
-            {/* 最適化プロンプト使用インジケータ */}
+            {/* 最適化�Eロンプト使用インジケータ */}
             {optimizedPrompt && (
               <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 mb-4">
                 <Sparkles className="w-4 h-4 text-green-600 dark:text-green-400" />
                 <span className="text-sm text-green-700 dark:text-green-300">
-                  最適化されたプロンプトを使用して実行します
+                  最適化されたプロンプトを使用して実行します。
                 </span>
               </div>
             )}
 
-            {/* 詳細オプションと実行ボタンを同じ行に配置 */}
+            {/* 詳細オプションと実行�Eタンを同じ行に配置 */}
             <div className="flex items-center gap-3">
-              {/* 詳細オプション（アコーディオン形式） */}
+              {/* 詳細オプション�E�アコーチE��オン形式！E*/}
               <button
                 onClick={() => setShowOptions(!showOptions)}
-                className="flex-1 h-11 flex items-center justify-between px-4 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                className="flex-1 h-11 flex items-center justify-between px-4 bg-zinc-50 dark:bg-indigo-dark-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
               >
                 <div className="flex items-center gap-2">
                   <Settings className="w-4 h-4 text-zinc-400" />
@@ -1012,7 +1069,7 @@ export function AgentExecutionPanel({
                 />
               </button>
 
-              {/* 実行ボタン */}
+              {/* 実行�Eタン */}
               <button
                 onClick={handleExecute}
                 disabled={isExecuting}
@@ -1023,13 +1080,13 @@ export function AgentExecutionPanel({
               </button>
             </div>
 
-            {/* 詳細オプション内容 */}
+            {/* 詳細オプション冁E�� */}
             {showOptions && (
               <div className="mt-3 space-y-4 p-4 bg-zinc-50 dark:bg-zinc-800/30 rounded-lg border border-zinc-200 dark:border-zinc-700 animate-in slide-in-from-top-1 duration-200">
-                {/* 追加指示 */}
+                {/* 追加持E�� */}
                 <div>
                   <label className="flex text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                    追加の実装指示（任意）
+                    追加の実行指示（任意）
                   </label>
                   <textarea
                     value={instruction}
@@ -1050,11 +1107,11 @@ export function AgentExecutionPanel({
                     type="text"
                     value={branchName}
                     onChange={(e) => setBranchName(e.target.value)}
-                    placeholder={`例: feature/task-${Date.now()}`}
+                    placeholder={`侁E feature/task-${Date.now()}`}
                     className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 transition-all"
                   />
                   <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    指定しない場合、自動でフィーチャーブランチが作成されます
+                    指定しない場合、自動でフィーチャーブランチが作成されます。
                   </p>
                 </div>
               </div>

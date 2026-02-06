@@ -6,7 +6,8 @@
 import { exec } from "child_process";
 import { promisify } from "util";
 import { agentFactory } from "./agent-factory";
-import type { AgentConfigInput } from "./agent-factory";
+import type { AgentConfigInput, AgentType } from "./agent-factory";
+import { decrypt } from "../../utils/encryption";
 import type {
   AgentTask,
   AgentExecutionResult,
@@ -644,14 +645,26 @@ export class AgentOrchestrator {
         where: { id: options.agentConfigId },
       });
       if (dbConfig) {
+        // APIキーが暗号化されて保存されている場合は復号
+        let decryptedApiKey: string | undefined;
+        if (dbConfig.apiKeyEncrypted) {
+          try {
+            decryptedApiKey = decrypt(dbConfig.apiKeyEncrypted);
+          } catch (e) {
+            console.error(`[Orchestrator] Failed to decrypt API key for agent ${dbConfig.id}:`, e);
+          }
+        }
+
         agentConfig = {
-          type: dbConfig.agentType as "claude-code",
+          type: (dbConfig.agentType as AgentType) || "claude-code",
           name: dbConfig.name,
           endpoint: dbConfig.endpoint || undefined,
+          apiKey: decryptedApiKey,
           modelId: dbConfig.modelId || undefined,
           workingDirectory: options.workingDirectory,
           timeout: options.timeout,
-          dangerouslySkipPermissions: true, // 自動実行モード: 常に有効
+          dangerouslySkipPermissions: true, // Claude Code用
+          yoloMode: true, // Gemini CLI / Codex CLI用: 自動承認モード
         };
       }
     }
@@ -1195,14 +1208,26 @@ export class AgentOrchestrator {
         where: { id: execution.agentConfigId },
       });
       if (dbConfig) {
+        // APIキーが暗号化されて保存されている場合は復号
+        let decryptedApiKey: string | undefined;
+        if (dbConfig.apiKeyEncrypted) {
+          try {
+            decryptedApiKey = decrypt(dbConfig.apiKeyEncrypted);
+          } catch (e) {
+            console.error(`[Orchestrator] Failed to decrypt API key for agent ${dbConfig.id}:`, e);
+          }
+        }
+
         agentConfig = {
-          type: dbConfig.agentType as "claude-code",
+          type: (dbConfig.agentType as AgentType) || "claude-code",
           name: dbConfig.name,
           endpoint: dbConfig.endpoint || undefined,
+          apiKey: decryptedApiKey,
           modelId: dbConfig.modelId || undefined,
           workingDirectory: task?.workingDirectory || undefined,
           timeout: options.timeout,
           dangerouslySkipPermissions: true,
+          yoloMode: true,
           resumeSessionId: claudeSessionId || undefined, // --resumeで使用
           continueConversation: !claudeSessionId, // セッションIDがない場合のフォールバック
         };
@@ -1723,14 +1748,26 @@ export class AgentOrchestrator {
         where: { id: execution.agentConfigId },
       });
       if (dbConfig) {
+        // APIキーが暗号化されて保存されている場合は復号
+        let decryptedApiKey: string | undefined;
+        if (dbConfig.apiKeyEncrypted) {
+          try {
+            decryptedApiKey = decrypt(dbConfig.apiKeyEncrypted);
+          } catch (e) {
+            console.error(`[Orchestrator] Failed to decrypt API key for agent ${dbConfig.id}:`, e);
+          }
+        }
+
         agentConfig = {
-          type: dbConfig.agentType as "claude-code",
+          type: (dbConfig.agentType as AgentType) || "claude-code",
           name: dbConfig.name,
           endpoint: dbConfig.endpoint || undefined,
+          apiKey: decryptedApiKey,
           modelId: dbConfig.modelId || undefined,
           workingDirectory,
           timeout: options.timeout || 900000,
           dangerouslySkipPermissions: true,
+          yoloMode: true,
           resumeSessionId: claudeSessionId || undefined,
           continueConversation: !claudeSessionId,
         };

@@ -13,3 +13,32 @@ export function buildApiUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE_URL}${normalizedPath}`;
 }
+
+/**
+ * リトライ付きfetch
+ * サーバー再起動中の一時的なネットワークエラー（TypeError: Failed to fetch）を自動リカバリ
+ * 短い間隔で素早くリトライし、UIのブロックを最小限にする
+ */
+export async function fetchWithRetry(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  maxRetries = 3,
+  retryDelayMs = 300,
+): Promise<Response> {
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fetch(input, init);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // 最後のリトライでなければ短い待機後にリトライ
+      if (attempt < maxRetries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      }
+    }
+  }
+
+  throw lastError;
+}

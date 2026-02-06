@@ -168,7 +168,6 @@ export default function TaskDetailClient({
   // サブタスクアコーディオン用の状態
   const [isSubtasksExpanded, setIsSubtasksExpanded] = useState(true);
 
-
   // サブタスク編集用の状態
   const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState("");
@@ -176,8 +175,15 @@ export default function TaskDetailClient({
     useState("");
   // サブタスク選択削除用の状態
   const [isSubtaskSelectionMode, setIsSubtaskSelectionMode] = useState(false);
-  const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<Set<number>>(new Set());
-  const [showSubtaskDeleteConfirm, setShowSubtaskDeleteConfirm] = useState<'all' | 'selected' | null>(null);
+  const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<Set<number>>(
+    new Set(),
+  );
+  const [showSubtaskDeleteConfirm, setShowSubtaskDeleteConfirm] = useState<
+    "all" | "selected" | null
+  >(null);
+
+  // タスク完了オーバーレイ用の状態
+  const [showCompleteOverlay, setShowCompleteOverlay] = useState(false);
 
   // ポモドーロモーダル用の状態
   const [showPomodoroModal, setShowPomodoroModal] = useState(false);
@@ -208,6 +214,10 @@ export default function TaskDetailClient({
     restoreExecutionState,
     approveSubtaskCreation,
     setExecutionCancelled,
+    agentConfigId,
+    setAgentConfigId,
+    agents,
+    fetchAgents,
   } = useDeveloperMode(taskId);
 
   // const {
@@ -253,10 +263,7 @@ export default function TaskDetailClient({
     return (task?.subtasks || []).map((s) => ({ id: s.id, title: s.title }));
   }, [task?.subtasks]);
 
-  const {
-    subtaskLogs,
-    refreshLogs: refreshSubtaskLogs,
-  } = useSubtaskLogs({
+  const { subtaskLogs, refreshLogs: refreshSubtaskLogs } = useSubtaskLogs({
     sessionId: parallelSessionId,
     subtasks: subtasksForLogs,
     autoRefresh: isParallelExecutionRunning,
@@ -300,7 +307,9 @@ export default function TaskDetailClient({
 
     const fetchResources = async () => {
       try {
-        const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/resources`);
+        const res = await fetch(
+          `${API_BASE}/tasks/${resolvedTaskId}/resources`,
+        );
         if (res.ok) setResources(await res.json());
       } catch (err) {
         console.error("Failed to fetch resources:", err);
@@ -329,9 +338,10 @@ export default function TaskDetailClient({
       fetchComments();
       fetchResources();
       fetchDevModeConfig();
+      fetchAgents();
       fetchGlobalSettings();
     }
-  }, [resolvedTaskId, fetchDevModeConfig]);
+  }, [resolvedTaskId, fetchDevModeConfig, fetchAgents]);
 
   // グローバル設定に基づいて開発者モードを自動有効化（開発プロジェクトかつAIアシスタント有効の場合）
   useEffect(() => {
@@ -358,6 +368,11 @@ export default function TaskDetailClient({
   ]);
 
   const updateStatus = async (taskId: number, newStatus: string) => {
+    // タスク完了時にオーバーレイを表示
+    if (newStatus === "done") {
+      setShowCompleteOverlay(true);
+    }
+
     // 楽観的UI更新: APIレスポンスを待たずに即座にUIを更新
     const previousTask = task;
     setTask((prev) => {
@@ -434,7 +449,9 @@ export default function TaskDetailClient({
 
       if (res.ok) {
         // コメント一覧を再取得してツリー構造を更新
-        const commentsRes = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/comments`);
+        const commentsRes = await fetch(
+          `${API_BASE}/tasks/${resolvedTaskId}/comments`,
+        );
         if (commentsRes.ok) {
           setComments(await commentsRes.json());
         }
@@ -450,23 +467,26 @@ export default function TaskDetailClient({
     }
   };
 
-  const handleUpdateComment = useCallback(async (commentId: number, content: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/comments/${commentId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
-      });
-      if (res.ok) {
-        const updatedComment = await res.json();
-        setComments((prev) =>
-          prev.map((c) => (c.id === commentId ? updatedComment : c))
-        );
+  const handleUpdateComment = useCallback(
+    async (commentId: number, content: string) => {
+      try {
+        const res = await fetch(`${API_BASE}/comments/${commentId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content }),
+        });
+        if (res.ok) {
+          const updatedComment = await res.json();
+          setComments((prev) =>
+            prev.map((c) => (c.id === commentId ? updatedComment : c)),
+          );
+        }
+      } catch (err) {
+        console.error("Failed to update comment:", err);
       }
-    } catch (err) {
-      console.error("Failed to update comment:", err);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const handleDeleteComment = async (commentId: number) => {
     if (!confirm("このコメントを削除しますか?")) return;
@@ -483,41 +503,51 @@ export default function TaskDetailClient({
     }
   };
 
-  const handleCreateCommentLink = useCallback(async (fromCommentId: number, toCommentId: number, label?: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/comments/${fromCommentId}/links`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ toCommentId, label }),
-      });
-      if (res.ok) {
-        // Refresh comments to show new link
-        const commentsRes = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/comments`);
-        if (commentsRes.ok) {
-          setComments(await commentsRes.json());
+  const handleCreateCommentLink = useCallback(
+    async (fromCommentId: number, toCommentId: number, label?: string) => {
+      try {
+        const res = await fetch(`${API_BASE}/comments/${fromCommentId}/links`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ toCommentId, label }),
+        });
+        if (res.ok) {
+          // Refresh comments to show new link
+          const commentsRes = await fetch(
+            `${API_BASE}/tasks/${resolvedTaskId}/comments`,
+          );
+          if (commentsRes.ok) {
+            setComments(await commentsRes.json());
+          }
         }
+      } catch (err) {
+        console.error("Failed to create comment link:", err);
       }
-    } catch (err) {
-      console.error("Failed to create comment link:", err);
-    }
-  }, [resolvedTaskId]);
+    },
+    [resolvedTaskId],
+  );
 
-  const handleDeleteCommentLink = useCallback(async (linkId: number) => {
-    try {
-      const res = await fetch(`${API_BASE}/comment-links/${linkId}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        // Refresh comments to reflect removed link
-        const commentsRes = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/comments`);
-        if (commentsRes.ok) {
-          setComments(await commentsRes.json());
+  const handleDeleteCommentLink = useCallback(
+    async (linkId: number) => {
+      try {
+        const res = await fetch(`${API_BASE}/comment-links/${linkId}`, {
+          method: "DELETE",
+        });
+        if (res.ok) {
+          // Refresh comments to reflect removed link
+          const commentsRes = await fetch(
+            `${API_BASE}/tasks/${resolvedTaskId}/comments`,
+          );
+          if (commentsRes.ok) {
+            setComments(await commentsRes.json());
+          }
         }
+      } catch (err) {
+        console.error("Failed to delete comment link:", err);
       }
-    } catch (err) {
-      console.error("Failed to delete comment link:", err);
-    }
-  }, [resolvedTaskId]);
+    },
+    [resolvedTaskId],
+  );
 
   const startEditing = () => {
     if (!task) return;
@@ -756,7 +786,9 @@ export default function TaskDetailClient({
       if (!res.ok) throw new Error("削除に失敗しました");
 
       const result = await res.json();
-      console.log(`[TaskDetail] Deleted all subtasks: ${result.deletedCount} items`);
+      console.log(
+        `[TaskDetail] Deleted all subtasks: ${result.deletedCount} items`,
+      );
 
       // タスクを再取得
       await refetchTask();
@@ -772,16 +804,21 @@ export default function TaskDetailClient({
     if (!task || subtaskIds.length === 0) return;
 
     try {
-      const res = await fetch(`${API_BASE}/tasks/${task.id}/subtasks/delete-selected`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subtaskIds }),
-      });
+      const res = await fetch(
+        `${API_BASE}/tasks/${task.id}/subtasks/delete-selected`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subtaskIds }),
+        },
+      );
 
       if (!res.ok) throw new Error("削除に失敗しました");
 
       const result = await res.json();
-      console.log(`[TaskDetail] Deleted selected subtasks: ${result.deletedCount} items`);
+      console.log(
+        `[TaskDetail] Deleted selected subtasks: ${result.deletedCount} items`,
+      );
 
       // タスクを再取得
       await refetchTask();
@@ -861,7 +898,7 @@ export default function TaskDetailClient({
   if (error || !task) {
     return (
       <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 flex items-center justify-center scrollbar-thin">
-        <div className="text-center bg-white dark:bg-zinc-900 rounded-2xl p-8 shadow-xl border border-zinc-200 dark:border-zinc-800">
+        <div className="text-center bg-white dark:bg-indigo-dark-900 rounded-2xl p-8 shadow-xl border border-zinc-200 dark:border-zinc-800">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
             <span className="text-3xl">!</span>
           </div>
@@ -897,92 +934,92 @@ export default function TaskDetailClient({
             )}
           </div>
           <div className="flex items-center gap-2">
-          {!isEditing && (
-            <button
-              onClick={() => setShowPomodoroModal(true)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl transition-all ${
-                isThisTaskTimer && pomodoroState.isTimerRunning
-                  ? pomodoroState.isBreakTime
-                    ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                    : pomodoroState.isPaused
-                      ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-orange-300 border border-orange-200 dark:border-amber-800"
-                      : "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
-                  : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:border-gray-300 dark:hover:border-gray-700"
-              }`}
-            >
-              {isThisTaskTimer && pomodoroState.isTimerRunning ? (
-                pomodoroState.isBreakTime ? (
-                  <Coffee className="w-4 h-4" />
-                ) : pomodoroState.isPaused ? (
-                  <Pause className="w-4 h-4" />
+            {!isEditing && (
+              <button
+                onClick={() => setShowPomodoroModal(true)}
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl transition-all ${
+                  isThisTaskTimer && pomodoroState.isTimerRunning
+                    ? pomodoroState.isBreakTime
+                      ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                      : pomodoroState.isPaused
+                        ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-orange-300 border border-orange-200 dark:border-amber-800"
+                        : "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                    : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:border-gray-300 dark:hover:border-gray-700"
+                }`}
+              >
+                {isThisTaskTimer && pomodoroState.isTimerRunning ? (
+                  pomodoroState.isBreakTime ? (
+                    <Coffee className="w-4 h-4" />
+                  ) : pomodoroState.isPaused ? (
+                    <Pause className="w-4 h-4" />
+                  ) : (
+                    <Hourglass className="w-4 h-4 animate-pulse" />
+                  )
                 ) : (
-                  <Hourglass className="w-4 h-4 animate-pulse" />
-                )
-              ) : (
-                <Timer className="w-4 h-4" />
-              )}
-              時間管理
-              {isThisTaskTimer && pomodoroState.isTimerRunning && (
-                <span className="font-mono tabular-nums text-xs bg-white/50 dark:bg-black/20 px-2 py-0.5 rounded-md">
-                  {formatTime(getRemainingTime(pomodoroState))}
-                </span>
-              )}
-            </button>
-          )}
+                  <Timer className="w-4 h-4" />
+                )}
+                時間管理
+                {isThisTaskTimer && pomodoroState.isTimerRunning && (
+                  <span className="font-mono tabular-nums text-xs bg-white/50 dark:bg-black/20 px-2 py-0.5 rounded-md">
+                    {formatTime(getRemainingTime(pomodoroState))}
+                  </span>
+                )}
+              </button>
+            )}
 
-          {!isEditing ? (
-            <>
-              <Button
-                onClick={startEditing}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl hover:border-gray-300 dark:hover:border-gray-700 transition-all"
-              >
-                <Pencil className="w-4 h-4" />
-                編集
-              </Button>
-              <DropdownMenu
-                items={[
-                  {
-                    label: "複製",
-                    icon: <Copy className="w-4 h-4" />,
-                    onClick: duplicateTask,
-                  },
-                  {
-                    label: "テンプレート保存",
-                    icon: <FileStack className="w-4 h-4" />,
-                    onClick: () => setShowSaveTemplateDialog(true),
-                  },
-                  {
-                    label: "削除",
-                    icon: <Trash2 className="w-4 h-4" />,
-                    onClick: deleteTask,
-                    variant: "danger",
-                  },
-                ]}
-              />
-            </>
-          ) : (
-            <>
-              <button
-                onClick={saveTask}
-                className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg transition-colors"
-              >
-                <Save className="w-4 h-4" />
-                保存
-              </button>
-              <button
-                onClick={cancelEditing}
-                className="px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
-              >
-                キャンセル
-              </button>
-            </>
-          )}
+            {!isEditing ? (
+              <>
+                <Button
+                  onClick={startEditing}
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl hover:border-gray-300 dark:hover:border-gray-700 transition-all"
+                >
+                  <Pencil className="w-4 h-4" />
+                  編集
+                </Button>
+                <DropdownMenu
+                  items={[
+                    {
+                      label: "複製",
+                      icon: <Copy className="w-4 h-4" />,
+                      onClick: duplicateTask,
+                    },
+                    {
+                      label: "テンプレート保存",
+                      icon: <FileStack className="w-4 h-4" />,
+                      onClick: () => setShowSaveTemplateDialog(true),
+                    },
+                    {
+                      label: "削除",
+                      icon: <Trash2 className="w-4 h-4" />,
+                      onClick: deleteTask,
+                      variant: "danger",
+                    },
+                  ]}
+                />
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={saveTask}
+                  className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg transition-colors"
+                >
+                  <Save className="w-4 h-4" />
+                  保存
+                </button>
+                <button
+                  onClick={cancelEditing}
+                  className="px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
+                >
+                  キャンセル
+                </button>
+              </>
+            )}
           </div>
         </div>
 
         {isEditing ? (
           /* Edit Mode */
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
+          <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
             {/* Title Input with Status */}
             <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -1083,7 +1120,9 @@ export default function TaskDetailClient({
                 onEditCode={handleEditCode}
                 resources={resources}
                 onResourcesChange={async () => {
-                  const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/resources`);
+                  const res = await fetch(
+                    `${API_BASE}/tasks/${resolvedTaskId}/resources`,
+                  );
                   if (res.ok) setResources(await res.json());
                 }}
                 // メモ関連のprops
@@ -1141,6 +1180,9 @@ export default function TaskDetailClient({
                   useTaskAnalysis={!!analysisResult}
                   optimizedPrompt={optimizedPrompt}
                   resources={resources}
+                  agentConfigId={agentConfigId}
+                  agents={agents}
+                  onAgentChange={setAgentConfigId}
                   onExecute={executeAgent}
                   onReset={resetExecutionState}
                   onRestoreExecutionState={restoreExecutionState}
@@ -1159,7 +1201,7 @@ export default function TaskDetailClient({
 
             {/* Subtasks Section (AI生成含む) - アコーディオン表示 */}
             {task.subtasks && task.subtasks.length > 0 && (
-              <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden mb-6">
+              <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden mb-6">
                 <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
                   <div className="flex items-center justify-between">
                     <div
@@ -1234,13 +1276,15 @@ export default function TaskDetailClient({
                             }}
                             className="px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                           >
-                            {selectedSubtaskIds.size === task.subtasks!.length ? "全解除" : "全選択"}
+                            {selectedSubtaskIds.size === task.subtasks!.length
+                              ? "全解除"
+                              : "全選択"}
                           </button>
                           {selectedSubtaskIds.size > 0 && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setShowSubtaskDeleteConfirm('selected');
+                                setShowSubtaskDeleteConfirm("selected");
                               }}
                               className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
                             >
@@ -1255,7 +1299,7 @@ export default function TaskDetailClient({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setShowSubtaskDeleteConfirm('all');
+                            setShowSubtaskDeleteConfirm("all");
                           }}
                           className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
                         >
@@ -1265,7 +1309,9 @@ export default function TaskDetailClient({
                       )}
                       {/* アコーディオントグル */}
                       <button
-                        onClick={() => setIsSubtasksExpanded(!isSubtasksExpanded)}
+                        onClick={() =>
+                          setIsSubtasksExpanded(!isSubtasksExpanded)
+                        }
                         className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
                       >
                         {isSubtasksExpanded ? (
@@ -1281,13 +1327,17 @@ export default function TaskDetailClient({
                 {showSubtaskDeleteConfirm && (
                   <div className="p-4 bg-red-50 dark:bg-red-950/30 border-b border-red-200 dark:border-red-800">
                     <p className="text-sm text-red-700 dark:text-red-300 mb-3">
-                      {showSubtaskDeleteConfirm === 'all'
+                      {showSubtaskDeleteConfirm === "all"
                         ? `すべてのサブタスク（${task.subtasks.length}件）を削除しますか？この操作は取り消せません。`
                         : `選択した${selectedSubtaskIds.size}件のサブタスクを削除しますか？この操作は取り消せません。`}
                     </p>
                     <div className="flex gap-2">
                       <button
-                        onClick={showSubtaskDeleteConfirm === 'all' ? handleDeleteAllSubtasks : handleDeleteSelectedSubtasks}
+                        onClick={
+                          showSubtaskDeleteConfirm === "all"
+                            ? handleDeleteAllSubtasks
+                            : handleDeleteSelectedSubtasks
+                        }
                         className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
                       >
                         削除する
@@ -1307,7 +1357,8 @@ export default function TaskDetailClient({
                       <div
                         key={subtask.id}
                         className={`p-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors ${
-                          isSubtaskSelectionMode && selectedSubtaskIds.has(subtask.id)
+                          isSubtaskSelectionMode &&
+                          selectedSubtaskIds.has(subtask.id)
                             ? "bg-blue-50 dark:bg-blue-950/20 ring-1 ring-blue-500 dark:ring-blue-400"
                             : ""
                         }`}
@@ -1317,7 +1368,7 @@ export default function TaskDetailClient({
                           <div className="space-y-3">
                             <input
                               type="text"
-                              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                               value={editingSubtaskTitle}
                               onChange={(e) =>
                                 setEditingSubtaskTitle(e.target.value)
@@ -1326,7 +1377,7 @@ export default function TaskDetailClient({
                               autoFocus
                             />
                             <textarea
-                              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                               value={editingSubtaskDescription}
                               onChange={(e) =>
                                 setEditingSubtaskDescription(e.target.value)
@@ -1359,7 +1410,9 @@ export default function TaskDetailClient({
                               {/* 選択モード時のチェックボックス */}
                               {isSubtaskSelectionMode && (
                                 <button
-                                  onClick={() => toggleSubtaskSelection(subtask.id)}
+                                  onClick={() =>
+                                    toggleSubtaskSelection(subtask.id)
+                                  }
                                   className="shrink-0"
                                 >
                                   {selectedSubtaskIds.has(subtask.id) ? (
@@ -1370,35 +1423,42 @@ export default function TaskDetailClient({
                                 </button>
                               )}
                               {/* 並列実行ステータスアイコン（実行中の場合） */}
-                              {!isSubtaskSelectionMode && isParallelExecutionRunning && getSubtaskStatus(subtask.id) ? (
+                              {!isSubtaskSelectionMode &&
+                              isParallelExecutionRunning &&
+                              getSubtaskStatus(subtask.id) ? (
                                 <SubtaskTitleIndicator
                                   executionStatus={getSubtaskStatus(subtask.id)}
                                   size="sm"
                                 />
-                              ) : !isSubtaskSelectionMode && (
-                                /* 通常のステータスアイコン */
-                                <div className="shrink-0">
-                                  {subtask.status === "done" ? (
-                                    <div className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
-                                      <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                                    </div>
-                                  ) : subtask.status === "in-progress" ? (
-                                    <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
-                                      <Circle className="w-3 h-3 text-blue-600 dark:text-blue-400 animate-pulse" />
-                                    </div>
-                                  ) : (
-                                    <div className="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-                                      <Circle className="w-3 h-3 text-zinc-400" />
-                                    </div>
-                                  )}
-                                </div>
+                              ) : (
+                                !isSubtaskSelectionMode && (
+                                  /* 通常のステータスアイコン */
+                                  <div className="shrink-0">
+                                    {subtask.status === "done" ? (
+                                      <div className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
+                                        <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                      </div>
+                                    ) : subtask.status === "in-progress" ? (
+                                      <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
+                                        <Circle className="w-3 h-3 text-blue-600 dark:text-blue-400 animate-pulse" />
+                                      </div>
+                                    ) : (
+                                      <div className="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+                                        <Circle className="w-3 h-3 text-zinc-400" />
+                                      </div>
+                                    )}
+                                  </div>
+                                )
                               )}
                               <span
                                 className={`text-sm truncate ${subtask.status === "done" ? "text-zinc-400 line-through" : "text-zinc-900 dark:text-zinc-50"}`}
                               >
                                 {subtask.title}
                               </span>
-                              <PriorityIcon priority={subtask.priority} size="sm" />
+                              <PriorityIcon
+                                priority={subtask.priority}
+                                size="sm"
+                              />
                               {subtask.agentGenerated && (
                                 <span className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded shrink-0">
                                   <Bot className="w-3 h-3" />
@@ -1443,7 +1503,6 @@ export default function TaskDetailClient({
                 )}
               </div>
             )}
-
           </>
         )}
       </div>
@@ -1455,10 +1514,10 @@ export default function TaskDetailClient({
           onClick={() => setShowPomodoroModal(false)}
         >
           <div
-            className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-4xl max-h-[90vh] overflow-auto"
+            className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-4xl max-h-[90vh] overflow-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="sticky top-0 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 p-5 flex items-center hover:border-gray-300 dark:hover:border-gray-700 justify-between">
+            <div className="sticky top-0 bg-white dark:bg-indigo-dark-900 border-b border-zinc-200 dark:border-zinc-800 p-5 flex items-center hover:border-gray-300 dark:hover:border-gray-700 justify-between">
               <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
                 <Timer className="w-5 h-5 text-blue-500" />
                 時間管理
@@ -1510,12 +1569,15 @@ export default function TaskDetailClient({
         isOpen={showDevModeConfig}
         onClose={() => setShowDevModeConfig(false)}
         onSave={updateDevModeConfig}
+        selectedAgentConfigId={agentConfigId}
+        onAgentConfigChange={setAgentConfigId}
+        taskId={taskId}
       />
 
       {/* Code Block Dialog */}
       {showCodeBlockDialog && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-3xl max-h-[90vh] overflow-auto">
+          <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-3xl max-h-[90vh] overflow-auto">
             <div className="p-6">
               <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-6 flex items-center gap-2">
                 <Code className="w-5 h-5 text-violet-500" />

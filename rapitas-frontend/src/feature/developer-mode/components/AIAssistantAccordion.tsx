@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   BrainCircuit,
   Bot,
@@ -69,6 +69,11 @@ type Props = {
   onStopExecution?: () => void;
 };
 
+const STORAGE_KEY = "ai-assistant-accordion-height";
+const DEFAULT_HEIGHT = 400;
+const MIN_HEIGHT = 150;
+const MAX_HEIGHT = 1200;
+
 export function AIAssistantAccordion({
   // 共通
   taskId,
@@ -108,6 +113,83 @@ export function AIAssistantAccordion({
     string | null
   >(optimizedPrompt || null);
 
+  // リサイズ関連の状態
+  const [contentHeight, setContentHeight] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? parseInt(saved, 10) : DEFAULT_HEIGHT;
+    }
+    return DEFAULT_HEIGHT;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const startYRef = useRef(0);
+  const startHeightRef = useRef(0);
+
+  // ローカルストレージに高さを保存（リサイズ完了時にのみ保存するため、ここでは保存しない）
+  // リサイズ中は頻繁に更新されるため、handleMouseUp内で保存する
+
+  // リサイズ開始
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsResizing(true);
+      startYRef.current = e.clientY;
+      startHeightRef.current = contentHeight;
+
+      // 即座にカーソルとユーザー選択を設定
+      document.body.style.cursor = "ns-resize";
+      document.body.style.userSelect = "none";
+    },
+    [contentHeight],
+  );
+
+  // リサイズ中のマウス移動
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const deltaY = e.clientY - startYRef.current;
+      const newHeight = Math.min(
+        MAX_HEIGHT,
+        Math.max(MIN_HEIGHT, startHeightRef.current + deltaY),
+      );
+
+      // requestAnimationFrameを使用してスムーズに更新
+      requestAnimationFrame(() => {
+        setContentHeight(newHeight);
+      });
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      e.preventDefault();
+      setIsResizing(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+
+      // リサイズ完了時にローカルストレージに保存
+      const finalHeight = Math.min(
+        MAX_HEIGHT,
+        Math.max(MIN_HEIGHT, startHeightRef.current + (e.clientY - startYRef.current)),
+      );
+      localStorage.setItem(STORAGE_KEY, String(finalHeight));
+    };
+
+    document.addEventListener("mousemove", handleMouseMove, { passive: false });
+    document.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizing]);
+
   // 親からのoptimizedPromptの変更を反映
   useEffect(() => {
     if (optimizedPrompt) {
@@ -124,7 +206,7 @@ export function AIAssistantAccordion({
   );
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
       {/* メインヘッダー */}
       <div
         className="px-6 py-4 bg-linear-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border-b border-zinc-200 dark:border-zinc-700 cursor-pointer"
@@ -194,47 +276,69 @@ export function AIAssistantAccordion({
 
       {/* コンテンツエリア */}
       {isExpanded && (
-        <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-          {/* AI タスク分析パネル */}
-          <div className="p-4">
-            <AIAnalysisPanel
-              taskId={taskId}
-              config={config}
-              isAnalyzing={isAnalyzing}
-              analysisResult={analysisResult}
-              analysisError={analysisError}
-              analysisApprovalId={analysisApprovalId}
-              onAnalyze={onAnalyze}
-              onApprove={onApprove}
-              onReject={onReject}
-              onApproveSubtasks={onApproveSubtasks}
-              isApproving={isApproving}
-              onOpenSettings={onOpenSettings}
-              onPromptGenerated={handlePromptGenerated}
-              onSubtasksCreated={onSubtasksCreated}
-            />
-          </div>
-
-          {/* AI エージェント実行パネル */}
-          {showAgentExecution && (
+        <div className="flex flex-col">
+          <div
+            ref={contentRef}
+            className="divide-y divide-zinc-100 dark:divide-zinc-800 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-600 scrollbar-track-transparent"
+            style={{
+              height: `${contentHeight}px`,
+              minHeight: `${MIN_HEIGHT}px`,
+              maxHeight: `${MAX_HEIGHT}px`,
+            }}
+          >
+            {/* AI タスク分析パネル */}
             <div className="p-4">
-              <AgentExecutionPanel
+              <AIAnalysisPanel
                 taskId={taskId}
-                isExecuting={isExecuting}
-                executionStatus={executionStatus}
-                executionResult={executionResult}
-                error={executionError}
-                workingDirectory={workingDirectory}
-                defaultBranch={defaultBranch}
-                useTaskAnalysis={useTaskAnalysis}
-                optimizedPrompt={localOptimizedPrompt}
-                onExecute={onExecute}
-                onReset={onReset}
-                onRestoreExecutionState={onRestoreExecutionState}
-                onStopExecution={onStopExecution}
+                config={config}
+                isAnalyzing={isAnalyzing}
+                analysisResult={analysisResult}
+                analysisError={analysisError}
+                analysisApprovalId={analysisApprovalId}
+                onAnalyze={onAnalyze}
+                onApprove={onApprove}
+                onReject={onReject}
+                onApproveSubtasks={onApproveSubtasks}
+                isApproving={isApproving}
+                onOpenSettings={onOpenSettings}
+                onPromptGenerated={handlePromptGenerated}
+                onSubtasksCreated={onSubtasksCreated}
               />
             </div>
-          )}
+
+            {/* AI エージェント実行パネル */}
+            {showAgentExecution && (
+              <div className="p-4">
+                <AgentExecutionPanel
+                  taskId={taskId}
+                  isExecuting={isExecuting}
+                  executionStatus={executionStatus}
+                  executionResult={executionResult}
+                  error={executionError}
+                  workingDirectory={workingDirectory}
+                  defaultBranch={defaultBranch}
+                  useTaskAnalysis={useTaskAnalysis}
+                  optimizedPrompt={localOptimizedPrompt}
+                  onExecute={onExecute}
+                  onReset={onReset}
+                  onRestoreExecutionState={onRestoreExecutionState}
+                  onStopExecution={onStopExecution}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* リサイズハンドル - コンテンツの直下に配置 */}
+          <div
+            onMouseDown={handleResizeStart}
+            className={`flex-shrink-0 h-5 flex items-center justify-center bg-zinc-100 dark:bg-indigo-dark-800 border-t border-zinc-200 dark:border-zinc-700 hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors group select-none touch-none ${isResizing ? "bg-violet-200 dark:bg-violet-900/50" : ""}`}
+            style={{ cursor: "ns-resize" }}
+            title="ドラッグしてサイズを変更"
+          >
+            <div className="flex items-center gap-0.5">
+              <div className={`w-8 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600 group-hover:bg-violet-400 dark:group-hover:bg-violet-500 transition-colors ${isResizing ? "bg-violet-500 dark:bg-violet-400" : ""}`} />
+            </div>
+          </div>
         </div>
       )}
     </div>

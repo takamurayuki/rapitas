@@ -55,7 +55,7 @@ export default function CodeBlockDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-3xl max-h-[90vh] overflow-auto">
+      <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-3xl max-h-[90vh] overflow-auto">
         <div className="p-6">
           <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-4">
             {isEditing ? "コードブロックを編集" : "コードブロックを追加"}
@@ -69,7 +69,7 @@ export default function CodeBlockDialog({
             <select
               value={language}
               onChange={(e) => onLanguageChange(e.target.value)}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {PROGRAMMING_LANGUAGES.map((lang) => (
                 <option key={lang.value} value={lang.value}>
@@ -87,7 +87,7 @@ export default function CodeBlockDialog({
             <textarea
               value={content}
               onChange={(e) => onContentChange(e.target.value)}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
               rows={12}
               placeholder="ここにコードを入力してください..."
             />

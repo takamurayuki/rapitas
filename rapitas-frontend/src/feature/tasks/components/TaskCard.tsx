@@ -56,7 +56,7 @@ export default function TaskCard({
     <div
       className={`group relative rounded-lg border-l-4 border-t border-r border-b transition-all duration-150 ${
         currentStatus.borderColor
-      } ${`border-zinc-200 dark:border-zinc-800 ${currentStatus.bgColor} hover:shadow-sm`}`}
+      } ${`border-zinc-200 dark:border-zinc-800 ${currentStatus.bgColor} dark:bg-indigo-dark-900 hover:shadow-sm`}`}
     >
       <div
         className="flex items-center gap-3 px-3 py-2.5 cursor-pointer"
@@ -218,7 +218,7 @@ export default function TaskCard({
       {/* サブタスク展開エリア */}
       {expandedSubtasks && task.subtasks && task.subtasks.length > 0 && (
         <div
-          className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 p-3"
+          className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-indigo-dark-900/50 p-3"
           onClick={(e) => e.stopPropagation()}
         >
           {task.subtasks.map((subtask, index) => {
@@ -238,7 +238,7 @@ export default function TaskCard({
             return (
               <div
                 key={subtask.id}
-                className={`flex items-center gap-2 p-2 ${roundedClass} transition-colors border-l-2 ${subtaskStatus.borderColor} ${subtaskStatus.bgColor}`}
+                className={`flex items-center gap-2 p-2 ${roundedClass} transition-colors border-l-2 ${subtaskStatus.borderColor} ${subtaskStatus.bgColor} dark:bg-indigo-dark-900`}
               >
                 <div
                   className={`flex items-center justify-center w-6 h-6 rounded ${

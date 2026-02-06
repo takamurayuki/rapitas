@@ -85,6 +85,8 @@ model Task {
   agentExecutable       Boolean       @default(false)
   executionInstructions String?
   developerModeConfig   DeveloperModeConfig?
+  taskAnalysisConfig    TaskAnalysisConfig?
+  agentExecutionConfig  AgentExecutionConfig?
   prompts               TaskPrompt[]
   githubIssueId         Int?
   githubPrId            Int?
@@ -402,6 +404,8 @@ model UserSettings {
   aiTaskAnalysisDefault       Boolean   @default(false)
   autoResumeInterruptedTasks  Boolean   @default(false)
   claudeApiKeyEncrypted       String?
+  chatgptApiKeyEncrypted      String?
+  geminiApiKeyEncrypted       String?
   createdAt                   DateTime  @default(now())
   updatedAt                   DateTime  @updatedAt
 }
@@ -416,9 +420,11 @@ model AIAgentConfig {
   isDefault       Boolean   @default(false)
   isActive        Boolean   @default(true)
   capabilities    String    @default("{}") // JSON stored as string
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  executions      AgentExecution[]
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  executions              AgentExecution[]
+  taskAnalysisConfigs     TaskAnalysisConfig[]
+  agentExecutionConfigs   AgentExecutionConfig[]
 }
 
 model AgentExecution {
@@ -576,4 +582,104 @@ model TaskPrompt {
   updatedAt           DateTime  @updatedAt
 
   @@index([taskId])
+}
+
+// タスク分析設定（タスクごとのAI分析パラメータ）
+model TaskAnalysisConfig {
+  id                    Int       @id @default(autoincrement())
+  taskId                Int       @unique
+  task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  // 分析パラメータ
+  analysisDepth         String    @default("standard") // quick, standard, deep
+  maxSubtasks           Int       @default(10)
+  priorityStrategy      String    @default("balanced") // aggressive, balanced, conservative
+  includeEstimates      Boolean   @default(true)
+  includeDependencies   Boolean   @default(true)
+  includeTips           Boolean   @default(true)
+
+  // モデル・プロバイダ設定
+  agentConfigId         Int?
+  agentConfig           AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
+  modelOverride         String?   // 特定モデルIDで上書き
+  maxTokens             Int?      // 分析に使用する最大トークン数
+  temperature           Float?    // 分析の創造性パラメータ (0.0-1.0)
+
+  // プロンプト戦略
+  promptStrategy        String    @default("auto") // auto, detailed, concise, custom
+  customPromptTemplate  String?   // カスタムプロンプトテンプレート
+  contextInstructions   String?   // 追加コンテキスト指示
+
+  // 自動化設定
+  autoApproveSubtasks   Boolean   @default(false)
+  autoOptimizePrompt    Boolean   @default(false)
+  notifyOnComplete      Boolean   @default(true)
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([taskId])
+}
+
+// エージェント実行設定（タスクごとの実行パラメータ）
+model AgentExecutionConfig {
+  id                    Int       @id @default(autoincrement())
+  taskId                Int       @unique
+  task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  // エージェント選択
+  agentConfigId         Int?
+  agentConfig           AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
+
+  // 実行環境設定
+  workingDirectory      String?   // 作業ディレクトリの上書き
+  timeoutMs             Int       @default(900000) // 実行タイムアウト (デフォルト15分)
+  maxRetries            Int       @default(0)
+
+  // Git設定
+  branchStrategy        String    @default("auto") // auto, manual, none
+  branchPrefix          String    @default("feature/")
+  autoCommit            Boolean   @default(false)
+  autoCreatePR          Boolean   @default(false)
+
+  // 実行制御
+  requireApproval       String    @default("always") // always, major_only, never
+  autoExecuteOnAnalysis Boolean   @default(false) // 分析完了後に自動実行
+  parallelExecution     Boolean   @default(false) // サブタスクの並列実行
+  maxConcurrentAgents   Int       @default(3)
+
+  // プロンプト設定
+  useOptimizedPrompt    Boolean   @default(true)
+  additionalInstructions String?  // 追加指示
+
+  // コードレビュー設定
+  autoCodeReview        Boolean   @default(true)
+  reviewScope           String    @default("changes") // changes, full, none
+
+  // 通知設定
+  notifyOnStart         Boolean   @default(true)
+  notifyOnComplete      Boolean   @default(true)
+  notifyOnError         Boolean   @default(true)
+  notifyOnQuestion      Boolean   @default(true)
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([taskId])
+}
+
+// AIエージェント設定変更ログ
+model AgentConfigAuditLog {
+  id              Int       @id @default(autoincrement())
+  agentConfigId   Int
+  action          String    // create, update, delete, api_key_set, api_key_delete, test_connection
+  changeDetails   String?   // JSON stored as string - what was changed
+  previousValues  String?   // JSON stored as string - values before change
+  newValues       String?   // JSON stored as string - values after change
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime  @default(now())
+
+  @@index([agentConfigId])
+  @@index([createdAt])
 }

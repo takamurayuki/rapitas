@@ -133,7 +133,7 @@ const Note = memo(function Note({
               <textarea
                 value={editText}
                 onChange={(e) => onEditText(e.target.value)}
-                className="w-full p-1.5 text-[11px] bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded resize-none outline-none focus:border-violet-400"
+                className="w-full p-1.5 text-[11px] bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded resize-none outline-none focus:border-violet-400"
                 rows={2}
                 autoFocus
               />
@@ -236,7 +236,7 @@ const Note = memo(function Note({
                     value={replyText}
                     onChange={(e) => onReplyText(e.target.value)}
                     placeholder="返信..."
-                    className="flex-1 px-1.5 py-1 text-[10px] bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded outline-none focus:border-violet-400"
+                    className="flex-1 px-1.5 py-1 text-[10px] bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded outline-none focus:border-violet-400"
                     autoFocus
                     onKeyDown={(e) =>
                       e.key === "Enter" && (e.preventDefault(), onReplySubmit())
@@ -332,7 +332,7 @@ const LinkModal = memo(function LinkModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xs mx-4 bg-white dark:bg-zinc-900 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden"
+        className="w-full max-w-xs mx-4 bg-white dark:bg-indigo-dark-900 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-2 border-b border-zinc-100 dark:border-zinc-800">
@@ -353,7 +353,7 @@ const LinkModal = memo(function LinkModal({
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="検索..."
-              className="w-full pl-6 pr-2 py-1 text-[10px] bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded outline-none focus:border-violet-400"
+              className="w-full pl-6 pr-2 py-1 text-[10px] bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded outline-none focus:border-violet-400"
               autoFocus
             />
           </div>
@@ -507,14 +507,17 @@ export default function CommentsSection({
   };
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
-      {/* Header - AIアシスタントと同じviolet系 */}
-      <div className="px-4 py-2.5 bg-linear-to-r from-violet-50 via-indigo-50 to-purple-50 dark:from-violet-950/30 dark:via-indigo-950/30 dark:to-purple-950/30 border-b border-zinc-200 dark:border-zinc-700">
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
+      {/* Header - クリックで開閉 */}
+      <button
+        onClick={onToggleExpand}
+        className="w-full px-4 py-2.5 bg-gradient-to-r from-violet-50 via-indigo-50 to-purple-50 dark:from-violet-950/30 dark:via-indigo-950/30 dark:to-purple-950/30 border-b border-zinc-200 dark:border-zinc-700 hover:from-violet-100 hover:via-indigo-100 hover:to-purple-100 dark:hover:from-violet-950/50 dark:hover:via-indigo-950/50 dark:hover:to-purple-950/50 transition-colors"
+      >
         <div className="flex items-center gap-2">
           <div className="p-1.5 bg-violet-100 dark:bg-violet-900/40 rounded-lg">
             <MessageSquare className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 text-left">
             <h2 className="font-bold text-xs text-zinc-900 dark:text-zinc-50">
               メモ
             </h2>
@@ -522,46 +525,27 @@ export default function CommentsSection({
               アイデア・気づき
             </p>
           </div>
-          <div className="flex items-center gap-1">
-            {count > 0 && (
-              <span className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-full text-[9px] font-medium">
-                {count}
-              </span>
-            )}
-            {replyCount > 0 && (
-              <span className="px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 rounded-full text-[9px]">
-                +{replyCount}
-              </span>
-            )}
-            {linkCount > 0 && (
-              <span className="flex items-center gap-0.5 px-1 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full text-[9px]">
-                <Link2 className="w-2 h-2" />
-                {linkCount}
-              </span>
-            )}
+          <div className="flex items-center gap-1.5">
+            {/* メモ数 */}
+            <span className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-full text-[9px] font-medium">
+              {count}
+            </span>
+            {/* 返信数 */}
+            <span className="px-1.5 py-0.5 bg-zinc-100 dark:bg-indigo-dark-800 text-zinc-500 rounded-full text-[9px]">
+              +{replyCount}
+            </span>
+            {/* リンク数 */}
+            <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full text-[9px]">
+              <Link2 className="w-2 h-2" />
+              {linkCount}
+            </span>
           </div>
-        </div>
-      </div>
-
-      {/* Accordion */}
-      <button
-        onClick={onToggleExpand}
-        className="w-full px-4 py-2 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors border-b border-zinc-100 dark:border-zinc-800"
-      >
-        <div className="flex items-center gap-1.5">
-          <MessageSquare className="w-3.5 h-3.5 text-violet-500" />
-          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-            メモ一覧
-          </span>
-          {count === 0 && (
-            <span className="text-[9px] text-zinc-400">なし</span>
+          {isExpanded ? (
+            <ChevronUp className="w-4 h-4 text-zinc-400 shrink-0" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-zinc-400 shrink-0" />
           )}
         </div>
-        {isExpanded ? (
-          <ChevronUp className="w-3.5 h-3.5 text-zinc-400" />
-        ) : (
-          <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
-        )}
       </button>
 
       {isExpanded && (
@@ -575,7 +559,7 @@ export default function CommentsSection({
                 e.key === "Enter" && (e.preventDefault(), handleSubmit())
               }
               placeholder="メモを追加..."
-              className="flex-1 px-2 py-1.5 text-[11px] bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-violet-400 placeholder:text-zinc-400"
+              className="flex-1 px-2 py-1.5 text-[11px] bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-violet-400 placeholder:text-zinc-400"
               disabled={isAddingComment}
             />
             <button

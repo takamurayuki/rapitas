@@ -476,7 +476,7 @@ export function AIAnalysisPanel({
     };
     return (
       colors[category] ||
-      "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
+      "bg-zinc-100 text-zinc-700 dark:bg-indigo-dark-800 dark:text-zinc-400"
     );
   };
 
@@ -489,7 +489,7 @@ export function AIAnalysisPanel({
   // APIキーが未設定の場合は設定を促す
   if (!isApiKeyConfigured) {
     return (
-      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-amber-200 dark:border-amber-700 overflow-hidden">
+      <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-amber-200 dark:border-amber-700 overflow-hidden">
         <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-700">
           <div className="flex items-center gap-2">
             <Key className="w-4 h-4 text-amber-600 dark:text-amber-400" />
@@ -509,7 +509,7 @@ export function AIAnalysisPanel({
                 value={apiKeyInput}
                 onChange={(e) => setApiKeyInput(e.target.value)}
                 placeholder="sk-ant-api..."
-                className="w-full px-3 py-2 pr-10 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                className="w-full px-3 py-2 pr-10 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
               />
               <button
                 type="button"
@@ -559,7 +559,7 @@ export function AIAnalysisPanel({
   }
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
       {/* ヘッダー */}
       <div
         className="px-4 py-3 bg-linear-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border-b border-zinc-200 dark:border-zinc-700 cursor-pointer"
@@ -652,7 +652,7 @@ export function AIAnalysisPanel({
             {activeTab === "analysis" && (
               <div className="space-y-4">
                 {isAnalyzing ? (
-                  <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+                  <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
                     <Loader2 className="w-5 h-5 text-violet-500 animate-spin" />
                     <span className="text-sm text-zinc-600 dark:text-zinc-400">
                       タスクを分析中...
@@ -667,7 +667,7 @@ export function AIAnalysisPanel({
                   </div>
                 ) : analysisResult ? (
                   <div className="space-y-3">
-                    <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+                    <div className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
                       <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                         概要
                       </p>
@@ -873,7 +873,7 @@ export function AIAnalysisPanel({
             {activeTab === "prompt" && (
               <div className="space-y-4">
                 {isGeneratingPrompt ? (
-                  <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+                  <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
                     <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
                     <span className="text-sm text-zinc-600 dark:text-zinc-400">
                       プロンプトを最適化中...
@@ -956,7 +956,7 @@ export function AIAnalysisPanel({
                               }))
                             }
                             placeholder="回答を入力..."
-                            className="w-full px-3 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-sm"
+                            className="w-full px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded text-sm"
                           />
                         )}
                       </div>
@@ -1010,7 +1010,7 @@ export function AIAnalysisPanel({
                         </button>
                       </div>
                     </div>
-                    <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-3 font-mono text-xs text-zinc-600 dark:text-zinc-400 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                    <div className="bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg p-3 font-mono text-xs text-zinc-600 dark:text-zinc-400 max-h-32 overflow-y-auto whitespace-pre-wrap">
                       {promptResult.optimizedPrompt}
                     </div>
                     <div className="flex justify-end gap-2">
@@ -1062,7 +1062,7 @@ export function AIAnalysisPanel({
                       保存済みプロンプト
                     </span>
                     {promptsData && (
-                      <span className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 text-xs rounded">
+                      <span className="px-2 py-0.5 bg-zinc-100 dark:bg-indigo-dark-800 text-zinc-500 text-xs rounded">
                         {promptsData.prompts.length}件
                       </span>
                     )}
@@ -1107,7 +1107,7 @@ export function AIAnalysisPanel({
                 ) : promptsData ? (
                   <div className="space-y-3">
                     {/* タスク情報 */}
-                    <div className="p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg text-xs">
+                    <div className="p-2 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg text-xs">
                       <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
                         <Target className="w-3 h-3" />
                         <span className="font-medium">
@@ -1146,7 +1146,7 @@ export function AIAnalysisPanel({
                           return (
                             <div
                               key={prompt.id}
-                              className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg"
+                              className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg"
                             >
                               <div className="flex items-start justify-between mb-2">
                                 <div className="flex-1">
@@ -1240,11 +1240,11 @@ export function AIAnalysisPanel({
                                   onChange={(e) =>
                                     setEditingPromptText(e.target.value)
                                   }
-                                  className="w-full p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs font-mono resize-none"
+                                  className="w-full p-2 bg-white dark:bg-indigo-dark-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs font-mono resize-none"
                                   rows={4}
                                 />
                               ) : (
-                                <div className="text-xs text-zinc-600 dark:text-zinc-400 font-mono bg-white dark:bg-zinc-900 p-2 rounded max-h-20 overflow-y-auto whitespace-pre-wrap">
+                                <div className="text-xs text-zinc-600 dark:text-zinc-400 font-mono bg-white dark:bg-indigo-dark-900 p-2 rounded max-h-20 overflow-y-auto whitespace-pre-wrap">
                                   {prompt.optimizedPrompt.length > 200
                                     ? `${prompt.optimizedPrompt.slice(0, 200)}...`
                                     : prompt.optimizedPrompt}
@@ -1276,7 +1276,7 @@ export function AIAnalysisPanel({
             {activeTab === "settings" && (
               <div className="space-y-4">
                 {/* APIキー設定 */}
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+                <div className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <Key className="w-4 h-4 text-zinc-500" />
@@ -1334,7 +1334,7 @@ export function AIAnalysisPanel({
                           value={apiKeyInput}
                           onChange={(e) => setApiKeyInput(e.target.value)}
                           placeholder="sk-ant-api..."
-                          className="w-full px-3 py-1.5 pr-8 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded text-sm"
+                          className="w-full px-3 py-1.5 pr-8 bg-white dark:bg-indigo-dark-900 border border-zinc-200 dark:border-zinc-700 rounded text-sm"
                         />
                         <button
                           type="button"
@@ -1390,7 +1390,7 @@ export function AIAnalysisPanel({
                 {/* 開発者モード設定へのリンク */}
                 <button
                   onClick={onOpenSettings}
-                  className="w-full flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  className="w-full flex items-center justify-between p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                 >
                   <div className="flex items-center gap-2">
                     <Settings className="w-4 h-4 text-zinc-500" />

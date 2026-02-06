@@ -125,7 +125,7 @@ export default function TaskTimeTracking({
   const totalElapsedHours = (actualHours || 0) + totalBreakHours;
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-6 mt-6">
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-6 mt-6">
       {/* 音声要素 */}
       <audio ref={audioRef} src="/notification.mp3" preload="auto" />
 
@@ -326,7 +326,7 @@ export default function TaskTimeTracking({
             className="fixed inset-0 bg-black/50 z-50"
             onClick={() => setShowBreakDialog(false)}
           />
-          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-60 bg-white dark:bg-zinc-900 rounded-xl shadow-2xl p-6 w-96 max-w-[90vw]">
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-60 bg-white dark:bg-indigo-dark-900 rounded-xl shadow-2xl p-6 w-96 max-w-[90vw]">
             <div className="text-center mb-4">
               <div className="text-5xl mb-3">🎉</div>
               <h3 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
@@ -351,7 +351,7 @@ export default function TaskTimeTracking({
               </button>
               <button
                 onClick={handleSkipBreak}
-                className="flex-1 px-4 py-3 bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-700 font-medium transition-colors"
+                className="flex-1 px-4 py-3 bg-zinc-200 dark:bg-indigo-dark-800 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-700 font-medium transition-colors"
               >
                 スキップ
               </button>

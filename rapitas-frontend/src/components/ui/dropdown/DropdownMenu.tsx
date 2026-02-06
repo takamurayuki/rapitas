@@ -81,7 +81,7 @@ export default function DropdownMenu({
       {isOpen && (
         <div
           ref={menuRef}
-          className={`absolute right-0 top-full mt-2 min-w-[180px] bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 py-1.5 z-50 ${menuClassName}`}
+          className={`absolute right-0 top-full mt-2 min-w-[180px] bg-white dark:bg-indigo-dark-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 py-1.5 z-50 ${menuClassName}`}
         >
           {items.map((item, index) => (
             <button

@@ -284,7 +284,7 @@ export default function NewTaskClient() {
 
       <form onSubmit={handleSubmit} className="max-w-2xl mx-auto px-4 pb-8">
         {/* Main Card */}
-        <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
+        <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
           {/* Title Section */}
           <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
             <TaskTitleAutocomplete

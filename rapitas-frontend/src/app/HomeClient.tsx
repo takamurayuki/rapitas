@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { Task, Theme, Priority, Status } from "@/types";
+import type { Task, Theme, Priority, Status, UserSettings } from "@/types";
 import TaskSlidePanel from "@/feature/tasks/components/TaskSlidePanel";
 import TaskCard from "@/feature/tasks/components/TaskCard";
 import { useToast } from "@/components/ui/toast/ToastContainer";
@@ -11,6 +11,7 @@ import {
   statusConfig,
   renderStatusIcon,
 } from "@/feature/tasks/config/StatusConfig";
+// import TaskCompleteOverlay from "@/feature/tasks/components/TaskCompleteOverlay";
 import {
   SwatchBook,
   Star,
@@ -18,10 +19,9 @@ import {
   ChevronsUpDown,
   ChevronUp,
   ChevronsUp,
-  X,
 } from "lucide-react";
 import { getIconComponent } from "@/components/category/IconData";
-import { API_BASE_URL } from "@/utils/api";
+import { API_BASE_URL, fetchWithRetry } from "@/utils/api";
 
 const API_BASE = API_BASE_URL;
 
@@ -40,6 +40,7 @@ export default function HomeClientPage() {
   const [defaultTheme, setDefaultTheme] = useState<Theme | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  // const [showCompleteOverlay, setShowCompleteOverlay] = useState(false);
 
   // クイック追加用
   const [isQuickAdding, setIsQuickAdding] = useState(false);
@@ -62,9 +63,50 @@ export default function HomeClientPage() {
   // フィルターアコーディオン
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
 
+  // 自動再開設定
+  const [autoResumeEnabled, setAutoResumeEnabled] = useState(false);
+  const [isSavingAutoResume, setIsSavingAutoResume] = useState(false);
+
+  const fetchAutoResumeSetting = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/settings`);
+      if (res.ok) {
+        const data: UserSettings = await res.json();
+        setAutoResumeEnabled(data.autoResumeInterruptedTasks ?? false);
+      }
+    } catch (err) {
+      console.error("設定の取得に失敗:", err);
+    }
+  };
+
+  const toggleAutoResume = async () => {
+    const newValue = !autoResumeEnabled;
+    setIsSavingAutoResume(true);
+    try {
+      const res = await fetch(`${API_BASE}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoResumeInterruptedTasks: newValue }),
+      });
+      if (res.ok) {
+        setAutoResumeEnabled(newValue);
+        showToast(
+          newValue ? "自動再開を有効にしました" : "自動再開を無効にしました",
+          "success",
+        );
+      } else {
+        showToast("設定の保存に失敗しました", "error");
+      }
+    } catch {
+      showToast("設定の保存に失敗しました", "error");
+    } finally {
+      setIsSavingAutoResume(false);
+    }
+  };
+
   const fetchTasks = async () => {
     try {
-      const res = await fetch(`${API_BASE}/tasks`);
+      const res = await fetchWithRetry(`${API_BASE}/tasks`);
       if (!res.ok) {
         const text = await res.text().catch(() => "<no body>");
         console.error("GET /tasks failed:", res.status, res.statusText, text);
@@ -97,7 +139,16 @@ export default function HomeClientPage() {
   const updateStatus = async (id: number, status: Status) => {
     const oldTasks = [...tasks];
     setTasks((prev: Task[]) =>
-      prev.map((t: Task) => (t.id === id ? { ...t, status } : t)),
+      prev.map((t: Task) => {
+        // if (t.id === id) {
+        //   // 進行中から完了に変更された場合は完了オーバーレイを表示
+        //   if (t.status !== "done" && status === "done") {
+        //     setShowCompleteOverlay(true);
+        //   }
+        // }
+
+        return t.id === id ? { ...t, status } : t;
+      }),
     );
 
     try {
@@ -260,10 +311,14 @@ export default function HomeClientPage() {
   }, [router, isQuickAdding, isSelectionMode]);
 
   useEffect(() => {
-    // 初回読み込み時は両方のデータを取得してからloadingを解除
+    // 初回読み込み時はすべてのデータを取得してからloadingを解除
     const initialLoad = async () => {
       setLoading(true);
-      await Promise.all([fetchTasks(), fetchThemes()]);
+      await Promise.all([
+        fetchTasks(),
+        fetchThemes(),
+        fetchAutoResumeSetting(),
+      ]);
       setLoading(false);
     };
     initialLoad();
@@ -353,10 +408,10 @@ export default function HomeClientPage() {
                         statusConfig[status as keyof typeof statusConfig];
                       const colorClasses =
                         status === "todo"
-                          ? "hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
+                          ? "bg-zinc-50 dark:bg-zinc-700/50 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
                           : status === "in-progress"
-                            ? "hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                            : "hover:bg-green-50 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400";
+                            ? "bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                            : "bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400";
 
                       const isLast = idx === arr.length - 1;
                       return (
@@ -389,10 +444,10 @@ export default function HomeClientPage() {
                   <>
                     <button
                       onClick={() => setIsQuickAdding(!isQuickAdding)}
-                      className={`px-3 py-1.5  rounded text-xs transition-all flex items-center gap-1.5 bg-green-50 ${
+                      className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
                         isQuickAdding
                           ? "bg-green-500 dark:bg-green-600 text-white shadow-sm"
-                          : "text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/30"
+                          : "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/30"
                       }`}
                       title="クイック追加 (Q)"
                     >
@@ -421,7 +476,7 @@ export default function HomeClientPage() {
                           `/tasks/new${themeParam ? `?themeId=${themeParam}` : ""}`,
                         );
                       }}
-                      className="px-3 py-1.5 bg-blue-50 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30 rounded text-xs transition-all flex items-center gap-1.5"
+                      className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30 rounded text-xs transition-all flex items-center gap-1.5"
                       title="新規タスク (N)"
                     >
                       <svg
@@ -461,7 +516,7 @@ export default function HomeClientPage() {
                         selectedTasks.size === paginatedTasks.length &&
                         paginatedTasks.length > 0
                           ? "bg-blue-500 dark:bg-blue-600 text-white shadow-sm"
-                          : "bg-blue-50 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30"
+                          : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30"
                       }`}
                       title={
                         selectedTasks.size === paginatedTasks.length
@@ -511,10 +566,10 @@ export default function HomeClientPage() {
                     setIsSelectionMode(!isSelectionMode);
                     setSelectedTasks(new Set());
                   }}
-                  className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 bg-purple-50 ${
+                  className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
                     isSelectionMode
                       ? "bg-purple-500 dark:bg-purple-600 text-white shadow-sm"
-                      : "text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/30"
+                      : "bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/30"
                   }`}
                   title="一括選択モード (S)"
                 >
@@ -572,7 +627,7 @@ export default function HomeClientPage() {
 
         {/* クイック追加フォーム */}
         {isQuickAdding && (
-          <div className="mb-4 p-3 bg-white dark:bg-zinc-900 rounded-lg shadow-lg">
+          <div className="mb-4 p-3 bg-white dark:bg-indigo-dark-900 rounded-lg shadow-lg">
             <div className="flex gap-2 p-n2">
               <input
                 type="text"
@@ -586,13 +641,13 @@ export default function HomeClientPage() {
                   }
                 }}
                 placeholder="タスクタイトルを入力... (Enter で作成、Esc でキャンセル)"
-                className="text-sm px-2 flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="text-sm px-2 flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 autoFocus
               />
               <button
                 onClick={handleQuickAdd}
                 disabled={!quickTaskTitle.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 作成
               </button>
@@ -602,7 +657,7 @@ export default function HomeClientPage() {
 
         {/* 統合フィルターバー（アコーディオン） */}
         {!loading && !isSelectionMode && !isQuickAdding && (
-          <div className="mb-4 bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+          <div className="mb-4 bg-white dark:bg-indigo-dark-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
             {/* テーマ選択（アコーディオンヘッダー） */}
             <div className="flex items-center gap-2 px-3 py-2.5">
               {/* テーマボタン */}
@@ -837,7 +892,7 @@ export default function HomeClientPage() {
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                    className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-nowrap"
+                    className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 text-zinc-700 dark:text-zinc-200 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-nowrap"
                   >
                     <option value="createdAt">作成日時</option>
                     <option value="title">タイトル</option>
@@ -875,7 +930,7 @@ export default function HomeClientPage() {
         {loading ? (
           <div className="animate-pulse space-y-4">
             {/* 統合フィルターUIスケルトン（アコーディオン） */}
-            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
+            <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
               {/* テーマ選択スケルトン */}
               <div className="flex items-center gap-2 px-3 py-2.5">
                 <div className="flex items-center gap-2 flex-1">
@@ -895,7 +950,7 @@ export default function HomeClientPage() {
               {[1, 2, 3, 4, 5].map((i) => (
                 <div
                   key={i}
-                  className="bg-white dark:bg-zinc-900 rounded-lg p-4 shadow-sm border border-zinc-200 dark:border-zinc-800"
+                  className="bg-white dark:bg-indigo-dark-900 rounded-lg p-4 shadow-sm border border-zinc-200 dark:border-zinc-800"
                 >
                   <div className="flex items-start gap-3">
                     <div className="w-7 h-7 bg-zinc-200 dark:bg-zinc-700 rounded-md shrink-0" />
@@ -970,7 +1025,6 @@ export default function HomeClientPage() {
                   onTaskClick={openTaskPanel}
                   onStatusChange={(taskId: number, status: Status) => {
                     updateStatus(taskId, status);
-                    showToast("ステータスを更新しました", "success");
                   }}
                   onToggleSelect={toggleTaskSelection}
                   onTaskUpdated={fetchTasks}
@@ -993,7 +1047,7 @@ export default function HomeClientPage() {
                       }}
                       className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
                         itemsPerPage === count
-                          ? "bg-indigo-400 text-white"
+                          ? "bg-indigo-400 dark:bg-indigo-500 text-white shadow-sm"
                           : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
                       }`}
                     >
@@ -1069,7 +1123,7 @@ export default function HomeClientPage() {
                           onClick={() => setCurrentPage(page)}
                           className={`min-w-28px px-2.5 py-1 rounded text-xs font-medium transition-all ${
                             currentPage === page
-                              ? "bg-indigo-400 text-white"
+                              ? "bg-indigo-400 dark:bg-indigo-500 text-white shadow-sm"
                               : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
                           }`}
                         >
@@ -1135,6 +1189,11 @@ export default function HomeClientPage() {
         onClose={closeTaskPanel}
         onTaskUpdated={fetchTasks}
       />
+
+      {/* <TaskCompleteOverlay
+        show={showCompleteOverlay}
+        onComplete={() => setShowCompleteOverlay(false)}
+      /> */}
     </div>
   );
 }

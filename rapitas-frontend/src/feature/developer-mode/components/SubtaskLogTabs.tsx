@@ -148,7 +148,7 @@ export function SubtaskLogTabs({
           className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium rounded-t-lg border-b-2 transition-colors whitespace-nowrap shrink-0 ${
             activeTab === "all"
               ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-500"
-              : "bg-zinc-50 dark:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400 border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              : "bg-zinc-50 dark:bg-indigo-dark-800/50 text-zinc-600 dark:text-zinc-400 border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800"
           }`}
         >
           <Terminal className="w-3 h-3" />
@@ -172,7 +172,7 @@ export function SubtaskLogTabs({
               className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium rounded-t-lg border-b-2 transition-colors whitespace-nowrap shrink-0 max-w-[150px] ${
                 isActive
                   ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-500"
-                  : "bg-zinc-50 dark:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400 border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  : "bg-zinc-50 dark:bg-indigo-dark-800/50 text-zinc-600 dark:text-zinc-400 border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800"
               }`}
               title={subtask.title}
             >

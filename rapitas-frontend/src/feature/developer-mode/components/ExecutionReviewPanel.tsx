@@ -188,7 +188,7 @@ export function ExecutionReviewPanel({
   };
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
       {/* Error Message */}
       {error && (
         <div className="px-6 py-4 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
@@ -293,7 +293,7 @@ export function ExecutionReviewPanel({
                   {reviewComments.map((comment) => (
                     <div
                       key={comment.id}
-                      className="flex items-start gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg"
+                      className="flex items-start gap-3 p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg"
                     >
                       <span
                         className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${getCommentTypeColor(comment.type)}`}
@@ -322,14 +322,14 @@ export function ExecutionReviewPanel({
               )}
 
               {/* 新しいコメント追加フォーム */}
-              <div className="space-y-3 p-4 bg-zinc-50 dark:bg-zinc-800/30 rounded-lg border border-zinc-200 dark:border-zinc-700">
+              <div className="space-y-3 p-4 bg-zinc-50 dark:bg-indigo-dark-800/30 rounded-lg border border-zinc-200 dark:border-zinc-700">
                 <div className="flex items-center gap-2">
                   <select
                     value={newCommentType}
                     onChange={(e) =>
                       setNewCommentType(e.target.value as ReviewComment["type"])
                     }
-                    className="px-3 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                    className="px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                   >
                     <option value="change_request">修正依頼</option>
                     <option value="comment">コメント</option>
@@ -338,7 +338,7 @@ export function ExecutionReviewPanel({
                   <select
                     value={newCommentFile}
                     onChange={(e) => setNewCommentFile(e.target.value)}
-                    className="flex-1 px-3 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                    className="flex-1 px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                   >
                     <option value="">全体に対して</option>
                     {files.map((file) => (
@@ -354,7 +354,7 @@ export function ExecutionReviewPanel({
                     onChange={(e) => setNewCommentContent(e.target.value)}
                     placeholder="具体的な修正内容や質問を入力..."
                     rows={2}
-                    className="flex-1 px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 resize-none"
+                    className="flex-1 px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 resize-none"
                   />
                   <button
                     onClick={addComment}
@@ -377,7 +377,7 @@ export function ExecutionReviewPanel({
                   onChange={(e) => setFeedbackText(e.target.value)}
                   placeholder="実装全体に対するフィードバックや追加の指示を入力..."
                   rows={3}
-                  className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none"
+                  className="w-full px-4 py-3 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none"
                 />
               </div>
 
@@ -422,7 +422,7 @@ export function ExecutionReviewPanel({
               onChange={(e) => setCommitMessage(e.target.value)}
               placeholder="feat: 機能の説明..."
               rows={3}
-              className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none"
+              className="w-full px-4 py-3 bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none"
             />
           </div>
 
@@ -441,14 +441,14 @@ export function ExecutionReviewPanel({
               value={baseBranch}
               onChange={(e) => setBaseBranch(e.target.value)}
               placeholder="main"
-              className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
+              className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
             />
           </div>
         </div>
       )}
 
       {/* Actions */}
-      <div className="flex items-center justify-end gap-3 px-6 py-4 bg-zinc-50 dark:bg-zinc-800/50">
+      <div className="flex items-center justify-end gap-3 px-6 py-4 bg-zinc-50 dark:bg-indigo-dark-800/50">
         <button
           onClick={handleReject}
           disabled={isProcessing || isApproving || isRejecting}

@@ -1,4 +1,4 @@
 /**
  * Configuration exports
  */
-export { prisma } from "./database";
+export { prisma, ensureDatabaseConnection } from "./database";

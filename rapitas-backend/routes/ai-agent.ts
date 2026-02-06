@@ -9,6 +9,19 @@ import { agentFactory } from "../services/agents/agent-factory";
 import { orchestrator } from "./approvals";
 import { toJsonString, fromJsonString } from "../utils/db-helpers";
 import { ParallelExecutor } from "../services/parallel-execution/parallel-executor";
+import { encrypt, decrypt, maskApiKey, isEncryptionKeyConfigured } from "../utils/encryption";
+import {
+  getAgentConfigSchema,
+  getAllAgentConfigSchemas,
+  validateApiKeyFormat,
+  validateAgentConfig,
+} from "../utils/agent-config-schema";
+import {
+  logAgentConfigChange,
+  calculateChanges,
+  getAgentConfigAuditLogs,
+  getRecentAuditLogs,
+} from "../utils/agent-audit-log";
 
 // Parallel executor instance
 let parallelExecutor: ParallelExecutor | null = null;
@@ -43,13 +56,14 @@ export const aiAgentRoutes = new Elysia()
       body: {
         agentType: string;
         name: string;
+        apiKey?: string;
         endpoint?: string;
         modelId?: string;
         capabilities?: any;
         isDefault?: boolean;
       };
     }) => {
-      const { agentType, name, endpoint, modelId, capabilities, isDefault } =
+      const { agentType, name, apiKey, endpoint, modelId, capabilities, isDefault } =
         body;
 
       if (isDefault) {
@@ -59,16 +73,42 @@ export const aiAgentRoutes = new Elysia()
         });
       }
 
-      return await prisma.aIAgentConfig.create({
+      // APIキーが提供された場合は暗号化して保存
+      let apiKeyEncrypted: string | null = null;
+      if (apiKey) {
+        if (!isEncryptionKeyConfigured()) {
+          console.warn("[agents] Encryption key not configured. API keys should be set via environment variables in production.");
+        }
+        apiKeyEncrypted = encrypt(apiKey);
+      }
+
+      const created = await prisma.aIAgentConfig.create({
         data: {
           agentType,
           name,
+          apiKeyEncrypted,
           endpoint,
           modelId,
           capabilities: capabilities || {},
           isDefault: isDefault || false,
         },
       });
+
+      // 監査ログを記録
+      await logAgentConfigChange({
+        agentConfigId: created.id,
+        action: "create",
+        newValues: {
+          agentType,
+          name,
+          endpoint,
+          modelId,
+          hasApiKey: !!apiKey,
+          isDefault: isDefault || false,
+        },
+      });
+
+      return created;
     },
   )
 
@@ -82,6 +122,8 @@ export const aiAgentRoutes = new Elysia()
       params: { id: string };
       body: {
         name?: string;
+        apiKey?: string;
+        clearApiKey?: boolean;
         endpoint?: string;
         modelId?: string;
         capabilities?: any;
@@ -90,7 +132,7 @@ export const aiAgentRoutes = new Elysia()
       };
     }) => {
       const { id } = params;
-      const { name, endpoint, modelId, capabilities, isDefault, isActive } =
+      const { name, apiKey, clearApiKey, endpoint, modelId, capabilities, isDefault, isActive } =
         body;
 
       if (isDefault) {
@@ -100,10 +142,27 @@ export const aiAgentRoutes = new Elysia()
         });
       }
 
-      return await prisma.aIAgentConfig.update({
+      // 更新前の値を取得
+      const previous = await prisma.aIAgentConfig.findUnique({
+        where: { id: parseInt(id) },
+      });
+
+      // APIキーの処理
+      let apiKeyEncrypted: string | null | undefined = undefined;
+      if (clearApiKey) {
+        apiKeyEncrypted = null;
+      } else if (apiKey) {
+        if (!isEncryptionKeyConfigured()) {
+          console.warn("[agents] Encryption key not configured. API keys should be set via environment variables in production.");
+        }
+        apiKeyEncrypted = encrypt(apiKey);
+      }
+
+      const updated = await prisma.aIAgentConfig.update({
         where: { id: parseInt(id) },
         data: {
           ...(name && { name }),
+          ...(apiKeyEncrypted !== undefined && { apiKeyEncrypted }),
           ...(endpoint !== undefined && { endpoint }),
           ...(modelId !== undefined && { modelId }),
           ...(capabilities && { capabilities }),
@@ -111,17 +170,487 @@ export const aiAgentRoutes = new Elysia()
           ...(isActive !== undefined && { isActive }),
         },
       });
+
+      // 監査ログを記録
+      if (previous) {
+        const changes = calculateChanges(
+          {
+            name: previous.name,
+            endpoint: previous.endpoint,
+            modelId: previous.modelId,
+            isDefault: previous.isDefault,
+            isActive: previous.isActive,
+            hasApiKey: !!previous.apiKeyEncrypted,
+          },
+          {
+            name: updated.name,
+            endpoint: updated.endpoint,
+            modelId: updated.modelId,
+            isDefault: updated.isDefault,
+            isActive: updated.isActive,
+            hasApiKey: !!updated.apiKeyEncrypted,
+          }
+        );
+
+        if (Object.keys(changes).length > 0) {
+          await logAgentConfigChange({
+            agentConfigId: parseInt(id),
+            action: "update",
+            changeDetails: changes,
+            previousValues: {
+              name: previous.name,
+              endpoint: previous.endpoint,
+              modelId: previous.modelId,
+              isDefault: previous.isDefault,
+              isActive: previous.isActive,
+            },
+            newValues: {
+              name: updated.name,
+              endpoint: updated.endpoint,
+              modelId: updated.modelId,
+              isDefault: updated.isDefault,
+              isActive: updated.isActive,
+            },
+          });
+        }
+      }
+
+      return updated;
     },
   )
+
+  // Get single agent configuration with masked API key
+  .get("/agents/:id", async ({ params, set }: { params: { id: string }; set: any }) => {
+    const { id } = params;
+    const agent = await prisma.aIAgentConfig.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        _count: { select: { executions: true } },
+      },
+    });
+
+    if (!agent) {
+      set.status = 404;
+      return { error: "Agent not found" };
+    }
+
+    // APIキーが設定されているかどうかと、マスクされた値を返す
+    let maskedApiKey: string | null = null;
+    let hasApiKey = false;
+    if (agent.apiKeyEncrypted) {
+      try {
+        const decryptedKey = decrypt(agent.apiKeyEncrypted);
+        maskedApiKey = maskApiKey(decryptedKey);
+        hasApiKey = true;
+      } catch (e) {
+        console.error(`[agents] Failed to decrypt API key for agent ${id}:`, e);
+        maskedApiKey = "*** (decryption failed)";
+        hasApiKey = true;
+      }
+    }
+
+    return {
+      ...agent,
+      apiKeyEncrypted: undefined, // 暗号化されたキーは返さない
+      maskedApiKey,
+      apiKeyMasked: maskedApiKey, // フロントエンド互換のフィールド名
+      hasApiKey,
+    };
+  })
 
   // Delete agent configuration
   .delete("/agents/:id", async ({ params }: { params: { id: string } }) => {
     const { id } = params;
-    return await prisma.aIAgentConfig.update({
+
+    // 削除前の値を取得
+    const previous = await prisma.aIAgentConfig.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    const result = await prisma.aIAgentConfig.update({
       where: { id: parseInt(id) },
       data: { isActive: false },
     });
+
+    // 監査ログを記録
+    if (previous) {
+      await logAgentConfigChange({
+        agentConfigId: parseInt(id),
+        action: "delete",
+        previousValues: {
+          name: previous.name,
+          agentType: previous.agentType,
+          isActive: previous.isActive,
+        },
+      });
+    }
+
+    return result;
   })
+
+  // Save API key for agent
+  .post(
+    "/agents/:id/api-key",
+    async ({
+      params,
+      body,
+      set,
+    }: {
+      params: { id: string };
+      body: { apiKey: string };
+      set: any;
+    }) => {
+      const { id } = params;
+      const { apiKey } = body;
+
+      if (!apiKey) {
+        set.status = 400;
+        return { error: "API key is required" };
+      }
+
+      if (!isEncryptionKeyConfigured()) {
+        console.warn(
+          "[agents] Encryption key not configured. API keys should be set via environment variables in production."
+        );
+      }
+
+      const agent = await prisma.aIAgentConfig.findUnique({
+        where: { id: parseInt(id) },
+      });
+
+      if (!agent) {
+        set.status = 404;
+        return { error: "Agent not found" };
+      }
+
+      const apiKeyEncrypted = encrypt(apiKey);
+
+      await prisma.aIAgentConfig.update({
+        where: { id: parseInt(id) },
+        data: { apiKeyEncrypted },
+      });
+
+      // 監査ログを記録
+      await logAgentConfigChange({
+        agentConfigId: parseInt(id),
+        action: "api_key_set",
+        changeDetails: {
+          hadApiKeyBefore: !!agent.apiKeyEncrypted,
+        },
+      });
+
+      return {
+        success: true,
+        message: "API key saved successfully",
+        apiKeyMasked: maskApiKey(apiKey),
+      };
+    }
+  )
+
+  // Delete API key for agent
+  .delete(
+    "/agents/:id/api-key",
+    async ({ params, set }: { params: { id: string }; set: any }) => {
+      const { id } = params;
+
+      const agent = await prisma.aIAgentConfig.findUnique({
+        where: { id: parseInt(id) },
+      });
+
+      if (!agent) {
+        set.status = 404;
+        return { error: "Agent not found" };
+      }
+
+      await prisma.aIAgentConfig.update({
+        where: { id: parseInt(id) },
+        data: { apiKeyEncrypted: null },
+      });
+
+      // 監査ログを記録
+      await logAgentConfigChange({
+        agentConfigId: parseInt(id),
+        action: "api_key_delete",
+      });
+
+      return {
+        success: true,
+        message: "API key deleted successfully",
+      };
+    }
+  )
+
+  // Test connection for agent (alias for test-connection)
+  .post(
+    "/agents/:id/test",
+    async ({ params, set }: { params: { id: string }; set: any }) => {
+      const { id } = params;
+      const agent = await prisma.aIAgentConfig.findUnique({
+        where: { id: parseInt(id) },
+      });
+
+      if (!agent) {
+        set.status = 404;
+        return { success: false, message: "Agent not found" };
+      }
+
+      try {
+        switch (agent.agentType) {
+          case "claude-code": {
+            const { spawn } = await import("child_process");
+            const claudePath = process.env.CLAUDE_CODE_PATH || "claude";
+
+            const result = await new Promise<{ success: boolean; message: string }>(
+              (resolve) => {
+                const proc = spawn(claudePath, ["--version"], { shell: true });
+                let stdout = "";
+                let stderr = "";
+
+                const timeout = setTimeout(() => {
+                  proc.kill();
+                  resolve({ success: false, message: "Claude CLI timeout" });
+                }, 10000);
+
+                proc.stdout?.on("data", (data) => {
+                  stdout += data.toString();
+                });
+                proc.stderr?.on("data", (data) => {
+                  stderr += data.toString();
+                });
+
+                proc.on("close", (code) => {
+                  clearTimeout(timeout);
+                  if (code === 0) {
+                    resolve({
+                      success: true,
+                      message: `Claude CLI available: ${stdout.trim()}`,
+                    });
+                  } else {
+                    resolve({
+                      success: false,
+                      message: stderr || `Exit code: ${code}`,
+                    });
+                  }
+                });
+
+                proc.on("error", (err) => {
+                  clearTimeout(timeout);
+                  resolve({
+                    success: false,
+                    message: `Claude CLI not found: ${err.message}`,
+                  });
+                });
+              }
+            );
+            return result;
+          }
+
+          case "anthropic-api": {
+            if (!agent.apiKeyEncrypted) {
+              return { success: false, message: "APIキーが設定されていません" };
+            }
+
+            const apiKey = decrypt(agent.apiKeyEncrypted);
+            const response = await fetch("https://api.anthropic.com/v1/messages", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": apiKey,
+                "anthropic-version": "2023-06-01",
+              },
+              body: JSON.stringify({
+                model: agent.modelId || "claude-sonnet-4-20250514",
+                max_tokens: 10,
+                messages: [{ role: "user", content: "Hi" }],
+              }),
+            });
+
+            if (response.ok) {
+              return { success: true, message: "Anthropic API接続成功" };
+            } else {
+              const error = await response.json().catch(() => ({}));
+              return {
+                success: false,
+                message: `Anthropic API error: ${(error as any).error?.message || response.statusText}`,
+              };
+            }
+          }
+
+          case "openai": {
+            if (!agent.apiKeyEncrypted) {
+              return { success: false, message: "APIキーが設定されていません" };
+            }
+
+            const apiKey = decrypt(agent.apiKeyEncrypted);
+            const endpoint = agent.endpoint || "https://api.openai.com/v1";
+
+            const response = await fetch(`${endpoint}/models`, {
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+              },
+            });
+
+            if (response.ok) {
+              return { success: true, message: "OpenAI API接続成功" };
+            } else {
+              const error = await response.json().catch(() => ({}));
+              return {
+                success: false,
+                message: `OpenAI API error: ${(error as any).error?.message || response.statusText}`,
+              };
+            }
+          }
+
+          case "azure-openai": {
+            if (!agent.apiKeyEncrypted || !agent.endpoint) {
+              return {
+                success: false,
+                message: "APIキーまたはエンドポイントが設定されていません",
+              };
+            }
+
+            const apiKey = decrypt(agent.apiKeyEncrypted);
+            const response = await fetch(
+              `${agent.endpoint}?api-version=2024-02-15-preview`,
+              {
+                headers: {
+                  "api-key": apiKey,
+                },
+              }
+            );
+
+            if (response.ok || response.status === 404) {
+              return { success: true, message: "Azure OpenAI API接続成功" };
+            } else {
+              return {
+                success: false,
+                message: `Azure OpenAI error: ${response.statusText}`,
+              };
+            }
+          }
+
+          case "gemini": {
+            if (!agent.apiKeyEncrypted) {
+              // Gemini CLIの場合はAPIキーなしでもCLI確認を実施
+              const { spawn } = await import("child_process");
+              const geminiPath = process.env.GEMINI_CLI_PATH || "gemini";
+              const cliResult = await new Promise<{ success: boolean; message: string }>(
+                (resolve) => {
+                  const proc = spawn(geminiPath, ["--version"], { shell: true });
+                  let stdout = "";
+                  let stderr = "";
+                  const timeout = setTimeout(() => {
+                    proc.kill();
+                    resolve({ success: false, message: "Gemini CLI timeout" });
+                  }, 10000);
+                  proc.stdout?.on("data", (data) => { stdout += data.toString(); });
+                  proc.stderr?.on("data", (data) => { stderr += data.toString(); });
+                  proc.on("close", (code) => {
+                    clearTimeout(timeout);
+                    if (code === 0) {
+                      resolve({ success: true, message: `Gemini CLI available: ${stdout.trim()}` });
+                    } else {
+                      resolve({ success: false, message: stderr || `Exit code: ${code}` });
+                    }
+                  });
+                  proc.on("error", (err) => {
+                    clearTimeout(timeout);
+                    resolve({ success: false, message: `Gemini CLI not found: ${err.message}` });
+                  });
+                }
+              );
+              return cliResult;
+            }
+
+            const apiKey = decrypt(agent.apiKeyEncrypted);
+            const response = await fetch(
+              `https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`
+            );
+
+            if (response.ok) {
+              return { success: true, message: "Gemini API接続成功" };
+            } else {
+              const error = await response.json().catch(() => ({}));
+              return {
+                success: false,
+                message: `Gemini API error: ${(error as any).error?.message || response.statusText}`,
+              };
+            }
+          }
+
+          case "codex": {
+            const { spawn } = await import("child_process");
+            const codexPath = process.env.CODEX_CLI_PATH || "codex";
+
+            const result = await new Promise<{ success: boolean; message: string }>(
+              (resolve) => {
+                const proc = spawn(codexPath, ["--version"], { shell: true });
+                let stdout = "";
+                let stderr = "";
+
+                const timeout = setTimeout(() => {
+                  proc.kill();
+                  resolve({ success: false, message: "Codex CLI timeout" });
+                }, 10000);
+
+                proc.stdout?.on("data", (data) => {
+                  stdout += data.toString();
+                });
+                proc.stderr?.on("data", (data) => {
+                  stderr += data.toString();
+                });
+
+                proc.on("close", (code) => {
+                  clearTimeout(timeout);
+                  if (code === 0) {
+                    resolve({
+                      success: true,
+                      message: `Codex CLI available: ${stdout.trim()}`,
+                    });
+                  } else {
+                    resolve({
+                      success: false,
+                      message: stderr || `Exit code: ${code}`,
+                    });
+                  }
+                });
+
+                proc.on("error", (err) => {
+                  clearTimeout(timeout);
+                  resolve({
+                    success: false,
+                    message: `Codex CLI not found: ${err.message}`,
+                  });
+                });
+              }
+            );
+            return result;
+          }
+
+          default:
+            return {
+              success: false,
+              message: `Unknown agent type: ${agent.agentType}`,
+            };
+        }
+      } catch (error) {
+        // 接続テスト失敗時も監査ログを記録
+        await logAgentConfigChange({
+          agentConfigId: parseInt(id),
+          action: "test_connection",
+          changeDetails: {
+            success: false,
+            error: error instanceof Error ? error.message : "Unknown error",
+          },
+        });
+
+        return {
+          success: false,
+          message: `Connection test failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        };
+      }
+    }
+  )
 
   // Available agent types
   .get("/agents/types", async () => {
@@ -132,6 +661,192 @@ export const aiAgentRoutes = new Elysia()
       available: available.map((a) => a.type),
     };
   })
+
+  // Get encryption configuration status
+  .get("/agents/encryption-status", async () => {
+    return {
+      isConfigured: isEncryptionKeyConfigured(),
+      message: isEncryptionKeyConfigured()
+        ? "暗号化キーが正しく設定されています"
+        : "警告: 暗号化キーが環境変数に設定されていません。本番環境では必ず設定してください。",
+    };
+  })
+
+  // Get all agent configuration schemas
+  .get("/agents/config-schemas", async () => {
+    return {
+      schemas: getAllAgentConfigSchemas(),
+    };
+  })
+
+  // Get configuration schema for a specific agent type
+  .get("/agents/config-schema/:agentType", async ({ params, set }: { params: { agentType: string }; set: any }) => {
+    const { agentType } = params;
+    const schema = getAgentConfigSchema(agentType);
+
+    if (!schema) {
+      set.status = 404;
+      return { error: `Unknown agent type: ${agentType}` };
+    }
+
+    return { schema };
+  })
+
+  // Validate agent configuration
+  .post(
+    "/agents/validate-config",
+    async ({
+      body,
+      set,
+    }: {
+      body: {
+        agentType: string;
+        apiKey?: string;
+        endpoint?: string;
+        modelId?: string;
+        additionalConfig?: Record<string, unknown>;
+      };
+      set: any;
+    }) => {
+      const { agentType, apiKey, endpoint, modelId, additionalConfig } = body;
+
+      const errors: string[] = [];
+
+      // APIキーのバリデーション
+      if (apiKey) {
+        const apiKeyResult = validateApiKeyFormat(agentType, apiKey);
+        if (!apiKeyResult.valid && apiKeyResult.message) {
+          errors.push(apiKeyResult.message);
+        }
+      }
+
+      // 設定のバリデーション
+      const configResult = validateAgentConfig(agentType, {
+        endpoint,
+        modelId,
+        additionalConfig,
+      });
+
+      if (!configResult.valid) {
+        errors.push(...configResult.errors);
+      }
+
+      if (errors.length > 0) {
+        set.status = 400;
+        return { valid: false, errors };
+      }
+
+      return { valid: true, errors: [] };
+    }
+  )
+
+  // Get audit logs for a specific agent
+  .get(
+    "/agents/:id/audit-logs",
+    async ({ params, query }: { params: { id: string }; query: { limit?: string } }) => {
+      const { id } = params;
+      const limit = query.limit ? parseInt(query.limit) : 50;
+
+      const logs = await getAgentConfigAuditLogs(parseInt(id), limit);
+      return { logs };
+    }
+  )
+
+  // Get recent audit logs (all agents)
+  .get(
+    "/agents/audit-logs/recent",
+    async ({ query }: { query: { limit?: string } }) => {
+      const limit = query.limit ? parseInt(query.limit) : 100;
+      const logs = await getRecentAuditLogs(limit);
+      return { logs };
+    }
+  )
+
+  // Test API key connection for an agent
+  .post(
+    "/agents/:id/test-connection",
+    async ({ params, set }: { params: { id: string }; set: any }) => {
+      const { id } = params;
+      const agent = await prisma.aIAgentConfig.findUnique({
+        where: { id: parseInt(id) },
+      });
+
+      if (!agent) {
+        set.status = 404;
+        return { success: false, error: "Agent not found" };
+      }
+
+      // エージェントタイプに応じた接続テスト
+      try {
+        if (agent.agentType === "claude-code") {
+          // Claude Code CLIは--versionで動作確認
+          const { spawn } = await import("child_process");
+          const claudePath = process.env.CLAUDE_CODE_PATH || "claude";
+
+          const testResult = await new Promise<{ success: boolean; output?: string; error?: string }>((resolve) => {
+            const proc = spawn(claudePath, ["--version"], { shell: true });
+            let stdout = "";
+            let stderr = "";
+
+            const timeout = setTimeout(() => {
+              proc.kill();
+              resolve({ success: false, error: "Timeout (10s)" });
+            }, 10000);
+
+            proc.stdout?.on("data", (data) => { stdout += data.toString(); });
+            proc.stderr?.on("data", (data) => { stderr += data.toString(); });
+
+            proc.on("close", (code) => {
+              clearTimeout(timeout);
+              resolve({
+                success: code === 0,
+                output: stdout.trim(),
+                error: stderr.trim() || (code !== 0 ? `Exit code: ${code}` : undefined),
+              });
+            });
+
+            proc.on("error", (err) => {
+              clearTimeout(timeout);
+              resolve({ success: false, error: err.message });
+            });
+          });
+
+          return {
+            success: testResult.success,
+            agentType: agent.agentType,
+            message: testResult.success
+              ? `Claude Code CLI接続成功: ${testResult.output}`
+              : `Claude Code CLI接続失敗: ${testResult.error}`,
+            details: testResult,
+          };
+        }
+
+        // APIキーを使用するエージェントタイプの場合
+        if (!agent.apiKeyEncrypted) {
+          return {
+            success: false,
+            agentType: agent.agentType,
+            message: "APIキーが設定されていません",
+          };
+        }
+
+        // 将来のプロバイダー用のプレースホルダー
+        // TODO: OpenAI, Gemini等の接続テスト実装
+        return {
+          success: true,
+          agentType: agent.agentType,
+          message: `${agent.agentType}の接続テストはまだ実装されていません`,
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          agentType: agent.agentType,
+          error: error.message || "Unknown error",
+          message: `接続テストに失敗しました: ${error.message}`,
+        };
+      }
+    },
+  )
 
   // Execute agent on task
   .post(

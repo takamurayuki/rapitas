@@ -89,7 +89,7 @@ export function DiffViewer({
       case "changed":
         return "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300";
       default:
-        return "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400";
+        return "bg-zinc-100 dark:bg-indigo-dark-800 text-zinc-600 dark:text-zinc-400";
     }
   };
 
@@ -116,7 +116,7 @@ export function DiffViewer({
   return (
     <div className="border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-700">
+      <div className="flex items-center justify-between px-4 py-3 bg-zinc-50 dark:bg-indigo-dark-800/50 border-b border-zinc-200 dark:border-zinc-700">
         <div className="flex items-center gap-4">
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             {files.length} ファイル
@@ -243,7 +243,7 @@ export function DiffViewer({
 
             {/* No patch available */}
             {expandedFiles.has(file.filename) && !file.patch && (
-              <div className="px-4 py-6 bg-zinc-50 dark:bg-zinc-800/30 text-center">
+              <div className="px-4 py-6 bg-zinc-50 dark:bg-indigo-dark-800/30 text-center">
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
                   差分情報がありません
                 </p>

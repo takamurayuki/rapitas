@@ -229,46 +229,6 @@ export default function KanbanPage() {
         {/* Filter Bar */}
         <div className="mb-6 space-y-3">
           <div className="flex items-center gap-3">
-            {/* Search */}
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="タスクを検索..."
-                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-
-            {/* Filter Toggle */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
-                showFilters || hasActiveFilters
-                  ? "bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400"
-                  : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300"
-              }`}
-            >
-              <Filter className="w-4 h-4" />
-              <span className="text-sm font-medium">フィルター</span>
-              {hasActiveFilters && (
-                <span className="px-1.5 py-0.5 text-xs bg-blue-500 text-white rounded-full">
-                  {selectedPriorities.length +
-                    selectedLabelIds.length +
-                    (searchQuery ? 1 : 0)}
-                </span>
-              )}
-            </button>
-
             {/* Clear Filters */}
             {hasActiveFilters && (
               <button
@@ -387,7 +347,7 @@ export default function KanbanPage() {
                         className={`flex-1 rounded-lg p-3 transition-colors ${
                           snapshot.isDraggingOver
                             ? "bg-blue-50 dark:bg-blue-950"
-                            : "bg-zinc-50 dark:bg-zinc-900"
+                            : "bg-zinc-50 dark:bg-indigo-dark-900"
                         } min-h-[200px]`}
                       >
                         <div className="space-y-2">

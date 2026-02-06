@@ -185,7 +185,7 @@ function TreeNodeItem({
 
           {/* ファイル一覧 */}
           {node.files.length > 0 && (
-            <div className="p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+            <div className="p-2 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
               <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 mb-1">
                 <FileCode className="w-3 h-3" />
                 <span className="font-medium">関連ファイル</span>
@@ -490,7 +490,7 @@ export function DependencyTree({ taskId }: Props) {
 
       {/* サマリー */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+        <div className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
           <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1">
             <Layers className="w-3 h-3" />
             タスク数
@@ -605,7 +605,7 @@ export function DependencyTree({ taskId }: Props) {
               .map((item) => (
                 <div
                   key={item.taskId}
-                  className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg"
+                  className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">

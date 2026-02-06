@@ -6,29 +6,30 @@
 /**
  * タスク優先度
  */
-export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TaskPriority = "low" | "medium" | "high" | "urgent";
 
 /**
  * 並列実行ステータス
  */
 export type ParallelExecutionStatus =
-  | 'pending'       // 待機中
-  | 'scheduled'     // スケジュール済み
-  | 'running'       // 実行中
-  | 'completed'     // 完了
-  | 'failed'        // 失敗
-  | 'cancelled'     // キャンセル
-  | 'blocked';      // ブロック（依存タスク未完了）
+  | "pending" // 待機中
+  | "scheduled" // スケジュール済み
+  | "running" // 実行中
+  | "completed" // 完了
+  | "failed" // 失敗
+  | "cancelled" // キャンセル
+  | "blocked" // ブロック（依存タスク未完了）
+  | "waiting_for_input"; // ユーザー入力待ち
 
 /**
  * 依存関係の種類
  */
 export type DependencyType =
-  | 'file_sharing'     // ファイル共有による依存
-  | 'data_flow'        // データフローによる依存
-  | 'sequential'       // 順序依存（明示的）
-  | 'resource'         // リソース競合
-  | 'logical';         // 論理的な依存関係
+  | "file_sharing" // ファイル共有による依存
+  | "data_flow" // データフローによる依存
+  | "sequential" // 順序依存（明示的）
+  | "resource" // リソース競合
+  | "logical"; // 論理的な依存関係
 
 /**
  * 依存関係エッジ（タスク間の依存を表現）
@@ -37,7 +38,7 @@ export type DependencyEdge = {
   fromTaskId: number;
   toTaskId: number;
   type: DependencyType;
-  weight: number;          // 依存の強度 (0-100)
+  weight: number; // 依存の強度 (0-100)
   sharedResources: string[]; // 共有リソース（ファイルパス等）
   description?: string;
 };
@@ -55,13 +56,13 @@ export type TaskNode = {
   status: ParallelExecutionStatus;
 
   // 依存関係
-  dependencies: number[];      // このタスクが依存するタスクID
-  dependents: number[];        // このタスクに依存するタスクID
+  dependencies: number[]; // このタスクが依存するタスクID
+  dependents: number[]; // このタスクに依存するタスクID
 
   // 分析結果
-  depth: number;               // グラフ内の深さ（クリティカルパス計算用）
-  independenceScore: number;   // 独立性スコア (0-100)
-  parallelizability: number;   // 並列実行可能性スコア (0-100)
+  depth: number; // グラフ内の深さ（クリティカルパス計算用）
+  independenceScore: number; // 独立性スコア (0-100)
+  parallelizability: number; // 並列実行可能性スコア (0-100)
 
   // 実行情報
   executionId?: number;
@@ -70,7 +71,7 @@ export type TaskNode = {
   completedAt?: Date;
 
   // メタデータ
-  files: string[];             // 関連ファイル
+  files: string[]; // 関連ファイル
   tags: string[];
 };
 
@@ -82,7 +83,7 @@ export type DependencyTreeMap = {
   edges: DependencyEdge[];
 
   // 計算済みメトリクス
-  criticalPath: number[];      // クリティカルパスのタスクID
+  criticalPath: number[]; // クリティカルパスのタスクID
   parallelGroups: ParallelGroup[];
   maxDepth: number;
   totalWeight: number;
@@ -93,7 +94,7 @@ export type DependencyTreeMap = {
  */
 export type ParallelGroup = {
   groupId: number;
-  level: number;               // 実行レベル（0から始まる）
+  level: number; // 実行レベル（0から始まる）
   taskIds: number[];
   canRunParallel: boolean;
   estimatedDuration: number;
@@ -115,15 +116,15 @@ export type ParallelExecutionPlan = {
 
   // 実行構造
   groups: ParallelGroup[];
-  executionOrder: number[][];  // レベルごとのタスクID配列
+  executionOrder: number[][]; // レベルごとのタスクID配列
 
   // 推定値
   estimatedTotalDuration: number;
   estimatedSequentialDuration: number;
-  parallelEfficiency: number;  // 並列化による効率向上率
+  parallelEfficiency: number; // 並列化による効率向上率
 
   // 制約
-  maxConcurrency: number;      // 最大同時実行数
+  maxConcurrency: number; // 最大同時実行数
   resourceConstraints: ResourceConstraint[];
 };
 
@@ -131,7 +132,7 @@ export type ParallelExecutionPlan = {
  * リソース制約
  */
 export type ResourceConstraint = {
-  type: 'file' | 'api' | 'memory' | 'cpu';
+  type: "file" | "api" | "memory" | "cpu";
   resource: string;
   maxConcurrent: number;
   affectedTasks: number[];
@@ -147,6 +148,7 @@ export type SubAgentState = {
   status: ParallelExecutionStatus;
   startedAt: Date;
   lastActivityAt: Date;
+  watingForInput: boolean;
 
   // 出力
   output: string;
@@ -193,7 +195,7 @@ export type AgentMessage = {
   id: string;
   timestamp: Date;
   fromAgentId: string;
-  toAgentId: string | 'broadcast';
+  toAgentId: string | "broadcast";
 
   type: AgentMessageType;
   payload: unknown;
@@ -207,16 +209,16 @@ export type AgentMessage = {
  * エージェントメッセージの種類
  */
 export type AgentMessageType =
-  | 'task_started'
-  | 'task_progress'
-  | 'task_completed'
-  | 'task_failed'
-  | 'file_modified'
-  | 'resource_locked'
-  | 'resource_released'
-  | 'dependency_resolved'
-  | 'coordination_request'
-  | 'coordination_response';
+  | "task_started"
+  | "task_progress"
+  | "task_completed"
+  | "task_failed"
+  | "file_modified"
+  | "resource_locked"
+  | "resource_released"
+  | "dependency_resolved"
+  | "coordination_request"
+  | "coordination_response";
 
 /**
  * 実行ログエントリ
@@ -225,7 +227,7 @@ export type ExecutionLogEntry = {
   timestamp: Date;
   agentId: string;
   taskId: number;
-  level: 'debug' | 'info' | 'warn' | 'error';
+  level: "debug" | "info" | "warn" | "error";
   message: string;
   metadata?: Record<string, unknown>;
 };

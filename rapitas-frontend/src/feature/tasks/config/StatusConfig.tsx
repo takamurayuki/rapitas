@@ -1,7 +1,7 @@
 export const statusConfig = {
   todo: {
     color: "text-zinc-700 dark:text-zinc-300",
-    bgColor: "bg-zinc-100 dark:bg-zinc-800",
+    bgColor: "bg-zinc-100 dark:bg-indigo-dark-800",
     borderColor: "border-l-zinc-400 dark:border-l-zinc-600",
     label: "未着手",
   },

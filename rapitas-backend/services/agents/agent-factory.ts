@@ -5,6 +5,8 @@
 
 import { BaseAgent, AgentCapability } from './base-agent';
 import { ClaudeCodeAgent, ClaudeCodeAgentConfig } from './claude-code-agent';
+import { GeminiCliAgent, GeminiCliAgentConfig } from './gemini-cli-agent';
+import { CodexCliAgent, CodexCliAgentConfig } from './codex-cli-agent';
 
 export type AgentType = 'claude-code' | 'codex' | 'gemini' | 'custom';
 
@@ -20,6 +22,14 @@ export type AgentConfigInput = {
   dangerouslySkipPermissions?: boolean;
   continueConversation?: boolean; // 前回の会話を継続するか（--continue）
   resumeSessionId?: string; // --resumeで使用するセッションID
+  // Gemini CLI 固有の設定
+  projectId?: string; // Google Cloud Project ID
+  location?: string; // Google Cloud region
+  sandboxMode?: boolean; // サンドボックスモードで実行
+  yoloMode?: boolean; // 自動承認モード（Gemini CLI --yolo）
+  checkpointId?: string; // チェックポイントIDでセッション継続
+  allowedTools?: string[]; // 許可するツール
+  disallowedTools?: string[]; // 禁止するツール
   customConfig?: Record<string, unknown>;
 };
 
@@ -76,34 +86,44 @@ export class AgentFactory {
       },
     });
 
-    // Future: Codex
+    // Codex CLI
     this.registeredAgents.set('codex', {
       type: 'codex',
-      name: 'OpenAI Codex',
-      description: 'OpenAI Codex を使用したコード生成エージェント（未実装）',
-      capabilities: {
-        codeGeneration: true,
-        codeReview: false,
-        taskAnalysis: true,
-        fileOperations: false,
-        terminalAccess: false,
-      },
-      isAvailable: async () => false, // 未実装
-    });
-
-    // Future: Gemini
-    this.registeredAgents.set('gemini', {
-      type: 'gemini',
-      name: 'Google Gemini',
-      description: 'Google Gemini を使用したコード生成エージェント（未実装）',
+      name: 'OpenAI Codex CLI',
+      description: 'OpenAI Codex CLI を使用したコード生成・編集エージェント',
       capabilities: {
         codeGeneration: true,
         codeReview: true,
         taskAnalysis: true,
-        fileOperations: false,
-        terminalAccess: false,
+        fileOperations: true,
+        terminalAccess: true,
+        gitOperations: true,
+        webSearch: true,
       },
-      isAvailable: async () => false, // 未実装
+      isAvailable: async () => {
+        const agent = new CodexCliAgent('test', 'test');
+        return agent.isAvailable();
+      },
+    });
+
+    // Gemini CLI
+    this.registeredAgents.set('gemini', {
+      type: 'gemini',
+      name: 'Google Gemini CLI',
+      description: 'Google Gemini CLI を使用したコード生成・編集エージェント',
+      capabilities: {
+        codeGeneration: true,
+        codeReview: true,
+        taskAnalysis: true,
+        fileOperations: true,
+        terminalAccess: true,
+        gitOperations: true,
+        webSearch: true,
+      },
+      isAvailable: async () => {
+        const agent = new GeminiCliAgent('test', 'test');
+        return agent.isAvailable();
+      },
     });
   }
 
@@ -128,9 +148,40 @@ export class AgentFactory {
         return agent;
       }
 
-      case 'codex':
-      case 'gemini':
-        throw new Error(`Agent type '${config.type}' is not yet implemented`);
+      case 'gemini': {
+        const geminiConfig: GeminiCliAgentConfig = {
+          workingDirectory: config.workingDirectory,
+          model: config.modelId,
+          timeout: config.timeout,
+          apiKey: config.apiKey,
+          projectId: config.projectId,
+          location: config.location,
+          sandboxMode: config.sandboxMode,
+          yolo: config.yoloMode,
+          checkpointId: config.checkpointId || config.resumeSessionId,
+          allowedTools: config.allowedTools,
+          disallowedTools: config.disallowedTools,
+        };
+        const geminiAgent = new GeminiCliAgent(id, config.name, geminiConfig);
+        this.activeAgents.set(id, geminiAgent);
+        return geminiAgent;
+      }
+
+      case 'codex': {
+        const codexConfig: CodexCliAgentConfig = {
+          workingDirectory: config.workingDirectory,
+          model: config.modelId,
+          timeout: config.timeout,
+          apiKey: config.apiKey,
+          fullAuto: true, // 自動実行モードはデフォルトで有効
+          yolo: config.yoloMode,
+          resumeSessionId: config.resumeSessionId,
+          sandboxMode: config.sandboxMode ? 'workspace-write' : undefined,
+        };
+        const codexAgent = new CodexCliAgent(id, config.name, codexConfig);
+        this.activeAgents.set(id, codexAgent);
+        return codexAgent;
+      }
 
       case 'custom':
         throw new Error('Custom agent type requires a custom implementation');

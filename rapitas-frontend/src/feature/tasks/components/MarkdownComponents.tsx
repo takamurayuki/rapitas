@@ -53,7 +53,7 @@ export const createMarkdownComponents = (
     if (inline) {
       return (
         <code
-          className="inline bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-sm font-mono text-zinc-800 dark:text-zinc-200"
+          className="inline bg-zinc-100 dark:bg-indigo-dark-800 px-1.5 py-0.5 rounded text-sm font-mono text-zinc-800 dark:text-zinc-200"
           {...props}
         >
           {children}
@@ -66,7 +66,7 @@ export const createMarkdownComponents = (
       return (
         <div className="relative group my-4">
           <div className="absolute top-0 right-0 flex items-center gap-2">
-            <span className="px-3 py-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 rounded-bl-lg border-l border-b border-zinc-300 dark:border-zinc-700">
+            <span className="px-3 py-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-indigo-dark-800 rounded-bl-lg border-l border-b border-zinc-300 dark:border-zinc-700">
               {language.toUpperCase()}
             </span>
             {onEditCode && (
@@ -99,7 +99,7 @@ export const createMarkdownComponents = (
 
     // コードブロック（言語指定なし）
     return (
-      <div className="bg-zinc-100 dark:bg-zinc-800 p-4 rounded-lg overflow-x-auto my-4">
+      <div className="bg-zinc-100 dark:bg-indigo-dark-800 p-4 rounded-lg overflow-x-auto my-4">
         <code
           className="block text-sm font-mono text-zinc-800 dark:text-zinc-200 whitespace-pre"
           {...props}

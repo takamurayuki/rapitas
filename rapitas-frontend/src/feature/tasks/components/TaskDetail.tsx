@@ -52,7 +52,7 @@ export default function TaskDetail({
   onEditCode,
 }: TaskDetailProps) {
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-8 mb-6">
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-8 mb-6">
       {isEditing ? (
         /* 編集モード */
         <div className="space-y-6">
@@ -64,7 +64,7 @@ export default function TaskDetail({
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <input
                 type="text"
-                className="flex-1 min-w-0 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 text-lg font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 min-w-0 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 text-lg font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={editTitle}
                 onChange={(e) => onEditTitleChange(e.target.value)}
                 required
@@ -97,7 +97,7 @@ export default function TaskDetail({
               <button
                 type="button"
                 onClick={onShowCodeBlockDialog}
-                className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-md border border-zinc-300 dark:border-zinc-600 hover:border-zinc-400 dark:hover:border-zinc-500 transition-colors"
+                className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-indigo-dark-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-md border border-zinc-300 dark:border-zinc-600 hover:border-zinc-400 dark:hover:border-zinc-500 transition-colors"
               >
                 <svg
                   className="w-3.5 h-3.5"
@@ -116,7 +116,7 @@ export default function TaskDetail({
               </button>
             </div>
             <textarea
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
               rows={14}
               value={editDescription}
               onChange={(e) => onEditDescriptionChange(e.target.value)}
@@ -145,7 +145,7 @@ export default function TaskDetail({
               </label>
               <input
                 type="text"
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="カンマ区切りで入力"
                 value={editLabels}
                 onChange={(e) => onEditLabelsChange(e.target.value)}
@@ -160,7 +160,7 @@ export default function TaskDetail({
                 type="number"
                 step="0.5"
                 min="0"
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="時間"
                 value={editEstimatedHours}
                 onChange={(e) => onEditEstimatedHoursChange(e.target.value)}
@@ -206,7 +206,7 @@ export default function TaskDetail({
                 prose-h3:text-lg prose-h3:mt-2 prose-h3:mb-1
                 prose-p:my-2 prose-p:leading-relaxed
                 prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline
-                prose-pre:bg-zinc-100 prose-pre:dark:bg-zinc-800 
+                prose-pre:bg-zinc-100 prose-pre:dark:bg-indigo-dark-800 
                 prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto
                 prose-blockquote:border-l-4 prose-blockquote:border-zinc-300 
                 prose-blockquote:dark:border-zinc-700 prose-blockquote:pl-4 
@@ -216,12 +216,12 @@ export default function TaskDetail({
                 prose-li:my-1
                 prose-table:border-collapse prose-table:w-full
                 prose-th:border prose-th:border-zinc-300 prose-th:dark:border-zinc-700 
-                prose-th:bg-zinc-100 prose-th:dark:bg-zinc-800 prose-th:px-3 prose-th:py-2
+                prose-th:bg-zinc-100 prose-th:dark:bg-indigo-dark-800 prose-th:px-3 prose-th:py-2
                 prose-td:border prose-td:border-zinc-300 prose-td:dark:border-zinc-700 
                 prose-td:px-3 prose-td:py-2
                 prose-img:rounded-lg prose-img:shadow-md
                 prose-hr:border-zinc-300 prose-hr:dark:border-zinc-700
-                [&_code]:bg-zinc-100 [&_code]:dark:bg-zinc-800 
+                [&_code]:bg-zinc-100 [&_code]:dark:bg-indigo-dark-800 
                 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded 
                 [&_code]:text-sm [&_code]:font-mono
                 [&_code]:text-zinc-800 [&_code]:dark:text-zinc-200

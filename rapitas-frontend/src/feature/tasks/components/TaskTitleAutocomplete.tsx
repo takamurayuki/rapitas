@@ -193,7 +193,7 @@ const TaskTitleAutocomplete = forwardRef<
       {/* Tab hint */}
       {isFocused && ghostText && (
         <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500 pointer-events-none">
-          <kbd className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-[10px] font-mono border border-zinc-200 dark:border-zinc-700">
+          <kbd className="px-1.5 py-0.5 bg-zinc-100 dark:bg-indigo-dark-800 rounded text-[10px] font-mono border border-zinc-200 dark:border-zinc-700">
             Tab
           </kbd>
         </div>
