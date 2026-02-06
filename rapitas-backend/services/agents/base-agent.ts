@@ -128,6 +128,13 @@ export abstract class BaseAgent {
   ) {}
 
   /**
+   * ログ出力用のプレフィックス（[エージェント名] 形式）
+   */
+  get logPrefix(): string {
+    return `[${this.name}]`;
+  }
+
+  /**
    * エージェントの能力を返す
    */
   abstract getCapabilities(): AgentCapability;

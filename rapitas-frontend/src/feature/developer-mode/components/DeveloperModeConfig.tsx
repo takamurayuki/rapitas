@@ -23,6 +23,7 @@ import {
   Eye,
   EyeOff,
   Trash2,
+  Plus,
 } from "lucide-react";
 import type {
   DeveloperModeConfig,
@@ -38,6 +39,7 @@ import type {
   ApiKeyStatus,
 } from "@/types";
 import { API_BASE_URL } from "@/utils/api";
+import { validateName } from "@/utils/validation";
 
 type TabId = "task-analysis" | "agent-execution";
 
@@ -123,6 +125,15 @@ export function DeveloperModeConfigModal({
   });
   const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // インラインエージェント追加用の状態
+  const [showInlineAddAgent, setShowInlineAddAgent] = useState(false);
+  const [inlineAgentName, setInlineAgentName] = useState("");
+  const [inlineAgentType, setInlineAgentType] = useState("claude-code");
+  const [inlineAgentDefault, setInlineAgentDefault] = useState(false);
+  const [isSavingAgent, setIsSavingAgent] = useState(false);
+  const [inlineAgentError, setInlineAgentError] = useState<string | null>(null);
+  const [inlineAgentNameError, setInlineAgentNameError] = useState<string | null>(null);
 
   // インラインAPIキー設定用の状態
   const [apiKeyProvider, setApiKeyProvider] = useState<ApiProvider>("claude");
@@ -340,6 +351,46 @@ export function DeveloperModeConfigModal({
     }
   };
 
+  // インラインエージェント追加
+  const saveInlineAgent = async () => {
+    setInlineAgentError(null);
+    setInlineAgentNameError(null);
+
+    const nameResult = validateName(inlineAgentName, "エージェント名", 1, 50);
+    if (!nameResult.valid) {
+      setInlineAgentNameError(nameResult.error ?? null);
+      return;
+    }
+
+    setIsSavingAgent(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/agents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: inlineAgentName,
+          agentType: inlineAgentType,
+          isDefault: inlineAgentDefault,
+        }),
+      });
+
+      if (res.ok) {
+        setInlineAgentName("");
+        setInlineAgentType("claude-code");
+        setInlineAgentDefault(false);
+        setShowInlineAddAgent(false);
+        await fetchAgents();
+      } else {
+        const data = await res.json().catch(() => null);
+        setInlineAgentError(data?.error ?? "エージェントの追加に失敗しました");
+      }
+    } catch {
+      setInlineAgentError("エージェントの追加に失敗しました");
+    } finally {
+      setIsSavingAgent(false);
+    }
+  };
+
   // APIキー不要なCLIベースのエージェントタイプ
   const CLI_AGENT_TYPES = ["claude-code", "codex"];
 
@@ -477,6 +528,110 @@ export function DeveloperModeConfigModal({
     return AGENT_TYPE_INFO[agentType] || { icon: Bot, color: "text-zinc-500", label: agentType };
   };
 
+  // インラインエージェント追加フォーム
+  const renderInlineAddAgentForm = () => (
+    <div className="mt-3 p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Plus className="w-3.5 h-3.5 text-violet-500" />
+          <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+            エージェントを追加
+          </span>
+        </div>
+        <button
+          onClick={() => {
+            setShowInlineAddAgent(false);
+            setInlineAgentError(null);
+            setInlineAgentNameError(null);
+          }}
+          className="p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 rounded transition-colors"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        <input
+          type="text"
+          value={inlineAgentName}
+          onChange={(e) => {
+            setInlineAgentName(e.target.value);
+            if (e.target.value.trim()) {
+              const result = validateName(e.target.value, "エージェント名", 1, 50);
+              setInlineAgentNameError(result.valid ? null : (result.error ?? null));
+            } else {
+              setInlineAgentNameError(null);
+            }
+          }}
+          placeholder="例: メイン開発エージェント"
+          className={`w-full px-2.5 py-1.5 bg-white dark:bg-indigo-dark-900 border rounded text-xs focus:outline-none focus:ring-2 transition-all ${
+            inlineAgentNameError
+              ? "border-red-400 dark:border-red-600 focus:ring-red-500/20"
+              : "border-zinc-200 dark:border-zinc-700 focus:ring-violet-500/20 focus:border-violet-500"
+          }`}
+        />
+        {inlineAgentNameError && (
+          <p className="text-[10px] text-red-600 dark:text-red-400 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3 flex-shrink-0" />
+            {inlineAgentNameError}
+          </p>
+        )}
+
+        <select
+          value={inlineAgentType}
+          onChange={(e) => setInlineAgentType(e.target.value)}
+          className="w-full px-2.5 py-1.5 bg-white dark:bg-indigo-dark-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+        >
+          <option value="claude-code">Claude Code</option>
+          <option value="codex">Codex CLI</option>
+          <option value="gemini">Gemini CLI</option>
+        </select>
+
+        <label className="flex items-center gap-1.5 text-[11px] text-zinc-600 dark:text-zinc-400 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={inlineAgentDefault}
+            onChange={(e) => setInlineAgentDefault(e.target.checked)}
+            className="w-3 h-3 text-violet-600 border-zinc-300 rounded focus:ring-violet-500"
+          />
+          デフォルトに設定
+        </label>
+      </div>
+
+      {inlineAgentError && (
+        <p className="text-[10px] text-red-600 dark:text-red-400 flex items-center gap-1">
+          <AlertCircle className="w-3 h-3 flex-shrink-0" />
+          {inlineAgentError}
+        </p>
+      )}
+
+      <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={() => {
+            setShowInlineAddAgent(false);
+            setInlineAgentError(null);
+            setInlineAgentNameError(null);
+          }}
+          className="px-2 py-1 text-[10px] text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+        >
+          キャンセル
+        </button>
+        <button
+          onClick={saveInlineAgent}
+          disabled={!inlineAgentName.trim() || isSavingAgent}
+          className="flex items-center gap-1 px-2.5 py-1 bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
+        >
+          {isSavingAgent ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <Plus className="w-3 h-3" />
+          )}
+          追加
+        </button>
+      </div>
+    </div>
+  );
+
   // エージェント選択UI（ドロップダウン型、共通コンポーネント）
   const renderAgentSelector = (
     selectedId: number | null,
@@ -495,19 +650,24 @@ export function DeveloperModeConfigModal({
 
     const displayAgents = filterByApiKey ? getAvailableAgents() : agents;
 
+    // エージェント未設定時：インライン追加フォームを表示
     if (displayAgents.length === 0 && agents.length === 0) {
       return (
         <div className="space-y-2">
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             エージェントが設定されていません。
           </p>
-          <a
-            href="/agents"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-violet-600 dark:text-violet-400 border border-violet-300 dark:border-violet-700 rounded-lg hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            エージェント管理ページで追加
-          </a>
+          {showInlineAddAgent ? (
+            renderInlineAddAgentForm()
+          ) : (
+            <button
+              onClick={() => setShowInlineAddAgent(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-violet-600 dark:text-violet-400 border border-violet-300 dark:border-violet-700 rounded-lg hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              エージェントを追加
+            </button>
+          )}
         </div>
       );
     }
@@ -523,24 +683,42 @@ export function DeveloperModeConfigModal({
 
     return (
       <div className="space-y-2">
-        <select
-          value={selectedId ?? ""}
-          onChange={(e) => {
-            const val = e.target.value;
-            onSelect(val ? Number(val) : null);
-          }}
-          className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
-        >
-          <option value="">モデルを選択...</option>
-          {displayAgents.map((agent) => {
-            const typeInfo = getAgentTypeInfo(agent.agentType);
-            return (
-              <option key={agent.id} value={agent.id}>
-                {agent.name} ({typeInfo.label}{agent.modelId ? ` · ${agent.modelId}` : ""}){agent.isDefault ? " [デフォルト]" : ""}
-              </option>
-            );
-          })}
-        </select>
+        {/* ドロップダウン + 追加ボタン */}
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedId ?? ""}
+            onChange={(e) => {
+              const val = e.target.value;
+              onSelect(val ? Number(val) : null);
+            }}
+            className="flex-1 px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+          >
+            <option value="">モデルを選択...</option>
+            {displayAgents.map((agent) => {
+              const typeInfo = getAgentTypeInfo(agent.agentType);
+              return (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name} ({typeInfo.label}{agent.modelId ? ` · ${agent.modelId}` : ""}){agent.isDefault ? " [デフォルト]" : ""}
+                </option>
+              );
+            })}
+          </select>
+          <button
+            onClick={() => setShowInlineAddAgent(!showInlineAddAgent)}
+            className={`flex-shrink-0 p-2 rounded-lg border transition-colors ${
+              showInlineAddAgent
+                ? "border-violet-500 bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400"
+                : "border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-violet-600 dark:hover:text-violet-400 hover:border-violet-400 dark:hover:border-violet-500"
+            }`}
+            title="エージェントを追加"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* インラインエージェント追加フォーム */}
+        {showInlineAddAgent && renderInlineAddAgentForm()}
+
         {/* 選択中のエージェント情報 */}
         {selectedAgent && (
           <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 dark:bg-violet-900/20 rounded-lg border border-violet-200 dark:border-violet-800">

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import TaskDetailClient from "@/app/tasks/[id]/TaskDetailClient";
 
 interface TaskSlidePanelProps {
@@ -9,25 +9,12 @@ interface TaskSlidePanelProps {
   onTaskUpdated?: () => void;
 }
 
-// Tauri環境かどうかを判定
-const isTauri = (): boolean => {
-  if (typeof window === "undefined") return false;
-  return "__TAURI__" in window || "__TAURI_INTERNALS__" in window;
-};
-
 export default function TaskSlidePanel({
   taskId,
   isOpen,
   onClose,
   onTaskUpdated,
 }: TaskSlidePanelProps) {
-  const [isTauriEnv, setIsTauriEnv] = useState(false);
-
-  // クライアントサイドでTauri環境を判定
-  useEffect(() => {
-    setIsTauriEnv(isTauri());
-  }, []);
-
   // Escキーで閉じる
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -50,19 +37,6 @@ export default function TaskSlidePanel({
       document.body.style.overflow = "unset";
     };
   }, [isOpen]);
-
-  // Tauri環境でiframe更新後にonTaskUpdatedを呼び出す
-  useEffect(() => {
-    if (!isTauriEnv || !isOpen || !taskId) return;
-
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === "task-updated") {
-        onTaskUpdated?.();
-      }
-    };
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [isTauriEnv, isOpen, taskId, onTaskUpdated]);
 
   if (!isOpen || !taskId) return null;
 
@@ -111,11 +85,11 @@ export default function TaskSlidePanel({
         </div>
 
         {/* コンテンツ */}
-        <div className="h-full overflow-y-auto">
-          <iframe
-            src={`/task-detail?id=${taskId}`}
-            className="w-full h-full border-none"
-            title="タスク詳細"
+        <div className="h-full overflow-y-auto pb-16">
+          <TaskDetailClient
+            taskId={taskId}
+            onTaskUpdated={onTaskUpdated}
+            onClose={onClose}
           />
         </div>
       </div>

@@ -137,16 +137,16 @@ export class ClaudeCodeAgent extends BaseAgent {
       // ログ出力（AIタスク分析の使用状況を確認）
       if (task.analysisInfo) {
         console.log(
-          `[Claude Code] Using structured prompt with AI task analysis`,
+          `${this.logPrefix} Using structured prompt with AI task analysis`,
         );
         console.log(
-          `[Claude Code] Analysis complexity: ${task.analysisInfo.complexity}`,
+          `${this.logPrefix} Analysis complexity: ${task.analysisInfo.complexity}`,
         );
         console.log(
-          `[Claude Code] Subtasks count: ${task.analysisInfo.subtasks?.length || 0}`,
+          `${this.logPrefix} Subtasks count: ${task.analysisInfo.subtasks?.length || 0}`,
         );
       } else {
-        console.log(`[Claude Code] Using simple prompt (no AI task analysis)`);
+        console.log(`${this.logPrefix} Using simple prompt (no AI task analysis)`);
       }
 
       // プロンプトを一時ファイルに保存（Windowsのコマンドライン文字制限を回避）
@@ -176,18 +176,18 @@ export class ClaudeCodeAgent extends BaseAgent {
         args.push("--continue");
         if (this.config.resumeSessionId) {
           console.log(
-            `[Claude Code] Using --continue instead of --resume (session ID: ${this.config.resumeSessionId})`,
+            `${this.logPrefix} Using --continue instead of --resume (session ID: ${this.config.resumeSessionId})`,
           );
           console.log(
-            `[Claude Code] Note: --resume may not work with --print mode`,
+            `${this.logPrefix} Note: --resume may not work with --print mode`,
           );
         } else {
           console.log(
-            `[Claude Code] Continuing most recent conversation with --continue`,
+            `${this.logPrefix} Continuing most recent conversation with --continue`,
           );
         }
         console.log(
-          `[Claude Code] Resume mode: prompt will be sent as user response`,
+          `${this.logPrefix} Resume mode: prompt will be sent as user response`,
         );
       }
 
@@ -208,23 +208,23 @@ export class ClaudeCodeAgent extends BaseAgent {
       const claudePath =
         process.env.CLAUDE_CODE_PATH || (isWindows ? "claude.cmd" : "claude");
 
-      console.log(`[Claude Code] Platform: ${process.platform}`);
-      console.log(`[Claude Code] Claude path: ${claudePath}`);
-      console.log(`[Claude Code] Work directory: ${workDir}`);
-      console.log(`[Claude Code] Prompt file: ${promptFile}`);
+      console.log(`${this.logPrefix} Platform: ${process.platform}`);
+      console.log(`${this.logPrefix} Claude path: ${claudePath}`);
+      console.log(`${this.logPrefix} Work directory: ${workDir}`);
+      console.log(`${this.logPrefix} Prompt file: ${promptFile}`);
 
-      console.log(`[Claude Code] ========================================`);
-      console.log(`[Claude Code] Working directory: ${workDir}`);
-      console.log(`[Claude Code] Prompt length: ${prompt.length} chars`);
-      console.log(`[Claude Code] Timeout: ${timeout}ms`);
-      console.log(`[Claude Code] Args: ${args.join(" ")}`);
-      console.log(`[Claude Code] ========================================`);
+      console.log(`${this.logPrefix} ========================================`);
+      console.log(`${this.logPrefix} Working directory: ${workDir}`);
+      console.log(`${this.logPrefix} Prompt length: ${prompt.length} chars`);
+      console.log(`${this.logPrefix} Timeout: ${timeout}ms`);
+      console.log(`${this.logPrefix} Args: ${args.join(" ")}`);
+      console.log(`${this.logPrefix} ========================================`);
 
-      this.emitOutput(`[Claude Code] Starting execution...\n`);
-      this.emitOutput(`[Claude Code] Working directory: ${workDir}\n`);
-      this.emitOutput(`[Claude Code] Timeout: ${timeout / 1000}s\n`);
+      this.emitOutput(`${this.logPrefix} Starting execution...\n`);
+      this.emitOutput(`${this.logPrefix} Working directory: ${workDir}\n`);
+      this.emitOutput(`${this.logPrefix} Timeout: ${timeout / 1000}s\n`);
       this.emitOutput(
-        `[Claude Code] Prompt: ${prompt.substring(0, 200)}${prompt.length > 200 ? "..." : ""}\n\n`,
+        `${this.logPrefix} Prompt: ${prompt.substring(0, 200)}${prompt.length > 200 ? "..." : ""}\n\n`,
       );
 
       // 一時ファイルのパスを保存（後でクリーンアップするため）
@@ -235,8 +235,8 @@ export class ClaudeCodeAgent extends BaseAgent {
       };
 
       try {
-        console.log(`[Claude Code] Spawn command: ${claudePath}`);
-        console.log(`[Claude Code] Args: ${args.join(" ")}`);
+        console.log(`${this.logPrefix} Spawn command: ${claudePath}`);
+        console.log(`${this.logPrefix} Args: ${args.join(" ")}`);
 
         // shell: true を使用してClaude Codeを起動
         // Windows用のエンコーディング設定を追加
@@ -262,7 +262,7 @@ export class ClaudeCodeAgent extends BaseAgent {
           finalArgs = args;
         }
 
-        console.log(`[Claude Code] Final command: ${finalCommand}`);
+        console.log(`${this.logPrefix} Final command: ${finalCommand}`);
 
         this.process = spawn(finalCommand, finalArgs, {
           cwd: workDir,
@@ -296,11 +296,11 @@ export class ClaudeCodeAgent extends BaseAgent {
         }
 
         console.log(
-          `[Claude Code] Process spawned with PID: ${this.process.pid}`,
+          `${this.logPrefix} Process spawned with PID: ${this.process.pid}`,
         );
-        this.emitOutput(`[Claude Code] Process PID: ${this.process.pid}\n`);
+        this.emitOutput(`${this.logPrefix} Process PID: ${this.process.pid}\n`);
         console.log(
-          `[Claude Code] Prompt file: ${promptFile} (${prompt.length} chars)`,
+          `${this.logPrefix} Prompt file: ${promptFile} (${prompt.length} chars)`,
         );
 
         // stdinへの書き込みを非同期で行う（バッファリング問題を回避）
@@ -308,7 +308,7 @@ export class ClaudeCodeAgent extends BaseAgent {
         // UTF-8 Bufferを使用してエンコーディング問題を回避
         const writePromptToStdin = async () => {
           if (!this.process?.stdin) {
-            console.log(`[Claude Code] stdin is not available`);
+            console.log(`${this.logPrefix} stdin is not available`);
             return;
           }
 
@@ -317,13 +317,13 @@ export class ClaudeCodeAgent extends BaseAgent {
 
           // stdinのエラーハンドラを設定
           stdin.on("error", (err) => {
-            console.error(`[Claude Code] stdin error:`, err);
+            console.error(`${this.logPrefix} stdin error:`, err);
           });
 
           // プロンプトをUTF-8 Bufferに変換（エンコーディング問題を回避）
           const promptBuffer = Buffer.from(prompt, "utf8");
           console.log(
-            `[Claude Code] Prompt buffer size: ${promptBuffer.length} bytes`,
+            `${this.logPrefix} Prompt buffer size: ${promptBuffer.length} bytes`,
           );
 
           // チャンク単位で書き込み（Buffer使用）
@@ -345,13 +345,13 @@ export class ClaudeCodeAgent extends BaseAgent {
           // 書き込み完了後にstdinを閉じる
           stdin.end();
           console.log(
-            `[Claude Code] Prompt written to stdin (${promptBuffer.length} bytes) in chunks`,
+            `${this.logPrefix} Prompt written to stdin (${promptBuffer.length} bytes) in chunks`,
           );
         };
 
         // 非同期でstdinに書き込み開始（エラーをキャッチ）
         writePromptToStdin().catch((err) => {
-          console.error(`[Claude Code] Failed to write prompt to stdin:`, err);
+          console.error(`${this.logPrefix} Failed to write prompt to stdin:`, err);
         });
 
         // stream-json形式のパース用バッファをリセット
@@ -370,7 +370,7 @@ export class ClaudeCodeAgent extends BaseAgent {
           // 初期出力タイムアウト: 60秒経過しても何も出力がない場合は警告
           if (!hasReceivedAnyOutput && totalElapsed > INITIAL_OUTPUT_TIMEOUT) {
             console.warn(
-              `[Claude Code] WARNING: No output received after ${Math.floor(totalElapsed / 1000)}s - Claude Code may not be responding`,
+              `${this.logPrefix} WARNING: No output received after ${Math.floor(totalElapsed / 1000)}s - Claude Code may not be responding`,
             );
             this.emitOutput(
               `\n[警告] ${Math.floor(totalElapsed / 1000)}秒経過しましたが、Claude Codeからの応答がありません。処理を継続しています...\n`,
@@ -381,7 +381,7 @@ export class ClaudeCodeAgent extends BaseAgent {
 
           if (idleTime > OUTPUT_IDLE_TIMEOUT && this.lineBuffer.trim()) {
             console.log(
-              `[Claude Code] Output idle for ${idleTime}ms, flushing lineBuffer (${this.lineBuffer.length} chars)`,
+              `${this.logPrefix} Output idle for ${idleTime}ms, flushing lineBuffer (${this.lineBuffer.length} chars)`,
             );
             // バッファの残りを強制的に出力
             this.outputBuffer += this.lineBuffer + "\n";
@@ -391,7 +391,7 @@ export class ClaudeCodeAgent extends BaseAgent {
           // 定期的にステータスログを出力（デバッグ用）
           if (this.status === "running" && idleTime > 10000) {
             console.log(
-              `[Claude Code] Still running... Output idle: ${Math.floor(idleTime / 1000)}s, Buffer: ${this.lineBuffer.length} chars, Total output: ${this.outputBuffer.length} chars, HasOutput: ${hasReceivedAnyOutput}`,
+              `${this.logPrefix} Still running... Output idle: ${Math.floor(idleTime / 1000)}s, Buffer: ${this.lineBuffer.length} chars, Total output: ${this.outputBuffer.length} chars, HasOutput: ${hasReceivedAnyOutput}`,
             );
           }
         }, 5000); // 5秒ごとにチェック
@@ -410,24 +410,24 @@ export class ClaudeCodeAgent extends BaseAgent {
             // 最後の出力からtimeout時間経過した場合のみタイムアウト
             if (timeSinceLastOutput >= timeout) {
               console.log(
-                `[Claude Code] TIMEOUT: No output for ${timeout / 1000}s`,
+                `${this.logPrefix} TIMEOUT: No output for ${timeout / 1000}s`,
               );
               console.log(
-                `[Claude Code] Last output was ${Math.floor(timeSinceLastOutput / 1000)}s ago`,
+                `${this.logPrefix} Last output was ${Math.floor(timeSinceLastOutput / 1000)}s ago`,
               );
               console.log(
-                `[Claude Code] Output so far: ${this.outputBuffer.substring(0, 500)}`,
+                `${this.logPrefix} Output so far: ${this.outputBuffer.substring(0, 500)}`,
               );
               console.log(
-                `[Claude Code] Error so far: ${this.errorBuffer.substring(0, 500)}`,
+                `${this.logPrefix} Error so far: ${this.errorBuffer.substring(0, 500)}`,
               );
               console.log(
-                `[Claude Code] LineBuffer: ${this.lineBuffer.substring(0, 500)}`,
+                `${this.logPrefix} LineBuffer: ${this.lineBuffer.substring(0, 500)}`,
               );
               clearInterval(timeoutCheckInterval); // タイムアウトチェックを停止
               cleanupIdleCheck(); // アイドルチェックを停止
               this.emitOutput(
-                `\n[Claude Code] Execution timed out (no output for ${timeout / 1000}s)\n`,
+                `\n${this.logPrefix} Execution timed out (no output for ${timeout / 1000}s)\n`,
                 true,
               );
               this.process.kill("SIGTERM");
@@ -457,7 +457,7 @@ export class ClaudeCodeAgent extends BaseAgent {
             hasReceivedAnyOutput = true;
             const elapsedMs = Date.now() - startTime;
             console.log(
-              `[Claude Code] First stdout received after ${elapsedMs}ms (${chunk.length} chars)`,
+              `${this.logPrefix} First stdout received after ${elapsedMs}ms (${chunk.length} chars)`,
             );
           }
 
@@ -472,7 +472,7 @@ export class ClaudeCodeAgent extends BaseAgent {
               const json = JSON.parse(line);
               const timestamp = new Date().toISOString();
               console.log(
-                `[Claude Code] [${timestamp}] Event type: ${json.type}`,
+                `${this.logPrefix} [${timestamp}] Event type: ${json.type}`,
               );
 
               // イベントタイプに応じて出力を生成
@@ -488,10 +488,10 @@ export class ClaudeCodeAgent extends BaseAgent {
                         // AskUserQuestionツールの検出（キーベース判定システム使用）
                         if (block.name === "AskUserQuestion") {
                           console.log(
-                            `[Claude Code] AskUserQuestion tool detected!`,
+                            `${this.logPrefix} AskUserQuestion tool detected!`,
                           );
                           console.log(
-                            `[Claude Code] Tool input:`,
+                            `${this.logPrefix} Tool input:`,
                             JSON.stringify(block.input),
                           );
 
@@ -509,7 +509,7 @@ export class ClaudeCodeAgent extends BaseAgent {
                             updateWaitingStateFromDetection(detectionResult);
 
                           console.log(
-                            `[Claude Code] Question key generated:`,
+                            `${this.logPrefix} Question key generated:`,
                             this.detectedQuestion.questionKey,
                           );
 
@@ -531,7 +531,7 @@ export class ClaudeCodeAgent extends BaseAgent {
                           // stdin が閉じられているため、応答を待ち続けるとエラーが連続発生する
                           // プロセスを停止して、ユーザーの回答後に --continue で再開する
                           console.log(
-                            `[Claude Code] Stopping process to wait for user response`,
+                            `${this.logPrefix} Stopping process to wait for user response`,
                           );
                           if (this.process && !this.process.killed) {
                             // SIGTERMで丁寧に終了（出力バッファのフラッシュを待つ）
@@ -615,7 +615,7 @@ export class ClaudeCodeAgent extends BaseAgent {
                   if (json.subtype === "init" && json.session_id) {
                     this.claudeSessionId = json.session_id;
                     console.log(
-                      `[Claude Code] Session ID captured: ${this.claudeSessionId}`,
+                      `${this.logPrefix} Session ID captured: ${this.claudeSessionId}`,
                     );
                     // 再開モードの場合、セッションIDの一致を確認
                     if (
@@ -623,14 +623,14 @@ export class ClaudeCodeAgent extends BaseAgent {
                       this.config.resumeSessionId !== json.session_id
                     ) {
                       console.warn(
-                        `[Claude Code] WARNING: Requested session ${this.config.resumeSessionId} but got ${json.session_id}`,
+                        `${this.logPrefix} WARNING: Requested session ${this.config.resumeSessionId} but got ${json.session_id}`,
                       );
                     }
                   }
                   // errorサブタイプの場合は詳細をログ
                   if (json.subtype === "error") {
                     console.error(
-                      `[Claude Code] System error event:`,
+                      `${this.logPrefix} System error event:`,
                       JSON.stringify(json),
                     );
                     displayOutput += `[System Error: ${json.message || json.error || "unknown"}]\n`;
@@ -640,7 +640,7 @@ export class ClaudeCodeAgent extends BaseAgent {
                   break;
                 default:
                   console.log(
-                    `[Claude Code] Unknown event type: ${json.type}`,
+                    `${this.logPrefix} Unknown event type: ${json.type}`,
                     line.substring(0, 200),
                   );
               }
@@ -652,7 +652,7 @@ export class ClaudeCodeAgent extends BaseAgent {
             } catch (e) {
               // JSONパース失敗時は生の行をそのまま出力
               console.log(
-                `[Claude Code] Raw output: ${line.substring(0, 200)}`,
+                `${this.logPrefix} Raw output: ${line.substring(0, 200)}`,
               );
               this.outputBuffer += line + "\n";
               this.emitOutput(line + "\n");
@@ -665,7 +665,7 @@ export class ClaudeCodeAgent extends BaseAgent {
           this.errorBuffer += output;
           lastOutputTime = Date.now(); // stderrも出力として扱い、タイムアウトをリセット
           console.log(
-            `[Claude Code] stderr (${output.length} chars): ${output.substring(0, 200)}`,
+            `${this.logPrefix} stderr (${output.length} chars): ${output.substring(0, 200)}`,
           );
           this.emitOutput(output, true);
         });
@@ -679,20 +679,20 @@ export class ClaudeCodeAgent extends BaseAgent {
           // 残りのlineBufferを処理
           if (this.lineBuffer.trim()) {
             console.log(
-              `[Claude Code] Processing remaining lineBuffer: ${this.lineBuffer.substring(0, 200)}`,
+              `${this.logPrefix} Processing remaining lineBuffer: ${this.lineBuffer.substring(0, 200)}`,
             );
             this.outputBuffer += this.lineBuffer + "\n";
             this.emitOutput(this.lineBuffer + "\n");
           }
 
           console.log(
-            `[Claude Code] Process closed with code: ${code}, time: ${executionTimeMs}ms`,
+            `${this.logPrefix} Process closed with code: ${code}, time: ${executionTimeMs}ms`,
           );
           console.log(
-            `[Claude Code] Final output length: ${this.outputBuffer.length}`,
+            `${this.logPrefix} Final output length: ${this.outputBuffer.length}`,
           );
           console.log(
-            `[Claude Code] Last 500 chars of output: ${this.outputBuffer.slice(-500)}`,
+            `${this.logPrefix} Last 500 chars of output: ${this.outputBuffer.slice(-500)}`,
           );
 
           if (this.status === "cancelled") {
@@ -714,9 +714,9 @@ export class ClaudeCodeAgent extends BaseAgent {
           const commits = this.parseCommits(this.outputBuffer);
 
           // 質問検出（キーベース判定システム使用）
-          console.log(`[Claude Code] Running question detection...`);
+          console.log(`${this.logPrefix} Running question detection...`);
           console.log(
-            `[Claude Code] detectedQuestion from stream:`,
+            `${this.logPrefix} detectedQuestion from stream:`,
             this.detectedQuestion,
           );
 
@@ -732,7 +732,7 @@ export class ClaudeCodeAgent extends BaseAgent {
           );
 
           console.log(
-            `[Claude Code] Final question detection - hasQuestion: ${hasQuestion}, questionType: ${questionType}, questionKey: ${JSON.stringify(questionKey)}, exitCode: ${code}`,
+            `${this.logPrefix} Final question detection - hasQuestion: ${hasQuestion}, questionType: ${questionType}, questionKey: ${JSON.stringify(questionKey)}, exitCode: ${code}`,
           );
 
           // 質問が検出された場合は、終了コードに関係なく入力待ち状態
@@ -740,16 +740,16 @@ export class ClaudeCodeAgent extends BaseAgent {
           if (hasQuestion) {
             this.status = "waiting_for_input";
             console.log(
-              `[Claude Code] Setting status to waiting_for_input (exitCode: ${code})`,
+              `${this.logPrefix} Setting status to waiting_for_input (exitCode: ${code})`,
             );
             console.log(
-              `[Claude Code] Question detected (${questionType}): ${question.substring(0, 200)}`,
+              `${this.logPrefix} Question detected (${questionType}): ${question.substring(0, 200)}`,
             );
-            console.log(`[Claude Code] Question key:`, questionKey);
+            console.log(`${this.logPrefix} Question key:`, questionKey);
             console.log(
-              `[Claude Code] Session ID for resume: ${this.claudeSessionId}`,
+              `${this.logPrefix} Session ID for resume: ${this.claudeSessionId}`,
             );
-            this.emitOutput("\n[Claude Code] 回答を待っています...\n");
+            this.emitOutput(`\n${this.logPrefix} 回答を待っています...\n`);
             resolve({
               success: true, // 技術的には成功だが、完了ではない
               output: this.outputBuffer,
@@ -767,7 +767,7 @@ export class ClaudeCodeAgent extends BaseAgent {
           }
 
           console.log(
-            `[Claude Code] No question detected, setting status to ${code === 0 ? "completed" : "failed"}`,
+            `${this.logPrefix} No question detected, setting status to ${code === 0 ? "completed" : "failed"}`,
           );
           this.status = code === 0 ? "completed" : "failed";
 
@@ -820,7 +820,7 @@ export class ClaudeCodeAgent extends BaseAgent {
 
             errorMessage = errorParts.join("");
             console.log(
-              `[Claude Code] Detailed error message constructed (${errorMessage.length} chars)`,
+              `${this.logPrefix} Detailed error message constructed (${errorMessage.length} chars)`,
             );
           }
 
@@ -841,8 +841,8 @@ export class ClaudeCodeAgent extends BaseAgent {
           cleanupIdleCheck(); // アイドルチェックを停止
           cleanupPromptFile(); // 一時ファイルを削除
           this.status = "failed";
-          console.error(`[Claude Code] Process error:`, error);
-          this.emitOutput(`[Claude Code] Error: ${error.message}\n`, true);
+          console.error(`${this.logPrefix} Process error:`, error);
+          this.emitOutput(`${this.logPrefix} Error: ${error.message}\n`, true);
 
           // 詳細なエラーメッセージを構築
           const errorParts: string[] = [];
@@ -873,7 +873,7 @@ export class ClaudeCodeAgent extends BaseAgent {
         this.status = "failed";
         const errorMessage =
           error instanceof Error ? error.message : String(error);
-        console.error(`[Claude Code] Spawn error:`, error);
+        console.error(`${this.logPrefix} Spawn error:`, error);
         resolve({
           success: false,
           output: "",
@@ -887,7 +887,7 @@ export class ClaudeCodeAgent extends BaseAgent {
   async stop(): Promise<void> {
     if (this.process) {
       this.status = "cancelled";
-      this.emitOutput("\n[Claude Code] Stopping execution...\n");
+      this.emitOutput(`\n${this.logPrefix} Stopping execution...\n`);
 
       const isWindows = process.platform === "win32";
 
@@ -899,10 +899,10 @@ export class ClaudeCodeAgent extends BaseAgent {
             const { execSync } = require("child_process");
             // /T でプロセスツリー全体を終了、/F で強制終了
             execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
-            console.log(`[Claude Code] Process ${pid} killed via taskkill`);
+            console.log(`${this.logPrefix} Process ${pid} killed via taskkill`);
           }
         } catch (e) {
-          console.error("[Claude Code] taskkill failed:", e);
+          console.error(`${this.logPrefix} taskkill failed:`, e);
           // フォールバックとして通常のkillを試行
           try {
             this.process.kill();
@@ -939,7 +939,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     if (this.process && this.status === "running") {
       this.process.kill("SIGSTOP");
       this.status = "paused";
-      this.emitOutput("\n[Claude Code] Execution paused\n");
+      this.emitOutput(`\n${this.logPrefix} Execution paused\n`);
       return true;
     }
     return false;
@@ -949,7 +949,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     if (this.process && this.status === "paused") {
       this.process.kill("SIGCONT");
       this.status = "running";
-      this.emitOutput("\n[Claude Code] Execution resumed\n");
+      this.emitOutput(`\n${this.logPrefix} Execution resumed\n`);
       return true;
     }
     return false;
@@ -1020,7 +1020,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     // （PromptOptimizationPanelで生成された構造化プロンプト）
     if (task.optimizedPrompt) {
       console.log(
-        `[Claude Code] Using optimized prompt (${task.optimizedPrompt.length} chars)`,
+        `${this.logPrefix} Using optimized prompt (${task.optimizedPrompt.length} chars)`,
       );
       return task.optimizedPrompt;
     }

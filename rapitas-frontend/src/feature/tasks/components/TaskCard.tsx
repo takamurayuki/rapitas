@@ -177,40 +177,44 @@ export default function TaskCard({
 
         {/* 右: クイックアクション（常に表示） */}
         {!isSelectionMode && (
-          <div className="flex items-center gap-1">
-            <>
-              {/* ステータス変更ボタン */}
-              {["todo", "in-progress", "done"].map((status) => {
-                const config =
-                  statusConfig[status as keyof typeof statusConfig];
-                return (
-                  <TaskStatusChange
-                    key={status}
-                    status={status}
-                    currentStatus={task.status}
-                    config={config}
-                    renderIcon={renderStatusIcon}
-                    onClick={(status: string) =>
-                      onStatusChange(task.id, status as Status)
-                    }
-                    size="md"
-                  />
-                );
-              })}
-              {/* ページで開くボタン */}
-              {onOpenInPage && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenInPage(task.id);
-                  }}
-                  className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
-                  title="ページで開く"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                </button>
-              )}
-            </>
+          <div
+            className="flex items-center gap-1 pl-3 self-stretch"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
+            {/* ステータス変更ボタン */}
+            {["todo", "in-progress", "done"].map((status) => {
+              const config =
+                statusConfig[status as keyof typeof statusConfig];
+              return (
+                <TaskStatusChange
+                  key={status}
+                  status={status}
+                  currentStatus={task.status}
+                  config={config}
+                  renderIcon={renderStatusIcon}
+                  onClick={(status: string) =>
+                    onStatusChange(task.id, status as Status)
+                  }
+                  size="md"
+                />
+              );
+            })}
+            {/* ページで開くボタン */}
+            {onOpenInPage && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenInPage(task.id);
+                }}
+                className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
+                title="ページで開く"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </button>
+            )}
           </div>
         )}
       </div>

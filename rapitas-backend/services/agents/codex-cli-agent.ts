@@ -137,14 +137,14 @@ export class CodexCliAgent extends BaseAgent {
       const prompt = this.buildStructuredPrompt(task);
 
       console.log(
-        `[Codex CLI] Using ${task.analysisInfo ? "structured" : "simple"} prompt`,
+        `${this.logPrefix} Using ${task.analysisInfo ? "structured" : "simple"} prompt`,
       );
       if (task.analysisInfo) {
         console.log(
-          `[Codex CLI] Analysis complexity: ${task.analysisInfo.complexity}`,
+          `${this.logPrefix} Analysis complexity: ${task.analysisInfo.complexity}`,
         );
         console.log(
-          `[Codex CLI] Subtasks count: ${task.analysisInfo.subtasks?.length || 0}`,
+          `${this.logPrefix} Subtasks count: ${task.analysisInfo.subtasks?.length || 0}`,
         );
       }
 
@@ -156,7 +156,7 @@ export class CodexCliAgent extends BaseAgent {
       const resumeId = this.config.resumeSessionId || task.resumeSessionId;
       if (resumeId) {
         args.push("resume", resumeId);
-        console.log(`[Codex CLI] Resuming session: ${resumeId}`);
+        console.log(`${this.logPrefix} Resuming session: ${resumeId}`);
       } else {
         // プロンプトを引数として渡す
         args.push(prompt);
@@ -192,24 +192,24 @@ export class CodexCliAgent extends BaseAgent {
       const codexPath =
         process.env.CODEX_CLI_PATH || (isWindows ? "codex.cmd" : "codex");
 
-      console.log(`[Codex CLI] Platform: ${process.platform}`);
-      console.log(`[Codex CLI] Codex path: ${codexPath}`);
-      console.log(`[Codex CLI] Work directory: ${workDir}`);
-      console.log(`[Codex CLI] ========================================`);
-      console.log(`[Codex CLI] Timeout: ${timeout}ms`);
-      console.log(`[Codex CLI] Args count: ${args.length}`);
-      console.log(`[Codex CLI] Prompt length: ${prompt.length} chars`);
-      console.log(`[Codex CLI] ========================================`);
+      console.log(`${this.logPrefix} Platform: ${process.platform}`);
+      console.log(`${this.logPrefix} Codex path: ${codexPath}`);
+      console.log(`${this.logPrefix} Work directory: ${workDir}`);
+      console.log(`${this.logPrefix} ========================================`);
+      console.log(`${this.logPrefix} Timeout: ${timeout}ms`);
+      console.log(`${this.logPrefix} Args count: ${args.length}`);
+      console.log(`${this.logPrefix} Prompt length: ${prompt.length} chars`);
+      console.log(`${this.logPrefix} ========================================`);
 
-      this.emitOutput(`[Codex CLI] Starting execution...\n`);
-      this.emitOutput(`[Codex CLI] Working directory: ${workDir}\n`);
-      this.emitOutput(`[Codex CLI] Timeout: ${timeout / 1000}s\n`);
+      this.emitOutput(`${this.logPrefix} Starting execution...\n`);
+      this.emitOutput(`${this.logPrefix} Working directory: ${workDir}\n`);
+      this.emitOutput(`${this.logPrefix} Timeout: ${timeout / 1000}s\n`);
       this.emitOutput(
-        `[Codex CLI] Prompt: ${prompt.substring(0, 200)}${prompt.length > 200 ? "..." : ""}\n\n`,
+        `${this.logPrefix} Prompt: ${prompt.substring(0, 200)}${prompt.length > 200 ? "..." : ""}\n\n`,
       );
 
       try {
-        console.log(`[Codex CLI] Spawn command: ${codexPath}`);
+        console.log(`${this.logPrefix} Spawn command: ${codexPath}`);
 
         let finalCommand: string;
         let finalArgs: string[];
@@ -230,7 +230,7 @@ export class CodexCliAgent extends BaseAgent {
           finalArgs = args;
         }
 
-        console.log(`[Codex CLI] Final command: ${finalCommand.substring(0, 100)}...`);
+        console.log(`${this.logPrefix} Final command: ${finalCommand.substring(0, 100)}...`);
 
         // 環境変数の準備
         const env: NodeJS.ProcessEnv = {
@@ -269,9 +269,9 @@ export class CodexCliAgent extends BaseAgent {
         }
 
         console.log(
-          `[Codex CLI] Process spawned with PID: ${this.process.pid}`,
+          `${this.logPrefix} Process spawned with PID: ${this.process.pid}`,
         );
-        this.emitOutput(`[Codex CLI] Process PID: ${this.process.pid}\n`);
+        this.emitOutput(`${this.logPrefix} Process PID: ${this.process.pid}\n`);
 
         // stdinを閉じる（codex exec はプロンプトを引数で受け取る）
         if (this.process.stdin) {
@@ -291,7 +291,7 @@ export class CodexCliAgent extends BaseAgent {
 
           if (!hasReceivedAnyOutput && totalElapsed > INITIAL_OUTPUT_TIMEOUT) {
             console.warn(
-              `[Codex CLI] WARNING: No output received after ${Math.floor(totalElapsed / 1000)}s`,
+              `${this.logPrefix} WARNING: No output received after ${Math.floor(totalElapsed / 1000)}s`,
             );
             this.emitOutput(
               `\n[警告] ${Math.floor(totalElapsed / 1000)}秒経過しましたが、Codex CLIからの応答がありません。処理を継続しています...\n`,
@@ -301,7 +301,7 @@ export class CodexCliAgent extends BaseAgent {
 
           if (idleTime > OUTPUT_IDLE_TIMEOUT && this.lineBuffer.trim()) {
             console.log(
-              `[Codex CLI] Output idle for ${idleTime}ms, flushing lineBuffer`,
+              `${this.logPrefix} Output idle for ${idleTime}ms, flushing lineBuffer`,
             );
             this.outputBuffer += this.lineBuffer + "\n";
             this.emitOutput(this.lineBuffer + "\n");
@@ -310,7 +310,7 @@ export class CodexCliAgent extends BaseAgent {
 
           if (this.status === "running" && idleTime > 10000) {
             console.log(
-              `[Codex CLI] Still running... Output idle: ${Math.floor(idleTime / 1000)}s`,
+              `${this.logPrefix} Still running... Output idle: ${Math.floor(idleTime / 1000)}s`,
             );
           }
         }, 5000);
@@ -325,12 +325,12 @@ export class CodexCliAgent extends BaseAgent {
 
             if (timeSinceLastOutput >= timeout) {
               console.log(
-                `[Codex CLI] TIMEOUT: No output for ${timeout / 1000}s`,
+                `${this.logPrefix} TIMEOUT: No output for ${timeout / 1000}s`,
               );
               clearInterval(timeoutCheckInterval);
               cleanupIdleCheck();
               this.emitOutput(
-                `\n[Codex CLI] Execution timed out (no output for ${timeout / 1000}s)\n`,
+                `\n${this.logPrefix} Execution timed out (no output for ${timeout / 1000}s)\n`,
                 true,
               );
               this.process.kill("SIGTERM");
@@ -358,7 +358,7 @@ export class CodexCliAgent extends BaseAgent {
             hasReceivedAnyOutput = true;
             const elapsedMs = Date.now() - startTime;
             console.log(
-              `[Codex CLI] First stdout received after ${elapsedMs}ms`,
+              `${this.logPrefix} First stdout received after ${elapsedMs}ms`,
             );
           }
 
@@ -373,7 +373,7 @@ export class CodexCliAgent extends BaseAgent {
               const json = JSON.parse(line);
               const timestamp = new Date().toISOString();
               console.log(
-                `[Codex CLI] [${timestamp}] Event type: ${json.type}`,
+                `${this.logPrefix} [${timestamp}] Event type: ${json.type}`,
               );
 
               let displayOutput = "";
@@ -390,7 +390,7 @@ export class CodexCliAgent extends BaseAgent {
                         const toolName = block.name || block.function?.name;
                         if (toolName === "AskUserQuestion" || toolName === "ask_user") {
                           console.log(
-                            `[Codex CLI] Question tool detected: ${toolName}`,
+                            `${this.logPrefix} Question tool detected: ${toolName}`,
                           );
 
                           const toolInput = block.input || block.function?.arguments;
@@ -420,7 +420,7 @@ export class CodexCliAgent extends BaseAgent {
 
                           // 質問検出時はプロセスを停止
                           console.log(
-                            `[Codex CLI] Stopping process to wait for user response`,
+                            `${this.logPrefix} Stopping process to wait for user response`,
                           );
                           if (this.process && !this.process.killed) {
                             this.process.kill("SIGTERM");
@@ -495,13 +495,13 @@ export class CodexCliAgent extends BaseAgent {
                   if (json.session_id) {
                     this.codexSessionId = json.session_id;
                     console.log(
-                      `[Codex CLI] Session ID: ${this.codexSessionId}`,
+                      `${this.logPrefix} Session ID: ${this.codexSessionId}`,
                     );
                   }
 
                   if (json.subtype === "error" || json.error) {
                     console.error(
-                      `[Codex CLI] System error:`,
+                      `${this.logPrefix} System error:`,
                       JSON.stringify(json),
                     );
                     displayOutput += `[System Error: ${json.error || json.subtype || "unknown"}]\n`;
@@ -512,7 +512,7 @@ export class CodexCliAgent extends BaseAgent {
 
                 default:
                   console.log(
-                    `[Codex CLI] Unknown event type: ${json.type}`,
+                    `${this.logPrefix} Unknown event type: ${json.type}`,
                     line.substring(0, 200),
                   );
               }
@@ -524,7 +524,7 @@ export class CodexCliAgent extends BaseAgent {
             } catch (e) {
               // JSONパース失敗時は生のテキストとして処理
               console.log(
-                `[Codex CLI] Raw output: ${line.substring(0, 200)}`,
+                `${this.logPrefix} Raw output: ${line.substring(0, 200)}`,
               );
               this.outputBuffer += line + "\n";
               this.emitOutput(line + "\n");
@@ -536,7 +536,7 @@ export class CodexCliAgent extends BaseAgent {
           const output = data.toString();
           this.errorBuffer += output;
           lastOutputTime = Date.now();
-          console.log(`[Codex CLI] stderr: ${output.substring(0, 200)}`);
+          console.log(`${this.logPrefix} stderr: ${output.substring(0, 200)}`);
           this.emitOutput(output, true);
         });
 
@@ -547,17 +547,17 @@ export class CodexCliAgent extends BaseAgent {
 
           if (this.lineBuffer.trim()) {
             console.log(
-              `[Codex CLI] Processing remaining lineBuffer: ${this.lineBuffer.substring(0, 200)}`,
+              `${this.logPrefix} Processing remaining lineBuffer: ${this.lineBuffer.substring(0, 200)}`,
             );
             this.outputBuffer += this.lineBuffer + "\n";
             this.emitOutput(this.lineBuffer + "\n");
           }
 
           console.log(
-            `[Codex CLI] Process closed with code: ${code}, time: ${executionTimeMs}ms`,
+            `${this.logPrefix} Process closed with code: ${code}, time: ${executionTimeMs}ms`,
           );
           console.log(
-            `[Codex CLI] Final output length: ${this.outputBuffer.length}`,
+            `${this.logPrefix} Final output length: ${this.outputBuffer.length}`,
           );
 
           if (this.status === "cancelled") {
@@ -589,9 +589,9 @@ export class CodexCliAgent extends BaseAgent {
           if (hasQuestion) {
             this.status = "waiting_for_input";
             console.log(
-              `[Codex CLI] Question detected: ${question.substring(0, 200)}`,
+              `${this.logPrefix} Question detected: ${question.substring(0, 200)}`,
             );
-            this.emitOutput("\n[Codex CLI] 回答を待っています...\n");
+            this.emitOutput(`\n${this.logPrefix} 回答を待っています...\n`);
             resolve({
               success: true,
               output: this.outputBuffer,
@@ -645,8 +645,8 @@ export class CodexCliAgent extends BaseAgent {
           cleanupTimeoutCheck();
           cleanupIdleCheck();
           this.status = "failed";
-          console.error(`[Codex CLI] Process error:`, error);
-          this.emitOutput(`[Codex CLI] Error: ${error.message}\n`, true);
+          console.error(`${this.logPrefix} Process error:`, error);
+          this.emitOutput(`${this.logPrefix} Error: ${error.message}\n`, true);
 
           const errorParts: string[] = [];
           errorParts.push(`プロセス起動エラー: ${error.message}`);
@@ -668,7 +668,7 @@ export class CodexCliAgent extends BaseAgent {
         this.status = "failed";
         const errorMessage =
           error instanceof Error ? error.message : String(error);
-        console.error(`[Codex CLI] Spawn error:`, error);
+        console.error(`${this.logPrefix} Spawn error:`, error);
         resolve({
           success: false,
           output: "",
@@ -682,7 +682,7 @@ export class CodexCliAgent extends BaseAgent {
   async stop(): Promise<void> {
     if (this.process) {
       this.status = "cancelled";
-      this.emitOutput("\n[Codex CLI] Stopping execution...\n");
+      this.emitOutput(`\n${this.logPrefix} Stopping execution...\n`);
 
       const isWindows = process.platform === "win32";
 
@@ -692,10 +692,10 @@ export class CodexCliAgent extends BaseAgent {
           if (pid) {
             const { execSync } = require("child_process");
             execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
-            console.log(`[Codex CLI] Process ${pid} killed via taskkill`);
+            console.log(`${this.logPrefix} Process ${pid} killed via taskkill`);
           }
         } catch (e) {
-          console.error("[Codex CLI] taskkill failed:", e);
+          console.error(`${this.logPrefix} taskkill failed:`, e);
           try {
             this.process.kill();
           } catch {}
@@ -729,7 +729,7 @@ export class CodexCliAgent extends BaseAgent {
     if (this.process && this.status === "running") {
       this.process.kill("SIGSTOP");
       this.status = "paused";
-      this.emitOutput("\n[Codex CLI] Execution paused\n");
+      this.emitOutput(`\n${this.logPrefix} Execution paused\n`);
       return true;
     }
     return false;
@@ -739,7 +739,7 @@ export class CodexCliAgent extends BaseAgent {
     if (this.process && this.status === "paused") {
       this.process.kill("SIGCONT");
       this.status = "running";
-      this.emitOutput("\n[Codex CLI] Execution resumed\n");
+      this.emitOutput(`\n${this.logPrefix} Execution resumed\n`);
       return true;
     }
     return false;
@@ -778,11 +778,11 @@ export class CodexCliAgent extends BaseAgent {
 
     // APIキーの確認
     if (this.config.apiKey) {
-      console.log("[Codex CLI] Using provided API key");
+      console.log(`${this.logPrefix} Using provided API key`);
     } else if (process.env.OPENAI_API_KEY) {
-      console.log("[Codex CLI] Using OPENAI_API_KEY from environment");
+      console.log(`${this.logPrefix} Using OPENAI_API_KEY from environment`);
     } else {
-      console.log("[Codex CLI] No API key provided - will use ChatGPT account authentication");
+      console.log(`${this.logPrefix} No API key provided - will use ChatGPT account authentication`);
     }
 
     // 作業ディレクトリの検証
@@ -814,7 +814,7 @@ export class CodexCliAgent extends BaseAgent {
   private buildStructuredPrompt(task: AgentTask): string {
     if (task.optimizedPrompt) {
       console.log(
-        `[Codex CLI] Using optimized prompt (${task.optimizedPrompt.length} chars)`,
+        `${this.logPrefix} Using optimized prompt (${task.optimizedPrompt.length} chars)`,
       );
       return task.optimizedPrompt;
     }

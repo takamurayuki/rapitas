@@ -292,7 +292,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
                 log.includes("[継続]") ||
                 log.includes("[完了]")
               ? "text-blue-400"
-              : log.includes("[Claude Code]")
+              : /^\[.+?\]/.test(log.trimStart())
                 ? "text-cyan-400"
                 : ""
         }

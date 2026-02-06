@@ -404,6 +404,7 @@ export default function TaskDetailClient({
         setTask(previousTask);
         throw new Error("ステータス更新に失敗しました");
       }
+      onTaskUpdated?.();
     } catch (err) {
       console.error(err);
       // エラー時は元の状態に戻す
