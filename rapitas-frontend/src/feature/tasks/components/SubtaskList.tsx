@@ -163,7 +163,7 @@ export default function SubtaskList({
   };
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-8">
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-8">
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
@@ -297,7 +297,7 @@ export default function SubtaskList({
             {activeSubtasks.map((subtask) => (
               <div
                 key={subtask.id}
-                className={`rounded-lg border bg-zinc-50 dark:bg-zinc-800 p-4 ${
+                className={`rounded-lg border bg-zinc-50 dark:bg-indigo-dark-800 p-4 ${
                   isSelectionMode && selectedSubtaskIds.has(subtask.id)
                     ? "border-blue-500 dark:border-blue-400 ring-1 ring-blue-500 dark:ring-blue-400"
                     : "border-zinc-200 dark:border-zinc-700"
@@ -324,14 +324,14 @@ export default function SubtaskList({
                   <div className="space-y-3">
                     <input
                       type="text"
-                      className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       value={editingTitle}
                       onChange={(e) => setEditingTitle(e.target.value)}
                       placeholder="サブタスクタイトル"
                       autoFocus
                     />
                     <textarea
-                      className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                      className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                       value={editingDescription}
                       onChange={(e) => setEditingDescription(e.target.value)}
                       placeholder="説明（マークダウン対応）"
@@ -488,7 +488,7 @@ export default function SubtaskList({
             {completedSubtasks.map((subtask) => (
               <div
                 key={subtask.id}
-                className={`rounded-lg border bg-zinc-50 dark:bg-zinc-800 p-3 opacity-60 ${
+                className={`rounded-lg border bg-zinc-50 dark:bg-indigo-dark-800 p-3 opacity-60 ${
                   isSelectionMode && selectedSubtaskIds.has(subtask.id)
                     ? "border-blue-500 dark:border-blue-400 ring-1 ring-blue-500 dark:ring-blue-400 opacity-100"
                     : "border-zinc-200 dark:border-zinc-700"
@@ -588,7 +588,7 @@ export default function SubtaskList({
       {/* サブタスク追加フォーム */}
       <div className={totalSubtasks > 0 ? "mt-6" : ""}>
         {isAddingSubtask ? (
-          <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-4 bg-white dark:bg-zinc-900 mb-4">
+          <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-4 bg-white dark:bg-indigo-dark-900 mb-4">
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-3">
               新しいサブタスク
             </h3>
@@ -596,7 +596,7 @@ export default function SubtaskList({
               <div>
                 <input
                   type="text"
-                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="サブタスクタイトル *"
                   value={subtaskTitle}
                   onChange={(e) => onSubtaskTitleChange(e.target.value)}
@@ -606,7 +606,7 @@ export default function SubtaskList({
 
               <div>
                 <textarea
-                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                   placeholder="説明（マークダウン対応）&#10;- [ ] チェックリスト&#10;`コード` **太字**"
                   value={subtaskDescription}
                   onChange={(e) => onSubtaskDescriptionChange(e.target.value)}
@@ -617,7 +617,7 @@ export default function SubtaskList({
               <div className="grid grid-cols-2 gap-2">
                 <input
                   type="text"
-                  className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="ラベル（カンマ区切り）"
                   value={subtaskLabels}
                   onChange={(e) => onSubtaskLabelsChange(e.target.value)}
@@ -626,7 +626,7 @@ export default function SubtaskList({
                   type="number"
                   step="0.5"
                   min="0"
-                  className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="見積もり時間（h）"
                   value={subtaskEstimatedHours}
                   onChange={(e) =>
