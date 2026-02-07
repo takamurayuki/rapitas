@@ -114,6 +114,8 @@ export type QuestionDetectedHandler = (info: {
   questionType: QuestionType;
   questionDetails?: import("./question-detection").QuestionDetails;
   questionKey?: import("./question-detection").QuestionKey;
+  /** Claude Code CLIのセッションID（再開時に使用） */
+  claudeSessionId?: string;
 }) => void;
 
 export abstract class BaseAgent {

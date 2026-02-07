@@ -528,6 +528,7 @@ export class ClaudeCodeAgent extends BaseAgent {
                             questionDetails:
                               this.detectedQuestion.questionDetails,
                             questionKey: this.detectedQuestion.questionKey,
+                            claudeSessionId: this.claudeSessionId || undefined,
                           });
 
                           displayOutput += `\n[質問] ${detectionResult.questionText}\n`;
@@ -639,6 +640,10 @@ export class ClaudeCodeAgent extends BaseAgent {
                       console.warn(
                         `${this.logPrefix} WARNING: Requested session ${this.config.resumeSessionId} but got ${json.session_id}`,
                       );
+                      // セッションID不一致を通知（期限切れ等でClaude Codeが新規セッションを作成した可能性）
+                      const mismatchWarning = `\n[警告] 指定されたセッション(${this.config.resumeSessionId.substring(0, 8)}...)の再開に失敗しました。新しいセッション(${json.session_id.substring(0, 8)}...)で続行します。前回のコンテキストが失われている可能性があります。\n`;
+                      this.outputBuffer += mismatchWarning;
+                      this.emitOutput(mismatchWarning);
                     }
                   }
                   // errorサブタイプの場合は詳細をログ

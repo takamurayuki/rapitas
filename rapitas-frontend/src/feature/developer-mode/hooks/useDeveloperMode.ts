@@ -67,9 +67,10 @@ export function useDeveloperMode(taskId: number) {
         return null;
       }
 
-      // 実行中、入力待ち、または完了した実行がある場合はログ履歴を取得
+      // 実行中、入力待ち、中断、または完了した実行がある場合はログ履歴を取得
       if (statusData.executionStatus === "running" ||
           statusData.executionStatus === "waiting_for_input" ||
+          statusData.executionStatus === "interrupted" ||
           statusData.executionStatus === "completed" ||
           statusData.executionStatus === "failed") {
 
@@ -89,10 +90,14 @@ export function useDeveloperMode(taskId: number) {
           console.warn("Failed to fetch execution logs, using status output:", logErr);
         }
 
-        // 実行中または入力待ちの場合のみUI状態を更新
+        // 実行中、入力待ち、または中断の場合はUI状態を更新
         if (statusData.executionStatus === "running" || statusData.executionStatus === "waiting_for_input") {
           setIsExecuting(true);
           setExecutionStatus("running");
+        } else if (statusData.executionStatus === "interrupted") {
+          // 中断された実行がある場合（サーバー再起動後など）
+          setIsExecuting(false);
+          setExecutionStatus("failed");
         }
 
         setExecutionResult({

@@ -16,6 +16,8 @@ import {
   CheckCircle2,
   Settings2,
   FileStack,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import type { Priority, Theme, TaskTemplate } from "@/types";
 import LabelSelector from "@/feature/tasks/components/LabelSelector";
@@ -55,6 +57,7 @@ export default function NewTaskClient() {
 
   // UI状態
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [appliedTemplate, setAppliedTemplate] = useState<TaskTemplate | null>(
     null
@@ -145,6 +148,38 @@ export default function NewTaskClient() {
 
   const removeSubtask = (id: string) => {
     setSubtasks(subtasks.filter((st) => st.id !== id));
+  };
+
+  const handleGenerateTitle = async () => {
+    if (!description.trim() || isGeneratingTitle) return;
+
+    setIsGeneratingTitle(true);
+    try {
+      const res = await fetch(`${API_BASE}/developer-mode/generate-title`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: description.trim() }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "タイトル生成に失敗しました");
+      }
+
+      const data = await res.json();
+      if (data.title) {
+        setTitle(data.title);
+        showToast("タイトルを自動生成しました", "success");
+      }
+    } catch (e) {
+      console.error(e);
+      showToast(
+        e instanceof Error ? e.message : "タイトル生成に失敗しました",
+        "error"
+      );
+    } finally {
+      setIsGeneratingTitle(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -378,6 +413,22 @@ export default function NewTaskClient() {
             title="説明"
             icon={<FileText className="w-3.5 h-3.5" />}
             defaultExpanded={true}
+            headerExtra={
+              <button
+                type="button"
+                onClick={handleGenerateTitle}
+                disabled={!description.trim() || isGeneratingTitle}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-900 disabled:opacity-40 disabled:cursor-not-allowed"
+                title="説明からタイトルを自動生成"
+              >
+                {isGeneratingTitle ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5" />
+                )}
+                タイトル生成
+              </button>
+            }
           >
             <textarea
               value={description}

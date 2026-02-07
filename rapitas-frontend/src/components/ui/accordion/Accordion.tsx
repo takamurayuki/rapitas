@@ -132,7 +132,7 @@ export function AccordionContent({ id, children, className = "" }: AccordionCont
   return (
     <div
       id={`accordion-content-${id}`}
-      className={`px-4 pb-4 animate-in slide-in-from-top-1 duration-200 ${className}`}
+      className={`px-4 pt-2 pb-4 animate-in slide-in-from-top-1 duration-200 ${className}`}
     >
       {children}
     </div>
@@ -143,6 +143,7 @@ type CompactAccordionGroupProps = {
   title: string;
   icon?: ReactNode;
   badge?: ReactNode;
+  headerExtra?: ReactNode;
   children: ReactNode;
   defaultExpanded?: boolean;
   className?: string;
@@ -152,6 +153,7 @@ export function CompactAccordionGroup({
   title,
   icon,
   badge,
+  headerExtra,
   children,
   defaultExpanded = false,
   className = "",
@@ -160,10 +162,17 @@ export function CompactAccordionGroup({
 
   return (
     <div className={`border-b border-zinc-100 dark:border-zinc-800 ${className}`}>
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setExpanded(!expanded)}
-        className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }
+        }}
+        className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer"
         aria-expanded={expanded}
       >
         <div className="flex items-center gap-2 min-w-0">
@@ -173,14 +182,19 @@ export function CompactAccordionGroup({
           </span>
           {badge && <span className="shrink-0">{badge}</span>}
         </div>
-        <ChevronDown
-          className={`w-4 h-4 text-zinc-400 shrink-0 transition-transform duration-200 ${
-            expanded ? "rotate-180" : ""
-          }`}
-        />
-      </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {headerExtra && (
+            <div onClick={(e) => e.stopPropagation()}>{headerExtra}</div>
+          )}
+          <ChevronDown
+            className={`w-4 h-4 text-zinc-400 shrink-0 transition-transform duration-200 ${
+              expanded ? "rotate-180" : ""
+            }`}
+          />
+        </div>
+      </div>
       {expanded && (
-        <div className="px-4 pb-4 animate-in slide-in-from-top-1 duration-200">
+        <div className="px-4 pt-2 pb-4 animate-in slide-in-from-top-1 duration-200">
           {children}
         </div>
       )}

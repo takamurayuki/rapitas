@@ -9,6 +9,7 @@ import {
   formatPromptForAgent,
   isApiKeyConfiguredAsync,
   generateBranchName,
+  generateTaskTitle,
   type TaskAnalysisResult,
 } from "../services/claude-agent";
 import { getLabelsArray, toJsonString, fromJsonString } from "../utils/db-helpers";
@@ -601,4 +602,49 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
       },
       orderBy: { createdAt: "desc" },
     });
-  });
+  })
+
+  // タスク説明からタイトル自動生成
+  .post(
+    "/generate-title",
+    async ({
+      body,
+      set,
+    }: {
+      body: { description: string };
+      set: { status?: number };
+    }) => {
+      const { description } = body;
+
+      if (!description || !description.trim()) {
+        set.status = 400;
+        return { error: "説明文は必須です" };
+      }
+
+      const apiKeyConfigured = await isApiKeyConfiguredAsync();
+      if (!apiKeyConfigured) {
+        set.status = 400;
+        return {
+          error:
+            "Claude APIキーが設定されていません。設定ページでAPIキーを登録してください。",
+        };
+      }
+
+      try {
+        const result = await generateTaskTitle(description);
+        return result;
+      } catch (error: unknown) {
+        console.error("Title generation error:", error);
+        set.status = 500;
+        return {
+          error: "タイトルの生成に失敗しました",
+          details: error instanceof Error ? error.message : "Unknown error",
+        };
+      }
+    },
+    {
+      body: t.Object({
+        description: t.String(),
+      }),
+    }
+  );

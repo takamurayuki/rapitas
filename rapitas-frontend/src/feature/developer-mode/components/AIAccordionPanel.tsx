@@ -381,10 +381,15 @@ export function AIAccordionPanel({
         const restoredState = await onRestoreExecutionState();
         if (restoredState) {
           setSessionId(restoredState.sessionId);
-          startPolling({
-            initialOutput: restoredState.output,
-            preserveLogs: false,
-          });
+          // 中断された実行の場合はポーリング不要（実行は既に停止済み）
+          if (restoredState.status === "interrupted") {
+            // ログだけ表示する
+          } else {
+            startPolling({
+              initialOutput: restoredState.output,
+              preserveLogs: false,
+            });
+          }
           setShowLogs(true);
           setExpandedSection("execution");
         }

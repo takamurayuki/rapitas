@@ -718,9 +718,10 @@ export class AgentOrchestrator {
       console.log(`[Orchestrator] Question detected during streaming!`);
       console.log(`[Orchestrator] Question: ${info.question.substring(0, 100)}`);
       console.log(`[Orchestrator] Question type: ${info.questionType}`);
+      console.log(`[Orchestrator] Claude Session ID: ${info.claudeSessionId || "(なし)"}`);
 
       try {
-        // 即座にDBステータスを waiting_for_input に更新
+        // 即座にDBステータスを waiting_for_input に更新（セッションIDも保存）
         await this.prisma.agentExecution.update({
           where: { id: execution.id },
           data: {
@@ -728,6 +729,7 @@ export class AgentOrchestrator {
             question: info.question || null,
             questionType: info.questionType || null,
             questionDetails: toJsonString(info.questionDetails),
+            claudeSessionId: info.claudeSessionId || null,
           },
         });
         console.log(`[Orchestrator] DB updated to waiting_for_input for execution ${execution.id}`);
@@ -1276,9 +1278,10 @@ export class AgentOrchestrator {
       console.log(`[Orchestrator] Question detected during continuation!`);
       console.log(`[Orchestrator] Question: ${info.question.substring(0, 100)}`);
       console.log(`[Orchestrator] Question type: ${info.questionType}`);
+      console.log(`[Orchestrator] Claude Session ID: ${info.claudeSessionId || "(なし)"}`);
 
       try {
-        // 即座にDBステータスを waiting_for_input に更新
+        // 即座にDBステータスを waiting_for_input に更新（セッションIDも保存）
         await this.prisma.agentExecution.update({
           where: { id: execution.id },
           data: {
@@ -1286,6 +1289,7 @@ export class AgentOrchestrator {
             question: info.question || null,
             questionType: info.questionType || null,
             questionDetails: toJsonString(info.questionDetails),
+            claudeSessionId: info.claudeSessionId || (execution as any).claudeSessionId || null,
           },
         });
         console.log(`[Orchestrator] DB updated to waiting_for_input for execution ${execution.id}`);
@@ -1711,8 +1715,13 @@ export class AgentOrchestrator {
 
     console.log(`[Orchestrator] Resuming interrupted execution ${executionId}`);
     console.log(`[Orchestrator] Task: ${task.title} (ID: ${task.id})`);
-    console.log(`[Orchestrator] Claude Session ID: ${claudeSessionId}`);
+    console.log(`[Orchestrator] Claude Session ID: ${claudeSessionId || "(なし - 新規セッションで開始)"}`);
     console.log(`[Orchestrator] Working Directory: ${workingDirectory}`);
+
+    // セッションIDがない場合の警告
+    if (!claudeSessionId) {
+      console.warn(`[Orchestrator] WARNING: No Claude session ID found for execution ${executionId}. Starting as new session.`);
+    }
 
     // 前回の実行ログを取得して要約を作成
     const previousOutput = execution.output || "";
@@ -1733,6 +1742,8 @@ export class AgentOrchestrator {
     );
 
     // エージェント設定を取得
+    // 注意: セッションIDがない場合は --continue を使わず新規セッションで開始
+    // --continue は「最新の会話」を再開するが、別のタスクの会話が再開される可能性がある
     let agentConfig: AgentConfigInput = {
       type: "claude-code",
       name: "Claude Code Agent",
@@ -1740,7 +1751,7 @@ export class AgentOrchestrator {
       timeout: options.timeout || 900000, // 15分
       dangerouslySkipPermissions: true,
       resumeSessionId: claudeSessionId || undefined,
-      continueConversation: !claudeSessionId,
+      continueConversation: false, // セッションIDがある場合のみ再開を試みる
     };
 
     if (execution.agentConfigId) {
@@ -1769,7 +1780,7 @@ export class AgentOrchestrator {
           dangerouslySkipPermissions: true,
           yoloMode: true,
           resumeSessionId: claudeSessionId || undefined,
-          continueConversation: !claudeSessionId,
+          continueConversation: false, // セッションIDがある場合のみ再開を試みる
         };
       }
     }
@@ -1815,6 +1826,7 @@ export class AgentOrchestrator {
     agent.setQuestionDetectedHandler(async (info) => {
       console.log(`[Orchestrator] Question detected during resume!`);
       console.log(`[Orchestrator] Question: ${info.question.substring(0, 100)}`);
+      console.log(`[Orchestrator] Claude Session ID: ${info.claudeSessionId || "(なし)"}`);
 
       try {
         await this.prisma.agentExecution.update({
@@ -1824,6 +1836,7 @@ export class AgentOrchestrator {
             question: info.question || null,
             questionType: info.questionType || null,
             questionDetails: toJsonString(info.questionDetails),
+            claudeSessionId: info.claudeSessionId || (execution as any).claudeSessionId || null,
           },
         });
 

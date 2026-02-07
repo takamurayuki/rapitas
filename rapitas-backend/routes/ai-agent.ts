@@ -1439,6 +1439,7 @@ export const aiAgentRoutes = new Elysia()
           question: questionText,
           questionType,
           questionTimeout: questionTimeoutInfo,
+          claudeSessionId: (latestExecution as any)?.claudeSessionId || null,
         };
       } catch (error) {
         console.error("[execution-status] Error fetching status:", error);
@@ -1942,10 +1943,10 @@ export const aiAgentRoutes = new Elysia()
         }
       }
 
-      // Now get all resumable executions (interrupted status)
+      // Now get all resumable executions (interrupted status) and active running executions
       const resumableExecutions = await prisma.agentExecution.findMany({
         where: {
-          status: "interrupted",
+          status: { in: ["interrupted", "running", "waiting_for_input"] },
         },
         include: {
           session: {
@@ -1985,7 +1986,7 @@ export const aiAgentRoutes = new Elysia()
         completedAt: exec.completedAt,
         createdAt: exec.createdAt,
         workingDirectory: exec.session.config?.task?.theme?.workingDirectory,
-        canResume: true, // All interrupted executions can be resumed
+        canResume: exec.status === "interrupted", // Only interrupted can be resumed
       }));
     } catch (error) {
       console.error("[resumable-executions] Error:", error);

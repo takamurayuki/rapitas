@@ -918,3 +918,49 @@ ${taskDescription ? `説明: ${taskDescription}` : ""}
 
   return { branchName };
 }
+
+/**
+ * タスクの説明から簡潔なタイトルを自動生成する
+ */
+export async function generateTaskTitle(
+  description: string,
+): Promise<{ title: string }> {
+  const client = await getAnthropicClient();
+  if (!client) {
+    throw new Error("Claude APIキーが設定されていません。設定ページでAPIキーを登録してください。");
+  }
+
+  const systemPrompt = `あなたはタスク管理のアシスタントです。
+タスクの説明文から、簡潔で分かりやすいタスクタイトルを生成してください。
+
+タイトルのルール:
+1. 日本語で記述する（説明文が日本語の場合）
+2. 簡潔にまとめる（30文字以内を推奨）
+3. タスクの目的・内容が一目で分かるようにする
+4. 動詞を含めて何をするか明確にする（例: 「〜を追加」「〜を修正」「〜を実装」）
+5. 余計な装飾や説明は不要
+
+出力形式:
+タイトルのみを出力してください。説明や余計なテキストは不要です。`;
+
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 100,
+    system: systemPrompt,
+    messages: [
+      {
+        role: "user",
+        content: `以下のタスク説明から、簡潔なタイトルを生成してください:\n\n${description}`,
+      },
+    ],
+  });
+
+  const textContent = response.content[0];
+  if (textContent.type !== "text") {
+    throw new Error("タイトルの生成に失敗しました");
+  }
+
+  const title = textContent.text.trim().replace(/^["'「」『』]|["'「」『』]$/g, "");
+
+  return { title };
+}
