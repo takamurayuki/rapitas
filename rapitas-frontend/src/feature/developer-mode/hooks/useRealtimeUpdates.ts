@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { SSEEvent, ExecutionOutputEvent, ExecutionStatusEvent, GitHubEventData } from "@/types";
 import { API_BASE_URL } from "@/utils/api";
 
@@ -36,17 +36,28 @@ export function useRealtimeUpdates(
     onError,
   } = options;
 
+  // channels配列を安定化（参照の変化による無限ループを防止）
+  const channelsKey = channels.join(",");
+  const stableChannels = useMemo(() => channels, [channelsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [isConnected, setIsConnected] = useState(false);
   const [lastEvent, setLastEvent] = useState<SSEEvent | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const handlersRef = useRef<Map<string, Set<EventHandler>>>(new Map());
+  // コールバックをrefで保持して依存配列を安定化
+  const onConnectRef = useRef(onConnect);
+  const onDisconnectRef = useRef(onDisconnect);
+  const onErrorRef = useRef(onError);
+  onConnectRef.current = onConnect;
+  onDisconnectRef.current = onDisconnect;
+  onErrorRef.current = onError;
 
   const connect = useCallback(() => {
     if (eventSourceRef.current) {
       return;
     }
 
-    const channelParam = channels.join(",");
+    const channelParam = stableChannels.join(",");
     const url = `${API_BASE_URL}/events/subscribe/${channelParam}`;
 
     const eventSource = new EventSource(url);
@@ -54,13 +65,13 @@ export function useRealtimeUpdates(
 
     eventSource.onopen = () => {
       setIsConnected(true);
-      onConnect?.();
+      onConnectRef.current?.();
     };
 
     eventSource.onerror = () => {
       setIsConnected(false);
-      onError?.(new Error("SSE connection error"));
-      onDisconnect?.();
+      onErrorRef.current?.(new Error("SSE connection error"));
+      onDisconnectRef.current?.();
     };
 
     eventSource.onmessage = (event) => {
@@ -125,16 +136,16 @@ export function useRealtimeUpdates(
         }
       });
     });
-  }, [channels, onConnect, onDisconnect, onError]);
+  }, [stableChannels]);
 
   const disconnect = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
       setIsConnected(false);
-      onDisconnect?.();
+      onDisconnectRef.current?.();
     }
-  }, [onDisconnect]);
+  }, []);
 
   const subscribe = useCallback((channel: string) => {
     // 新しいチャンネルに購読するには再接続が必要

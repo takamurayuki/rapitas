@@ -54,6 +54,9 @@ type LogLine = {
   ts: number;
 };
 
+// ターミナルの最大行数（メモリリーク防止）
+const MAX_TERMINAL_LINES = 1000;
+
 function classifyLine(line: string): LogLine["type"] {
   if (line.startsWith("[Tool:") || line.startsWith("[ツール:")) return "tool";
   if (
@@ -171,7 +174,12 @@ export const TerminalPanel = memo(function TerminalPanel({
       }));
 
     if (newLines.length > 0) {
-      setLines((prev) => [...prev, ...newLines]);
+      setLines((prev) => {
+        const combined = [...prev, ...newLines];
+        return combined.length > MAX_TERMINAL_LINES
+          ? combined.slice(-MAX_TERMINAL_LINES)
+          : combined;
+      });
     }
   }, [polling.logs]);
 
@@ -181,15 +189,18 @@ export const TerminalPanel = memo(function TerminalPanel({
       setLines((prev) => {
         const last = prev[prev.length - 1];
         if (last?.type === "question" && last.text === question) return prev;
-        return [
+        const combined = [
           ...prev,
           {
             id: `q-${lineIdCounter.current++}`,
-            type: "question",
+            type: "question" as const,
             text: question,
             ts: Date.now(),
           },
         ];
+        return combined.length > MAX_TERMINAL_LINES
+          ? combined.slice(-MAX_TERMINAL_LINES)
+          : combined;
       });
     }
   }, [isWaiting, question]);
@@ -232,15 +243,20 @@ export const TerminalPanel = memo(function TerminalPanel({
     if (!text || submitting) return;
 
     // Add user line
-    setLines((prev) => [
-      ...prev,
-      {
-        id: `u-${lineIdCounter.current++}`,
-        type: "user",
-        text,
-        ts: Date.now(),
-      },
-    ]);
+    setLines((prev) => {
+      const combined = [
+        ...prev,
+        {
+          id: `u-${lineIdCounter.current++}`,
+          type: "user" as const,
+          text,
+          ts: Date.now(),
+        },
+      ];
+      return combined.length > MAX_TERMINAL_LINES
+        ? combined.slice(-MAX_TERMINAL_LINES)
+        : combined;
+    });
     setInput("");
 
     if (isWaiting) {
@@ -255,15 +271,20 @@ export const TerminalPanel = memo(function TerminalPanel({
         });
         polling.clearQuestion();
       } catch (e) {
-        setLines((prev) => [
-          ...prev,
-          {
-            id: `e-${lineIdCounter.current++}`,
-            type: "error",
-            text: `[エラー] 回答の送信に失敗しました`,
-            ts: Date.now(),
-          },
-        ]);
+        setLines((prev) => {
+          const combined = [
+            ...prev,
+            {
+              id: `e-${lineIdCounter.current++}`,
+              type: "error" as const,
+              text: `[エラー] 回答の送信に失敗しました`,
+              ts: Date.now(),
+            },
+          ];
+          return combined.length > MAX_TERMINAL_LINES
+            ? combined.slice(-MAX_TERMINAL_LINES)
+            : combined;
+        });
       } finally {
         setSubmitting(false);
       }
@@ -276,27 +297,37 @@ export const TerminalPanel = memo(function TerminalPanel({
           agentConfigId: selectedAgentId ?? undefined,
         });
         if (result?.sessionId) {
-          setLines((prev) => [
-            ...prev,
-            {
-              id: `s-${lineIdCounter.current++}`,
-              type: "system",
-              text: `[System] 実行開始 (session: ${result.sessionId})`,
-              ts: Date.now(),
-            },
-          ]);
+          setLines((prev) => {
+            const combined = [
+              ...prev,
+              {
+                id: `s-${lineIdCounter.current++}`,
+                type: "system" as const,
+                text: `[System] 実行開始 (session: ${result.sessionId})`,
+                ts: Date.now(),
+              },
+            ];
+            return combined.length > MAX_TERMINAL_LINES
+              ? combined.slice(-MAX_TERMINAL_LINES)
+              : combined;
+          });
           polling.startPolling();
         }
       } catch (e) {
-        setLines((prev) => [
-          ...prev,
-          {
-            id: `e-${lineIdCounter.current++}`,
-            type: "error",
-            text: `[エラー] 実行の開始に失敗しました`,
-            ts: Date.now(),
-          },
-        ]);
+        setLines((prev) => {
+          const combined = [
+            ...prev,
+            {
+              id: `e-${lineIdCounter.current++}`,
+              type: "error" as const,
+              text: `[エラー] 実行の開始に失敗しました`,
+              ts: Date.now(),
+            },
+          ];
+          return combined.length > MAX_TERMINAL_LINES
+            ? combined.slice(-MAX_TERMINAL_LINES)
+            : combined;
+        });
       } finally {
         setSubmitting(false);
       }
@@ -325,15 +356,20 @@ export const TerminalPanel = memo(function TerminalPanel({
     onStopExecution?.();
     polling.stopPolling();
     polling.setCancelled();
-    setLines((prev) => [
-      ...prev,
-      {
-        id: `s-${lineIdCounter.current++}`,
-        type: "system",
-        text: "[System] 実行を停止しました",
-        ts: Date.now(),
-      },
-    ]);
+    setLines((prev) => {
+      const combined = [
+        ...prev,
+        {
+          id: `s-${lineIdCounter.current++}`,
+          type: "system" as const,
+          text: "[System] 実行を停止しました",
+          ts: Date.now(),
+        },
+      ];
+      return combined.length > MAX_TERMINAL_LINES
+        ? combined.slice(-MAX_TERMINAL_LINES)
+        : combined;
+    });
   }, [onStopExecution, polling]);
 
   const handleReset = useCallback(() => {

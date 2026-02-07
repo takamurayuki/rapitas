@@ -1168,6 +1168,32 @@ export default function TaskDetailClient({
                     if (res.ok) {
                       const data = await res.json();
                       setTask(data);
+
+                      // 自動実行設定を確認
+                      try {
+                        const configRes = await fetch(
+                          `${API_BASE}/agent-execution-config/${resolvedTaskId}`,
+                        );
+                        if (configRes.ok) {
+                          const configData = await configRes.json();
+                          if (configData.autoExecuteOnAnalysis) {
+                            // サブタスクがある場合は並列実行、なければ通常実行
+                            if (data.subtasks && data.subtasks.length > 0) {
+                              console.log("[TaskDetail] Auto-executing parallel tasks after analysis");
+                              startSession();
+                            } else {
+                              console.log("[TaskDetail] Auto-executing agent after analysis");
+                              executeAgent({
+                                useTaskAnalysis: true,
+                                optimizedPrompt: optimizedPrompt || undefined,
+                                agentConfigId: agentConfigId ?? undefined,
+                              });
+                            }
+                          }
+                        }
+                      } catch (err) {
+                        console.error("[TaskDetail] Failed to check auto-execute config:", err);
+                      }
                     }
                   }}
                   // エージェント実行関連（開発者モードが有効なら表示）
