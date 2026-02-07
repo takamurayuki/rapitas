@@ -488,4 +488,17 @@ if (typeof window !== "undefined") {
       }
     };
   }
+
+  // ページ離脱時のクリーンアップ（メモリリーク防止）
+  window.addEventListener("beforeunload", () => {
+    stopTimerInterval();
+    if (broadcastChannel) {
+      broadcastChannel.close();
+      broadcastChannel = null;
+    }
+    if (audioContext) {
+      audioContext.close();
+      audioContext = null;
+    }
+  });
 }

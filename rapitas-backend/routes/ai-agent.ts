@@ -1079,7 +1079,7 @@ export const aiAgentRoutes = new Elysia()
           },
         )
         .then(async (result) => {
-          if (result.success) {
+          if (result.success && !result.waitingForInput) {
             // タスクのステータスを「完了」に更新
             await prisma.task.update({
               where: { id: taskIdNum },

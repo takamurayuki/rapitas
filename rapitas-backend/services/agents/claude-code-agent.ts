@@ -54,6 +54,14 @@ export class ClaudeCodeAgent extends BaseAgent {
   > = new Map();
   /** Claude CodeのセッションID（--resumeで会話を継続するため） */
   private claudeSessionId: string | null = null;
+  /** ファイル変更ツール（Write, Edit, NotebookEdit, Bash）が正常に使用されたかどうか */
+  private hasFileModifyingToolCalls: boolean = false;
+  /** ファイル変更ツールの名前一覧 */
+  private static readonly FILE_MODIFYING_TOOLS = new Set([
+    "Write",
+    "Edit",
+    "NotebookEdit",
+  ]);
 
   constructor(id: string, name: string, config: ClaudeCodeAgentConfig = {}) {
     super(id, name, "claude-code");
@@ -86,6 +94,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     this.detectedQuestion = createInitialWaitingState();
     this.activeTools.clear();
     this.claudeSessionId = null;
+    this.hasFileModifyingToolCalls = false;
     const startTime = Date.now();
 
     // タイムアウトのデフォルト値を確実に設定
@@ -165,27 +174,23 @@ export class ClaudeCodeAgent extends BaseAgent {
       args.push("--output-format", "stream-json"); // JSONストリーミング形式で出力
 
       // 前回の会話を継続する場合
-      // 注意: --resume はセッションIDで特定の会話を再開（--printモードでは動作しない可能性あり）
-      //       --continue は最新の会話を継続（より確実）
-      const isResuming = !!(
-        this.config.resumeSessionId || this.config.continueConversation
-      );
-      if (isResuming) {
-        // --continue を使用（--resumeは--printモードと互換性がない可能性があるため）
-        // セッションIDがあっても --continue を使用する
+      // --resume <sessionId> で特定のセッションを再開
+      // --continue は最新の会話を継続（セッションIDがない場合のフォールバック）
+      if (this.config.resumeSessionId) {
+        // セッションIDがある場合は --resume で特定セッションを再開
+        args.push("--resume", this.config.resumeSessionId);
+        console.log(
+          `${this.logPrefix} Resuming specific session with --resume ${this.config.resumeSessionId}`,
+        );
+        console.log(
+          `${this.logPrefix} Resume mode: prompt will be sent as user response`,
+        );
+      } else if (this.config.continueConversation) {
+        // セッションIDがない場合は --continue で最新の会話を継続
         args.push("--continue");
-        if (this.config.resumeSessionId) {
-          console.log(
-            `${this.logPrefix} Using --continue instead of --resume (session ID: ${this.config.resumeSessionId})`,
-          );
-          console.log(
-            `${this.logPrefix} Note: --resume may not work with --print mode`,
-          );
-        } else {
-          console.log(
-            `${this.logPrefix} Continuing most recent conversation with --continue`,
-          );
-        }
+        console.log(
+          `${this.logPrefix} Continuing most recent conversation with --continue`,
+        );
         console.log(
           `${this.logPrefix} Resume mode: prompt will be sent as user response`,
         );
@@ -544,6 +549,15 @@ export class ClaudeCodeAgent extends BaseAgent {
                             block.input,
                           );
                           displayOutput += `\n[Tool: ${block.name}] ${toolInfo}\n`;
+                          // ファイル変更ツールの使用を追跡
+                          if (
+                            ClaudeCodeAgent.FILE_MODIFYING_TOOLS.has(block.name)
+                          ) {
+                            this.hasFileModifyingToolCalls = true;
+                            console.log(
+                              `${this.logPrefix} File-modifying tool detected: ${block.name}`,
+                            );
+                          }
                           // アクティブツールとして追跡
                           if (block.id) {
                             this.activeTools.set(block.id, {
@@ -766,11 +780,6 @@ export class ClaudeCodeAgent extends BaseAgent {
             return;
           }
 
-          console.log(
-            `${this.logPrefix} No question detected, setting status to ${code === 0 ? "completed" : "failed"}`,
-          );
-          this.status = code === 0 ? "completed" : "failed";
-
           // エラー時は詳細なエラーメッセージを構築
           let errorMessage: string | undefined;
           if (code !== 0) {
@@ -824,16 +833,127 @@ export class ClaudeCodeAgent extends BaseAgent {
             );
           }
 
-          resolve({
-            success: code === 0,
-            output: this.outputBuffer,
-            artifacts,
-            commits,
-            executionTimeMs,
-            waitingForInput: false,
-            claudeSessionId: this.claudeSessionId || undefined,
-            errorMessage,
-          });
+          // エラー終了の場合はそのまま失敗として返す
+          if (code !== 0) {
+            console.log(
+              `${this.logPrefix} No question detected, setting status to failed (exitCode: ${code})`,
+            );
+            this.status = "failed";
+            resolve({
+              success: false,
+              output: this.outputBuffer,
+              artifacts,
+              commits,
+              executionTimeMs,
+              waitingForInput: false,
+              claudeSessionId: this.claudeSessionId || undefined,
+              errorMessage,
+            });
+            return;
+          }
+
+          // 正常終了（code === 0）の場合、git diffで実際のコード変更を確認する
+          // ファイル変更ツール（Write/Edit等）が呼ばれていても、計画モード（EnterPlanMode）や
+          // サブエージェント（Task）経由の場合は実際にファイルが変更されていない可能性がある
+          console.log(
+            `${this.logPrefix} Process exited successfully, verifying actual code changes...`,
+          );
+          console.log(
+            `${this.logPrefix} hasFileModifyingToolCalls: ${this.hasFileModifyingToolCalls}`,
+          );
+
+          this.checkGitDiff(workDir)
+            .then((hasChanges) => {
+              if (hasChanges) {
+                console.log(
+                  `${this.logPrefix} Git diff confirmed changes, setting status to completed`,
+                );
+                this.status = "completed";
+                resolve({
+                  success: true,
+                  output: this.outputBuffer,
+                  artifacts,
+                  commits,
+                  executionTimeMs,
+                  waitingForInput: false,
+                  claudeSessionId: this.claudeSessionId || undefined,
+                });
+              } else if (this.hasFileModifyingToolCalls) {
+                // ファイル変更ツールは使われたがgit diffに反映されていない
+                // （エージェントがコミット&リセットした等の稀なケース）
+                // ツール使用を信頼してcompletedとする
+                console.log(
+                  `${this.logPrefix} No git changes but file-modifying tools were used, setting status to completed`,
+                );
+                this.status = "completed";
+                resolve({
+                  success: true,
+                  output: this.outputBuffer,
+                  artifacts,
+                  commits,
+                  executionTimeMs,
+                  waitingForInput: false,
+                  claudeSessionId: this.claudeSessionId || undefined,
+                });
+              } else {
+                // 計画のみで実装が行われていない
+                console.log(
+                  `${this.logPrefix} No git changes and no file-modifying tools used - agent likely only planned without implementing`,
+                );
+                this.status = "failed";
+                resolve({
+                  success: false,
+                  output: this.outputBuffer,
+                  artifacts,
+                  commits,
+                  executionTimeMs,
+                  waitingForInput: false,
+                  claudeSessionId: this.claudeSessionId || undefined,
+                  errorMessage:
+                    "エージェントは計画を出力しましたが、実際のコード変更は行われませんでした。プロンプトを見直して再実行してください。",
+                });
+              }
+            })
+            .catch((err) => {
+              // git diffチェックに失敗した場合、ファイル変更ツールの使用有無で判定する
+              console.warn(
+                `${this.logPrefix} Git diff check failed:`,
+                err,
+              );
+              if (this.hasFileModifyingToolCalls) {
+                // ファイル変更ツールが使われていれば実装が行われた可能性が高い
+                console.log(
+                  `${this.logPrefix} Git diff failed but file-modifying tools were used, setting status to completed`,
+                );
+                this.status = "completed";
+                resolve({
+                  success: true,
+                  output: this.outputBuffer,
+                  artifacts,
+                  commits,
+                  executionTimeMs,
+                  waitingForInput: false,
+                  claudeSessionId: this.claudeSessionId || undefined,
+                });
+              } else {
+                // ファイル変更ツールも使われていなければ失敗とする
+                console.log(
+                  `${this.logPrefix} Git diff failed and no file-modifying tools used, setting status to failed`,
+                );
+                this.status = "failed";
+                resolve({
+                  success: false,
+                  output: this.outputBuffer,
+                  artifacts,
+                  commits,
+                  executionTimeMs,
+                  waitingForInput: false,
+                  claudeSessionId: this.claudeSessionId || undefined,
+                  errorMessage:
+                    "エージェントの実行結果を検証できませんでした。コード変更が確認できません。",
+                });
+              }
+            });
         });
 
         this.process.on("error", (error: Error) => {
@@ -979,6 +1099,80 @@ export class ClaudeCodeAgent extends BaseAgent {
     });
   }
 
+  /**
+   * 作業ディレクトリでgit diffを確認し、変更があるかどうかを返す
+   * unstaged、staged、直近のコミットすべてを確認する
+   */
+  private async checkGitDiff(workDir: string): Promise<boolean> {
+    const runGitCommand = (args: string[]): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const proc = spawn("git", args, {
+          cwd: workDir,
+          shell: true,
+        });
+
+        let output = "";
+        const timeout = setTimeout(() => {
+          proc.kill();
+          reject(new Error(`git ${args.join(" ")} timed out`));
+        }, 5000);
+
+        proc.stdout?.on("data", (data: Buffer) => {
+          output += data.toString();
+        });
+
+        proc.on("close", () => {
+          clearTimeout(timeout);
+          resolve(output.trim());
+        });
+
+        proc.on("error", (err) => {
+          clearTimeout(timeout);
+          reject(new Error(`git ${args.join(" ")} failed: ${err.message}`));
+        });
+      });
+    };
+
+    // 0. gitリポジトリかどうかを確認
+    const revParse = await runGitCommand(["rev-parse", "--is-inside-work-tree"]);
+    if (revParse !== "true") {
+      throw new Error(`workDir is not a git repository: ${workDir}`);
+    }
+
+    // 1. unstaged changes
+    const unstaged = await runGitCommand(["diff", "--stat", "HEAD"]);
+    if (unstaged.length > 0) {
+      console.log(`${this.logPrefix} Git diff check: unstaged changes found`);
+      return true;
+    }
+
+    // 2. staged changes
+    const staged = await runGitCommand(["diff", "--cached", "--stat"]);
+    if (staged.length > 0) {
+      console.log(`${this.logPrefix} Git diff check: staged changes found`);
+      return true;
+    }
+
+    // 3. エージェントがコミット済みの場合: git statusで確認
+    const status = await runGitCommand(["status", "--porcelain"]);
+    if (status.length > 0) {
+      console.log(`${this.logPrefix} Git diff check: working tree changes found`);
+      return true;
+    }
+
+    // 4. 直近のコミットが実行中に作られた可能性を確認（直近5分以内のコミット）
+    const recentCommit = await runGitCommand([
+      "log", "--oneline", "--since=5.minutes.ago", "-1",
+    ]);
+    if (recentCommit.length > 0) {
+      console.log(`${this.logPrefix} Git diff check: recent commit found: ${recentCommit}`);
+      return true;
+    }
+
+    console.log(`${this.logPrefix} Git diff check: no changes detected`);
+    return false;
+  }
+
   async validateConfig(): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
@@ -1028,8 +1222,9 @@ export class ClaudeCodeAgent extends BaseAgent {
     const analysis = task.analysisInfo;
 
     if (!analysis) {
-      // 分析結果がない場合は従来通りの単純なプロンプト
-      return task.description || task.title;
+      // 分析結果がない場合は従来通りの単純なプロンプト（計画モード禁止の指示を付加）
+      const basePrompt = task.description || task.title;
+      return `${basePrompt}\n\n重要: 計画モード（EnterPlanMode）は使用せず、直接コードの実装を行ってください。計画を立てるだけで終わらず、必ずファイルの作成・編集まで完了させてください。`;
     }
 
     // 優先度のマッピング
@@ -1126,6 +1321,17 @@ export class ClaudeCodeAgent extends BaseAgent {
     );
     sections.push("各ステップの完了後、次のステップに進んでください。");
     sections.push("不明点がある場合は、質問してください。");
+    sections.push("");
+    sections.push("## 重要な注意事項");
+    sections.push(
+      "- **計画モード（EnterPlanMode）は使用しないでください。** 直接コードの実装を行ってください。",
+    );
+    sections.push(
+      "- 計画を立てるだけで終わらず、必ずファイルの作成・編集まで完了させてください。",
+    );
+    sections.push(
+      "- Write、Edit等のツールを使って実際にコードを変更してください。",
+    );
 
     return sections.join("\n");
   }

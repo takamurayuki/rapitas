@@ -135,7 +135,8 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     prevLogsLengthRef.current = logs.length;
   }, [logs.length, autoScroll]);
 
-  // 検索機能
+  // 検索機能（ログ長でデバウンス。ログの増加は検索をトリガーしない）
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchMatches([]);
@@ -143,20 +144,32 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       return;
     }
 
-    const fullText = logs.join("");
-    const matches: number[] = [];
-    const query = searchQuery.toLowerCase();
-    let index = 0;
-    let position = fullText.toLowerCase().indexOf(query, index);
-
-    while (position !== -1) {
-      matches.push(position);
-      index = position + 1;
-      position = fullText.toLowerCase().indexOf(query, index);
+    // デバウンスして検索コストを削減
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
     }
+    searchTimerRef.current = setTimeout(() => {
+      const fullText = logs.join("");
+      const matches: number[] = [];
+      const query = searchQuery.toLowerCase();
+      let index = 0;
+      let position = fullText.toLowerCase().indexOf(query, index);
 
-    setSearchMatches(matches);
-    setCurrentMatchIndex(matches.length > 0 ? 0 : -1);
+      while (position !== -1) {
+        matches.push(position);
+        index = position + 1;
+        position = fullText.toLowerCase().indexOf(query, index);
+      }
+
+      setSearchMatches(matches);
+      setCurrentMatchIndex(matches.length > 0 ? 0 : -1);
+    }, 300);
+
+    return () => {
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+      }
+    };
   }, [searchQuery, logs]);
 
   // 検索マッチへジャンプ

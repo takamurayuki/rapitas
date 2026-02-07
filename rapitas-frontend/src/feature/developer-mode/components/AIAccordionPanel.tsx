@@ -202,6 +202,7 @@ export function AIAccordionPanel({
   const [expandedSection, setExpandedSection] =
     useState<AccordionSection | null>(null);
   const [analysisTab, setAnalysisTab] = useState<AnalysisTabType>("subtasks");
+  const [showTerminal, setShowTerminal] = useState(false);
 
   // 分析パネルの状態
   const [selectedSubtasks, setSelectedSubtasks] = useState<number[]>([]);
@@ -1482,27 +1483,18 @@ export function AIAccordionPanel({
       {/* ターミナルパネル */}
       {showAgentPanel && agents && agents.length > 0 && (
         <div className="border-t border-zinc-100 dark:border-zinc-800">
-          <button
-            onClick={() => toggleSection("terminal")}
-            className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
-            aria-expanded={expandedSection === "terminal"}
-            aria-controls="terminal-section-content"
-          >
-            <div className="flex items-center gap-2">
-              <Terminal className="w-4 h-4 text-green-500" />
-              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                ターミナル
-              </span>
+          {!showTerminal ? (
+            <div className="px-4 py-3 flex items-center justify-center">
+              <button
+                onClick={() => setShowTerminal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-zinc-800 hover:bg-zinc-800 dark:hover:bg-zinc-700 text-green-400 text-xs font-medium rounded-lg transition-colors border border-zinc-700 dark:border-zinc-600"
+              >
+                <Terminal className="w-4 h-4" />
+                ターミナルを起動
+              </button>
             </div>
-            {expandedSection === "terminal" ? (
-              <ChevronUp className="w-4 h-4 text-zinc-400" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-zinc-400" />
-            )}
-          </button>
-
-          {expandedSection === "terminal" && (
-            <div id="terminal-section-content" className="px-4 pb-3">
+          ) : (
+            <div className="px-4 pb-3 pt-2">
               <TerminalPanel
                 taskId={taskId}
                 agents={agents}
