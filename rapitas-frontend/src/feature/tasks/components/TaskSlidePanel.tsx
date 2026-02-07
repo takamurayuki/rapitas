@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import TaskDetailClient from "@/app/tasks/[id]/TaskDetailClient";
 
 interface TaskSlidePanelProps {
@@ -9,26 +9,72 @@ interface TaskSlidePanelProps {
   onTaskUpdated?: () => void;
 }
 
+const ANIMATION_DURATION = 300;
+
 export default function TaskSlidePanel({
   taskId,
   isOpen,
   onClose,
   onTaskUpdated,
 }: TaskSlidePanelProps) {
+  // アニメーション完了までDOMを保持するための状態
+  const [isVisible, setIsVisible] = useState(false);
+  const [isAnimatingOut, setIsAnimatingOut] = useState(false);
+  const closingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 開く時: isVisibleをtrueに
+  useEffect(() => {
+    if (isOpen && taskId) {
+      setIsAnimatingOut(false);
+      setIsVisible(true);
+      if (closingTimerRef.current) {
+        clearTimeout(closingTimerRef.current);
+        closingTimerRef.current = null;
+      }
+    }
+  }, [isOpen, taskId]);
+
+  // 閉じる時: アニメーション再生後にisVisibleをfalseに
+  useEffect(() => {
+    if (!isOpen && isVisible && !isAnimatingOut) {
+      setIsAnimatingOut(true);
+      closingTimerRef.current = setTimeout(() => {
+        setIsVisible(false);
+        setIsAnimatingOut(false);
+        closingTimerRef.current = null;
+      }, ANIMATION_DURATION);
+    }
+  }, [isOpen, isVisible, isAnimatingOut]);
+
+  // クリーンアップ
+  useEffect(() => {
+    return () => {
+      if (closingTimerRef.current) {
+        clearTimeout(closingTimerRef.current);
+      }
+    };
+  }, []);
+
   // Escキーで閉じる
+  const handleClose = useCallback(() => {
+    if (!isAnimatingOut) {
+      onClose();
+    }
+  }, [onClose, isAnimatingOut]);
+
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
+      if (e.key === "Escape" && isVisible) {
+        handleClose();
       }
     };
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
-  }, [isOpen, onClose]);
+  }, [isVisible, handleClose]);
 
-  // パネルが開いたときにスクロールを無効化
+  // パネルが表示されている間スクロールを無効化
   useEffect(() => {
-    if (isOpen) {
+    if (isVisible) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "unset";
@@ -36,24 +82,32 @@ export default function TaskSlidePanel({
     return () => {
       document.body.style.overflow = "unset";
     };
-  }, [isOpen]);
+  }, [isVisible]);
 
-  if (!isOpen || !taskId) return null;
+  if (!isVisible || !taskId) return null;
+
+  const isClosing = isAnimatingOut;
 
   return (
     <>
       {/* オーバーレイ */}
       <div
         className="fixed inset-0 z-40"
-        onClick={onClose}
-        style={{ animation: isOpen ? "fadeIn 0.3s" : "fadeOut 0.3s" }}
+        onClick={handleClose}
+        style={{
+          animation: isClosing
+            ? `fadeOut ${ANIMATION_DURATION}ms ease-in forwards`
+            : `fadeIn ${ANIMATION_DURATION}ms ease-out forwards`,
+        }}
       />
 
       {/* スライドパネル */}
       <div
         className="fixed top-0 right-0 h-full w-full md:w-3/4 lg:w-2/3 xl:w-1/2 bg-white dark:bg-zinc-950 shadow-2xl z-50 overflow-hidden"
         style={{
-          animation: isOpen ? "slideIn 0.3s ease-out" : "slideOut 0.3s ease-in",
+          animation: isClosing
+            ? `slideOut ${ANIMATION_DURATION}ms ease-in forwards`
+            : `slideIn ${ANIMATION_DURATION}ms ease-out forwards`,
         }}
       >
         {/* ヘッダー */}
@@ -63,7 +117,7 @@ export default function TaskSlidePanel({
           </h2>
           <div className="flex items-center gap-2">
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="p-2 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
               title="閉じる (Esc)"
             >
@@ -89,7 +143,7 @@ export default function TaskSlidePanel({
           <TaskDetailClient
             taskId={taskId}
             onTaskUpdated={onTaskUpdated}
-            onClose={onClose}
+            onClose={handleClose}
           />
         </div>
       </div>

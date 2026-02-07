@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Task, Theme, Priority, Status } from "@/types";
@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { getIconComponent } from "@/components/category/IconData";
 import { API_BASE_URL, fetchWithRetry } from "@/utils/api";
+import { useExecutingTasksPolling } from "@/hooks/useExecutingTasksPolling";
 
 const API_BASE = API_BASE_URL;
 
@@ -124,17 +125,30 @@ export default function HomeClientPage() {
     }
   };
 
-  const openTaskPanel = (taskId: number) => {
+  const openTaskPanel = useCallback((taskId: number) => {
     setSelectedTaskId(taskId);
     setIsPanelOpen(true);
     showTaskDetail();
-  };
+  }, [showTaskDetail]);
 
-  const closeTaskPanel = () => {
+  const closeTaskPanel = useCallback(() => {
     setIsPanelOpen(false);
     hideTaskDetail();
     setTimeout(() => setSelectedTaskId(null), 300);
-  };
+  }, [hideTaskDetail]);
+
+  // 実行中タスクのポーリング: 実行中タスクが検出されたら自動的にパネルを開く
+  // パネルが既に開いている場合は別タスクに切り替えない
+  const handleExecutingTaskFound = useCallback((taskId: number) => {
+    if (!isPanelOpen) {
+      openTaskPanel(taskId);
+    }
+  }, [isPanelOpen, openTaskPanel]);
+
+  useExecutingTasksPolling({
+    interval: 5000,
+    onExecutingTaskFound: handleExecutingTaskFound,
+  });
 
   // タスクをページとして開く（ヘッダー表示モード）
   const openTaskInPage = (taskId: number) => {
@@ -354,11 +368,10 @@ export default function HomeClientPage() {
     <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-[var(--background)]">
       <div className="mx-auto max-w-6xl px-4 py-4">
         {/* ヘッダー - アクションボタン */}
-        {!isPanelOpen && (
-          <div className="mb-4 flex items-center justify-end">
-            <div className="flex items-center gap-2">
-              {/* バルク操作ボタン（選択時のみ表示） */}
-              {isSelectionMode && selectedTasks.size > 0 && (
+        <div className="mb-4 flex items-center justify-end">
+          <div className="flex items-center gap-2">
+            {/* バルク操作ボタン（選択時のみ表示） */}
+            {isSelectionMode && selectedTasks.size > 0 && (
                 <>
                   {/* ステータス変更ボタングループ */}
                   <div className="flex items-center gap-1 bg-white dark:bg-zinc-800 rounded-md shadow-sm p-1 border border-zinc-200 dark:border-zinc-700">
@@ -582,7 +595,6 @@ export default function HomeClientPage() {
               </div>
             </div>
           </div>
-        )}
 
         {/* クイック追加フォーム */}
         {isQuickAdding && (

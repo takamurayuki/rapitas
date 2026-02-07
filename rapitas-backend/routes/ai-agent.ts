@@ -2653,4 +2653,44 @@ export const aiAgentRoutes = new Elysia()
         };
       }
     },
-  );
+  )
+
+  // Get all currently executing tasks (for real-time panel display)
+  .get("/tasks/executing", async () => {
+    try {
+      const executingTasks = await prisma.agentExecution.findMany({
+        where: {
+          status: {
+            in: ["running", "waiting_for_input"],
+          },
+        },
+        select: {
+          id: true,
+          status: true,
+          startedAt: true,
+          session: {
+            select: {
+              id: true,
+              config: {
+                select: {
+                  taskId: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { startedAt: "desc" },
+      });
+
+      return executingTasks.map((execution: any) => ({
+        executionId: execution.id,
+        sessionId: execution.session.id,
+        taskId: execution.session.config.taskId,
+        executionStatus: execution.status,
+        startedAt: execution.startedAt,
+      }));
+    } catch (error) {
+      console.error("[executing-tasks] Error:", error);
+      return [];
+    }
+  });

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   DragDropContext,
@@ -16,6 +16,7 @@ import { getLabelsArray, hasLabels } from "@/utils/labels";
 import { useTaskDetailVisibilityStore } from "@/stores/taskDetailVisibilityStore";
 import { getTaskDetailPath } from "@/utils/tauri";
 import { API_BASE_URL } from "@/utils/api";
+import { useExecutingTasksPolling } from "@/hooks/useExecutingTasksPolling";
 import { ExternalLink, Search, Filter, X, Flag, Tag } from "lucide-react";
 import type { Label } from "@/types";
 
@@ -198,17 +199,36 @@ export default function KanbanPage() {
     updateStatus(taskId, newStatus);
   };
 
-  const openTaskPanel = (taskId: number) => {
-    setSelectedTaskId(taskId);
-    setIsPanelOpen(true);
-    showTaskDetail();
-  };
+  const openTaskPanel = useCallback(
+    (taskId: number) => {
+      setSelectedTaskId(taskId);
+      setIsPanelOpen(true);
+      showTaskDetail();
+    },
+    [showTaskDetail],
+  );
 
-  const closeTaskPanel = () => {
+  const closeTaskPanel = useCallback(() => {
     setIsPanelOpen(false);
     hideTaskDetail();
     setTimeout(() => setSelectedTaskId(null), 300);
-  };
+  }, [hideTaskDetail]);
+
+  // 実行中タスクのポーリング: 実行中タスクが検出されたら自動的にパネルを開く
+  // パネルが既に開いている場合は別タスクに切り替えない
+  const handleExecutingTaskFound = useCallback(
+    (taskId: number) => {
+      if (!isPanelOpen) {
+        openTaskPanel(taskId);
+      }
+    },
+    [isPanelOpen, openTaskPanel],
+  );
+
+  useExecutingTasksPolling({
+    interval: 5000,
+    onExecutingTaskFound: handleExecutingTaskFound,
+  });
 
   // タスクをページとして開く（ヘッダー表示モード）
   const openTaskInPage = (taskId: number) => {
@@ -224,7 +244,7 @@ export default function KanbanPage() {
     filteredTasks.filter((t) => t.status === status && !t.parentId);
 
   return (
-    <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-[var(--background)] scrollbar-thin">
+    <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-background scrollbar-thin">
       <div className="mx-auto max-w-7xl px-4 py-8">
         {/* Filter Bar */}
         <div className="mb-6 space-y-3">

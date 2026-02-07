@@ -10,6 +10,7 @@ import type {
   AIAgentConfig,
 } from "@/types";
 import { API_BASE_URL } from "@/utils/api";
+import { useExecutionStateStore } from "@/stores/executionStateStore";
 
 export type { ExecutionStatus, ExecutionResult };
 
@@ -28,6 +29,7 @@ export function useDeveloperMode(taskId: number) {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [agentConfigId, setAgentConfigId] = useState<number | null>(null);
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
+  const { setExecutingTask, removeExecutingTask } = useExecutionStateStore();
 
   const fetchConfig = useCallback(async () => {
     setIsLoading(true);
@@ -356,6 +358,12 @@ export function useDeveloperMode(taskId: number) {
             message: data.message || "エージェント実行を開始しました",
           });
           setExecutionStatus("completed");
+          // グローバルストアに実行中タスクを記録
+          setExecutingTask({
+            taskId,
+            sessionId: data.sessionId,
+            status: "running",
+          });
           return data;
         } else {
           throw new Error(data.error || "エージェントの実行に失敗しました");
@@ -368,12 +376,14 @@ export function useDeveloperMode(taskId: number) {
           success: false,
           error: errorMessage,
         });
+        // 失敗時はストアから除去
+        removeExecutingTask(taskId);
         return null;
       } finally {
         setIsExecuting(false);
       }
     },
-    [taskId, agentConfigId]
+    [taskId, agentConfigId, setExecutingTask, removeExecutingTask]
   );
 
   /**
@@ -416,6 +426,8 @@ export function useDeveloperMode(taskId: number) {
         // UIを即座に停止状態に更新
         setIsExecuting(false);
         setExecutionStatus("idle");
+        // グローバルストアから除去
+        removeExecutingTask(taskId);
         return true;
       }
       return false;
@@ -423,7 +435,7 @@ export function useDeveloperMode(taskId: number) {
       console.error("Failed to stop execution:", err);
       return false;
     }
-  }, [taskId]);
+  }, [taskId, removeExecutingTask]);
 
   /**
    * 実行をキャンセル状態に設定（UIの即時更新用）
@@ -431,7 +443,9 @@ export function useDeveloperMode(taskId: number) {
   const setExecutionCancelled = useCallback(() => {
     setIsExecuting(false);
     setExecutionStatus("idle");
-  }, []);
+    // グローバルストアから除去
+    removeExecutingTask(taskId);
+  }, [taskId, removeExecutingTask]);
 
   const fetchAgents = useCallback(async () => {
     try {

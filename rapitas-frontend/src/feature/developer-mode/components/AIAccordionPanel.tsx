@@ -52,6 +52,7 @@ import {
 import { SubtaskLogTabs } from "./SubtaskLogTabs";
 import { API_BASE_URL } from "@/utils/api";
 import type { ParallelExecutionStatus } from "@/feature/tasks/components/SubtaskExecutionStatus";
+import { useExecutionStateStore } from "@/stores/executionStateStore";
 
 // TaskAnalysisResult is imported from @/types
 
@@ -199,6 +200,8 @@ export function AIAccordionPanel({
   subtaskLogs,
   onRefreshSubtaskLogs,
 }: Props) {
+  const { removeExecutingTask } = useExecutionStateStore();
+
   const [expandedSection, setExpandedSection] =
     useState<AccordionSection | null>(null);
   const [analysisTab, setAnalysisTab] = useState<AnalysisTabType>("subtasks");
@@ -448,8 +451,10 @@ export function AIAccordionPanel({
       if (onStopExecution) {
         onStopExecution();
       }
+      // グローバルストアから実行中タスクを除去
+      removeExecutingTask(taskId);
     }
-  }, [pollingStatus, onStopExecution]);
+  }, [pollingStatus, onStopExecution, removeExecutingTask, taskId]);
 
   // サブタスクが存在するかどうか
   const hasSubtasks = subtasks && subtasks.length > 0;
