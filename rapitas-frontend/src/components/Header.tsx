@@ -421,7 +421,7 @@ export default function Header() {
               </button>
             )}
             {isExpanded && (
-              <div className="ml-7">
+              <div className="ml-[26px]">
                 {item.children!.map((child, index) => {
                   const isLastChild = index === item.children!.length - 1;
                   return (
@@ -534,7 +534,7 @@ export default function Header() {
           </div>
           {/* 展開されたコンテンツ（本体とは別） */}
           {isExpanded && (
-            <div className="ml-5">
+            <div className="ml-[40px]">
               {item.children!.map((child, index) => {
                 const isLastChild = index === item.children!.length - 1;
                 return (
