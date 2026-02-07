@@ -884,7 +884,7 @@ export default function TaskDetailClient({
   // Loading state
   if (loading) {
     return (
-      <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 flex items-center justify-center scrollbar-thin">
+      <div className="h-[calc(100vh-5rem)] overflow-auto bg-background flex items-center justify-center scrollbar-thin">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-zinc-500 dark:text-zinc-400 text-sm">
@@ -898,7 +898,7 @@ export default function TaskDetailClient({
   // Error state
   if (error || !task) {
     return (
-      <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 flex items-center justify-center scrollbar-thin">
+      <div className="h-[calc(100vh-5rem)] overflow-auto bg-background flex items-center justify-center scrollbar-thin">
         <div className="text-center bg-white dark:bg-indigo-dark-900 rounded-2xl p-8 shadow-xl border border-zinc-200 dark:border-zinc-800">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
             <span className="text-3xl">!</span>
@@ -918,7 +918,7 @@ export default function TaskDetailClient({
   }
 
   return (
-    <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-zinc-50 via-white to-violet-50/30 dark:from-zinc-950 dark:via-zinc-900 dark:to-violet-950/10 scrollbar-thin">
+    <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header Actions */}
         <div className="mb-6 flex items-center justify-between gap-2">
@@ -1179,10 +1179,14 @@ export default function TaskDetailClient({
                           if (configData.autoExecuteOnAnalysis) {
                             // サブタスクがある場合は並列実行、なければ通常実行
                             if (data.subtasks && data.subtasks.length > 0) {
-                              console.log("[TaskDetail] Auto-executing parallel tasks after analysis");
+                              console.log(
+                                "[TaskDetail] Auto-executing parallel tasks after analysis",
+                              );
                               startSession();
                             } else {
-                              console.log("[TaskDetail] Auto-executing agent after analysis");
+                              console.log(
+                                "[TaskDetail] Auto-executing agent after analysis",
+                              );
                               executeAgent({
                                 useTaskAnalysis: true,
                                 optimizedPrompt: optimizedPrompt || undefined,
@@ -1192,7 +1196,10 @@ export default function TaskDetailClient({
                           }
                         }
                       } catch (err) {
-                        console.error("[TaskDetail] Failed to check auto-execute config:", err);
+                        console.error(
+                          "[TaskDetail] Failed to check auto-execute config:",
+                          err,
+                        );
                       }
                     }
                   }}

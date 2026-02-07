@@ -68,7 +68,7 @@ export default function RootLayout({
             <FloatingAIMenuWrapper />
             <AchievementNotifications />
             <Suspense fallback={null}>
-              <ResumableExecutionsBanner autoResume={false} />
+              <ResumableExecutionsBanner />
             </Suspense>
           </ToastProvider>
         </PomodoroProvider>

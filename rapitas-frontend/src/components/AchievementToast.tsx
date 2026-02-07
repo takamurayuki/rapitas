@@ -1,7 +1,20 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Trophy, X, Star, Zap, Award, Crown, Flame, Clock, Sun, Moon, Brain, BookOpen } from "lucide-react";
+import {
+  Trophy,
+  X,
+  Star,
+  Zap,
+  Award,
+  Crown,
+  Flame,
+  Clock,
+  Sun,
+  Moon,
+  Brain,
+  BookOpen,
+} from "lucide-react";
 import { API_BASE_URL } from "@/utils/api";
 
 type Achievement = {
@@ -36,7 +49,10 @@ const iconMap: Record<string, typeof Star> = {
   Trophy,
 };
 
-const rarityStyles: Record<string, { bg: string; border: string; glow: string }> = {
+const rarityStyles: Record<
+  string,
+  { bg: string; border: string; glow: string }
+> = {
   common: {
     bg: "bg-zinc-100 dark:bg-zinc-800",
     border: "border-zinc-300 dark:border-zinc-600",
@@ -88,10 +104,10 @@ function AchievementToast({ achievement, onClose }: AchievementToastProps) {
               achievement.rarity === "legendary"
                 ? "bg-amber-500 text-white"
                 : achievement.rarity === "epic"
-                ? "bg-violet-500 text-white"
-                : achievement.rarity === "rare"
-                ? "bg-blue-500 text-white"
-                : "bg-zinc-500 text-white"
+                  ? "bg-violet-500 text-white"
+                  : achievement.rarity === "rare"
+                    ? "bg-blue-500 text-white"
+                    : "bg-zinc-500 text-white"
             }`}
           >
             {achievement.rarity}
@@ -136,12 +152,15 @@ export default function AchievementNotifications() {
             a.isUnlocked &&
             a.unlockedAt &&
             new Date(a.unlockedAt).getTime() > Date.now() - 60000 &&
-            !lastCheckedIds.includes(a.id)
+            !lastCheckedIds.includes(a.id),
         );
 
         if (newlyUnlocked.length > 0) {
           setAchievements((prev) => [...prev, ...newlyUnlocked]);
-          lastCheckedIds = [...lastCheckedIds, ...newlyUnlocked.map((a) => a.id)];
+          lastCheckedIds = [
+            ...lastCheckedIds,
+            ...newlyUnlocked.map((a) => a.id),
+          ];
         }
       } catch (e) {
         // Silent fail
@@ -164,7 +183,7 @@ export default function AchievementNotifications() {
   if (!mounted || achievements.length === 0) return null;
 
   return createPortal(
-    <div className="fixed bottom-4 right-4 z-[9999] space-y-3 max-w-sm">
+    <div className="fixed bottom-4 right-4 z-9999 space-y-3 max-w-sm">
       {achievements.map((achievement) => (
         <AchievementToast
           key={achievement.id}
@@ -173,6 +192,6 @@ export default function AchievementNotifications() {
         />
       ))}
     </div>,
-    document.body
+    document.body,
   );
 }

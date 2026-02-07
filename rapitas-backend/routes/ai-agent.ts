@@ -2005,10 +2005,10 @@ export const aiAgentRoutes = new Elysia()
         .getActiveExecutions()
         .map((e) => e.executionId);
 
-      // Find executions that are marked as "running" but not actually running in memory
+      // Find executions that are marked as "running"/"pending"/"waiting_for_input" but not actually running in memory
       const staleRunningExecutions = await prisma.agentExecution.findMany({
         where: {
-          status: { in: ["running", "pending"] },
+          status: { in: ["running", "pending", "waiting_for_input"] },
           id: { notIn: activeExecutionIds },
         },
       });
@@ -2082,10 +2082,23 @@ export const aiAgentRoutes = new Elysia()
         }
       }
 
-      // Now get all resumable executions (interrupted status) and active running executions
+      // Now get all resumable executions (interrupted status) and actually active running executions
+      // Re-fetch active execution IDs to ensure consistency after stale cleanup
+      const currentActiveIds = orchestrator
+        .getActiveExecutions()
+        .map((e) => e.executionId);
+
       const resumableExecutions = await prisma.agentExecution.findMany({
         where: {
-          status: { in: ["interrupted", "running", "waiting_for_input"] },
+          OR: [
+            // 中断された実行（再開可能）
+            { status: "interrupted" },
+            // 実際にメモリ上でアクティブな実行のみ
+            {
+              status: { in: ["running", "waiting_for_input"] },
+              id: { in: currentActiveIds.length > 0 ? currentActiveIds : [-1] },
+            },
+          ],
         },
         include: {
           session: {

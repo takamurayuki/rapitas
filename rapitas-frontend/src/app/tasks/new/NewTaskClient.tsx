@@ -60,12 +60,17 @@ export default function NewTaskClient() {
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [appliedTemplate, setAppliedTemplate] = useState<TaskTemplate | null>(
-    null
+    null,
   );
 
   // サブタスク
   const [subtasks, setSubtasks] = useState<
-    { id: string; title: string; description?: string; estimatedHours?: number }[]
+    {
+      id: string;
+      title: string;
+      description?: string;
+      estimatedHours?: number;
+    }[]
   >([]);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
 
@@ -132,7 +137,7 @@ export default function NewTaskClient() {
           title: st.title,
           description: st.description,
           estimatedHours: st.estimatedHours,
-        }))
+        })),
       );
     }
   };
@@ -175,7 +180,7 @@ export default function NewTaskClient() {
       console.error(e);
       showToast(
         e instanceof Error ? e.message : "タイトル生成に失敗しました",
-        "error"
+        "error",
       );
     } finally {
       setIsGeneratingTitle(false);
@@ -277,7 +282,7 @@ export default function NewTaskClient() {
   ];
 
   return (
-    <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-slate-50 via-white to-blue-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-blue-950/20 scrollbar-thin">
+    <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
       {/* Header */}
       <div className="max-w-2xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
@@ -294,7 +299,7 @@ export default function NewTaskClient() {
               onClick={() => setShowTemplateDialog(true)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                 appliedTemplate
-                  ? "bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700"
+                  ? "bg-blue-100 dark:bg-blue-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700"
                   : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-violet-400 dark:hover:border-violet-600 hover:text-violet-600 dark:hover:text-violet-400"
               }`}
             >
@@ -404,7 +409,6 @@ export default function NewTaskClient() {
                   })()}
                 </div>
               </FieldItem>
-
             </InlineFieldGroup>
           </div>
 
@@ -435,7 +439,7 @@ export default function NewTaskClient() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="タスクの詳細を記入（マークダウン対応）"
               rows={3}
-              className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-violet-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+              className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
             />
           </CompactAccordionGroup>
 
@@ -457,7 +461,7 @@ export default function NewTaskClient() {
                     type="date"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                   />
                 </FieldItem>
                 <FieldItem
@@ -470,7 +474,7 @@ export default function NewTaskClient() {
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
                     placeholder="例: 英語、数学"
-                    className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                   />
                 </FieldItem>
                 <FieldItem
@@ -486,7 +490,7 @@ export default function NewTaskClient() {
                       value={estimatedHours}
                       onChange={(e) => setEstimatedHours(e.target.value)}
                       placeholder="0"
-                      className="w-16 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
+                      className="w-16 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                     />
                     <span className="text-xs text-zinc-500 dark:text-zinc-400">
                       時間
@@ -557,13 +561,13 @@ export default function NewTaskClient() {
                     }
                   }}
                   placeholder="サブタスクを追加..."
-                  className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
+                  className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 />
                 <button
                   type="button"
                   onClick={addSubtask}
                   disabled={!newSubtaskTitle.trim()}
-                  className="px-3 py-2 bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 rounded-lg hover:bg-violet-200 dark:hover:bg-violet-900 transition-colors disabled:opacity-50"
+                  className="px-3 py-2 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900 transition-colors disabled:opacity-50"
                 >
                   <Plus className="w-4 h-4" />
                 </button>

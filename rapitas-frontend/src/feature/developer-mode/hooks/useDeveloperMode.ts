@@ -90,24 +90,32 @@ export function useDeveloperMode(taskId: number) {
           console.warn("Failed to fetch execution logs, using status output:", logErr);
         }
 
-        // 実行中、入力待ち、または中断の場合はUI状態を更新
+        // 実行中、入力待ちの場合はUI状態を「実行中」に更新
         if (statusData.executionStatus === "running" || statusData.executionStatus === "waiting_for_input") {
           setIsExecuting(true);
           setExecutionStatus("running");
         } else if (statusData.executionStatus === "interrupted") {
           // 中断された実行がある場合（サーバー再起動後など）
+          // 中断状態を適切に表示（failedではなくinterruptedとして扱う）
+          setIsExecuting(false);
+          setExecutionStatus("idle");
+        } else if (statusData.executionStatus === "completed") {
+          setIsExecuting(false);
+          setExecutionStatus("completed");
+        } else if (statusData.executionStatus === "failed") {
           setIsExecuting(false);
           setExecutionStatus("failed");
         }
 
         setExecutionResult({
-          success: true,
+          success: statusData.executionStatus !== "failed",
           sessionId: statusData.sessionId,
           executionId: statusData.executionId,
           message: "実行状態を復元しました",
           output: fullOutput,
           waitingForInput: statusData.waitingForInput,
           question: statusData.question,
+          error: statusData.errorMessage || undefined,
         });
 
         return {

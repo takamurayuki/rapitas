@@ -19,6 +19,7 @@ import {
   DEFAULT_QUESTION_TIMEOUT_SECONDS,
   type QuestionKey,
 } from "./question-detection";
+import { ExecutionFileLogger } from "./execution-file-logger";
 
 const execAsync = promisify(exec);
 
@@ -78,6 +79,7 @@ type ActiveAgentInfo = {
   state: ExecutionState;
   lastOutput: string;
   lastSavedAt: Date;
+  fileLogger?: ExecutionFileLogger;
 };
 
 /**
@@ -340,10 +342,10 @@ export class AgentOrchestrator {
       // メモリ上でアクティブな実行IDを取得（起動直後は空のはず）
       const activeExecutionIds = this.getActiveExecutions().map((e) => e.executionId);
 
-      // running/pending のままDB上に残っている実行を検索
+      // running/pending/waiting_for_input のままDB上に残っている実行を検索
       const staleExecutions = await this.prisma.agentExecution.findMany({
         where: {
-          status: { in: ["running", "pending"] },
+          status: { in: ["running", "pending", "waiting_for_input"] },
           id: { notIn: activeExecutionIds },
         },
         include: {
@@ -928,6 +930,23 @@ export class AgentOrchestrator {
     };
     this.activeExecutions.set(execution.id, state);
 
+    // ファイルロガーを初期化
+    const fileLogger = new ExecutionFileLogger(
+      execution.id,
+      options.sessionId,
+      options.taskId,
+      task.title,
+      agentConfig.type,
+      agentConfig.modelId,
+    );
+    fileLogger.logExecutionStart(task.description || task.title, {
+      workingDirectory: options.workingDirectory,
+      timeout: options.timeout,
+      requireApproval: options.requireApproval,
+      agentConfigId: options.agentConfigId,
+      hasAnalysisInfo: !!options.analysisInfo,
+    });
+
     // アクティブエージェントを登録（グレースフルシャットダウン用）
     const agentInfo: ActiveAgentInfo = {
       agent,
@@ -937,6 +956,7 @@ export class AgentOrchestrator {
       state,
       lastOutput: "",
       lastSavedAt: new Date(),
+      fileLogger,
     };
     this.activeAgents.set(execution.id, agentInfo);
 
@@ -944,6 +964,8 @@ export class AgentOrchestrator {
     if (this.isShuttingDown) {
       this.activeAgents.delete(execution.id);
       this.activeExecutions.delete(execution.id);
+      fileLogger.logError("Server is shutting down, cannot start new execution");
+      await fileLogger.flush();
       throw new Error("Server is shutting down, cannot start new execution");
     }
 
@@ -953,6 +975,7 @@ export class AgentOrchestrator {
       console.log(`[Orchestrator] Question: ${info.question.substring(0, 100)}`);
       console.log(`[Orchestrator] Question type: ${info.questionType}`);
       console.log(`[Orchestrator] Claude Session ID: ${info.claudeSessionId || "(なし)"}`);
+      fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
 
       try {
         // 即座にDBステータスを waiting_for_input に更新（セッションIDも保存）
@@ -1044,6 +1067,9 @@ export class AgentOrchestrator {
     agent.setOutputHandler(async (output, isError) => {
       try {
         state.output += output;
+
+        // ファイルロガーに出力を記録
+        fileLogger.logOutput(output, isError ?? false);
 
         // アクティブエージェント情報を更新（グレースフルシャットダウン用）
         if (agentInfo) {
@@ -1175,14 +1201,26 @@ export class AgentOrchestrator {
         executionStatus = "waiting_for_input";
         state.status = "waiting_for_input" as any;
         console.log(`[Orchestrator] Setting status to waiting_for_input`);
+        fileLogger.logStatusChange("running", "waiting_for_input", "Question detected");
       } else if (result.success) {
         executionStatus = "completed";
         state.status = "completed";
         console.log(`[Orchestrator] Setting status to completed`);
+        fileLogger.logExecutionEnd("completed", {
+          success: true,
+          tokensUsed: result.tokensUsed,
+          executionTimeMs: result.executionTimeMs,
+        });
       } else {
         executionStatus = "failed";
         state.status = "failed";
         console.log(`[Orchestrator] Setting status to failed`);
+        fileLogger.logExecutionEnd("failed", {
+          success: false,
+          tokensUsed: result.tokensUsed,
+          executionTimeMs: result.executionTimeMs,
+          errorMessage: result.errorMessage,
+        });
       }
 
       // 実行レコードを更新（claudeSessionIdを含む）
@@ -1219,6 +1257,14 @@ export class AgentOrchestrator {
       // Gitコミットを記録
       if (result.commits && result.commits.length > 0) {
         for (const commit of result.commits) {
+          fileLogger.logGitCommit({
+            hash: commit.hash,
+            message: commit.message,
+            branch: commit.branch,
+            filesChanged: commit.filesChanged,
+            additions: commit.additions,
+            deletions: commit.deletions,
+          });
           await this.prisma.gitCommit.create({
             data: {
               executionId: execution.id,
@@ -1269,6 +1315,16 @@ export class AgentOrchestrator {
         error instanceof Error ? error.message : String(error);
       state.status = "failed";
 
+      // ファイルロガーにエラーを記録
+      fileLogger.logError(
+        "Execution failed with uncaught error",
+        error instanceof Error ? error : new Error(errorMessage),
+      );
+      fileLogger.logExecutionEnd("failed", {
+        success: false,
+        errorMessage,
+      });
+
       // エラー時の更新
       await this.prisma.agentExecution.update({
         where: { id: execution.id },
@@ -1293,6 +1349,7 @@ export class AgentOrchestrator {
     } finally {
       // クリーンアップ
       await cleanupLogHandler(); // ログをフラッシュ
+      await fileLogger.flush(); // ファイルロガーをフラッシュ
       this.activeExecutions.delete(execution.id);
       this.activeAgents.delete(execution.id); // アクティブエージェントから削除
       await agentFactory.removeAgent(agent.id);
@@ -1476,6 +1533,21 @@ export class AgentOrchestrator {
     // タスクIDを取得
     const taskId = execution.session.config?.taskId || 0;
 
+    // ファイルロガーを初期化（継続実行用）
+    const fileLogger = new ExecutionFileLogger(
+      execution.id,
+      execution.sessionId,
+      taskId,
+      task?.title || `Task ${taskId}`,
+      agentConfig.type,
+      agentConfig.modelId,
+    );
+    fileLogger.logExecutionStart(`[Continuation] User response: ${response.substring(0, 200)}`, {
+      claudeSessionId,
+      previousStatus: execution.status,
+    });
+    fileLogger.logQuestionAnswered(response, "user");
+
     // 実行状態を追跡
     const state: ExecutionState = {
       executionId: execution.id,
@@ -1497,6 +1569,7 @@ export class AgentOrchestrator {
       state,
       lastOutput: execution.output || "",
       lastSavedAt: new Date(),
+      fileLogger,
     };
     this.activeAgents.set(execution.id, agentInfo);
 
@@ -1504,6 +1577,8 @@ export class AgentOrchestrator {
     if (this.isShuttingDown) {
       this.activeAgents.delete(execution.id);
       this.activeExecutions.delete(execution.id);
+      fileLogger.logError("Server is shutting down, cannot continue execution");
+      await fileLogger.flush();
       throw new Error("Server is shutting down, cannot continue execution");
     }
 
@@ -1513,6 +1588,7 @@ export class AgentOrchestrator {
       console.log(`[Orchestrator] Question: ${info.question.substring(0, 100)}`);
       console.log(`[Orchestrator] Question type: ${info.questionType}`);
       console.log(`[Orchestrator] Claude Session ID: ${info.claudeSessionId || "(なし)"}`);
+      fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
 
       try {
         // 即座にDBステータスを waiting_for_input に更新（セッションIDも保存）
@@ -1613,6 +1689,9 @@ export class AgentOrchestrator {
     agent.setOutputHandler(async (output, isError) => {
       try {
         state.output += output;
+
+        // ファイルロガーに出力を記録
+        fileLogger.logOutput(output, isError ?? false);
 
         // アクティブエージェント情報を更新（グレースフルシャットダウン用）
         if (agentInfo) {
@@ -1717,12 +1796,24 @@ export class AgentOrchestrator {
       if (result.waitingForInput) {
         executionStatus = "waiting_for_input";
         state.status = "waiting_for_input" as any;
+        fileLogger.logStatusChange("running", "waiting_for_input", "Question detected during continuation");
       } else if (result.success) {
         executionStatus = "completed";
         state.status = "completed";
+        fileLogger.logExecutionEnd("completed", {
+          success: true,
+          tokensUsed: result.tokensUsed,
+          executionTimeMs: result.executionTimeMs,
+        });
       } else {
         executionStatus = "failed";
         state.status = "failed";
+        fileLogger.logExecutionEnd("failed", {
+          success: false,
+          tokensUsed: result.tokensUsed,
+          executionTimeMs: result.executionTimeMs,
+          errorMessage: result.errorMessage,
+        });
       }
 
       // 実行レコードを更新（claudeSessionIdを更新して会話継続に備える）
@@ -1763,6 +1854,14 @@ export class AgentOrchestrator {
       // Gitコミットを記録
       if (result.commits && result.commits.length > 0) {
         for (const commit of result.commits) {
+          fileLogger.logGitCommit({
+            hash: commit.hash,
+            message: commit.message,
+            branch: commit.branch,
+            filesChanged: commit.filesChanged,
+            additions: commit.additions,
+            deletions: commit.deletions,
+          });
           await this.prisma.gitCommit.create({
             data: {
               executionId: execution.id,
@@ -1811,6 +1910,15 @@ export class AgentOrchestrator {
         error instanceof Error ? error.message : String(error);
       state.status = "failed";
 
+      fileLogger.logError(
+        "Continuation failed with uncaught error",
+        error instanceof Error ? error : new Error(errorMessage),
+      );
+      fileLogger.logExecutionEnd("failed", {
+        success: false,
+        errorMessage,
+      });
+
       await this.prisma.agentExecution.update({
         where: { id: execution.id },
         data: {
@@ -1833,6 +1941,7 @@ export class AgentOrchestrator {
       throw error;
     } finally {
       await cleanupLogHandler(); // ログをフラッシュ
+      await fileLogger.flush(); // ファイルロガーをフラッシュ
       this.activeExecutions.delete(execution.id);
       this.activeAgents.delete(execution.id); // アクティブエージェントから削除
       await agentFactory.removeAgent(agent.id);
@@ -2025,6 +2134,22 @@ export class AgentOrchestrator {
     // タスクIDを取得
     const taskId = task.id;
 
+    // ファイルロガーを初期化（再開実行用）
+    const fileLogger = new ExecutionFileLogger(
+      execution.id,
+      execution.sessionId,
+      taskId,
+      task.title,
+      agentConfig.type,
+      agentConfig.modelId,
+    );
+    fileLogger.logExecutionStart(`[Resume] Resuming interrupted execution`, {
+      claudeSessionId,
+      workingDirectory,
+      previousOutputLength: previousOutput.length,
+      errorMessage: (execution as any).errorMessage,
+    });
+
     // 実行状態を追跡
     const state: ExecutionState = {
       executionId: execution.id,
@@ -2046,6 +2171,7 @@ export class AgentOrchestrator {
       state,
       lastOutput: lastOutput,
       lastSavedAt: new Date(),
+      fileLogger,
     };
     this.activeAgents.set(execution.id, agentInfo);
 
@@ -2053,6 +2179,8 @@ export class AgentOrchestrator {
     if (this.isShuttingDown) {
       this.activeAgents.delete(execution.id);
       this.activeExecutions.delete(execution.id);
+      fileLogger.logError("Server is shutting down, cannot resume execution");
+      await fileLogger.flush();
       throw new Error("Server is shutting down, cannot resume execution");
     }
 
@@ -2061,6 +2189,7 @@ export class AgentOrchestrator {
       console.log(`[Orchestrator] Question detected during resume!`);
       console.log(`[Orchestrator] Question: ${info.question.substring(0, 100)}`);
       console.log(`[Orchestrator] Claude Session ID: ${info.claudeSessionId || "(なし)"}`);
+      fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
 
       try {
         await this.prisma.agentExecution.update({
@@ -2153,6 +2282,9 @@ export class AgentOrchestrator {
     agent.setOutputHandler(async (output, isError) => {
       try {
         state.output += output;
+
+        // ファイルロガーに出力を記録
+        fileLogger.logOutput(output, isError ?? false);
 
         if (agentInfo) {
           agentInfo.lastOutput = state.output.slice(-2000);
@@ -2262,12 +2394,24 @@ export class AgentOrchestrator {
       if (result.waitingForInput) {
         executionStatus = "waiting_for_input";
         state.status = "waiting_for_input" as any;
+        fileLogger.logStatusChange("running", "waiting_for_input", "Question detected during resume");
       } else if (result.success) {
         executionStatus = "completed";
         state.status = "completed";
+        fileLogger.logExecutionEnd("completed", {
+          success: true,
+          tokensUsed: result.tokensUsed,
+          executionTimeMs: result.executionTimeMs,
+        });
       } else {
         executionStatus = "failed";
         state.status = "failed";
+        fileLogger.logExecutionEnd("failed", {
+          success: false,
+          tokensUsed: result.tokensUsed,
+          executionTimeMs: result.executionTimeMs,
+          errorMessage: result.errorMessage,
+        });
       }
 
       // 実行レコードを更新
@@ -2307,6 +2451,14 @@ export class AgentOrchestrator {
       // Gitコミットを記録
       if (result.commits && result.commits.length > 0) {
         for (const commit of result.commits) {
+          fileLogger.logGitCommit({
+            hash: commit.hash,
+            message: commit.message,
+            branch: commit.branch,
+            filesChanged: commit.filesChanged,
+            additions: commit.additions,
+            deletions: commit.deletions,
+          });
           await this.prisma.gitCommit.create({
             data: {
               executionId: execution.id,
@@ -2355,6 +2507,15 @@ export class AgentOrchestrator {
         error instanceof Error ? error.message : String(error);
       state.status = "failed";
 
+      fileLogger.logError(
+        "Resume execution failed with uncaught error",
+        error instanceof Error ? error : new Error(errorMessage),
+      );
+      fileLogger.logExecutionEnd("failed", {
+        success: false,
+        errorMessage,
+      });
+
       await this.prisma.agentExecution.update({
         where: { id: execution.id },
         data: {
@@ -2377,6 +2538,7 @@ export class AgentOrchestrator {
       throw error;
     } finally {
       await cleanupLogHandler();
+      await fileLogger.flush(); // ファイルロガーをフラッシュ
       this.activeExecutions.delete(execution.id);
       this.activeAgents.delete(execution.id);
       await agentFactory.removeAgent(agent.id);

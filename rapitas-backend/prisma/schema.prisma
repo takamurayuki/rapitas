@@ -668,6 +668,23 @@ model AgentExecutionConfig {
   @@index([taskId])
 }
 
+// システムプロンプト管理（ハードコードされたプロンプトをDBで管理）
+model SystemPrompt {
+  id          Int       @id @default(autoincrement())
+  key         String    @unique   // 一意なキー（例: "task_analysis", "prompt_optimization"）
+  name        String              // 表示名
+  description String?             // プロンプトの説明
+  content     String              // プロンプト本文
+  category    String    @default("general") // カテゴリ（general, analysis, optimization, agent, chat）
+  isActive    Boolean   @default(true)
+  isDefault   Boolean   @default(true) // デフォルトプロンプトかどうか
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([key])
+  @@index([category])
+}
+
 // AIエージェント設定変更ログ
 model AgentConfigAuditLog {
   id              Int       @id @default(autoincrement())

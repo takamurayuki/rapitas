@@ -19,6 +19,7 @@ type Props = {
 const PROVIDER_ICONS: Record<string, React.ReactNode> = {
   "claude-code": <Terminal className="w-3 h-3" />,
   "anthropic-api": <Terminal className="w-3 h-3" />,
+  codex: <Zap className="w-3 h-3" />,
   openai: <Zap className="w-3 h-3" />,
   "azure-openai": <Globe className="w-3 h-3" />,
   gemini: <Globe className="w-3 h-3" />,

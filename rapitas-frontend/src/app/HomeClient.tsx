@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { Task, Theme, Priority, Status, UserSettings } from "@/types";
+import type { Task, Theme, Priority, Status } from "@/types";
 import TaskSlidePanel from "@/feature/tasks/components/TaskSlidePanel";
 import TaskCard from "@/feature/tasks/components/TaskCard";
 import { useToast } from "@/components/ui/toast/ToastContainer";
@@ -63,46 +63,6 @@ export default function HomeClientPage() {
   // フィルターアコーディオン
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
 
-  // 自動再開設定
-  const [autoResumeEnabled, setAutoResumeEnabled] = useState(false);
-  const [isSavingAutoResume, setIsSavingAutoResume] = useState(false);
-
-  const fetchAutoResumeSetting = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/settings`);
-      if (res.ok) {
-        const data: UserSettings = await res.json();
-        setAutoResumeEnabled(data.autoResumeInterruptedTasks ?? false);
-      }
-    } catch (err) {
-      console.error("設定の取得に失敗:", err);
-    }
-  };
-
-  const toggleAutoResume = async () => {
-    const newValue = !autoResumeEnabled;
-    setIsSavingAutoResume(true);
-    try {
-      const res = await fetch(`${API_BASE}/settings`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ autoResumeInterruptedTasks: newValue }),
-      });
-      if (res.ok) {
-        setAutoResumeEnabled(newValue);
-        showToast(
-          newValue ? "自動再開を有効にしました" : "自動再開を無効にしました",
-          "success",
-        );
-      } else {
-        showToast("設定の保存に失敗しました", "error");
-      }
-    } catch {
-      showToast("設定の保存に失敗しました", "error");
-    } finally {
-      setIsSavingAutoResume(false);
-    }
-  };
 
   const fetchTasks = async () => {
     try {
@@ -317,7 +277,6 @@ export default function HomeClientPage() {
       await Promise.all([
         fetchTasks(),
         fetchThemes(),
-        fetchAutoResumeSetting(),
       ]);
       setLoading(false);
     };
@@ -392,7 +351,7 @@ export default function HomeClientPage() {
   }, [totalPages, currentPage]);
 
   return (
-    <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
+    <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-[var(--background)]">
       <div className="mx-auto max-w-6xl px-4 py-4">
         {/* ヘッダー - アクションボタン */}
         {!isPanelOpen && (
@@ -922,6 +881,7 @@ export default function HomeClientPage() {
                     </svg>
                   </button>
                 </div>
+
               </div>
             </div>
           </div>

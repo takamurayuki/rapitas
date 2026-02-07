@@ -23,6 +23,7 @@ export { flashcardsRoutes } from "./flashcards";
 export { templatesRoutes } from "./templates";
 export { reportsRoutes } from "./reports";
 export { promptsRoutes } from "./prompts";
+export { systemPromptsRoutes } from "./system-prompts";
 export { developerModeRoutes } from "./developer-mode";
 export { aiChatRoutes } from "./ai-chat";
 
@@ -35,3 +36,4 @@ export { aiAgentRoutes } from "./ai-agent";
 export { parallelExecutionRoutes } from "./parallel-execution";
 export { taskAnalysisConfigRoutes } from "./task-analysis-config";
 export { agentExecutionConfigRoutes } from "./agent-execution-config";
+export { executionLogsRoutes } from "./execution-logs";

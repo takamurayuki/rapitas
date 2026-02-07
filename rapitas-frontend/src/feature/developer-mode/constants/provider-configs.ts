@@ -46,15 +46,28 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     ],
     requiresApiKey: true,
   },
-  gemini: {
-    name: "Gemini",
-    color: "text-blue-500",
-    defaultModel: "gemini-2.0-flash",
+  codex: {
+    name: "Codex CLI",
+    color: "text-green-500",
+    defaultModel: "codex-mini-latest",
     models: [
-      { id: "gemini-2.0-flash", name: "2.0 Flash", description: "高速" },
-      { id: "gemini-1.5-pro", name: "1.5 Pro", description: "高性能" },
+      { id: "codex-mini-latest", name: "Codex Mini", description: "高速・軽量" },
+      { id: "o4-mini", name: "o4-mini", description: "推論モデル" },
+      { id: "o3", name: "o3", description: "高性能推論" },
+      { id: "gpt-4.1", name: "GPT-4.1", description: "汎用" },
     ],
-    requiresApiKey: true,
+    requiresApiKey: false,
+  },
+  gemini: {
+    name: "Gemini CLI",
+    color: "text-blue-500",
+    defaultModel: "gemini-2.5-pro",
+    models: [
+      { id: "gemini-2.5-pro", name: "2.5 Pro", description: "最高性能" },
+      { id: "gemini-2.5-flash", name: "2.5 Flash", description: "高速" },
+      { id: "gemini-2.0-flash", name: "2.0 Flash", description: "軽量・高速" },
+    ],
+    requiresApiKey: false,
   },
 };
 

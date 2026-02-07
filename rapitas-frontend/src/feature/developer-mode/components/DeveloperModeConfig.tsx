@@ -392,7 +392,7 @@ export function DeveloperModeConfigModal({
   };
 
   // APIキー不要なCLIベースのエージェントタイプ
-  const CLI_AGENT_TYPES = ["claude-code", "codex"];
+  const CLI_AGENT_TYPES = ["claude-code", "codex", "gemini"];
 
   // APIキーが設定されているプロバイダに対応するエージェントタイプのマッピング
   const PROVIDER_TO_AGENT_TYPES: Record<ApiProvider, string[]> = {

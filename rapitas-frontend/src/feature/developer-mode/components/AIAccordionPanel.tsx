@@ -381,15 +381,22 @@ export function AIAccordionPanel({
         const restoredState = await onRestoreExecutionState();
         if (restoredState) {
           setSessionId(restoredState.sessionId);
-          // 中断された実行の場合はポーリング不要（実行は既に停止済み）
-          if (restoredState.status === "interrupted") {
-            // ログだけ表示する
-          } else {
+
+          if (restoredState.status === "running" || restoredState.status === "waiting_for_input") {
+            // 実行中の場合：ログを復元してポーリングを開始
+            startPolling({
+              initialOutput: restoredState.output,
+              preserveLogs: false,
+            });
+          } else if (restoredState.output) {
+            // 中断/完了/失敗：ログだけ表示（ポーリング不要）
+            // startPollingでログを設定し、初回pollで終了ステータスを検出して自動停止
             startPolling({
               initialOutput: restoredState.output,
               preserveLogs: false,
             });
           }
+
           setShowLogs(true);
           setExpandedSection("execution");
         }
@@ -403,30 +410,35 @@ export function AIAccordionPanel({
     restoreState();
   }, [onRestoreExecutionState]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 実行開始時
+  // 実行開始時（復元ではなく新規実行の場合のみ）
   const executionSessionId = executionResult?.sessionId;
   const executionOutput = executionResult?.output;
 
   useEffect(() => {
+    // 復元処理中 or 復元直後は、restore ロジック内で既にstartPollingを呼んでいるためスキップ
+    if (isRestoring) return;
     if (executionSessionId) {
       setSessionId(executionSessionId);
-      if (executionOutput) {
-        startPolling({
-          initialOutput: executionOutput,
-          preserveLogs: false,
-        });
-      } else {
-        startPolling();
+      // まだポーリングが開始されていない場合のみ開始
+      if (!isPollingRunning) {
+        if (executionOutput) {
+          startPolling({
+            initialOutput: executionOutput,
+            preserveLogs: false,
+          });
+        } else {
+          startPolling();
+        }
       }
       setExpandedSection("execution");
     }
-  }, [executionSessionId, executionOutput, startPolling]);
+  }, [executionSessionId, executionOutput, startPolling, isRestoring, isPollingRunning]);
 
   useEffect(() => {
-    if (isExecuting && !isPollingRunning) {
+    if (isExecuting && !isPollingRunning && !isRestoring) {
       startPolling();
     }
-  }, [isExecuting, isPollingRunning, startPolling]);
+  }, [isExecuting, isPollingRunning, startPolling, isRestoring]);
 
   // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新
   // ただし、キャンセルは handleStopExecution で既に処理されているため、completed と failed のみ処理
@@ -642,9 +654,16 @@ export function AIAccordionPanel({
   const isCancelled = finalStatus === "cancelled";
   const isFailed =
     finalStatus === "failed" || executionError || pollingError || sseError;
+  // 中断判定: 復元した実行が interrupted だった場合（ログがあり、executionResultがある）
+  const isInterrupted =
+    !isCompleted && !isFailed && !isCancelled &&
+    executionResult?.output && logs.length > 0 &&
+    !isExecuting && !isPollingRunning && !isSseRunning &&
+    finalStatus === "idle";
   // 実行中判定: 終了ステータスの場合は実行中ではない（並列実行も含む）
   const isRunning =
     !isTerminalStatus &&
+    !isInterrupted &&
     (isExecuting ||
       isPollingRunning ||
       isSseRunning ||
@@ -674,6 +693,7 @@ export function AIAccordionPanel({
     if (isFailed) return "error";
     if (isCompleted) return "success";
     if (isCancelled) return "cancelled";
+    if (isInterrupted) return "interrupted";
     return "idle";
   };
 
@@ -1205,6 +1225,11 @@ export function AIAccordionPanel({
                   停止
                 </span>
               )}
+              {execStatusIcon === "interrupted" && (
+                <span className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] rounded">
+                  中断
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-1.5">
               {/* 実行中: 停止ボタン */}
@@ -1257,6 +1282,31 @@ export function AIAccordionPanel({
                   再実行
                 </button>
               )}
+              {/* 中断: リセット + 再実行 */}
+              {isInterrupted && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleReset();
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
+                  >
+                    <RefreshCw className="w-2.5 h-2.5" />
+                    リセット
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRerunExecution();
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-medium rounded transition-colors"
+                  >
+                    <RefreshCw className="w-2.5 h-2.5" />
+                    再実行
+                  </button>
+                </>
+              )}
               {/* エラー: リセット + 再試行 */}
               {isFailed && !isRunning && (
                 <>
@@ -1283,7 +1333,7 @@ export function AIAccordionPanel({
                 </>
               )}
               {/* 初期状態: 実行開始 */}
-              {!isRunning && !isCompleted && !isCancelled && !isFailed && (
+              {!isRunning && !isCompleted && !isCancelled && !isFailed && !isInterrupted && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1413,13 +1463,45 @@ export function AIAccordionPanel({
                     実行を停止しました
                   </span>
                 </div>
+              ) : isInterrupted ? (
+                /* 中断（サーバー再起動等で中断された実行） */
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                    <span className="text-xs text-amber-700 dark:text-amber-300">
+                      実行が中断されました
+                    </span>
+                  </div>
+                  {logs.length > 0 && showLogs && (
+                    <ExecutionLogViewer
+                      logs={logs}
+                      status="failed"
+                      isConnected={false}
+                      isRunning={false}
+                      collapsible={false}
+                      maxHeight={150}
+                    />
+                  )}
+                </div>
               ) : isFailed ? (
                 /* エラー */
-                <div className="flex items-center gap-1.5 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                  <AlertCircle className="w-3.5 h-3.5 text-red-500" />
-                  <span className="text-xs text-red-600 dark:text-red-400 line-clamp-2">
-                    {executionError || pollingError || "エラーが発生しました"}
-                  </span>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                    <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+                    <span className="text-xs text-red-600 dark:text-red-400 line-clamp-2">
+                      {executionError || pollingError || "エラーが発生しました"}
+                    </span>
+                  </div>
+                  {logs.length > 0 && showLogs && (
+                    <ExecutionLogViewer
+                      logs={logs}
+                      status="failed"
+                      isConnected={false}
+                      isRunning={false}
+                      collapsible={false}
+                      maxHeight={150}
+                    />
+                  )}
                 </div>
               ) : (
                 /* 初期状態 */

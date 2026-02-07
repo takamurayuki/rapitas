@@ -9,7 +9,7 @@ export const LoadingSpinner = ({
 }: LoadingSpinnerProps) => {
   if (!message) return null;
   return (
-    <div className="min-h-screen bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 flex items-center justify-center">
+    <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
         <div
           className={`w-10 h-10 border-4 border-${color}-500 border-t-transparent rounded-full animate-spin`}

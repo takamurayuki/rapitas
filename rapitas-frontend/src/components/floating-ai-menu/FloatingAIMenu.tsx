@@ -51,14 +51,12 @@ const ChatMessage = memo(function ChatMessage({
             : "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-bl-md"
         }`}
       >
-        <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+        <p className="text-sm whitespace-pre-wrap wrap-break-words leading-relaxed">
           {message.content}
         </p>
         <span
           className={`text-[10px] mt-1 block ${
-            isUser
-              ? "text-blue-100"
-              : "text-zinc-400 dark:text-zinc-500"
+            isUser ? "text-blue-100" : "text-zinc-400 dark:text-zinc-500"
           }`}
         >
           {message.timestamp.toLocaleTimeString("ja-JP", {
@@ -160,7 +158,7 @@ export default function FloatingAIMenu({
         handleSendMessage();
       }
     },
-    [handleSendMessage]
+    [handleSendMessage],
   );
 
   // テキストエリアの自動リサイズ
@@ -171,7 +169,7 @@ export default function FloatingAIMenu({
       e.target.style.height = "auto";
       e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
     },
-    []
+    [],
   );
 
   const positionClasses =
@@ -180,7 +178,7 @@ export default function FloatingAIMenu({
   return (
     <div
       ref={containerRef}
-      className={`fixed ${positionClasses} z-[9999] ${className}`}
+      className={`fixed ${positionClasses} z-9999 ${className}`}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
@@ -198,7 +196,7 @@ export default function FloatingAIMenu({
         aria-hidden={!isExpanded}
       >
         {/* ヘッダー */}
-        <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+        <div className="flex items-center justify-between px-4 py-3 bg-linear-to-r from-blue-500 to-indigo-600 text-white">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5" />
             <span className="font-semibold text-sm">{title}</span>
@@ -270,7 +268,7 @@ export default function FloatingAIMenu({
         {error && (
           <div className="px-4 py-2 bg-red-50 dark:bg-red-900/30 border-t border-red-100 dark:border-red-800">
             <div className="flex items-start gap-2 text-red-600 dark:text-red-400">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-xs">{error}</p>
                 {error.includes("APIキーが設定されていません") && (
@@ -297,14 +295,14 @@ export default function FloatingAIMenu({
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
               disabled={isLoading}
-              className="flex-1 resize-none rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed min-h-[40px] max-h-[120px]"
+              className="flex-1 resize-none rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed min-h-10 max-h-[120px]"
               rows={1}
               aria-label="メッセージを入力"
             />
             <button
               onClick={handleSendMessage}
               disabled={!inputValue.trim() || isLoading}
-              className="flex-shrink-0 p-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed text-white rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="shrink-0 p-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed text-white rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               aria-label="送信"
             >
               {isLoading ? (
@@ -332,7 +330,7 @@ export default function FloatingAIMenu({
         className={`floating-ai-menu-button group relative w-10 h-10 rounded-full shadow-lg transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
           isExpanded
             ? "bg-zinc-700 hover:bg-zinc-800 rotate-0"
-            : "bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 hover:scale-110"
+            : "bg-linear-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 hover:scale-110"
         }`}
         aria-label={isExpanded ? "閉じる" : "AIアシスタントを開く"}
         aria-expanded={isExpanded}

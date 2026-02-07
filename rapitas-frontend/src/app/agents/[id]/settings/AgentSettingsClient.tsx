@@ -68,8 +68,16 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     color: "text-orange-500",
     defaultModel: "claude-sonnet-4-20250514",
     models: [
-      { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", description: "高速で実用的なモデル" },
-      { id: "claude-opus-4-20250514", name: "Claude Opus 4", description: "最も高性能なモデル" },
+      {
+        id: "claude-sonnet-4-20250514",
+        name: "Claude Sonnet 4",
+        description: "高速で実用的なモデル",
+      },
+      {
+        id: "claude-opus-4-20250514",
+        name: "Claude Opus 4",
+        description: "最も高性能なモデル",
+      },
     ],
     requiresApiKey: false,
     apiKeyPlaceholder: "Claude CodeはローカルCLIを使用（APIキー不要）",
@@ -82,26 +90,66 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     defaultEndpoint: "https://api.anthropic.com",
     defaultModel: "claude-sonnet-4-20250514",
     models: [
-      { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", description: "高速で実用的なモデル" },
-      { id: "claude-opus-4-20250514", name: "Claude Opus 4", description: "最も高性能なモデル" },
-      { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", description: "バランスの取れたモデル" },
+      {
+        id: "claude-sonnet-4-20250514",
+        name: "Claude Sonnet 4",
+        description: "高速で実用的なモデル",
+      },
+      {
+        id: "claude-opus-4-20250514",
+        name: "Claude Opus 4",
+        description: "最も高性能なモデル",
+      },
+      {
+        id: "claude-3-5-sonnet-20241022",
+        name: "Claude 3.5 Sonnet",
+        description: "バランスの取れたモデル",
+      },
     ],
     requiresApiKey: true,
     apiKeyPlaceholder: "sk-ant-api03-...",
     apiKeyHelpUrl: "https://console.anthropic.com/settings/keys",
     endpointEditable: false,
   },
-  "openai": {
+  codex: {
+    name: "Codex CLI",
+    icon: <Zap className="w-5 h-5" />,
+    color: "text-green-500",
+    defaultModel: "codex-mini-latest",
+    models: [
+      {
+        id: "codex-mini-latest",
+        name: "Codex Mini",
+        description: "高速・軽量なコーディングモデル",
+      },
+      { id: "o4-mini", name: "o4-mini", description: "推論モデル" },
+      { id: "o3", name: "o3", description: "高性能推論モデル" },
+      { id: "gpt-4.1", name: "GPT-4.1", description: "汎用モデル" },
+    ],
+    requiresApiKey: false,
+    apiKeyPlaceholder:
+      "Codex CLIはローカルCLIを使用（APIキー不要、ChatGPTアカウントで認証）",
+    endpointEditable: false,
+  },
+  openai: {
     name: "OpenAI",
     icon: <Zap className="w-5 h-5" />,
     color: "text-green-500",
     defaultEndpoint: "https://api.openai.com/v1",
     defaultModel: "gpt-4o",
     models: [
-      { id: "gpt-4o", name: "GPT-4o", description: "マルチモーダル対応の最新モデル" },
+      {
+        id: "gpt-4o",
+        name: "GPT-4o",
+        description: "マルチモーダル対応の最新モデル",
+      },
       { id: "gpt-4-turbo", name: "GPT-4 Turbo", description: "高速で長文対応" },
       { id: "gpt-4", name: "GPT-4", description: "高性能なモデル" },
-      { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", description: "コスト効率の良いモデル" },
+      {
+        id: "gpt-3.5-turbo",
+        name: "GPT-3.5 Turbo",
+        description: "コスト効率の良いモデル",
+      },
     ],
     requiresApiKey: true,
     apiKeyPlaceholder: "sk-...",
@@ -117,30 +165,45 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     models: [
       { id: "gpt-4o", name: "GPT-4o", description: "デプロイ名を指定" },
       { id: "gpt-4", name: "GPT-4", description: "デプロイ名を指定" },
-      { id: "gpt-35-turbo", name: "GPT-3.5 Turbo", description: "デプロイ名を指定" },
+      {
+        id: "gpt-35-turbo",
+        name: "GPT-3.5 Turbo",
+        description: "デプロイ名を指定",
+      },
     ],
     requiresApiKey: true,
     apiKeyPlaceholder: "Azure API Key",
     apiKeyHelpUrl: "https://portal.azure.com",
     endpointEditable: true,
   },
-  "gemini": {
-    name: "Google Gemini",
+  gemini: {
+    name: "Gemini CLI",
     icon: <Activity className="w-5 h-5" />,
     color: "text-blue-500",
-    defaultEndpoint: "https://generativelanguage.googleapis.com/v1",
-    defaultModel: "gemini-2.0-flash",
+    defaultModel: "gemini-2.5-pro",
     models: [
-      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", description: "高速なモデル" },
-      { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", description: "高性能なモデル" },
-      { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", description: "バランスの取れたモデル" },
+      {
+        id: "gemini-2.5-pro",
+        name: "Gemini 2.5 Pro",
+        description: "最高性能モデル",
+      },
+      {
+        id: "gemini-2.5-flash",
+        name: "Gemini 2.5 Flash",
+        description: "高速モデル",
+      },
+      {
+        id: "gemini-2.0-flash",
+        name: "Gemini 2.0 Flash",
+        description: "軽量・高速モデル",
+      },
     ],
-    requiresApiKey: true,
-    apiKeyPlaceholder: "AI...",
-    apiKeyHelpUrl: "https://aistudio.google.com/app/apikey",
+    requiresApiKey: false,
+    apiKeyPlaceholder:
+      "Gemini CLIはローカルCLIを使用（APIキー不要、Googleアカウントで認証）",
     endpointEditable: false,
   },
-  "custom": {
+  custom: {
     name: "カスタム",
     icon: <Cpu className="w-5 h-5" />,
     color: "text-zinc-500",
@@ -164,7 +227,10 @@ export default function AgentSettingsClient({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -178,7 +244,9 @@ export default function AgentSettingsClient({
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
 
   // Field-level validation errors
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>(
+    {},
+  );
 
   useEffect(() => {
     fetchAgent();
@@ -215,7 +283,7 @@ export default function AgentSettingsClient({
         result = validateUrl(
           value,
           "エンドポイント",
-          agent?.agentType === "custom" || agent?.agentType === "azure-openai"
+          agent?.agentType === "custom" || agent?.agentType === "azure-openai",
         );
         return result.valid ? null : (result.error ?? null);
       case "apiKey":
@@ -227,10 +295,17 @@ export default function AgentSettingsClient({
     }
   };
 
-  const updateField = (field: string, value: string, setter: (v: string) => void) => {
+  const updateField = (
+    field: string,
+    value: string,
+    setter: (v: string) => void,
+  ) => {
     setter(value);
     if (value.trim()) {
-      setFieldErrors((prev) => ({ ...prev, [field]: validateField(field, value) }));
+      setFieldErrors((prev) => ({
+        ...prev,
+        [field]: validateField(field, value),
+      }));
     } else {
       setFieldErrors((prev) => ({ ...prev, [field]: null }));
     }
@@ -242,21 +317,26 @@ export default function AgentSettingsClient({
 
     // Run all validations
     if (!agent) return;
-    const provConfig = PROVIDER_CONFIGS[agent.agentType] || PROVIDER_CONFIGS["custom"];
+    const provConfig =
+      PROVIDER_CONFIGS[agent.agentType] || PROVIDER_CONFIGS["custom"];
 
     const nameResult = validateName(name, "エージェント名", 1, 50);
     const endpointResult = provConfig.endpointEditable
       ? validateUrl(
           endpoint,
           "エンドポイント",
-          agent.agentType === "custom" || agent.agentType === "azure-openai"
+          agent.agentType === "custom" || agent.agentType === "azure-openai",
         )
-      : { valid: true } as ValidationResult;
+      : ({ valid: true } as ValidationResult);
     const apiKeyResult = apiKey
       ? validateApiKey(apiKey, agent.agentType)
       : ({ valid: true } as ValidationResult);
 
-    const { valid, errors } = collectErrors(nameResult, endpointResult, apiKeyResult);
+    const { valid, errors } = collectErrors(
+      nameResult,
+      endpointResult,
+      apiKeyResult,
+    );
 
     // Update field-level errors for visual feedback
     setFieldErrors({
@@ -319,8 +399,8 @@ export default function AgentSettingsClient({
 
       setFieldErrors({});
       setSuccessMessage("設定を保存しました");
-      setApiKey(""); // Clear the input after saving
-      await fetchAgent(); // Refresh the data
+      setApiKey("");
+      await fetchAgent();
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存に失敗しました");
     } finally {
@@ -394,7 +474,7 @@ export default function AgentSettingsClient({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-5rem)] bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
+      <div className="flex items-center justify-center h-[calc(100vh-5rem)] bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
       </div>
     );
@@ -402,20 +482,26 @@ export default function AgentSettingsClient({
 
   if (!agent) {
     return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-5rem)] bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-5rem)] bg-background">
         <XCircle className="w-12 h-12 text-red-500 mb-4" />
-        <p className="text-zinc-600 dark:text-zinc-400">{error || "エージェントが見つかりません"}</p>
-        <Link href="/agents" className="mt-4 text-indigo-600 dark:text-indigo-400 hover:underline">
+        <p className="text-zinc-600 dark:text-zinc-400">
+          {error || "エージェントが見つかりません"}
+        </p>
+        <Link
+          href="/agents"
+          className="mt-4 text-indigo-600 dark:text-indigo-400 hover:underline"
+        >
           エージェント一覧に戻る
         </Link>
       </div>
     );
   }
 
-  const providerConfig = PROVIDER_CONFIGS[agent.agentType] || PROVIDER_CONFIGS["custom"];
+  const providerConfig =
+    PROVIDER_CONFIGS[agent.agentType] || PROVIDER_CONFIGS["custom"];
 
   return (
-    <div className="h-[calc(100vh-5rem)] overflow-auto bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black scrollbar-thin">
+    <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
@@ -426,14 +512,18 @@ export default function AgentSettingsClient({
             <ArrowLeft className="w-5 h-5 text-zinc-600 dark:text-zinc-400" />
           </Link>
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 ${providerConfig.color}`}>
+            <div
+              className={`p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 ${providerConfig.color}`}
+            >
               {providerConfig.icon}
             </div>
             <div>
               <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                 {agent.name}
               </h1>
-              <p className="text-zinc-500 dark:text-zinc-400">{providerConfig.name}の設定</p>
+              <p className="text-zinc-500 dark:text-zinc-400">
+                {providerConfig.name}の設定
+              </p>
             </div>
           </div>
         </div>
@@ -449,7 +539,9 @@ export default function AgentSettingsClient({
         {successMessage && (
           <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-3">
             <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0" />
-            <p className="text-green-600 dark:text-green-400">{successMessage}</p>
+            <p className="text-green-600 dark:text-green-400">
+              {successMessage}
+            </p>
           </div>
         )}
 
@@ -477,7 +569,9 @@ export default function AgentSettingsClient({
                 placeholder="エージェント名"
               />
               {fieldErrors.name && (
-                <p className="text-xs text-red-500 dark:text-red-400 mt-1">{fieldErrors.name}</p>
+                <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+                  {fieldErrors.name}
+                </p>
               )}
             </div>
 
@@ -494,7 +588,8 @@ export default function AgentSettingsClient({
                   <option value="">モデルを選択</option>
                   {providerConfig.models.map((model) => (
                     <option key={model.id} value={model.id}>
-                      {model.name} {model.description ? `- ${model.description}` : ""}
+                      {model.name}{" "}
+                      {model.description ? `- ${model.description}` : ""}
                     </option>
                   ))}
                 </select>
@@ -509,22 +604,31 @@ export default function AgentSettingsClient({
                 <input
                   type="text"
                   value={endpoint}
-                  onChange={(e) => updateField("endpoint", e.target.value, setEndpoint)}
+                  onChange={(e) =>
+                    updateField("endpoint", e.target.value, setEndpoint)
+                  }
                   className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:border-transparent ${
                     fieldErrors.endpoint
                       ? "border-red-400 dark:border-red-600 focus:ring-red-500"
                       : "border-zinc-300 dark:border-zinc-600 focus:ring-indigo-500"
                   }`}
-                  placeholder={providerConfig.defaultEndpoint || "https://api.example.com/v1"}
+                  placeholder={
+                    providerConfig.defaultEndpoint ||
+                    "https://api.example.com/v1"
+                  }
                 />
                 {fieldErrors.endpoint && (
-                  <p className="text-xs text-red-500 dark:text-red-400 mt-1">{fieldErrors.endpoint}</p>
-                )}
-                {!fieldErrors.endpoint && agent.agentType === "azure-openai" && (
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                    例: https://your-resource.openai.azure.com/openai/deployments/your-deployment
+                  <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+                    {fieldErrors.endpoint}
                   </p>
                 )}
+                {!fieldErrors.endpoint &&
+                  agent.agentType === "azure-openai" && (
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      例:
+                      https://your-resource.openai.azure.com/openai/deployments/your-deployment
+                    </p>
+                  )}
               </div>
             )}
 
@@ -536,7 +640,10 @@ export default function AgentSettingsClient({
                 onChange={(e) => setIsDefault(e.target.checked)}
                 className="w-4 h-4 text-indigo-600 border-zinc-300 rounded focus:ring-indigo-500"
               />
-              <label htmlFor="isDefault" className="text-sm text-zinc-700 dark:text-zinc-300">
+              <label
+                htmlFor="isDefault"
+                className="text-sm text-zinc-700 dark:text-zinc-300"
+              >
                 デフォルトエージェントとして使用
               </label>
             </div>
@@ -558,7 +665,9 @@ export default function AgentSettingsClient({
                   {agent.hasApiKey ? (
                     <>
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      <span className="text-sm text-green-600 dark:text-green-400">APIキー設定済み</span>
+                      <span className="text-sm text-green-600 dark:text-green-400">
+                        APIキー設定済み
+                      </span>
                       {agent.maskedApiKey && (
                         <code className="text-xs bg-zinc-200 dark:bg-zinc-600 px-2 py-1 rounded">
                           {agent.maskedApiKey}
@@ -568,7 +677,9 @@ export default function AgentSettingsClient({
                   ) : (
                     <>
                       <XCircle className="w-4 h-4 text-zinc-400" />
-                      <span className="text-sm text-zinc-500 dark:text-zinc-400">APIキー未設定</span>
+                      <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                        APIキー未設定
+                      </span>
                     </>
                   )}
                 </div>
@@ -593,7 +704,9 @@ export default function AgentSettingsClient({
                 <input
                   type={showApiKey ? "text" : "password"}
                   value={apiKey}
-                  onChange={(e) => updateField("apiKey", e.target.value, setApiKey)}
+                  onChange={(e) =>
+                    updateField("apiKey", e.target.value, setApiKey)
+                  }
                   className={`w-full px-3 py-2 pr-10 border rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:border-transparent ${
                     fieldErrors.apiKey
                       ? "border-red-400 dark:border-red-600 focus:ring-red-500"
@@ -606,11 +719,17 @@ export default function AgentSettingsClient({
                   onClick={() => setShowApiKey(!showApiKey)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
                 >
-                  {showApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showApiKey ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
                 </button>
               </div>
               {fieldErrors.apiKey && (
-                <p className="text-xs text-red-500 dark:text-red-400 mt-1">{fieldErrors.apiKey}</p>
+                <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+                  {fieldErrors.apiKey}
+                </p>
               )}
               {!fieldErrors.apiKey && providerConfig.apiKeyHelpUrl && (
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
@@ -652,8 +771,12 @@ export default function AgentSettingsClient({
                 <div className="text-sm text-amber-700 dark:text-amber-300">
                   <p className="font-medium mb-1">ローカルCLIモード</p>
                   <p className="text-xs">
-                    Claude Codeはローカルにインストールされた<code className="bg-amber-100 dark:bg-amber-800 px-1 rounded">claude</code>コマンドを使用します。
-                    APIキーは不要ですが、Claude CLIが正しくインストールされている必要があります。
+                    Claude Codeはローカルにインストールされた
+                    <code className="bg-amber-100 dark:bg-amber-800 px-1 rounded">
+                      claude
+                    </code>
+                    コマンドを使用します。 APIキーは不要ですが、Claude
+                    CLIが正しくインストールされている必要があります。
                   </p>
                 </div>
               </div>
@@ -683,7 +806,9 @@ export default function AgentSettingsClient({
             </button>
 
             {testResult && (
-              <div className={`flex items-center gap-2 ${testResult.success ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+              <div
+                className={`flex items-center gap-2 ${testResult.success ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
+              >
                 {testResult.success ? (
                   <CheckCircle2 className="w-4 h-4" />
                 ) : (
@@ -717,11 +842,17 @@ export default function AgentSettingsClient({
                   id={key}
                   checked={capabilities[key] || false}
                   onChange={(e) =>
-                    setCapabilities({ ...capabilities, [key]: e.target.checked })
+                    setCapabilities({
+                      ...capabilities,
+                      [key]: e.target.checked,
+                    })
                   }
                   className="w-4 h-4 text-indigo-600 border-zinc-300 rounded focus:ring-indigo-500"
                 />
-                <label htmlFor={key} className="text-sm text-zinc-700 dark:text-zinc-300">
+                <label
+                  htmlFor={key}
+                  className="text-sm text-zinc-700 dark:text-zinc-300"
+                >
                   {label}
                 </label>
               </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bot, AlertCircle, Loader2 } from "lucide-react";
+import { Bot, AlertCircle, Loader2, RotateCcw } from "lucide-react";
 import type { UserSettings } from "@/types";
 import { useToast } from "@/components/ui/toast/ToastContainer";
 import { API_BASE_URL } from "@/utils/api";
@@ -13,6 +13,8 @@ export default function DeveloperModeSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const { showToast } = useToast();
 
+  // 自動再開設定
+  const [isSavingAutoResume, setIsSavingAutoResume] = useState(false);
   useEffect(() => {
     fetchSettings();
   }, []);
@@ -44,7 +46,6 @@ export default function DeveloperModeSettingsPage() {
       if (res.ok) {
         const data = await res.json();
         setSettings((prev) => (prev ? { ...prev, ...data } : data));
-        showToast("設定を保存しました", "success");
       } else {
         throw new Error("更新に失敗しました");
       }
@@ -53,6 +54,31 @@ export default function DeveloperModeSettingsPage() {
       showToast("設定の保存に失敗しました", "error");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const toggleAutoResume = async () => {
+    if (!settings) return;
+    const newValue = !settings.autoResumeInterruptedTasks;
+    setIsSavingAutoResume(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoResumeInterruptedTasks: newValue }),
+      });
+      if (res.ok) {
+        setSettings((prev) =>
+          prev ? { ...prev, autoResumeInterruptedTasks: newValue } : prev,
+        );
+      } else {
+        setError("設定の保存に失敗しました");
+      }
+    } catch {
+      setError("設定の保存に失敗しました");
+    } finally {
+      setIsSavingAutoResume(false);
     }
   };
 
@@ -131,6 +157,54 @@ export default function DeveloperModeSettingsPage() {
                 <span
                   className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
                     settings?.aiTaskAnalysisDefault ? "translate-x-5" : ""
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* タスク自動再開設定 */}
+      <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden mt-8">
+        <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center gap-3">
+            <RotateCcw className="w-5 h-5 text-violet-500" />
+            <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+              タスク自動再開設定
+            </h2>
+          </div>
+        </div>
+        <div className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                中断タスク自動再開
+              </h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                アプリ起動時に中断されたAIエージェントのタスクを自動再開します
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {isSavingAutoResume && (
+                <Loader2 className="w-4 h-4 text-violet-500 animate-spin" />
+              )}
+              <button
+                onClick={toggleAutoResume}
+                disabled={isSavingAutoResume}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  settings?.autoResumeInterruptedTasks
+                    ? "bg-violet-600"
+                    : "bg-zinc-300 dark:bg-zinc-600"
+                }`}
+                role="switch"
+                aria-checked={settings?.autoResumeInterruptedTasks ?? false}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    settings?.autoResumeInterruptedTasks
+                      ? "translate-x-5"
+                      : "translate-x-0"
                   }`}
                 />
               </button>

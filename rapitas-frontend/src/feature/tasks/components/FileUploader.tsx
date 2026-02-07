@@ -227,8 +227,8 @@ export default function FileUploader({
       <div
         className={`relative border-2 border-dashed rounded-xl p-4 transition-all cursor-pointer ${
           dragActive
-            ? "border-violet-500 bg-violet-50 dark:bg-violet-900/20"
-            : "border-zinc-200 dark:border-zinc-700 hover:border-violet-400 dark:hover:border-violet-600"
+            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+            : "border-zinc-200 dark:border-zinc-700 hover:border-blue-200 dark:hover:border-blue-500"
         }`}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -246,7 +246,7 @@ export default function FileUploader({
         />
         <div className="flex flex-col items-center gap-2 text-center pointer-events-none">
           {isUploading ? (
-            <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
+            <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
           ) : (
             <Upload className="w-8 h-8 text-zinc-400 dark:text-zinc-500" />
           )}
@@ -317,7 +317,7 @@ export default function FileUploader({
                   href={getFileUrl(resource)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-1.5 text-zinc-500 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/30 rounded-lg transition-colors"
+                  className="p-1.5 text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
                   title="開く"
                 >
                   <ExternalLink className="w-4 h-4" />

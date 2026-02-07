@@ -30,6 +30,7 @@ import {
   templatesRoutes,
   reportsRoutes,
   promptsRoutes,
+  systemPromptsRoutes,
   developerModeRoutes,
   aiChatRoutes,
   sseRoutes,
@@ -41,6 +42,7 @@ import {
   parallelExecutionRoutes,
   taskAnalysisConfigRoutes,
   agentExecutionConfigRoutes,
+  executionLogsRoutes,
 } from "./routes";
 
 // Import shared database client
@@ -122,6 +124,7 @@ app.use(flashcardsRoutes);
 app.use(templatesRoutes);
 app.use(reportsRoutes);
 app.use(promptsRoutes);
+app.use(systemPromptsRoutes);
 app.use(developerModeRoutes);
 app.use(aiChatRoutes);
 app.use(sseRoutes);
@@ -133,6 +136,7 @@ app.use(aiAgentRoutes);
 app.use(parallelExecutionRoutes);
 app.use(taskAnalysisConfigRoutes);
 app.use(agentExecutionConfigRoutes);
+app.use(executionLogsRoutes);
 
 // Start server
 app.listen(3001);

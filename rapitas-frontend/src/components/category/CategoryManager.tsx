@@ -384,7 +384,7 @@ export default function CategoryManager({ config }: Props) {
   );
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
+    <div className="min-h-screen bg-[var(--background)]">
       <div className="mx-auto max-w-5xl px-4 py-8">
         {/* ヘッダー */}
         <div className="mb-8 flex items-center justify-between">

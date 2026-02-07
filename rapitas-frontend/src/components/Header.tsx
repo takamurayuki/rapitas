@@ -34,6 +34,7 @@ import {
   Key,
   Pin,
   PinOff,
+  MessageSquare,
 } from "lucide-react";
 import AppIcon from "@/components/AppIcon";
 import GlobalPomodoroWidget from "@/feature/tasks/pomodoro/GlobalPomodoroWidget";
@@ -70,12 +71,15 @@ export default function Header() {
   // /tasks/[id], /task-detail, /tasks/detail のパターンに対応
   // ただし、showHeader=true のパラメータがある場合は表示
   // クライアントサイドでwindow.location.pathnameも確認（iframeでの読み込み時の対応）
-  const [isTaskDetailPage, setIsTaskDetailPage] = useState(() => checkIsTaskDetailPage(pathname));
+  const [isTaskDetailPage, setIsTaskDetailPage] = useState(() =>
+    checkIsTaskDetailPage(pathname),
+  );
 
   // クライアントサイドでパスを再チェック
   useEffect(() => {
     const windowPath = window.location.pathname;
-    const isDetail = checkIsTaskDetailPage(pathname) || checkIsTaskDetailPage(windowPath);
+    const isDetail =
+      checkIsTaskDetailPage(pathname) || checkIsTaskDetailPage(windowPath);
     setIsTaskDetailPage(isDetail);
   }, [pathname]);
 
@@ -188,7 +192,7 @@ export default function Header() {
         },
         {
           href: "/settings/developer-mode",
-          label: "設定",
+          label: "タスク設定",
           icon: Settings,
         },
       ],
@@ -285,6 +289,11 @@ export default function Header() {
           href: "/approvals",
           label: "承認待ち",
           icon: CheckCircle,
+        },
+        {
+          href: "/system-prompts",
+          label: "プロンプト管理",
+          icon: MessageSquare,
         },
       ],
     },
@@ -568,7 +577,7 @@ export default function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-zinc-200 dark:border-zinc-800 backdrop-blur-lg">
+      <header className="sticky top-0 z-50 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
@@ -638,7 +647,6 @@ export default function Header() {
             <div className="flex items-center gap-3">
               {/* ポモドーロタイマー表示（タスク詳細ページでは非表示） */}
               {!pathname?.startsWith("/tasks/") && <GlobalPomodoroWidget />}
-
               {(pathname === "/" || pathname === "/kanban") && (
                 <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
                   <button
@@ -665,7 +673,6 @@ export default function Header() {
                   </button>
                 </div>
               )}
-
               <DarkModeToggle /> {/* Add DarkModeToggle here */}
               {/* 通知ベル（一番右側に配置） */}
               <NotificationBell />

@@ -224,7 +224,7 @@ export default function KanbanPage() {
     filteredTasks.filter((t) => t.status === status && !t.parentId);
 
   return (
-    <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-linear-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black scrollbar-thin">
+    <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-[var(--background)] scrollbar-thin">
       <div className="mx-auto max-w-7xl px-4 py-8">
         {/* Filter Bar */}
         <div className="mb-6 space-y-3">

@@ -15,6 +15,7 @@ import {
   Bot,
 } from "lucide-react";
 import { API_BASE_URL } from "@/utils/api";
+import { useBackendHealth } from "@/hooks/use-backend-health";
 
 // セッション中に自動再開が実行済みかどうかを追跡するグローバルフラグ
 const AUTO_RESUME_SESSION_KEY = "rapitas_auto_resume_triggered";
@@ -35,32 +36,46 @@ type ResumableExecution = {
   canResume: boolean;
 };
 
-type ResumableExecutionsBannerProps = {
-  autoResume?: boolean;
-  onAutoResumeComplete?: () => void;
-};
-
-export function ResumableExecutionsBanner({
-  autoResume = false,
-  onAutoResumeComplete,
-}: ResumableExecutionsBannerProps) {
+export function ResumableExecutionsBanner() {
   const [executions, setExecutions] = useState<ResumableExecution[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
   const [resumingIds, setResumingIds] = useState<Set<number>>(new Set());
   const [dismissingIds, setDismissingIds] = useState<Set<number>>(new Set());
+  const [autoResume, setAutoResume] = useState(false);
 
   // セッション中に一度だけ自動再開を実行するためのフラグ
   const autoResumeCheckedRef = useRef(false);
+
+  // バックエンドから自動再開設定を取得
+  const fetchAutoResumeSetting = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings`);
+      if (res.ok) {
+        const data = await res.json();
+        setAutoResume(data.autoResumeInterruptedTasks ?? false);
+      }
+    } catch (error) {
+      console.error("Failed to fetch auto-resume setting:", error);
+    }
+  }, []);
 
   // Fetch resumable executions on mount
   const fetchResumableExecutions = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/agents/resumable-executions`);
       if (res.ok) {
-        const data = await res.json();
-        setExecutions(data);
+        const data: ResumableExecution[] = await res.json();
+        setExecutions((prev) => {
+          // 新しい実行が追加された場合のみ dismissed をリセット
+          const prevIds = new Set(prev.map((e) => e.id));
+          const hasNewExecutions = data.some((e) => !prevIds.has(e.id));
+          if (hasNewExecutions && data.length > 0) {
+            setIsDismissed(false);
+          }
+          return data;
+        });
         return data;
       }
     } catch (error) {
@@ -71,9 +86,33 @@ export function ResumableExecutionsBanner({
     return [];
   }, []);
 
+  // バックエンド復帰時に再フェッチする
+  useBackendHealth({
+    onReconnect: () => {
+      console.log("[ResumableExecutionsBanner] Backend reconnected, re-fetching executions");
+      setIsLoading(true);
+      fetchResumableExecutions();
+    },
+  });
+
   useEffect(() => {
+    fetchAutoResumeSetting();
     fetchResumableExecutions();
-  }, [fetchResumableExecutions]);
+  }, [fetchAutoResumeSetting, fetchResumableExecutions]);
+
+  // 実行中の作業がある場合は定期的にポーリングして完了を検出する
+  useEffect(() => {
+    const hasRunningExecutions = executions.some(
+      (e) => e.status === "running" || e.status === "waiting_for_input",
+    );
+    if (!hasRunningExecutions || isDismissed) return;
+
+    const interval = setInterval(() => {
+      fetchResumableExecutions();
+    }, 10000); // 10秒ごとにチェック
+
+    return () => clearInterval(interval);
+  }, [executions, isDismissed, fetchResumableExecutions]);
 
   // Auto-resume logic - セッション中に一度だけ実行
   useEffect(() => {
@@ -104,19 +143,16 @@ export function ResumableExecutionsBanner({
     }
 
     // 自動再開を実行
-    console.log(`[AutoResume] Starting auto-resume for ${executions.length} executions`);
+    console.log(`[AutoResume] Starting auto-resume for ${resumableExecutions.length} executions`);
     sessionStorage.setItem(AUTO_RESUME_SESSION_KEY, "true");
 
     const resumeAll = async () => {
-      for (const exec of executions) {
-        if (exec.canResume) {
-          await handleResume(exec.id, true);
-        }
+      for (const exec of resumableExecutions) {
+        await handleResume(exec.id, true);
       }
-      onAutoResumeComplete?.();
     };
     resumeAll();
-  }, [autoResume, isLoading, executions, onAutoResumeComplete]);
+  }, [autoResume, isLoading, executions]);
 
   // Resume a specific execution
   const handleResume = async (executionId: number, isAutoResume = false) => {
@@ -137,7 +173,9 @@ export function ResumableExecutionsBanner({
         setExecutions((prev) => prev.filter((e) => e.id !== executionId));
         // Redirect to task page (only if not auto-resuming multiple)
         if (!isAutoResume && data.taskId) {
-          window.location.href = `/tasks/${data.taskId}`;
+          // 再開処理がバックエンドで開始されるまで少し待つ
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          window.location.href = `/tasks/${data.taskId}?showHeader=true`;
         }
       } else {
         console.error("Failed to resume execution");
@@ -344,7 +382,7 @@ export function ResumableExecutionsBanner({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <a
-                        href={`/tasks/${exec.taskId}`}
+                        href={`/tasks/${exec.taskId}?showHeader=true`}
                         className="font-medium text-sm text-zinc-900 dark:text-zinc-100 hover:text-amber-600 dark:hover:text-amber-400 truncate block transition-colors"
                       >
                         {exec.taskTitle || `タスク #${exec.taskId}`}
@@ -397,7 +435,7 @@ export function ResumableExecutionsBanner({
                     </button>
                   ) : null}
                   <a
-                    href={`/tasks/${exec.taskId}`}
+                    href={`/tasks/${exec.taskId}?showHeader=true`}
                     className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                       !exec.canResume
                         ? "flex-1 bg-linear-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-sm hover:shadow-md"
@@ -443,7 +481,7 @@ export function ResumableExecutionsBanner({
               </button>
             ) : (
               <a
-                href={`/tasks/${executions[0].taskId}`}
+                href={`/tasks/${executions[0].taskId}?showHeader=true`}
                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-linear-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-lg text-xs font-semibold transition-all shadow-sm hover:shadow-md"
               >
                 <ExternalLink className="w-3.5 h-3.5" />

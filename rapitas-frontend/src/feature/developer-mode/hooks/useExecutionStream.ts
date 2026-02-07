@@ -480,6 +480,30 @@ export function useExecutionPolling(taskId: number | null) {
                 : prev.logs,
           }));
           stopPolling();
+        } else if (data.executionStatus === "interrupted") {
+          // 既に同じステータスを処理済みの場合はスキップ
+          if (!isStatusChanged && hasAddedFinalLogRef.current) {
+            return;
+          }
+          console.log("[ExecutionPolling] Execution interrupted");
+          lastProcessedStatusRef.current = currentStatus;
+          const shouldAddLog = !hasAddedFinalLogRef.current;
+          if (shouldAddLog) {
+            hasAddedFinalLogRef.current = true;
+          }
+          setState((prev) => ({
+            ...prev,
+            isRunning: false,
+            status: "failed",
+            waitingForInput: false,
+            error: data.errorMessage || "実行が中断されました",
+            logs: shouldAddLog && prev.logs.length > 0
+              ? trimLogs([...prev.logs, "\n[中断] 実行が中断されました。\n"])
+              : shouldAddLog
+                ? ["[中断] 実行が中断されました。\n"]
+                : prev.logs,
+          }));
+          stopPolling();
         } else if (data.executionStatus === "waiting_for_input" || data.waitingForInput) {
           // キャンセル状態の場合は上書きしない
           if (lastProcessedStatusRef.current === "cancelled") {
