@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Task } from "@/types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import { getLabelsArray, hasLabels } from "@/utils/labels";
 import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
 import PriorityIcon from "@/feature/tasks/components/PriorityIcon";
@@ -381,7 +382,7 @@ export default function SubtaskList({
                         </div>
                         {subtask.description && (
                           <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none mt-2">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
                               {subtask.description}
                             </ReactMarkdown>
                           </div>

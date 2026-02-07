@@ -1,6 +1,7 @@
 import { Comment } from "@/types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 
 interface TaskCommentsProps {
   comments: Comment[];
@@ -78,7 +79,7 @@ export default function TaskComments({
                 </button>
               </div>
               <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
                   {comment.content}
                 </ReactMarkdown>
               </div>

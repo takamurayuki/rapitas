@@ -1,5 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import { createMarkdownComponents } from "@/feature/tasks/components/MarkdownComponents";
 
 // プログラミング言語リスト
@@ -101,7 +102,7 @@ export default function CodeBlockDialog({
               </label>
               <div className="rounded-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
                 <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
+                  remarkPlugins={[remarkGfm, remarkBreaks]}
                   components={createMarkdownComponents()}
                 >
                   {`\`\`\`${language}\n${content}\n\`\`\``}

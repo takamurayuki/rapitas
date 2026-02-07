@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import type { Comment, CommentSearchResult } from "@/types";
 import { API_BASE_URL } from "@/utils/api";
 
@@ -170,7 +171,7 @@ const LinkPreview = memo(function LinkPreview({
             </div>
             <div className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed line-clamp-4 [&>p]:m-0">
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[remarkGfm, remarkBreaks]}
                 components={{ p: ({ children }) => <p>{children}</p> }}
               >
                 {link.linkedComment.content}
@@ -341,7 +342,7 @@ const Note = memo(function Note({
                 {/* Content */}
                 <div className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed [&>p]:m-0 [&_ul]:ml-3 [&_ol]:ml-3 [&_code]:bg-zinc-100 dark:[&_code]:bg-zinc-800 [&_code]:px-1 [&_code]:rounded [&_code]:text-[10px]">
                   <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
+                    remarkPlugins={[remarkGfm, remarkBreaks]}
                     components={{ p: ({ children }) => <p>{children}</p> }}
                   >
                     {note.content}

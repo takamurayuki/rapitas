@@ -1,6 +1,7 @@
 import { Task } from "@/types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 import { createMarkdownComponents } from "@/feature/tasks/components/MarkdownComponents";
 import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
 import {
@@ -229,7 +230,7 @@ export default function TaskDetail({
                 [&_pre_code]:bg-transparent [&_pre_code]:p-0"
               >
                 <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
+                  remarkPlugins={[remarkGfm, remarkBreaks]}
                   components={createMarkdownComponents(onEditCode)}
                 >
                   {task.description}
