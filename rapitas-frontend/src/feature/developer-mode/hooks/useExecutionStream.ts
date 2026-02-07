@@ -55,6 +55,15 @@ export type ExecutionStreamState = {
 // SSEは現在無効化（ポーリングをメインで使用）
 const SSE_ENABLED = false;
 
+// ログ配列の最大エントリ数（メモリリーク防止）
+const MAX_LOG_ENTRIES = 500;
+
+/** ログ配列が上限を超えないようにトリミングする */
+function trimLogs(logs: string[]): string[] {
+  if (logs.length <= MAX_LOG_ENTRIES) return logs;
+  return logs.slice(-MAX_LOG_ENTRIES);
+}
+
 export function useExecutionStream(sessionId: number | null) {
   const [state, setState] = useState<ExecutionStreamState>({
     isConnected: false,
@@ -138,7 +147,7 @@ export function useExecutionStream(sessionId: number | null) {
       try {
         const data = JSON.parse(event.data);
         const output = data.output || "";
-        logsRef.current = [...logsRef.current, output];
+        logsRef.current = trimLogs([...logsRef.current, output]);
         setState((prev) => ({
           ...prev,
           logs: logsRef.current,
@@ -153,10 +162,10 @@ export function useExecutionStream(sessionId: number | null) {
       console.log("[ExecutionStream] Execution completed:", event.data);
       try {
         const data = JSON.parse(event.data);
-        logsRef.current = [
+        logsRef.current = trimLogs([
           ...logsRef.current,
           "\n[完了] エージェントの実行が完了しました。\n",
-        ];
+        ]);
         setState((prev) => ({
           ...prev,
           isRunning: false,
@@ -179,10 +188,10 @@ export function useExecutionStream(sessionId: number | null) {
       console.log("[ExecutionStream] Execution failed:", event.data);
       try {
         const data = JSON.parse(event.data);
-        logsRef.current = [
+        logsRef.current = trimLogs([
           ...logsRef.current,
           `\n[エラー] ${data.error?.errorMessage || "実行に失敗しました"}\n`,
-        ];
+        ]);
         setState((prev) => ({
           ...prev,
           isRunning: false,
@@ -203,10 +212,10 @@ export function useExecutionStream(sessionId: number | null) {
     // キャンセルイベント
     eventSource.addEventListener("execution_cancelled", (event) => {
       console.log("[ExecutionStream] Execution cancelled");
-      logsRef.current = [
+      logsRef.current = trimLogs([
         ...logsRef.current,
         "\n[キャンセル] 実行がキャンセルされました。\n",
-      ];
+      ]);
       setState((prev) => ({
         ...prev,
         isRunning: false,
@@ -387,7 +396,7 @@ export function useExecutionPolling(taskId: number | null) {
             lastOutputLengthRef.current = data.output.length;
             setState((prev) => ({
               ...prev,
-              logs: [...prev.logs, newOutput],
+              logs: trimLogs([...prev.logs, newOutput]),
             }));
           }
         }
@@ -416,7 +425,7 @@ export function useExecutionPolling(taskId: number | null) {
             waitingForInput: false,
             question: undefined,
             logs: shouldAddLog && prev.logs.length > 0
-              ? [...prev.logs, "\n[完了] 実行が完了しました。\n"]
+              ? trimLogs([...prev.logs, "\n[完了] 実行が完了しました。\n"])
               : shouldAddLog
                 ? ["[完了] 実行が完了しました。\n"]
                 : prev.logs,
@@ -441,7 +450,7 @@ export function useExecutionPolling(taskId: number | null) {
             waitingForInput: false,
             error: data.errorMessage,
             logs: shouldAddLog && prev.logs.length > 0
-              ? [...prev.logs, `\n[エラー] ${data.errorMessage || "実行失敗"}\n`]
+              ? trimLogs([...prev.logs, `\n[エラー] ${data.errorMessage || "実行失敗"}\n`])
               : shouldAddLog
                 ? [`[エラー] ${data.errorMessage || "実行失敗"}\n`]
                 : prev.logs,
@@ -465,7 +474,7 @@ export function useExecutionPolling(taskId: number | null) {
             status: "cancelled",
             waitingForInput: false,
             logs: shouldAddLog && prev.logs.length > 0
-              ? [...prev.logs, "\n[キャンセル] 実行が停止されました。\n"]
+              ? trimLogs([...prev.logs, "\n[キャンセル] 実行が停止されました。\n"])
               : shouldAddLog
                 ? ["[キャンセル] 実行が停止されました。\n"]
                 : prev.logs,
@@ -579,7 +588,7 @@ export function useExecutionPolling(taskId: number | null) {
       waitingForInput: false,
       question: undefined,
       logs: shouldAddLog && prev.logs.length > 0
-        ? [...prev.logs, "\n[キャンセル] 実行が停止されました。\n"]
+        ? trimLogs([...prev.logs, "\n[キャンセル] 実行が停止されました。\n"])
         : shouldAddLog
           ? ["[キャンセル] 実行が停止されました。\n"]
           : prev.logs,
