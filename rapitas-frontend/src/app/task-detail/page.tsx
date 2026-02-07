@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import TaskDetailClient from "@/app/tasks/[id]/TaskDetailClient";
+import TaskDetailSkeleton from "@/components/ui/skeleton/TaskDetailSkeleton";
 
 /**
  * Tauri用の静的タスク詳細ページ
@@ -37,18 +38,7 @@ function TaskDetailContent() {
 
 export default function TaskDetailPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="h-[calc(100vh-5rem)] overflow-auto bg-[var(--background)] flex items-center justify-center scrollbar-thin">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-              読み込み中...
-            </p>
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<TaskDetailSkeleton />}>
       <TaskDetailContent />
     </Suspense>
   );

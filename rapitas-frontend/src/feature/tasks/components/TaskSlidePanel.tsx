@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import TaskDetailClient from "@/app/tasks/[id]/TaskDetailClient";
+import TaskDetailSkeleton from "@/components/ui/skeleton/TaskDetailSkeleton";
 
 interface TaskSlidePanelProps {
   taskId: number | null;
@@ -21,8 +22,9 @@ export default function TaskSlidePanel({
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimatingOut, setIsAnimatingOut] = useState(false);
   const closingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  // 開く時: isVisibleをtrueに
+  // 開く時: isVisibleをtrueに & スクロール位置をリセット
   useEffect(() => {
     if (isOpen && taskId) {
       setIsAnimatingOut(false);
@@ -31,6 +33,12 @@ export default function TaskSlidePanel({
         clearTimeout(closingTimerRef.current);
         closingTimerRef.current = null;
       }
+      // パネルが開いた時にスクロール位置を先頭にリセット
+      requestAnimationFrame(() => {
+        if (contentRef.current) {
+          contentRef.current.scrollTop = 0;
+        }
+      });
     }
   }, [isOpen, taskId]);
 
@@ -139,7 +147,7 @@ export default function TaskSlidePanel({
         </div>
 
         {/* コンテンツ */}
-        <div className="h-full overflow-y-auto pb-16">
+        <div ref={contentRef} className="h-full overflow-y-auto pb-16">
           <TaskDetailClient
             taskId={taskId}
             onTaskUpdated={onTaskUpdated}

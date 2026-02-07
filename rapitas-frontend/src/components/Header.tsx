@@ -534,7 +534,7 @@ export default function Header() {
           </div>
           {/* 展開されたコンテンツ（本体とは別） */}
           {isExpanded && (
-            <div className="ml-[40px]">
+            <div className="ml-10">
               {item.children!.map((child, index) => {
                 const isLastChild = index === item.children!.length - 1;
                 return (

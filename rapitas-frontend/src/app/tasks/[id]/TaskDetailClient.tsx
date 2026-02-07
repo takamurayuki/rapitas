@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { getLabelsArray } from "@/utils/labels";
 import type { Task, TimeEntry, Comment, UserSettings, Resource } from "@/types";
@@ -66,6 +66,7 @@ import { AIAccordionPanel } from "@/feature/developer-mode/components/AIAccordio
 import SaveAsTemplateDialog from "@/feature/tasks/components/dialog/SaveAsTemplateDialog";
 import DropdownMenu from "@/components/ui/dropdown/DropdownMenu";
 import PriorityIcon from "@/feature/tasks/components/PriorityIcon";
+import TaskDetailSkeleton from "@/components/ui/skeleton/TaskDetailSkeleton";
 import { API_BASE_URL } from "@/utils/api";
 
 const API_BASE = API_BASE_URL;
@@ -133,8 +134,12 @@ export default function TaskDetailClient({
 
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showSkeleton, setShowSkeleton] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const skeletonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skeletonStartRef = useRef<number>(Date.now());
 
   // 編集フォーム用の状態
   const [editTitle, setEditTitle] = useState("");
@@ -271,9 +276,13 @@ export default function TaskDetailClient({
   });
 
   useEffect(() => {
+    const SKELETON_MIN_DURATION = 400; // スケルトン最低表示時間(ms)
+
     const fetchTask = async () => {
       try {
         setLoading(true);
+        setShowSkeleton(true);
+        skeletonStartRef.current = Date.now();
         const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
         if (!res.ok) throw new Error("タスクの取得に失敗しました");
         const data = await res.json();
@@ -282,6 +291,16 @@ export default function TaskDetailClient({
         setError(err instanceof Error ? err.message : "エラーが発生しました");
       } finally {
         setLoading(false);
+        // スケルトン最低表示時間を保証
+        const elapsed = Date.now() - skeletonStartRef.current;
+        const remaining = SKELETON_MIN_DURATION - elapsed;
+        if (remaining > 0) {
+          skeletonTimerRef.current = setTimeout(() => {
+            setShowSkeleton(false);
+          }, remaining);
+        } else {
+          setShowSkeleton(false);
+        }
       }
     };
 
@@ -341,7 +360,30 @@ export default function TaskDetailClient({
       fetchAgents();
       fetchGlobalSettings();
     }
+
+    return () => {
+      if (skeletonTimerRef.current) {
+        clearTimeout(skeletonTimerRef.current);
+        skeletonTimerRef.current = null;
+      }
+    };
   }, [resolvedTaskId, fetchDevModeConfig, fetchAgents]);
+
+  // コンテンツ表示準備完了フラグ（スクロール固定→解除のため）
+  const [contentReady, setContentReady] = useState(false);
+
+  // スケルトン非表示になった時にスクロール位置を先頭にリセットし、段階的にスクロールを有効化（ちらつき防止）
+  useEffect(() => {
+    if (!showSkeleton && task && containerRef.current) {
+      // まずスクロールを無効化してトップに固定
+      containerRef.current.scrollTop = 0;
+      setContentReady(false);
+      // 次のフレームでコンテンツ表示を有効化（スクロール可能にする）
+      requestAnimationFrame(() => {
+        setContentReady(true);
+      });
+    }
+  }, [showSkeleton, task]);
 
   // グローバル設定に基づいて開発者モードを自動有効化（開発プロジェクトかつAIアシスタント有効の場合）
   useEffect(() => {
@@ -881,18 +923,9 @@ export default function TaskDetailClient({
     }
   };
 
-  // Loading state
-  if (loading) {
-    return (
-      <div className="h-[calc(100vh-5rem)] overflow-auto bg-background flex items-center justify-center scrollbar-thin">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-            読み込み中...
-          </p>
-        </div>
-      </div>
-    );
+  // Loading state - スケルトンローダーを表示（最低表示時間を保証）
+  if (loading || showSkeleton) {
+    return <TaskDetailSkeleton />;
   }
 
   // Error state
@@ -918,7 +951,12 @@ export default function TaskDetailClient({
   }
 
   return (
-    <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
+    <div
+      ref={containerRef}
+      className={`h-[calc(100vh-5rem)] bg-background scrollbar-thin transition-opacity duration-200 ${
+        contentReady ? "overflow-auto opacity-100" : "overflow-hidden opacity-0"
+      }`}
+    >
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header Actions */}
         <div className="mb-6 flex items-center justify-between gap-2">
