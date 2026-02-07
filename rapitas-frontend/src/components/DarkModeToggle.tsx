@@ -4,7 +4,18 @@ import { useDarkMode } from "@/hooks/use-dark-mode";
 import { Moon, Sun } from "lucide-react";
 
 export function DarkModeToggle() {
-  const { isDarkMode, toggleTheme } = useDarkMode();
+  const { isDarkMode, mounted, toggleTheme } = useDarkMode();
+
+  if (!mounted) {
+    return (
+      <button
+        className="p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+        aria-label="Toggle dark mode"
+      >
+        <Sun className="text-gray-500" size={18} />
+      </button>
+    );
+  }
 
   return (
     <button
