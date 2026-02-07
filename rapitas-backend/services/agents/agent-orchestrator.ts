@@ -232,6 +232,7 @@ export class AgentOrchestrator {
 
   /**
    * 特定のエージェントの状態をDBに保存
+   * 実行のステータスだけでなく、関連するセッションとタスクのステータスも更新する
    */
   private async saveAgentState(
     executionId: number,
@@ -251,6 +252,36 @@ export class AgentOrchestrator {
         completedAt: new Date(),
       },
     });
+
+    // セッションのステータスも更新
+    try {
+      await this.prisma.agentSession.update({
+        where: { id: info.sessionId },
+        data: {
+          status: "interrupted",
+          lastActivityAt: new Date(),
+        },
+      });
+    } catch (error) {
+      console.error(`[Orchestrator] Failed to update session ${info.sessionId}:`, error);
+    }
+
+    // タスクのステータスを todo に戻す
+    try {
+      const task = await this.prisma.task.findUnique({
+        where: { id: info.taskId },
+        select: { id: true, status: true },
+      });
+      if (task && task.status === "in-progress") {
+        await this.prisma.task.update({
+          where: { id: info.taskId },
+          data: { status: "todo" },
+        });
+        console.log(`[Orchestrator] Task ${info.taskId} reverted to 'todo' during shutdown`);
+      }
+    } catch (error) {
+      console.error(`[Orchestrator] Failed to update task ${info.taskId}:`, error);
+    }
   }
 
   /**
@@ -287,6 +318,164 @@ export class AgentOrchestrator {
       orderBy: { createdAt: "desc" },
       take: 50,
     });
+  }
+
+  /**
+   * サーバー起動時のリカバリ処理
+   * running/pending のまま残っている実行を interrupted に更新し、
+   * 関連する Task と AgentSession のステータスも適切に更新する
+   */
+  async recoverStaleExecutions(): Promise<{
+    recoveredExecutions: number;
+    updatedTasks: number;
+    updatedSessions: number;
+  }> {
+    console.log("[Orchestrator] Starting startup recovery of stale executions...");
+
+    let recoveredExecutions = 0;
+    let updatedTasks = 0;
+    let updatedSessions = 0;
+
+    try {
+      // メモリ上でアクティブな実行IDを取得（起動直後は空のはず）
+      const activeExecutionIds = this.getActiveExecutions().map((e) => e.executionId);
+
+      // running/pending のままDB上に残っている実行を検索
+      const staleExecutions = await this.prisma.agentExecution.findMany({
+        where: {
+          status: { in: ["running", "pending"] },
+          id: { notIn: activeExecutionIds },
+        },
+        include: {
+          session: {
+            include: {
+              config: {
+                include: {
+                  task: {
+                    select: { id: true, title: true, status: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (staleExecutions.length === 0) {
+        console.log("[Orchestrator] No stale executions found. Recovery complete.");
+        return { recoveredExecutions: 0, updatedTasks: 0, updatedSessions: 0 };
+      }
+
+      console.log(`[Orchestrator] Found ${staleExecutions.length} stale executions to recover`);
+
+      // 影響を受けるセッションIDとタスクIDを追跡
+      const affectedSessionIds = new Set<number>();
+      const affectedTaskIds = new Set<number>();
+
+      for (const exec of staleExecutions) {
+        try {
+          // 実行ステータスを interrupted に更新
+          await this.prisma.agentExecution.update({
+            where: { id: exec.id },
+            data: {
+              status: "interrupted",
+              completedAt: new Date(),
+              errorMessage: `サーバー再起動により中断されました。\n\n【最後の出力】\n${(exec.output || "").slice(-1000)}`,
+            },
+          });
+          recoveredExecutions++;
+
+          affectedSessionIds.add(exec.sessionId);
+
+          const taskId = exec.session?.config?.task?.id;
+          if (taskId) {
+            affectedTaskIds.add(taskId);
+          }
+
+          console.log(`[Orchestrator] Execution ${exec.id} marked as interrupted`);
+        } catch (error) {
+          console.error(`[Orchestrator] Failed to recover execution ${exec.id}:`, error);
+        }
+      }
+
+      // 影響を受けたセッションのステータスを更新
+      for (const sessionId of affectedSessionIds) {
+        try {
+          // このセッションにまだ running/pending の実行が残っていないか確認
+          const activeCount = await this.prisma.agentExecution.count({
+            where: {
+              sessionId,
+              status: { in: ["running", "pending", "waiting_for_input"] },
+            },
+          });
+
+          if (activeCount === 0) {
+            await this.prisma.agentSession.update({
+              where: { id: sessionId },
+              data: {
+                status: "interrupted",
+                lastActivityAt: new Date(),
+              },
+            });
+            updatedSessions++;
+            console.log(`[Orchestrator] Session ${sessionId} marked as interrupted`);
+          }
+        } catch (error) {
+          console.error(`[Orchestrator] Failed to update session ${sessionId}:`, error);
+        }
+      }
+
+      // 影響を受けたタスクのステータスを更新
+      for (const taskId of affectedTaskIds) {
+        try {
+          const task = await this.prisma.task.findUnique({
+            where: { id: taskId },
+            select: { id: true, status: true },
+          });
+
+          // in-progress のタスクのみ更新（他のステータスは影響しない）
+          if (task && task.status === "in-progress") {
+            await this.prisma.task.update({
+              where: { id: taskId },
+              data: { status: "todo" },
+            });
+            updatedTasks++;
+            console.log(`[Orchestrator] Task ${taskId} reverted to 'todo'`);
+          }
+        } catch (error) {
+          console.error(`[Orchestrator] Failed to update task ${taskId}:`, error);
+        }
+      }
+
+      // 通知を作成
+      if (recoveredExecutions > 0) {
+        try {
+          await this.prisma.notification.create({
+            data: {
+              type: "agent_execution_interrupted",
+              title: "サーバー再起動による中断",
+              message: `サーバー再起動により${recoveredExecutions}件のエージェント実行が中断されました。バナーから再開できます。`,
+              link: "/",
+              metadata: JSON.stringify({
+                recoveredExecutions,
+                updatedTasks,
+                updatedSessions,
+              }),
+            },
+          });
+        } catch (error) {
+          console.error("[Orchestrator] Failed to create recovery notification:", error);
+        }
+      }
+
+      console.log(
+        `[Orchestrator] Recovery complete: ${recoveredExecutions} executions, ${updatedTasks} tasks, ${updatedSessions} sessions updated`
+      );
+    } catch (error) {
+      console.error("[Orchestrator] Startup recovery failed:", error);
+    }
+
+    return { recoveredExecutions, updatedTasks, updatedSessions };
   }
 
   /**
@@ -515,9 +704,54 @@ export class AgentOrchestrator {
         });
 
         // 自動継続を実行（内部でロックは解放される）
-        await this.executeContinuationInternal(executionId, defaultResponse, {
+        const result = await this.executeContinuationInternal(executionId, defaultResponse, {
           timeout: 900000,
         });
+
+        // 結果に応じてタスクとセッションのステータスを更新
+        if (result.success && !result.waitingForInput) {
+          // タスクのステータスを完了に更新
+          try {
+            await this.prisma.task.update({
+              where: { id: taskId },
+              data: {
+                status: "done",
+                completedAt: new Date(),
+              },
+            });
+            console.log(`[Orchestrator] Task ${taskId} updated to 'done' after timeout auto-continue`);
+
+            // セッションのステータスも完了に更新
+            await this.prisma.agentSession.update({
+              where: { id: execution.sessionId },
+              data: {
+                status: "completed",
+                completedAt: new Date(),
+              },
+            });
+          } catch (updateError) {
+            console.error(`[Orchestrator] Failed to update task/session status after timeout:`, updateError);
+          }
+        } else if (!result.success && !result.waitingForInput) {
+          // 失敗時はタスクステータスを todo に戻す
+          try {
+            await this.prisma.task.update({
+              where: { id: taskId },
+              data: { status: "todo" },
+            });
+
+            await this.prisma.agentSession.update({
+              where: { id: execution.sessionId },
+              data: {
+                status: "failed",
+                completedAt: new Date(),
+                errorMessage: result.errorMessage || "Execution failed after timeout auto-continue",
+              },
+            });
+          } catch (updateError) {
+            console.error(`[Orchestrator] Failed to update task/session status after timeout failure:`, updateError);
+          }
+        }
       } catch (error) {
         // エラー時はステータスを元に戻す
         await this.prisma.agentExecution.update({

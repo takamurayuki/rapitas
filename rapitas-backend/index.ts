@@ -46,6 +46,9 @@ import {
 // Import shared database client
 import { prisma } from "./config";
 
+// Import orchestrator for startup recovery
+import { orchestrator } from "./routes/approvals";
+
 const app = new Elysia();
 
 // Apply middleware
@@ -134,3 +137,15 @@ app.use(agentExecutionConfigRoutes);
 // Start server
 app.listen(3001);
 console.log("🚀 Rapitas backend running on http://localhost:3001");
+
+// Startup recovery: mark stale running/pending executions as interrupted
+// and update related Task/Session statuses
+orchestrator.recoverStaleExecutions().then((result) => {
+  if (result.recoveredExecutions > 0) {
+    console.log(
+      `🔄 Startup recovery: ${result.recoveredExecutions} executions, ${result.updatedTasks} tasks, ${result.updatedSessions} sessions recovered`
+    );
+  }
+}).catch((error) => {
+  console.error("❌ Startup recovery failed:", error);
+});

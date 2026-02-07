@@ -13,6 +13,10 @@ import {
   FolderGit2,
   GitBranch,
   FolderOpen,
+  FolderPlus,
+  AlertCircle,
+  CheckCircle,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast/ToastContainer";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -82,6 +86,129 @@ export default function ThemesPage() {
   const [isAdding, setIsAdding] = useState(false);
   const [iconSearchQuery, setIconSearchQuery] = useState("");
   const [formData, setFormData] = useState<FormData>(defaultFormData);
+  const [dirStatus, setDirStatus] = useState<{
+    checking: boolean;
+    exists: boolean | null;
+    isGitRepo: boolean;
+  }>({ checking: false, exists: null, isGitRepo: false });
+  const [newFolderName, setNewFolderName] = useState("");
+  const [isCreatingDir, setIsCreatingDir] = useState(false);
+  const [showCreateFolder, setShowCreateFolder] = useState(false);
+
+  // 作業ディレクトリの存在チェック
+  const checkDirectory = async (dirPath: string) => {
+    if (!dirPath.trim()) {
+      setDirStatus({ checking: false, exists: null, isGitRepo: false });
+      return;
+    }
+
+    setDirStatus({ checking: true, exists: null, isGitRepo: false });
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/directories/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: dirPath }),
+      });
+      const data = await res.json();
+
+      setDirStatus({
+        checking: false,
+        exists: data.valid,
+        isGitRepo: data.isGitRepo || false,
+      });
+
+      // フォルダが存在しない場合、新規作成UIを表示
+      if (!data.valid) {
+        setShowCreateFolder(true);
+        // パスの最後のセグメントをフォルダ名のデフォルトとして設定
+        const segments = dirPath.replace(/[\\/]+$/, "").split(/[\\/]/);
+        setNewFolderName(segments[segments.length - 1] || "");
+      } else {
+        setShowCreateFolder(false);
+        setNewFolderName("");
+      }
+    } catch {
+      setDirStatus({ checking: false, exists: null, isGitRepo: false });
+    }
+  };
+
+  // 新規フォルダ作成
+  const handleCreateDirectory = async () => {
+    const dirPath = formData.workingDirectory.trim();
+    if (!dirPath) return;
+
+    setIsCreatingDir(true);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/directories/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: dirPath }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        showToast("フォルダを作成しました", "success");
+        setDirStatus({ checking: false, exists: true, isGitRepo: false });
+        setShowCreateFolder(false);
+        setNewFolderName("");
+      } else {
+        showToast(data.error || "フォルダの作成に失敗しました", "error");
+      }
+    } catch {
+      showToast("フォルダの作成に失敗しました", "error");
+    } finally {
+      setIsCreatingDir(false);
+    }
+  };
+
+  // 親ディレクトリ + 新フォルダ名でパスを構成して作成
+  const handleCreateNewFolder = async () => {
+    if (!newFolderName.trim()) {
+      showToast("フォルダ名を入力してください", "error");
+      return;
+    }
+
+    // フォルダ名のバリデーション
+    const invalidChars = /[<>:"/\\|?*]/;
+    if (invalidChars.test(newFolderName)) {
+      showToast("フォルダ名に使用できない文字が含まれています", "error");
+      return;
+    }
+
+    // 現在の作業ディレクトリパスの親ディレクトリを取得
+    const currentPath = formData.workingDirectory.trim();
+    const parentPath = currentPath.replace(/[\\/][^\\/]*[\\/]?$/, "");
+    const separator = currentPath.includes("\\") ? "\\" : "/";
+    const newPath = parentPath + separator + newFolderName.trim();
+
+    setIsCreatingDir(true);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/directories/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: newPath }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        showToast("フォルダを作成しました", "success");
+        // 作成したフォルダをworkingDirectoryに設定
+        setFormData({ ...formData, workingDirectory: data.path });
+        setDirStatus({ checking: false, exists: true, isGitRepo: false });
+        setShowCreateFolder(false);
+        setNewFolderName("");
+      } else {
+        showToast(data.error || "フォルダの作成に失敗しました", "error");
+      }
+    } catch {
+      showToast("フォルダの作成に失敗しました", "error");
+    } finally {
+      setIsCreatingDir(false);
+    }
+  };
 
   const fetchItems = async () => {
     setLoading(true);
@@ -229,11 +356,21 @@ export default function ThemesPage() {
       defaultBranch: item.defaultBranch || "main",
     });
     setIconSearchQuery("");
+    // 開発プロジェクトの場合、作業ディレクトリをチェック
+    if (item.isDevelopment && item.workingDirectory) {
+      checkDirectory(item.workingDirectory);
+    } else {
+      setDirStatus({ checking: false, exists: null, isGitRepo: false });
+      setShowCreateFolder(false);
+    }
   };
 
   const resetForm = () => {
     setFormData(defaultFormData);
     setIconSearchQuery("");
+    setDirStatus({ checking: false, exists: null, isGitRepo: false });
+    setShowCreateFolder(false);
+    setNewFolderName("");
   };
 
   const cancelEdit = () => {
@@ -441,11 +578,106 @@ export default function ThemesPage() {
               </label>
               <DirectoryPicker
                 value={formData.workingDirectory}
-                onChange={(path) =>
-                  setFormData({ ...formData, workingDirectory: path })
-                }
+                onChange={(path) => {
+                  setFormData({ ...formData, workingDirectory: path });
+                  checkDirectory(path);
+                }}
                 placeholder="C:\Projects\my-project または /home/user/projects/my-project"
               />
+
+              {/* ディレクトリ存在チェック結果 */}
+              {formData.workingDirectory.trim() && (
+                <div className="mt-2">
+                  {dirStatus.checking ? (
+                    <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      フォルダの存在を確認中...
+                    </div>
+                  ) : dirStatus.exists === true ? (
+                    <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      フォルダが見つかりました
+                      {dirStatus.isGitRepo && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 rounded text-xs">
+                          <GitBranch className="w-3 h-3" />
+                          Git
+                        </span>
+                      )}
+                    </div>
+                  ) : dirStatus.exists === false ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        フォルダが存在しません
+                      </div>
+
+                      {/* フォルダ作成UI */}
+                      <div className="p-3 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-800">
+                        <p className="text-xs text-amber-700 dark:text-amber-300 mb-2">
+                          このパスにフォルダを作成しますか？
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleCreateDirectory}
+                            disabled={isCreatingDir}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isCreatingDir ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <FolderPlus className="w-3.5 h-3.5" />
+                            )}
+                            このパスにフォルダを作成
+                          </button>
+                        </div>
+
+                        {/* 別のフォルダ名で作成 */}
+                        {showCreateFolder && (
+                          <div className="mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
+                            <p className="text-xs text-amber-700 dark:text-amber-300 mb-2">
+                              または別のフォルダ名で作成:
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={newFolderName}
+                                onChange={(e) =>
+                                  setNewFolderName(e.target.value)
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    handleCreateNewFolder();
+                                  }
+                                }}
+                                placeholder="フォルダ名を入力..."
+                                className="flex-1 px-3 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                                disabled={isCreatingDir}
+                              />
+                              <button
+                                type="button"
+                                onClick={handleCreateNewFolder}
+                                disabled={
+                                  !newFolderName.trim() || isCreatingDir
+                                }
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isCreatingDir ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <FolderPlus className="w-3.5 h-3.5" />
+                                )}
+                                作成
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
               <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                 Claude
                 Codeがコード変更を行うローカルのプロジェクトフォルダを指定してください。「参照」ボタンでフォルダを選択できます。

@@ -1090,6 +1090,17 @@ export const aiAgentRoutes = new Elysia()
             });
             console.log(`[API] Updated task ${taskIdNum} status to 'done'`);
 
+            // セッションのステータスも完了に更新
+            await prisma.agentSession.update({
+              where: { id: session.id },
+              data: {
+                status: "completed",
+                completedAt: new Date(),
+              },
+            }).catch((e: any) => {
+              console.error(`[API] Failed to update session ${session.id} status:`, e);
+            });
+
             const diff = await orchestrator.getFullGitDiff(workDir);
             const structuredDiff = await orchestrator.getDiff(workDir);
 
@@ -1160,6 +1171,18 @@ export const aiAgentRoutes = new Elysia()
             });
             console.log(`[API] Reverted task ${taskIdNum} status to 'todo' due to failure`);
 
+            // セッションのステータスも失敗に更新
+            await prisma.agentSession.update({
+              where: { id: session.id },
+              data: {
+                status: "failed",
+                completedAt: new Date(),
+                errorMessage: result.errorMessage || "Execution failed",
+              },
+            }).catch((e: any) => {
+              console.error(`[API] Failed to update session ${session.id} status:`, e);
+            });
+
             await prisma.notification.create({
               data: {
                 type: "agent_error",
@@ -1185,6 +1208,16 @@ export const aiAgentRoutes = new Elysia()
             },
           }).catch(() => {});
           console.log(`[API] Reverted task ${taskIdNum} status to 'todo' due to error`);
+
+          // セッションのステータスも失敗に更新
+          await prisma.agentSession.update({
+            where: { id: session.id },
+            data: {
+              status: "failed",
+              completedAt: new Date(),
+              errorMessage: error.message || "Execution error",
+            },
+          }).catch(() => {});
 
           await prisma.notification.create({
             data: {
@@ -1543,6 +1576,29 @@ export const aiAgentRoutes = new Elysia()
           })
           .then(async (execResult) => {
             if (execResult.success && !execResult.waitingForInput) {
+              // タスクのステータスを完了に更新
+              await prisma.task.update({
+                where: { id: taskId },
+                data: {
+                  status: "done",
+                  completedAt: new Date(),
+                },
+              }).catch((e: any) => {
+                console.error(`[agent-respond] Failed to update task ${taskId} status:`, e);
+              });
+              console.log(`[agent-respond] Updated task ${taskId} status to 'done'`);
+
+              // セッションのステータスも完了に更新
+              await prisma.agentSession.update({
+                where: { id: session.id },
+                data: {
+                  status: "completed",
+                  completedAt: new Date(),
+                },
+              }).catch((e: any) => {
+                console.error(`[agent-respond] Failed to update session ${session.id} status:`, e);
+              });
+
               const diff = await orchestrator.getFullGitDiff(workingDirectory);
               if (diff && diff !== "No changes detected") {
                 const structuredDiff =
@@ -1583,11 +1639,42 @@ export const aiAgentRoutes = new Elysia()
                   },
                 });
               }
+            } else if (!execResult.success && !execResult.waitingForInput) {
+              // 失敗時はタスクステータスを todo に戻す
+              await prisma.task.update({
+                where: { id: taskId },
+                data: { status: "todo" },
+              }).catch(() => {});
+
+              // セッションのステータスも失敗に更新
+              await prisma.agentSession.update({
+                where: { id: session.id },
+                data: {
+                  status: "failed",
+                  completedAt: new Date(),
+                  errorMessage: execResult.errorMessage || "Execution failed",
+                },
+              }).catch(() => {});
             }
           })
           .catch((error) => {
             console.error("Agent respond execution failed:", error);
-            // エラー時もロックは自動的に解放される（executeContinuation内で）
+
+            // エラー時はタスクステータスを todo に戻す
+            prisma.task.update({
+              where: { id: taskId },
+              data: { status: "todo" },
+            }).catch(() => {});
+
+            // セッションのステータスも失敗に更新
+            prisma.agentSession.update({
+              where: { id: session.id },
+              data: {
+                status: "failed",
+                completedAt: new Date(),
+                errorMessage: error.message || "Agent respond execution failed",
+              },
+            }).catch(() => {});
           });
 
         return {
@@ -1932,14 +2019,66 @@ export const aiAgentRoutes = new Elysia()
           `[resumable-executions] Found ${staleRunningExecutions.length} stale running executions, marking as interrupted`,
         );
 
+        const affectedSessionIds = new Set<number>();
+        const affectedTaskIds = new Set<number>();
+
         for (const exec of staleRunningExecutions) {
           await prisma.agentExecution.update({
             where: { id: exec.id },
             data: {
               status: "interrupted",
+              completedAt: new Date(),
               errorMessage: `サーバー再起動により中断されました。\n\n【最後の出力】\n${(exec.output || "").slice(-1000)}`,
             },
           });
+          affectedSessionIds.add(exec.sessionId);
+        }
+
+        // 影響を受けたセッションとタスクのステータスも更新
+        for (const sessionId of affectedSessionIds) {
+          try {
+            const session = await prisma.agentSession.findUnique({
+              where: { id: sessionId },
+              include: {
+                config: {
+                  include: {
+                    task: { select: { id: true, status: true } },
+                  },
+                },
+              },
+            });
+
+            // セッションのステータスを interrupted に更新
+            const activeCount = await prisma.agentExecution.count({
+              where: {
+                sessionId,
+                status: { in: ["running", "pending", "waiting_for_input"] },
+              },
+            });
+
+            if (activeCount === 0) {
+              await prisma.agentSession.update({
+                where: { id: sessionId },
+                data: {
+                  status: "interrupted",
+                  lastActivityAt: new Date(),
+                },
+              });
+            }
+
+            // タスクのステータスを todo に戻す
+            const taskId = session?.config?.task?.id;
+            const taskStatus = session?.config?.task?.status;
+            if (taskId && taskStatus === "in-progress") {
+              await prisma.task.update({
+                where: { id: taskId },
+                data: { status: "todo" },
+              });
+              console.log(`[resumable-executions] Reverted task ${taskId} status to 'todo'`);
+            }
+          } catch (error) {
+            console.error(`[resumable-executions] Failed to update session/task for session ${sessionId}:`, error);
+          }
         }
       }
 
@@ -2235,6 +2374,16 @@ export const aiAgentRoutes = new Elysia()
           };
         }
 
+        // タスクのステータスを in-progress に更新
+        await prisma.task.update({
+          where: { id: task.id },
+          data: {
+            status: "in-progress",
+            startedAt: new Date(),
+          },
+        });
+        console.log(`[resume] Updated task ${task.id} status to 'in-progress'`);
+
         // サブタスクがない場合は通常の再開
         orchestrator
           .resumeInterruptedExecution(executionId, {
@@ -2242,6 +2391,25 @@ export const aiAgentRoutes = new Elysia()
           })
           .then(async (result) => {
             if (result.success && !result.waitingForInput) {
+              // タスクのステータスを完了に更新
+              await prisma.task.update({
+                where: { id: task.id },
+                data: {
+                  status: "done",
+                  completedAt: new Date(),
+                },
+              });
+              console.log(`[resume] Updated task ${task.id} status to 'done'`);
+
+              // セッションのステータスも完了に更新
+              await prisma.agentSession.update({
+                where: { id: execution.sessionId },
+                data: {
+                  status: "completed",
+                  completedAt: new Date(),
+                },
+              }).catch(() => {});
+
               const diff = await orchestrator.getFullGitDiff(workingDirectory);
               if (diff && diff !== "No changes detected") {
                 const structuredDiff =
@@ -2295,7 +2463,27 @@ export const aiAgentRoutes = new Elysia()
                   },
                 });
               }
-            } else if (!result.success) {
+            } else if (result.waitingForInput) {
+              // 質問待ちの場合はタスクステータスを in-progress のまま維持
+              console.log(`[resume] Task ${task.id} is waiting for input after resume`);
+            } else {
+              // 失敗の場合はタスクステータスを todo に戻す
+              await prisma.task.update({
+                where: { id: task.id },
+                data: { status: "todo" },
+              });
+              console.log(`[resume] Reverted task ${task.id} status to 'todo' due to failure`);
+
+              // セッションのステータスも失敗に更新
+              await prisma.agentSession.update({
+                where: { id: execution.sessionId },
+                data: {
+                  status: "failed",
+                  completedAt: new Date(),
+                  errorMessage: result.errorMessage || "Execution failed after resume",
+                },
+              }).catch(() => {});
+
               await prisma.notification.create({
                 data: {
                   type: "agent_error",
@@ -2308,6 +2496,24 @@ export const aiAgentRoutes = new Elysia()
           })
           .catch(async (error) => {
             console.error("[resume] Resume execution error:", error);
+
+            // エラー時はタスクステータスを todo に戻す
+            await prisma.task.update({
+              where: { id: task.id },
+              data: { status: "todo" },
+            }).catch(() => {});
+            console.log(`[resume] Reverted task ${task.id} status to 'todo' due to error`);
+
+            // セッションのステータスも失敗に更新
+            await prisma.agentSession.update({
+              where: { id: execution.sessionId },
+              data: {
+                status: "failed",
+                completedAt: new Date(),
+                errorMessage: error.message || "Resume execution error",
+              },
+            }).catch(() => {});
+
             await prisma.notification.create({
               data: {
                 type: "agent_error",

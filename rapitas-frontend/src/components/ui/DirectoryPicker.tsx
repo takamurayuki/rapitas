@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   Folder,
   FolderOpen,
+  FolderPlus,
   ChevronRight,
   ChevronLeft,
   Home,
@@ -73,8 +74,13 @@ export function DirectoryPicker({
   const [showFavoritesDropdown, setShowFavoritesDropdown] = useState(false);
   const [isEditing, setIsEditing] = useState(false); // インライン編集モード
   const [editValue, setEditValue] = useState(""); // 編集中の値
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false); // 新規フォルダ作成モード
+  const [newFolderName, setNewFolderName] = useState(""); // 新規フォルダ名
+  const [isCreating, setIsCreating] = useState(false); // 作成中フラグ
+  const [createError, setCreateError] = useState<string | null>(null); // 作成エラー
   const dropdownRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
+  const newFolderInputRef = useRef<HTMLInputElement>(null);
 
   // 初回マウント時にお気に入りを取得
   useEffect(() => {
@@ -273,10 +279,82 @@ export function DirectoryPicker({
     }
   };
 
+  // 新規フォルダ作成を開始
+  const handleStartCreateFolder = () => {
+    setIsCreatingFolder(true);
+    setNewFolderName("");
+    setCreateError(null);
+    setTimeout(() => {
+      newFolderInputRef.current?.focus();
+    }, 0);
+  };
+
+  // 新規フォルダ作成をキャンセル
+  const handleCancelCreateFolder = () => {
+    setIsCreatingFolder(false);
+    setNewFolderName("");
+    setCreateError(null);
+  };
+
+  // 新規フォルダを作成
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) {
+      setCreateError("フォルダ名を入力してください");
+      return;
+    }
+
+    // フォルダ名のバリデーション
+    const invalidChars = /[<>:"/\\|?*]/;
+    if (invalidChars.test(newFolderName)) {
+      setCreateError("フォルダ名に使用できない文字が含まれています");
+      return;
+    }
+
+    const separator = currentPath.includes("\\") ? "\\" : "/";
+    const newPath = currentPath
+      ? `${currentPath}${currentPath.endsWith("\\") || currentPath.endsWith("/") ? "" : separator}${newFolderName.trim()}`
+      : newFolderName.trim();
+
+    setIsCreating(true);
+    setCreateError(null);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/directories/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: newPath }),
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        setCreateError(data.error || "フォルダの作成に失敗しました");
+        return;
+      }
+
+      // 作成成功 → フォルダ一覧を更新して新しいフォルダに移動
+      setIsCreatingFolder(false);
+      setNewFolderName("");
+      setCreateError(null);
+
+      // 新しく作成されたフォルダに移動
+      browseDirectory(data.path);
+    } catch (err) {
+      setCreateError(
+        err instanceof Error ? err.message : "フォルダの作成に失敗しました"
+      );
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   const handleClose = () => {
     setIsOpen(false);
     setError(null);
     setManualPath("");
+    setIsCreatingFolder(false);
+    setNewFolderName("");
+    setCreateError(null);
   };
 
   const handleSelect = () => {
@@ -456,8 +534,21 @@ export function DirectoryPicker({
                   )}
                 </div>
 
-                {/* お気に入り操作ボタン */}
+                {/* お気に入り & フォルダ作成ボタン */}
                 <div className="flex items-center gap-1 border-l border-zinc-200 dark:border-zinc-700 pl-2 ml-1">
+                  {/* 新規フォルダ作成ボタン */}
+                  {currentPath && !isDriveList && (
+                    <button
+                      onClick={handleStartCreateFolder}
+                      disabled={isCreatingFolder}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors disabled:opacity-50"
+                      title="新規フォルダを作成"
+                    >
+                      <FolderPlus className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">新規</span>
+                    </button>
+                  )}
+
                   {/* お気に入り表示切り替え */}
                   <button
                     onClick={() => setShowFavorites(!showFavorites)}
@@ -615,6 +706,66 @@ export function DirectoryPicker({
               </div>
             ) : (
               <>
+                {/* New Folder Creation Form */}
+                {isCreatingFolder && (
+                  <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 bg-green-50 dark:bg-green-900/10">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FolderPlus className="w-4 h-4 text-green-600 dark:text-green-400" />
+                      <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                        新規フォルダを作成
+                      </span>
+                      <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono ml-1">
+                        in {currentPath}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={newFolderInputRef}
+                        type="text"
+                        value={newFolderName}
+                        onChange={(e) => {
+                          setNewFolderName(e.target.value);
+                          setCreateError(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            handleCreateFolder();
+                          } else if (e.key === "Escape") {
+                            handleCancelCreateFolder();
+                          }
+                        }}
+                        placeholder="フォルダ名を入力..."
+                        className="flex-1 px-3 py-1.5 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500"
+                        disabled={isCreating}
+                      />
+                      <button
+                        onClick={handleCreateFolder}
+                        disabled={!newFolderName.trim() || isCreating}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isCreating ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5" />
+                        )}
+                        作成
+                      </button>
+                      <button
+                        onClick={handleCancelCreateFolder}
+                        disabled={isCreating}
+                        className="p-1.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-md transition-colors disabled:opacity-50"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {createError && (
+                      <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">
+                        {createError}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Favorites Section - 通常モード時のお気に入り表示 */}
                 {showFavorites && favorites.length > 0 && (
                   <div className="border-b border-zinc-200 dark:border-zinc-700">
