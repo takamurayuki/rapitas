@@ -60,3 +60,26 @@ export function getQueryParam(param: string): string | null {
   const urlParams = new URLSearchParams(window.location.search);
   return urlParams.get(param);
 }
+
+/**
+ * ウィンドウをシステムトレイに格納（非表示にする）
+ * Tauri v2のclose()を呼び出し、Rust側のon_window_eventでprevent_close + hideで処理する
+ */
+export async function hideToTray(): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tauri = (window as any).__TAURI__;
+    const webviewWindow = tauri?.webviewWindow;
+    if (webviewWindow) {
+      const current = webviewWindow.getCurrentWebviewWindow();
+      if (current) {
+        // close()を呼ぶとRust側のon_window_eventでCloseRequestedイベントが発火し、
+        // prevent_close() + window.hide() でトレイに格納される
+        await current.close();
+      }
+    }
+  } catch (e) {
+    console.error("Failed to hide window to tray:", e);
+  }
+}

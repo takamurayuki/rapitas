@@ -3,20 +3,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Keyboard } from "lucide-react";
 import { useFloatingAIMenuStore } from "@/stores/floatingAIMenuStore";
+import { useShortcutStore, type ShortcutId } from "@/stores/shortcutStore";
 
 // OS検出用のユーティリティ
 const getIsMac = () => {
   if (typeof window === "undefined") return false;
   return navigator.platform.toUpperCase().indexOf("MAC") >= 0;
-};
-
-type ShortcutConfig = {
-  key: string;
-  ctrl?: boolean;
-  meta?: boolean;
-  shift?: boolean;
-  description: string;
-  action: () => void;
 };
 
 // カスタムイベント名
@@ -27,6 +19,7 @@ export default function KeyboardShortcuts() {
   const [showHelp, setShowHelp] = useState(false);
   const [isMac, setIsMac] = useState(false);
   const toggleFloatingAIMenu = useFloatingAIMenuStore((state) => state.toggle);
+  const shortcuts = useShortcutStore((state) => state.shortcuts);
 
   // クライアントサイドでOS検出
   useEffect(() => {
@@ -40,62 +33,17 @@ export default function KeyboardShortcuts() {
     return () => window.removeEventListener(OPEN_SHORTCUTS_EVENT, handleOpenShortcuts);
   }, []);
 
-  const shortcuts: ShortcutConfig[] = [
-    {
-      key: "n",
-      meta: true,
-      description: "新規タスク作成",
-      action: () => router.push("/tasks/new"),
-    },
-    {
-      key: "d",
-      meta: true,
-      description: "ダッシュボード",
-      action: () => router.push("/dashboard"),
-    },
-    {
-      key: "h",
-      meta: true,
-      description: "ホーム（タスク一覧）",
-      action: () => router.push("/"),
-    },
-    {
-      key: "k",
-      meta: true,
-      description: "カンバンビュー",
-      action: () => router.push("/kanban"),
-    },
-    {
-      key: "l",
-      meta: true,
-      description: "カレンダー",
-      action: () => router.push("/calendar"),
-    },
-    {
-      key: "f",
-      meta: true,
-      shift: true,
-      description: "フォーカスモード",
-      action: () => router.push("/focus"),
-    },
-    {
-      key: "/",
-      meta: true,
-      description: "ショートカットヘルプ",
-      action: () => setShowHelp(true),
-    },
-    {
-      key: "e",
-      ctrl: true,
-      description: "AIアシスタント表示切替",
-      action: () => toggleFloatingAIMenu(),
-    },
-    {
-      key: "Escape",
-      description: "閉じる",
-      action: () => setShowHelp(false),
-    },
-  ];
+  // ショートカットIDからアクションへのマッピング
+  const actionMap: Record<ShortcutId, () => void> = {
+    newTask: () => router.push("/tasks/new"),
+    dashboard: () => router.push("/dashboard"),
+    home: () => router.push("/"),
+    kanban: () => router.push("/kanban"),
+    calendar: () => router.push("/calendar"),
+    focusMode: () => router.push("/focus"),
+    shortcutHelp: () => setShowHelp(true),
+    toggleAI: () => toggleFloatingAIMenu(),
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -108,20 +56,27 @@ export default function KeyboardShortcuts() {
         return;
       }
 
-      for (const shortcut of shortcuts) {
+      // Escape で閉じる
+      if (e.key === "Escape" && showHelp) {
+        setShowHelp(false);
+        return;
+      }
+
+      for (const binding of shortcuts) {
         // ctrlのみ指定されている場合はctrlキーのみをチェック
-        const ctrlOnly = shortcut.ctrl && !shortcut.meta;
+        const ctrlOnly = binding.ctrl && !binding.meta;
         const metaMatch = ctrlOnly
           ? e.ctrlKey && !e.metaKey
-          : shortcut.meta
+          : binding.meta
             ? e.metaKey || e.ctrlKey
             : !(e.metaKey || e.ctrlKey);
-        const shiftMatch = shortcut.shift ? e.shiftKey : !e.shiftKey;
-        const keyMatch = e.key.toLowerCase() === shortcut.key.toLowerCase();
+        const shiftMatch = binding.shift ? e.shiftKey : !e.shiftKey;
+        const keyMatch = e.key.toLowerCase() === binding.key.toLowerCase();
 
         if (metaMatch && shiftMatch && keyMatch) {
           e.preventDefault();
-          shortcut.action();
+          const action = actionMap[binding.id];
+          if (action) action();
           break;
         }
       }
@@ -129,14 +84,14 @@ export default function KeyboardShortcuts() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [router]);
+  }, [router, shortcuts, showHelp]);
 
-  const formatShortcut = (shortcut: ShortcutConfig) => {
+  const formatShortcut = (binding: { key: string; meta: boolean; shift: boolean; ctrl: boolean }) => {
     const parts = [];
-    if (shortcut.ctrl) parts.push("Ctrl");
-    if (shortcut.meta) parts.push(isMac ? "⌘" : "Ctrl");
-    if (shortcut.shift) parts.push(isMac ? "⇧" : "Shift");
-    parts.push(shortcut.key === "Escape" ? "Esc" : shortcut.key.toUpperCase());
+    if (binding.ctrl) parts.push("Ctrl");
+    if (binding.meta) parts.push(isMac ? "\u2318" : "Ctrl");
+    if (binding.shift) parts.push(isMac ? "\u21E7" : "Shift");
+    parts.push(binding.key === "Escape" ? "Esc" : binding.key.toUpperCase());
     return parts.join(" + ");
   };
 
@@ -167,27 +122,25 @@ export default function KeyboardShortcuts() {
         </div>
 
         <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
-          {shortcuts
-            .filter((s) => s.key !== "Escape")
-            .map((shortcut) => (
-              <div
-                key={`${shortcut.key}-${shortcut.meta}-${shortcut.shift}`}
-                className="flex items-center justify-between py-2"
-              >
-                <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                  {shortcut.description}
-                </span>
-                <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-700 rounded text-xs font-mono text-zinc-600 dark:text-zinc-400">
-                  {formatShortcut(shortcut)}
-                </kbd>
-              </div>
-            ))}
+          {shortcuts.map((binding) => (
+            <div
+              key={binding.id}
+              className="flex items-center justify-between py-2"
+            >
+              <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                {binding.label}
+              </span>
+              <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-700 rounded text-xs font-mono text-zinc-600 dark:text-zinc-400">
+                {formatShortcut(binding)}
+              </kbd>
+            </div>
+          ))}
         </div>
 
         <div className="p-4 border-t border-zinc-200 dark:border-zinc-700 text-center">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             {isMac
-              ? "⌘ は Command キー、⇧ は Shift キー"
+              ? "\u2318 は Command キー、\u21E7 は Shift キー"
               : "Ctrl は Control キー"}
           </p>
         </div>

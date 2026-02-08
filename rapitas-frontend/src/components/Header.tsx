@@ -35,12 +35,15 @@ import {
   Pin,
   PinOff,
   MessageSquare,
+  SquareArrowDown,
 } from "lucide-react";
 import AppIcon from "@/components/AppIcon";
 import GlobalPomodoroWidget from "@/feature/tasks/pomodoro/GlobalPomodoroWidget";
 import { OPEN_SHORTCUTS_EVENT } from "@/components/KeyboardShortcuts";
 import NotificationBell from "@/components/NotificationBell";
 import { DarkModeToggle } from "@/components/DarkModeToggle";
+import { isTauri, hideToTray } from "@/utils/tauri";
+import { useShortcutStore, type ShortcutId } from "@/stores/shortcutStore";
 
 type NavItem = {
   href: string;
@@ -87,6 +90,26 @@ export default function Header() {
   const [isMenuPinned, setIsMenuPinned] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [isTauriEnv, setIsTauriEnv] = useState(false);
+
+  const shortcutBindings = useShortcutStore((state) => state.shortcuts);
+
+  // ショートカットIDからラベルを取得するヘルパー
+  const getShortcutLabel = (id: ShortcutId): string | undefined => {
+    const binding = shortcutBindings.find((s) => s.id === id);
+    if (!binding) return undefined;
+    const parts: string[] = [];
+    if (binding.ctrl) parts.push("Ctrl");
+    if (binding.meta) parts.push("\u2318");
+    if (binding.shift) parts.push("\u21E7");
+    parts.push(binding.key.toUpperCase());
+    return parts.join("");
+  };
+
+  // Tauri環境かどうかを判定
+  useEffect(() => {
+    setIsTauriEnv(isTauri());
+  }, []);
   const menuRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -171,7 +194,7 @@ export default function Header() {
       href: "/",
       label: "タスク一覧",
       icon: Home,
-      shortcut: "⌘H",
+      shortcut: getShortcutLabel("home"),
       children: [
         {
           href: "#",
@@ -201,13 +224,13 @@ export default function Header() {
       href: "/dashboard",
       label: "ダッシュボード",
       icon: BarChart3,
-      shortcut: "⌘D",
+      shortcut: getShortcutLabel("dashboard"),
     },
     {
       href: "/calendar",
       label: "カレンダー",
       icon: Calendar,
-      shortcut: "⌘C",
+      shortcut: getShortcutLabel("calendar"),
     },
     {
       href: "#",
@@ -301,6 +324,11 @@ export default function Header() {
       href: "/settings",
       label: "APIキー設定",
       icon: Key,
+    },
+    {
+      href: "/settings/shortcuts",
+      label: "ショートカット設定",
+      icon: Keyboard,
     },
   ];
 
@@ -673,9 +701,20 @@ export default function Header() {
                   </button>
                 </div>
               )}
-              <DarkModeToggle /> {/* Add DarkModeToggle here */}
-              {/* 通知ベル（一番右側に配置） */}
+              <DarkModeToggle />
+              {/* 通知ベル */}
               <NotificationBell />
+              {/* トレイ格納ボタン（Tauri環境のみ表示） */}
+              {isTauriEnv && (
+                <button
+                  onClick={hideToTray}
+                  className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  aria-label="タスクトレイに格納"
+                  title="タスクトレイに格納"
+                >
+                  <SquareArrowDown className="w-5 h-5" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -740,7 +779,7 @@ export default function Header() {
                 <span className="text-sm">キーボードショートカット</span>
               </div>
               <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
-                ⌘/
+                {getShortcutLabel("shortcutHelp") || "⌘/"}
               </kbd>
             </button>
           </div>
