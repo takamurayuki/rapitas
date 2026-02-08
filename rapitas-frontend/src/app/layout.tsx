@@ -6,6 +6,7 @@ import KeyboardShortcuts from "@/components/KeyboardShortcuts";
 import { FloatingAIMenuWrapper } from "@/components/floating-ai-menu";
 import AchievementNotifications from "@/components/AchievementToast";
 import { ResumableExecutionsBanner } from "@/components/ResumableExecutionsBanner";
+import ScheduleReminderProvider from "@/components/ScheduleReminderProvider";
 import { Suspense } from "react";
 import { ToastProvider } from "@/components/ui/toast/ToastContainer";
 import { PomodoroProvider } from "@/feature/tasks/pomodoro/PomodoroProvider";
@@ -70,6 +71,7 @@ export default function RootLayout({
             <Suspense fallback={null}>
               <ResumableExecutionsBanner />
             </Suspense>
+            <ScheduleReminderProvider />
           </ToastProvider>
         </PomodoroProvider>
       </body>

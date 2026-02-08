@@ -90,7 +90,7 @@ async function startServer() {
     env: { ...process.env, FORCE_COLOR: "1" },
   });
 
-  log.success("サーバー起動完了 (http://localhost:3001)");
+  log.success(`サーバー起動完了 (http://localhost:${process.env.PORT || "3001"})`);
 }
 
 // Prismaスキーマの変更を処理

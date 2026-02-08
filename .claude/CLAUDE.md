@@ -1,3 +1,31 @@
+# 開発環境とアーキテクチャ
+
+## プロジェクト構成
+- **rapitas-frontend/**: Next.js 16 + Tailwind CSS v4 + TypeScript（ポート3000）
+- **rapitas-backend/**: Elysia + Bun + Prisma ORM + PostgreSQL（ポート3001）
+- **rapitas-desktop/**: Tauri 2.x デスクトップアプリ
+
+## 開発サーバーの起動と管理
+- 開発サーバーは `rapitas-desktop/scripts/dev.js` が一括管理する。
+- **dev.js が起動時に自動実行する処理:**
+  1. ポート3001/3000の競合検出・解消（前回クラッシュ時のゾンビプロセス対策）
+  2. `prisma db push --skip-generate`（DBスキーマの同期）
+  3. `bun run db:generate`（Prisma Clientの生成）
+  4. バックエンド・フロントエンドの起動
+
+## 重要な制約事項
+
+### バックエンドサーバーの保護
+- **バックエンドサーバー（bunプロセス、ポート3001）を絶対に停止・終了（taskkill等）しないこと。**
+  - このサーバーはエージェント自身がAPI通信に使用しているため、停止するとエージェントの実行自体が中断される。
+  - 他のNode.js/bunプロセスをkillする前に、それがバックエンドサーバーでないことを必ず確認すること。
+
+### Prismaコマンドについて
+- **`prisma generate` や `prisma db push` をエージェントが手動で実行する必要はない。**
+  - これらはdev.jsがサーバー起動時に自動実行済み。
+  - `schema.prisma` を変更した場合でも、エージェントがこれらのコマンドを実行してはならない。サーバーの再起動が必要になり、エージェント自身の通信が切断される。
+  - スキーマ変更後の反映はユーザーがサーバーを再起動することで自動的に行われる。
+
 # GitHub 運用ルール
 
 - **URL:** `https://github.com/taka-y-0820`

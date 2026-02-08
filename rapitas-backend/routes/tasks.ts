@@ -370,7 +370,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
         });
 
         // Check for achievement unlocks (fire and forget)
-        fetch("http://localhost:3001/achievements/check", { method: "POST" }).catch(() => {});
+        fetch(`http://localhost:${process.env.PORT || "3001"}/achievements/check`, { method: "POST" }).catch(() => {});
       }
 
       await prisma.task.update({

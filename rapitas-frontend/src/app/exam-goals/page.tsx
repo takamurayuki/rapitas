@@ -16,6 +16,7 @@ import {
   ICON_DATA,
   searchIcons,
 } from "@/components/category/IconData";
+import { ExamCountdown } from "@/components/exam-countdown/ExamCountdown";
 import { API_BASE_URL } from "@/utils/api";
 
 const PRESET_COLORS = [
@@ -106,11 +107,11 @@ export default function ExamGoalsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: formData.name.trim(),
-          description: formData.description.trim() || null,
+          description: formData.description.trim() || undefined,
           examDate: formData.examDate,
-          targetScore: formData.targetScore.trim() || null,
+          targetScore: formData.targetScore.trim() || undefined,
           color: formData.color,
-          icon: formData.icon || null,
+          icon: formData.icon || undefined,
         }),
       });
 
@@ -154,17 +155,6 @@ export default function ExamGoalsPage() {
     } catch (e) {
       console.error("Failed to complete exam goal:", e);
     }
-  };
-
-  const getDaysRemaining = (examDate: string) => {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const exam = new Date(examDate);
-    exam.setHours(0, 0, 0, 0);
-    const diff = Math.ceil(
-      (exam.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
-    );
-    return diff;
   };
 
   const renderIcon = (iconName: string | null | undefined, size = 20) => {
@@ -229,10 +219,6 @@ export default function ExamGoalsPage() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {upcomingGoals.map((goal) => {
-              const daysRemaining = getDaysRemaining(goal.examDate);
-              const isUrgent = daysRemaining <= 7;
-              const isNear = daysRemaining <= 30;
-
               return (
                 <div
                   key={goal.id}
@@ -289,32 +275,11 @@ export default function ExamGoalsPage() {
                     </p>
                   )}
 
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-                      <Calendar className="w-4 h-4" />
-                      <span>
-                        {new Date(goal.examDate).toLocaleDateString("ja-JP", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })}
-                      </span>
-                    </div>
-                    <div
-                      className={`text-lg font-bold ${
-                        isUrgent
-                          ? "text-red-600"
-                          : isNear
-                            ? "text-amber-600"
-                            : "text-emerald-600"
-                      }`}
-                    >
-                      {daysRemaining > 0
-                        ? `あと${daysRemaining}日`
-                        : daysRemaining === 0
-                          ? "今日!"
-                          : `${Math.abs(daysRemaining)}日経過`}
-                    </div>
+                  <div className="mt-1">
+                    <ExamCountdown
+                      examDate={goal.examDate}
+                      color={goal.color}
+                    />
                   </div>
 
                   {goal._count && goal._count.tasks > 0 && (

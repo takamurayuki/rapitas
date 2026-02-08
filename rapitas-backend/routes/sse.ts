@@ -26,20 +26,28 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
     );
 
     // 接続情報を返す
+    // クリーンアップ用にclientIdをクロージャで保持
+    let activeClientId = clientId;
+
     return new Response(
       new ReadableStream({
         start(controller) {
           const client = {
             write: (data: string) => {
-              controller.enqueue(new TextEncoder().encode(data));
+              try {
+                controller.enqueue(new TextEncoder().encode(data));
+              } catch {
+                realtimeService.removeClient(activeClientId);
+              }
             },
           };
 
           realtimeService.removeClient(clientId);
-          const newClientId = realtimeService.registerClient(client, ["*"]);
-
-          // クローズ時のクリーンアップ
-          // Note: Elysiaでは abort イベントの処理が異なる場合がある
+          activeClientId = realtimeService.registerClient(client, ["*"]);
+        },
+        cancel() {
+          realtimeService.removeClient(activeClientId);
+          console.log(`[SSE] Client ${activeClientId} disconnected (stream)`);
         },
       }),
       {
@@ -76,6 +84,8 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
 
       console.log(`[SSE] Client connecting to channel: ${channel}`);
 
+      let activeClientId = "";
+
       return new Response(
         new ReadableStream({
           start(controller) {
@@ -83,20 +93,20 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
               write: (data: string) => {
                 try {
                   controller.enqueue(new TextEncoder().encode(data));
-                } catch (e) {
-                  console.error(`[SSE] Error writing to client:`, e);
+                } catch {
+                  realtimeService.removeClient(activeClientId);
                 }
               },
             };
 
-            const clientId = realtimeService.registerClient(client, [channel]);
+            activeClientId = realtimeService.registerClient(client, [channel]);
             console.log(
-              `[SSE] Client ${clientId} registered for channel: ${channel}`,
+              `[SSE] Client ${activeClientId} registered for channel: ${channel}`,
             );
 
             // 接続確認イベントを即座に送信
             client.write(
-              `event: connected\ndata: ${JSON.stringify({ channel, clientId })}\n\n`,
+              `event: connected\ndata: ${JSON.stringify({ channel, clientId: activeClientId })}\n\n`,
             );
 
             // 過去のイベントを送信（lastEventIdがある場合）
@@ -110,6 +120,10 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
                 }
               }
             }
+          },
+          cancel() {
+            realtimeService.removeClient(activeClientId);
+            console.log(`[SSE] Client ${activeClientId} disconnected (${channel})`);
           },
         }),
         {

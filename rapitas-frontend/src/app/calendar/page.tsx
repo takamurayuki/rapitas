@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import type { Task, ExamGoal } from "@/types";
+import type { Task, ExamGoal, ScheduleEvent, ScheduleEventInput } from "@/types";
 import {
   ChevronLeft,
   ChevronRight,
@@ -11,10 +11,14 @@ import {
   Circle,
   Plus,
   X,
+  Clock,
+  Bell,
+  Trash2,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast/ToastContainer";
 import { getTaskDetailPath } from "@/utils/tauri";
 import { API_BASE_URL } from "@/utils/api";
+import ScheduleEventDialog from "@/feature/calendar/components/ScheduleEventDialog";
 
 const API_BASE = API_BASE_URL;
 
@@ -22,9 +26,14 @@ type CalendarEvent = {
   id: number;
   title: string;
   date: string;
-  type: "task" | "exam";
+  endDate?: string;
+  type: "task" | "exam" | "schedule";
   status?: string;
   color?: string;
+  time?: string;
+  endTime?: string;
+  reminderMinutes?: number | null;
+  description?: string | null;
 };
 
 export default function CalendarPage() {
@@ -35,22 +44,23 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    fetchEvents();
-  }, [currentDate]);
-
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
-      const [tasksRes, examsRes] = await Promise.all([
+      const [tasksRes, examsRes, schedulesRes] = await Promise.all([
         fetch(`${API_BASE}/tasks`),
         fetch(`${API_BASE}/exam-goals`),
+        fetch(`${API_BASE}/schedules`),
       ]);
 
       const tasks: Task[] = tasksRes.ok ? await tasksRes.json() : [];
       const exams: ExamGoal[] = examsRes.ok ? await examsRes.json() : [];
+      const schedules: ScheduleEvent[] = schedulesRes.ok
+        ? await schedulesRes.json()
+        : [];
 
       const taskEvents: CalendarEvent[] = tasks
         .filter((t) => t.dueDate)
@@ -71,13 +81,47 @@ export default function CalendarPage() {
         color: e.color,
       }));
 
-      setEvents([...taskEvents, ...examEvents]);
+      const scheduleEvents: CalendarEvent[] = schedules.map((s) => {
+        const startDateObj = new Date(s.startAt);
+        const timeStr = s.isAllDay
+          ? undefined
+          : startDateObj.toLocaleTimeString("ja-JP", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+        const endTimeStr = s.endAt && !s.isAllDay
+          ? new Date(s.endAt).toLocaleTimeString("ja-JP", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : undefined;
+        const startDateStr = s.startAt.split("T")[0];
+        const endDateStr = s.endAt ? s.endAt.split("T")[0] : undefined;
+        return {
+          id: s.id,
+          title: s.title,
+          date: startDateStr,
+          endDate: endDateStr && endDateStr > startDateStr ? endDateStr : undefined,
+          type: "schedule" as const,
+          color: s.color,
+          time: timeStr,
+          endTime: endTimeStr,
+          reminderMinutes: s.reminderMinutes,
+          description: s.description,
+        };
+      });
+
+      setEvents([...taskEvents, ...examEvents, ...scheduleEvents]);
     } catch (e) {
       console.error("Failed to fetch events:", e);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents, currentDate]);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -89,12 +133,10 @@ export default function CalendarPage() {
 
     const days: (number | null)[] = [];
 
-    // 前月の空白日
     for (let i = 0; i < startingDay; i++) {
       days.push(null);
     }
 
-    // 当月の日
     for (let i = 1; i <= daysInMonth; i++) {
       days.push(i);
     }
@@ -107,7 +149,12 @@ export default function CalendarPage() {
     const month = String(currentDate.getMonth() + 1).padStart(2, "0");
     const dayStr = String(day).padStart(2, "0");
     const dateStr = `${year}-${month}-${dayStr}`;
-    return events.filter((e) => e.date === dateStr);
+    return events.filter((e) => {
+      if (e.date === dateStr) return true;
+      // 複数日スケジュールの場合、開始日〜終了日の範囲内かチェック
+      if (e.endDate && e.date <= dateStr && e.endDate >= dateStr) return true;
+      return false;
+    });
   };
 
   const formatDateStr = (day: number) => {
@@ -130,7 +177,12 @@ export default function CalendarPage() {
   };
 
   const goToToday = () => {
-    setCurrentDate(new Date());
+    const today = new Date();
+    setCurrentDate(today);
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    setSelectedDate(`${year}-${month}-${day}`);
   };
 
   const isToday = (day: number) => {
@@ -180,10 +232,153 @@ export default function CalendarPage() {
     }
   };
 
+  const createScheduleEvent = async (data: ScheduleEventInput) => {
+    try {
+      const res = await fetch(`${API_BASE}/schedules`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (res.ok) {
+        showToast("スケジュールを追加しました", "success");
+        setShowScheduleModal(false);
+        fetchEvents();
+      } else {
+        showToast("スケジュールの追加に失敗しました", "error");
+      }
+    } catch (e) {
+      console.error("Failed to create schedule:", e);
+      showToast("エラーが発生しました", "error");
+    }
+  };
+
+  const deleteScheduleEvent = async (eventId: number) => {
+    try {
+      const res = await fetch(`${API_BASE}/schedules/${eventId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        showToast("スケジュールを削除しました", "success");
+        fetchEvents();
+      } else {
+        showToast("スケジュールの削除に失敗しました", "error");
+      }
+    } catch (e) {
+      console.error("Failed to delete schedule:", e);
+      showToast("エラーが発生しました", "error");
+    }
+  };
+
+  const getReminderLabel = (minutes: number) => {
+    if (minutes < 60) return `${minutes}分前`;
+    if (minutes < 1440) return `${minutes / 60}時間前`;
+    return `${minutes / 1440}日前`;
+  };
+
   const days = getDaysInMonth(currentDate);
   const weekDays = ["日", "月", "火", "水", "木", "金", "土"];
+
+  // 複数日イベントのバー表示用データを計算
+  const getMultiDayBars = () => {
+    const multiDayEvents = events.filter((e) => e.endDate && e.type === "schedule");
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const firstDayOfMonth = new Date(year, month, 1);
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    const startingWeekday = firstDayOfMonth.getDay();
+
+    type BarSegment = {
+      event: CalendarEvent;
+      gridCol: number; // 0-6 (グリッド内の列)
+      gridRow: number; // 週の行
+      span: number; // 何セル分の幅
+      isStart: boolean;
+      isEnd: boolean;
+      lane: number; // バーの縦位置（0, 1, 2...）
+    };
+
+    const bars: BarSegment[] = [];
+    // 各セルのレーン使用状況を追跡
+    const cellLanes: Map<string, Set<number>> = new Map();
+
+    const getGridPosition = (day: number) => {
+      const index = startingWeekday + day - 1;
+      return { col: index % 7, row: Math.floor(index / 7) };
+    };
+
+    for (const event of multiDayEvents) {
+      const eventStart = new Date(event.date + "T00:00:00");
+      const eventEnd = new Date(event.endDate! + "T00:00:00");
+
+      // 表示月の範囲にクリップ
+      const visibleStart = eventStart < firstDayOfMonth ? firstDayOfMonth : eventStart;
+      const visibleEnd = eventEnd > lastDayOfMonth ? lastDayOfMonth : eventEnd;
+
+      if (visibleStart > lastDayOfMonth || visibleEnd < firstDayOfMonth) continue;
+
+      const startDay = visibleStart.getDate();
+      const endDay = visibleEnd.getDate();
+
+      // 週ごとにバーを分割
+      let currentDay = startDay;
+      while (currentDay <= endDay) {
+        const pos = getGridPosition(currentDay);
+        const remainInWeek = 7 - pos.col;
+        const remainInEvent = endDay - currentDay + 1;
+        const span = Math.min(remainInWeek, remainInEvent);
+
+        // この区間で空きレーンを探す
+        let lane = 0;
+        let laneFound = false;
+        while (!laneFound) {
+          laneFound = true;
+          for (let d = currentDay; d < currentDay + span; d++) {
+            const key = `${pos.row}-${getGridPosition(d).col}`;
+            const used = cellLanes.get(key);
+            if (used && used.has(lane)) {
+              laneFound = false;
+              lane++;
+              break;
+            }
+          }
+        }
+
+        // レーンを予約
+        for (let d = currentDay; d < currentDay + span; d++) {
+          const key = `${pos.row}-${getGridPosition(d).col}`;
+          if (!cellLanes.has(key)) cellLanes.set(key, new Set());
+          cellLanes.get(key)!.add(lane);
+        }
+
+        const isEventStart = eventStart.getMonth() === month && currentDay === eventStart.getDate();
+        const isEventEnd = eventEnd.getMonth() === month && currentDay + span - 1 === eventEnd.getDate();
+
+        bars.push({
+          event,
+          gridCol: pos.col,
+          gridRow: pos.row,
+          span,
+          isStart: isEventStart,
+          isEnd: isEventEnd,
+          lane,
+        });
+
+        currentDay += span;
+      }
+    }
+
+    return bars;
+  };
+
+  const multiDayBars = getMultiDayBars();
   const selectedDateEvents = selectedDate
-    ? events.filter((e) => e.date === selectedDate)
+    ? events.filter((e) => {
+        if (e.date === selectedDate) return true;
+        if (e.endDate && e.date <= selectedDate && e.endDate >= selectedDate) return true;
+        return false;
+      })
     : [];
 
   if (loading) {
@@ -206,7 +401,7 @@ export default function CalendarPage() {
             カレンダー
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            締め切りと試験日を一覧表示
+            スケジュール・締め切り・試験日を一覧表示
           </p>
         </div>
       </div>
@@ -259,73 +454,204 @@ export default function CalendarPage() {
             ))}
           </div>
 
-          {/* 日付グリッド */}
-          <div className="grid grid-cols-7 gap-1">
-            {days.map((day, index) => {
-              if (day === null) {
-                return <div key={`empty-${index}`} className="aspect-square" />;
-              }
+          {/* 日付グリッド（週ごとに行を分割） */}
+          {(() => {
+            const weeks: (number | null)[][] = [];
+            for (let i = 0; i < days.length; i += 7) {
+              weeks.push(days.slice(i, i + 7));
+            }
+            // 7列に足りない最終週をnullで埋める
+            const lastWeek = weeks[weeks.length - 1];
+            while (lastWeek.length < 7) {
+              lastWeek.push(null);
+            }
 
-              const dayEvents = getEventsForDate(day);
-              const dateStr = formatDateStr(day);
-              const isSelected = selectedDate === dateStr;
-              const today = isToday(day);
-              const dayOfWeek = index % 7;
+            // 各セルに表示するイベント数の上限
+            const MAX_VISIBLE_EVENTS = 3;
+
+            return weeks.map((week, weekIndex) => {
+              // この週のバー
+              const weekBars = multiDayBars.filter((b) => b.gridRow === weekIndex);
+              // この週の最大レーン数
+              const maxLaneInWeek = weekBars.length > 0 ? Math.max(...weekBars.map((b) => b.lane)) + 1 : 0;
+              const barAreaHeight = maxLaneInWeek * 18;
 
               return (
-                <button
-                  key={day}
-                  onClick={() => setSelectedDate(dateStr)}
-                  className={`aspect-square p-1 rounded-lg transition-all ${
-                    isSelected
-                      ? "bg-indigo-100 dark:bg-indigo-900/40 ring-2 ring-indigo-500"
-                      : "hover:bg-zinc-100 dark:hover:bg-zinc-700"
-                  }`}
-                >
-                  <div
-                    className={`text-sm font-medium mb-1 ${
-                      today
-                        ? "w-6 h-6 bg-indigo-500 text-white rounded-full flex items-center justify-center mx-auto"
-                        : dayOfWeek === 0
-                          ? "text-red-500"
-                          : dayOfWeek === 6
-                            ? "text-blue-500"
-                            : "text-zinc-700 dark:text-zinc-300"
-                    }`}
-                  >
-                    {day}
-                  </div>
-                  {dayEvents.length > 0 && (
-                    <div className="flex justify-center gap-0.5">
-                      {dayEvents.slice(0, 3).map((event) => (
-                        <div
-                          key={`${event.type}-${event.id}`}
-                          className="w-1.5 h-1.5 rounded-full"
-                          style={{
-                            backgroundColor:
-                              event.type === "exam"
-                                ? event.color || "#10B981"
-                                : event.color || "#3B82F6",
+                <div key={`week-${weekIndex}`} className="relative">
+                  <div className="grid grid-cols-7">
+                    {week.map((day, colIndex) => {
+                      if (day === null) {
+                        return (
+                          <div
+                            key={`empty-${weekIndex}-${colIndex}`}
+                            className="border border-zinc-100 dark:border-zinc-700/50 flex flex-col"
+                          >
+                            {/* 空セルの日付ヘッダー相当 */}
+                            <div className="w-full px-1 py-0.5 bg-zinc-50 dark:bg-zinc-800/80">
+                              <div className="w-[20px] h-[20px]" />
+                            </div>
+                            <div className="w-full border-b border-zinc-200 dark:border-zinc-600/60" />
+                            <div className="w-full aspect-square" />
+                          </div>
+                        );
+                      }
+
+                      const dayEvents = getEventsForDate(day);
+                      const singleDayEvents = dayEvents.filter(
+                        (e) => !(e.endDate && e.type === "schedule")
+                      );
+                      const dateStr = formatDateStr(day);
+                      const isSelected = selectedDate === dateStr;
+                      const today = isToday(day);
+                      const dayOfWeek = colIndex;
+                      const hiddenCount = singleDayEvents.length - MAX_VISIBLE_EVENTS;
+
+                      return (
+                        <button
+                          key={day}
+                          onClick={() => setSelectedDate(dateStr)}
+                          onDoubleClick={() => {
+                            setSelectedDate(dateStr);
+                            setShowScheduleModal(true);
                           }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </button>
+                          className={`p-0 transition-all border border-zinc-100 dark:border-zinc-700/50 text-left flex flex-col ${
+                            isSelected
+                              ? "ring-2 ring-inset ring-indigo-500"
+                              : "hover:bg-zinc-50 dark:hover:bg-zinc-700/30"
+                          }`}
+                        >
+                          {/* 日付ヘッダー（背景色付き・左寄せ） */}
+                          <div className={`w-full flex items-center px-1 py-0.5 ${
+                            isSelected
+                              ? "bg-indigo-50 dark:bg-indigo-900/30"
+                              : "bg-zinc-50 dark:bg-zinc-800/80"
+                          }`}>
+                            <div className={`flex items-center justify-center w-[20px] h-[20px] rounded-sm shrink-0 ${
+                              today ? "bg-indigo-500" : ""
+                            }`}>
+                              <span
+                                className={`text-xs font-semibold leading-none ${
+                                  today
+                                    ? "text-white"
+                                    : dayOfWeek === 0
+                                      ? "text-red-500"
+                                      : dayOfWeek === 6
+                                        ? "text-blue-500"
+                                        : "text-zinc-700 dark:text-zinc-300"
+                                }`}
+                              >
+                                {day}
+                              </span>
+                            </div>
+                          </div>
+                          {/* 区切り線（セル全幅） */}
+                          <div className="w-full border-b border-zinc-200 dark:border-zinc-600/60" />
+                          {/* 区切り線下のコンテンツ領域（正方形を維持） */}
+                          <div className="w-full aspect-square relative">
+                            {/* バーのスペーサー */}
+                            {barAreaHeight > 0 && (
+                              <div style={{ height: barAreaHeight }} />
+                            )}
+                            {/* イベント内容表示エリア */}
+                            <div className="px-0.5 py-0.5 space-y-0.5 overflow-hidden">
+                              {singleDayEvents.slice(0, MAX_VISIBLE_EVENTS).map((event) => {
+                                const bgColor =
+                                  event.type === "exam"
+                                    ? event.color || "#10B981"
+                                    : event.type === "schedule"
+                                      ? event.color || "#6366F1"
+                                      : event.color || "#3B82F6";
+                                return (
+                                  <div
+                                    key={`${event.type}-${event.id}`}
+                                    className="flex items-center gap-0.5 rounded px-1 py-px text-[10px] leading-tight font-medium truncate"
+                                    style={{
+                                      backgroundColor: `${bgColor}18`,
+                                      color: bgColor,
+                                      borderLeft: `2px solid ${bgColor}`,
+                                    }}
+                                  >
+                                    {event.time && (
+                                      <span className="shrink-0 opacity-70">{event.time}</span>
+                                    )}
+                                    <span className="truncate">{event.title}</span>
+                                  </div>
+                                );
+                              })}
+                              {hiddenCount > 0 && (
+                                <div className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-1 leading-tight">
+                                  +{hiddenCount}件
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* この週の複数日バー（オーバーレイ） */}
+                  {weekBars.map((bar, i) => {
+                    const color = bar.event.color || "#6366F1";
+                    const leftPercent = (bar.gridCol / 7) * 100;
+                    const widthPercent = (bar.span / 7) * 100;
+
+                    return (
+                      <div
+                        key={`bar-${bar.event.id}-${weekIndex}-${i}`}
+                        className="absolute pointer-events-none"
+                        style={{
+                          left: `${leftPercent}%`,
+                          width: `${widthPercent}%`,
+                          top: `${25 + bar.lane * 18}px`,
+                          height: "16px",
+                          paddingLeft: "1px",
+                          paddingRight: "1px",
+                        }}
+                      >
+                        <div
+                          className="h-full flex items-center overflow-hidden text-[10px] font-medium text-white leading-none px-1.5"
+                          style={{
+                            backgroundColor: color,
+                            opacity: 0.9,
+                            borderRadius: `${bar.isStart ? "3px" : "0"} ${bar.isEnd ? "3px" : "0"} ${bar.isEnd ? "3px" : "0"} ${bar.isStart ? "3px" : "0"}`,
+                          }}
+                        >
+                          {bar.isStart && (
+                            <span className="truncate">{bar.event.title}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               );
-            })}
-          </div>
+            });
+          })()}
 
           {/* 凡例 */}
-          <div className="flex items-center gap-4 mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-700">
-            <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-              <div className="w-3 h-3 rounded-full bg-blue-500" />
-              タスク締め切り
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-700">
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                <div className="w-8 h-3 rounded-sm bg-indigo-500 opacity-90" />
+                複数日
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                <div className="w-1 h-3 rounded-sm bg-indigo-500" />
+                スケジュール
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                <div className="w-1 h-3 rounded-sm bg-blue-500" />
+                タスク
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                <div className="w-1 h-3 rounded-sm bg-emerald-500" />
+                試験
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-              <div className="w-3 h-3 rounded-full bg-emerald-500" />
-              試験日
-            </div>
+            <span className="text-xs text-zinc-400 dark:text-zinc-500 hidden sm:inline">
+              ダブルクリックで予定追加
+            </span>
           </div>
         </div>
 
@@ -343,13 +669,22 @@ export default function CalendarPage() {
                 : "日付を選択"}
             </h3>
             {selectedDate && (
-              <button
-                onClick={openCreateModal}
-                className="flex items-center gap-1 px-2 py-1 text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                タスク追加
-              </button>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setShowScheduleModal(true)}
+                  className="flex items-center gap-1 px-2 py-1 text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  予定
+                </button>
+                <button
+                  onClick={openCreateModal}
+                  className="flex items-center gap-1 px-2 py-1 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  タスク
+                </button>
+              </div>
             )}
           </div>
 
@@ -357,53 +692,113 @@ export default function CalendarPage() {
             selectedDateEvents.length > 0 ? (
               <div className="space-y-3">
                 {selectedDateEvents.map((event) => (
-                  <button
+                  <div
                     key={`${event.type}-${event.id}`}
-                    onClick={() => {
-                      if (event.type === "task") {
-                        router.push(getTaskDetailPath(event.id));
-                      }
-                    }}
-                    className="w-full flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors text-left"
+                    className="w-full flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors text-left group"
                   >
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                      style={{
-                        backgroundColor: `${event.color || "#3B82F6"}20`,
-                        color: event.color || "#3B82F6",
+                    <button
+                      onClick={() => {
+                        if (event.type === "task") {
+                          router.push(getTaskDetailPath(event.id));
+                        }
                       }}
+                      className="flex items-start gap-3 flex-1 min-w-0"
                     >
-                      {event.type === "exam" ? (
-                        <Target className="w-4 h-4" />
-                      ) : event.status === "done" ? (
-                        <CheckCircle2 className="w-4 h-4" />
-                      ) : (
-                        <Circle className="w-4 h-4" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">
-                        {event.title}
-                      </p>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {event.type === "exam" ? "試験" : "タスク"}
-                        {event.status === "done" && " ・ 完了"}
-                      </p>
-                    </div>
-                  </button>
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                        style={{
+                          backgroundColor: `${event.color || "#3B82F6"}20`,
+                          color: event.color || "#3B82F6",
+                        }}
+                      >
+                        {event.type === "exam" ? (
+                          <Target className="w-4 h-4" />
+                        ) : event.type === "schedule" ? (
+                          <CalendarIcon className="w-4 h-4" />
+                        ) : event.status === "done" ? (
+                          <CheckCircle2 className="w-4 h-4" />
+                        ) : (
+                          <Circle className="w-4 h-4" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-zinc-800 dark:text-zinc-200 text-sm truncate">
+                          {event.title}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                            {event.type === "exam"
+                              ? "試験"
+                              : event.type === "schedule"
+                                ? "スケジュール"
+                                : "タスク"}
+                            {event.status === "done" && " ・ 完了"}
+                          </p>
+                          {event.endDate && (
+                            <span className="flex items-center gap-1 text-xs text-indigo-500 dark:text-indigo-400">
+                              <CalendarIcon className="w-3 h-3" />
+                              {new Date(event.date).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })}
+                              {" 〜 "}
+                              {new Date(event.endDate).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })}
+                            </span>
+                          )}
+                          {event.time && (
+                            <span className="flex items-center gap-1 text-xs text-zinc-400 dark:text-zinc-500">
+                              <Clock className="w-3 h-3" />
+                              {event.time}
+                              {event.endTime && ` 〜 ${event.endTime}`}
+                            </span>
+                          )}
+                          {event.reminderMinutes != null && (
+                            <span className="flex items-center gap-1 text-xs text-amber-500">
+                              <Bell className="w-3 h-3" />
+                              {getReminderLabel(event.reminderMinutes)}
+                            </span>
+                          )}
+                        </div>
+                        {event.description && (
+                          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 truncate">
+                            {event.description}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                    {event.type === "schedule" && (
+                      <button
+                        onClick={() => deleteScheduleEvent(event.id)}
+                        className="p-1 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                        title="削除"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8">
-                <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-3">
+              <div className="text-center py-6">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-zinc-100 dark:bg-zinc-700/50 flex items-center justify-center">
+                  <CalendarIcon className="w-6 h-6 text-zinc-400 dark:text-zinc-500" />
+                </div>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
                   この日の予定はありません
                 </p>
-                <button
-                  onClick={openCreateModal}
-                  className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-                >
-                  + タスクを追加
-                </button>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => setShowScheduleModal(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors text-sm font-medium"
+                  >
+                    <Plus className="w-4 h-4" />
+                    スケジュールを追加
+                  </button>
+                  <button
+                    onClick={openCreateModal}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 text-zinc-500 dark:text-zinc-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700/50 transition-colors text-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    タスクを追加
+                  </button>
+                </div>
               </div>
             )
           ) : (
@@ -474,6 +869,15 @@ export default function CalendarPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* スケジュール作成モーダル */}
+      {showScheduleModal && selectedDate && (
+        <ScheduleEventDialog
+          selectedDate={selectedDate}
+          onClose={() => setShowScheduleModal(false)}
+          onSubmit={createScheduleEvent}
+        />
       )}
     </div>
   );

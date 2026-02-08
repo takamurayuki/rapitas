@@ -59,10 +59,10 @@ export const examGoalsRoutes = new Elysia({ prefix: "/exam-goals" })
       body: t.Object({
         name: t.String({ minLength: 1 }),
         examDate: t.String(),
-        description: t.Optional(t.String()),
-        targetScore: t.Optional(t.String()),
-        color: t.Optional(t.String()),
-        icon: t.Optional(t.String()),
+        description: t.Optional(t.Nullable(t.String())),
+        targetScore: t.Optional(t.Nullable(t.String())),
+        color: t.Optional(t.Nullable(t.String())),
+        icon: t.Optional(t.Nullable(t.String())),
       }),
     }
   )

@@ -1003,3 +1003,31 @@ export type AgentExecutionConfig = {
 export type AgentExecutionConfigInput = Partial<
   Omit<AgentExecutionConfig, "id" | "taskId" | "agentConfig" | "createdAt" | "updatedAt">
 >;
+
+// ==================== スケジュールイベント ====================
+
+export type ScheduleEvent = {
+  id: number;
+  title: string;
+  description?: string | null;
+  startAt: string;
+  endAt?: string | null;
+  isAllDay: boolean;
+  color: string;
+  reminderMinutes?: number | null;
+  reminderSentAt?: string | null;
+  taskId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ScheduleEventInput = {
+  title: string;
+  description?: string;
+  startAt: string;
+  endAt?: string;
+  isAllDay?: boolean;
+  color?: string;
+  reminderMinutes?: number | null;
+  taskId?: number | null;
+};

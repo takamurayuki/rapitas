@@ -292,6 +292,8 @@ fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
             .build(),
     )?;
 
+    // 前回のクラッシュ等でOSに残っている場合に備え、先にunregisterする
+    let _ = app.global_shortcut().unregister(shortcut);
     app.global_shortcut().register(shortcut)?;
     println!("Global shortcut registered: {}", shortcut_config);
 

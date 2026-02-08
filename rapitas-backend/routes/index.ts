@@ -37,3 +37,4 @@ export { parallelExecutionRoutes } from "./parallel-execution";
 export { taskAnalysisConfigRoutes } from "./task-analysis-config";
 export { agentExecutionConfigRoutes } from "./agent-execution-config";
 export { executionLogsRoutes } from "./execution-logs";
+export { schedulesRoutes } from "./schedules";

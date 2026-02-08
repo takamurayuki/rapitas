@@ -43,6 +43,7 @@ import {
   taskAnalysisConfigRoutes,
   agentExecutionConfigRoutes,
   executionLogsRoutes,
+  schedulesRoutes,
 } from "./routes";
 
 // Import shared database client
@@ -137,10 +138,15 @@ app.use(parallelExecutionRoutes);
 app.use(taskAnalysisConfigRoutes);
 app.use(agentExecutionConfigRoutes);
 app.use(executionLogsRoutes);
+app.use(schedulesRoutes);
 
 // Start server
-app.listen(3001);
-console.log("🚀 Rapitas backend running on http://localhost:3001");
+const PORT = parseInt(process.env.PORT || "3001", 10);
+app.listen({
+  port: PORT,
+  idleTimeout: 30, // 30秒のアイドルタイムアウトでCLOSE_WAIT蓄積を防止
+});
+console.log(`🚀 Rapitas backend running on http://localhost:${PORT}`);
 
 // Startup recovery: mark stale running/pending executions as interrupted
 // and update related Task/Session statuses, then auto-resume if enabled
@@ -160,7 +166,7 @@ orchestrator.recoverStaleExecutions().then(async (result) => {
 
         for (const executionId of result.interruptedExecutionIds) {
           try {
-            const res = await fetch(`http://localhost:3001/agents/executions/${executionId}/resume`, {
+            const res = await fetch(`http://localhost:${PORT}/agents/executions/${executionId}/resume`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
             });

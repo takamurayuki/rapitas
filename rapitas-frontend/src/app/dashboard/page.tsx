@@ -8,11 +8,11 @@ import {
   Flame,
   Target,
   TrendingUp,
-  Calendar,
   Award,
 } from "lucide-react";
 import { API_BASE_URL } from "@/utils/api";
 import BurndownChart from "@/components/BurndownChart";
+import { ExamCountdown } from "@/components/exam-countdown/ExamCountdown";
 
 type OverviewStats = {
   tasks: {
@@ -86,14 +86,6 @@ export default function DashboardPage() {
     } catch (e) {
       console.error("Failed to fetch streak info:", e);
     }
-  };
-
-  const getDaysRemaining = (examDate: string) => {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const exam = new Date(examDate);
-    exam.setHours(0, 0, 0, 0);
-    return Math.ceil((exam.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   };
 
   const formatDate = (dateStr: string) => {
@@ -269,12 +261,7 @@ export default function DashboardPage() {
 
           {overview?.upcomingExams && overview.upcomingExams.length > 0 ? (
             <div className="space-y-3">
-              {overview.upcomingExams.slice(0, 3).map((exam) => {
-                const daysRemaining = getDaysRemaining(exam.examDate);
-                const isUrgent = daysRemaining <= 7;
-                const isNear = daysRemaining <= 30;
-
-                return (
+              {overview.upcomingExams.slice(0, 3).map((exam) => (
                   <div
                     key={exam.id}
                     className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50"
@@ -283,33 +270,19 @@ export default function DashboardPage() {
                       <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">
                         {exam.name}
                       </span>
-                      <span
-                        className={`text-lg font-bold ${
-                          isUrgent
-                            ? "text-red-600"
-                            : isNear
-                              ? "text-amber-600"
-                              : "text-emerald-600"
-                        }`}
-                      >
-                        {daysRemaining}日
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                      <Calendar className="w-3 h-3" />
-                      <span>
-                        {new Date(exam.examDate).toLocaleDateString("ja-JP")}
-                      </span>
                       {exam.targetScore && (
-                        <>
-                          <span className="mx-1">|</span>
-                          <span>目標: {exam.targetScore}</span>
-                        </>
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                          目標: {exam.targetScore}
+                        </span>
                       )}
                     </div>
+                    <ExamCountdown
+                      examDate={exam.examDate}
+                      color={exam.color}
+                      compact
+                    />
                   </div>
-                );
-              })}
+              ))}
 
               {overview.upcomingExams.length > 3 && (
                 <a

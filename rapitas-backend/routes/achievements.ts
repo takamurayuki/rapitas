@@ -219,7 +219,7 @@ export const achievementsRoutes = new Elysia({ prefix: "/achievements" })
     // ストリークをチェック
     let currentStreak = 0;
     try {
-      const streakRes = await fetch("http://localhost:3001/study-streaks/current");
+      const streakRes = await fetch(`http://localhost:${process.env.PORT || "3001"}/study-streaks/current`);
       if (streakRes.ok) {
         const streakData = (await streakRes.json()) as { currentStreak: number };
         currentStreak = streakData.currentStreak || 0;
