@@ -572,6 +572,10 @@ export type UserSettings = {
   autoResumeInterruptedTasks: boolean;
   claudeApiKeyConfigured?: boolean;
   claudeApiKeyMasked?: string | null;
+  chatgptApiKeyConfigured?: boolean;
+  chatgptApiKeyMasked?: string | null;
+  geminiApiKeyConfigured?: boolean;
+  geminiApiKeyMasked?: string | null;
   createdAt: string;
   updatedAt: string;
 };

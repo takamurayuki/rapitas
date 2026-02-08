@@ -83,9 +83,16 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       });
     }
     const apiKeyConfigured = await isApiKeyConfiguredAsync();
+
+    // ChatGPT/Gemini APIキーの設定状態を判定
+    const chatgptConfigured = !!settings.chatgptApiKeyEncrypted;
+    const geminiConfigured = !!settings.geminiApiKeyEncrypted;
+
     return {
       ...settings,
       claudeApiKeyConfigured: apiKeyConfigured,
+      chatgptApiKeyConfigured: chatgptConfigured,
+      geminiApiKeyConfigured: geminiConfigured,
       claudeApiKeyEncrypted: undefined,
       chatgptApiKeyEncrypted: undefined,
       geminiApiKeyEncrypted: undefined,

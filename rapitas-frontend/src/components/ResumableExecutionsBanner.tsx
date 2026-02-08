@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { API_BASE_URL } from "@/utils/api";
 import { useBackendHealth } from "@/hooks/use-backend-health";
+import { useExecutionStateStore } from "@/stores/executionStateStore";
 
 // セッション中に自動再開が実行済みかどうかを追跡するグローバルフラグ
 const AUTO_RESUME_SESSION_KEY = "rapitas_auto_resume_triggered";
@@ -47,6 +48,11 @@ export function ResumableExecutionsBanner() {
 
   // セッション中に一度だけ自動再開を実行するためのフラグ
   const autoResumeCheckedRef = useRef(false);
+
+  // グローバルストアの実行中タスク数を監視
+  const executingTasksSize = useExecutionStateStore(
+    (state) => state.executingTasks.size,
+  );
 
   // バックエンドから自動再開設定を取得
   const fetchAutoResumeSetting = useCallback(async () => {
@@ -100,16 +106,28 @@ export function ResumableExecutionsBanner() {
     fetchResumableExecutions();
   }, [fetchAutoResumeSetting, fetchResumableExecutions]);
 
-  // 実行中の作業がある場合は定期的にポーリングして完了を検出する
+  // グローバルストアに新しい実行タスクが追加されたら即座にフェッチ
+  const prevExecutingTasksSizeRef = useRef(executingTasksSize);
   useEffect(() => {
+    if (executingTasksSize > prevExecutingTasksSizeRef.current) {
+      fetchResumableExecutions();
+    }
+    prevExecutingTasksSizeRef.current = executingTasksSize;
+  }, [executingTasksSize, fetchResumableExecutions]);
+
+  // 定期的にポーリングして新しい実行の開始や完了を検出する
+  useEffect(() => {
+    if (isDismissed) return;
+
     const hasRunningExecutions = executions.some(
       (e) => e.status === "running" || e.status === "waiting_for_input",
     );
-    if (!hasRunningExecutions || isDismissed) return;
+    // 実行中タスクがある場合は10秒間隔、ない場合は15秒間隔
+    const pollInterval = hasRunningExecutions ? 10000 : 15000;
 
     const interval = setInterval(() => {
       fetchResumableExecutions();
-    }, 10000); // 10秒ごとにチェック
+    }, pollInterval);
 
     return () => clearInterval(interval);
   }, [executions, isDismissed, fetchResumableExecutions]);
