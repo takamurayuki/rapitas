@@ -9,8 +9,9 @@ import {
   statusConfig,
   renderStatusIcon,
 } from "@/feature/tasks/config/StatusConfig";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Tag } from "lucide-react";
 import { getLabelsArray, hasLabels } from "@/utils/labels";
+import { getIconComponent } from "@/components/category/IconData";
 
 interface TaskCardProps {
   task: Task;
@@ -152,12 +153,44 @@ export default function TaskCard({
               </>
             )}
 
-            {hasLabels(task.labels) && (
+            {task.taskLabels && task.taskLabels.length > 0 ? (
               <>
                 <span className="text-zinc-300 dark:text-zinc-700">•</span>
-                <span className="shrink-0">🏷 {getLabelsArray(task.labels).length}</span>
+                <span className="flex items-center gap-1 shrink-0 flex-wrap">
+                  {task.taskLabels.slice(0, 3).map((tl) => {
+                    if (!tl.label) return null;
+                    const IconComponent = getIconComponent(tl.label.icon || "") || Tag;
+                    return (
+                      <span
+                        key={tl.id}
+                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium"
+                        style={{
+                          backgroundColor: `${tl.label.color}20`,
+                          color: tl.label.color,
+                        }}
+                        title={tl.label.name}
+                      >
+                        <IconComponent className="w-2.5 h-2.5" />
+                        {tl.label.name}
+                      </span>
+                    );
+                  })}
+                  {task.taskLabels.length > 3 && (
+                    <span className="text-zinc-500 dark:text-zinc-400 text-[10px]">
+                      +{task.taskLabels.length - 3}
+                    </span>
+                  )}
+                </span>
               </>
-            )}
+            ) : hasLabels(task.labels) ? (
+              <>
+                <span className="text-zinc-300 dark:text-zinc-700">•</span>
+                <span className="inline-flex items-center gap-0.5 shrink-0">
+                  <Tag className="w-3 h-3" />
+                  {getLabelsArray(task.labels).length}
+                </span>
+              </>
+            ) : null}
           </div>
 
           {/* プログレスバー */}

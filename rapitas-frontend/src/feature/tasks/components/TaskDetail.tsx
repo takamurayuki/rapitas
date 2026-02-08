@@ -9,6 +9,8 @@ import {
   renderStatusIcon,
 } from "@/feature/tasks/config/StatusConfig";
 import { getLabelsArray, hasLabels } from "@/utils/labels";
+import { Tag } from "lucide-react";
+import { getIconComponent } from "@/components/category/IconData";
 
 interface TaskDetailProps {
   task: Task;
@@ -240,7 +242,32 @@ export default function TaskDetail({
           )}
 
           <div className="grid grid-cols-2 gap-4 mb-6">
-            {hasLabels(task.labels) && (
+            {task.taskLabels && task.taskLabels.length > 0 ? (
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
+                  ラベル
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {task.taskLabels.map((tl) => {
+                    if (!tl.label) return null;
+                    const IconComponent = getIconComponent(tl.label.icon || "") || Tag;
+                    return (
+                      <span
+                        key={tl.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium"
+                        style={{
+                          backgroundColor: `${tl.label.color}20`,
+                          color: tl.label.color,
+                        }}
+                      >
+                        <IconComponent className="w-3.5 h-3.5" />
+                        {tl.label.name}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : hasLabels(task.labels) ? (
               <div>
                 <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
                   ラベル
@@ -249,14 +276,15 @@ export default function TaskDetail({
                   {getLabelsArray(task.labels).map((label, idx) => (
                     <span
                       key={idx}
-                      className="px-3 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 text-sm"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 text-sm"
                     >
+                      <Tag className="w-3.5 h-3.5" />
                       {label}
                     </span>
                   ))}
                 </div>
               </div>
-            )}
+            ) : null}
 
             {task.estimatedHours && (
               <div>

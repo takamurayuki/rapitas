@@ -85,11 +85,23 @@ export default function HomeClientPage() {
       const res = await fetch(`${API_BASE}/themes`);
       const data = await res.json();
       setThemes(data);
-      // デフォルトテーマを設定し、自動選択
+      // デフォルトテーマを設定
       const defaultThemeData = data.find((t: Theme) => t.isDefault);
       if (defaultThemeData) {
         setDefaultTheme(defaultThemeData);
-        // 初回表示時にデフォルトテーマを自動選択
+      }
+      // localStorageに保存済みのテーマがあればそちらを復元、なければデフォルトテーマを選択
+      const savedThemeId = localStorage.getItem("selectedThemeFilter");
+      if (savedThemeId !== null) {
+        const parsedId = savedThemeId === "null" ? null : Number(savedThemeId);
+        const exists = parsedId === null || data.some((t: Theme) => t.id === parsedId);
+        if (exists) {
+          setThemeFilter(parsedId);
+        } else if (defaultThemeData) {
+          setThemeFilter(defaultThemeData.id);
+        }
+      } else if (defaultThemeData) {
+        // 初回表示時（localStorage未設定）はデフォルトテーマを自動選択
         setThemeFilter(defaultThemeData.id);
       }
     } catch (e) {
@@ -634,7 +646,10 @@ export default function HomeClientPage() {
               {/* テーマボタン */}
               <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700 scrollbar-track-transparent flex-1">
                 <button
-                  onClick={() => setThemeFilter(null)}
+                  onClick={() => {
+                    setThemeFilter(null);
+                    localStorage.setItem("selectedThemeFilter", "null");
+                  }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                     themeFilter === null
                       ? "bg-purple-600 text-white shadow-lg"
@@ -649,7 +664,10 @@ export default function HomeClientPage() {
                   return (
                     <button
                       key={theme.id}
-                      onClick={() => setThemeFilter(theme.id)}
+                      onClick={() => {
+                        setThemeFilter(theme.id);
+                        localStorage.setItem("selectedThemeFilter", String(theme.id));
+                      }}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                         themeFilter === theme.id
                           ? "shadow-lg"
