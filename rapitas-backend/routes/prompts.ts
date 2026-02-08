@@ -5,8 +5,8 @@ import { Elysia } from "elysia";
 import { prisma } from "../config/database";
 import {
   generateOptimizedPrompt,
-  isApiKeyConfiguredAsync,
 } from "../services/claude-agent";
+import { getDefaultProvider, getApiKeyForProvider } from "../utils/ai-client";
 import { getLabelsArray, toJsonString } from "../utils/db-helpers";
 
 export const promptsRoutes = new Elysia()
@@ -161,13 +161,14 @@ export const promptsRoutes = new Elysia()
     async ({ params, set }: { params: { id: string }; set: { status?: number } }) => {
       const taskIdNum = parseInt(params.id);
 
-      // APIキーチェック
-      const apiKeyConfigured = await isApiKeyConfiguredAsync();
-      if (!apiKeyConfigured) {
+      // デフォルトプロバイダーのAPIキーチェック
+      const promptProvider = await getDefaultProvider();
+      const promptApiKey = await getApiKeyForProvider(promptProvider);
+      if (!promptApiKey) {
         set.status = 400;
         return {
           error:
-            "Claude APIキーが設定されていません。設定ページでAPIキーを登録してください。",
+            "AIのAPIキーが設定されていません。設定ページでAPIキーを登録してください。",
         };
       }
 
@@ -196,12 +197,17 @@ export const promptsRoutes = new Elysia()
       // サブタスクがない場合は親タスクのみ最適化
       if (task.subtasks.length === 0) {
         try {
-          const { result } = await generateOptimizedPrompt({
-            title: task.title,
-            description: task.description,
-            priority: task.priority,
-            labels: getLabelsArray(task.labels),
-          });
+          const { result } = await generateOptimizedPrompt(
+            {
+              title: task.title,
+              description: task.description,
+              priority: task.priority,
+              labels: getLabelsArray(task.labels),
+            },
+            null,
+            undefined,
+            promptProvider,
+          );
 
           // プロンプトを保存
           const savedPrompt = await prisma.taskPrompt.create({
@@ -236,12 +242,17 @@ export const promptsRoutes = new Elysia()
         // サブタスクがある場合は各サブタスクごとに最適化
         for (const subtask of task.subtasks) {
           try {
-            const { result } = await generateOptimizedPrompt({
-              title: subtask.title,
-              description: subtask.description,
-              priority: subtask.priority,
-              labels: getLabelsArray(subtask.labels),
-            });
+            const { result } = await generateOptimizedPrompt(
+              {
+                title: subtask.title,
+                description: subtask.description,
+                priority: subtask.priority,
+                labels: getLabelsArray(subtask.labels),
+              },
+              null,
+              undefined,
+              promptProvider,
+            );
 
             // プロンプトを保存
             const savedPrompt = await prisma.taskPrompt.create({

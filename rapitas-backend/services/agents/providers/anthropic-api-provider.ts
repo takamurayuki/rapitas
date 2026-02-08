@@ -6,6 +6,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 // @ts-ignore - APIError is exported from @anthropic-ai/sdk
 const { APIError } = require('@anthropic-ai/sdk');
+import { getApiKeyForProvider } from '../../../utils/ai-client';
 import type {
   AgentCapabilities,
   AgentProviderConfig,
@@ -125,7 +126,7 @@ export class AnthropicApiAgent extends AbstractAgent {
 
   async isAvailable(): Promise<boolean> {
     try {
-      const apiKey = this.getApiKey();
+      const apiKey = await this.getApiKey();
       if (!apiKey) {
         return false;
       }
@@ -147,7 +148,7 @@ export class AnthropicApiAgent extends AbstractAgent {
   async validateConfig(): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
-    const apiKey = this.getApiKey();
+    const apiKey = await this.getApiKey();
     if (!apiKey) {
       errors.push('API key is not configured. Set ANTHROPIC_API_KEY environment variable or provide apiKey in config.');
     }
@@ -176,7 +177,7 @@ export class AnthropicApiAgent extends AbstractAgent {
     this.abortController = new AbortController();
 
     try {
-      const client = this.getClient();
+      const client = await this.getClient();
       const prompt = this.buildPrompt(task);
       const modelId = this.config.model || 'claude-sonnet-4-20250514';
       const modelInfo = CLAUDE_MODELS[modelId as ClaudeModelId];
@@ -276,7 +277,7 @@ export class AnthropicApiAgent extends AbstractAgent {
     this.abortController = new AbortController();
 
     try {
-      const client = this.getClient();
+      const client = await this.getClient();
       const userResponse = continuation.userResponse || '';
       const modelId = this.config.model || 'claude-sonnet-4-20250514';
       const modelInfo = CLAUDE_MODELS[modelId as ClaudeModelId];
@@ -374,13 +375,19 @@ export class AnthropicApiAgent extends AbstractAgent {
     }
   }
 
-  private getApiKey(): string | undefined {
-    return this.config.apiKey || process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+  private async getApiKey(): Promise<string | undefined> {
+    // config に直接指定されたキーを最優先
+    if (this.config.apiKey) return this.config.apiKey;
+    // DB保存キーを優先取得（getApiKeyForProvider経由で復号化・検証・環境変数フォールバック含む）
+    const dbKey = await getApiKeyForProvider("claude");
+    if (dbKey) return dbKey;
+    // 最後にANTHROPIC_API_KEY環境変数
+    return process.env.ANTHROPIC_API_KEY;
   }
 
-  private getClient(): InstanceType<typeof Anthropic> {
+  private async getClient(): Promise<InstanceType<typeof Anthropic>> {
     if (!this.client) {
-      const apiKey = this.getApiKey();
+      const apiKey = await this.getApiKey();
       if (!apiKey) {
         throw new AgentError(
           'Anthropic API key is not configured',
@@ -531,7 +538,7 @@ export class AnthropicApiProvider implements IAgentProvider {
   }
 
   async isAvailable(): Promise<boolean> {
-    const apiKey = this.defaultConfig.apiKey || process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+    const apiKey = this.defaultConfig.apiKey || await getApiKeyForProvider("claude") || process.env.ANTHROPIC_API_KEY;
     return !!apiKey;
   }
 
@@ -543,7 +550,7 @@ export class AnthropicApiProvider implements IAgentProvider {
     }
 
     const anthropicConfig = config as AnthropicApiConfig;
-    const apiKey = anthropicConfig.apiKey || process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+    const apiKey = anthropicConfig.apiKey || await getApiKeyForProvider("claude") || process.env.ANTHROPIC_API_KEY;
 
     if (!apiKey) {
       errors.push('API key is required');
@@ -560,7 +567,7 @@ export class AnthropicApiProvider implements IAgentProvider {
     const startTime = Date.now();
 
     try {
-      const apiKey = this.defaultConfig.apiKey || process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+      const apiKey = this.defaultConfig.apiKey || await getApiKeyForProvider("claude") || process.env.ANTHROPIC_API_KEY;
 
       if (!apiKey) {
         return {

@@ -3,7 +3,7 @@
  */
 import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
-import { isApiKeyConfiguredAsync } from "../services/claude-agent";
+import { getApiKeyForProvider } from "../utils/ai-client";
 import { encrypt, decrypt, maskApiKey } from "../utils/encryption";
 
 const PROVIDER_COLUMNS = {
@@ -11,6 +11,36 @@ const PROVIDER_COLUMNS = {
   chatgpt: "chatgptApiKeyEncrypted",
   gemini: "geminiApiKeyEncrypted",
 } as const;
+
+const PROVIDER_MODEL_COLUMNS = {
+  claude: "claudeDefaultModel",
+  chatgpt: "chatgptDefaultModel",
+  gemini: "geminiDefaultModel",
+} as const;
+
+const AVAILABLE_MODELS: Record<string, Array<{ value: string; label: string }>> = {
+  claude: [
+    { value: "claude-opus-4-6", label: "Claude Opus 4.6" },
+    { value: "claude-sonnet-4-5-20250929", label: "Claude Sonnet 4.5" },
+    { value: "claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
+    { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
+    { value: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku" },
+  ],
+  chatgpt: [
+    { value: "gpt-4o", label: "GPT-4o" },
+    { value: "gpt-4o-mini", label: "GPT-4o Mini" },
+    { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
+    { value: "o1", label: "o1" },
+    { value: "o1-mini", label: "o1 Mini" },
+    { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
+  ],
+  gemini: [
+    { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
+    { value: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite" },
+    { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
+    { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
+  ],
+};
 
 type ApiProvider = keyof typeof PROVIDER_COLUMNS;
 
@@ -82,7 +112,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
         data: {},
       });
     }
-    const apiKeyConfigured = await isApiKeyConfiguredAsync();
+    const claudeApiKey = await getApiKeyForProvider("claude");
+    const apiKeyConfigured = !!claudeApiKey;
 
     // ChatGPT/Gemini APIキーの設定状態を判定
     const chatgptConfigured = !!settings.chatgptApiKeyEncrypted;
@@ -96,6 +127,10 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       claudeApiKeyEncrypted: undefined,
       chatgptApiKeyEncrypted: undefined,
       geminiApiKeyEncrypted: undefined,
+      claudeDefaultModel: settings.claudeDefaultModel,
+      chatgptDefaultModel: settings.chatgptDefaultModel,
+      geminiDefaultModel: settings.geminiDefaultModel,
+      defaultAiProvider: settings.defaultAiProvider,
     };
   })
 
@@ -107,9 +142,10 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
         developerModeDefault?: boolean;
         aiTaskAnalysisDefault?: boolean;
         autoResumeInterruptedTasks?: boolean;
+        defaultAiProvider?: string;
       }
     }) => {
-      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks } = body;
+      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, defaultAiProvider } = body;
 
       let settings = await prisma.userSettings.findFirst();
       if (!settings) {
@@ -127,6 +163,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
             ...(developerModeDefault !== undefined && { developerModeDefault }),
             ...(aiTaskAnalysisDefault !== undefined && { aiTaskAnalysisDefault }),
             ...(autoResumeInterruptedTasks !== undefined && { autoResumeInterruptedTasks }),
+            ...(defaultAiProvider !== undefined && { defaultAiProvider }),
           },
         });
       }
@@ -138,15 +175,16 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
         developerModeDefault: t.Optional(t.Boolean()),
         aiTaskAnalysisDefault: t.Optional(t.Boolean()),
         autoResumeInterruptedTasks: t.Optional(t.Boolean()),
+        defaultAiProvider: t.Optional(t.String()),
       }),
     }
   )
 
   // Get API status
   .get("/api-status", async () => {
-    const apiKeyConfigured = await isApiKeyConfiguredAsync();
+    const claudeApiKey = await getApiKeyForProvider("claude");
     return {
-      claudeApiKeyConfigured: apiKeyConfigured,
+      claudeApiKeyConfigured: !!claudeApiKey,
     };
   })
 
@@ -311,4 +349,70 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
     }
 
     return { success: true, provider };
-  });
+  })
+
+  // Get available models for all providers
+  .get("/models", () => {
+    return AVAILABLE_MODELS;
+  })
+
+  // Get default model for a specific provider
+  .get("/model", async ({ query }) => {
+    const provider = (query.provider as string) || "claude";
+
+    if (!isValidProvider(provider)) {
+      return { provider, model: null };
+    }
+
+    const settings = await prisma.userSettings.findFirst();
+    if (!settings) {
+      return { provider, model: null };
+    }
+
+    const column = PROVIDER_MODEL_COLUMNS[provider];
+    return { provider, model: settings[column] };
+  })
+
+  // Save default model for a specific provider
+  .post(
+    "/model",
+    async ({ body, set }) => {
+      const { model, provider = "claude" } = body;
+
+      if (!isValidProvider(provider)) {
+        set.status = 400;
+        return { error: `無効なプロバイダです: ${provider}` };
+      }
+
+      // モデルIDのバリデーション
+      const providerModels = AVAILABLE_MODELS[provider];
+      if (providerModels && model) {
+        const validModels = providerModels.map((m) => m.value);
+        if (!validModels.includes(model)) {
+          set.status = 400;
+          return { error: `無効なモデルです: ${model}` };
+        }
+      }
+
+      const column = PROVIDER_MODEL_COLUMNS[provider];
+      const existing = await prisma.userSettings.findFirst();
+      if (existing) {
+        await prisma.userSettings.update({
+          where: { id: existing.id },
+          data: { [column]: model || null },
+        });
+      } else {
+        await prisma.userSettings.create({
+          data: { [column]: model || null },
+        });
+      }
+
+      return { provider, model };
+    },
+    {
+      body: t.Object({
+        model: t.Optional(t.String()),
+        provider: t.Optional(t.String()),
+      }),
+    }
+  );

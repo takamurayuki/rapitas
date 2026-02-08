@@ -576,6 +576,10 @@ export type UserSettings = {
   chatgptApiKeyMasked?: string | null;
   geminiApiKeyConfigured?: boolean;
   geminiApiKeyMasked?: string | null;
+  claudeDefaultModel?: string | null;
+  chatgptDefaultModel?: string | null;
+  geminiDefaultModel?: string | null;
+  defaultAiProvider?: ApiProvider | null;
   createdAt: string;
   updatedAt: string;
 };

@@ -1,20 +1,21 @@
-import type { AIChatMessage, AIServiceResponse } from "@/types";
+import type { AIChatMessage, AIServiceResponse, ApiProvider } from "@/types";
 import { API_BASE_URL as API_BASE } from "@/utils/api";
 
 export type SendMessageOptions = {
   message: string;
   conversationHistory?: AIChatMessage[];
   systemPrompt?: string;
+  provider?: ApiProvider;
+  model?: string;
 };
 
 /**
- * Claude APIを通じてAIにメッセージを送信し、応答を取得する
- * バックエンドのプロキシエンドポイントを経由してAPIキーを安全に管理
+ * AIにメッセージを送信し、応答を取得する（マルチプロバイダー対応）
  */
 export async function sendMessageToAI(
   options: SendMessageOptions
 ): Promise<AIServiceResponse> {
-  const { message, conversationHistory = [], systemPrompt } = options;
+  const { message, conversationHistory = [], systemPrompt, provider, model } = options;
 
   try {
     const response = await fetch(`${API_BASE}/ai/chat`, {
@@ -29,6 +30,8 @@ export async function sendMessageToAI(
           content: msg.content,
         })),
         systemPrompt,
+        provider,
+        model,
       }),
     });
 
@@ -57,8 +60,7 @@ export async function sendMessageToAI(
 }
 
 /**
- * ストリーミングレスポンスでAIにメッセージを送信する
- * リアルタイムで応答を受け取りたい場合に使用
+ * ストリーミングレスポンスでAIにメッセージを送信する（マルチプロバイダー対応）
  */
 export async function sendMessageToAIStream(
   options: SendMessageOptions,
@@ -66,7 +68,7 @@ export async function sendMessageToAIStream(
   onComplete: () => void,
   onError: (error: string) => void
 ): Promise<void> {
-  const { message, conversationHistory = [], systemPrompt } = options;
+  const { message, conversationHistory = [], systemPrompt, provider, model } = options;
 
   try {
     const response = await fetch(`${API_BASE}/ai/chat/stream`, {
@@ -81,6 +83,8 @@ export async function sendMessageToAIStream(
           content: msg.content,
         })),
         systemPrompt,
+        provider,
+        model,
       }),
     });
 
@@ -114,11 +118,14 @@ export async function sendMessageToAIStream(
           }
           try {
             const parsed = JSON.parse(data);
+            if (parsed.error) {
+              onError(parsed.error);
+              return;
+            }
             if (parsed.content) {
               onChunk(parsed.content);
             }
           } catch {
-            // JSONでない場合はそのままテキストとして扱う
             if (data.trim()) {
               onChunk(data);
             }
@@ -135,5 +142,34 @@ export async function sendMessageToAIStream(
         ? error.message
         : "AIとの通信中にエラーが発生しました"
     );
+  }
+}
+
+/**
+ * 設定済みのプロバイダー一覧を取得する
+ */
+export async function fetchConfiguredProviders(): Promise<ApiProvider[]> {
+  try {
+    const response = await fetch(`${API_BASE}/ai/providers`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.providers || [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 利用可能なモデル一覧を取得する
+ */
+export async function fetchAvailableModels(): Promise<
+  Record<string, Array<{ value: string; label: string }>>
+> {
+  try {
+    const response = await fetch(`${API_BASE}/settings/models`);
+    if (!response.ok) return {};
+    return await response.json();
+  } catch {
+    return {};
   }
 }

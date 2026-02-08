@@ -406,6 +406,10 @@ model UserSettings {
   claudeApiKeyEncrypted       String?
   chatgptApiKeyEncrypted      String?
   geminiApiKeyEncrypted       String?
+  claudeDefaultModel          String?
+  chatgptDefaultModel         String?
+  geminiDefaultModel          String?
+  defaultAiProvider           String?   @default("claude")
   createdAt                   DateTime  @default(now())
   updatedAt                   DateTime  @updatedAt
 }

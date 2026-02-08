@@ -21,8 +21,21 @@ import {
   Settings,
 } from "lucide-react";
 import { useAIChat } from "./useAIChat";
+import { fetchConfiguredProviders, fetchAvailableModels } from "./aiService";
 import Link from "next/link";
-import type { AIChatMessage } from "@/types";
+import type { AIChatMessage, ApiProvider } from "@/types";
+
+const PROVIDER_LABELS: Record<ApiProvider, string> = {
+  claude: "Claude",
+  chatgpt: "ChatGPT",
+  gemini: "Gemini",
+};
+
+const PROVIDER_COLORS: Record<ApiProvider, string> = {
+  claude: "bg-orange-500",
+  chatgpt: "bg-green-500",
+  gemini: "bg-blue-500",
+};
 
 type FloatingAIMenuProps = {
   systemPrompt?: string;
@@ -69,6 +82,8 @@ const ChatMessage = memo(function ChatMessage({
   );
 });
 
+type ModelOption = { value: string; label: string };
+
 export default function FloatingAIMenu({
   systemPrompt = "あなたはRapi+アプリケーションのAIアシスタントです。ユーザーのタスク管理や学習計画に関する質問に日本語で丁寧に回答してください。",
   placeholder = "AIに質問する...",
@@ -78,9 +93,16 @@ export default function FloatingAIMenu({
 }: FloatingAIMenuProps) {
   const [inputValue, setInputValue] = useState("");
   const [isHovering, setIsHovering] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // プロバイダー/モデル選択
+  const [selectedProvider, setSelectedProvider] = useState<ApiProvider>("claude");
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [configuredProviders, setConfiguredProviders] = useState<ApiProvider[]>([]);
+  const [availableModels, setAvailableModels] = useState<Record<string, ModelOption[]>>({});
 
   const {
     messages,
@@ -93,7 +115,20 @@ export default function FloatingAIMenu({
     toggleExpanded,
   } = useAIChat({
     systemPrompt,
+    provider: selectedProvider,
+    model: selectedModel || undefined,
   });
+
+  // 設定済みプロバイダーとモデル一覧を取得
+  useEffect(() => {
+    fetchConfiguredProviders().then((providers) => {
+      setConfiguredProviders(providers);
+      if (providers.length > 0 && !providers.includes(selectedProvider)) {
+        setSelectedProvider(providers[0]);
+      }
+    });
+    fetchAvailableModels().then(setAvailableModels);
+  }, []);
 
   // メッセージリストを自動スクロール
   const scrollToBottom = useCallback(() => {
@@ -152,7 +187,6 @@ export default function FloatingAIMenu({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      // Enterで送信、Shift+Enterで改行
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         handleSendMessage();
@@ -161,11 +195,9 @@ export default function FloatingAIMenu({
     [handleSendMessage],
   );
 
-  // テキストエリアの自動リサイズ
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       setInputValue(e.target.value);
-      // 自動リサイズ
       e.target.style.height = "auto";
       e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
     },
@@ -174,6 +206,8 @@ export default function FloatingAIMenu({
 
   const positionClasses =
     position === "bottom-right" ? "right-4 bottom-4" : "left-4 bottom-4";
+
+  const currentModels = availableModels[selectedProvider] || [];
 
   return (
     <div
@@ -200,8 +234,21 @@ export default function FloatingAIMenu({
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5" />
             <span className="font-semibold text-sm">{title}</span>
+            {configuredProviders.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.5 bg-white/20 rounded-full">
+                {PROVIDER_LABELS[selectedProvider]}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className={`p-1.5 rounded-lg transition-colors ${showSettings ? "bg-white/30" : "hover:bg-white/20"}`}
+              title="AI設定"
+              aria-label="AI設定"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
             {messages.length > 0 && (
               <button
                 onClick={clearMessages}
@@ -222,6 +269,77 @@ export default function FloatingAIMenu({
             </button>
           </div>
         </div>
+
+        {/* プロバイダー/モデル選択パネル */}
+        {showSettings && (
+          <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/80 border-b border-zinc-200 dark:border-zinc-700 space-y-3">
+            {/* プロバイダー選択 */}
+            <div>
+              <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+                AIプロバイダー
+              </label>
+              <div className="flex gap-1.5">
+                {(["claude", "chatgpt", "gemini"] as ApiProvider[]).map((p) => {
+                  const isConfigured = configuredProviders.includes(p);
+                  const isSelected = selectedProvider === p;
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => {
+                        if (isConfigured) {
+                          setSelectedProvider(p);
+                          setSelectedModel("");
+                        }
+                      }}
+                      disabled={!isConfigured}
+                      className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        isSelected
+                          ? "bg-violet-600 text-white shadow-sm"
+                          : isConfigured
+                          ? "bg-white dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-violet-50 dark:hover:bg-zinc-600 border border-zinc-200 dark:border-zinc-600"
+                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed border border-zinc-100 dark:border-zinc-800"
+                      }`}
+                      title={isConfigured ? PROVIDER_LABELS[p] : `${PROVIDER_LABELS[p]}（未設定）`}
+                    >
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${isConfigured ? PROVIDER_COLORS[p] : "bg-zinc-300 dark:bg-zinc-600"}`} />
+                      {PROVIDER_LABELS[p]}
+                    </button>
+                  );
+                })}
+              </div>
+              {configuredProviders.length === 0 && (
+                <Link
+                  href="/settings"
+                  className="inline-flex items-center gap-1 mt-2 text-[11px] text-violet-500 hover:text-violet-600 dark:text-violet-400"
+                >
+                  <Settings className="w-3 h-3" />
+                  設定画面でAPIキーを登録
+                </Link>
+              )}
+            </div>
+
+            {/* モデル選択 */}
+            {currentModels.length > 0 && (
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+                  モデル
+                </label>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="w-full appearance-none px-3 py-1.5 bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded-lg text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                >
+                  <option value="">デフォルト</option>
+                  {currentModels.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* メッセージエリア */}
         <div
@@ -271,7 +389,7 @@ export default function FloatingAIMenu({
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-xs">{error}</p>
-                {error.includes("APIキーが設定されていません") && (
+                {(error.includes("APIキーが設定されていません") || error.includes("APIキーが無効です")) && (
                   <Link
                     href="/settings"
                     className="inline-flex items-center gap-1 mt-1.5 text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
@@ -313,7 +431,7 @@ export default function FloatingAIMenu({
             </button>
           </div>
           <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-2 text-center">
-            Enter で送信 • Shift+Enter で改行
+            Enter で送信 ・ Shift+Enter で改行
           </p>
         </div>
       </div>

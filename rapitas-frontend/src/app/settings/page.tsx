@@ -12,9 +12,22 @@ import {
   Trash2,
   Save,
   Settings,
+  ChevronDown,
 } from "lucide-react";
-import type { UserSettings } from "@/types";
+import type { UserSettings, ApiProvider } from "@/types";
 import { API_BASE_URL } from "@/utils/api";
+
+const PROVIDER_LABELS: Record<ApiProvider, string> = {
+  claude: "Claude",
+  chatgpt: "ChatGPT",
+  gemini: "Gemini",
+};
+
+const PROVIDER_DESCRIPTIONS: Record<ApiProvider, string> = {
+  claude: "Anthropic Claude API",
+  chatgpt: "OpenAI ChatGPT / GPT API",
+  gemini: "Google Gemini API",
+};
 
 type ProviderConfig = {
   key: string;
@@ -24,6 +37,7 @@ type ProviderConfig = {
   consoleUrl: string;
   consoleName: string;
   configuredField: keyof UserSettings;
+  modelField: keyof UserSettings;
 };
 
 const PROVIDERS: ProviderConfig[] = [
@@ -35,6 +49,7 @@ const PROVIDERS: ProviderConfig[] = [
     consoleUrl: "https://console.anthropic.com/",
     consoleName: "Anthropic Console",
     configuredField: "claudeApiKeyConfigured",
+    modelField: "claudeDefaultModel",
   },
   {
     key: "chatgpt",
@@ -44,6 +59,7 @@ const PROVIDERS: ProviderConfig[] = [
     consoleUrl: "https://platform.openai.com/api-keys",
     consoleName: "OpenAI Platform",
     configuredField: "chatgptApiKeyConfigured",
+    modelField: "chatgptDefaultModel",
   },
   {
     key: "gemini",
@@ -53,6 +69,7 @@ const PROVIDERS: ProviderConfig[] = [
     consoleUrl: "https://aistudio.google.com/apikey",
     consoleName: "Google AI Studio",
     configuredField: "geminiApiKeyConfigured",
+    modelField: "geminiDefaultModel",
   },
 ];
 
@@ -72,11 +89,16 @@ const initialProviderState: ProviderState = {
   isSaving: false,
 };
 
+type ModelOption = { value: string; label: string };
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [availableModels, setAvailableModels] = useState<
+    Record<string, ModelOption[]>
+  >({});
 
   const [providerStates, setProviderStates] = useState<
     Record<string, ProviderState>
@@ -132,10 +154,72 @@ export default function SettingsPage() {
     }
   }, []);
 
+  const fetchModels = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings/models`);
+      if (res.ok) {
+        const data: Record<string, ModelOption[]> = await res.json();
+        setAvailableModels(data);
+      }
+    } catch (err) {
+      console.error("モデル一覧の取得に失敗:", err);
+    }
+  }, []);
+
+  const saveModel = async (providerKey: string, model: string) => {
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings/model`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model, provider: providerKey }),
+      });
+
+      if (res.ok) {
+        const provider = PROVIDERS.find((p) => p.key === providerKey);
+        setSettings((prev) =>
+          prev
+            ? { ...prev, [provider?.modelField ?? ""]: model || null }
+            : prev,
+        );
+        setSuccessMessage("デフォルトモデルを保存しました");
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error ?? "モデルの保存に失敗しました");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
+    }
+  };
+
+  const saveDefaultProvider = async (provider: ApiProvider) => {
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ defaultAiProvider: provider }),
+      });
+      if (res.ok) {
+        setSettings((prev) =>
+          prev ? { ...prev, defaultAiProvider: provider } : prev,
+        );
+        setSuccessMessage("デフォルトAIプロバイダーを保存しました");
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        throw new Error("保存に失敗しました");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
+    }
+  };
+
   useEffect(() => {
     fetchSettings();
     fetchApiKeys();
-  }, [fetchSettings, fetchApiKeys]);
+    fetchModels();
+  }, [fetchSettings, fetchApiKeys, fetchModels]);
 
   const saveApiKey = async (providerKey: string) => {
     const state = providerStates[providerKey];
@@ -354,6 +438,41 @@ export default function SettingsPage() {
                     </div>
                   )}
 
+                  {/* モデル選択 */}
+                  {isConfigured && availableModels[provider.key] && (
+                    <div className="mt-4 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+                      <label
+                        htmlFor={`model-${provider.key}`}
+                        className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
+                      >
+                        デフォルトモデル
+                      </label>
+                      <div className="relative">
+                        <select
+                          id={`model-${provider.key}`}
+                          value={
+                            (settings?.[provider.modelField] as
+                              | string
+                              | null
+                              | undefined) ?? ""
+                          }
+                          onChange={(e) =>
+                            saveModel(provider.key, e.target.value)
+                          }
+                          className="w-full appearance-none px-4 py-2.5 pr-10 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-zinc-900 dark:text-zinc-100"
+                        >
+                          <option value="">選択してください</option>
+                          {availableModels[provider.key].map((model) => (
+                            <option key={model.value} value={model.value}>
+                              {model.label}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+                      </div>
+                    </div>
+                  )}
+
                   {/* APIキー入力フォーム（未設定または編集中の場合） */}
                   {(!isConfigured || state.isEditing) && (
                     <div className="mt-4 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg space-y-4">
@@ -441,6 +560,82 @@ export default function SettingsPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* デフォルトAIプロバイダー設定 */}
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-3">
+              <Settings className="w-5 h-5 text-zinc-400" />
+              <div>
+                <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  デフォルトAIプロバイダー
+                </h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  フローティングAIやタスク分析で使用するAIを選択
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {(["claude", "chatgpt", "gemini"] as ApiProvider[]).map((p) => {
+                const configField = PROVIDERS.find((pr) => pr.key === p)?.configuredField;
+                const isConfigured = !!(
+                  configField && settings?.[configField as keyof UserSettings]
+                );
+                const isSelected = settings?.defaultAiProvider === p;
+
+                return (
+                  <button
+                    key={p}
+                    onClick={() => {
+                      if (isConfigured) saveDefaultProvider(p);
+                    }}
+                    disabled={!isConfigured}
+                    className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                      isSelected
+                        ? "border-violet-500 bg-violet-50 dark:bg-violet-900/20"
+                        : isConfigured
+                        ? "border-zinc-200 dark:border-zinc-700 hover:border-violet-300 dark:hover:border-violet-700 bg-white dark:bg-zinc-800"
+                        : "border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 opacity-50 cursor-not-allowed"
+                    }`}
+                  >
+                    {isSelected && (
+                      <div className="absolute top-2 right-2">
+                        <CheckCircle className="w-5 h-5 text-violet-500" />
+                      </div>
+                    )}
+                    <h3
+                      className={`font-medium text-sm ${
+                        isSelected
+                          ? "text-violet-700 dark:text-violet-300"
+                          : isConfigured
+                          ? "text-zinc-900 dark:text-zinc-100"
+                          : "text-zinc-400 dark:text-zinc-600"
+                      }`}
+                    >
+                      {PROVIDER_LABELS[p]}
+                    </h3>
+                    <p
+                      className={`text-xs mt-1 ${
+                        isSelected
+                          ? "text-violet-500 dark:text-violet-400"
+                          : "text-zinc-500 dark:text-zinc-400"
+                      }`}
+                    >
+                      {PROVIDER_DESCRIPTIONS[p]}
+                    </p>
+                    {!isConfigured && (
+                      <p className="text-xs text-amber-500 mt-2">
+                        APIキー未設定
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

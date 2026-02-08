@@ -331,12 +331,14 @@ export class AgentOrchestrator {
     recoveredExecutions: number;
     updatedTasks: number;
     updatedSessions: number;
+    interruptedExecutionIds: number[];
   }> {
     console.log("[Orchestrator] Starting startup recovery of stale executions...");
 
     let recoveredExecutions = 0;
     let updatedTasks = 0;
     let updatedSessions = 0;
+    const interruptedExecutionIds: number[] = [];
 
     try {
       // メモリ上でアクティブな実行IDを取得（起動直後は空のはず）
@@ -365,7 +367,7 @@ export class AgentOrchestrator {
 
       if (staleExecutions.length === 0) {
         console.log("[Orchestrator] No stale executions found. Recovery complete.");
-        return { recoveredExecutions: 0, updatedTasks: 0, updatedSessions: 0 };
+        return { recoveredExecutions: 0, updatedTasks: 0, updatedSessions: 0, interruptedExecutionIds: [] };
       }
 
       console.log(`[Orchestrator] Found ${staleExecutions.length} stale executions to recover`);
@@ -386,6 +388,7 @@ export class AgentOrchestrator {
             },
           });
           recoveredExecutions++;
+          interruptedExecutionIds.push(exec.id);
 
           affectedSessionIds.add(exec.sessionId);
 
@@ -477,7 +480,7 @@ export class AgentOrchestrator {
       console.error("[Orchestrator] Startup recovery failed:", error);
     }
 
-    return { recoveredExecutions, updatedTasks, updatedSessions };
+    return { recoveredExecutions, updatedTasks, updatedSessions, interruptedExecutionIds };
   }
 
   /**

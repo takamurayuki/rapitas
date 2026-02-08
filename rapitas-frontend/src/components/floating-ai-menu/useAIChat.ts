@@ -1,7 +1,7 @@
 "use client";
 
 import { useReducer, useCallback, useRef } from "react";
-import type { AIChatMessage, AIChatState, AIChatAction } from "@/types";
+import type { AIChatMessage, AIChatState, AIChatAction, ApiProvider } from "@/types";
 import { sendMessageToAI, sendMessageToAIStream } from "./aiService";
 
 const initialState: AIChatState = {
@@ -53,6 +53,8 @@ function generateMessageId(): string {
 export type UseAIChatOptions = {
   systemPrompt?: string;
   useStreaming?: boolean;
+  provider?: ApiProvider;
+  model?: string;
   onMessageSent?: (message: AIChatMessage) => void;
   onResponseReceived?: (message: AIChatMessage) => void;
   onError?: (error: string) => void;
@@ -73,6 +75,8 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
   const {
     systemPrompt,
     useStreaming = false,
+    provider,
+    model,
     onMessageSent,
     onResponseReceived,
     onError,
@@ -86,7 +90,6 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
     async (content: string) => {
       if (!content.trim() || state.isLoading) return;
 
-      // ユーザーメッセージを追加
       const userMessage: AIChatMessage = {
         id: generateMessageId(),
         role: "user",
@@ -99,11 +102,9 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       dispatch({ type: "SET_LOADING", payload: true });
 
       if (useStreaming) {
-        // ストリーミングモード
         streamingMessageRef.current = "";
         const assistantMessageId = generateMessageId();
 
-        // 空のアシスタントメッセージを先に追加
         const initialAssistantMessage: AIChatMessage = {
           id: assistantMessageId,
           role: "assistant",
@@ -117,10 +118,11 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
             message: content.trim(),
             conversationHistory: [...state.messages, userMessage],
             systemPrompt,
+            provider,
+            model,
           },
           (chunk) => {
             streamingMessageRef.current += chunk;
-            // ストリーミング中のメッセージ更新は状態の再構築で行う
           },
           () => {
             const finalMessage: AIChatMessage = {
@@ -138,11 +140,12 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
           }
         );
       } else {
-        // 通常モード
         const response = await sendMessageToAI({
           message: content.trim(),
           conversationHistory: [...state.messages, userMessage],
           systemPrompt,
+          provider,
+          model,
         });
 
         if (response.success && response.message) {
@@ -168,6 +171,8 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       state.messages,
       systemPrompt,
       useStreaming,
+      provider,
+      model,
       onMessageSent,
       onResponseReceived,
       onError,
@@ -175,7 +180,6 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
   );
 
   const clearMessages = useCallback(() => {
-    // 進行中のリクエストをキャンセル
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;

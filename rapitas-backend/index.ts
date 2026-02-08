@@ -143,12 +143,53 @@ app.listen(3001);
 console.log("🚀 Rapitas backend running on http://localhost:3001");
 
 // Startup recovery: mark stale running/pending executions as interrupted
-// and update related Task/Session statuses
-orchestrator.recoverStaleExecutions().then((result) => {
+// and update related Task/Session statuses, then auto-resume if enabled
+orchestrator.recoverStaleExecutions().then(async (result) => {
   if (result.recoveredExecutions > 0) {
     console.log(
       `🔄 Startup recovery: ${result.recoveredExecutions} executions, ${result.updatedTasks} tasks, ${result.updatedSessions} sessions recovered`
     );
+  }
+
+  // Check auto-resume setting and resume interrupted executions
+  if (result.interruptedExecutionIds.length > 0) {
+    try {
+      const settings = await prisma.userSettings.findFirst();
+      if (settings?.autoResumeInterruptedTasks) {
+        console.log(`🔄 Auto-resume enabled. Resuming ${result.interruptedExecutionIds.length} interrupted executions...`);
+
+        for (const executionId of result.interruptedExecutionIds) {
+          try {
+            const res = await fetch(`http://localhost:3001/agents/executions/${executionId}/resume`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+            });
+            const data = await res.json() as { success: boolean; taskTitle?: string; message?: string; error?: string };
+            if (data.success) {
+              console.log(`✅ Auto-resumed execution ${executionId}: ${data.taskTitle || data.message}`);
+            } else {
+              console.warn(`⚠️ Failed to auto-resume execution ${executionId}: ${data.error}`);
+            }
+          } catch (error) {
+            console.error(`❌ Error auto-resuming execution ${executionId}:`, error);
+          }
+        }
+
+        // Create notification about auto-resume
+        await prisma.notification.create({
+          data: {
+            type: "agent_execution_resumed",
+            title: "自動再開完了",
+            message: `サーバー再起動後、${result.interruptedExecutionIds.length}件の中断されたタスクを自動再開しました。`,
+            link: "/",
+          },
+        }).catch((err: Error) => {
+          console.error("❌ Failed to create auto-resume notification:", err);
+        });
+      }
+    } catch (error) {
+      console.error("❌ Auto-resume check failed:", error);
+    }
   }
 }).catch((error) => {
   console.error("❌ Startup recovery failed:", error);

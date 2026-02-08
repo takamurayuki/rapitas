@@ -7,11 +7,11 @@ import {
   analyzeTask,
   generateOptimizedPrompt,
   formatPromptForAgent,
-  isApiKeyConfiguredAsync,
   generateBranchName,
   generateTaskTitle,
   type TaskAnalysisResult,
 } from "../services/claude-agent";
+import { getDefaultProvider, getApiKeyForProvider } from "../utils/ai-client";
 import { getLabelsArray, toJsonString, fromJsonString } from "../utils/db-helpers";
 
 export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
@@ -134,13 +134,14 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
     async ({ params, set }: { params: { taskId: string }; set: { status?: number } }) => {
       const taskId = parseInt(params.taskId);
 
-      // APIキーチェック
-      const apiKeyConfigured = await isApiKeyConfiguredAsync();
-      if (!apiKeyConfigured) {
+      // デフォルトプロバイダーのAPIキーチェック
+      const defaultProvider = await getDefaultProvider();
+      const apiKey = await getApiKeyForProvider(defaultProvider);
+      if (!apiKey) {
         set.status = 400;
         return {
           error:
-            "Claude APIキーが設定されていません。設定ページでAPIキーを登録してください。",
+            "AIのAPIキーが設定されていません。設定ページでAPIキーを登録してください。",
         };
       }
 
@@ -176,7 +177,7 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
       });
 
       try {
-        // タスクを分析
+        // タスクを分析（デフォルトプロバイダーを使用）
         const { result, tokensUsed } = await analyzeTask(
           {
             id: task.id,
@@ -189,6 +190,7 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
           {
             maxSubtasks: config.maxSubtasks,
             priority: config.priority as "aggressive" | "balanced" | "conservative",
+            provider: defaultProvider,
           }
         );
 
@@ -338,13 +340,14 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
       const taskId = parseInt(params.taskId);
       const { clarificationAnswers, savePrompt } = body || {};
 
-      // APIキーチェック
-      const apiKeyConfigured = await isApiKeyConfiguredAsync();
-      if (!apiKeyConfigured) {
+      // デフォルトプロバイダーのAPIキーチェック
+      const optimizeProvider = await getDefaultProvider();
+      const optimizeApiKey = await getApiKeyForProvider(optimizeProvider);
+      if (!optimizeApiKey) {
         set.status = 400;
         return {
           error:
-            "Claude APIキーが設定されていません。設定ページでAPIキーを登録してください。",
+            "AIのAPIキーが設定されていません。設定ページでAPIキーを登録してください。",
         };
       }
 
@@ -385,7 +388,7 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
       }
 
       try {
-        // プロンプト最適化を実行
+        // プロンプト最適化を実行（デフォルトプロバイダーを使用）
         const { result, tokensUsed } = await generateOptimizedPrompt(
           {
             title: task.title,
@@ -394,7 +397,8 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
             labels: getLabelsArray(task.labels),
           },
           analysisResult as TaskAnalysisResult | null,
-          clarificationAnswers
+          clarificationAnswers,
+          optimizeProvider,
         );
 
         // トークン使用量を記録（セッションが存在する場合）
@@ -551,18 +555,19 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
         return { error: "タスクタイトルは必須です" };
       }
 
-      // APIキーチェック
-      const apiKeyConfigured = await isApiKeyConfiguredAsync();
-      if (!apiKeyConfigured) {
+      // デフォルトプロバイダーのAPIキーチェック
+      const branchProvider = await getDefaultProvider();
+      const branchApiKey = await getApiKeyForProvider(branchProvider);
+      if (!branchApiKey) {
         set.status = 400;
         return {
           error:
-            "Claude APIキーが設定されていません。設定ページでAPIキーを登録してください。",
+            "AIのAPIキーが設定されていません。設定ページでAPIキーを登録してください。",
         };
       }
 
       try {
-        const result = await generateBranchName(title, description);
+        const result = await generateBranchName(title, description, branchProvider);
         return result;
       } catch (error: unknown) {
         console.error("Branch name generation error:", error);
@@ -621,17 +626,19 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
         return { error: "説明文は必須です" };
       }
 
-      const apiKeyConfigured = await isApiKeyConfiguredAsync();
-      if (!apiKeyConfigured) {
+      // デフォルトプロバイダーのAPIキーチェック
+      const titleProvider = await getDefaultProvider();
+      const titleApiKey = await getApiKeyForProvider(titleProvider);
+      if (!titleApiKey) {
         set.status = 400;
         return {
           error:
-            "Claude APIキーが設定されていません。設定ページでAPIキーを登録してください。",
+            "AIのAPIキーが設定されていません。設定ページでAPIキーを登録してください。",
         };
       }
 
       try {
-        const result = await generateTaskTitle(description);
+        const result = await generateTaskTitle(description, titleProvider);
         return result;
       } catch (error: unknown) {
         console.error("Title generation error:", error);
