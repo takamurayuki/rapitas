@@ -165,7 +165,7 @@ export const TerminalPanel = memo(function TerminalPanel({
     prevLogsRef.current = currentLogs;
 
     const newLines: LogLine[] = newLogs
-      .filter((l) => l.trim())
+      .filter((l) => l.trim() && l.trim() !== "null" && l.trim() !== "undefined")
       .map((text) => ({
         id: `log-${lineIdCounter.current++}`,
         type: classifyLine(text),
@@ -219,7 +219,7 @@ export const TerminalPanel = memo(function TerminalPanel({
         if (state?.output) {
           const restoredLines = state.output
             .split("\n")
-            .filter((l) => l.trim())
+            .filter((l) => l.trim() && l.trim() !== "null" && l.trim() !== "undefined")
             .map((text) => ({
               id: `r-${lineIdCounter.current++}`,
               type: classifyLine(text) as LogLine["type"],
@@ -264,12 +264,16 @@ export const TerminalPanel = memo(function TerminalPanel({
       setSubmitting(true);
       try {
         const { API_BASE_URL } = await import("@/utils/api");
-        await fetch(`${API_BASE_URL}/tasks/${taskId}/agent-respond`, {
+        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/agent-respond`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ response: text }),
         });
-        polling.clearQuestion();
+        if (res.ok) {
+          polling.clearQuestion();
+        } else {
+          throw new Error(`HTTP ${res.status}`);
+        }
       } catch (e) {
         setLines((prev) => {
           const combined = [

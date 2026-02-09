@@ -552,8 +552,6 @@ export function AIAccordionPanel({
     sendingResponseRef.current = true;
     setIsSendingResponse(true);
 
-    // 送信前に質問UIを非表示にする（楽観的UI更新）
-    clearPollingQuestion();
     const savedResponse = trimmedResponse;
     setUserResponse("");
 
@@ -564,7 +562,10 @@ export function AIAccordionPanel({
         body: JSON.stringify({ response: savedResponse }),
       });
 
-      if (!res.ok) {
+      if (res.ok) {
+        // API成功後に質問UIをクリア（楽観的UI更新を廃止し、確認後にクリア）
+        clearPollingQuestion();
+      } else {
         // エラー時は質問を復元（ユーザーが再試行できるように）
         console.error("Failed to send response:", res.status);
         setUserResponse(savedResponse);

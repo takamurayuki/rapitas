@@ -232,6 +232,9 @@ export class AgentEventEmitter {
    * 出力イベントを発行
    */
   emitOutput(content: string, isError = false, isPartial = false): Promise<void> {
+    if (content == null || content === "null" || content === "undefined") {
+      return Promise.resolve();
+    }
     const event: OutputEvent = {
       type: 'output',
       timestamp: new Date(),

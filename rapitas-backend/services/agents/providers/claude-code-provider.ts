@@ -263,7 +263,11 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
 
       const args: string[] = ['--print', '--verbose', '--output-format', 'stream-json'];
 
-      if (this.config.continueConversation || this.config.resumeSessionId) {
+      if (this.config.resumeSessionId) {
+        // セッションIDが指定されている場合は --resume で正確にそのセッションを再開
+        args.push('--resume', this.config.resumeSessionId);
+      } else if (this.config.continueConversation) {
+        // セッションIDがない場合は --continue で最新の会話を継続
         args.push('--continue');
       }
 
@@ -284,7 +288,7 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
 
       if (isWindows) {
         const argsString = args.join(' ');
-        finalCommand = `chcp 65001 >nul && ${claudePath} ${argsString}`;
+        finalCommand = `chcp 65001 >NUL 2>&1 && ${claudePath} ${argsString}`;
         finalArgs = [];
       } else {
         finalCommand = claudePath;
@@ -376,6 +380,16 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
                 }
               }
             } catch {
+              // chcpコマンドの出力など不要な行をフィルタリング
+              const trimmedLine = line.trim();
+              if (
+                !trimmedLine ||
+                /^Active code page:/i.test(trimmedLine) ||
+                /^現在のコード ページ:/i.test(trimmedLine) ||
+                /^chcp\s/i.test(trimmedLine)
+              ) {
+                continue;
+              }
               this.outputBuffer += line + '\n';
               await this.emitOutput(line + '\n', false, true);
             }

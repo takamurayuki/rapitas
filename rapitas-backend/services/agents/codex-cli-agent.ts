@@ -223,7 +223,7 @@ export class CodexCliAgent extends BaseAgent {
               return arg;
             })
             .join(" ");
-          finalCommand = `chcp 65001 >nul && ${codexPath} ${argsString}`;
+          finalCommand = `chcp 65001 >NUL 2>&1 && ${codexPath} ${argsString}`;
           finalArgs = [];
         } else {
           finalCommand = codexPath;
@@ -522,7 +522,19 @@ export class CodexCliAgent extends BaseAgent {
                 this.emitOutput(displayOutput);
               }
             } catch (e) {
-              // JSONパース失敗時は生のテキストとして処理
+              // JSONパース失敗時: chcpコマンドの出力など不要な行をフィルタリング
+              const trimmedLine = line.trim();
+              if (
+                !trimmedLine ||
+                /^Active code page:/i.test(trimmedLine) ||
+                /^現在のコード ページ:/i.test(trimmedLine) ||
+                /^chcp\s/i.test(trimmedLine)
+              ) {
+                console.log(
+                  `${this.logPrefix} Filtered non-JSON output: ${trimmedLine.substring(0, 100)}`,
+                );
+                continue;
+              }
               console.log(
                 `${this.logPrefix} Raw output: ${line.substring(0, 200)}`,
               );

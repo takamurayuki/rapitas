@@ -1531,7 +1531,7 @@ export class AgentOrchestrator {
     }
 
     // エージェントを作成
-    const agent = agentFactory.createAgent(agentConfig);
+    let agent = agentFactory.createAgent(agentConfig);
 
     // タスクIDを取得
     const taskId = execution.session.config?.taskId || 0;
@@ -1792,7 +1792,233 @@ export class AgentOrchestrator {
       };
 
       // エージェントを実行
-      const result = await agent.execute(agentTask);
+      let result = await agent.execute(agentTask);
+
+      // --resume でセッション再開に失敗した場合のフォールバック
+      // 実行時間が短い（10秒未満）場合、またはエラーメッセージがセッション関連の場合は
+      // セッション再開失敗と判断してフォールバックを試みる
+      const isSessionResumeFailure = !result.success && !result.waitingForInput && claudeSessionId && (
+        (result.executionTimeMs !== undefined && result.executionTimeMs < 10000) ||
+        (result.errorMessage && /session|expired|invalid|not found|code 1/i.test(result.errorMessage))
+      );
+      if (isSessionResumeFailure) {
+        console.log(`[Orchestrator] Session resume failed (executionTime: ${result.executionTimeMs}ms, error: ${result.errorMessage?.substring(0, 100)}). Attempting fallback with --continue...`);
+        fileLogger.logError(`Session resume failed with --resume ${claudeSessionId}. Attempting --continue fallback.`);
+
+        // 前のエージェントをクリーンアップ
+        await agentFactory.removeAgent(agent.id);
+
+        // --continue でフォールバック（最新の会話を継続）
+        const fallbackConfig: AgentConfigInput = {
+          ...agentConfig,
+          resumeSessionId: undefined,
+          continueConversation: true,
+        };
+        const fallbackAgent = agentFactory.createAgent(fallbackConfig);
+
+        // ハンドラを再設定
+        fallbackAgent.setQuestionDetectedHandler(async (info) => {
+          console.log(`[Orchestrator] Question detected during continuation fallback!`);
+          fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
+          try {
+            await this.prisma.agentExecution.update({
+              where: { id: execution.id },
+              data: {
+                status: "waiting_for_input",
+                question: info.question || null,
+                questionType: info.questionType || null,
+                questionDetails: toJsonString(info.questionDetails),
+                claudeSessionId: info.claudeSessionId || (execution as any).claudeSessionId || null,
+              },
+            });
+            state.status = "waiting_for_input" as any;
+            this.startQuestionTimeout(execution.id, taskId, info.questionKey);
+            const timeoutInfo = this.getQuestionTimeoutInfo(execution.id);
+            this.emitEvent({
+              type: "execution_output",
+              executionId: execution.id,
+              sessionId: execution.sessionId,
+              taskId,
+              data: {
+                output: `\n[質問] ${info.question}\n`,
+                waitingForInput: true,
+                question: info.question,
+                questionType: info.questionType,
+                questionDetails: info.questionDetails,
+                questionKey: info.questionKey,
+                questionTimeoutSeconds: timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
+                questionTimeoutDeadline: timeoutInfo?.deadline?.toISOString(),
+              },
+              timestamp: new Date(),
+            });
+          } catch (error) {
+            console.error(`[Orchestrator] Failed to update DB on question detection (fallback):`, error);
+          }
+        });
+
+        fallbackAgent.setOutputHandler(async (output, isError) => {
+          state.output += output;
+          fileLogger.logOutput(output, isError ?? false);
+          if (agentInfo) {
+            agentInfo.lastOutput = state.output.slice(-2000);
+            agentInfo.lastSavedAt = new Date();
+          }
+          // ログチャンクをキューに追加（リアルタイム通知用）
+          pendingLogChunks.push({
+            chunk: output,
+            isError: isError ?? false,
+            timestamp: new Date(),
+          });
+          // イベントを発火してフロントエンドにリアルタイム通知
+          try {
+            this.emitEvent({
+              type: "execution_output",
+              executionId: execution.id,
+              sessionId: execution.sessionId,
+              taskId,
+              data: { output, isError },
+              timestamp: new Date(),
+            });
+          } catch (e) {
+            console.error("Error emitting fallback event:", e);
+          }
+        });
+
+        // アクティブエージェントを更新
+        agent = fallbackAgent;
+        agentInfo.agent = fallbackAgent;
+
+        // フォールバック通知
+        const fallbackMessage = `\n[セッション再開] --resume が失敗したため、--continue で再試行しています...\n`;
+        state.output += fallbackMessage;
+        this.emitEvent({
+          type: "execution_output",
+          executionId: execution.id,
+          sessionId: execution.sessionId,
+          taskId,
+          data: { output: fallbackMessage },
+          timestamp: new Date(),
+        });
+
+        const fallbackResult = await fallbackAgent.execute(agentTask);
+
+        // --continue でも失敗した場合は、新規セッションでリトライ
+        const isContinueFallbackFailure = !fallbackResult.success && !fallbackResult.waitingForInput && (
+          (fallbackResult.executionTimeMs !== undefined && fallbackResult.executionTimeMs < 10000) ||
+          (fallbackResult.errorMessage && /session|expired|invalid|not found|code 1/i.test(fallbackResult.errorMessage))
+        );
+        if (isContinueFallbackFailure) {
+          console.log(`[Orchestrator] --continue fallback also failed (executionTime: ${fallbackResult.executionTimeMs}ms). Attempting new session with context...`);
+          fileLogger.logError(`--continue fallback also failed. Starting new session with context.`);
+
+          await agentFactory.removeAgent(fallbackAgent.id);
+
+          // 新規セッションで前回のコンテキストを引き継ぐ
+          const newSessionConfig: AgentConfigInput = {
+            ...agentConfig,
+            resumeSessionId: undefined,
+            continueConversation: false,
+          };
+          const newAgent = agentFactory.createAgent(newSessionConfig);
+
+          // ハンドラを再設定
+          newAgent.setQuestionDetectedHandler(async (info) => {
+            console.log(`[Orchestrator] Question detected during new session retry!`);
+            fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
+            try {
+              await this.prisma.agentExecution.update({
+                where: { id: execution.id },
+                data: {
+                  status: "waiting_for_input",
+                  question: info.question || null,
+                  questionType: info.questionType || null,
+                  questionDetails: toJsonString(info.questionDetails),
+                  claudeSessionId: info.claudeSessionId || null,
+                },
+              });
+              state.status = "waiting_for_input" as any;
+              this.startQuestionTimeout(execution.id, taskId, info.questionKey);
+              const timeoutInfo = this.getQuestionTimeoutInfo(execution.id);
+              this.emitEvent({
+                type: "execution_output",
+                executionId: execution.id,
+                sessionId: execution.sessionId,
+                taskId,
+                data: {
+                  output: `\n[質問] ${info.question}\n`,
+                  waitingForInput: true,
+                  question: info.question,
+                  questionType: info.questionType,
+                  questionDetails: info.questionDetails,
+                  questionKey: info.questionKey,
+                  questionTimeoutSeconds: timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
+                  questionTimeoutDeadline: timeoutInfo?.deadline?.toISOString(),
+                },
+                timestamp: new Date(),
+              });
+            } catch (error) {
+              console.error(`[Orchestrator] Failed to update DB on question detection (new session):`, error);
+            }
+          });
+
+          newAgent.setOutputHandler(async (output, isError) => {
+            state.output += output;
+            fileLogger.logOutput(output, isError ?? false);
+            if (agentInfo) {
+              agentInfo.lastOutput = state.output.slice(-2000);
+              agentInfo.lastSavedAt = new Date();
+            }
+            // ログチャンクをキューに追加（リアルタイム通知用）
+            pendingLogChunks.push({
+              chunk: output,
+              isError: isError ?? false,
+              timestamp: new Date(),
+            });
+            // イベントを発火してフロントエンドにリアルタイム通知
+            try {
+              this.emitEvent({
+                type: "execution_output",
+                executionId: execution.id,
+                sessionId: execution.sessionId,
+                taskId,
+                data: { output, isError },
+                timestamp: new Date(),
+              });
+            } catch (e) {
+              console.error("Error emitting new session event:", e);
+            }
+          });
+
+          agent = newAgent;
+          agentInfo.agent = newAgent;
+
+          // コンテキスト付きのプロンプトを構築
+          const previousContext = (execution.output || "").slice(-2000);
+          const contextPrompt = `以下は前回のタスク実行の継続です。前回のコンテキスト（最後の部分）:\n\n${previousContext}\n\n前回の質問に対するユーザーの回答: ${response}\n\n上記の回答を踏まえて、タスクの実行を継続してください。`;
+
+          const contextTask: AgentTask = {
+            id: taskId,
+            title: contextPrompt,
+            description: contextPrompt,
+            workingDirectory: task?.workingDirectory || undefined,
+          };
+
+          const newSessionMessage = `\n[セッション再開] 新しいセッションでコンテキストを引き継いで実行を継続します...\n`;
+          state.output += newSessionMessage;
+          this.emitEvent({
+            type: "execution_output",
+            executionId: execution.id,
+            sessionId: execution.sessionId,
+            taskId,
+            data: { output: newSessionMessage },
+            timestamp: new Date(),
+          });
+
+          result = await newAgent.execute(contextTask);
+        } else {
+          result = fallbackResult;
+        }
+      }
 
       // ステータス判定
       let executionStatus: string;

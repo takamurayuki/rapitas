@@ -196,7 +196,7 @@ class SubAgent extends EventEmitter {
               return arg;
             })
             .join(" ");
-          finalCommand = `chcp 65001 >nul && ${claudePath} ${argsString}`;
+          finalCommand = `chcp 65001 >NUL 2>&1 && ${claudePath} ${argsString}`;
           finalArgs = [];
         } else {
           finalCommand = claudePath;
@@ -526,13 +526,14 @@ class SubAgent extends EventEmitter {
             if (json.subtype === "init") {
               displayOutput = `[System: init]\n`;
             } else if (json.subtype === "error") {
-              displayOutput = `[System Error: ${json.message || json.error || "unknown"}]\n`;
+              const errorMsg = typeof json.message === 'string' ? json.message : (json.error || "unknown");
+              displayOutput = `[System Error: ${errorMsg}]\n`;
             }
             break;
           case "assistant":
             if (json.message?.content) {
               for (const block of json.message.content) {
-                if (block.type === "text") {
+                if (block.type === "text" && block.text) {
                   displayOutput += block.text;
                 } else if (block.type === "tool_use") {
                   // AskUserQuestionツールの検出（親タスクと同様の処理）
@@ -646,13 +647,31 @@ class SubAgent extends EventEmitter {
           this.emit("output", displayOutput, false);
         }
       } else {
-        // JSONではない行はそのまま出力
+        // JSONではない行: chcpコマンドの出力など不要な行をフィルタリング
+        const trimmedLine = line.trim();
+        if (
+          !trimmedLine ||
+          /^Active code page:/i.test(trimmedLine) ||
+          /^現在のコード ページ:/i.test(trimmedLine) ||
+          /^chcp\s/i.test(trimmedLine)
+        ) {
+          return;
+        }
         this.outputBuffer += line + "\n";
         this.state.output += line + "\n";
         this.emit("output", line + "\n", false);
       }
     } catch {
-      // JSONパースエラーは無視、生の行を出力
+      // JSONパースエラー: chcpコマンドの出力など不要な行をフィルタリング
+      const trimmedLine = line.trim();
+      if (
+        !trimmedLine ||
+        /^Active code page:/i.test(trimmedLine) ||
+        /^現在のコード ページ:/i.test(trimmedLine) ||
+        /^chcp\s/i.test(trimmedLine)
+      ) {
+        return;
+      }
       this.outputBuffer += line + "\n";
       this.state.output += line + "\n";
       this.emit("output", line + "\n", false);

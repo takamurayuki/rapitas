@@ -47,10 +47,13 @@ import {
 } from "./routes";
 
 // Import shared database client
-import { prisma } from "./config";
+import { prisma, ensureDatabaseConnection } from "./config";
 
 // Import orchestrator for startup recovery
 import { orchestrator } from "./routes/approvals";
+
+// Ensure database connection before starting server
+await ensureDatabaseConnection();
 
 const app = new Elysia();
 

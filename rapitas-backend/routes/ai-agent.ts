@@ -1559,10 +1559,15 @@ export const aiAgentRoutes = new Elysia()
           };
         }
 
-        // ステータスを running に更新
+        // ステータスを running に更新（質問フィールドもクリアしてレースコンディションを防止）
         await prisma.agentExecution.update({
           where: { id: latestExecution.id },
-          data: { status: "running" },
+          data: {
+            status: "running",
+            question: null,
+            questionType: null,
+            questionDetails: null,
+          },
         });
 
         const workingDirectory =
@@ -1657,22 +1662,41 @@ export const aiAgentRoutes = new Elysia()
               }).catch(() => {});
             }
           })
-          .catch((error) => {
-            console.error("Agent respond execution failed:", error);
+          .catch(async (error) => {
+            const errorMsg = error.message || "Unknown error";
+            const isSessionError = /session|expired|invalid|not found|code 1|SIGTERM|timeout/i.test(errorMsg);
+            console.error(`Agent respond execution failed (sessionError: ${isSessionError}):`, errorMsg);
 
             // エラー時はタスクステータスを todo に戻す
-            prisma.task.update({
+            await prisma.task.update({
               where: { id: taskId },
               data: { status: "todo" },
             }).catch(() => {});
 
+            // 実行レコードのステータスを失敗に更新
+            // 質問フィールドもクリアして、フロントエンドが古い質問を再表示しないようにする
+            const detailedErrorMessage = isSessionError
+              ? `セッション再開に失敗しました（全てのフォールバックが失敗）: ${errorMsg}`
+              : `回答送信後の実行継続に失敗しました: ${errorMsg}`;
+            await prisma.agentExecution.update({
+              where: { id: latestExecution.id },
+              data: {
+                status: "failed",
+                completedAt: new Date(),
+                errorMessage: detailedErrorMessage,
+                question: null,
+                questionType: null,
+                questionDetails: null,
+              },
+            }).catch(() => {});
+
             // セッションのステータスも失敗に更新
-            prisma.agentSession.update({
+            await prisma.agentSession.update({
               where: { id: session.id },
               data: {
                 status: "failed",
                 completedAt: new Date(),
-                errorMessage: error.message || "Agent respond execution failed",
+                errorMessage: detailedErrorMessage,
               },
             }).catch(() => {});
           });
@@ -1684,12 +1708,18 @@ export const aiAgentRoutes = new Elysia()
         };
       } catch (error: any) {
         console.error("Agent respond failed:", error);
-        // エラー時はロックを解放してステータスを元に戻す
+        // エラー時はロックを解放してステータスを元に戻す（同期エラーなので実行はまだ開始されていない）
         orchestrator.releaseContinuationLock(latestExecution.id);
+        // ステータスをwaiting_for_inputに戻し、元の質問も復元する
         await prisma.agentExecution
           .update({
             where: { id: latestExecution.id },
-            data: { status: "waiting_for_input" },
+            data: {
+              status: "waiting_for_input",
+              question: latestExecution.question,
+              questionType: latestExecution.questionType,
+              questionDetails: latestExecution.questionDetails,
+            },
           })
           .catch(() => {});
         return { error: error.message || "Failed to send response" };
@@ -2140,8 +2170,12 @@ export const aiAgentRoutes = new Elysia()
         workingDirectory: exec.session.config?.task?.theme?.workingDirectory,
         canResume: exec.status === "interrupted", // Only interrupted can be resumed
       }));
-    } catch (error) {
-      console.error("[resumable-executions] Error:", error);
+    } catch (error: any) {
+      if (error?.code === "P1001") {
+        console.warn("[resumable-executions] Database unreachable, skipping");
+      } else {
+        console.error("[resumable-executions] Error:", error?.message || error);
+      }
       return [];
     }
   })
@@ -2689,8 +2723,12 @@ export const aiAgentRoutes = new Elysia()
         executionStatus: execution.status,
         startedAt: execution.startedAt,
       }));
-    } catch (error) {
-      console.error("[executing-tasks] Error:", error);
+    } catch (error: any) {
+      if (error?.code === "P1001") {
+        console.warn("[executing-tasks] Database unreachable, skipping");
+      } else {
+        console.error("[executing-tasks] Error:", error?.message || error);
+      }
       return [];
     }
   });

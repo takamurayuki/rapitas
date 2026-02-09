@@ -140,8 +140,12 @@ export class ClaudeCodeAgent extends BaseAgent {
     }
 
     return new Promise((resolve) => {
-      // AIタスク分析結果がある場合は構造化プロンプトを使用
-      const prompt = this.buildStructuredPrompt(task);
+      // --resume または --continue モードでは、プロンプト（ユーザー回答）をそのまま使用
+      // 余計なテキストを付加すると、セッション再開の文脈が崩れる
+      const isResumeMode = !!(this.config.resumeSessionId || this.config.continueConversation);
+      const prompt = isResumeMode
+        ? (task.description || task.title)
+        : this.buildStructuredPrompt(task);
 
       // ログ出力（AIタスク分析の使用状況を確認）
       if (task.analysisInfo) {
@@ -260,7 +264,7 @@ export class ClaudeCodeAgent extends BaseAgent {
               return arg;
             })
             .join(" ");
-          finalCommand = `chcp 65001 >nul && ${claudePath} ${argsString}`;
+          finalCommand = `chcp 65001 >NUL 2>&1 && ${claudePath} ${argsString}`;
           finalArgs = []; // 引数はコマンド文字列に含まれているので空
         } else {
           finalCommand = claudePath;
@@ -487,7 +491,7 @@ export class ClaudeCodeAgent extends BaseAgent {
                   // アシスタントのメッセージ
                   if (json.message?.content) {
                     for (const block of json.message.content) {
-                      if (block.type === "text") {
+                      if (block.type === "text" && block.text) {
                         displayOutput += block.text;
                       } else if (block.type === "tool_use") {
                         // AskUserQuestionツールの検出（キーベース判定システム使用）
@@ -535,14 +539,21 @@ export class ClaudeCodeAgent extends BaseAgent {
 
                           // AskUserQuestionツールが検出されたら、プロセスを停止
                           // stdin が閉じられているため、応答を待ち続けるとエラーが連続発生する
-                          // プロセスを停止して、ユーザーの回答後に --continue で再開する
+                          // プロセスを停止して、ユーザーの回答後に --resume で再開する
                           console.log(
                             `${this.logPrefix} Stopping process to wait for user response`,
                           );
-                          if (this.process && !this.process.killed) {
-                            // SIGTERMで丁寧に終了（出力バッファのフラッシュを待つ）
-                            this.process.kill("SIGTERM");
-                          }
+                          // セッション状態の安定化のため十分に待ってからSIGTERMを送信
+                          // Claude Codeがセッション状態を永続化する時間を確保する（3秒）
+                          // 短すぎるとセッション保存が不完全になり、--resume での再開に失敗する
+                          setTimeout(() => {
+                            if (this.process && !this.process.killed) {
+                              console.log(
+                                `${this.logPrefix} Sending SIGTERM after stabilization delay (3s)`,
+                              );
+                              this.process.kill("SIGTERM");
+                            }
+                          }, 3000);
                         } else {
                           // ツール呼び出しの詳細情報を表示
                           const toolInfo = this.formatToolInfo(
@@ -652,7 +663,8 @@ export class ClaudeCodeAgent extends BaseAgent {
                       `${this.logPrefix} System error event:`,
                       JSON.stringify(json),
                     );
-                    displayOutput += `[System Error: ${json.message || json.error || "unknown"}]\n`;
+                    const errorMsg = typeof json.message === 'string' ? json.message : (json.error || "unknown");
+                    displayOutput += `[System Error: ${errorMsg}]\n`;
                   } else {
                     displayOutput += `[System: ${json.subtype || "info"}]\n`;
                   }
@@ -669,7 +681,19 @@ export class ClaudeCodeAgent extends BaseAgent {
                 this.emitOutput(displayOutput);
               }
             } catch (e) {
-              // JSONパース失敗時は生の行をそのまま出力
+              // JSONパース失敗時: chcpコマンドの出力など不要な行をフィルタリング
+              const trimmedLine = line.trim();
+              if (
+                !trimmedLine ||
+                /^Active code page:/i.test(trimmedLine) ||
+                /^現在のコード ページ:/i.test(trimmedLine) ||
+                /^chcp\s/i.test(trimmedLine)
+              ) {
+                console.log(
+                  `${this.logPrefix} Filtered non-JSON output: ${trimmedLine.substring(0, 100)}`,
+                );
+                continue;
+              }
               console.log(
                 `${this.logPrefix} Raw output: ${line.substring(0, 200)}`,
               );
@@ -789,12 +813,12 @@ export class ClaudeCodeAgent extends BaseAgent {
           let errorMessage: string | undefined;
           if (code !== 0) {
             const errorParts: string[] = [];
-            errorParts.push(`プロセスがコード ${code} で終了しました`);
+            errorParts.push(`Process exited with code ${code}`);
 
-            // 再開モードの情報を追加
+            // 再開モードの情報を追加（フォールバック判定でマッチするようにキーワードを含める）
             if (this.config.resumeSessionId) {
               errorParts.push(
-                `\n\n【セッション再開モード】\nセッションID: ${this.config.resumeSessionId}`,
+                `\n\n【セッション再開モード】session expired or not found\nセッションID: ${this.config.resumeSessionId}`,
               );
               errorParts.push(
                 `\n※ セッションが期限切れまたは無効な可能性があります`,
@@ -825,10 +849,10 @@ export class ClaudeCodeAgent extends BaseAgent {
               );
             }
 
-            // 実行時間が非常に短い場合は警告
-            if (executionTimeMs < 5000) {
+            // 実行時間が非常に短い場合は警告（session resumeの失敗を示唆）
+            if (executionTimeMs < 10000) {
               errorParts.push(
-                `\n\n【警告】実行時間が ${executionTimeMs}ms と非常に短いです。セッションの再開に失敗した可能性があります。`,
+                `\n\n【警告】実行時間が ${executionTimeMs}ms と非常に短いです。session expired or not found - セッションの再開に失敗した可能性があります。`,
               );
             }
 

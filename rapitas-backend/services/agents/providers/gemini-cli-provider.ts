@@ -338,7 +338,7 @@ export class GeminiCliAgentV2 extends AbstractAgent {
             return arg;
           })
           .join(' ');
-        finalCommand = `chcp 65001 >nul && ${geminiPath} ${argsString}`;
+        finalCommand = `chcp 65001 >NUL 2>&1 && ${geminiPath} ${argsString}`;
         finalArgs = [];
       } else {
         finalCommand = geminiPath;
@@ -449,6 +449,16 @@ export class GeminiCliAgentV2 extends AbstractAgent {
                 }
               }
             } catch {
+              // chcpコマンドの出力など不要な行をフィルタリング
+              const trimmedLine = line.trim();
+              if (
+                !trimmedLine ||
+                /^Active code page:/i.test(trimmedLine) ||
+                /^現在のコード ページ:/i.test(trimmedLine) ||
+                /^chcp\s/i.test(trimmedLine)
+              ) {
+                continue;
+              }
               this.outputBuffer += line + '\n';
               await this.emitOutput(line + '\n', false, true);
             }

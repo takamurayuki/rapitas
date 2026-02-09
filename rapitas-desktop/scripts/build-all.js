@@ -17,9 +17,9 @@ try {
   console.log('Step 0: Stopping processes and generating Prisma Client...');
   try {
     if (process.platform === 'win32') {
-      execSync('taskkill /F /IM bun.exe 2>nul', { shell: true, stdio: 'ignore' });
-      execSync('taskkill /F /IM rapitas-backend.exe 2>nul', { shell: true, stdio: 'ignore' });
-      execSync('ping -n 2 127.0.0.1 >nul', { shell: true, stdio: 'ignore' });
+      execSync('taskkill /F /IM bun.exe >NUL 2>&1', { shell: true, stdio: 'ignore' });
+      execSync('taskkill /F /IM rapitas-backend.exe >NUL 2>&1', { shell: true, stdio: 'ignore' });
+      execSync('ping -n 2 127.0.0.1 >NUL 2>&1', { shell: true, stdio: 'ignore' });
     }
   } catch (e) { /* ignore */ }
 

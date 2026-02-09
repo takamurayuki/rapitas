@@ -200,7 +200,7 @@ export abstract class BaseAgent {
    * 出力を送信
    */
   protected emitOutput(output: string, isError: boolean = false): void {
-    if (this.outputHandler) {
+    if (this.outputHandler && output != null && output !== "null" && output !== "undefined") {
       this.outputHandler(output, isError);
     }
   }

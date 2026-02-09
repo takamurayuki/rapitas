@@ -301,6 +301,10 @@ export function useExecutionPolling(taskId: number | null) {
   const lastProcessedStatusRef = useRef<string | null>(null);
   // 最後に処理した質問を追跡（質問の重複処理防止）
   const lastProcessedQuestionRef = useRef<string | null>(null);
+  // 回答送信後の猶予期間（DBステータス更新のレースコンディション防止）
+  const responseGraceUntilRef = useRef<number>(0);
+  // 回答送信時にクリアされた質問テキスト（同じ質問の再検出防止）
+  const clearedQuestionRef = useRef<string | null>(null);
 
   /**
    * ポーリングを開始する
@@ -320,6 +324,8 @@ export function useExecutionPolling(taskId: number | null) {
     hasAddedFinalLogRef.current = false;
     lastProcessedStatusRef.current = null;
     lastProcessedQuestionRef.current = null;
+    responseGraceUntilRef.current = 0;
+    clearedQuestionRef.current = null;
 
     // 初期出力がある場合はその長さから開始（復元時）
     if (options?.initialOutput) {
@@ -436,6 +442,15 @@ export function useExecutionPolling(taskId: number | null) {
           if (!isStatusChanged && hasAddedFinalLogRef.current) {
             return;
           }
+
+          // 回答送信後のグレースピリオド中は、セッション再開フォールバック中の
+          // 一時的な失敗の可能性があるため、即座にfailedとして処理しない
+          const isInFailedGracePeriod = Date.now() < responseGraceUntilRef.current;
+          if (isInFailedGracePeriod && lastProcessedStatusRef.current === "responding") {
+            console.log("[ExecutionPolling] Ignoring failed status during grace period (session fallback may be in progress)");
+            return;
+          }
+
           console.log("[ExecutionPolling] Execution failed:", data.errorMessage);
           lastProcessedStatusRef.current = currentStatus;
           // 終了ログが未追加の場合のみ追加（重複防止）
@@ -485,6 +500,14 @@ export function useExecutionPolling(taskId: number | null) {
           if (!isStatusChanged && hasAddedFinalLogRef.current) {
             return;
           }
+
+          // 回答送信後のグレースピリオド中はスキップ
+          const isInInterruptedGracePeriod = Date.now() < responseGraceUntilRef.current;
+          if (isInInterruptedGracePeriod && lastProcessedStatusRef.current === "responding") {
+            console.log("[ExecutionPolling] Ignoring interrupted status during grace period");
+            return;
+          }
+
           console.log("[ExecutionPolling] Execution interrupted");
           lastProcessedStatusRef.current = currentStatus;
           const shouldAddLog = !hasAddedFinalLogRef.current;
@@ -510,8 +533,22 @@ export function useExecutionPolling(taskId: number | null) {
             return;
           }
 
-          // 同じ質問を既に処理済みの場合はタイムアウト情報のみ更新
+          // 回答送信後の猶予期間中は、waiting_for_inputを無視する
+          // （DBステータスがまだrunningに更新されていない場合や、
+          //   セッション再開フォールバック中のレースコンディション防止）
           const currentQuestion = data.question || "";
+          const isInGracePeriod = Date.now() < responseGraceUntilRef.current;
+          if (isInGracePeriod && (lastProcessedStatusRef.current === "responding" || lastProcessedStatusRef.current === "running")) {
+            // 猶予期間中は、クリアされた質問と同じ質問または空の質問を無視
+            if (!currentQuestion || clearedQuestionRef.current === currentQuestion) {
+              console.log("[ExecutionPolling] Ignoring stale waiting_for_input during grace period");
+              return;
+            }
+            // 猶予期間中でも、新しい質問（以前とは異なる質問）は許可する
+            console.log("[ExecutionPolling] New question detected during grace period, allowing through");
+          }
+
+          // 同じ質問を既に処理済みの場合はタイムアウト情報のみ更新
           const isNewQuestion =
             lastProcessedStatusRef.current !== "waiting_for_input" ||
             lastProcessedQuestionRef.current !== currentQuestion;
@@ -529,6 +566,9 @@ export function useExecutionPolling(taskId: number | null) {
             console.log("[ExecutionPolling] Waiting for input:", currentQuestion, "questionType:", data.questionType, "timeout:", timeoutInfo);
             lastProcessedStatusRef.current = "waiting_for_input";
             lastProcessedQuestionRef.current = currentQuestion;
+            // 新しい質問が検出されたので、猶予期間とクリアされた質問をリセット
+            responseGraceUntilRef.current = 0;
+            clearedQuestionRef.current = null;
           }
 
           setState((prev) => ({
@@ -546,6 +586,13 @@ export function useExecutionPolling(taskId: number | null) {
           // キャンセル状態の場合は上書きしない
           if (lastProcessedStatusRef.current === "cancelled") {
             return;
+          }
+          // DBがrunningに更新されたことを確認
+          if (lastProcessedStatusRef.current === "responding") {
+            lastProcessedStatusRef.current = "running";
+            // 注意: ここではまだ猶予期間をクリアしない
+            // セッション再開のフォールバック中にrunning→waiting_for_input(古い)→running
+            // という遷移が発生し得るため、猶予期間の自然消滅を待つ
           }
           // 実行中の場合、isRunningをtrueに維持
           setState((prev) => ({
@@ -624,6 +671,8 @@ export function useExecutionPolling(taskId: number | null) {
     hasAddedFinalLogRef.current = false;
     lastProcessedStatusRef.current = null;
     lastProcessedQuestionRef.current = null;
+    responseGraceUntilRef.current = 0;
+    clearedQuestionRef.current = null;
     setState({
       isConnected: false,
       isRunning: false,
@@ -641,11 +690,18 @@ export function useExecutionPolling(taskId: number | null) {
   /**
    * 質問への回答が送信された後に質問状態をクリアする
    * ステータスは running に戻し、ログは保持する
+   * 猶予期間を設定してDBステータス更新前のレースコンディションを防止する
    */
   const clearQuestion = useCallback(() => {
+    // クリアされた質問を記録（同じ質問の再検出防止）
+    clearedQuestionRef.current = lastProcessedQuestionRef.current;
     // 質問のステータス追跡をリセットして、新しい質問を受け付けられるようにする
-    lastProcessedStatusRef.current = "running";
+    lastProcessedStatusRef.current = "responding";
     lastProcessedQuestionRef.current = null;
+    // 猶予期間を設定（8秒間はwaiting_for_inputの再検出を抑制）
+    // セッション再開の3段階フォールバック（--resume → --continue → new session）に
+    // 十分な時間を確保するため、5秒以上のマージンを持たせる
+    responseGraceUntilRef.current = Date.now() + 8000;
     setState((prev) => ({
       ...prev,
       status: "running",
