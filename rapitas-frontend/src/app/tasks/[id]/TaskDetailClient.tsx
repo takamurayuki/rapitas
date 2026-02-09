@@ -409,6 +409,32 @@ export default function TaskDetailClient({
     enableDeveloperMode,
   ]);
 
+  // autoExecute=true パラメータによる自動実行
+  const autoExecuteTriggered = useRef(false);
+  useEffect(() => {
+    const shouldAutoExecute = searchParams.get("autoExecute") === "true";
+    if (
+      shouldAutoExecute &&
+      !autoExecuteTriggered.current &&
+      task &&
+      !loading &&
+      !isExecuting &&
+      taskId
+    ) {
+      autoExecuteTriggered.current = true;
+      // AIアシスタントパネルを表示
+      setShowAIAssistant(true);
+      // エージェント実行を開始
+      executeAgent();
+      // URLからautoExecuteパラメータを除去（リロード時の再実行防止）
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.delete("autoExecute");
+      const newQuery = newParams.toString();
+      const basePath = window.location.pathname;
+      router.replace(newQuery ? `${basePath}?${newQuery}` : basePath);
+    }
+  }, [task, loading, isExecuting, taskId, searchParams, executeAgent, router]);
+
   const updateStatus = async (taskId: number, newStatus: string) => {
     // タスク完了時にオーバーレイを表示
     if (newStatus === "done") {

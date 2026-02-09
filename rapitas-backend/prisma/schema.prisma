@@ -403,6 +403,8 @@ model UserSettings {
   developerModeDefault        Boolean   @default(false)
   aiTaskAnalysisDefault       Boolean   @default(false)
   autoResumeInterruptedTasks  Boolean   @default(false)
+  autoExecuteAfterCreate      Boolean   @default(false)
+  autoGenerateTitle           Boolean   @default(false)
   claudeApiKeyEncrypted       String?
   chatgptApiKeyEncrypted      String?
   geminiApiKeyEncrypted       String?

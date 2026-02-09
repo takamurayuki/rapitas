@@ -13,6 +13,7 @@ import {
   Save,
   Settings,
   ChevronDown,
+  Zap,
 } from "lucide-react";
 import type { UserSettings, ApiProvider } from "@/types";
 import { API_BASE_URL } from "@/utils/api";
@@ -209,6 +210,62 @@ export default function SettingsPage() {
         setTimeout(() => setSuccessMessage(null), 3000);
       } else {
         throw new Error("保存に失敗しました");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
+    }
+  };
+
+  const toggleAutoExecuteAfterCreate = async () => {
+    const newValue = !settings?.autoExecuteAfterCreate;
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoExecuteAfterCreate: newValue }),
+      });
+      if (res.ok) {
+        setSettings((prev) =>
+          prev ? { ...prev, autoExecuteAfterCreate: newValue } : prev,
+        );
+        setSuccessMessage(
+          newValue
+            ? "作成後にすぐ実行を有効にしました"
+            : "作成後にすぐ実行を無効にしました",
+        );
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.message || errData?.error || "保存に失敗しました");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
+    }
+  };
+
+  const toggleAutoGenerateTitle = async () => {
+    const newValue = !settings?.autoGenerateTitle;
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoGenerateTitle: newValue }),
+      });
+      if (res.ok) {
+        setSettings((prev) =>
+          prev ? { ...prev, autoGenerateTitle: newValue } : prev,
+        );
+        setSuccessMessage(
+          newValue
+            ? "タイトルの自動生成を有効にしました"
+            : "タイトルの自動生成を無効にしました",
+        );
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.message || errData?.error || "保存に失敗しました");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "エラーが発生しました");
@@ -635,6 +692,79 @@ export default function SettingsPage() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+        </div>
+
+        {/* タスク作成時の設定 */}
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-3">
+              <Zap className="w-5 h-5 text-violet-500 dark:text-violet-400" />
+              <div>
+                <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  タスク作成時の設定
+                </h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  タスク作成時の動作設定
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium text-zinc-900 dark:text-zinc-50 text-sm">
+                  作成後にすぐ実行
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                  タスクを作成した後、自動的にAIエージェントによる実行を開始します
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={toggleAutoExecuteAfterCreate}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500/20 ${
+                  settings?.autoExecuteAfterCreate
+                    ? "bg-violet-500"
+                    : "bg-zinc-300 dark:bg-zinc-600"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    settings?.autoExecuteAfterCreate
+                      ? "translate-x-6"
+                      : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium text-zinc-900 dark:text-zinc-50 text-sm">
+                  タイトルの自動生成
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                  説明を入力すると、AIが自動的にタスクのタイトルを生成します
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={toggleAutoGenerateTitle}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500/20 ${
+                  settings?.autoGenerateTitle
+                    ? "bg-violet-500"
+                    : "bg-zinc-300 dark:bg-zinc-600"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    settings?.autoGenerateTitle
+                      ? "translate-x-6"
+                      : "translate-x-1"
+                  }`}
+                />
+              </button>
             </div>
           </div>
         </div>

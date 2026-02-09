@@ -570,6 +570,8 @@ export type UserSettings = {
   id: number;
   aiTaskAnalysisDefault: boolean;
   autoResumeInterruptedTasks: boolean;
+  autoExecuteAfterCreate: boolean;
+  autoGenerateTitle: boolean;
   claudeApiKeyConfigured?: boolean;
   claudeApiKeyMasked?: string | null;
   chatgptApiKeyConfigured?: boolean;

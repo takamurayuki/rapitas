@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { Task, ExamGoal, ScheduleEvent, ScheduleEventInput } from "@/types";
 import {
@@ -19,6 +19,7 @@ import { useToast } from "@/components/ui/toast/ToastContainer";
 import { getTaskDetailPath } from "@/utils/tauri";
 import { API_BASE_URL } from "@/utils/api";
 import ScheduleEventDialog from "@/feature/calendar/components/ScheduleEventDialog";
+import { getHolidaysForMonth, type Holiday } from "@/utils/holidays";
 
 const API_BASE = API_BASE_URL;
 
@@ -280,6 +281,19 @@ export default function CalendarPage() {
   const days = getDaysInMonth(currentDate);
   const weekDays = ["日", "月", "火", "水", "木", "金", "土"];
 
+  // 祝日データ（月ごとにメモ化）
+  const holidays = useMemo(() => {
+    return getHolidaysForMonth(currentDate.getFullYear(), currentDate.getMonth());
+  }, [currentDate]);
+
+  const holidayMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const h of holidays) {
+      map.set(h.date, h.name);
+    }
+    return map;
+  }, [holidays]);
+
   // 複数日イベントのバー表示用データを計算
   const getMultiDayBars = () => {
     const multiDayEvents = events.filter((e) => e.endDate && e.type === "schedule");
@@ -484,14 +498,14 @@ export default function CalendarPage() {
                         return (
                           <div
                             key={`empty-${weekIndex}-${colIndex}`}
-                            className="border border-zinc-100 dark:border-zinc-700/50 flex flex-col"
+                            className="border border-zinc-100 dark:border-zinc-700/50 flex flex-col bg-zinc-100/70 dark:bg-zinc-900/50"
                           >
                             {/* 空セルの日付ヘッダー相当 */}
-                            <div className="w-full px-1 py-0.5 bg-zinc-50 dark:bg-zinc-800/80">
+                            <div className="w-full px-1 py-0.5 bg-zinc-200/50 dark:bg-zinc-800/90">
                               <div className="w-[20px] h-[20px]" />
                             </div>
-                            <div className="w-full border-b border-zinc-200 dark:border-zinc-600/60" />
-                            <div className="w-full aspect-square" />
+                            <div className="w-full border-b border-zinc-200/50 dark:border-zinc-700/30" />
+                            <div className="w-full aspect-square bg-[repeating-linear-gradient(135deg,transparent,transparent_4px,rgba(0,0,0,0.03)_4px,rgba(0,0,0,0.03)_5px)] dark:bg-[repeating-linear-gradient(135deg,transparent,transparent_4px,rgba(255,255,255,0.02)_4px,rgba(255,255,255,0.02)_5px)]" />
                           </div>
                         );
                       }
@@ -504,6 +518,8 @@ export default function CalendarPage() {
                       const isSelected = selectedDate === dateStr;
                       const today = isToday(day);
                       const dayOfWeek = colIndex;
+                      const holidayName = holidayMap.get(dateStr);
+                      const isHoliday = !!holidayName;
                       const hiddenCount = singleDayEvents.length - MAX_VISIBLE_EVENTS;
 
                       return (
@@ -514,17 +530,19 @@ export default function CalendarPage() {
                             setSelectedDate(dateStr);
                             setShowScheduleModal(true);
                           }}
-                          className={`p-0 transition-all border border-zinc-100 dark:border-zinc-700/50 text-left flex flex-col ${
+                          className={`p-0 transition-all border border-zinc-200 dark:border-zinc-700/50 text-left flex flex-col relative ${
                             isSelected
-                              ? "ring-2 ring-inset ring-indigo-500"
+                              ? "outline-2 outline-indigo-500 -outline-offset-2 z-10"
                               : "hover:bg-zinc-50 dark:hover:bg-zinc-700/30"
                           }`}
                         >
                           {/* 日付ヘッダー（背景色付き・左寄せ） */}
-                          <div className={`w-full flex items-center px-1 py-0.5 ${
+                          <div className={`w-full flex items-center px-1 py-0.5 gap-0.5 min-w-0 ${
                             isSelected
                               ? "bg-indigo-50 dark:bg-indigo-900/30"
-                              : "bg-zinc-50 dark:bg-zinc-800/80"
+                              : isHoliday
+                                ? "bg-red-50 dark:bg-red-900/15"
+                                : "bg-zinc-50 dark:bg-zinc-800/80"
                           }`}>
                             <div className={`flex items-center justify-center w-[20px] h-[20px] rounded-sm shrink-0 ${
                               today ? "bg-indigo-500" : ""
@@ -533,7 +551,7 @@ export default function CalendarPage() {
                                 className={`text-xs font-semibold leading-none ${
                                   today
                                     ? "text-white"
-                                    : dayOfWeek === 0
+                                    : dayOfWeek === 0 || isHoliday
                                       ? "text-red-500"
                                       : dayOfWeek === 6
                                         ? "text-blue-500"
@@ -648,6 +666,10 @@ export default function CalendarPage() {
                 <div className="w-1 h-3 rounded-sm bg-emerald-500" />
                 試験
               </div>
+              <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                <span className="text-[10px] font-medium text-red-500">祝</span>
+                祝日
+              </div>
             </div>
             <span className="text-xs text-zinc-400 dark:text-zinc-500 hidden sm:inline">
               ダブルクリックで予定追加
@@ -658,16 +680,23 @@ export default function CalendarPage() {
         {/* 選択日の詳細 */}
         <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-zinc-800 dark:text-zinc-200">
-              {selectedDate
-                ? new Date(selectedDate).toLocaleDateString("ja-JP", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                    weekday: "short",
-                  })
-                : "日付を選択"}
-            </h3>
+            <div>
+              <h3 className="font-semibold text-zinc-800 dark:text-zinc-200">
+                {selectedDate
+                  ? new Date(selectedDate).toLocaleDateString("ja-JP", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                      weekday: "short",
+                    })
+                  : "日付を選択"}
+              </h3>
+              {selectedDate && holidayMap.get(selectedDate) && (
+                <p className="text-xs font-medium text-red-500 dark:text-red-400 mt-0.5">
+                  {holidayMap.get(selectedDate)}
+                </p>
+              )}
+            </div>
             {selectedDate && (
               <div className="flex gap-1">
                 <button

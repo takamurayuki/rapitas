@@ -137,44 +137,62 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   // Update settings
   .patch(
     "/",
-    async ({ body }: {
+    async ({ body, set }: {
       body: {
         developerModeDefault?: boolean;
         aiTaskAnalysisDefault?: boolean;
         autoResumeInterruptedTasks?: boolean;
+        autoExecuteAfterCreate?: boolean;
+        autoGenerateTitle?: boolean;
         defaultAiProvider?: string;
-      }
+      };
+      set: { status?: number };
     }) => {
-      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, defaultAiProvider } = body;
+      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, autoExecuteAfterCreate, autoGenerateTitle, defaultAiProvider } = body;
 
-      let settings = await prisma.userSettings.findFirst();
-      if (!settings) {
-        settings = await prisma.userSettings.create({
-          data: {
-            developerModeDefault: developerModeDefault ?? false,
-            aiTaskAnalysisDefault: aiTaskAnalysisDefault ?? false,
-            autoResumeInterruptedTasks: autoResumeInterruptedTasks ?? false,
-          },
-        });
-      } else {
-        settings = await prisma.userSettings.update({
-          where: { id: settings.id },
-          data: {
-            ...(developerModeDefault !== undefined && { developerModeDefault }),
-            ...(aiTaskAnalysisDefault !== undefined && { aiTaskAnalysisDefault }),
-            ...(autoResumeInterruptedTasks !== undefined && { autoResumeInterruptedTasks }),
-            ...(defaultAiProvider !== undefined && { defaultAiProvider }),
-          },
-        });
+      try {
+        let settings = await prisma.userSettings.findFirst();
+        if (!settings) {
+          settings = await prisma.userSettings.create({
+            data: {
+              developerModeDefault: developerModeDefault ?? false,
+              aiTaskAnalysisDefault: aiTaskAnalysisDefault ?? false,
+              autoResumeInterruptedTasks: autoResumeInterruptedTasks ?? false,
+              autoExecuteAfterCreate: autoExecuteAfterCreate ?? false,
+              autoGenerateTitle: autoGenerateTitle ?? false,
+            },
+          });
+        } else {
+          settings = await prisma.userSettings.update({
+            where: { id: settings.id },
+            data: {
+              ...(developerModeDefault !== undefined && { developerModeDefault }),
+              ...(aiTaskAnalysisDefault !== undefined && { aiTaskAnalysisDefault }),
+              ...(autoResumeInterruptedTasks !== undefined && { autoResumeInterruptedTasks }),
+              ...(autoExecuteAfterCreate !== undefined && { autoExecuteAfterCreate }),
+              ...(autoGenerateTitle !== undefined && { autoGenerateTitle }),
+              ...(defaultAiProvider !== undefined && { defaultAiProvider }),
+            },
+          });
+        }
+
+        return settings;
+      } catch (error: unknown) {
+        console.error("Settings update error:", error);
+        set.status = 500;
+        return {
+          error: "設定の保存に失敗しました",
+          message: error instanceof Error ? error.message : "Unknown error",
+        };
       }
-
-      return settings;
     },
     {
       body: t.Object({
         developerModeDefault: t.Optional(t.Boolean()),
         aiTaskAnalysisDefault: t.Optional(t.Boolean()),
         autoResumeInterruptedTasks: t.Optional(t.Boolean()),
+        autoExecuteAfterCreate: t.Optional(t.Boolean()),
+        autoGenerateTitle: t.Optional(t.Boolean()),
         defaultAiProvider: t.Optional(t.String()),
       }),
     }

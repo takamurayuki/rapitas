@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { Label } from "@/types";
-import { Check } from "lucide-react";
 import { getIconComponent, ICON_DATA } from "@/components/category/IconData";
 import { API_BASE_URL } from "@/utils/api";
 
@@ -56,11 +55,11 @@ export default function LabelSelector({
   if (loading) {
     return (
       <div className={`animate-pulse ${className}`}>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-8 w-20 bg-zinc-200 dark:bg-zinc-700 rounded-lg"
+              className="h-6 w-16 bg-zinc-200 dark:bg-zinc-700 rounded-lg"
             />
           ))}
         </div>
@@ -84,7 +83,7 @@ export default function LabelSelector({
 
   return (
     <div className={className}>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {labels.map((label) => {
           const isSelected = selectedLabelIds.includes(label.id);
           return (
@@ -92,9 +91,9 @@ export default function LabelSelector({
               key={label.id}
               type="button"
               onClick={() => toggleLabel(label.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
                 isSelected
-                  ? "ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 scale-105 shadow-md"
+                  ? "ring-1 ring-offset-1 ring-offset-white dark:ring-offset-zinc-900"
                   : "opacity-60 hover:opacity-100"
               }`}
               style={
@@ -107,18 +106,12 @@ export default function LabelSelector({
                 } as React.CSSProperties
               }
             >
-              {renderIcon(label.icon, 14)}
+              {renderIcon(label.icon, 10)}
               <span>{label.name}</span>
-              {isSelected && <Check className="w-3.5 h-3.5 ml-0.5" />}
             </button>
           );
         })}
       </div>
-      {selectedLabelIds.length > 0 && (
-        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-          {selectedLabelIds.length} 個のラベルを選択中
-        </p>
-      )}
     </div>
   );
 }
