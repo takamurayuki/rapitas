@@ -82,9 +82,9 @@ export default function BurndownChart({
   const chartConfig = useMemo(() => {
     if (!data || data.dailyData.length === 0) return null;
 
-    const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+    const padding = { top: 12, right: 16, bottom: 28, left: 36 };
     const width = 600;
-    const height = 300;
+    const height = 200;
     const chartWidth = width - padding.left - padding.right;
     const chartHeight = height - padding.top - padding.bottom;
 
@@ -107,9 +107,12 @@ export default function BurndownChart({
       .map((d, i) => `${i === 0 ? "M" : "L"} ${xScale(i)} ${yScale(d.remaining)}`)
       .join(" ");
 
+    // 実績線の下を塗りつぶすためのエリアパス
+    const areaPath = `${actualPath} L ${xScale(data.dailyData.length - 1)} ${padding.top + chartHeight} L ${padding.left} ${padding.top + chartHeight} Z`;
+
     // Y軸のグリッド線
     const yGridLines = [];
-    const gridCount = 5;
+    const gridCount = 4;
     for (let i = 0; i <= gridCount; i++) {
       const value = Math.round((maxValue / gridCount) * i);
       const y = yScale(value);
@@ -127,16 +130,17 @@ export default function BurndownChart({
       yScale,
       idealPath,
       actualPath,
+      areaPath,
       yGridLines,
     };
   }, [data]);
 
   if (loading) {
     return (
-      <div className={`bg-white dark:bg-zinc-900 rounded-2xl p-6 ${className}`}>
-        <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-zinc-200 dark:bg-zinc-700 rounded w-1/3" />
-          <div className="h-64 bg-zinc-200 dark:bg-zinc-700 rounded" />
+      <div className={`bg-white dark:bg-zinc-900 rounded-xl p-4 ${className}`}>
+        <div className="animate-pulse space-y-3">
+          <div className="h-5 bg-zinc-200 dark:bg-zinc-700 rounded w-1/3" />
+          <div className="h-40 bg-zinc-200 dark:bg-zinc-700 rounded" />
         </div>
       </div>
     );
@@ -144,8 +148,8 @@ export default function BurndownChart({
 
   if (!data || !chartConfig) {
     return (
-      <div className={`bg-white dark:bg-zinc-900 rounded-2xl p-6 ${className}`}>
-        <p className="text-zinc-500 dark:text-zinc-400 text-center">データがありません</p>
+      <div className={`bg-white dark:bg-zinc-900 rounded-xl p-4 ${className}`}>
+        <p className="text-zinc-500 dark:text-zinc-400 text-center text-sm">データがありません</p>
       </div>
     );
   }
@@ -153,84 +157,86 @@ export default function BurndownChart({
   const { summary, dailyData } = data;
 
   return (
-    <div className={`bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden ${className}`}>
-      {/* ヘッダー */}
-      <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <TrendingDown className="w-5 h-5 text-blue-500" />
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">バーンダウンチャート</h2>
+    <div className={`bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200/50 dark:border-zinc-800 overflow-hidden ${className}`}>
+      {/* ヘッダー: タイトル + サマリー + フィルター */}
+      <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <TrendingDown className="w-4 h-4 text-blue-500" />
+              <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-50">バーンダウン</h2>
+            </div>
+            {/* インラインサマリー */}
+            <div className="hidden sm:flex items-center gap-3 text-xs">
+              <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
+                <Target className="w-3 h-3" />
+                残<span className="font-semibold text-zinc-900 dark:text-zinc-100">{summary.currentRemaining}</span>
+              </span>
+              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                <Zap className="w-3 h-3" />
+                完了<span className="font-semibold">{summary.totalCompleted}</span>
+              </span>
+              <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                <Calendar className="w-3 h-3" />
+                追加<span className="font-semibold">{summary.totalAdded}</span>
+              </span>
+              <span className="flex items-center gap-1 text-violet-600 dark:text-violet-400">
+                <TrendingDown className="w-3 h-3" />
+                <span className="font-semibold">{summary.velocity}</span>/日
+              </span>
+            </div>
           </div>
 
           {/* フィルター */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <select
               value={selectedThemeId || ""}
               onChange={(e) => setSelectedThemeId(e.target.value ? parseInt(e.target.value) : undefined)}
-              className="px-3 py-1.5 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg"
+              className="px-2 py-1 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md"
             >
-              <option value="">すべてのテーマ</option>
+              <option value="">全テーマ</option>
               {themes.map((theme) => (
                 <option key={theme.id} value={theme.id}>
                   {theme.name}
                 </option>
               ))}
             </select>
-            <select
-              value={selectedDays}
-              onChange={(e) => setSelectedDays(parseInt(e.target.value))}
-              className="px-3 py-1.5 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg"
-            >
-              <option value="7">7日間</option>
-              <option value="14">14日間</option>
-              <option value="30">30日間</option>
-            </select>
+            <div className="flex rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+              {[7, 14, 30].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setSelectedDays(d)}
+                  className={`px-2 py-1 text-xs transition-colors ${
+                    selectedDays === d
+                      ? "bg-blue-500 text-white"
+                      : "bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                  }`}
+                >
+                  {d}日
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* サマリーカード */}
-      <div className="grid grid-cols-4 gap-3 p-4 border-b border-zinc-100 dark:border-zinc-800">
-        <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-3">
-          <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-            <Target className="w-3.5 h-3.5" />
-            残タスク
-          </div>
-          <div className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
-            {summary.currentRemaining}
-          </div>
-        </div>
-        <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3">
-          <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 mb-1">
-            <Zap className="w-3.5 h-3.5" />
-            完了
-          </div>
-          <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-            {summary.totalCompleted}
-          </div>
-        </div>
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-          <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 mb-1">
-            <Calendar className="w-3.5 h-3.5" />
-            追加
-          </div>
-          <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
-            {summary.totalAdded}
-          </div>
-        </div>
-        <div className="bg-violet-50 dark:bg-violet-900/20 rounded-lg p-3">
-          <div className="flex items-center gap-1.5 text-xs text-violet-600 dark:text-violet-400 mb-1">
-            <TrendingDown className="w-3.5 h-3.5" />
-            速度
-          </div>
-          <div className="text-xl font-bold text-violet-600 dark:text-violet-400">
-            {summary.velocity}/日
-          </div>
+        {/* モバイル用サマリー */}
+        <div className="flex sm:hidden items-center gap-3 mt-2 text-xs">
+          <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
+            残<span className="font-semibold text-zinc-900 dark:text-zinc-100">{summary.currentRemaining}</span>
+          </span>
+          <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+            完了<span className="font-semibold">{summary.totalCompleted}</span>
+          </span>
+          <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+            追加<span className="font-semibold">{summary.totalAdded}</span>
+          </span>
+          <span className="flex items-center gap-1 text-violet-600 dark:text-violet-400">
+            <span className="font-semibold">{summary.velocity}</span>/日
+          </span>
         </div>
       </div>
 
       {/* チャート */}
-      <div className="p-4">
+      <div className="px-3 pt-2 pb-3">
         <svg
           viewBox={`0 0 ${chartConfig.width} ${chartConfig.height}`}
           className="w-full h-auto"
@@ -244,15 +250,15 @@ export default function BurndownChart({
                 x2={chartConfig.width - chartConfig.padding.right}
                 y2={y}
                 stroke="currentColor"
-                strokeOpacity={0.1}
-                strokeDasharray="4"
+                strokeOpacity={0.08}
+                strokeDasharray="3"
               />
               <text
-                x={chartConfig.padding.left - 8}
+                x={chartConfig.padding.left - 6}
                 y={y}
                 textAnchor="end"
                 dominantBaseline="middle"
-                className="text-[10px] fill-zinc-400"
+                className="text-[9px] fill-zinc-400"
               >
                 {value}
               </text>
@@ -261,29 +267,36 @@ export default function BurndownChart({
 
           {/* X軸ラベル */}
           {dailyData
-            .filter((_, i) => i % Math.ceil(dailyData.length / 7) === 0 || i === dailyData.length - 1)
-            .map((d, i, arr) => {
+            .filter((_, i) => i % Math.ceil(dailyData.length / 6) === 0 || i === dailyData.length - 1)
+            .map((d) => {
               const originalIndex = dailyData.indexOf(d);
               return (
                 <text
                   key={d.date}
                   x={chartConfig.xScale(originalIndex)}
-                  y={chartConfig.height - 10}
+                  y={chartConfig.height - 6}
                   textAnchor="middle"
-                  className="text-[10px] fill-zinc-400"
+                  className="text-[9px] fill-zinc-400"
                 >
                   {new Date(d.date).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}
                 </text>
               );
             })}
 
+          {/* 実績エリア（塗りつぶし） */}
+          <path
+            d={chartConfig.areaPath}
+            fill="#3b82f6"
+            fillOpacity={0.06}
+          />
+
           {/* 理想線 */}
           <path
             d={chartConfig.idealPath}
             fill="none"
             stroke="#94a3b8"
-            strokeWidth={2}
-            strokeDasharray="6 4"
+            strokeWidth={1.5}
+            strokeDasharray="5 3"
           />
 
           {/* 実績線 */}
@@ -291,37 +304,43 @@ export default function BurndownChart({
             d={chartConfig.actualPath}
             fill="none"
             stroke="#3b82f6"
-            strokeWidth={2.5}
+            strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
           />
 
-          {/* データポイント */}
-          {dailyData.map((d, i) => (
-            <circle
-              key={d.date}
-              cx={chartConfig.xScale(i)}
-              cy={chartConfig.yScale(d.remaining)}
-              r={4}
-              fill="#3b82f6"
-              className="hover:r-6 transition-all cursor-pointer"
-            >
-              <title>
-                {new Date(d.date).toLocaleDateString("ja-JP")}: 残り{d.remaining}件
-              </title>
-            </circle>
-          ))}
+          {/* データポイント（間引き表示） */}
+          {dailyData.map((d, i) => {
+            const showDot = i === 0 || i === dailyData.length - 1 || i % Math.ceil(dailyData.length / 8) === 0;
+            if (!showDot) return null;
+            return (
+              <circle
+                key={d.date}
+                cx={chartConfig.xScale(i)}
+                cy={chartConfig.yScale(d.remaining)}
+                r={3}
+                fill="#3b82f6"
+                stroke="white"
+                strokeWidth={1.5}
+                className="cursor-pointer"
+              >
+                <title>
+                  {new Date(d.date).toLocaleDateString("ja-JP")}: 残り{d.remaining}件
+                </title>
+              </circle>
+            );
+          })}
         </svg>
 
         {/* 凡例 */}
-        <div className="flex items-center justify-center gap-6 mt-4">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-0.5 bg-blue-500 rounded" />
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">実績</span>
+        <div className="flex items-center justify-center gap-4 mt-1">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-0.5 bg-blue-500 rounded" />
+            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">実績</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-0.5 bg-zinc-400 rounded" style={{ borderStyle: "dashed" }} />
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">理想</span>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-0.5 bg-zinc-400 rounded border-dashed" />
+            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">理想</span>
           </div>
         </div>
       </div>

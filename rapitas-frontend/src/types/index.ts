@@ -509,7 +509,11 @@ export type ApprovalRequest = {
   id: number;
   configId: number;
   config?: DeveloperModeConfig & { task?: Task };
-  requestType: "subtask_creation" | "task_execution" | "task_completion" | "code_review";
+  requestType:
+    | "subtask_creation"
+    | "task_execution"
+    | "task_completion"
+    | "code_review";
   title: string;
   description?: string | null;
   proposedChanges: {
@@ -549,7 +553,13 @@ export type NotificationMetadata = {
 
 export type Notification = {
   id: number;
-  type: "approval_request" | "task_completed" | "agent_error" | "daily_summary" | "pr_review_requested" | "agent_execution_started";
+  type:
+    | "approval_request"
+    | "task_completed"
+    | "agent_error"
+    | "daily_summary"
+    | "pr_review_requested"
+    | "agent_execution_started";
   title: string;
   message: string;
   link?: string | null;
@@ -615,7 +625,13 @@ export type AgentCapability = {
   webSearch?: boolean;
 };
 
-export type AgentType = "claude-code" | "codex" | "gemini" | "custom" | "openai" | "azure-openai";
+export type AgentType =
+  | "claude-code"
+  | "codex"
+  | "gemini"
+  | "custom"
+  | "openai"
+  | "azure-openai";
 
 // エージェント設定フィールドのスキーマ
 export type ConfigFieldSchema = {
@@ -930,7 +946,10 @@ export type TaskAnalysisConfig = {
 
   // モデル・プロバイダ設定
   agentConfigId?: number | null;
-  agentConfig?: Pick<AIAgentConfig, "id" | "agentType" | "name" | "modelId" | "isActive"> | null;
+  agentConfig?: Pick<
+    AIAgentConfig,
+    "id" | "agentType" | "name" | "modelId" | "isActive"
+  > | null;
   modelOverride?: string | null;
   maxTokens?: number | null;
   temperature?: number | null;
@@ -950,7 +969,10 @@ export type TaskAnalysisConfig = {
 };
 
 export type TaskAnalysisConfigInput = Partial<
-  Omit<TaskAnalysisConfig, "id" | "taskId" | "agentConfig" | "createdAt" | "updatedAt">
+  Omit<
+    TaskAnalysisConfig,
+    "id" | "taskId" | "agentConfig" | "createdAt" | "updatedAt"
+  >
 >;
 
 // ==================== エージェント実行設定 ====================
@@ -965,7 +987,10 @@ export type AgentExecutionConfig = {
 
   // エージェント選択
   agentConfigId?: number | null;
-  agentConfig?: Pick<AIAgentConfig, "id" | "agentType" | "name" | "modelId" | "isActive"> | null;
+  agentConfig?: Pick<
+    AIAgentConfig,
+    "id" | "agentType" | "name" | "modelId" | "isActive"
+  > | null;
 
   // 実行環境設定
   workingDirectory?: string | null;
@@ -1003,7 +1028,10 @@ export type AgentExecutionConfig = {
 };
 
 export type AgentExecutionConfigInput = Partial<
-  Omit<AgentExecutionConfig, "id" | "taskId" | "agentConfig" | "createdAt" | "updatedAt">
+  Omit<
+    AgentExecutionConfig,
+    "id" | "taskId" | "agentConfig" | "createdAt" | "updatedAt"
+  >
 >;
 
 // ==================== スケジュールイベント ====================

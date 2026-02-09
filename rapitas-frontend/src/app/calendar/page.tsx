@@ -728,7 +728,9 @@ export default function CalendarPage() {
                     <button
                       onClick={() => {
                         if (event.type === "task") {
-                          router.push(getTaskDetailPath(event.id));
+                          const path = getTaskDetailPath(event.id);
+                          const separator = path.includes("?") ? "&" : "?";
+                          router.push(`${path}${separator}showHeader=true`);
                         }
                       }}
                       className="flex items-start gap-3 flex-1 min-w-0"

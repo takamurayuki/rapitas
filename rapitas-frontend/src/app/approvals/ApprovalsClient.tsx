@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useApprovals } from "@/feature/developer-mode/hooks/useApprovals";
 import { ExecutionReviewPanel } from "@/feature/developer-mode/components/ExecutionReviewPanel";
+import Pagination from "@/components/ui/pagination/Pagination";
 import type { ApprovalRequest, Priority, FileDiff } from "@/types";
 import { priorityColors, priorityLabels } from "@/types";
 import { getTaskDetailPath } from "@/utils/tauri";
@@ -43,6 +44,8 @@ export default function ApprovalsClient() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [codeReviewDiff, setCodeReviewDiff] = useState<Map<number, FileDiff[]>>(
     new Map(),
   );
@@ -50,6 +53,7 @@ export default function ApprovalsClient() {
 
   useEffect(() => {
     fetchApprovals(filter);
+    setCurrentPage(1);
   }, [filter, fetchApprovals]);
 
   // URLパラメータからIDを読み取り、該当の承認リクエストを自動展開
@@ -298,79 +302,94 @@ export default function ApprovalsClient() {
       )}
 
       {/* Approvals List */}
-      {!isLoading && approvals.length > 0 && (
-        <div className="space-y-4">
-          {/* Select All (pending only) */}
-          {filter === "pending" && (
-            <div className="flex items-center gap-3 px-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
-              <button
-                onClick={toggleSelectAll}
-                className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                  selectedIds.size === approvals.length
-                    ? "border-violet-500 bg-violet-500"
-                    : "border-zinc-300 dark:border-zinc-600"
-                }`}
-              >
-                {selectedIds.size === approvals.length && (
-                  <svg
-                    className="w-3 h-3 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 12 12"
-                  >
-                    <path d="M10.28 2.28a.75.75 0 00-1.06-1.06L4.5 5.94 2.78 4.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.06 0l5.25-5.25z" />
-                  </svg>
-                )}
-              </button>
-              <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                全て選択 ({selectedIds.size}/{approvals.length})
-              </span>
-            </div>
-          )}
+      {!isLoading && approvals.length > 0 && (() => {
+        const totalPages = Math.ceil(approvals.length / itemsPerPage);
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const paginatedApprovals = approvals.slice(startIndex, startIndex + itemsPerPage);
 
-          {approvals.map((approval) =>
-            approval.requestType === "code_review" ? (
-              <CodeReviewCard
-                key={approval.id}
-                approval={approval}
-                isExpanded={expandedId === approval.id}
-                isProcessing={processingId === approval.id}
-                isPending={filter === "pending"}
-                diffFiles={codeReviewDiff.get(approval.id) || []}
-                onToggleExpand={() => handleExpandCodeReview(approval.id)}
-                onApprove={(commitMessage, baseBranch) =>
-                  handleCodeReviewApprove(
-                    approval.id,
-                    commitMessage,
-                    baseBranch,
-                  )
-                }
-                onReject={() => handleCodeReviewReject(approval.id)}
-                onRequestChanges={(feedback, comments) =>
-                  handleRequestChanges(approval.id, feedback, comments)
-                }
-                formatDate={formatDate}
-                error={error}
-              />
-            ) : (
-              <ApprovalCard
-                key={approval.id}
-                approval={approval}
-                isSelected={selectedIds.has(approval.id)}
-                isExpanded={expandedId === approval.id}
-                isProcessing={processingId === approval.id}
-                isPending={filter === "pending"}
-                onToggleSelect={() => toggleSelect(approval.id)}
-                onToggleExpand={() =>
-                  setExpandedId(expandedId === approval.id ? null : approval.id)
-                }
-                onApprove={(selected) => handleApprove(approval.id, selected)}
-                onReject={() => handleReject(approval.id)}
-                formatDate={formatDate}
-              />
-            ),
-          )}
-        </div>
-      )}
+        return (
+          <div className="space-y-4">
+            {/* Select All (pending only) */}
+            {filter === "pending" && (
+              <div className="flex items-center gap-3 px-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+                <button
+                  onClick={toggleSelectAll}
+                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                    selectedIds.size === approvals.length
+                      ? "border-violet-500 bg-violet-500"
+                      : "border-zinc-300 dark:border-zinc-600"
+                  }`}
+                >
+                  {selectedIds.size === approvals.length && (
+                    <svg
+                      className="w-3 h-3 text-white"
+                      fill="currentColor"
+                      viewBox="0 0 12 12"
+                    >
+                      <path d="M10.28 2.28a.75.75 0 00-1.06-1.06L4.5 5.94 2.78 4.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.06 0l5.25-5.25z" />
+                    </svg>
+                  )}
+                </button>
+                <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                  全て選択 ({selectedIds.size}/{approvals.length})
+                </span>
+              </div>
+            )}
+
+            {paginatedApprovals.map((approval) =>
+              approval.requestType === "code_review" ? (
+                <CodeReviewCard
+                  key={approval.id}
+                  approval={approval}
+                  isExpanded={expandedId === approval.id}
+                  isProcessing={processingId === approval.id}
+                  isPending={filter === "pending"}
+                  diffFiles={codeReviewDiff.get(approval.id) || []}
+                  onToggleExpand={() => handleExpandCodeReview(approval.id)}
+                  onApprove={(commitMessage, baseBranch) =>
+                    handleCodeReviewApprove(
+                      approval.id,
+                      commitMessage,
+                      baseBranch,
+                    )
+                  }
+                  onReject={() => handleCodeReviewReject(approval.id)}
+                  onRequestChanges={(feedback, comments) =>
+                    handleRequestChanges(approval.id, feedback, comments)
+                  }
+                  formatDate={formatDate}
+                  error={error}
+                />
+              ) : (
+                <ApprovalCard
+                  key={approval.id}
+                  approval={approval}
+                  isSelected={selectedIds.has(approval.id)}
+                  isExpanded={expandedId === approval.id}
+                  isProcessing={processingId === approval.id}
+                  isPending={filter === "pending"}
+                  onToggleSelect={() => toggleSelect(approval.id)}
+                  onToggleExpand={() =>
+                    setExpandedId(expandedId === approval.id ? null : approval.id)
+                  }
+                  onApprove={(selected) => handleApprove(approval.id, selected)}
+                  onReject={() => handleReject(approval.id)}
+                  formatDate={formatDate}
+                />
+              ),
+            )}
+
+            {/* ページネーション */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+            />
+          </div>
+        );
+      })()}
     </div>
   );
 }

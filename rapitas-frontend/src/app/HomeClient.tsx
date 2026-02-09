@@ -7,6 +7,7 @@ import TaskSlidePanel from "@/feature/tasks/components/TaskSlidePanel";
 import TaskCard from "@/feature/tasks/components/TaskCard";
 import { useToast } from "@/components/ui/toast/ToastContainer";
 import { useTaskDetailVisibilityStore } from "@/stores/taskDetailVisibilityStore";
+import Pagination from "@/components/ui/pagination/Pagination";
 import {
   statusConfig,
   renderStatusIcon,
@@ -64,7 +65,6 @@ export default function HomeClientPage() {
   // フィルターアコーディオン
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
 
-
   const fetchTasks = async () => {
     try {
       const res = await fetchWithRetry(`${API_BASE}/tasks`);
@@ -94,7 +94,8 @@ export default function HomeClientPage() {
       const savedThemeId = localStorage.getItem("selectedThemeFilter");
       if (savedThemeId !== null) {
         const parsedId = savedThemeId === "null" ? null : Number(savedThemeId);
-        const exists = parsedId === null || data.some((t: Theme) => t.id === parsedId);
+        const exists =
+          parsedId === null || data.some((t: Theme) => t.id === parsedId);
         if (exists) {
           setThemeFilter(parsedId);
         } else if (defaultThemeData) {
@@ -137,11 +138,14 @@ export default function HomeClientPage() {
     }
   };
 
-  const openTaskPanel = useCallback((taskId: number) => {
-    setSelectedTaskId(taskId);
-    setIsPanelOpen(true);
-    showTaskDetail();
-  }, [showTaskDetail]);
+  const openTaskPanel = useCallback(
+    (taskId: number) => {
+      setSelectedTaskId(taskId);
+      setIsPanelOpen(true);
+      showTaskDetail();
+    },
+    [showTaskDetail],
+  );
 
   const closeTaskPanel = useCallback(() => {
     setIsPanelOpen(false);
@@ -151,11 +155,14 @@ export default function HomeClientPage() {
 
   // 実行中タスクのポーリング: 実行中タスクが検出されたら自動的にパネルを開く
   // パネルが既に開いている場合は別タスクに切り替えない
-  const handleExecutingTaskFound = useCallback((taskId: number) => {
-    if (!isPanelOpen) {
-      openTaskPanel(taskId);
-    }
-  }, [isPanelOpen, openTaskPanel]);
+  const handleExecutingTaskFound = useCallback(
+    (taskId: number) => {
+      if (!isPanelOpen) {
+        openTaskPanel(taskId);
+      }
+    },
+    [isPanelOpen, openTaskPanel],
+  );
 
   useExecutingTasksPolling({
     interval: 5000,
@@ -300,10 +307,7 @@ export default function HomeClientPage() {
     // 初回読み込み時はすべてのデータを取得してからloadingを解除
     const initialLoad = async () => {
       setLoading(true);
-      await Promise.all([
-        fetchTasks(),
-        fetchThemes(),
-      ]);
+      await Promise.all([fetchTasks(), fetchThemes()]);
       setLoading(false);
     };
     initialLoad();
@@ -384,229 +388,227 @@ export default function HomeClientPage() {
           <div className="flex items-center gap-2">
             {/* バルク操作ボタン（選択時のみ表示） */}
             {isSelectionMode && selectedTasks.size > 0 && (
+              <>
+                {/* ステータス変更ボタングループ */}
+                <div className="flex items-center gap-1 bg-white dark:bg-zinc-800 rounded-md shadow-sm p-1 border border-zinc-200 dark:border-zinc-700">
+                  {["todo", "in-progress", "done"].map((status, idx, arr) => {
+                    const config =
+                      statusConfig[status as keyof typeof statusConfig];
+                    const colorClasses =
+                      status === "todo"
+                        ? "bg-zinc-50 dark:bg-zinc-700/50 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
+                        : status === "in-progress"
+                          ? "bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                          : "bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400";
+
+                    const isLast = idx === arr.length - 1;
+                    return (
+                      <React.Fragment key={status}>
+                        <button
+                          onClick={() => bulkUpdateStatus(status)}
+                          className={`px-2.5 py-1.5 rounded text-xs font-medium transition-all flex items-center gap-1 ${colorClasses}`}
+                          title={`${config.label}に変更`}
+                        >
+                          <span className="w-3.5 h-3.5">
+                            {renderStatusIcon(status)}
+                          </span>
+                          <span>{config.label}</span>
+                        </button>
+                        {!isLast && (
+                          <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+
+                <div className="w-px h-7 bg-zinc-300 dark:bg-zinc-600"></div>
+              </>
+            )}
+
+            {/* メインアクションボタン */}
+            <div className="flex items-center gap-1 bg-white dark:bg-zinc-800 rounded-md shadow-md p-1 border border-zinc-200 dark:border-zinc-700">
+              {!isSelectionMode && (
                 <>
-                  {/* ステータス変更ボタングループ */}
-                  <div className="flex items-center gap-1 bg-white dark:bg-zinc-800 rounded-md shadow-sm p-1 border border-zinc-200 dark:border-zinc-700">
-                    {["todo", "in-progress", "done"].map((status, idx, arr) => {
-                      const config =
-                        statusConfig[status as keyof typeof statusConfig];
-                      const colorClasses =
-                        status === "todo"
-                          ? "bg-zinc-50 dark:bg-zinc-700/50 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
-                          : status === "in-progress"
-                            ? "bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                            : "bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400";
+                  <button
+                    onClick={() => setIsQuickAdding(!isQuickAdding)}
+                    className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
+                      isQuickAdding
+                        ? "bg-green-500 dark:bg-green-600 text-white shadow-sm"
+                        : "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/30"
+                    }`}
+                    title="クイック追加 (Q)"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.5}
+                        d="M12 4v16m8-8H4"
+                      />
+                    </svg>
+                    <span>クイック</span>
+                  </button>
 
-                      const isLast = idx === arr.length - 1;
-                      return (
-                        <React.Fragment key={status}>
-                          <button
-                            onClick={() => bulkUpdateStatus(status)}
-                            className={`px-2.5 py-1.5 rounded text-xs font-medium transition-all flex items-center gap-1 ${colorClasses}`}
-                            title={`${config.label}に変更`}
-                          >
-                            <span className="w-3.5 h-3.5">
-                              {renderStatusIcon(status)}
-                            </span>
-                            <span>{config.label}</span>
-                          </button>
-                          {!isLast && (
-                            <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
-                          )}
-                        </React.Fragment>
+                  <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
+
+                  <button
+                    onClick={() => {
+                      const themeParam = themeFilter || defaultTheme?.id;
+                      router.push(
+                        `/tasks/new${themeParam ? `?themeId=${themeParam}` : ""}`,
                       );
-                    })}
-                  </div>
+                    }}
+                    className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30 rounded text-xs transition-all flex items-center gap-1.5"
+                    title="新規タスク (N)"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    <span>新規</span>
+                  </button>
 
-                  <div className="w-px h-7 bg-zinc-300 dark:bg-zinc-600"></div>
+                  <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
                 </>
               )}
 
-              {/* メインアクションボタン */}
-              <div className="flex items-center gap-1 bg-white dark:bg-zinc-800 rounded-md shadow-md p-1 border border-zinc-200 dark:border-zinc-700">
-                {!isSelectionMode && (
-                  <>
-                    <button
-                      onClick={() => setIsQuickAdding(!isQuickAdding)}
-                      className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
-                        isQuickAdding
-                          ? "bg-green-500 dark:bg-green-600 text-white shadow-sm"
-                          : "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/30"
-                      }`}
-                      title="クイック追加 (Q)"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2.5}
-                          d="M12 4v16m8-8H4"
-                        />
-                      </svg>
-                      <span>クイック</span>
-                    </button>
-
-                    <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
-
-                    <button
-                      onClick={() => {
-                        const themeParam = themeFilter || defaultTheme?.id;
-                        router.push(
-                          `/tasks/new${themeParam ? `?themeId=${themeParam}` : ""}`,
+              {/* 全選択ボタン（選択モード時のみ表示、一括ボタンの左に配置） */}
+              {isSelectionMode && (
+                <>
+                  <button
+                    onClick={() => {
+                      if (selectedTasks.size === paginatedTasks.length) {
+                        setSelectedTasks(new Set());
+                      } else {
+                        setSelectedTasks(
+                          new Set(paginatedTasks.map((t) => t.id)),
                         );
-                      }}
-                      className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30 rounded text-xs transition-all flex items-center gap-1.5"
-                      title="新規タスク (N)"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        />
-                      </svg>
-                      <span>新規</span>
-                    </button>
-
-                    <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
-                  </>
-                )}
-
-                {/* 全選択ボタン（選択モード時のみ表示、一括ボタンの左に配置） */}
-                {isSelectionMode && (
-                  <>
-                    <button
-                      onClick={() => {
-                        if (selectedTasks.size === paginatedTasks.length) {
-                          setSelectedTasks(new Set());
-                        } else {
-                          setSelectedTasks(
-                            new Set(paginatedTasks.map((t) => t.id)),
-                          );
-                        }
-                      }}
-                      className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
-                        selectedTasks.size === paginatedTasks.length &&
-                        paginatedTasks.length > 0
-                          ? "bg-blue-500 dark:bg-blue-600 text-white shadow-sm"
-                          : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30"
-                      }`}
-                      title={
-                        selectedTasks.size === paginatedTasks.length
-                          ? "全解除"
-                          : "全選択"
                       }
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        {selectedTasks.size === paginatedTasks.length &&
-                        paginatedTasks.length > 0 ? (
-                          /* 全解除: 四角から外れるアイコン */
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        ) : (
-                          /* 全選択: ダブルチェックマークアイコン */
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        )}
-                      </svg>
-                      <span>
-                        {selectedTasks.size === paginatedTasks.length &&
-                        paginatedTasks.length > 0
-                          ? "全解除"
-                          : "全選択"}
-                      </span>
-                    </button>
-
-                    <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
-                  </>
-                )}
-
-                <button
-                  onClick={() => {
-                    setIsSelectionMode(!isSelectionMode);
-                    setSelectedTasks(new Set());
-                  }}
-                  className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
-                    isSelectionMode
-                      ? "bg-purple-500 dark:bg-purple-600 text-white shadow-sm"
-                      : "bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/30"
-                  }`}
-                  title="一括選択モード (S)"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                    }}
+                    className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
+                      selectedTasks.size === paginatedTasks.length &&
+                      paginatedTasks.length > 0
+                        ? "bg-blue-500 dark:bg-blue-600 text-white shadow-sm"
+                        : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30"
+                    }`}
+                    title={
+                      selectedTasks.size === paginatedTasks.length
+                        ? "全解除"
+                        : "全選択"
+                    }
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-                    />
-                  </svg>
-                  <span>
-                    {isSelectionMode
-                      ? `選択中 (${selectedTasks.size})`
-                      : "一括"}
-                  </span>
-                </button>
-
-                {isSelectionMode && selectedTasks.size > 0 && (
-                  <>
-                    <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
-
-                    {/* 削除ボタン */}
-                    <button
-                      onClick={bulkDelete}
-                      className="px-3 py-1.5 bg-red-500 dark:bg-red-600 text-white rounded hover:bg-red-600 dark:hover:bg-red-700 text-xs transition-all hover:shadow-md flex items-center gap-1.5 shadow-sm"
-                      title="選択したタスクを削除"
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
                     >
-                      <svg
-                        className="w-3.5 h-3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
+                      {selectedTasks.size === paginatedTasks.length &&
+                      paginatedTasks.length > 0 ? (
+                        /* 全解除: 四角から外れるアイコン */
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={2}
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          d="M6 18L18 6M6 6l12 12"
                         />
-                      </svg>
-                      削除
-                    </button>
-                  </>
-                )}
-              </div>
+                      ) : (
+                        /* 全選択: ダブルチェックマークアイコン */
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      )}
+                    </svg>
+                    <span>
+                      {selectedTasks.size === paginatedTasks.length &&
+                      paginatedTasks.length > 0
+                        ? "全解除"
+                        : "全選択"}
+                    </span>
+                  </button>
+
+                  <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
+                </>
+              )}
+
+              <button
+                onClick={() => {
+                  setIsSelectionMode(!isSelectionMode);
+                  setSelectedTasks(new Set());
+                }}
+                className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
+                  isSelectionMode
+                    ? "bg-purple-500 dark:bg-purple-600 text-white shadow-sm"
+                    : "bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/30"
+                }`}
+                title="一括選択モード (S)"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                  />
+                </svg>
+                <span>
+                  {isSelectionMode ? `選択中 (${selectedTasks.size})` : "一括"}
+                </span>
+              </button>
+
+              {isSelectionMode && selectedTasks.size > 0 && (
+                <>
+                  <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
+
+                  {/* 削除ボタン */}
+                  <button
+                    onClick={bulkDelete}
+                    className="px-3 py-1.5 bg-red-500 dark:bg-red-600 text-white rounded hover:bg-red-600 dark:hover:bg-red-700 text-xs transition-all hover:shadow-md flex items-center gap-1.5 shadow-sm"
+                    title="選択したタスクを削除"
+                  >
+                    <svg
+                      className="w-3.5 h-3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                    削除
+                  </button>
+                </>
+              )}
             </div>
           </div>
+        </div>
 
         {/* クイック追加フォーム */}
         {isQuickAdding && (
@@ -666,7 +668,10 @@ export default function HomeClientPage() {
                       key={theme.id}
                       onClick={() => {
                         setThemeFilter(theme.id);
-                        localStorage.setItem("selectedThemeFilter", String(theme.id));
+                        localStorage.setItem(
+                          "selectedThemeFilter",
+                          String(theme.id),
+                        );
                       }}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                         themeFilter === theme.id
@@ -770,7 +775,7 @@ export default function HomeClientPage() {
                         <button
                           key={status}
                           onClick={() => setFilter(status)}
-                          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap ${
                             filter === status
                               ? config.color === "purple"
                                 ? "bg-purple-600 text-white shadow-md"
@@ -847,7 +852,7 @@ export default function HomeClientPage() {
                               : null,
                           )
                         }
-                        className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                        className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
                           (priorityFilter || "") === priority.value
                             ? `${priority.bgColor} text-white shadow-md`
                             : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700"
@@ -891,7 +896,7 @@ export default function HomeClientPage() {
                     onClick={() =>
                       setSortOrder((o) => (o === "asc" ? "desc" : "asc"))
                     }
-                    className="p-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                    className="p-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0"
                     title={sortOrder === "asc" ? "昇順" : "降順"}
                   >
                     <svg
@@ -911,7 +916,6 @@ export default function HomeClientPage() {
                     </svg>
                   </button>
                 </div>
-
               </div>
             </div>
           </div>
@@ -1024,150 +1028,13 @@ export default function HomeClientPage() {
             </div>
 
             {/* ページネーション */}
-            {totalPages > 1 && (
-              <div className="mt-6 flex items-center justify-center gap-3">
-                {/* 表示件数 */}
-                <div className="flex items-center gap-1">
-                  {[5, 10, 15].map((count) => (
-                    <button
-                      key={count}
-                      onClick={() => {
-                        setItemsPerPage(count);
-                        setCurrentPage(1);
-                      }}
-                      className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
-                        itemsPerPage === count
-                          ? "bg-indigo-400 dark:bg-indigo-500 text-white shadow-sm"
-                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                      }`}
-                    >
-                      {count}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700"></div>
-
-                {/* ページネーションコントロール */}
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                    className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="最初のページ"
-                  >
-                    <svg
-                      className="w-4 h-4 text-zinc-600 dark:text-zinc-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
-                      />
-                    </svg>
-                  </button>
-
-                  <button
-                    onClick={() =>
-                      setCurrentPage((prev) => Math.max(1, prev - 1))
-                    }
-                    disabled={currentPage === 1}
-                    className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="前のページ"
-                  >
-                    <svg
-                      className="w-4 h-4 text-zinc-600 dark:text-zinc-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 19l-7-7 7-7"
-                      />
-                    </svg>
-                  </button>
-
-                  {Array.from({ length: totalPages }, (_, i) => i + 1)
-                    .filter((page) => {
-                      return (
-                        page === 1 ||
-                        page === totalPages ||
-                        (page >= currentPage - 1 && page <= currentPage + 1)
-                      );
-                    })
-                    .map((page, index, array) => (
-                      <React.Fragment key={page}>
-                        {index > 0 && array[index - 1] !== page - 1 && (
-                          <span className="px-1 text-zinc-400 text-xs">
-                            •••
-                          </span>
-                        )}
-                        <button
-                          onClick={() => setCurrentPage(page)}
-                          className={`min-w-28px px-2.5 py-1 rounded text-xs font-medium transition-all ${
-                            currentPage === page
-                              ? "bg-indigo-400 dark:bg-indigo-500 text-white shadow-sm"
-                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      </React.Fragment>
-                    ))}
-
-                  <button
-                    onClick={() =>
-                      setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-                    }
-                    disabled={currentPage === totalPages}
-                    className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="次のページ"
-                  >
-                    <svg
-                      className="w-4 h-4 text-zinc-600 dark:text-zinc-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </button>
-
-                  <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    className="p-1.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="最後のページ"
-                  >
-                    <svg
-                      className="w-4 h-4 text-zinc-600 dark:text-zinc-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 5l7 7-7 7M5 5l7 7-7 7"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            )}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+            />
           </>
         )}
       </div>

@@ -36,14 +36,18 @@ import {
   PinOff,
   MessageSquare,
   SquareArrowDown,
+  EllipsisVertical,
+  Moon,
+  Sun,
 } from "lucide-react";
 import AppIcon from "@/components/AppIcon";
 import GlobalPomodoroWidget from "@/feature/tasks/pomodoro/GlobalPomodoroWidget";
 import { OPEN_SHORTCUTS_EVENT } from "@/components/KeyboardShortcuts";
 import NotificationBell from "@/components/NotificationBell";
-import { DarkModeToggle } from "@/components/DarkModeToggle";
+import { useDarkMode } from "@/hooks/use-dark-mode";
 import { isTauri, hideToTray } from "@/utils/tauri";
 import { useShortcutStore, type ShortcutId } from "@/stores/shortcutStore";
+import { useAppModeStore, type AppMode } from "@/stores/appModeStore";
 
 type NavItem = {
   href: string;
@@ -51,6 +55,7 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>;
   shortcut?: string;
   children?: NavItem[];
+  mode?: "development" | "learning";
 };
 
 // パスがタスク詳細ページかどうかを判定するヘルパー関数
@@ -91,8 +96,13 @@ export default function Header() {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [isTauriEnv, setIsTauriEnv] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+
+  const { isDarkMode, mounted: darkModeMounted, toggleTheme } = useDarkMode();
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   const shortcutBindings = useShortcutStore((state) => state.shortcuts);
+  const appMode = useAppModeStore((state) => state.mode);
 
   // ショートカットIDからラベルを取得するヘルパー
   const getShortcutLabel = (id: ShortcutId): string | undefined => {
@@ -184,6 +194,26 @@ export default function Header() {
     };
   }, [isMenuOpen, isMenuPinned]);
 
+  // 三点リーダーメニュー外をクリックしたら閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        moreMenuRef.current &&
+        !moreMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+
+    if (isMoreMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isMoreMenuOpen]);
+
   // showHeader=true の場合はタスク詳細ページでもヘッダーを表示
   if (hideHeader || (isTaskDetailPage && !showHeader)) {
     return null;
@@ -236,6 +266,7 @@ export default function Header() {
       href: "#",
       label: "学習",
       icon: GraduationCap,
+      mode: "learning",
       children: [
         {
           href: "/exam-goals",
@@ -280,6 +311,7 @@ export default function Header() {
       href: "#",
       label: "開発",
       icon: Code,
+      mode: "development",
       children: [
         {
           href: "#",
@@ -321,6 +353,11 @@ export default function Header() {
       ],
     },
     {
+      href: "/settings/general",
+      label: "全体設定",
+      icon: Settings,
+    },
+    {
       href: "/settings",
       label: "APIキー設定",
       icon: Key,
@@ -331,6 +368,16 @@ export default function Header() {
       icon: Keyboard,
     },
   ];
+
+  const filterNavItems = (items: NavItem[], currentMode: AppMode): NavItem[] => {
+    if (currentMode === "all") return items;
+    return items.filter((item) => {
+      if (!item.mode) return true;
+      return item.mode === currentMode;
+    });
+  };
+
+  const filteredNavItems = filterNavItems(navItems, appMode);
 
   const toggleExpand = (label: string) => {
     setExpandedItems((prev) => {
@@ -701,20 +748,59 @@ export default function Header() {
                   </button>
                 </div>
               )}
-              <DarkModeToggle />
               {/* 通知ベル */}
               <NotificationBell />
-              {/* トレイ格納ボタン（Tauri環境のみ表示） */}
-              {isTauriEnv && (
+              {/* 三点リーダーメニュー */}
+              <div className="relative" ref={moreMenuRef}>
                 <button
-                  onClick={hideToTray}
+                  onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
                   className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                  aria-label="タスクトレイに格納"
-                  title="タスクトレイに格納"
+                  aria-label="その他のメニュー"
+                  title="その他のメニュー"
                 >
-                  <SquareArrowDown className="w-5 h-5" />
+                  <EllipsisVertical className="w-5 h-5" />
                 </button>
-              )}
+                {isMoreMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-50">
+                    {/* ダークモード切り替え */}
+                    <button
+                      onClick={() => {
+                        toggleTheme();
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                    >
+                      {darkModeMounted && isDarkMode ? (
+                        <Moon className="w-4 h-4" />
+                      ) : (
+                        <Sun className="w-4 h-4" />
+                      )}
+                      <span>{darkModeMounted && isDarkMode ? "ダークモード" : "ライトモード"}</span>
+                    </button>
+                    {/* 全体設定 */}
+                    <Link
+                      href="/settings/general"
+                      onClick={() => setIsMoreMenuOpen(false)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                    >
+                      <Settings className="w-4 h-4" />
+                      <span>全体設定</span>
+                    </Link>
+                    {/* トレイ格納ボタン（Tauri環境のみ表示） */}
+                    {isTauriEnv && (
+                      <button
+                        onClick={() => {
+                          hideToTray();
+                          setIsMoreMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                      >
+                        <SquareArrowDown className="w-4 h-4" />
+                        <span>タスクトレイに格納</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -760,7 +846,7 @@ export default function Header() {
         {/* ナビゲーション項目 */}
         <div className="flex-1 overflow-y-auto flex flex-col">
           <div className="p-4 space-y-1 flex-1">
-            {navItems.map((item) => renderNavItem(item, 0))}
+            {filteredNavItems.map((item) => renderNavItem(item, 0))}
           </div>
 
           {/* ショートカットヘルプ */}

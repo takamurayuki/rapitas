@@ -1,6 +1,12 @@
 "use client";
 
-import { ChevronDown, ChevronsUpDown, ChevronUp, ChevronsUp, type LucideIcon } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronsUpDown,
+  ChevronUp,
+  ChevronsUp,
+  type LucideIcon,
+} from "lucide-react";
 import type { Priority } from "@/types";
 
 interface PriorityConfig {
@@ -62,9 +68,7 @@ export default function PriorityIcon({
       title={config.title}
     >
       <Icon className={sizeClasses[size]} />
-      {showTitle && (
-        <span className="text-xs font-medium">{config.title}</span>
-      )}
+      {showTitle && <span className="text-xs font-medium">{config.title}</span>}
     </span>
   );
 }

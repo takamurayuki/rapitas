@@ -233,7 +233,7 @@ export function FieldItem({
   return (
     <div className={`${fullWidth ? "w-full" : "flex-1 min-w-[140px]"} ${className}`}>
       <div className="flex items-center gap-1.5 mb-2">
-        {icon && <span className="text-zinc-400">{icon}</span>}
+        {icon && <span className="text-zinc-400 dark:text-white">{icon}</span>}
         <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
           {label}
         </span>

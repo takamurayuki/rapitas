@@ -74,6 +74,12 @@ html.dark textarea::placeholder {
   color: var(--placeholder);
 }
 
+/* ダークモード: date/datetime-local inputのカレンダーアイコンを白色化 */
+html.dark input[type="date"]::-webkit-calendar-picker-indicator,
+html.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
 /* ダークモード: リンクテキストの視認性向上 */
 html.dark a {
   color: inherit;

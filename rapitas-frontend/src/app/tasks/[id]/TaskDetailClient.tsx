@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { getLabelsArray } from "@/utils/labels";
-import type { Task, TimeEntry, Comment, UserSettings, Resource } from "@/types";
+import type { Task, TimeEntry, Comment, UserSettings, Resource, Priority } from "@/types";
 import LabelSelector from "@/feature/tasks/components/LabelSelector";
 import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
 import {
@@ -27,6 +27,8 @@ import {
   Copy,
   ChevronDown,
   ChevronUp,
+  ChevronsUp,
+  ChevronsUpDown,
   Pencil,
   Check,
   X,
@@ -41,6 +43,7 @@ import {
   CornerDownRight,
   Link2,
   Search,
+  Flag,
 } from "lucide-react";
 import {
   SubtaskTitleIndicator,
@@ -148,6 +151,7 @@ export default function TaskDetailClient({
   const [editLabels, setEditLabels] = useState("");
   const [editLabelIds, setEditLabelIds] = useState<number[]>([]);
   const [editEstimatedHours, setEditEstimatedHours] = useState("");
+  const [editPriority, setEditPriority] = useState<Priority>("medium");
 
   // コードブロック追加用の状態
   const [showCodeBlockDialog, setShowCodeBlockDialog] = useState(false);
@@ -626,6 +630,7 @@ export default function TaskDetailClient({
     setEditLabels(getLabelsArray(task.labels).join(", "));
     setEditLabelIds(task.taskLabels?.map((tl) => tl.labelId) || []);
     setEditEstimatedHours(task.estimatedHours?.toString() || "");
+    setEditPriority((task.priority as Priority) || "medium");
     setIsEditing(true);
   };
 
@@ -647,6 +652,7 @@ export default function TaskDetailClient({
           title: editTitle,
           description: editDescription || undefined,
           status: editStatus,
+          priority: editPriority,
           labels: labelArray.length > 0 ? labelArray : undefined,
           labelIds: editLabelIds,
           estimatedHours: editEstimatedHours
@@ -1150,6 +1156,44 @@ export default function TaskDetailClient({
                 selectedLabelIds={editLabelIds}
                 onChange={setEditLabelIds}
               />
+            </div>
+
+            {/* Priority */}
+            <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-3">
+                <Flag className="w-4 h-4" />
+                <span className="text-sm font-medium">優先度</span>
+              </div>
+              <div className="flex items-center gap-1">
+                {([
+                  { value: "urgent" as Priority, label: "緊急", icon: <ChevronsUp className="w-3.5 h-3.5" />, iconColor: "text-red-500", bgColor: "bg-red-500" },
+                  { value: "high" as Priority, label: "高", icon: <ChevronUp className="w-3.5 h-3.5" />, iconColor: "text-orange-500", bgColor: "bg-orange-500" },
+                  { value: "medium" as Priority, label: "中", icon: <ChevronsUpDown className="w-3.5 h-3.5" />, iconColor: "text-blue-500", bgColor: "bg-blue-500" },
+                  { value: "low" as Priority, label: "低", icon: <ChevronDown className="w-3.5 h-3.5" />, iconColor: "text-zinc-400", bgColor: "bg-zinc-500" },
+                ]).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setEditPriority(opt.value)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                      editPriority === opt.value
+                        ? `${opt.bgColor} text-white shadow-md`
+                        : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700"
+                    }`}
+                  >
+                    <span
+                      className={
+                        editPriority === opt.value
+                          ? "text-white"
+                          : opt.iconColor
+                      }
+                    >
+                      {opt.icon}
+                    </span>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Estimated Hours */}

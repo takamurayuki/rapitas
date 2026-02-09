@@ -355,7 +355,7 @@ export default function DashboardPage() {
       </div>
 
       {/* バーンダウンチャート */}
-      <div className="mt-6">
+      <div className="mt-4">
         <BurndownChart days={14} />
       </div>
     </div>
