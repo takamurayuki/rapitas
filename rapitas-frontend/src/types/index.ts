@@ -1,3 +1,22 @@
+export type CategoryMode = "development" | "learning" | "both";
+
+export type Category = {
+  id: number;
+  name: string;
+  description?: string | null;
+  color: string;
+  icon?: string | null;
+  isDefault?: boolean;
+  mode: CategoryMode;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  themes?: Theme[];
+  _count?: {
+    themes: number;
+  };
+};
+
 export type Theme = {
   id: number;
   name: string;
@@ -10,6 +29,9 @@ export type Theme = {
   repositoryUrl?: string | null;
   workingDirectory?: string | null;
   defaultBranch?: string | null;
+  sortOrder: number;
+  categoryId?: number | null;
+  category?: Category | null;
   createdAt: string;
   updatedAt: string;
   _count?: {
@@ -55,6 +77,7 @@ export type Label = {
   description?: string | null;
   color: string;
   icon?: string | null;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
   _count?: { tasks: number };
@@ -576,12 +599,16 @@ export type ApiKeyStatus = {
   maskedKey: string | null;
 };
 
+export type ActiveMode = "development" | "learning" | "both";
+
 export type UserSettings = {
   id: number;
   aiTaskAnalysisDefault: boolean;
   autoResumeInterruptedTasks: boolean;
   autoExecuteAfterCreate: boolean;
   autoGenerateTitle: boolean;
+  defaultCategoryId?: number | null;
+  activeMode: ActiveMode;
   claudeApiKeyConfigured?: boolean;
   claudeApiKeyMasked?: string | null;
   chatgptApiKeyConfigured?: boolean;
@@ -1060,4 +1087,18 @@ export type ScheduleEventInput = {
   color?: string;
   reminderMinutes?: number | null;
   taskId?: number | null;
+};
+
+export type DailyScheduleBlock = {
+  id: number;
+  label: string;
+  startTime: string;
+  endTime: string;
+  color: string;
+  icon?: string | null;
+  category: string;
+  isNotify: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
 };

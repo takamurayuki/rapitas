@@ -8,8 +8,10 @@ import {
   X,
   Search,
   Star,
+  GripVertical,
   type LucideIcon,
 } from "lucide-react";
+import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { useToast } from "@/components/ui/toast/ToastContainer";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import {
@@ -79,6 +81,7 @@ export default function CategoryManager({ config }: Props) {
       bgLight: "bg-purple-100 dark:bg-purple-900/30",
       text: "text-purple-600 dark:text-purple-400",
       iconBg: "bg-purple-500",
+      dragRing: "ring-purple-500/50",
     },
     indigo: {
       ring: "focus:ring-indigo-500",
@@ -87,6 +90,7 @@ export default function CategoryManager({ config }: Props) {
       bgLight: "bg-indigo-100 dark:bg-indigo-900/30",
       text: "text-indigo-600 dark:text-indigo-400",
       iconBg: "bg-indigo-500",
+      dragRing: "ring-indigo-500/50",
     },
   };
 
@@ -224,6 +228,34 @@ export default function CategoryManager({ config }: Props) {
     setEditingId(null);
     setIsAdding(false);
     resetForm();
+  };
+
+  const handleDragEnd = async (result: DropResult) => {
+    if (!result.destination || result.source.index === result.destination.index) return;
+
+    const reordered = Array.from(items);
+    const [moved] = reordered.splice(result.source.index, 1);
+    reordered.splice(result.destination.index, 0, moved);
+
+    setItems(reordered);
+
+    const orders = reordered.map((item, index) => ({
+      id: item.id,
+      sortOrder: index,
+    }));
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/${config.endpoint}/reorder`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orders }),
+      });
+      if (!res.ok) throw new Error("並び替えに失敗しました");
+    } catch (e) {
+      console.error(e);
+      showToast("並び替えに失敗しました", "error");
+      fetchItems();
+    }
   };
 
   const filteredIcons = searchIcons(iconSearchQuery);
@@ -425,7 +457,7 @@ export default function CategoryManager({ config }: Props) {
 
         {/* リスト */}
         {loading ? (
-          <LoadingSpinner color={config.accentColor} />
+          <LoadingSpinner />
         ) : items.length === 0 ? (
           <div className="text-center py-16 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
             <TitleIcon className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
@@ -437,109 +469,134 @@ export default function CategoryManager({ config }: Props) {
             </p>
           </div>
         ) : (
-          <div className="grid gap-4">
-            {items
-              .filter((item) => {
-                // 編集中または新規追加中の場合は、編集中のアイテムのみ表示
-                if (isAdding) return false;
-                if (editingId !== null) return item.id === editingId;
-                return true;
-              })
-              .map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:shadow-lg transition-all overflow-hidden"
-                >
-                  {editingId === item.id ? (
-                    <div className="p-6">
-                      <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-                        <Edit2 className={`w-5 h-5 ${accent.text}`} />
-                        {config.itemName}を編集
-                      </h2>
-                      {renderForm(true, item.id)}
-                    </div>
-                  ) : (
-                    <div className="p-5 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
-                        <div
-                          className="flex items-center justify-center w-14 h-14 rounded-xl shrink-0 shadow-sm"
-                          style={{
-                            backgroundColor: item.color + "20",
-                            color: item.color,
-                          }}
-                        >
-                          {renderIcon(item.icon, 28)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 truncate">
-                            {item.name}
-                          </h3>
-                          {item.description && (
-                            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-0.5 line-clamp-2">
-                              {item.description}
-                            </p>
-                          )}
-                          <div className="flex items-center gap-3 mt-2">
-                            <span
-                              className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md"
-                              style={{
-                                backgroundColor: item.color + "15",
-                                color: item.color,
-                              }}
-                            >
-                              <div
-                                className="w-2 h-2 rounded-full"
-                                style={{ backgroundColor: item.color }}
-                              />
-                              {item.color}
-                            </span>
-                            {item._count && (
-                              <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-                                <span className="font-semibold">
-                                  {item._count.tasks}
-                                </span>
-                                タスク
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {config.showDefaultButton && (
-                          <button
-                            onClick={() => setDefault(item.id)}
-                            className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-all font-medium ${
-                              item.isDefault
-                                ? `${accent.bgLight} ${accent.text} border-2 ${accent.border}`
-                                : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId={config.endpoint}>
+              {(provided) => (
+                <div className="grid gap-4" ref={provided.innerRef} {...provided.droppableProps}>
+                  {items
+                    .filter((item) => {
+                      if (isAdding) return false;
+                      if (editingId !== null) return item.id === editingId;
+                      return true;
+                    })
+                    .map((item, index) => (
+                      <Draggable
+                        key={item.id}
+                        draggableId={String(item.id)}
+                        index={index}
+                        isDragDisabled={editingId !== null || isAdding}
+                      >
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            className={`rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:shadow-lg transition-all overflow-hidden ${
+                              snapshot.isDragging ? `shadow-2xl ring-2 ${accent.dragRing}` : ""
                             }`}
                           >
-                            <Star
-                              className={`w-4 h-4 ${item.isDefault ? "fill-current" : ""}`}
-                            />
-                            {item.isDefault ? "デフォルト" : "デフォルト設定"}
-                          </button>
+                            {editingId === item.id ? (
+                              <div className="p-6">
+                                <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+                                  <Edit2 className={`w-5 h-5 ${accent.text}`} />
+                                  {config.itemName}を編集
+                                </h2>
+                                {renderForm(true, item.id)}
+                              </div>
+                            ) : (
+                              <div className="p-5 flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-4 flex-1 min-w-0">
+                                  <div
+                                    {...provided.dragHandleProps}
+                                    className="flex items-center justify-center w-6 shrink-0 cursor-grab active:cursor-grabbing text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                                    title="ドラッグして並び替え"
+                                  >
+                                    <GripVertical className="w-5 h-5" />
+                                  </div>
+                                  <div
+                                    className="flex items-center justify-center w-14 h-14 rounded-xl shrink-0 shadow-sm"
+                                    style={{
+                                      backgroundColor: item.color + "20",
+                                      color: item.color,
+                                    }}
+                                  >
+                                    {renderIcon(item.icon, 28)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 truncate">
+                                      {item.name}
+                                    </h3>
+                                    {item.description && (
+                                      <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-0.5 line-clamp-2">
+                                        {item.description}
+                                      </p>
+                                    )}
+                                    <div className="flex items-center gap-3 mt-2">
+                                      <span
+                                        className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md"
+                                        style={{
+                                          backgroundColor: item.color + "15",
+                                          color: item.color,
+                                        }}
+                                      >
+                                        <div
+                                          className="w-2 h-2 rounded-full"
+                                          style={{ backgroundColor: item.color }}
+                                        />
+                                        {item.color}
+                                      </span>
+                                      {item._count && (
+                                        <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
+                                          <span className="font-semibold">
+                                            {item._count.tasks}
+                                          </span>
+                                          タスク
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {config.showDefaultButton && (
+                                    <button
+                                      onClick={() => setDefault(item.id)}
+                                      className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-all font-medium ${
+                                        item.isDefault
+                                          ? `${accent.bgLight} ${accent.text} border-2 ${accent.border}`
+                                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                                      }`}
+                                    >
+                                      <Star
+                                        className={`w-4 h-4 ${item.isDefault ? "fill-current" : ""}`}
+                                      />
+                                      {item.isDefault ? "デフォルト" : "デフォルト設定"}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => startEdit(item)}
+                                    className="flex items-center gap-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-3 py-2 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                    編集
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(item.id, item.name)}
+                                    className="flex items-center gap-2 rounded-lg bg-red-100 dark:bg-red-900/30 px-3 py-2 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    削除
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         )}
-                        <button
-                          onClick={() => startEdit(item)}
-                          className="flex items-center gap-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-3 py-2 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                          編集
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id, item.name)}
-                          className="flex items-center gap-2 rounded-lg bg-red-100 dark:bg-red-900/30 px-3 py-2 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          削除
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                      </Draggable>
+                    ))}
+                  {provided.placeholder}
                 </div>
-              ))}
-          </div>
+              )}
+            </Droppable>
+          </DragDropContext>
         )}
       </div>
     </div>

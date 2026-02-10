@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import TaskDetailClient from "../[id]/TaskDetailClient";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 /**
  * Tauri用タスク詳細ページ
@@ -33,18 +34,7 @@ function TaskDetailContent() {
 
 export default function TauriTaskDetailPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-              読み込み中...
-            </p>
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<LoadingSpinner />}>
       <TaskDetailContent />
     </Suspense>
   );

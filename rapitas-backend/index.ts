@@ -8,6 +8,7 @@ import { swagger } from "@elysiajs/swagger";
 
 // Import modular routes
 import {
+  categoriesRoutes,
   themesRoutes,
   labelsRoutes,
   taskLabelsRoutes,
@@ -44,6 +45,7 @@ import {
   agentExecutionConfigRoutes,
   executionLogsRoutes,
   schedulesRoutes,
+  dailyScheduleRoutes,
 } from "./routes";
 
 // Import shared database client
@@ -106,6 +108,7 @@ app.use(
 );
 
 // Apply modular routes
+app.use(categoriesRoutes);
 app.use(themesRoutes);
 app.use(labelsRoutes);
 app.use(taskLabelsRoutes);
@@ -142,6 +145,7 @@ app.use(taskAnalysisConfigRoutes);
 app.use(agentExecutionConfigRoutes);
 app.use(executionLogsRoutes);
 app.use(schedulesRoutes);
+app.use(dailyScheduleRoutes);
 
 // Start server
 const PORT = parseInt(process.env.PORT || "3001", 10);

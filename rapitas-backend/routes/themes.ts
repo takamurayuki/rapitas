@@ -15,8 +15,9 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
         _count: {
           select: { tasks: true },
         },
+        category: true,
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
     });
   })
 
@@ -24,6 +25,7 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
   .get("/default/get", async () => {
     return await prisma.theme.findFirst({
       where: { isDefault: true },
+      include: { category: true },
     });
   })
 
@@ -39,6 +41,7 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
       const theme = await prisma.theme.findUnique({
         where: { id },
         include: {
+          category: true,
           tasks: {
             where: { parentId: null },
             orderBy: { createdAt: "desc" },
@@ -54,7 +57,7 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
     }
   )
 
-  // Create theme
+  // Create theme (categoryId is required)
   .post(
     "/",
     async ({ body }: { body: {
@@ -66,6 +69,7 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
       repositoryUrl?: string;
       workingDirectory?: string;
       defaultBranch?: string;
+      categoryId: number;
     }}) => {
       const {
         name,
@@ -76,11 +80,13 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
         repositoryUrl,
         workingDirectory,
         defaultBranch,
+        categoryId,
       } = body;
 
       return await prisma.theme.create({
         data: {
           name,
+          categoryId,
           ...(description && { description }),
           ...(color && { color }),
           ...(icon && { icon }),
@@ -89,6 +95,7 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
           ...(workingDirectory && { workingDirectory }),
           ...(defaultBranch && { defaultBranch }),
         },
+        include: { category: true },
       });
     },
     {
@@ -110,6 +117,7 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
         repositoryUrl?: string;
         workingDirectory?: string;
         defaultBranch?: string;
+        categoryId?: number | null;
       }
     }) => {
       const id = parseInt(params.id);
@@ -135,6 +143,7 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
         repositoryUrl,
         workingDirectory,
         defaultBranch,
+        categoryId,
       } = body;
 
       const updateData: Record<string, unknown> = {};
@@ -146,10 +155,22 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
       if (repositoryUrl !== undefined) updateData.repositoryUrl = repositoryUrl;
       if (workingDirectory !== undefined) updateData.workingDirectory = workingDirectory;
       if (defaultBranch !== undefined) updateData.defaultBranch = defaultBranch;
+      if (categoryId !== undefined) updateData.categoryId = categoryId;
+
+      // Auto-link to 開発 category when isDevelopment is being set to true and no categoryId specified
+      if (isDevelopment === true && categoryId === undefined && !existingTheme.categoryId) {
+        const devCategory = await prisma.category.findFirst({
+          where: { name: "開発", isDefault: true },
+        });
+        if (devCategory) {
+          updateData.categoryId = devCategory.id;
+        }
+      }
 
       return await prisma.theme.update({
         where: { id },
         data: updateData,
+        include: { category: true },
       });
     },
     {
@@ -169,22 +190,61 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
     });
   })
 
-  // Set default theme
+  // Reorder themes
+  .patch(
+    "/reorder",
+    async ({ body }: {
+      body: { orders: Array<{ id: number; sortOrder: number }> }
+    }) => {
+      const { orders } = body;
+
+      await Promise.all(
+        orders.map(({ id, sortOrder }) =>
+          prisma.theme.update({
+            where: { id },
+            data: { sortOrder },
+          })
+        )
+      );
+
+      return { success: true };
+    }
+  )
+
+  // Set default theme (per category: only one default per category)
   .patch("/:id/set-default", async ({ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("無効なIDです");
     }
 
-    // Reset all themes' isDefault to false
-    await prisma.theme.updateMany({
-      where: { isDefault: true },
-      data: { isDefault: false },
+    // Get the theme to find its category
+    const theme = await prisma.theme.findUnique({
+      where: { id },
     });
+
+    if (!theme) {
+      throw new NotFoundError("テーマが見つかりません");
+    }
+
+    // Reset isDefault for themes in the same category only
+    if (theme.categoryId) {
+      await prisma.theme.updateMany({
+        where: { categoryId: theme.categoryId, isDefault: true },
+        data: { isDefault: false },
+      });
+    } else {
+      // If no category, reset all themes without a category
+      await prisma.theme.updateMany({
+        where: { categoryId: null, isDefault: true },
+        data: { isDefault: false },
+      });
+    }
 
     // Set the specified theme as default
     return await prisma.theme.update({
       where: { id },
       data: { isDefault: true },
+      include: { category: true },
     });
   });

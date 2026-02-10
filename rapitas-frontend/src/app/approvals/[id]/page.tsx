@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import ApprovalDetailClient from "./ApprovalDetailClient";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 // 静的エクスポート用 - プレースホルダーIDを生成
 export async function generateStaticParams() {
@@ -8,15 +9,7 @@ export async function generateStaticParams() {
 
 export default function ApprovalDetailPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center min-h-[50vh]">
-          <div className="animate-pulse text-zinc-500 dark:text-zinc-400">
-            読み込み中...
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<LoadingSpinner variant="compact" />}>
       <ApprovalDetailClient />
     </Suspense>
   );

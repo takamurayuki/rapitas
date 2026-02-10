@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import {
   MessageSquare,
   Plus,
@@ -168,11 +169,7 @@ export default function SystemPromptsPage() {
   );
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-5rem)] bg-[var(--background)]">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (

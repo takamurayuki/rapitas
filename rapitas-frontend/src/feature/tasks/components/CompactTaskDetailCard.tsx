@@ -33,7 +33,6 @@ import PriorityIcon from "@/feature/tasks/components/PriorityIcon";
 interface CompactTaskDetailCardProps {
   task: Task;
   onStatusUpdate: (taskId: number, newStatus: string) => void;
-  onEditCode?: (language: string, code: string) => void;
   resources?: Resource[];
   onResourcesChange?: () => void;
   // メモ関連のprops
@@ -51,7 +50,6 @@ interface CompactTaskDetailCardProps {
 export default function CompactTaskDetailCard({
   task,
   onStatusUpdate,
-  onEditCode,
   resources = [],
   onResourcesChange,
   comments = [],
@@ -146,7 +144,7 @@ export default function CompactTaskDetailCard({
                 >
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm, remarkBreaks]}
-                    components={createMarkdownComponents(onEditCode)}
+                    components={createMarkdownComponents()}
                   >
                     {task.description}
                   </ReactMarkdown>

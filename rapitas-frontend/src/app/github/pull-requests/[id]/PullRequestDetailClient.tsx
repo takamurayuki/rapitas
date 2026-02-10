@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import type { GitHubPullRequest, FileDiff } from "@/types";
 import { API_BASE_URL } from "@/utils/api";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 export default function PullRequestDetailClient() {
   const params = useParams();
@@ -135,11 +136,7 @@ export default function PullRequestDetailClient() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   if (!pr) {

@@ -23,6 +23,7 @@ import {
   Activity,
   Globe,
 } from "lucide-react";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { API_BASE_URL } from "@/utils/api";
 import {
   validateName,
@@ -473,11 +474,7 @@ export default function AgentSettingsClient({
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-5rem)] bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   if (!agent) {

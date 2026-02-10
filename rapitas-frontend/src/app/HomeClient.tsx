@@ -2,7 +2,15 @@
 import { useCallback, useEffect, useState } from "react";
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { Task, Theme, Priority, Status } from "@/types";
+import type {
+  Task,
+  Theme,
+  Category,
+  Priority,
+  Status,
+  UserSettings,
+  ActiveMode,
+} from "@/types";
 import TaskSlidePanel from "@/feature/tasks/components/TaskSlidePanel";
 import TaskCard from "@/feature/tasks/components/TaskCard";
 import { useToast } from "@/components/ui/toast/ToastContainer";
@@ -20,6 +28,11 @@ import {
   ChevronsUpDown,
   ChevronUp,
   ChevronsUp,
+  FolderKanban,
+  Code,
+  BookOpen,
+  Layers,
+  Plus,
 } from "lucide-react";
 import { getIconComponent } from "@/components/category/IconData";
 import { API_BASE_URL, fetchWithRetry } from "@/utils/api";
@@ -35,8 +48,10 @@ export default function HomeClientPage() {
   const { showTaskDetail, hideTaskDetail } = useTaskDetailVisibilityStore();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [themes, setThemes] = useState<Theme[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<number | null>(null);
   const [themeFilter, setThemeFilter] = useState<number | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<Priority | null>(null);
   const [defaultTheme, setDefaultTheme] = useState<Theme | null>(null);
@@ -65,6 +80,11 @@ export default function HomeClientPage() {
   // フィルターアコーディオン
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
 
+  // グローバル設定（activeMode, defaultCategoryId）
+  const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(
+    null,
+  );
+
   const fetchTasks = async () => {
     try {
       const res = await fetchWithRetry(`${API_BASE}/tasks`);
@@ -80,30 +100,79 @@ export default function HomeClientPage() {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/categories`);
+      const data = await res.json();
+      setCategories(data);
+      // localStorageからカテゴリフィルタを復元
+      const savedCategoryId = localStorage.getItem("selectedCategoryFilter");
+      if (savedCategoryId !== null && savedCategoryId !== "null") {
+        const parsedId = Number(savedCategoryId);
+        const exists = data.some((c: Category) => c.id === parsedId);
+        if (exists) {
+          setCategoryFilter(parsedId);
+          return data as Category[];
+        }
+      }
+      // 保存値がない or 無効な場合: defaultCategoryIdをチェック（initialLoadで後から適用）
+      // ここではカテゴリデータのみ設定し、デフォルトの選択はinitialLoadに委ねる
+      return data as Category[];
+    } catch (e) {
+      console.error(e);
+      return [] as Category[];
+    }
+  };
+
   const fetchThemes = async () => {
     try {
       const res = await fetch(`${API_BASE}/themes`);
       const data = await res.json();
       setThemes(data);
-      // デフォルトテーマを設定
-      const defaultThemeData = data.find((t: Theme) => t.isDefault);
-      if (defaultThemeData) {
-        setDefaultTheme(defaultThemeData);
+      // グローバルデフォルトテーマを設定（クイック追加等で使用）
+      const firstDefaultTheme = data.find((t: Theme) => t.isDefault);
+      if (firstDefaultTheme) {
+        setDefaultTheme(firstDefaultTheme);
       }
-      // localStorageに保存済みのテーマがあればそちらを復元、なければデフォルトテーマを選択
+      // localStorageに保存済みのテーマがあればそちらを復元
       const savedThemeId = localStorage.getItem("selectedThemeFilter");
-      if (savedThemeId !== null) {
-        const parsedId = savedThemeId === "null" ? null : Number(savedThemeId);
-        const exists =
-          parsedId === null || data.some((t: Theme) => t.id === parsedId);
+      if (savedThemeId !== null && savedThemeId !== "null") {
+        const parsedId = Number(savedThemeId);
+        const exists = data.some((t: Theme) => t.id === parsedId);
         if (exists) {
           setThemeFilter(parsedId);
-        } else if (defaultThemeData) {
-          setThemeFilter(defaultThemeData.id);
+          return;
         }
-      } else if (defaultThemeData) {
-        // 初回表示時（localStorage未設定）はデフォルトテーマを自動選択
-        setThemeFilter(defaultThemeData.id);
+      }
+      // 保存値がない or 無効な場合：現在のカテゴリに属するデフォルトテーマを選択
+      const savedCategoryId = localStorage.getItem("selectedCategoryFilter");
+      const currentCategoryId = savedCategoryId
+        ? Number(savedCategoryId)
+        : null;
+      if (currentCategoryId !== null) {
+        const themesInCategory = data.filter(
+          (t: Theme) => t.categoryId === currentCategoryId,
+        );
+        if (themesInCategory.length > 0) {
+          const defaultInCategory = themesInCategory.find(
+            (t: Theme) => t.isDefault,
+          );
+          const targetTheme = defaultInCategory || themesInCategory[0];
+          setThemeFilter(targetTheme.id);
+          localStorage.setItem("selectedThemeFilter", String(targetTheme.id));
+          return;
+        }
+      }
+      // カテゴリが未設定の場合はグローバルデフォルトにフォールバック
+      if (firstDefaultTheme) {
+        setThemeFilter(firstDefaultTheme.id);
+        localStorage.setItem(
+          "selectedThemeFilter",
+          String(firstDefaultTheme.id),
+        );
+      } else if (data.length > 0) {
+        setThemeFilter(data[0].id);
+        localStorage.setItem("selectedThemeFilter", String(data[0].id));
       }
     } catch (e) {
       console.error(e);
@@ -303,11 +372,48 @@ export default function HomeClientPage() {
     return () => window.removeEventListener("keydown", handleKeyPress);
   }, [router, isQuickAdding, isSelectionMode]);
 
+  const fetchGlobalSettings = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/settings`);
+      if (res.ok) {
+        const data = await res.json();
+        setGlobalSettings(data);
+        return data as UserSettings;
+      }
+    } catch (e) {
+      console.error("Failed to fetch global settings:", e);
+    }
+    return null;
+  };
+
   useEffect(() => {
     // 初回読み込み時はすべてのデータを取得してからloadingを解除
     const initialLoad = async () => {
       setLoading(true);
-      await Promise.all([fetchTasks(), fetchThemes()]);
+      const [, , categoriesData, settings] = await Promise.all([
+        fetchTasks(),
+        fetchThemes(),
+        fetchCategories(),
+        fetchGlobalSettings(),
+      ]);
+      // localStorageに有効な保存値がなければデフォルトカテゴリを適用
+      const savedCategoryId = localStorage.getItem("selectedCategoryFilter");
+      if (savedCategoryId === null || savedCategoryId === "null") {
+        if (settings?.defaultCategoryId) {
+          setCategoryFilter(settings.defaultCategoryId);
+          localStorage.setItem(
+            "selectedCategoryFilter",
+            String(settings.defaultCategoryId),
+          );
+        } else if (categoriesData && categoriesData.length > 0) {
+          // defaultCategoryIdも未設定の場合は最初のカテゴリにフォールバック
+          setCategoryFilter(categoriesData[0].id);
+          localStorage.setItem(
+            "selectedCategoryFilter",
+            String(categoriesData[0].id),
+          );
+        }
+      }
       setLoading(false);
     };
     initialLoad();
@@ -321,10 +427,54 @@ export default function HomeClientPage() {
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
+  // activeModeが変わったとき、現在のカテゴリフィルタが非表示になったら最初の表示カテゴリに切り替え
+  useEffect(() => {
+    if (!globalSettings || categories.length === 0) return;
+    const activeMode = globalSettings.activeMode || "both";
+    const visibleCategories = categories.filter((cat) => {
+      if (activeMode === "both") return true;
+      if (cat.mode === "both") return true;
+      return cat.mode === activeMode;
+    });
+    if (categoryFilter !== null) {
+      const isVisible = visibleCategories.some((c) => c.id === categoryFilter);
+      if (!isVisible && visibleCategories.length > 0) {
+        const newCategoryId = visibleCategories[0].id;
+        setCategoryFilter(newCategoryId);
+        localStorage.setItem("selectedCategoryFilter", String(newCategoryId));
+        // テーマフィルタも調整
+        const themesInCategory = themes.filter(
+          (t) => t.categoryId === newCategoryId,
+        );
+        if (themesInCategory.length > 0) {
+          const defaultInCategory = themesInCategory.find((t) => t.isDefault);
+          const targetTheme = defaultInCategory || themesInCategory[0];
+          setThemeFilter(targetTheme.id);
+          localStorage.setItem("selectedThemeFilter", String(targetTheme.id));
+        } else {
+          setThemeFilter(null);
+          localStorage.removeItem("selectedThemeFilter");
+        }
+      }
+    }
+  }, [globalSettings?.activeMode, categories]);
+
+  // カテゴリに属するテーマIDのセット（カテゴリフィルタ用）
+  const categoryThemeIds = (() => {
+    if (categoryFilter === null) return null;
+    return new Set(
+      themes.filter((t) => t.categoryId === categoryFilter).map((t) => t.id),
+    );
+  })();
+
   const filteredTasks = tasks.filter((t) => {
     if (t.parentId) return false;
     if (filter !== "all" && t.status !== filter) return false;
     if (themeFilter !== null && t.themeId !== themeFilter) return false;
+    // カテゴリフィルタ: テーマフィルタが未設定（ロード中）の場合にカテゴリで絞り込む
+    if (themeFilter === null && categoryThemeIds !== null) {
+      if (!t.themeId || !categoryThemeIds.has(t.themeId)) return false;
+    }
     if (priorityFilter !== null && t.priority !== priorityFilter) return false;
 
     // 検索フィルター
@@ -341,7 +491,7 @@ export default function HomeClientPage() {
   // フィルター変更時にページを1に戻す
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, themeFilter, priorityFilter, searchQuery]);
+  }, [filter, categoryFilter, themeFilter, priorityFilter, searchQuery]);
 
   // ソート処理
   const sortedTasks = [...filteredTasks].sort((a, b) => {
@@ -643,64 +793,143 @@ export default function HomeClientPage() {
         {/* 統合フィルターバー（アコーディオン） */}
         {!loading && !isSelectionMode && !isQuickAdding && (
           <div className="mb-4 bg-white dark:bg-indigo-dark-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-            {/* テーマ選択（アコーディオンヘッダー） */}
-            <div className="flex items-center gap-2 px-3 py-2.5">
-              {/* テーマボタン */}
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700 scrollbar-track-transparent flex-1">
-                <button
-                  onClick={() => {
-                    setThemeFilter(null);
-                    localStorage.setItem("selectedThemeFilter", "null");
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
-                    themeFilter === null
-                      ? "bg-purple-600 text-white shadow-lg"
-                      : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-700"
-                  }`}
-                >
-                  すべて
-                </button>
-                {themes.map((theme) => {
-                  const IconComponent =
-                    getIconComponent(theme.icon || "") || SwatchBook;
-                  return (
-                    <button
-                      key={theme.id}
-                      onClick={() => {
-                        setThemeFilter(theme.id);
-                        localStorage.setItem(
-                          "selectedThemeFilter",
-                          String(theme.id),
-                        );
-                      }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
-                        themeFilter === theme.id
-                          ? "shadow-lg"
-                          : "border border-zinc-300 dark:border-zinc-700 hover:border-current"
-                      }`}
-                      style={{
-                        backgroundColor:
-                          themeFilter === theme.id ? theme.color : undefined,
-                        color:
-                          themeFilter === theme.id ? "#ffffff" : theme.color,
-                        borderColor:
-                          themeFilter === theme.id ? theme.color : undefined,
-                      }}
-                    >
-                      <IconComponent className="w-3.5 h-3.5" />
-                      {theme.name}
-                      {theme.isDefault && (
-                        <Star className="w-3 h-3 fill-current" />
-                      )}
-                    </button>
-                  );
-                })}
+            {/* カテゴリタブ */}
+            {categories.length > 0 && (
+              <div className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700 scrollbar-track-transparent">
+                {categories
+                  .filter((cat) => {
+                    const activeMode = globalSettings?.activeMode || "both";
+                    if (activeMode === "both") return true;
+                    if (cat.mode === "both") return true;
+                    return cat.mode === activeMode;
+                  })
+                  .map((cat) => {
+                    const CatIcon =
+                      getIconComponent(cat.icon || "") || FolderKanban;
+                    const isActive = categoryFilter === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        onClick={() => {
+                          setCategoryFilter(cat.id);
+                          localStorage.setItem(
+                            "selectedCategoryFilter",
+                            String(cat.id),
+                          );
+                          const themesInCategory = themes.filter(
+                            (t) => t.categoryId === cat.id,
+                          );
+                          if (themesInCategory.length === 0) {
+                            setThemeFilter(null);
+                            localStorage.removeItem("selectedThemeFilter");
+                          } else {
+                            const currentThemeInCategory =
+                              themesInCategory.find(
+                                (t) => t.id === themeFilter,
+                              );
+                            if (!currentThemeInCategory) {
+                              const defaultInCategory = themesInCategory.find(
+                                (t) => t.isDefault,
+                              );
+                              const targetTheme =
+                                defaultInCategory || themesInCategory[0];
+                              setThemeFilter(targetTheme.id);
+                              localStorage.setItem(
+                                "selectedThemeFilter",
+                                String(targetTheme.id),
+                              );
+                            }
+                          }
+                        }}
+                        className={`relative flex items-center gap-1.5 px-4 py-2 text-xs font-medium transition-all whitespace-nowrap shrink-0 border-b-2 ${
+                          isActive
+                            ? "bg-black/5 dark:bg-white/5"
+                            : "text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] border-transparent"
+                        }`}
+                        style={{
+                          borderBottomColor: isActive ? cat.color : undefined,
+                          color: isActive ? cat.color : undefined,
+                        }}
+                      >
+                        <CatIcon className="w-3.5 h-3.5" />
+                        {cat.name}
+                        {globalSettings?.defaultCategoryId === cat.id && (
+                          <Star className="w-2.5 h-2.5 fill-current" />
+                        )}
+                      </button>
+                    );
+                  })}
+              </div>
+            )}
+
+            {/* カテゴリとテーマの区切り線 */}
+            {categories.length > 0 && (
+              <div className="mx-3">
+                <div className="border-t border-zinc-100 dark:border-zinc-800/80"></div>
+              </div>
+            )}
+
+            {/* テーマタブ */}
+            <div className="flex items-center gap-2 px-1 py-1.5">
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700 scrollbar-track-transparent flex-1">
+                {(() => {
+                  const filteredThemes = themes.filter((theme) => {
+                    if (categoryFilter === null) return true;
+                    return theme.categoryId === categoryFilter;
+                  });
+                  if (filteredThemes.length === 0 && categoryFilter !== null) {
+                    return (
+                      <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 py-0.5 px-1">
+                        <span>このカテゴリにはテーマがありません。</span>
+                        <button
+                          onClick={() => router.push("/themes")}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                        >
+                          <Plus className="w-3 h-3" />
+                          テーマを追加
+                        </button>
+                      </div>
+                    );
+                  }
+                  return filteredThemes.map((theme) => {
+                    const IconComponent =
+                      getIconComponent(theme.icon || "") || SwatchBook;
+                    const isActive = themeFilter === theme.id;
+                    return (
+                      <button
+                        key={theme.id}
+                        onClick={() => {
+                          setThemeFilter(theme.id);
+                          localStorage.setItem(
+                            "selectedThemeFilter",
+                            String(theme.id),
+                          );
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                          isActive
+                            ? "shadow-sm"
+                            : "border border-zinc-300 dark:border-zinc-700 hover:border-current"
+                        }`}
+                        style={{
+                          backgroundColor: isActive ? theme.color : undefined,
+                          color: isActive ? "#ffffff" : theme.color,
+                        }}
+                      >
+                        <IconComponent className="w-3.5 h-3.5" />
+                        {theme.name}
+                        {theme.isDefault && (
+                          <Star className="w-2.5 h-2.5 fill-current" />
+                        )}
+                      </button>
+                    );
+                  });
+                })()}
               </div>
 
               {/* アコーディオントグル */}
               <button
                 onClick={() => setIsFilterExpanded(!isFilterExpanded)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                   isFilterExpanded
                     ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200"
                     : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
@@ -741,7 +970,7 @@ export default function HomeClientPage() {
                   <div className="flex items-center gap-1">
                     {["all", "todo", "in-progress", "done"].map((status) => {
                       const statusConfigLocal = {
-                        all: { label: "すべて", color: "purple" },
+                        all: { label: "すべて", color: "theme" },
                         todo: { label: "未着手", color: "zinc" },
                         "in-progress": { label: "進行中", color: "blue" },
                         done: { label: "完了", color: "green" },
@@ -756,6 +985,10 @@ export default function HomeClientPage() {
                           return false;
                         if (themeFilter !== null && t.themeId !== themeFilter)
                           return false;
+                        if (themeFilter === null && categoryThemeIds !== null) {
+                          if (!t.themeId || !categoryThemeIds.has(t.themeId))
+                            return false;
+                        }
                         if (
                           priorityFilter !== null &&
                           t.priority !== priorityFilter
@@ -777,8 +1010,8 @@ export default function HomeClientPage() {
                           onClick={() => setFilter(status)}
                           className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap ${
                             filter === status
-                              ? config.color === "purple"
-                                ? "bg-purple-600 text-white shadow-md"
+                              ? config.color === "theme"
+                                ? "text-white shadow-md"
                                 : config.color === "blue"
                                   ? "bg-blue-600 text-white shadow-md"
                                   : config.color === "green"
@@ -786,6 +1019,12 @@ export default function HomeClientPage() {
                                     : "bg-zinc-600 text-white shadow-md"
                               : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700"
                           }`}
+                          style={{
+                            backgroundColor:
+                              filter === status && config.color === "theme"
+                                ? "#6366F1"
+                                : undefined,
+                          }}
                         >
                           {config.label}
                           <span className="text-[10px] opacity-75">
@@ -812,7 +1051,8 @@ export default function HomeClientPage() {
                         label: "すべて",
                         icon: null,
                         iconColor: "",
-                        bgColor: "bg-purple-600",
+                        bgColor: "",
+                        isThemeColor: true,
                       },
                       {
                         value: "urgent",
@@ -857,6 +1097,14 @@ export default function HomeClientPage() {
                             ? `${priority.bgColor} text-white shadow-md`
                             : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700"
                         }`}
+                        style={{
+                          backgroundColor:
+                            (priorityFilter || "") === priority.value &&
+                            "isThemeColor" in priority &&
+                            priority.isThemeColor
+                              ? "#6366F1"
+                              : undefined,
+                        }}
                       >
                         {priority.icon && (
                           <span
@@ -967,45 +1215,69 @@ export default function HomeClientPage() {
           </div>
         ) : sortedTasks.length === 0 ? (
           <div className="text-center py-12 text-zinc-500 dark:text-zinc-400">
-            <svg
-              className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-              />
-            </svg>
-            <p className="text-lg font-medium mb-2">タスクがありません</p>
-            <p className="text-sm mb-4">新しいタスクを作成してみましょう</p>
-            <button
-              onClick={() => {
-                const themeParam = themeFilter || defaultTheme?.id;
-                router.push(
-                  `/tasks/new${themeParam ? `?themeId=${themeParam}` : ""}`,
-                );
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors inline-flex items-center gap-2"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-              タスクを作成
-            </button>
+            {/* カテゴリにテーマがない場合 */}
+            {categoryFilter !== null &&
+            themes.filter((t) => t.categoryId === categoryFilter).length ===
+              0 ? (
+              <>
+                <SwatchBook className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
+                <p className="text-lg font-medium mb-2">
+                  テーマが登録されていません
+                </p>
+                <p className="text-sm mb-4">
+                  このカテゴリにテーマを追加して、タスクを整理しましょう
+                </p>
+                <button
+                  onClick={() => router.push("/themes")}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-colors inline-flex items-center gap-2"
+                >
+                  <Plus className="w-5 h-5" />
+                  テーマを追加
+                </button>
+              </>
+            ) : (
+              <>
+                <svg
+                  className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+                <p className="text-lg font-medium mb-2">タスクがありません</p>
+                <p className="text-sm mb-4">新しいタスクを作成してみましょう</p>
+                <button
+                  onClick={() => {
+                    const themeParam = themeFilter || defaultTheme?.id;
+                    router.push(
+                      `/tasks/new${themeParam ? `?themeId=${themeParam}` : ""}`,
+                    );
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors inline-flex items-center gap-2"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  タスクを作成
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <>

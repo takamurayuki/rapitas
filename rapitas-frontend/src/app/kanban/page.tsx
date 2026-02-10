@@ -339,8 +339,15 @@ export default function KanbanPage() {
         </div>
 
         {loading && tasks.length === 0 ? (
-          <div className="text-center py-12 text-zinc-500 dark:text-zinc-400">
-            読み込み中...
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="space-y-3">
+                <div className="h-5 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
+                {[1, 2].map((j) => (
+                  <div key={j} className="h-20 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse" />
+                ))}
+              </div>
+            ))}
           </div>
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>

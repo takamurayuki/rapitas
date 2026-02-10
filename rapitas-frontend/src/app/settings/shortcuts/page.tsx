@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import {
   Keyboard,
   Save,
@@ -329,13 +330,7 @@ export default function ShortcutSettingsPage() {
   const hasGlobalChanges = newGlobalShortcut !== currentGlobalShortcut;
 
   if (isLoadingGlobal) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (

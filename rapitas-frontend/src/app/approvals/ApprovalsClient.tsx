@@ -280,8 +280,10 @@ export default function ApprovalsClient() {
 
       {/* Loading */}
       {isLoading && (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
+        <div className="space-y-3 py-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-20 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse" />
+          ))}
         </div>
       )}
 

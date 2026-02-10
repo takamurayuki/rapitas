@@ -27,11 +27,9 @@ interface TaskDetailProps {
   onEditLabelsChange: (value: string) => void;
   onEditEstimatedHoursChange: (value: string) => void;
   onStatusUpdate: (taskId: number, newStatus: string) => void;
-  onShowCodeBlockDialog: () => void;
   onDragOver: (e: React.DragEvent) => void;
   onDragLeave: () => void;
   onDrop: (e: React.DragEvent<HTMLTextAreaElement>) => void;
-  onEditCode?: (language: string, code: string) => void;
 }
 
 export default function TaskDetail({
@@ -48,11 +46,9 @@ export default function TaskDetail({
   onEditLabelsChange,
   onEditEstimatedHoursChange,
   onStatusUpdate,
-  onShowCodeBlockDialog,
   onDragOver,
   onDragLeave,
   onDrop,
-  onEditCode,
 }: TaskDetailProps) {
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-8 mb-6">
@@ -93,31 +89,9 @@ export default function TaskDetail({
 
           {/* 説明 */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                説明
-              </label>
-              <button
-                type="button"
-                onClick={onShowCodeBlockDialog}
-                className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-indigo-dark-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-md border border-zinc-300 dark:border-zinc-600 hover:border-zinc-400 dark:hover:border-zinc-500 transition-colors"
-              >
-                <svg
-                  className="w-3.5 h-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
-                  />
-                </svg>
-                コードブロック追加
-              </button>
-            </div>
+            <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
+              説明
+            </label>
             <textarea
               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
               rows={14}
@@ -126,18 +100,8 @@ export default function TaskDetail({
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
               onDrop={onDrop}
-              placeholder="マークダウン形式で記述できます&#10;&#10;# 見出し1&#10;## 見出し2&#10;&#10;**太字** *斜体*&#10;&#10;- [ ] チェックボックス&#10;- [x] 完了済み&#10;&#10;`インラインコード` や > 引用&#10;&#10;コードブロックは上の「コードブロック追加」ボタンから挿入できます&#10;&#10;ファイルや画像はここにドラッグ&ドロップできます"
+              placeholder="マークダウン形式で記述できます&#10;&#10;# 見出し1&#10;## 見出し2&#10;&#10;**太字** *斜体*&#10;&#10;- [ ] チェックボックス&#10;- [x] 完了済み&#10;&#10;`インラインコード` や > 引用&#10;&#10;ファイルや画像はここにドラッグ&ドロップできます"
             />
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
-              <span className="font-semibold">インラインコード:</span>{" "}
-              `backtick` で囲むと灰色背景で表示
-              <br />
-              <span className="font-semibold">コードブロック:</span>{" "}
-              「コードブロック追加」ボタンから言語を選択して挿入
-              <br />
-              <span className="font-semibold">ファイル・画像:</span>{" "}
-              ドラッグ&ドロップで添付可能
-            </p>
           </div>
 
           {/* ラベルと見積もり時間 */}
@@ -233,7 +197,7 @@ export default function TaskDetail({
               >
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm, remarkBreaks]}
-                  components={createMarkdownComponents(onEditCode)}
+                  components={createMarkdownComponents()}
                 >
                   {task.description}
                 </ReactMarkdown>

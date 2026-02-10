@@ -16,6 +16,7 @@ import {
 import type { AIAgentConfig } from "@/types";
 import { API_BASE_URL } from "@/utils/api";
 import { validateName } from "@/utils/validation";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
@@ -94,11 +95,7 @@ export default function AgentsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-5rem)] bg-[var(--background)] scrollbar-thin">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (

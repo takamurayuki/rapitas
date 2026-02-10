@@ -24,10 +24,8 @@ type CodeProps = HTMLAttributes<HTMLElement> & {
   children?: ReactNode;
 };
 
-// マークダウン用カスタムコンポーネント（編集ボタン付き）
-export const createMarkdownComponents = (
-  onEditCode?: (language: string, code: string) => void,
-) => ({
+// マークダウン用カスタムコンポーネント
+export const createMarkdownComponents = () => ({
   // pタグの処理をカスタマイズ（pre/codeを含む場合は div に変換）
   p({ node, children, ...props }: ParagraphProps) {
     // 子要素に pre や code ブロックが含まれているかチェック
@@ -65,18 +63,10 @@ export const createMarkdownComponents = (
     if (language) {
       return (
         <div className="relative group my-4">
-          <div className="absolute top-0 right-0 flex items-center gap-2">
+          <div className="absolute top-0 right-0">
             <span className="px-3 py-1 text-xs font-semibold text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-indigo-dark-800 rounded-bl-lg border-l border-b border-zinc-300 dark:border-zinc-700">
               {language.toUpperCase()}
             </span>
-            {onEditCode && (
-              <button
-                onClick={() => onEditCode(language, codeString)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-bl-lg rounded-tr-lg"
-              >
-                編集
-              </button>
-            )}
           </div>
           <SyntaxHighlighter
             style={vscDarkPlus as unknown as SyntaxHighlighterStyle}

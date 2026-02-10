@@ -22,7 +22,7 @@ import {
   ChevronsUpDown,
   ChevronDown,
 } from "lucide-react";
-import type { Priority, Theme, TaskTemplate, UserSettings } from "@/types";
+import type { Priority, Theme, TaskTemplate, UserSettings, Category } from "@/types";
 import LabelSelector from "@/feature/tasks/components/LabelSelector";
 import TaskTitleAutocomplete from "@/feature/tasks/components/TaskTitleAutocomplete";
 import { getIconComponent } from "@/components/category/IconData";
@@ -32,6 +32,7 @@ import {
   FieldItem,
 } from "@/components/ui/accordion";
 import ApplyTemplateDialog from "@/feature/tasks/components/dialog/ApplyTemplateDialog";
+import TaskSuggestions from "@/feature/tasks/components/TaskSuggestions";
 import { useToast } from "@/components/ui/toast/ToastContainer";
 import { API_BASE_URL } from "@/utils/api";
 import { getTaskDetailPath } from "@/utils/tauri";
@@ -57,6 +58,7 @@ export default function NewTaskClient() {
 
   // データ
   const [themes, setThemes] = useState<Theme[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   // UI状態
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -79,12 +81,24 @@ export default function NewTaskClient() {
   >([]);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
 
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/categories`);
+      if (res.ok) {
+        setCategories(await res.json());
+      }
+    } catch (e) {
+      console.error("Failed to fetch categories:", e);
+    }
+  };
+
   useEffect(() => {
     const themeIdParam = searchParams.get("themeId");
     if (themeIdParam) {
       setThemeId(Number(themeIdParam));
     }
     fetchThemes();
+    fetchCategories();
   }, [searchParams]);
 
   // グローバル設定の取得
@@ -331,6 +345,28 @@ export default function NewTaskClient() {
     }
   };
 
+  // タスク提案を適用
+  const handleApplySuggestion = (suggestion: {
+    title: string;
+    priority: Priority;
+    estimatedHours: string;
+    description: string;
+    labelIds: number[];
+  }) => {
+    setTitle(suggestion.title);
+    setPriority(suggestion.priority);
+    if (suggestion.estimatedHours) {
+      setEstimatedHours(suggestion.estimatedHours);
+    }
+    if (suggestion.description) {
+      setDescription(suggestion.description);
+    }
+    if (suggestion.labelIds.length > 0) {
+      setSelectedLabelIds(suggestion.labelIds);
+    }
+    showToast("提案を適用しました", "success");
+  };
+
   const priorityOptions = [
     {
       value: "urgent" as Priority,
@@ -462,9 +498,24 @@ export default function NewTaskClient() {
                 <div className="flex flex-wrap gap-1.5">
                   {(() => {
                     const themeIdParam = searchParams.get("themeId");
-                    const displayThemes = themeIdParam
+                    const activeMode = globalSettings?.activeMode || "both";
+                    // activeModeに基づいてカテゴリIDセットを構築
+                    const visibleCategoryIds = new Set(
+                      categories
+                        .filter((cat) => {
+                          if (activeMode === "both") return true;
+                          if (cat.mode === "both") return true;
+                          return cat.mode === activeMode;
+                        })
+                        .map((cat) => cat.id),
+                    );
+                    let displayThemes = themeIdParam
                       ? themes.filter((t) => t.id === Number(themeIdParam))
-                      : themes;
+                      : themes.filter((t) => {
+                          // activeModeフィルタ: カテゴリがないテーマは常に表示
+                          if (!t.categoryId) return true;
+                          return visibleCategoryIds.has(t.categoryId);
+                        });
                     return displayThemes.map((theme) => {
                       const ThemeIcon =
                         getIconComponent(theme.icon || "") || SwatchBook;
@@ -501,6 +552,12 @@ export default function NewTaskClient() {
               </FieldItem>
             </InlineFieldGroup>
           </div>
+
+          {/* Task Suggestions */}
+          <TaskSuggestions
+            themeId={themeId}
+            onApply={handleApplySuggestion}
+          />
 
           {/* Description - Collapsible */}
           <CompactAccordionGroup

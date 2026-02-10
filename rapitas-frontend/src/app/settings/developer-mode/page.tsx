@@ -5,6 +5,7 @@ import { Bot, AlertCircle, Loader2, RotateCcw, Zap, Sparkles } from "lucide-reac
 import type { UserSettings } from "@/types";
 import { useToast } from "@/components/ui/toast/ToastContainer";
 import { API_BASE_URL } from "@/utils/api";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 export default function DeveloperModeSettingsPage() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
@@ -87,13 +88,7 @@ export default function DeveloperModeSettingsPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (

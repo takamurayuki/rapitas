@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import {
   Key,
   CheckCircle,
@@ -14,8 +15,13 @@ import {
   Settings,
   ChevronDown,
   Zap,
+  FolderKanban,
+  Code,
+  BookOpen,
+  Layers,
 } from "lucide-react";
-import type { UserSettings, ApiProvider } from "@/types";
+import type { UserSettings, ApiProvider, Category, ActiveMode } from "@/types";
+import { getIconComponent } from "@/components/category/IconData";
 import { API_BASE_URL } from "@/utils/api";
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
@@ -100,6 +106,8 @@ export default function SettingsPage() {
   const [availableModels, setAvailableModels] = useState<
     Record<string, ModelOption[]>
   >({});
+
+  const [categories, setCategories] = useState<Category[]>([]);
 
   const [providerStates, setProviderStates] = useState<
     Record<string, ProviderState>
@@ -272,11 +280,23 @@ export default function SettingsPage() {
     }
   };
 
+  const fetchCategories = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/categories`);
+      if (res.ok) {
+        setCategories(await res.json());
+      }
+    } catch (err) {
+      console.error("カテゴリの取得に失敗:", err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchSettings();
     fetchApiKeys();
     fetchModels();
-  }, [fetchSettings, fetchApiKeys, fetchModels]);
+    fetchCategories();
+  }, [fetchSettings, fetchApiKeys, fetchModels, fetchCategories]);
 
   const saveApiKey = async (providerKey: string) => {
     const state = providerStates[providerKey];
@@ -370,13 +390,7 @@ export default function SettingsPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (
@@ -765,6 +779,174 @@ export default function SettingsPage() {
                   }`}
                 />
               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* モード・カテゴリ設定 */}
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-3">
+              <FolderKanban className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
+              <div>
+                <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  モード・カテゴリ設定
+                </h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  アクティブモードとデフォルトカテゴリの設定
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6 space-y-6">
+            {/* アクティブモード */}
+            <div>
+              <h3 className="font-medium text-zinc-900 dark:text-zinc-50 text-sm mb-1">
+                アクティブモード
+              </h3>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3">
+                表示するカテゴリのモードを切り替えます。「両方」ではすべてのカテゴリが表示されます。
+              </p>
+              <div className="flex gap-2">
+                {([
+                  { value: "development" as ActiveMode, label: "開発モード", icon: Code, color: "#3B82F6", description: "開発カテゴリのみ表示" },
+                  { value: "learning" as ActiveMode, label: "学習モード", icon: BookOpen, color: "#10B981", description: "学習カテゴリのみ表示" },
+                  { value: "both" as ActiveMode, label: "両方", icon: Layers, color: "#8B5CF6", description: "すべてのカテゴリを表示" },
+                ]).map((modeOpt) => {
+                  const ModeIcon = modeOpt.icon;
+                  const isSelected = (settings?.activeMode || "both") === modeOpt.value;
+                  return (
+                    <button
+                      key={modeOpt.value}
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`${API_BASE_URL}/settings`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ activeMode: modeOpt.value }),
+                          });
+                          if (res.ok) {
+                            setSettings((prev) =>
+                              prev ? { ...prev, activeMode: modeOpt.value } : prev,
+                            );
+                            setSuccessMessage(`${modeOpt.label}に切り替えました`);
+                            setTimeout(() => setSuccessMessage(null), 3000);
+                          }
+                        } catch {
+                          setError("モードの変更に失敗しました");
+                        }
+                      }}
+                      className={`relative flex-1 p-4 rounded-xl border-2 text-left transition-all ${
+                        isSelected
+                          ? "bg-opacity-10"
+                          : "border-zinc-200 dark:border-zinc-700 hover:border-current bg-white dark:bg-zinc-800"
+                      }`}
+                      style={{
+                        borderColor: isSelected ? modeOpt.color : undefined,
+                        backgroundColor: isSelected ? modeOpt.color + "10" : undefined,
+                      }}
+                    >
+                      {isSelected && (
+                        <div className="absolute top-2 right-2">
+                          <CheckCircle className="w-5 h-5" style={{ color: modeOpt.color }} />
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 mb-1">
+                        <ModeIcon className="w-4 h-4" style={{ color: modeOpt.color }} />
+                        <span
+                          className="font-medium text-sm"
+                          style={{ color: isSelected ? modeOpt.color : undefined }}
+                        >
+                          {modeOpt.label}
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {modeOpt.description}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* デフォルトカテゴリ */}
+            <div>
+              <h3 className="font-medium text-zinc-900 dark:text-zinc-50 text-sm mb-1">
+                デフォルトカテゴリ
+              </h3>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3">
+                タスク一覧を開いたときに最初に選択されるカテゴリ
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`${API_BASE_URL}/settings`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ defaultCategoryId: null }),
+                      });
+                      if (res.ok) {
+                        setSettings((prev) =>
+                          prev ? { ...prev, defaultCategoryId: null } : prev,
+                        );
+                        setSuccessMessage("デフォルトカテゴリを解除しました");
+                        setTimeout(() => setSuccessMessage(null), 3000);
+                      }
+                    } catch {
+                      setError("設定の変更に失敗しました");
+                    }
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                    !settings?.defaultCategoryId
+                      ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300"
+                      : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500"
+                  }`}
+                >
+                  なし（先頭カテゴリを使用）
+                </button>
+                {categories.map((cat) => {
+                  const CatIcon = getIconComponent(cat.icon || "") || FolderKanban;
+                  const isSelected = settings?.defaultCategoryId === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`${API_BASE_URL}/settings`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ defaultCategoryId: cat.id }),
+                          });
+                          if (res.ok) {
+                            setSettings((prev) =>
+                              prev ? { ...prev, defaultCategoryId: cat.id } : prev,
+                            );
+                            setSuccessMessage(`デフォルトカテゴリを「${cat.name}」に設定しました`);
+                            setTimeout(() => setSuccessMessage(null), 3000);
+                          }
+                        } catch {
+                          setError("設定の変更に失敗しました");
+                        }
+                      }}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                        isSelected
+                          ? "shadow-sm"
+                          : "border-zinc-200 dark:border-zinc-700 hover:border-current"
+                      }`}
+                      style={{
+                        borderColor: isSelected ? cat.color : undefined,
+                        backgroundColor: isSelected ? cat.color + "10" : undefined,
+                        color: isSelected ? cat.color : undefined,
+                      }}
+                    >
+                      <CatIcon className="w-4 h-4" />
+                      {cat.name}
+                      {isSelected && <CheckCircle className="w-4 h-4" />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

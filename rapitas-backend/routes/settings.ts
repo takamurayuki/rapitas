@@ -131,6 +131,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       chatgptDefaultModel: settings.chatgptDefaultModel,
       geminiDefaultModel: settings.geminiDefaultModel,
       defaultAiProvider: settings.defaultAiProvider,
+      defaultCategoryId: settings.defaultCategoryId,
+      activeMode: settings.activeMode,
     };
   })
 
@@ -145,10 +147,12 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
         autoExecuteAfterCreate?: boolean;
         autoGenerateTitle?: boolean;
         defaultAiProvider?: string;
+        defaultCategoryId?: number | null;
+        activeMode?: string;
       };
       set: { status?: number };
     }) => {
-      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, autoExecuteAfterCreate, autoGenerateTitle, defaultAiProvider } = body;
+      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, autoExecuteAfterCreate, autoGenerateTitle, defaultAiProvider, defaultCategoryId, activeMode } = body;
 
       try {
         let settings = await prisma.userSettings.findFirst();
@@ -160,6 +164,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
               autoResumeInterruptedTasks: autoResumeInterruptedTasks ?? false,
               autoExecuteAfterCreate: autoExecuteAfterCreate ?? false,
               autoGenerateTitle: autoGenerateTitle ?? false,
+              ...(defaultCategoryId !== undefined && { defaultCategoryId }),
+              ...(activeMode !== undefined && { activeMode }),
             },
           });
         } else {
@@ -172,6 +178,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
               ...(autoExecuteAfterCreate !== undefined && { autoExecuteAfterCreate }),
               ...(autoGenerateTitle !== undefined && { autoGenerateTitle }),
               ...(defaultAiProvider !== undefined && { defaultAiProvider }),
+              ...(defaultCategoryId !== undefined && { defaultCategoryId }),
+              ...(activeMode !== undefined && { activeMode }),
             },
           });
         }
@@ -194,6 +202,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
         autoExecuteAfterCreate: t.Optional(t.Boolean()),
         autoGenerateTitle: t.Optional(t.Boolean()),
         defaultAiProvider: t.Optional(t.String()),
+        defaultCategoryId: t.Optional(t.Union([t.Number(), t.Null()])),
+        activeMode: t.Optional(t.String()),
       }),
     }
   )

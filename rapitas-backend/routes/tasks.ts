@@ -5,6 +5,7 @@
 import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
 import { ValidationError } from "../middleware/error-handler";
+import { sendAIMessage, getDefaultProvider, isAnyApiKeyConfigured, type AIMessage } from "../utils/ai-client";
 
 export const tasksRoutes = new Elysia({ prefix: "/tasks" })
   // Search task titles for autocomplete
@@ -53,6 +54,415 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
         limit: t.Optional(t.String()),
         themeId: t.Optional(t.String()),
         projectId: t.Optional(t.String()),
+      }),
+    }
+  )
+
+  // Get task suggestions based on past tasks for a theme (frequency-based fallback)
+  .get(
+    "/suggestions",
+    async ({ query }: {
+      query: { themeId?: string; limit?: string }
+    }) => {
+      const { themeId, limit } = query;
+      const resultLimit = Math.min(parseInt(limit ?? "10"), 20);
+
+      if (!themeId) {
+        return { suggestions: [] };
+      }
+
+      const parsedThemeId = parseInt(themeId);
+
+      // Get completed tasks for this theme (most recent first)
+      const completedTasks = await prisma.task.findMany({
+        where: {
+          themeId: parsedThemeId,
+          parentId: null,
+          status: "done",
+        },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          priority: true,
+          estimatedHours: true,
+          completedAt: true,
+          taskLabels: {
+            include: { label: true },
+          },
+        },
+        orderBy: { completedAt: "desc" },
+        take: 50,
+      });
+
+      // Get in-progress / todo tasks to avoid suggesting duplicates
+      const existingTasks = await prisma.task.findMany({
+        where: {
+          themeId: parsedThemeId,
+          parentId: null,
+          status: { in: ["todo", "in-progress"] },
+        },
+        select: { title: true },
+      });
+
+      const existingTitles = new Set(
+        existingTasks.map((t: { title: string }) => t.title.toLowerCase().trim())
+      );
+
+      // Count title frequency to find recurring patterns
+      const titleFrequency = new Map<string, {
+        title: string;
+        count: number;
+        lastPriority: string;
+        lastEstimatedHours: number | null;
+        lastDescription: string | null;
+        lastCompletedAt: Date | null;
+        labelIds: number[];
+      }>();
+
+      for (const task of completedTasks) {
+        const normalized = task.title.toLowerCase().trim();
+        if (existingTitles.has(normalized)) continue;
+
+        const existing = titleFrequency.get(normalized);
+        if (existing) {
+          existing.count++;
+        } else {
+          titleFrequency.set(normalized, {
+            title: task.title,
+            count: 1,
+            lastPriority: task.priority,
+            lastEstimatedHours: task.estimatedHours,
+            lastDescription: task.description,
+            lastCompletedAt: task.completedAt,
+            labelIds: task.taskLabels?.map((tl: { labelId: number }) => tl.labelId) ?? [],
+          });
+        }
+      }
+
+      // Sort: recurring tasks first (by frequency), then by recency
+      const suggestions = Array.from(titleFrequency.values())
+        .sort((a, b) => {
+          if (b.count !== a.count) return b.count - a.count;
+          const aTime = a.lastCompletedAt?.getTime() ?? 0;
+          const bTime = b.lastCompletedAt?.getTime() ?? 0;
+          return bTime - aTime;
+        })
+        .slice(0, resultLimit)
+        .map((item) => ({
+          title: item.title,
+          frequency: item.count,
+          priority: item.lastPriority,
+          estimatedHours: item.lastEstimatedHours,
+          description: item.lastDescription,
+          labelIds: item.labelIds,
+        }));
+
+      return { suggestions };
+    },
+    {
+      query: t.Object({
+        themeId: t.Optional(t.String()),
+        limit: t.Optional(t.String()),
+      }),
+    }
+  )
+
+  // AI-powered task suggestions: analyze past tasks and suggest new ones
+  .get(
+    "/suggestions/ai",
+    async ({ query }: {
+      query: { themeId?: string; limit?: string }
+    }) => {
+      const { themeId, limit } = query;
+      const resultLimit = Math.min(parseInt(limit ?? "5"), 10);
+
+      if (!themeId) {
+        return { suggestions: [], source: "none" };
+      }
+
+      const parsedThemeId = parseInt(themeId);
+
+      // Check if AI is available
+      const aiAvailable = await isAnyApiKeyConfigured();
+
+      // Get theme info
+      const theme = await prisma.theme.findUnique({
+        where: { id: parsedThemeId },
+        select: { id: true, name: true, description: true },
+      });
+
+      if (!theme) {
+        return { suggestions: [], source: "none" };
+      }
+
+      // Get completed tasks for analysis
+      const completedTasks = await prisma.task.findMany({
+        where: {
+          themeId: parsedThemeId,
+          parentId: null,
+          status: "done",
+        },
+        select: {
+          title: true,
+          description: true,
+          priority: true,
+          estimatedHours: true,
+          completedAt: true,
+          taskLabels: {
+            include: { label: true },
+          },
+        },
+        orderBy: { completedAt: "desc" },
+        take: 30,
+      });
+
+      // Get existing active tasks to avoid duplicates
+      const existingTasks = await prisma.task.findMany({
+        where: {
+          themeId: parsedThemeId,
+          parentId: null,
+          status: { in: ["todo", "in-progress"] },
+        },
+        select: { title: true },
+      });
+
+      const existingTitles = existingTasks.map((t: { title: string }) => t.title);
+
+      if (!aiAvailable || completedTasks.length < 2) {
+        // Fallback: return empty if no AI or insufficient data
+        return { suggestions: [], source: "insufficient_data" };
+      }
+
+      // Build a summary of past tasks for the AI
+      const taskSummary = completedTasks.map((t: typeof completedTasks[number], i: number) => {
+        const labels = t.taskLabels?.map((tl: { label: { name: string } }) => tl.label.name).join(", ") || "なし";
+        return `${i + 1}. "${t.title}" (優先度: ${t.priority}, 見積: ${t.estimatedHours ?? "未設定"}h, ラベル: ${labels})${t.description ? ` - ${t.description.slice(0, 80)}` : ""}`;
+      }).join("\n");
+
+      const existingTaskList = existingTitles.length > 0
+        ? `\n\n## 現在進行中・未着手のタスク（これらと重複しないこと）\n${existingTitles.map((t: string) => `- ${t}`).join("\n")}`
+        : "";
+
+      const systemPrompt = `あなたはタスク管理AIアシスタントです。ユーザーの過去のタスク履歴を分析し、次に取り組むべきタスクを提案します。
+
+以下の観点で分析してください:
+1. **繰り返しパターン**: 定期的に行われているタスクで、次回実行が必要なもの
+2. **関連タスク**: 完了済みタスクの延長線上にある発展的なタスク
+3. **未着手の可能性**: 過去のタスクから推測される、まだ着手していない関連作業
+4. **改善・最適化**: 過去のタスクを踏まえた改善や最適化のタスク
+
+提案するタスクは具体的かつ実行可能なものにしてください。
+
+回答は必ず以下のJSON形式で返してください:
+{
+  "analysis": "過去のタスク傾向の簡潔な分析（2-3文）",
+  "suggestions": [
+    {
+      "title": "提案タスクのタイトル（簡潔に）",
+      "description": "タスクの説明（1-2文）",
+      "priority": "low" | "medium" | "high" | "urgent",
+      "estimatedHours": 数値またはnull,
+      "reason": "この提案の根拠（どの過去タスクから推測したか）",
+      "category": "recurring" | "extension" | "improvement" | "new"
+    }
+  ]
+}`;
+
+      const userPrompt = `## テーマ: ${theme.name}${theme.description ? ` (${theme.description})` : ""}
+
+## 過去の完了タスク（新しい順）
+${taskSummary}
+${existingTaskList}
+
+上記の過去タスクを分析し、次に取り組むべきタスクを${resultLimit}件提案してください。
+既存の進行中・未着手タスクと重複しない提案をお願いします。`;
+
+      try {
+        const provider = await getDefaultProvider();
+        const messages: AIMessage[] = [
+          { role: "user", content: userPrompt },
+        ];
+
+        const response = await sendAIMessage({
+          provider,
+          messages,
+          systemPrompt,
+          maxTokens: 2048,
+        });
+
+        const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          console.error("[tasks/suggestions/ai] Failed to parse AI response");
+          return { suggestions: [], source: "ai_error" };
+        }
+
+        const parsed = JSON.parse(jsonMatch[0]);
+
+        const suggestions = (parsed.suggestions || []).slice(0, resultLimit).map((s: {
+          title: string;
+          description?: string;
+          priority?: string;
+          estimatedHours?: number | null;
+          reason?: string;
+          category?: string;
+        }) => ({
+          title: s.title,
+          description: s.description || null,
+          priority: s.priority || "medium",
+          estimatedHours: s.estimatedHours || null,
+          reason: s.reason || null,
+          category: s.category || "new",
+          labelIds: [],
+          frequency: 0,
+        }));
+
+        // Save suggestions to DB cache
+        try {
+          if (prisma.taskSuggestionCache) {
+            // Delete old cache for this theme
+            await prisma.taskSuggestionCache.deleteMany({
+              where: { themeId: parsedThemeId },
+            });
+            // Save new suggestions
+            if (suggestions.length > 0) {
+              await prisma.taskSuggestionCache.createMany({
+                data: suggestions.map((s: {
+                  title: string;
+                  description: string | null;
+                  priority: string;
+                  estimatedHours: number | null;
+                  reason: string | null;
+                  category: string;
+                  labelIds: number[];
+                }, idx: number) => ({
+                  themeId: parsedThemeId,
+                  title: s.title,
+                  description: s.description,
+                  priority: s.priority,
+                  estimatedHours: s.estimatedHours,
+                  reason: s.reason,
+                  category: s.category,
+                  labelIds: JSON.stringify(s.labelIds),
+                  analysis: idx === 0 ? (parsed.analysis || null) : null,
+                })),
+              });
+            }
+          } else {
+            console.warn("[tasks/suggestions/ai] taskSuggestionCache model not available - run prisma generate");
+          }
+        } catch (cacheError) {
+          console.error("[tasks/suggestions/ai] Failed to cache suggestions:", cacheError);
+        }
+
+        return {
+          suggestions,
+          analysis: parsed.analysis || null,
+          source: "ai",
+          tokensUsed: response.tokensUsed,
+        };
+      } catch (error) {
+        console.error("[tasks/suggestions/ai] AI suggestion failed:", error);
+        return { suggestions: [], source: "ai_error" };
+      }
+    },
+    {
+      query: t.Object({
+        themeId: t.Optional(t.String()),
+        limit: t.Optional(t.String()),
+      }),
+    }
+  )
+
+  // Get cached AI suggestions for a theme
+  .get(
+    "/suggestions/ai/cache",
+    async ({ query }: {
+      query: { themeId?: string }
+    }) => {
+      const { themeId } = query;
+
+      if (!themeId) {
+        return { suggestions: [], analysis: null, source: "none" };
+      }
+
+      const parsedThemeId = parseInt(themeId);
+
+      if (!prisma.taskSuggestionCache) {
+        console.warn("[tasks/suggestions/ai/cache] taskSuggestionCache model not available - run prisma generate");
+        return { suggestions: [], analysis: null, source: "none" };
+      }
+
+      const cached = await prisma.taskSuggestionCache.findMany({
+        where: { themeId: parsedThemeId },
+        orderBy: { id: "asc" },
+      });
+
+      if (cached.length === 0) {
+        return { suggestions: [], analysis: null, source: "none" };
+      }
+
+      const analysis = cached.find((c: { analysis: string | null }) => c.analysis)?.analysis || null;
+
+      const suggestions = cached.map((c: {
+        title: string;
+        description: string | null;
+        priority: string;
+        estimatedHours: number | null;
+        reason: string | null;
+        category: string;
+        labelIds: string;
+      }) => ({
+        title: c.title,
+        description: c.description,
+        priority: c.priority,
+        estimatedHours: c.estimatedHours,
+        reason: c.reason,
+        category: c.category,
+        labelIds: JSON.parse(c.labelIds),
+        frequency: 0,
+      }));
+
+      return { suggestions, analysis, source: "cache" };
+    },
+    {
+      query: t.Object({
+        themeId: t.Optional(t.String()),
+      }),
+    }
+  )
+
+  // Delete cached suggestions for a theme
+  .delete(
+    "/suggestions/ai/cache",
+    async ({ query }: {
+      query: { themeId?: string }
+    }) => {
+      const { themeId } = query;
+
+      if (!themeId) {
+        return { success: false, message: "themeId is required" };
+      }
+
+      const parsedThemeId = parseInt(themeId);
+
+      if (!prisma.taskSuggestionCache) {
+        console.warn("[tasks/suggestions/ai/cache] taskSuggestionCache model not available - run prisma generate");
+        return { success: false, message: "taskSuggestionCache model not available" };
+      }
+
+      const result = await prisma.taskSuggestionCache.deleteMany({
+        where: { themeId: parsedThemeId },
+      });
+
+      return {
+        success: true,
+        deletedCount: result.count,
+      };
+    },
+    {
+      query: t.Object({
+        themeId: t.Optional(t.String()),
       }),
     }
   )

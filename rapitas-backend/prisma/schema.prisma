@@ -9,6 +9,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  color       String   @default("#6366F1")
+  icon        String?
+  isDefault   Boolean  @default(false)
+  mode        String   @default("both") // "development", "learning", "both"
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  themes      Theme[]
+}
+
 model Theme {
   id               Int            @id @default(autoincrement())
   name             String
@@ -20,6 +34,9 @@ model Theme {
   repositoryUrl    String?
   workingDirectory String?
   defaultBranch    String?        @default("main")
+  sortOrder        Int            @default(0)
+  categoryId       Int?
+  category         Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   tasks            Task[]
@@ -156,6 +173,7 @@ model Label {
   description String?
   color       String      @default("#6366F1")
   icon        String?
+  sortOrder   Int         @default(0)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   tasks       TaskLabel[]
@@ -257,6 +275,20 @@ model HabitLog {
   createdAt DateTime @default(now())
 
   @@unique([habitId, date])
+}
+
+model DailyScheduleBlock {
+  id          Int      @id @default(autoincrement())
+  label       String
+  startTime   String   // "HH:mm" format (e.g. "07:00")
+  endTime     String   // "HH:mm" format (e.g. "08:00")
+  color       String   @default("#3B82F6")
+  icon        String?
+  category    String   @default("other") // sleep, work, exercise, meal, commute, study, hobby, other
+  isNotify    Boolean  @default(false)   // send PC notification at startTime
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Resource {
@@ -405,6 +437,8 @@ model UserSettings {
   autoResumeInterruptedTasks  Boolean   @default(false)
   autoExecuteAfterCreate      Boolean   @default(false)
   autoGenerateTitle           Boolean   @default(false)
+  defaultCategoryId           Int?      // デフォルトで選択されるカテゴリ
+  activeMode                  String    @default("both") // "development", "learning", "both"
   claudeApiKeyEncrypted       String?
   chatgptApiKeyEncrypted      String?
   geminiApiKeyEncrypted       String?
@@ -705,6 +739,23 @@ model ScheduleEvent {
   taskId          Int?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+// AI提案キャッシュ（テーマごとに保存）
+model TaskSuggestionCache {
+  id              Int       @id @default(autoincrement())
+  themeId         Int
+  title           String
+  description     String?
+  priority        String    @default("medium")
+  estimatedHours  Float?
+  reason          String?
+  category        String    @default("new") // recurring, extension, improvement, new
+  labelIds        String    @default("[]") // JSON array stored as string
+  analysis        String?   // AI分析テキスト（最初のレコードだけに保存）
+  createdAt       DateTime  @default(now())
+
+  @@index([themeId])
 }
 
 // AIエージェント設定変更ログ

@@ -12,6 +12,7 @@ import {
   Search,
   X,
   FolderOpen,
+  FolderKanban,
   ChevronDown,
   ChevronRight,
   Target,
@@ -22,6 +23,7 @@ import {
   Brain,
   FileText,
   Calendar,
+  Clock,
   GraduationCap,
   Keyboard,
   Bot,
@@ -232,6 +234,11 @@ export default function Header() {
           icon: FolderOpen,
           children: [
             {
+              href: "/categories",
+              label: "カテゴリ一覧",
+              icon: FolderKanban,
+            },
+            {
               href: "/themes",
               label: "テーマ一覧",
               icon: SwatchBook,
@@ -294,6 +301,11 @@ export default function Header() {
           href: "/habits",
           label: "習慣トラッカー",
           icon: Flame,
+        },
+        {
+          href: "/habits/daily-schedule",
+          label: "一日のスケジュール",
+          icon: Clock,
         },
         {
           href: "/achievements",
@@ -770,11 +782,11 @@ export default function Header() {
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
                     >
                       {darkModeMounted && isDarkMode ? (
-                        <Moon className="w-4 h-4" />
-                      ) : (
                         <Sun className="w-4 h-4" />
+                      ) : (
+                        <Moon className="w-4 h-4" />
                       )}
-                      <span>{darkModeMounted && isDarkMode ? "ダークモード" : "ライトモード"}</span>
+                      <span>{darkModeMounted && isDarkMode ? "ライトモードに切替" : "ダークモードに切替"}</span>
                     </button>
                     {/* 全体設定 */}
                     <Link

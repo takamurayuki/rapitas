@@ -144,8 +144,10 @@ export default function IssuesPage() {
 
       {/* Issueリスト */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+        <div className="space-y-3 py-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-16 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse" />
+          ))}
         </div>
       ) : issues.length === 0 ? (
         <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">

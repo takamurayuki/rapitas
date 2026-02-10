@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 export default function ApprovalDetailClient() {
   const router = useRouter();
@@ -13,11 +14,5 @@ export default function ApprovalDetailClient() {
     router.replace(`/approvals?expand=${id}`);
   }, [router, id]);
 
-  return (
-    <div className="flex items-center justify-center min-h-[50vh]">
-      <div className="animate-pulse text-zinc-500 dark:text-zinc-400">
-        読み込み中...
-      </div>
-    </div>
-  );
+  return <LoadingSpinner variant="compact" />;
 }

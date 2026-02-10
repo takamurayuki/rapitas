@@ -16,7 +16,7 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
           select: { tasks: true },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
     });
   })
 
@@ -101,6 +101,27 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
     },
     {
       body: labelSchema.update,
+    }
+  )
+
+  // Reorder labels
+  .patch(
+    "/reorder",
+    async ({ body }: {
+      body: { orders: Array<{ id: number; sortOrder: number }> }
+    }) => {
+      const { orders } = body;
+
+      await Promise.all(
+        orders.map(({ id, sortOrder }) =>
+          prisma.label.update({
+            where: { id },
+            data: { sortOrder },
+          })
+        )
+      );
+
+      return { success: true };
     }
   )
 

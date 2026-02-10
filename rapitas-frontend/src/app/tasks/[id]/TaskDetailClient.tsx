@@ -20,7 +20,6 @@ import {
   MessageSquare,
   Send,
   Trash2,
-  Code,
   FileText,
   Tag,
   Save,
@@ -73,26 +72,6 @@ import TaskDetailSkeleton from "@/components/ui/skeleton/TaskDetailSkeleton";
 import { API_BASE_URL } from "@/utils/api";
 
 const API_BASE = API_BASE_URL;
-
-const PROGRAMMING_LANGUAGES = [
-  { value: "javascript", label: "JavaScript" },
-  { value: "typescript", label: "TypeScript" },
-  { value: "python", label: "Python" },
-  { value: "java", label: "Java" },
-  { value: "csharp", label: "C#" },
-  { value: "cpp", label: "C++" },
-  { value: "go", label: "Go" },
-  { value: "rust", label: "Rust" },
-  { value: "ruby", label: "Ruby" },
-  { value: "php", label: "PHP" },
-  { value: "sql", label: "SQL" },
-  { value: "html", label: "HTML" },
-  { value: "css", label: "CSS" },
-  { value: "json", label: "JSON" },
-  { value: "yaml", label: "YAML" },
-  { value: "bash", label: "Bash" },
-  { value: "plaintext", label: "Plain Text" },
-];
 
 interface TaskDetailClientProps {
   taskId?: number;
@@ -152,16 +131,6 @@ export default function TaskDetailClient({
   const [editLabelIds, setEditLabelIds] = useState<number[]>([]);
   const [editEstimatedHours, setEditEstimatedHours] = useState("");
   const [editPriority, setEditPriority] = useState<Priority>("medium");
-
-  // コードブロック追加用の状態
-  const [showCodeBlockDialog, setShowCodeBlockDialog] = useState(false);
-  const [codeBlockLanguage, setCodeBlockLanguage] = useState("javascript");
-  const [codeBlockContent, setCodeBlockContent] = useState("");
-  const [isEditingCode, setIsEditingCode] = useState(false);
-  const [originalCodeBlock, setOriginalCodeBlock] = useState<{
-    language: string;
-    code: string;
-  } | null>(null);
 
   // 時間トラッキング用の状態
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
@@ -482,30 +451,6 @@ export default function TaskDetailClient({
       // エラー時は元の状態に戻す
       setTask(previousTask);
     }
-  };
-
-  const insertCodeBlock = () => {
-    if (isEditingCode && originalCodeBlock) {
-      const oldBlock = `\`\`\`${originalCodeBlock.language}\n${originalCodeBlock.code}\n\`\`\``;
-      const newBlock = `\`\`\`${codeBlockLanguage}\n${codeBlockContent}\n\`\`\``;
-      setEditDescription(editDescription.replace(oldBlock, newBlock));
-    } else {
-      const codeBlock = `\n\`\`\`${codeBlockLanguage}\n${codeBlockContent}\n\`\`\`\n`;
-      setEditDescription(editDescription + codeBlock);
-    }
-    setCodeBlockContent("");
-    setCodeBlockLanguage("javascript");
-    setShowCodeBlockDialog(false);
-    setIsEditingCode(false);
-    setOriginalCodeBlock(null);
-  };
-
-  const handleEditCode = (language: string, code: string) => {
-    setIsEditingCode(true);
-    setOriginalCodeBlock({ language, code });
-    setCodeBlockLanguage(language);
-    setCodeBlockContent(code);
-    setShowCodeBlockDialog(true);
   };
 
   const handleAddComment = async (content?: string, parentId?: number) => {
@@ -1124,19 +1069,9 @@ export default function TaskDetailClient({
 
             {/* Description */}
             <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
-                  <FileText className="w-4 h-4" />
-                  <span className="text-sm font-medium">説明</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowCodeBlockDialog(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors"
-                >
-                  <Code className="w-3.5 h-3.5" />
-                  コード追加
-                </button>
+              <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-3">
+                <FileText className="w-4 h-4" />
+                <span className="text-sm font-medium">説明</span>
               </div>
               <textarea
                 className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-violet-500/20 transition-all font-mono min-h-[200px]"
@@ -1226,7 +1161,6 @@ export default function TaskDetailClient({
               <CompactTaskDetailCard
                 task={task}
                 onStatusUpdate={updateStatus}
-                onEditCode={handleEditCode}
                 resources={resources}
                 onResourcesChange={async () => {
                   const res = await fetch(
@@ -1715,74 +1649,6 @@ export default function TaskDetailClient({
         onAgentConfigChange={setAgentConfigId}
         taskId={taskId}
       />
-
-      {/* Code Block Dialog */}
-      {showCodeBlockDialog && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-3xl max-h-[90vh] overflow-auto">
-            <div className="p-6">
-              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-6 flex items-center gap-2">
-                <Code className="w-5 h-5 text-violet-500" />
-                {isEditingCode
-                  ? "コードブロックを編集"
-                  : "コードブロックを追加"}
-              </h3>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                  言語
-                </label>
-                <select
-                  value={codeBlockLanguage}
-                  onChange={(e) => setCodeBlockLanguage(e.target.value)}
-                  className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-2.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20"
-                >
-                  {PROGRAMMING_LANGUAGES.map((lang) => (
-                    <option key={lang.value} value={lang.value}>
-                      {lang.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                  コード
-                </label>
-                <textarea
-                  value={codeBlockContent}
-                  onChange={(e) => setCodeBlockContent(e.target.value)}
-                  className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-3 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 font-mono"
-                  rows={12}
-                  placeholder="コードを入力..."
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={insertCodeBlock}
-                  disabled={!codeBlockContent.trim()}
-                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-violet-600 rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isEditingCode ? "更新" : "挿入"}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowCodeBlockDialog(false);
-                    setCodeBlockContent("");
-                    setCodeBlockLanguage("javascript");
-                    setIsEditingCode(false);
-                    setOriginalCodeBlock(null);
-                  }}
-                  className="px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
-                >
-                  キャンセル
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Save as Template Dialog */}
       {task && (

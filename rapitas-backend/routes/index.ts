@@ -2,6 +2,7 @@
  * Routes barrel export
  * Import all route modules here for centralized management
  */
+export { categoriesRoutes } from "./categories";
 export { themesRoutes } from "./themes";
 export { labelsRoutes, taskLabelsRoutes } from "./labels";
 export { projectsRoutes } from "./projects";
@@ -38,3 +39,4 @@ export { taskAnalysisConfigRoutes } from "./task-analysis-config";
 export { agentExecutionConfigRoutes } from "./agent-execution-config";
 export { executionLogsRoutes } from "./execution-logs";
 export { schedulesRoutes } from "./schedules";
+export { dailyScheduleRoutes } from "./daily-schedule";

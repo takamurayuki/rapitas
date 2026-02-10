@@ -18,6 +18,7 @@ import {
 import type { GitHubIntegration, GitHubPullRequest, GitHubIssue } from "@/types";
 import { getLabelsArray } from "@/utils/labels";
 import { API_BASE_URL } from "@/utils/api";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 export default function GitHubPage() {
   const [integrations, setIntegrations] = useState<GitHubIntegration[]>([]);
@@ -81,11 +82,7 @@ export default function GitHubPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-5rem)] bg-[var(--background)] scrollbar-thin">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (
