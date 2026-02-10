@@ -9,7 +9,6 @@ import type {
   Priority,
   Status,
   UserSettings,
-  ActiveMode,
 } from "@/types";
 import TaskSlidePanel from "@/feature/tasks/components/TaskSlidePanel";
 import TaskCard from "@/feature/tasks/components/TaskCard";
@@ -37,6 +36,7 @@ import {
 import { getIconComponent } from "@/components/category/IconData";
 import { API_BASE_URL, fetchWithRetry } from "@/utils/api";
 import { useExecutingTasksPolling } from "@/hooks/useExecutingTasksPolling";
+import { useAppModeStore } from "@/stores/appModeStore";
 
 const API_BASE = API_BASE_URL;
 
@@ -46,6 +46,7 @@ export default function HomeClientPage() {
   const searchQuery = searchParams.get("search") || "";
   const { showToast } = useToast();
   const { showTaskDetail, hideTaskDetail } = useTaskDetailVisibilityStore();
+  const appMode = useAppModeStore((state) => state.mode);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [themes, setThemes] = useState<Theme[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -429,12 +430,11 @@ export default function HomeClientPage() {
 
   // activeModeが変わったとき、現在のカテゴリフィルタが非表示になったら最初の表示カテゴリに切り替え
   useEffect(() => {
-    if (!globalSettings || categories.length === 0) return;
-    const activeMode = globalSettings.activeMode || "both";
+    if (categories.length === 0) return;
     const visibleCategories = categories.filter((cat) => {
-      if (activeMode === "both") return true;
+      if (appMode === "all") return true;
       if (cat.mode === "both") return true;
-      return cat.mode === activeMode;
+      return cat.mode === appMode;
     });
     if (categoryFilter !== null) {
       const isVisible = visibleCategories.some((c) => c.id === categoryFilter);
@@ -457,7 +457,7 @@ export default function HomeClientPage() {
         }
       }
     }
-  }, [globalSettings?.activeMode, categories]);
+  }, [appMode, categories]);
 
   // カテゴリに属するテーマIDのセット（カテゴリフィルタ用）
   const categoryThemeIds = (() => {
@@ -798,10 +798,9 @@ export default function HomeClientPage() {
               <div className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700 scrollbar-track-transparent">
                 {categories
                   .filter((cat) => {
-                    const activeMode = globalSettings?.activeMode || "both";
-                    if (activeMode === "both") return true;
+                    if (appMode === "all") return true;
                     if (cat.mode === "both") return true;
-                    return cat.mode === activeMode;
+                    return cat.mode === appMode;
                   })
                   .map((cat) => {
                     const CatIcon =

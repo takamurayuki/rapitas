@@ -114,6 +114,8 @@ export class AgentOrchestrator {
   private eventListeners: Set<EventListener> = new Set();
   private isShuttingDown: boolean = false;
   private shutdownPromise: Promise<void> | null = null;
+  /** サーバー停止コールバック（リスニングソケットを正しく閉じるため） */
+  private serverStopCallback: (() => Promise<void> | void) | null = null;
   /** 質問タイムアウト管理用マップ（executionId -> QuestionTimeoutInfo） */
   private questionTimeouts: Map<number, QuestionTimeoutInfo> = new Map();
   /** 継続実行のロック管理用マップ（executionId -> ContinuationLockInfo）*/
@@ -163,8 +165,9 @@ export class AgentOrchestrator {
   /**
    * グレースフルシャットダウン
    * 全てのアクティブなエージェントを停止し、状態を保存
+   * @param options.skipServerStop - trueの場合、サーバーのリスニングソケット停止をスキップ（シャットダウンAPIから呼ばれた場合用）
    */
-  async gracefulShutdown(): Promise<void> {
+  async gracefulShutdown(options?: { skipServerStop?: boolean }): Promise<void> {
     if (this.isShuttingDown) {
       console.log("[Orchestrator] Shutdown already in progress, waiting...");
       return this.shutdownPromise || Promise.resolve();
@@ -178,6 +181,16 @@ export class AgentOrchestrator {
       const startTime = Date.now();
 
       try {
+        // 全ての質問タイムアウトをキャンセル
+        for (const [executionId, timeoutInfo] of this.questionTimeouts) {
+          clearTimeout(timeoutInfo.timeoutTimer);
+          console.log(`[Orchestrator] Cancelled question timeout for execution ${executionId}`);
+        }
+        this.questionTimeouts.clear();
+
+        // 全ての継続ロックを解放
+        this.continuationLocks.clear();
+
         // 全てのアクティブなエージェントを停止
         const stopPromises = Array.from(this.activeAgents.entries()).map(
           async ([executionId, info]) => {
@@ -226,6 +239,17 @@ export class AgentOrchestrator {
       } finally {
         this.activeAgents.clear();
         this.activeExecutions.clear();
+
+        // サーバーのリスニングソケットを正しく閉じる（シャットダウンAPIからの呼び出し時はスキップ）
+        if (this.serverStopCallback && !options?.skipServerStop) {
+          try {
+            console.log("[Orchestrator] Stopping server listener...");
+            await this.serverStopCallback();
+            console.log("[Orchestrator] Server listener stopped");
+          } catch (error) {
+            console.error("[Orchestrator] Failed to stop server listener:", error);
+          }
+        }
       }
     })();
 
@@ -488,6 +512,30 @@ export class AgentOrchestrator {
    */
   isInShutdown(): boolean {
     return this.isShuttingDown;
+  }
+
+  /**
+   * サーバー停止コールバックを設定
+   * index.tsから呼び出し、gracefulShutdown時にリスニングソケットを正しく閉じるために使用
+   */
+  setServerStopCallback(callback: () => Promise<void> | void): void {
+    this.serverStopCallback = callback;
+  }
+
+  /**
+   * サーバーのリスニングソケットを停止する
+   * シャットダウンAPIからレスポンス送信後に呼び出すために使用
+   */
+  async stopServer(): Promise<void> {
+    if (this.serverStopCallback) {
+      try {
+        console.log("[Orchestrator] Stopping server listener...");
+        await this.serverStopCallback();
+        console.log("[Orchestrator] Server listener stopped");
+      } catch (error) {
+        console.error("[Orchestrator] Failed to stop server listener:", error);
+      }
+    }
   }
 
   /**
@@ -1802,23 +1850,21 @@ export class AgentOrchestrator {
         (result.errorMessage && /session|expired|invalid|not found|code 1/i.test(result.errorMessage))
       );
       if (isSessionResumeFailure) {
-        console.log(`[Orchestrator] Session resume failed (executionTime: ${result.executionTimeMs}ms, error: ${result.errorMessage?.substring(0, 100)}). Attempting fallback with --continue...`);
-        fileLogger.logError(`Session resume failed with --resume ${claudeSessionId}. Attempting --continue fallback.`);
+        console.log(`[Orchestrator] Session resume failed (executionTime: ${result.executionTimeMs}ms, error: ${result.errorMessage?.substring(0, 100)}). Retrying --resume after delay...`);
+        fileLogger.logError(`Session resume failed with --resume ${claudeSessionId}. Retrying after 3s delay.`);
 
         // 前のエージェントをクリーンアップ
         await agentFactory.removeAgent(agent.id);
 
-        // --continue でフォールバック（最新の会話を継続）
-        const fallbackConfig: AgentConfigInput = {
-          ...agentConfig,
-          resumeSessionId: undefined,
-          continueConversation: true,
-        };
-        const fallbackAgent = agentFactory.createAgent(fallbackConfig);
+        // セッションの保存が完了するまで待機してからリトライ
+        await new Promise(resolve => setTimeout(resolve, 3000));
 
-        // ハンドラを再設定
-        fallbackAgent.setQuestionDetectedHandler(async (info) => {
-          console.log(`[Orchestrator] Question detected during continuation fallback!`);
+        // --resume で再試行（同じセッションIDを使用）
+        const retryAgent = agentFactory.createAgent(agentConfig);
+
+        // ハンドラを再設定（リトライ用）
+        retryAgent.setQuestionDetectedHandler(async (info) => {
+          console.log(`[Orchestrator] Question detected during resume retry!`);
           fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
           try {
             await this.prisma.agentExecution.update({
@@ -1852,24 +1898,22 @@ export class AgentOrchestrator {
               timestamp: new Date(),
             });
           } catch (error) {
-            console.error(`[Orchestrator] Failed to update DB on question detection (fallback):`, error);
+            console.error(`[Orchestrator] Failed to update DB on question detection (resume retry):`, error);
           }
         });
 
-        fallbackAgent.setOutputHandler(async (output, isError) => {
+        retryAgent.setOutputHandler(async (output, isError) => {
           state.output += output;
           fileLogger.logOutput(output, isError ?? false);
           if (agentInfo) {
             agentInfo.lastOutput = state.output.slice(-2000);
             agentInfo.lastSavedAt = new Date();
           }
-          // ログチャンクをキューに追加（リアルタイム通知用）
           pendingLogChunks.push({
             chunk: output,
             isError: isError ?? false,
             timestamp: new Date(),
           });
-          // イベントを発火してフロントエンドにリアルタイム通知
           try {
             this.emitEvent({
               type: "execution_output",
@@ -1880,50 +1924,51 @@ export class AgentOrchestrator {
               timestamp: new Date(),
             });
           } catch (e) {
-            console.error("Error emitting fallback event:", e);
+            console.error("Error emitting resume retry event:", e);
           }
         });
 
-        // アクティブエージェントを更新
-        agent = fallbackAgent;
-        agentInfo.agent = fallbackAgent;
+        agent = retryAgent;
+        agentInfo.agent = retryAgent;
 
-        // フォールバック通知
-        const fallbackMessage = `\n[セッション再開] --resume が失敗したため、--continue で再試行しています...\n`;
-        state.output += fallbackMessage;
+        const retryMessage = `\n[セッション再開] --resume の再試行を行っています...\n`;
+        state.output += retryMessage;
         this.emitEvent({
           type: "execution_output",
           executionId: execution.id,
           sessionId: execution.sessionId,
           taskId,
-          data: { output: fallbackMessage },
+          data: { output: retryMessage },
           timestamp: new Date(),
         });
 
-        const fallbackResult = await fallbackAgent.execute(agentTask);
+        const retryResult = await retryAgent.execute(agentTask);
 
-        // --continue でも失敗した場合は、新規セッションでリトライ
-        const isContinueFallbackFailure = !fallbackResult.success && !fallbackResult.waitingForInput && (
-          (fallbackResult.executionTimeMs !== undefined && fallbackResult.executionTimeMs < 10000) ||
-          (fallbackResult.errorMessage && /session|expired|invalid|not found|code 1/i.test(fallbackResult.errorMessage))
+        // リトライも失敗した場合は --continue にフォールバック
+        const isRetryFailure = !retryResult.success && !retryResult.waitingForInput && (
+          (retryResult.executionTimeMs !== undefined && retryResult.executionTimeMs < 10000) ||
+          (retryResult.errorMessage && /session|expired|invalid|not found|code 1/i.test(retryResult.errorMessage))
         );
-        if (isContinueFallbackFailure) {
-          console.log(`[Orchestrator] --continue fallback also failed (executionTime: ${fallbackResult.executionTimeMs}ms). Attempting new session with context...`);
-          fileLogger.logError(`--continue fallback also failed. Starting new session with context.`);
 
-          await agentFactory.removeAgent(fallbackAgent.id);
+        if (!isRetryFailure) {
+          // リトライ成功
+          result = retryResult;
+        } else {
+          console.log(`[Orchestrator] --resume retry also failed. Attempting fallback with --continue...`);
+          fileLogger.logError(`--resume retry also failed. Attempting --continue fallback.`);
+          await agentFactory.removeAgent(retryAgent.id);
 
-          // 新規セッションで前回のコンテキストを引き継ぐ
-          const newSessionConfig: AgentConfigInput = {
+          // --continue でフォールバック（最新の会話を継続）
+          const fallbackConfig: AgentConfigInput = {
             ...agentConfig,
             resumeSessionId: undefined,
-            continueConversation: false,
+            continueConversation: true,
           };
-          const newAgent = agentFactory.createAgent(newSessionConfig);
+          const fallbackAgent = agentFactory.createAgent(fallbackConfig);
 
           // ハンドラを再設定
-          newAgent.setQuestionDetectedHandler(async (info) => {
-            console.log(`[Orchestrator] Question detected during new session retry!`);
+          fallbackAgent.setQuestionDetectedHandler(async (info) => {
+            console.log(`[Orchestrator] Question detected during continuation fallback!`);
             fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
             try {
               await this.prisma.agentExecution.update({
@@ -1933,7 +1978,7 @@ export class AgentOrchestrator {
                   question: info.question || null,
                   questionType: info.questionType || null,
                   questionDetails: toJsonString(info.questionDetails),
-                  claudeSessionId: info.claudeSessionId || null,
+                  claudeSessionId: info.claudeSessionId || (execution as any).claudeSessionId || null,
                 },
               });
               state.status = "waiting_for_input" as any;
@@ -1957,11 +2002,11 @@ export class AgentOrchestrator {
                 timestamp: new Date(),
               });
             } catch (error) {
-              console.error(`[Orchestrator] Failed to update DB on question detection (new session):`, error);
+              console.error(`[Orchestrator] Failed to update DB on question detection (fallback):`, error);
             }
           });
 
-          newAgent.setOutputHandler(async (output, isError) => {
+          fallbackAgent.setOutputHandler(async (output, isError) => {
             state.output += output;
             fileLogger.logOutput(output, isError ?? false);
             if (agentInfo) {
@@ -1985,38 +2030,144 @@ export class AgentOrchestrator {
                 timestamp: new Date(),
               });
             } catch (e) {
-              console.error("Error emitting new session event:", e);
+              console.error("Error emitting fallback event:", e);
             }
           });
 
-          agent = newAgent;
-          agentInfo.agent = newAgent;
+          // アクティブエージェントを更新
+          agent = fallbackAgent;
+          agentInfo.agent = fallbackAgent;
 
-          // コンテキスト付きのプロンプトを構築
-          const previousContext = (execution.output || "").slice(-2000);
-          const contextPrompt = `以下は前回のタスク実行の継続です。前回のコンテキスト（最後の部分）:\n\n${previousContext}\n\n前回の質問に対するユーザーの回答: ${response}\n\n上記の回答を踏まえて、タスクの実行を継続してください。`;
-
-          const contextTask: AgentTask = {
-            id: taskId,
-            title: contextPrompt,
-            description: contextPrompt,
-            workingDirectory: task?.workingDirectory || undefined,
-          };
-
-          const newSessionMessage = `\n[セッション再開] 新しいセッションでコンテキストを引き継いで実行を継続します...\n`;
-          state.output += newSessionMessage;
+          // フォールバック通知
+          const fallbackMessage = `\n[セッション再開] --resume が失敗したため、--continue で再試行しています...\n`;
+          state.output += fallbackMessage;
           this.emitEvent({
             type: "execution_output",
             executionId: execution.id,
             sessionId: execution.sessionId,
             taskId,
-            data: { output: newSessionMessage },
+            data: { output: fallbackMessage },
             timestamp: new Date(),
           });
 
-          result = await newAgent.execute(contextTask);
-        } else {
-          result = fallbackResult;
+          const fallbackResult = await fallbackAgent.execute(agentTask);
+
+          // --continue でも失敗した場合は、新規セッションでリトライ
+          const isContinueFallbackFailure = !fallbackResult.success && !fallbackResult.waitingForInput && (
+            (fallbackResult.executionTimeMs !== undefined && fallbackResult.executionTimeMs < 10000) ||
+            (fallbackResult.errorMessage && /session|expired|invalid|not found|code 1/i.test(fallbackResult.errorMessage))
+          );
+          if (isContinueFallbackFailure) {
+            console.log(`[Orchestrator] --continue fallback also failed (executionTime: ${fallbackResult.executionTimeMs}ms). Attempting new session with context...`);
+            fileLogger.logError(`--continue fallback also failed. Starting new session with context.`);
+
+            await agentFactory.removeAgent(fallbackAgent.id);
+
+            // 新規セッションで前回のコンテキストを引き継ぐ
+            const newSessionConfig: AgentConfigInput = {
+              ...agentConfig,
+              resumeSessionId: undefined,
+              continueConversation: false,
+            };
+            const newAgent = agentFactory.createAgent(newSessionConfig);
+
+            // ハンドラを再設定
+            newAgent.setQuestionDetectedHandler(async (info) => {
+              console.log(`[Orchestrator] Question detected during new session retry!`);
+              fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
+              try {
+                await this.prisma.agentExecution.update({
+                  where: { id: execution.id },
+                  data: {
+                    status: "waiting_for_input",
+                    question: info.question || null,
+                    questionType: info.questionType || null,
+                    questionDetails: toJsonString(info.questionDetails),
+                    claudeSessionId: info.claudeSessionId || null,
+                  },
+                });
+                state.status = "waiting_for_input" as any;
+                this.startQuestionTimeout(execution.id, taskId, info.questionKey);
+                const timeoutInfo = this.getQuestionTimeoutInfo(execution.id);
+                this.emitEvent({
+                  type: "execution_output",
+                  executionId: execution.id,
+                  sessionId: execution.sessionId,
+                  taskId,
+                  data: {
+                    output: `\n[質問] ${info.question}\n`,
+                    waitingForInput: true,
+                    question: info.question,
+                    questionType: info.questionType,
+                    questionDetails: info.questionDetails,
+                    questionKey: info.questionKey,
+                    questionTimeoutSeconds: timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
+                    questionTimeoutDeadline: timeoutInfo?.deadline?.toISOString(),
+                  },
+                  timestamp: new Date(),
+                });
+              } catch (error) {
+                console.error(`[Orchestrator] Failed to update DB on question detection (new session):`, error);
+              }
+            });
+
+            newAgent.setOutputHandler(async (output, isError) => {
+              state.output += output;
+              fileLogger.logOutput(output, isError ?? false);
+              if (agentInfo) {
+                agentInfo.lastOutput = state.output.slice(-2000);
+                agentInfo.lastSavedAt = new Date();
+              }
+              // ログチャンクをキューに追加（リアルタイム通知用）
+              pendingLogChunks.push({
+                chunk: output,
+                isError: isError ?? false,
+                timestamp: new Date(),
+              });
+              // イベントを発火してフロントエンドにリアルタイム通知
+              try {
+                this.emitEvent({
+                  type: "execution_output",
+                  executionId: execution.id,
+                  sessionId: execution.sessionId,
+                  taskId,
+                  data: { output, isError },
+                  timestamp: new Date(),
+                });
+              } catch (e) {
+                console.error("Error emitting new session event:", e);
+              }
+            });
+
+            agent = newAgent;
+            agentInfo.agent = newAgent;
+
+            // コンテキスト付きのプロンプトを構築
+            const previousContext = (execution.output || "").slice(-2000);
+            const contextPrompt = `以下は前回のタスク実行の継続です。前回のコンテキスト（最後の部分）:\n\n${previousContext}\n\n前回の質問に対するユーザーの回答: ${response}\n\n上記の回答を踏まえて、タスクの実行を継続してください。`;
+
+            const contextTask: AgentTask = {
+              id: taskId,
+              title: contextPrompt,
+              description: contextPrompt,
+              workingDirectory: task?.workingDirectory || undefined,
+            };
+
+            const newSessionMessage = `\n[セッション再開] 新しいセッションでコンテキストを引き継いで実行を継続します...\n`;
+            state.output += newSessionMessage;
+            this.emitEvent({
+              type: "execution_output",
+              executionId: execution.id,
+              sessionId: execution.sessionId,
+              taskId,
+              data: { output: newSessionMessage },
+              timestamp: new Date(),
+            });
+
+            result = await newAgent.execute(contextTask);
+          } else {
+            result = fallbackResult;
+          }
         }
       }
 

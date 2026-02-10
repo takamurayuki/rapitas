@@ -1079,7 +1079,28 @@ export const aiAgentRoutes = new Elysia()
           },
         )
         .then(async (result) => {
-          if (result.success && !result.waitingForInput) {
+          if (result.waitingForInput) {
+            // 質問待ち状態: タスクは実行中のまま維持（todoに戻さない）
+            // ユーザーの回答を待ってから同じセッションで継続する
+            console.log(`[API] Task ${taskIdNum} is waiting for user input, keeping status as 'in_progress'`);
+            await prisma.task.update({
+              where: { id: taskIdNum },
+              data: { status: "in_progress" },
+            }).catch((e: any) => {
+              console.error(`[API] Failed to update task ${taskIdNum} status to in_progress:`, e);
+            });
+
+            // セッションも実行中のまま維持
+            await prisma.agentSession.update({
+              where: { id: session.id },
+              data: {
+                status: "running",
+                lastActivityAt: new Date(),
+              },
+            }).catch((e: any) => {
+              console.error(`[API] Failed to update session ${session.id} status to running:`, e);
+            });
+          } else if (result.success) {
             // タスクのステータスを「完了」に更新
             await prisma.task.update({
               where: { id: taskIdNum },
@@ -1580,7 +1601,28 @@ export const aiAgentRoutes = new Elysia()
             timeout: 900000,
           })
           .then(async (execResult) => {
-            if (execResult.success && !execResult.waitingForInput) {
+            if (execResult.waitingForInput) {
+              // 質問待ち状態: タスクはin_progressのまま維持
+              // ユーザーの回答を待ってから同じセッションで継続する
+              console.log(`[agent-respond] Task ${taskId} is waiting for another user input, keeping session active`);
+              await prisma.task.update({
+                where: { id: taskId },
+                data: { status: "in_progress" },
+              }).catch((e: any) => {
+                console.error(`[agent-respond] Failed to update task ${taskId} status to in_progress:`, e);
+              });
+
+              // セッションも実行中のまま維持
+              await prisma.agentSession.update({
+                where: { id: session.id },
+                data: {
+                  status: "running",
+                  lastActivityAt: new Date(),
+                },
+              }).catch((e: any) => {
+                console.error(`[agent-respond] Failed to update session ${session.id} status to running:`, e);
+              });
+            } else if (execResult.success) {
               // タスクのステータスを完了に更新
               await prisma.task.update({
                 where: { id: taskId },
@@ -1644,7 +1686,7 @@ export const aiAgentRoutes = new Elysia()
                   },
                 });
               }
-            } else if (!execResult.success && !execResult.waitingForInput) {
+            } else {
               // 失敗時はタスクステータスを todo に戻す
               await prisma.task.update({
                 where: { id: taskId },
@@ -2730,5 +2772,75 @@ export const aiAgentRoutes = new Elysia()
         console.error("[executing-tasks] Error:", error?.message || error);
       }
       return [];
+    }
+  })
+
+  // Graceful shutdown endpoint (called by dev.js before stopping)
+  .post("/agents/shutdown", async () => {
+    try {
+      console.log("[shutdown] Graceful shutdown requested via API");
+
+      const activeCount = orchestrator.getActiveExecutionCount();
+
+      // エージェント停止とDB保存を先に実行（サーバー停止はスキップしてレスポンスを返せるようにする）
+      orchestrator.gracefulShutdown({ skipServerStop: true }).then(async () => {
+        console.log("[shutdown] Agent shutdown completed, stopping server...");
+        // レスポンスが送信される時間を確保してからサーバーを停止
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await orchestrator.stopServer();
+        console.log("[shutdown] Server stopped, exiting process...");
+        setTimeout(() => process.exit(0), 200);
+      }).catch((error) => {
+        console.error("[shutdown] Graceful shutdown error:", error);
+        process.exit(1);
+      });
+
+      return {
+        success: true,
+        message: "Graceful shutdown initiated",
+        activeExecutions: activeCount,
+      };
+    } catch (error) {
+      console.error("[shutdown] Error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to initiate shutdown",
+      };
+    }
+  })
+
+  // Server restart endpoint (called by frontend or dev tools)
+  // Performs graceful shutdown then exits with code 75 to signal dev.js to restart
+  .post("/agents/restart", async () => {
+    try {
+      console.log("[restart] Server restart requested via API");
+
+      const activeCount = orchestrator.getActiveExecutionCount();
+
+      // エージェント停止とDB保存を先に実行（サーバー停止はスキップしてレスポンスを返せるようにする）
+      orchestrator.gracefulShutdown({ skipServerStop: true }).then(async () => {
+        console.log("[restart] Agent shutdown completed, stopping server for restart...");
+        // レスポンスが送信される時間を確保してからサーバーを停止
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await orchestrator.stopServer();
+        console.log("[restart] Server stopped, exiting with restart code...");
+        // 終了コード75でdev.jsに再起動を通知
+        setTimeout(() => process.exit(75), 200);
+      }).catch((error) => {
+        console.error("[restart] Graceful shutdown error:", error);
+        process.exit(1);
+      });
+
+      return {
+        success: true,
+        message: "Server restart initiated. Server will stop and restart automatically.",
+        activeExecutions: activeCount,
+      };
+    } catch (error) {
+      console.error("[restart] Error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to initiate restart",
+      };
     }
   });

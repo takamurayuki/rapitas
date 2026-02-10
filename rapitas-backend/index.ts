@@ -155,9 +155,19 @@ app.listen({
 });
 console.log(`🚀 Rapitas backend running on http://localhost:${PORT}`);
 
+// Orchestratorにサーバー停止コールバックを設定（グレースフルシャットダウン時にポートを正しく解放するため）
+orchestrator.setServerStopCallback(() => {
+  app.stop();
+});
+
 // Startup recovery: mark stale running/pending executions as interrupted
 // and update related Task/Session statuses, then auto-resume if enabled
-orchestrator.recoverStaleExecutions().then(async (result) => {
+const startupRecovery = async () => {
+  // サーバーが完全に起動するまで少し待機
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  const result = await orchestrator.recoverStaleExecutions();
+
   if (result.recoveredExecutions > 0) {
     console.log(
       `🔄 Startup recovery: ${result.recoveredExecutions} executions, ${result.updatedTasks} tasks, ${result.updatedSessions} sessions recovered`
@@ -169,7 +179,9 @@ orchestrator.recoverStaleExecutions().then(async (result) => {
     try {
       const settings = await prisma.userSettings.findFirst();
       if (settings?.autoResumeInterruptedTasks) {
-        console.log(`🔄 Auto-resume enabled. Resuming ${result.interruptedExecutionIds.length} interrupted executions...`);
+        // 自動再開前にサーバーが安定するまで追加の待機
+        console.log(`🔄 Auto-resume enabled. Waiting for server to stabilize before resuming ${result.interruptedExecutionIds.length} executions...`);
+        await new Promise((resolve) => setTimeout(resolve, 3000));
 
         for (const executionId of result.interruptedExecutionIds) {
           try {
@@ -204,6 +216,8 @@ orchestrator.recoverStaleExecutions().then(async (result) => {
       console.error("❌ Auto-resume check failed:", error);
     }
   }
-}).catch((error) => {
+};
+
+startupRecovery().catch((error) => {
   console.error("❌ Startup recovery failed:", error);
 });

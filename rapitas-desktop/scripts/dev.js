@@ -95,15 +95,65 @@ function waitForPortRelease(port, timeoutMs = 10000) {
 }
 
 /**
+ * HTTPリクエストでバックエンドのグレースフルシャットダウンを試行する
+ * ポートクリーンアップ時に使用
+ */
+async function tryGracefulShutdownViaHttp(port) {
+  try {
+    const http = require('http');
+    await new Promise((resolve, reject) => {
+      const req = http.request({
+        hostname: 'localhost',
+        port: port,
+        path: '/agents/shutdown',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 5000,
+      }, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          console.log(`  Graceful shutdown requested on port ${port} (status: ${res.statusCode})`);
+          resolve(data);
+        });
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+      req.end();
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * ポートの確保
- * 1. プロセスが使用中 → taskkill で終了 → 解放を待つ
- * 2. ゾンビソケット → フォールバックポートに切り替え
+ * 1. バックエンドポートならグレースフルシャットダウンを試行
+ * 2. プロセスが使用中 → taskkill で終了 → 解放を待つ
+ * 3. ゾンビソケット → フォールバックポートに切り替え
  * @returns {Promise<number>} 使用するポート番号
  */
 async function ensurePortAvailable(port) {
   if (!isPortListening(port)) return port;
 
   console.log(`  Port ${port} is in use, attempting cleanup...`);
+
+  // バックエンドポートの場合、まずグレースフルシャットダウンを試行
+  if (port === BACKEND_PORT || port === BACKEND_PORT + 1) {
+    const shutdownRequested = await tryGracefulShutdownViaHttp(port);
+    if (shutdownRequested) {
+      // グレースフルシャットダウンの完了を待つ（最大15秒）
+      try {
+        await waitForPortRelease(port, 15000);
+        console.log(`  Port ${port} released after graceful shutdown.`);
+        return port;
+      } catch {
+        console.log(`  Graceful shutdown did not release port in time, forcing...`);
+      }
+    }
+  }
+
   killProcessOnPort(port);
 
   try {
@@ -141,6 +191,26 @@ function killProcessTree(childProcess) {
   } catch {
     try { childProcess.kill('SIGKILL'); } catch {}
   }
+}
+
+/**
+ * バックエンドプロセスが終了するまで待機する
+ * @param {number} timeoutMs タイムアウト(ミリ秒)
+ * @returns {Promise<boolean>} プロセスが正常に終了したか
+ */
+function waitForProcessExit(childProcess, timeoutMs = 15000) {
+  if (!childProcess || childProcess.killed || childProcess.exitCode !== null) {
+    return Promise.resolve(true);
+  }
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      resolve(false);
+    }, timeoutMs);
+    childProcess.on('exit', () => {
+      clearTimeout(timer);
+      resolve(true);
+    });
+  });
 }
 
 // ─── メイン処理 ───
@@ -186,14 +256,13 @@ if (!fs.existsSync(NEXT_TAURI_DIR)) {
 
 let backend = null;
 let frontend = null;
+let actualBackendPort = BACKEND_PORT;
+let actualFrontendPort = FRONTEND_PORT;
 
-async function main() {
-  // ポートのクリーンアップ（前回クラッシュ時のゾンビプロセス対策）
-  console.log('\nChecking ports...');
-  const actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
-  const actualFrontendPort = await ensurePortAvailable(FRONTEND_PORT);
-
-  // データベーススキーマを同期してPrisma Clientを生成
+/**
+ * データベーススキーマの同期とPrisma Client生成
+ */
+function syncDatabaseAndGenerateClient() {
   console.log('\nSyncing database schema...');
   try {
     execSync('bunx prisma db push --skip-generate', { cwd: BACKEND_DIR, stdio: 'inherit' });
@@ -201,7 +270,7 @@ async function main() {
   } catch (err) {
     console.error('Failed to sync database schema:', err.message);
     console.log('⚠️  PostgreSQLが起動していることを確認してください。');
-    process.exit(1);
+    throw err;
   }
 
   console.log('Generating Prisma Client...');
@@ -209,10 +278,17 @@ async function main() {
     execSync('bun run db:generate', { cwd: BACKEND_DIR, stdio: 'inherit' });
   } catch (err) {
     console.error('Failed to generate Prisma Client:', err.message);
-    process.exit(1);
+    throw err;
   }
+}
 
-  // バックエンドを起動
+// 再起動要求を示す終了コード
+const RESTART_EXIT_CODE = 75;
+
+/**
+ * バックエンドプロセスを起動する
+ */
+function startBackend() {
   const backendScript = useWatch ? 'dev:simple' : 'dev:stable';
   console.log(`\nBackend mode: ${useWatch ? 'dev:simple (hot reload)' : 'dev:stable (stable)'}`);
 
@@ -226,6 +302,130 @@ async function main() {
       PORT: String(actualBackendPort),
     }
   });
+
+  backend.on('error', (err) => console.error('Backend error:', err));
+
+  // 再起動要求の終了コードを監視
+  backend.on('exit', (code) => {
+    if (isCleaningUp) return; // cleanup中の終了は無視
+    if (code === RESTART_EXIT_CODE) {
+      console.log(`\n🔄 Backend exited with restart code (${RESTART_EXIT_CODE}), initiating restart...`);
+      // プロセスは既に終了済みなのでシャットダウンAPIの呼び出しをスキップ
+      restartBackend(true).catch((err) => {
+        console.error('❌ Backend restart failed:', err);
+      });
+    }
+  });
+}
+
+/**
+ * バックエンドを完全に停止する（グレースフルシャットダウン→ポート解放確認）
+ * @param {boolean} skipShutdownApi - trueの場合、プロセスが既に終了済みなのでシャットダウンAPIの呼び出しをスキップ
+ */
+async function stopBackendCompletely(skipShutdownApi = false) {
+  const isRunning = backend && !backend.killed && backend.exitCode === null;
+
+  if (!skipShutdownApi && isRunning) {
+    console.log('  Requesting graceful shutdown of backend...');
+
+    // HTTPでシャットダウンAPIを呼び出す
+    try {
+      const http = require('http');
+      await new Promise((resolve, reject) => {
+        const req = http.request({
+          hostname: 'localhost',
+          port: actualBackendPort,
+          path: '/agents/shutdown',
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 5000,
+        }, (res) => {
+          let data = '';
+          res.on('data', (chunk) => { data += chunk; });
+          res.on('end', () => {
+            console.log(`  Shutdown API response: ${res.statusCode}`);
+            resolve(data);
+          });
+        });
+        req.on('error', (err) => {
+          console.log(`  Shutdown API unavailable (${err.code || err.message}), will force stop`);
+          reject(err);
+        });
+        req.on('timeout', () => {
+          req.destroy();
+          reject(new Error('timeout'));
+        });
+        req.end();
+      });
+
+      // プロセスの終了を待機（最大15秒）
+      console.log('  Waiting for backend process to exit...');
+      const exited = await waitForProcessExit(backend, 15000);
+      if (!exited) {
+        console.log('  Backend did not exit in time, forcing stop...');
+        killProcessTree(backend);
+      } else {
+        console.log('  Backend stopped gracefully.');
+      }
+    } catch {
+      // シャットダウンAPIが応答しない場合はフォールバック: 強制終了
+      if (isRunning) {
+        killProcessTree(backend);
+        console.log('  Backend force-stopped.');
+      }
+    }
+  } else if (!isRunning) {
+    console.log('  Backend process already exited.');
+  }
+
+  // ポートが完全に解放されるまで待機
+  try {
+    await waitForPortRelease(actualBackendPort, 20000);
+    console.log(`  Port ${actualBackendPort} released successfully.`);
+  } catch {
+    console.log(`  Port ${actualBackendPort} not yet released, forcing cleanup...`);
+    killProcessOnPort(actualBackendPort);
+    try {
+      await waitForPortRelease(actualBackendPort, 5000);
+      console.log(`  Port ${actualBackendPort} released after force cleanup.`);
+    } catch {
+      console.log(`  Port ${actualBackendPort} still not released (will auto-clear).`);
+    }
+  }
+
+  backend = null;
+}
+
+/**
+ * バックエンドを再起動する（完全停止 → DB同期 → 起動）
+ * @param {boolean} processAlreadyExited - trueの場合、プロセスが既に終了済み（シャットダウンAPIスキップ）
+ */
+async function restartBackend(processAlreadyExited = false) {
+  console.log('\n🔄 Restarting backend server...');
+  console.log('  Step 1/3: Stopping backend completely...');
+  await stopBackendCompletely(processAlreadyExited);
+
+  console.log('  Step 2/3: Syncing database and generating Prisma Client...');
+  try {
+    syncDatabaseAndGenerateClient();
+  } catch (err) {
+    console.error('❌ Failed to sync database during restart:', err.message);
+    console.log('  Attempting to start backend without DB sync...');
+  }
+
+  console.log('  Step 3/3: Starting backend...');
+  startBackend();
+  console.log('✅ Backend restart completed.');
+}
+
+async function main() {
+  // ポートのクリーンアップ（前回クラッシュ時のゾンビプロセス対策）
+  console.log('\nChecking ports...');
+  actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
+  actualFrontendPort = await ensurePortAvailable(FRONTEND_PORT);
+
+  syncDatabaseAndGenerateClient();
+  startBackend();
 
   // フロントエンドを起動
   frontend = spawn('pnpm', ['run', 'dev'], {
@@ -242,21 +442,31 @@ async function main() {
   console.log(`\n🖥️  Development mode: Backend :${actualBackendPort}, Frontend :${actualFrontendPort}`);
   console.log('ℹ️  Changes will be reflected via hot reload (no rebuild needed)');
 
-  backend.on('error', (err) => console.error('Backend error:', err));
   frontend.on('error', (err) => console.error('Frontend error:', err));
 }
 
-// プロセス終了時のクリーンアップ（プロセスツリーごと終了）
-function cleanup() {
+// プロセス終了時のクリーンアップ
+let isCleaningUp = false;
+
+async function cleanup() {
+  if (isCleaningUp) return;
+  isCleaningUp = true;
+
   console.log('\nStopping development servers...');
-  killProcessTree(backend);
+
+  // バックエンドは完全停止（グレースフルシャットダウン→ポート解放確認）
+  await stopBackendCompletely();
+
+  // フロントエンドは即座に停止
   killProcessTree(frontend);
+
   process.exit();
 }
 
-process.on('SIGINT', cleanup);
-process.on('SIGTERM', cleanup);
+process.on('SIGINT', () => cleanup());
+process.on('SIGTERM', () => cleanup());
 process.on('exit', () => {
+  // exit イベントでは非同期処理不可なので強制終了のみ
   killProcessTree(backend);
   killProcessTree(frontend);
 });

@@ -543,17 +543,17 @@ export class ClaudeCodeAgent extends BaseAgent {
                           console.log(
                             `${this.logPrefix} Stopping process to wait for user response`,
                           );
-                          // セッション状態の安定化のため十分に待ってからSIGTERMを送信
-                          // Claude Codeがセッション状態を永続化する時間を確保する（3秒）
+                          // セッション状態の安定化のため十分に待ってからプロセスを停止
+                          // Claude Codeがセッション状態を永続化する時間を確保する（5秒）
                           // 短すぎるとセッション保存が不完全になり、--resume での再開に失敗する
                           setTimeout(() => {
                             if (this.process && !this.process.killed) {
                               console.log(
-                                `${this.logPrefix} Sending SIGTERM after stabilization delay (3s)`,
+                                `${this.logPrefix} Stopping process after stabilization delay (5s)`,
                               );
-                              this.process.kill("SIGTERM");
+                              this.killProcessForQuestion();
                             }
-                          }, 3000);
+                          }, 5000);
                         } else {
                           // ツール呼び出しの詳細情報を表示
                           const toolInfo = this.formatToolInfo(
@@ -1031,6 +1031,36 @@ export class ClaudeCodeAgent extends BaseAgent {
         });
       }
     });
+  }
+
+  /**
+   * 質問検出時にプロセスを丁寧に停止する
+   * Windowsでは taskkill を使用し、Unix系ではSIGTERMを送信する
+   * stop()と異なり、ステータスを cancelled にしない（waiting_for_input を維持）
+   */
+  private killProcessForQuestion(): void {
+    if (!this.process || this.process.killed) return;
+
+    const isWindows = process.platform === "win32";
+
+    if (isWindows) {
+      // Windowsでは taskkill を使用してプロセスツリーを終了
+      try {
+        const pid = this.process.pid;
+        if (pid) {
+          const { execSync } = require("child_process");
+          execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
+          console.log(`${this.logPrefix} Process ${pid} killed via taskkill (question detected)`);
+        }
+      } catch (e) {
+        console.error(`${this.logPrefix} taskkill failed (question detected):`, e);
+        try {
+          this.process.kill();
+        } catch {}
+      }
+    } else {
+      this.process.kill("SIGTERM");
+    }
   }
 
   async stop(): Promise<void> {

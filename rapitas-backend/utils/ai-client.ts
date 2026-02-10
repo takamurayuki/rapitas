@@ -287,10 +287,11 @@ const PROVIDER_NAMES: Record<AIProvider, string> = {
 };
 
 /**
- * ストリーミングエラーをユーザー向けメッセージに変換
+ * エラーメッセージからエラー種別を判定し、ユーザー向けメッセージに変換
  */
-function formatStreamError(error: unknown, provider: AIProvider): string {
+function formatApiError(error: unknown, provider: AIProvider): string {
   const message = error instanceof Error ? error.message : String(error);
+
   const isAuthError =
     message.includes("authentication_error") ||
     message.includes("invalid x-api-key") ||
@@ -302,6 +303,31 @@ function formatStreamError(error: unknown, provider: AIProvider): string {
   if (isAuthError) {
     return `${PROVIDER_NAMES[provider]} APIキーが無効です。設定画面で正しいAPIキーを再設定してください。`;
   }
+
+  const isQuotaError =
+    message.includes("429") ||
+    message.includes("Too Many Requests") ||
+    message.includes("quota") ||
+    message.includes("rate limit") ||
+    message.includes("RESOURCE_EXHAUSTED");
+
+  if (isQuotaError) {
+    const isFreeeTier = message.includes("free_tier") || message.includes("FreeTier");
+    if (isFreeeTier) {
+      return `${PROVIDER_NAMES[provider]} APIの無料枠のクォータを超過しました。Google Cloud Consoleで課金（Billing）を有効にするか、有料プランにアップグレードしてください。詳細: https://ai.google.dev/gemini-api/docs/rate-limits`;
+    }
+    return `${PROVIDER_NAMES[provider]} APIのレート制限に達しました。しばらく待ってから再度お試しください。`;
+  }
+
+  const isModelNotFound =
+    message.includes("404") ||
+    message.includes("not found") ||
+    message.includes("is not found");
+
+  if (isModelNotFound) {
+    return `${PROVIDER_NAMES[provider]} の指定されたモデルが見つかりません。設定画面でモデルを変更してください。`;
+  }
+
   return error instanceof Error ? error.message : "AIとの通信中にエラーが発生しました";
 }
 
@@ -355,7 +381,7 @@ export async function callClaudeStream(
         controller.close();
       } catch (error: unknown) {
         const errorData = JSON.stringify({
-          error: formatStreamError(error, "claude"),
+          error: formatApiError(error, "claude"),
         });
         controller.enqueue(
           new TextEncoder().encode(`data: ${errorData}\n\n`),
@@ -414,7 +440,7 @@ export async function callChatGPTStream(
         controller.close();
       } catch (error: unknown) {
         const errorData = JSON.stringify({
-          error: formatStreamError(error, "chatgpt"),
+          error: formatApiError(error, "chatgpt"),
         });
         controller.enqueue(
           new TextEncoder().encode(`data: ${errorData}\n\n`),
@@ -483,7 +509,7 @@ export async function callGeminiStream(
         controller.close();
       } catch (error: unknown) {
         const errorData = JSON.stringify({
-          error: formatStreamError(error, "gemini"),
+          error: formatApiError(error, "gemini"),
         });
         controller.enqueue(
           new TextEncoder().encode(`data: ${errorData}\n\n`),
@@ -495,22 +521,15 @@ export async function callGeminiStream(
 }
 
 /**
- * API認証エラーを判定し、わかりやすいエラーメッセージに変換
+ * APIエラーを判定し、わかりやすいエラーメッセージに変換
  */
 function handleApiError(error: unknown, provider: AIProvider): never {
-  const message = error instanceof Error ? error.message : String(error);
-  const isAuthError =
-    message.includes("authentication_error") ||
-    message.includes("invalid x-api-key") ||
-    message.includes("invalid api key") ||
-    message.includes("Incorrect API key") ||
-    message.includes("401") ||
-    message.includes("API key not valid");
+  const userMessage = formatApiError(error, provider);
+  const originalMessage = error instanceof Error ? error.message : String(error);
 
-  if (isAuthError) {
-    throw new Error(
-      `${PROVIDER_NAMES[provider]} APIキーが無効です。設定画面で正しいAPIキーを再設定してください。`,
-    );
+  // ユーザー向けメッセージに変換された場合は新しいErrorを投げる
+  if (userMessage !== originalMessage) {
+    throw new Error(userMessage);
   }
 
   throw error;
