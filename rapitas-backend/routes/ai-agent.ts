@@ -1136,7 +1136,10 @@ export const aiAgentRoutes = new Elysia()
               // UI変更がある場合はスクリーンショットを撮影
               let screenshots: ScreenshotResult[] = [];
               try {
-                screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory: workDir });
+                screenshots = await captureScreenshotsForDiff(structuredDiff, {
+                  workingDirectory: workDir,
+                  agentOutput: result.output || "",
+                });
                 if (screenshots.length > 0) {
                   console.log(`[API] Captured ${screenshots.length} screenshots for task ${taskIdNum}`);
                 }

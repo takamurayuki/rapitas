@@ -2,10 +2,14 @@
  * Screenshot Service
  * Playwrightを使ってフロントエンド画面のスクリーンショットを撮影するサービス
  * 任意のプロジェクト（Next.js, Vite, CRA等）に対応
+ *
+ * Bun 環境では Playwright の pipe 接続がハングするため、
+ * Node.js サブプロセスでスクリーンショットワーカーを実行する。
  */
 import { join, basename } from "path";
 import { existsSync, mkdirSync, readFileSync } from "fs";
 import { randomUUID } from "crypto";
+import { spawn } from "child_process";
 
 const SCREENSHOT_DIR = join(process.cwd(), "uploads", "screenshots");
 
@@ -430,7 +434,72 @@ export function detectAffectedPages(
 }
 
 /**
+ * Node.js サブプロセスでスクリーンショットワーカーを実行する
+ *
+ * Bun 環境では Playwright の pipe 接続（--remote-debugging-pipe）が
+ * ハングするため、Node.js サブプロセスとして実行する。
+ * 参考: https://github.com/oven-sh/bun/issues/23826
+ */
+function runScreenshotWorker(
+  workerInput: Record<string, unknown>,
+): Promise<ScreenshotResult[]> {
+  return new Promise((resolve, reject) => {
+    const workerPath = join(import.meta.dir, "screenshot-worker.cjs");
+    const child = spawn("node", [workerPath], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (data: Buffer) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on("data", (data: Buffer) => {
+      const msg = data.toString();
+      stderr += msg;
+      // ワーカーのログをそのまま出力
+      process.stderr.write(msg);
+    });
+
+    child.on("close", (code: number | null) => {
+      if (code !== 0) {
+        console.error(`[ScreenshotService] Worker exited with code ${code}`);
+      }
+
+      try {
+        const results = JSON.parse(stdout || "[]");
+        resolve(results);
+      } catch {
+        console.error("[ScreenshotService] Failed to parse worker output:", stdout);
+        resolve([]);
+      }
+    });
+
+    child.on("error", (err: Error) => {
+      console.error("[ScreenshotService] Failed to spawn worker:", err.message);
+      resolve([]);
+    });
+
+    // stdin にオプションを書き込んで閉じる
+    child.stdin.write(JSON.stringify(workerInput));
+    child.stdin.end();
+
+    // 全体のタイムアウト（3分）
+    setTimeout(() => {
+      try {
+        child.kill();
+      } catch {}
+      console.error("[ScreenshotService] Worker timed out after 180s");
+      resolve([]);
+    }, 180000);
+  });
+}
+
+/**
  * Playwrightを使ってスクリーンショットを撮影する
+ * Bun 互換性のため Node.js サブプロセスで実行
  */
 export async function captureScreenshots(
   options: ScreenshotOptions = {},
@@ -438,7 +507,7 @@ export async function captureScreenshots(
   const {
     workingDirectory,
     viewport = { width: 1280, height: 720 },
-    waitMs = 3000,
+    waitMs = 5000,
     darkMode = false,
   } = options;
 
@@ -455,105 +524,77 @@ export async function captureScreenshots(
 
   ensureScreenshotDir();
 
-  // 最大5ページまで
   const targetPages = pages.slice(0, 5);
-  const results: ScreenshotResult[] = [];
 
-  let chromium: any;
-  try {
-    const pw = await import("playwright");
-    chromium = pw.chromium;
-  } catch {
-    console.warn(
-      "[ScreenshotService] Playwright is not installed. Skipping screenshots.",
-    );
-    return [];
-  }
+  console.log(
+    `[ScreenshotService] Capturing ${targetPages.length} page(s) via Node.js worker`,
+  );
 
-  let browser;
-  try {
-    browser = await chromium.launch({
-      headless: true,
-    });
-
-    const context = await browser.newContext({
-      viewport,
-      deviceScaleFactor: 1,
-    });
-
-    const page = await context.newPage();
-
-    for (const target of targetPages) {
-      try {
-        // 絶対URLかパスかを判定
-        const url = target.path.startsWith("http")
-          ? target.path
-          : `${baseUrl}${target.path}`;
-        console.log(`[ScreenshotService] Capturing: ${url}`);
-
-        await page.goto(url, {
-          waitUntil: "networkidle",
-          timeout: 15000,
-        });
-
-        // ダークモード設定
-        if (darkMode) {
-          await page.evaluate(() => {
-            document.documentElement.classList.add("dark");
-          });
-          await page.waitForTimeout(500);
-        }
-
-        // ページの描画完了を待機
-        await page.waitForTimeout(waitMs);
-
-        const screenshotId = randomUUID();
-        const filename = `${screenshotId}.png`;
-        const filePath = join(SCREENSHOT_DIR, filename);
-
-        await page.screenshot({
-          path: filePath,
-          fullPage: false,
-        });
-
-        results.push({
-          id: screenshotId,
-          filename,
-          path: filePath,
-          url: `/screenshots/${filename}`,
-          page: target.path,
-          label: target.label,
-          capturedAt: new Date().toISOString(),
-        });
-
-        console.log(
-          `[ScreenshotService] Captured: ${target.path} -> ${filename}`,
-        );
-      } catch (err) {
-        console.error(
-          `[ScreenshotService] Failed to capture ${target.path}:`,
-          err,
-        );
-      }
-    }
-
-    await browser.close();
-  } catch (err) {
-    console.error("[ScreenshotService] Browser launch failed:", err);
-    if (browser) {
-      await browser.close().catch(() => {});
-    }
-  }
-
-  return results;
+  return runScreenshotWorker({
+    baseUrl,
+    pages: targetPages,
+    viewport,
+    waitMs,
+    darkMode,
+    screenshotDir: SCREENSHOT_DIR,
+  });
 }
 
 /**
- * structuredDiffからファイル名一覧を取得してスクリーンショットを撮影
+ * AIエージェントの出力テキストからページパスを抽出する
+ */
+export function detectPagesFromAgentOutput(
+  output: string,
+  workingDirectory?: string,
+): Array<{ path: string; label: string }> {
+  const pages: Array<{ path: string; label: string }> = [];
+  const addedPaths = new Set<string>();
+
+  const projectInfo = workingDirectory
+    ? detectProjectInfo(workingDirectory)
+    : null;
+  const port = projectInfo?.devPort || 3000;
+
+  // localhost:PORT/path パターンを検出
+  const urlPattern = new RegExp(
+    `(?:https?://)?localhost:${port}(/[\\w\\-/]*)`,
+    "g",
+  );
+  let match;
+  while ((match = urlPattern.exec(output)) !== null) {
+    const pagePath = match[1] || "/";
+    if (!addedPaths.has(pagePath)) {
+      addedPaths.add(pagePath);
+      pages.push({
+        path: pagePath,
+        label: pagePath === "/" ? "home" : pagePath.split("/").pop() || pagePath,
+      });
+    }
+  }
+
+  // src/app/xxx/page.tsx への言及パターン
+  const appRouterMentionPattern =
+    /src\/app\/([^\s/]+(?:\/[^\s/]+)*)\/page\.[tj]sx?/g;
+  while ((match = appRouterMentionPattern.exec(output)) !== null) {
+    const pagePath = `/${match[1]}`;
+    if (!addedPaths.has(pagePath)) {
+      addedPaths.add(pagePath);
+      pages.push({
+        path: pagePath,
+        label: pagePath.split("/").pop() || pagePath,
+      });
+    }
+  }
+
+  return pages;
+}
+
+/**
+ * structuredDiffとエージェント出力からスクリーンショットを撮影
  */
 export async function captureScreenshotsForDiff(
   structuredDiff: Array<{ filename: string }>,
-  options?: Partial<ScreenshotOptions>,
+  options?: Partial<ScreenshotOptions> & { agentOutput?: string },
 ): Promise<ScreenshotResult[]> {
   const changedFiles = structuredDiff.map((d) => d.filename);
   const workingDirectory = options?.workingDirectory;
@@ -566,10 +607,30 @@ export async function captureScreenshotsForDiff(
   }
 
   const pages = detectAffectedPages(changedFiles, workingDirectory);
+
+  // エージェントの出力テキストからも追加ページを検出
+  if (options?.agentOutput) {
+    const agentPages = detectPagesFromAgentOutput(
+      options.agentOutput,
+      workingDirectory,
+    );
+    const existingPaths = new Set(pages.map((p) => p.path));
+    for (const ap of agentPages) {
+      if (!existingPaths.has(ap.path)) {
+        pages.push(ap);
+        existingPaths.add(ap.path);
+      }
+    }
+  }
+
   if (pages.length === 0) {
     // UI変更はあるがページが特定できない場合、トップページを撮影
     pages.push({ path: "/", label: "home" });
   }
+
+  console.log(
+    `[ScreenshotService] Target pages: ${pages.map((p) => p.path).join(", ")}`,
+  );
 
   return captureScreenshots({
     ...options,

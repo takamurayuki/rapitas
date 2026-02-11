@@ -25,6 +25,19 @@ const fs = require('fs');
 const BACKEND_PORT = 3001;
 const FRONTEND_PORT = 3000;
 
+// ─── ユーティリティ ───
+
+/**
+ * 同期的にスリープする（Windowsの timeout コマンドは不安定なため自前実装）
+ * @param {number} ms ミリ秒
+ */
+function sleepSync(ms) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    // busy wait（短時間のスリープ用途のみ）
+  }
+}
+
 // ─── ポート管理ユーティリティ ───
 
 /**
@@ -130,8 +143,10 @@ async function tryGracefulShutdownViaHttp(port) {
 /**
  * ポートの確保
  * 1. バックエンドポートならグレースフルシャットダウンを試行
- * 2. プロセスが使用中 → taskkill で終了 → 解放を待つ
- * 3. ゾンビソケット → フォールバックポートに切り替え
+ * 2. プロセスが使用中 → forceKillAllOnPort でリトライ付きkill
+ * 3. ポートベースkill + 直接PID kill の二段構え
+ * 4. それでもダメなら waitForPortRelease でポーリング
+ * 5. 最終手段としてフォールバックポートに切り替え
  * @returns {Promise<number>} 使用するポート番号
  */
 async function ensurePortAvailable(port) {
@@ -154,11 +169,27 @@ async function ensurePortAvailable(port) {
     }
   }
 
-  killProcessOnPort(port);
-
-  try {
-    await waitForPortRelease(port, 5000);
+  // リトライ付きで確実にプロセスを停止（ツリーkill）
+  const released = forceKillAllOnPort(port);
+  if (released) {
     console.log(`  Port ${port} is now available.`);
+    return port;
+  }
+
+  // ツリーkillで失敗した場合、直接PID kill（/T なし）を試行
+  console.log(`  Tree kill failed, attempting direct PID kill on port ${port}...`);
+  const pids = getProcessesOnPort(port);
+  for (const pid of pids) {
+    try {
+      execSync(`taskkill /F /PID ${pid}`, { stdio: 'pipe' });
+      console.log(`  Direct-killed PID ${pid} on port ${port}`);
+    } catch {}
+  }
+
+  // forceKill 後、ソケットの解放を十分に待つ（最大15秒）
+  try {
+    await waitForPortRelease(port, 15000);
+    console.log(`  Port ${port} is now available (after wait).`);
     return port;
   } catch {
     // プロセスを終了してもソケットが残っている = ゾンビ
@@ -167,9 +198,9 @@ async function ensurePortAvailable(port) {
     console.log(`  → Using fallback port ${fallback}`);
 
     if (isPortListening(fallback)) {
-      killProcessOnPort(fallback);
+      forceKillAllOnPort(fallback);
       try {
-        await waitForPortRelease(fallback, 5000);
+        await waitForPortRelease(fallback, 10000);
       } catch {
         console.error(`  ❌ Port ${fallback} also unavailable. Please wait a few minutes or restart your PC.`);
         process.exit(1);
@@ -183,14 +214,96 @@ async function ensurePortAvailable(port) {
 
 /**
  * プロセスツリーごとクリーンに終了させる (Windows: taskkill /T)
+ * shell: true でspawnした場合、cmd.exe → 実プロセスの二段構造になるため、
+ * ツリーkillに加えて子プロセスの列挙による補完も行う。
  */
 function killProcessTree(childProcess) {
   if (!childProcess || childProcess.killed) return;
+  const pid = childProcess.pid;
+  if (!pid) return;
+
+  // Step 1: ツリーkillで一括停止
   try {
-    execSync(`taskkill /F /T /PID ${childProcess.pid}`, { stdio: 'pipe' });
+    execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'pipe' });
   } catch {
+    // ツリーkill失敗時は直接killを試行
     try { childProcess.kill('SIGKILL'); } catch {}
   }
+
+  // Step 2: wmic で子プロセスを列挙し、残っていれば個別にkill
+  // shell: true の場合、cmd.exe の子として実際のbun/nodeプロセスが起動される
+  try {
+    const wmicResult = execSync(
+      `wmic process where (ParentProcessId=${pid}) get ProcessId /format:list`,
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+    );
+    for (const line of wmicResult.split('\n')) {
+      const match = line.match(/ProcessId=(\d+)/);
+      if (match) {
+        const childPid = parseInt(match[1]);
+        try {
+          execSync(`taskkill /F /T /PID ${childPid}`, { stdio: 'pipe' });
+          console.log(`  Killed child process PID ${childPid} (parent: ${pid})`);
+        } catch {}
+      }
+    }
+  } catch {
+    // wmic が使えない環境では無視
+  }
+}
+
+/**
+ * 指定ポートを使用しているすべてのプロセスのPIDを取得する
+ * LISTEN状態だけでなく、ESTABLISHED/TIME_WAIT等も含めて検出する
+ * @param {number} port
+ * @returns {Set<number>} PIDのセット
+ */
+function getProcessesOnPort(port) {
+  const pids = new Set();
+  try {
+    // LISTEN状態のプロセスを検索
+    const result = execSync(`netstat -aon | findstr ":${port} "`, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    for (const line of result.trim().split('\n')) {
+      const parts = line.trim().split(/\s+/);
+      const pid = parseInt(parts[parts.length - 1]);
+      if (pid && pid > 0) pids.add(pid);
+    }
+  } catch {
+    // netstat でヒットしなければ空
+  }
+  return pids;
+}
+
+/**
+ * 指定ポートを使用しているすべてのプロセスを確実に終了する（リトライ付き）
+ * killProcessTree で取りこぼしたプロセスをポート番号から確実に回収する
+ * @param {number} port
+ * @param {number} maxRetries 最大リトライ回数
+ */
+function forceKillAllOnPort(port, maxRetries = 5) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    if (!isPortListening(port)) return true;
+
+    const pids = getProcessesOnPort(port);
+    if (pids.size === 0) return true;
+
+    for (const pid of pids) {
+      try {
+        execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'pipe' });
+        console.log(`  Killed PID ${pid} on port ${port} (attempt ${attempt + 1})`);
+      } catch {
+        // プロセスが既に終了している場合は無視
+      }
+    }
+
+    // kill後にソケット解放を待つ（Windows TCPスタックがソケットを解放するまでのラグ対策）
+    sleepSync(1000);
+  }
+
+  return !isPortListening(port);
 }
 
 /**
@@ -384,11 +497,10 @@ async function stopBackendCompletely(skipShutdownApi = false) {
     console.log(`  Port ${actualBackendPort} released successfully.`);
   } catch {
     console.log(`  Port ${actualBackendPort} not yet released, forcing cleanup...`);
-    killProcessOnPort(actualBackendPort);
-    try {
-      await waitForPortRelease(actualBackendPort, 5000);
+    const released = forceKillAllOnPort(actualBackendPort);
+    if (released) {
       console.log(`  Port ${actualBackendPort} released after force cleanup.`);
-    } catch {
+    } else {
       console.log(`  Port ${actualBackendPort} still not released (will auto-clear).`);
     }
   }
@@ -448,27 +560,91 @@ async function main() {
 // プロセス終了時のクリーンアップ
 let isCleaningUp = false;
 
-async function cleanup() {
+/**
+ * 同期的クリーンアップ処理
+ * Windows環境ではSIGINTハンドラ内の非同期処理が中断されるため、
+ * すべて execSync ベースの同期処理で行う。
+ *
+ * 三段構えの停止戦略:
+ *   1. 子プロセスの PID ツリーを taskkill で停止
+ *   2. ポート番号から残存プロセスを検索・停止（取りこぼし対策）
+ *   3. 最終確認: ポートがまだ使用中なら追加でkillを試行
+ */
+function cleanupSync() {
   if (isCleaningUp) return;
   isCleaningUp = true;
 
   console.log('\nStopping development servers...');
 
-  // バックエンドは完全停止（グレースフルシャットダウン→ポート解放確認）
-  await stopBackendCompletely();
-
-  // フロントエンドは即座に停止
-  killProcessTree(frontend);
-
-  process.exit();
-}
-
-process.on('SIGINT', () => cleanup());
-process.on('SIGTERM', () => cleanup());
-process.on('exit', () => {
-  // exit イベントでは非同期処理不可なので強制終了のみ
+  // Step 1: 子プロセスツリーを停止
+  console.log('  Step 1: Killing child process trees...');
   killProcessTree(backend);
   killProcessTree(frontend);
+
+  // 子プロセスkill後、ソケット解放を少し待つ
+  sleepSync(500);
+
+  // Step 2: ポートベースで残存プロセスを停止（子プロセスkillで漏れた孫プロセス対策）
+  console.log('  Step 2: Ensuring ports are released...');
+
+  const portsToClean = new Set([
+    actualBackendPort,
+    actualFrontendPort,
+    BACKEND_PORT,
+    FRONTEND_PORT,
+  ]);
+
+  for (const port of portsToClean) {
+    if (isPortListening(port)) {
+      console.log(`  Port ${port} still in use, force killing...`);
+      forceKillAllOnPort(port);
+    }
+  }
+
+  // Step 3: 最終確認 - まだ残っている場合は個別PIDを直接killして待機
+  console.log('  Step 3: Final verification...');
+  let allClean = true;
+  for (const port of portsToClean) {
+    if (isPortListening(port)) {
+      allClean = false;
+      const pids = getProcessesOnPort(port);
+      for (const pid of pids) {
+        try {
+          // /T なしで直接PIDのみkill（ツリーkillが失敗した場合の補完）
+          execSync(`taskkill /F /PID ${pid}`, { stdio: 'pipe' });
+          console.log(`  Direct-killed PID ${pid} on port ${port}`);
+        } catch {}
+      }
+      sleepSync(1000);
+      if (isPortListening(port)) {
+        console.log(`  ⚠️  Port ${port} could not be released (zombie socket, will auto-clear in ~2min).`);
+      } else {
+        console.log(`  Port ${port} released after direct kill.`);
+      }
+    } else {
+      console.log(`  Port ${port} is free.`);
+    }
+  }
+
+  if (allClean) {
+    console.log('  All ports released successfully.');
+  }
+
+  console.log('  Cleanup completed.');
+}
+
+process.on('SIGINT', () => {
+  cleanupSync();
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  cleanupSync();
+  process.exit(0);
+});
+process.on('exit', () => {
+  // exit イベントでは非同期処理不可なので同期的にクリーンアップ
+  // SIGINT/SIGTERM で既にクリーンアップ済みなら isCleaningUp=true でスキップされる
+  cleanupSync();
 });
 
 main().catch((err) => {

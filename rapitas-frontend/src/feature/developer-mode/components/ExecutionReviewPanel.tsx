@@ -549,7 +549,7 @@ export function ExecutionReviewPanel({
             ) : (
               !showCaptureForm && (
                 <p className="text-sm text-zinc-400 dark:text-zinc-500 text-center py-4">
-                  スクリーンショットはありません。「撮影」ボタンから手動で撮影できます。
+                  UI変更が検出されなかったため、スクリーンショットは自動撮影されませんでした。「撮影」ボタンから手動で撮影することもできます。
                 </p>
               )
             )}
