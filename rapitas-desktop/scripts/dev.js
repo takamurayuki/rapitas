@@ -378,7 +378,7 @@ let actualFrontendPort = FRONTEND_PORT;
 function syncDatabaseAndGenerateClient() {
   console.log('\nSyncing database schema...');
   try {
-    execSync('bunx prisma db push --skip-generate', { cwd: BACKEND_DIR, stdio: 'inherit' });
+    execSync('bunx prisma db push --skip-generate --accept-data-loss', { cwd: BACKEND_DIR, stdio: 'inherit' });
     console.log('Database schema synced.');
   } catch (err) {
     console.error('Failed to sync database schema:', err.message);

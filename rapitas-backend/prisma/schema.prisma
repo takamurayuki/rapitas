@@ -228,6 +228,24 @@ model StudyPlan {
   updatedAt     DateTime  @updatedAt
 }
 
+// 学習目標（自由な目標設定 → タスク自動生成）
+model LearningGoal {
+  id              Int       @id @default(autoincrement())
+  title           String    // 学習目標タイトル（例: 「競プロでレッドコーダーになる」）
+  description     String?   // 目標の詳細な説明
+  currentLevel    String?   // 現在のレベル（例: 「茶色コーダー」「実務経験1年」）
+  targetLevel     String?   // 目標レベル（例: 「レッドコーダー」「年収1000万」）
+  deadline        DateTime? // 達成期限
+  dailyHours      Float     @default(2) // 1日の学習時間
+  categoryId      Int?      // 紐づくカテゴリ
+  themeId         Int?      // 自動生成されるテーマのID
+  status          String    @default("active") // active, completed, archived
+  generatedPlan   String?   // 生成された学習プランのJSON
+  isApplied       Boolean   @default(false) // タスクとして適用済みか
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
 model Achievement {
   id            Int                 @id @default(autoincrement())
   key           String              @unique

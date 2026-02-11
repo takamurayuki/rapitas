@@ -100,28 +100,36 @@ export default function ScheduleEventDialog({
 
     setSubmitting(true);
     try {
+      // 日付・時刻文字列からUTCのISO文字列を生成するヘルパー
+      // ローカルタイムゾーンの影響を受けないよう Date.UTC を使用
+      const toUTCISO = (dateStr: string, timeStr: string = "00:00") => {
+        const [year, month, day] = dateStr.split("-").map(Number);
+        const [hour, min] = timeStr.split(":").map(Number);
+        return new Date(Date.UTC(year, month - 1, day, hour, min, 0)).toISOString();
+      };
+
       let startAt: string;
       let endAt: string | undefined;
 
       if (isAllDay) {
-        startAt = `${startDate}T00:00:00`;
+        startAt = toUTCISO(startDate);
         if (isMultiDay && endDate > startDate) {
-          endAt = `${endDate}T23:59:59`;
+          endAt = toUTCISO(endDate, "23:59");
         }
       } else {
-        startAt = `${startDate}T${startTime}:00`;
+        startAt = toUTCISO(startDate, startTime);
         if (isMultiDay && endDate >= startDate) {
-          endAt = `${endDate}T${endTime}:00`;
+          endAt = toUTCISO(endDate, endTime);
         } else {
-          endAt = `${startDate}T${endTime}:00`;
+          endAt = toUTCISO(startDate, endTime);
         }
       }
 
       await onSubmit({
         title: title.trim(),
         description: description.trim() || undefined,
-        startAt: new Date(startAt).toISOString(),
-        endAt: endAt ? new Date(endAt).toISOString() : undefined,
+        startAt,
+        endAt,
         isAllDay,
         color,
         reminderMinutes,

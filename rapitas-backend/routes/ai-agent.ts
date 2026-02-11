@@ -1139,6 +1139,7 @@ export const aiAgentRoutes = new Elysia()
                 screenshots = await captureScreenshotsForDiff(structuredDiff, {
                   workingDirectory: workDir,
                   agentOutput: result.output || "",
+                  captureAll: true,
                 });
                 if (screenshots.length > 0) {
                   console.log(`[API] Captured ${screenshots.length} screenshots for task ${taskIdNum}`);
@@ -1675,7 +1676,7 @@ export const aiAgentRoutes = new Elysia()
                 // UI変更がある場合はスクリーンショットを撮影
                 let screenshots: ScreenshotResult[] = [];
                 try {
-                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory });
+                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory, captureAll: true });
                   if (screenshots.length > 0) {
                     console.log(`[agent-respond] Captured ${screenshots.length} screenshots for task ${taskId}`);
                   }
@@ -2540,7 +2541,7 @@ export const aiAgentRoutes = new Elysia()
                 // UI変更がある場合はスクリーンショットを撮影
                 let screenshots: ScreenshotResult[] = [];
                 try {
-                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory });
+                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory, captureAll: true });
                   if (screenshots.length > 0) {
                     console.log(`[agent-resume] Captured ${screenshots.length} screenshots for task ${task.id}`);
                   }

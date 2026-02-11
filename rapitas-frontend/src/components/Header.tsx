@@ -41,6 +41,7 @@ import {
   EllipsisVertical,
   Moon,
   Sun,
+  BookMarked,
 } from "lucide-react";
 import AppIcon from "@/components/AppIcon";
 import GlobalPomodoroWidget from "@/feature/tasks/pomodoro/GlobalPomodoroWidget";
@@ -275,6 +276,11 @@ export default function Header() {
       icon: GraduationCap,
       mode: "learning",
       children: [
+        {
+          href: "/learning-goals",
+          label: "学習目標",
+          icon: BookMarked,
+        },
         {
           href: "/exam-goals",
           label: "試験目標",

@@ -105,19 +105,14 @@ export default function CalendarPage() {
     }));
 
     const scheduleEvents: CalendarEvent[] = schedules.map((s) => {
-      const startDateObj = new Date(s.startAt);
-      const timeStr = s.isAllDay
-        ? undefined
-        : startDateObj.toLocaleTimeString("ja-JP", {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-      const endTimeStr = s.endAt && !s.isAllDay
-        ? new Date(s.endAt).toLocaleTimeString("ja-JP", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : undefined;
+      // UTC ISO文字列から時刻部分を直接抽出（タイムゾーン変換を避ける）
+      const extractUTCTime = (isoStr: string) => {
+        const timePart = isoStr.split("T")[1]; // "HH:MM:SS.000Z"
+        if (!timePart) return undefined;
+        return timePart.slice(0, 5); // "HH:MM"
+      };
+      const timeStr = s.isAllDay ? undefined : extractUTCTime(s.startAt);
+      const endTimeStr = s.endAt && !s.isAllDay ? extractUTCTime(s.endAt) : undefined;
       const startDateStr = s.startAt.split("T")[0];
       const endDateStr = s.endAt ? s.endAt.split("T")[0] : undefined;
       return {
@@ -235,7 +230,7 @@ export default function CalendarPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: newTaskTitle,
-          dueDate: new Date(selectedDate).toISOString(),
+          dueDate: `${selectedDate}T00:00:00.000Z`,
           status: "todo",
         }),
       });

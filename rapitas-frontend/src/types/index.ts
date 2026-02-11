@@ -145,6 +145,60 @@ export type StudyPlan = {
   updatedAt: string;
 };
 
+// 学習目標
+export type LearningGoalSubtask = {
+  title: string;
+  description?: string;
+  estimatedHours?: number;
+};
+
+export type LearningGoalTask = {
+  title: string;
+  description: string;
+  estimatedHours?: number;
+  priority?: string;
+  subtasks?: LearningGoalSubtask[];
+};
+
+export type LearningGoalPhase = {
+  name: string;
+  days: number;
+  description?: string;
+  tasks: LearningGoalTask[];
+};
+
+export type LearningGoalResource = {
+  title: string;
+  type: string;
+  description: string;
+  url?: string;
+};
+
+export type GeneratedLearningPlan = {
+  themeName?: string;
+  themeDescription?: string;
+  phases: LearningGoalPhase[];
+  recommendedResources?: LearningGoalResource[];
+  tips?: string[];
+};
+
+export type LearningGoal = {
+  id: number;
+  title: string;
+  description?: string | null;
+  currentLevel?: string | null;
+  targetLevel?: string | null;
+  deadline?: string | null;
+  dailyHours: number;
+  categoryId?: number | null;
+  themeId?: number | null;
+  status: "active" | "completed" | "archived";
+  generatedPlan?: string | null;
+  isApplied: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Task = {
   id: number;
   title: string;

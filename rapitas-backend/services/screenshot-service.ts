@@ -6,8 +6,8 @@
  * Bun 環境では Playwright の pipe 接続がハングするため、
  * Node.js サブプロセスでスクリーンショットワーカーを実行する。
  */
-import { join, basename } from "path";
-import { existsSync, mkdirSync, readFileSync } from "fs";
+import { join, basename, relative } from "path";
+import { existsSync, mkdirSync, readFileSync, readdirSync } from "fs";
 import { randomUUID } from "crypto";
 import { spawn } from "child_process";
 
@@ -37,6 +37,10 @@ export type ScreenshotOptions = {
   waitMs?: number;
   darkMode?: boolean;
   workingDirectory?: string;
+  /** 最大撮影ページ数（デフォルト: 5、全ページモード時は30） */
+  maxPages?: number;
+  /** trueの場合、変更ファイルに関係なく全ページのスクリーンショットを撮影 */
+  captureAll?: boolean;
 };
 
 export type ProjectInfo = {
@@ -404,6 +408,36 @@ export function detectAffectedPages(
       continue;
     }
 
+    // featureディレクトリの変更 → 関連ページを撮影
+    const featureMatch = normalized.match(
+      /src\/feature\/([^/]+)\//,
+    );
+    if (featureMatch) {
+      const featureName = featureMatch[1];
+      const featurePageMapping: Record<string, Array<{ path: string; label: string }>> = {
+        "developer-mode": [
+          { path: "/approvals", label: "approvals" },
+        ],
+        "calendar": [
+          { path: "/calendar", label: "calendar" },
+        ],
+        "tasks": [
+          { path: "/", label: "home" },
+          { path: "/kanban", label: "kanban" },
+        ],
+      };
+      const mappedPages = featurePageMapping[featureName];
+      if (mappedPages) {
+        for (const mp of mappedPages) {
+          if (!addedPaths.has(mp.path)) {
+            addedPaths.add(mp.path);
+            pages.push(mp);
+          }
+        }
+      }
+      continue;
+    }
+
     // 共通コンポーネントの変更 → トップページを撮影
     if (
       normalized.includes("/components/") &&
@@ -431,6 +465,245 @@ export function detectAffectedPages(
   }
 
   return pages;
+}
+
+/**
+ * フロントエンドプロジェクトの全ページルートを自動検出する（汎用版）
+ * Next.js App Router / Pages Router、Vite、Nuxt、Angular に対応
+ */
+export function detectAllPages(
+  workingDirectory: string,
+): Array<{ path: string; label: string }> {
+  const projectInfo = detectProjectInfo(workingDirectory);
+  const pages: Array<{ path: string; label: string }> = [];
+  const addedPaths = new Set<string>();
+
+  function addPage(path: string, label: string) {
+    if (!addedPaths.has(path)) {
+      addedPaths.add(path);
+      pages.push({ path, label });
+    }
+  }
+
+  // Next.js App Router: src/app/**/page.tsx を再帰的に探索
+  if (projectInfo.appDir && existsSync(projectInfo.appDir)) {
+    scanNextJsAppDir(projectInfo.appDir, projectInfo.appDir, addPage);
+  }
+
+  // Next.js Pages Router: pages/**/*.tsx を探索
+  if (projectInfo.pagesDir && existsSync(projectInfo.pagesDir)) {
+    scanPagesDir(projectInfo.pagesDir, projectInfo.pagesDir, addPage);
+  }
+
+  // Vite / CRA: src/views/ や src/pages/ を探索
+  if (
+    projectInfo.srcDir &&
+    (projectInfo.type === "vite" || projectInfo.type === "cra")
+  ) {
+    const viewsDir = join(projectInfo.srcDir, "views");
+    if (existsSync(viewsDir)) {
+      scanViewsDir(viewsDir, viewsDir, addPage);
+    }
+    const pagesDir = join(projectInfo.srcDir, "pages");
+    if (existsSync(pagesDir)) {
+      scanPagesDir(pagesDir, pagesDir, addPage);
+    }
+  }
+
+  // Nuxt: pages/*.vue を探索
+  if (projectInfo.type === "nuxt" && projectInfo.pagesDir) {
+    scanPagesDir(projectInfo.pagesDir, projectInfo.pagesDir, addPage);
+  }
+
+  // Angular: app-routing.module.ts からルートを抽出
+  if (projectInfo.type === "angular" && projectInfo.srcDir) {
+    scanAngularRoutes(projectInfo.srcDir, addPage);
+  }
+
+  // ホームページが含まれていない場合は追加
+  if (pages.length === 0 || !addedPaths.has("/")) {
+    addPage("/", "home");
+  }
+
+  return pages;
+}
+
+/**
+ * Next.js App Router ディレクトリを再帰スキャンして page.tsx を探す
+ */
+function scanNextJsAppDir(
+  dir: string,
+  appRoot: string,
+  addPage: (path: string, label: string) => void,
+) {
+  let entries: ReturnType<typeof readdirSync>;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  // page.tsx / page.jsx が存在するかチェック
+  const hasPage = entries.some(
+    (e) =>
+      !e.isDirectory() &&
+      /^page\.[tj]sx?$/.test(e.name),
+  );
+
+  if (hasPage) {
+    const relPath = relative(appRoot, dir).replace(/\\/g, "/");
+    // 動的ルート（[id]など）はスキップ（実データが必要なため）
+    if (!relPath.includes("[")) {
+      const routePath = relPath === "" ? "/" : `/${relPath}`;
+      const label =
+        routePath === "/"
+          ? "home"
+          : routePath.split("/").filter(Boolean).pop() || routePath;
+      addPage(routePath, label);
+    }
+  }
+
+  // サブディレクトリを再帰探索
+  for (const entry of entries) {
+    if (entry.isDirectory() && !entry.name.startsWith("_") && !entry.name.startsWith(".")) {
+      scanNextJsAppDir(join(dir, entry.name), appRoot, addPage);
+    }
+  }
+}
+
+/**
+ * Pages Router / Nuxt のpagesディレクトリをスキャン
+ */
+function scanPagesDir(
+  dir: string,
+  pagesRoot: string,
+  addPage: (path: string, label: string) => void,
+) {
+  let entries: ReturnType<typeof readdirSync>;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    const fullPath = join(dir, entry.name);
+
+    if (entry.isDirectory()) {
+      if (!entry.name.startsWith("_") && !entry.name.startsWith(".")) {
+        scanPagesDir(fullPath, pagesRoot, addPage);
+      }
+      continue;
+    }
+
+    // .tsx, .jsx, .vue ファイルを対象
+    const match = entry.name.match(/^(.+)\.(tsx|jsx|vue|ts|js)$/);
+    if (!match) continue;
+
+    const fileName = match[1];
+    // _app, _document, _error などはスキップ
+    if (fileName.startsWith("_")) continue;
+    // 動的ルートはスキップ
+    if (fileName.includes("[")) continue;
+
+    const relDir = relative(pagesRoot, dir).replace(/\\/g, "/");
+    let routePath: string;
+    if (fileName === "index") {
+      routePath = relDir === "" ? "/" : `/${relDir}`;
+    } else {
+      routePath = relDir === "" ? `/${fileName}` : `/${relDir}/${fileName}`;
+    }
+
+    const label =
+      routePath === "/"
+        ? "home"
+        : routePath.split("/").filter(Boolean).pop() || routePath;
+    addPage(routePath, label);
+  }
+}
+
+/**
+ * Vite/CRA の views ディレクトリをスキャン
+ */
+function scanViewsDir(
+  dir: string,
+  viewsRoot: string,
+  addPage: (path: string, label: string) => void,
+) {
+  let entries: ReturnType<typeof readdirSync>;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    const fullPath = join(dir, entry.name);
+
+    if (entry.isDirectory()) {
+      scanViewsDir(fullPath, viewsRoot, addPage);
+      continue;
+    }
+
+    const match = entry.name.match(/^(.+)\.(tsx|jsx|vue|svelte)$/);
+    if (!match) continue;
+
+    const fileName = match[1];
+    const relDir = relative(viewsRoot, dir).replace(/\\/g, "/");
+    let routePath: string;
+    if (fileName.toLowerCase() === "index" || fileName.toLowerCase() === "home") {
+      routePath = relDir === "" ? "/" : `/${relDir}`;
+    } else {
+      routePath =
+        relDir === ""
+          ? `/${fileName.toLowerCase()}`
+          : `/${relDir}/${fileName.toLowerCase()}`;
+    }
+
+    const label =
+      routePath === "/"
+        ? "home"
+        : routePath.split("/").filter(Boolean).pop() || routePath;
+    addPage(routePath, label);
+  }
+}
+
+/**
+ * Angular のルーティングモジュールからルートを抽出
+ */
+function scanAngularRoutes(
+  srcDir: string,
+  addPage: (path: string, label: string) => void,
+) {
+  // app-routing.module.ts からパスを抽出
+  const routingFiles = [
+    join(srcDir, "app", "app-routing.module.ts"),
+    join(srcDir, "app", "app.routes.ts"),
+  ];
+
+  for (const routingFile of routingFiles) {
+    if (!existsSync(routingFile)) continue;
+
+    try {
+      const content = readFileSync(routingFile, "utf-8");
+      // path: 'xxx' パターンを抽出
+      const pathPattern = /path\s*:\s*['"]([^'"]*)['"]/g;
+      let match;
+      while ((match = pathPattern.exec(content)) !== null) {
+        const routePath = match[1];
+        // 空パス、ワイルドカード、動的パラメータはスキップ
+        if (routePath === "" || routePath === "**" || routePath.includes(":")) {
+          if (routePath === "") {
+            addPage("/", "home");
+          }
+          continue;
+        }
+        addPage(`/${routePath}`, routePath.split("/").pop() || routePath);
+      }
+    } catch {
+      // ignore
+    }
+  }
 }
 
 /**
@@ -509,6 +782,7 @@ export async function captureScreenshots(
     viewport = { width: 1280, height: 720 },
     waitMs = 5000,
     darkMode = false,
+    maxPages = 5,
   } = options;
 
   // workingDirectory からプロジェクト情報を自動検出し、baseUrl を決定
@@ -524,19 +798,68 @@ export async function captureScreenshots(
 
   ensureScreenshotDir();
 
-  const targetPages = pages.slice(0, 5);
+  const targetPages = pages.slice(0, maxPages);
 
   console.log(
     `[ScreenshotService] Capturing ${targetPages.length} page(s) via Node.js worker`,
   );
 
-  return runScreenshotWorker({
-    baseUrl,
-    pages: targetPages,
-    viewport,
-    waitMs,
-    darkMode,
-    screenshotDir: SCREENSHOT_DIR,
+  // ページ数が多い場合はバッチ分割して実行（ワーカーの安定性確保）
+  const BATCH_SIZE = 5;
+  if (targetPages.length <= BATCH_SIZE) {
+    return runScreenshotWorker({
+      baseUrl,
+      pages: targetPages,
+      viewport,
+      waitMs,
+      darkMode,
+      screenshotDir: SCREENSHOT_DIR,
+    });
+  }
+
+  // バッチ実行: 5ページずつ順次処理
+  const allResults: ScreenshotResult[] = [];
+  for (let i = 0; i < targetPages.length; i += BATCH_SIZE) {
+    const batch = targetPages.slice(i, i + BATCH_SIZE);
+    console.log(
+      `[ScreenshotService] Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(targetPages.length / BATCH_SIZE)}: ${batch.map((p) => p.path).join(", ")}`,
+    );
+    const results = await runScreenshotWorker({
+      baseUrl,
+      pages: batch,
+      viewport,
+      waitMs,
+      darkMode,
+      screenshotDir: SCREENSHOT_DIR,
+    });
+    allResults.push(...results);
+  }
+  return allResults;
+}
+
+/**
+ * プロジェクトの全ページのスクリーンショットを撮影する（汎用版）
+ * フロントエンドのルート構造を自動検出して全静的ページを撮影
+ */
+export async function captureAllScreenshots(
+  options: ScreenshotOptions = {},
+): Promise<ScreenshotResult[]> {
+  const workingDirectory = options.workingDirectory;
+  if (!workingDirectory) {
+    console.error("[ScreenshotService] workingDirectory is required for captureAllScreenshots");
+    return [];
+  }
+
+  const allPages = detectAllPages(workingDirectory);
+  console.log(
+    `[ScreenshotService] Detected ${allPages.length} page(s): ${allPages.map((p) => p.path).join(", ")}`,
+  );
+
+  return captureScreenshots({
+    ...options,
+    pages: allPages,
+    maxPages: options.maxPages || 30,
+    workingDirectory,
   });
 }
 
@@ -591,6 +914,7 @@ export function detectPagesFromAgentOutput(
 
 /**
  * structuredDiffとエージェント出力からスクリーンショットを撮影
+ * captureAll: true の場合、UI変更があれば全ページのスクリーンショットを撮影
  */
 export async function captureScreenshotsForDiff(
   structuredDiff: Array<{ filename: string }>,
@@ -604,6 +928,17 @@ export async function captureScreenshotsForDiff(
       "[ScreenshotService] No UI changes detected, skipping screenshots.",
     );
     return [];
+  }
+
+  // captureAll モード: UI変更があれば全ページを撮影
+  if (options?.captureAll && workingDirectory) {
+    console.log(
+      "[ScreenshotService] captureAll mode: capturing all pages",
+    );
+    return captureAllScreenshots({
+      ...options,
+      workingDirectory,
+    });
   }
 
   const pages = detectAffectedPages(changedFiles, workingDirectory);

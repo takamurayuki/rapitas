@@ -7,7 +7,9 @@ import { join } from "path";
 import { existsSync, readFileSync } from "fs";
 import {
   captureScreenshots,
+  captureAllScreenshots,
   detectProjectInfo,
+  detectAllPages,
   type ScreenshotOptions,
 } from "../services/screenshot-service";
 
@@ -54,6 +56,60 @@ export const screenshotsRoutes = new Elysia()
           success: false,
           error: error.message,
           screenshots: [],
+        };
+      }
+    },
+  )
+
+  // 全ページのスクリーンショットを撮影
+  .post(
+    "/screenshots/capture-all",
+    async ({ body }: { body: ScreenshotOptions }) => {
+      try {
+        if (!body.workingDirectory) {
+          return {
+            success: false,
+            error: "workingDirectory is required",
+            screenshots: [],
+          };
+        }
+        const results = await captureAllScreenshots(body);
+        return {
+          success: true,
+          screenshots: results,
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message,
+          screenshots: [],
+        };
+      }
+    },
+  )
+
+  // プロジェクトの全ページルートを検出
+  .post(
+    "/screenshots/detect-pages",
+    async ({ body }: { body: { workingDirectory: string } }) => {
+      try {
+        const { workingDirectory } = body;
+        if (!workingDirectory) {
+          return { success: false, error: "workingDirectory is required" };
+        }
+
+        const pages = detectAllPages(workingDirectory);
+        const projectInfo = detectProjectInfo(workingDirectory);
+        return {
+          success: true,
+          project: projectInfo,
+          pages,
+          totalPages: pages.length,
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message,
         };
       }
     },

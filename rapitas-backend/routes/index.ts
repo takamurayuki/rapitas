@@ -41,3 +41,4 @@ export { executionLogsRoutes } from "./execution-logs";
 export { schedulesRoutes } from "./schedules";
 export { dailyScheduleRoutes } from "./daily-schedule";
 export { screenshotsRoutes } from "./screenshots";
+export { learningGoalsRoutes } from "./learning-goals";
