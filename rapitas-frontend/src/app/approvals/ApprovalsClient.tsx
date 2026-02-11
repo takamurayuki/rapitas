@@ -505,8 +505,10 @@ function ApprovalCard({
 
             {/* Description */}
             {approval.description && (
-              <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3">
-                {approval.description}
+              <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3 line-clamp-3">
+                {approval.description.length > 200
+                  ? approval.description.substring(0, 200).replace(/\s+\S*$/, "") + "..."
+                  : approval.description}
               </p>
             )}
 

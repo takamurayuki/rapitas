@@ -4,7 +4,7 @@
  */
 import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
-import { ValidationError } from "../middleware/error-handler";
+import { AppError, ValidationError } from "../middleware/error-handler";
 import { sendAIMessage, getDefaultProvider, isAnyApiKeyConfigured, type AIMessage } from "../utils/ai-client";
 
 export const tasksRoutes = new Elysia({ prefix: "/tasks" })
@@ -613,26 +613,86 @@ ${existingTaskList}
         isAiTaskAnalysis,
       } = body;
 
-      // サブタスク作成時はトランザクションで重複チェックと作成を原子的に実行
-      if (parentId) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const result = await prisma.$transaction(async (tx: any) => {
-          // トランザクション内で重複チェック
-          const existingSubtask = await tx.task.findFirst({
-            where: {
-              parentId,
-              title: {
-                equals: title,
-                mode: 'insensitive', // 大文字小文字を無視
-              },
-            },
+      try {
+        // サブタスク作成時はトランザクションで重複チェックと作成を原子的に実行
+        if (parentId) {
+          // 親タスクの存在確認
+          const parentTask = await prisma.task.findUnique({
+            where: { id: parentId },
+            select: { id: true },
           });
 
-          if (existingSubtask) {
-            console.log(`[tasks] Duplicate subtask prevented: "${title}" already exists for parent ${parentId}`);
-            // 既存のサブタスクを返す（重複作成を防止）
+          if (!parentTask) {
+            throw new AppError(400, `親タスク(ID: ${parentId})が見つかりません`);
+          }
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const result = await prisma.$transaction(async (tx: any) => {
+            // トランザクション内で重複チェック
+            const existingSubtask = await tx.task.findFirst({
+              where: {
+                parentId,
+                title: {
+                  equals: title,
+                  mode: 'insensitive', // 大文字小文字を無視
+                },
+              },
+            });
+
+            if (existingSubtask) {
+              console.log(`[tasks] Duplicate subtask prevented: "${title}" already exists for parent ${parentId}`);
+              // 既存のサブタスクを返す（重複作成を防止）
+              return await tx.task.findUnique({
+                where: { id: existingSubtask.id },
+                include: {
+                  subtasks: true,
+                  theme: true,
+                  project: true,
+                  milestone: true,
+                  examGoal: true,
+                  taskLabels: {
+                    include: {
+                      label: true,
+                    },
+                  },
+                },
+              });
+            }
+
+            // トランザクション内でサブタスクを作成
+            const task = await tx.task.create({
+              data: {
+                title,
+                ...(description && { description }),
+                status: status ?? "todo",
+                // @ts-ignore
+                priority: priority ?? "medium",
+                ...(labels && { labels }),
+                ...(estimatedHours && { estimatedHours }),
+                ...(dueDate && { dueDate: new Date(dueDate) }),
+                ...(subject && { subject }),
+                parentId,
+                ...(projectId && { projectId }),
+                ...(milestoneId && { milestoneId }),
+                ...(themeId !== undefined && { themeId }),
+                ...(examGoalId !== undefined && { examGoalId }),
+                ...(isDeveloperMode !== undefined && { isDeveloperMode }),
+                ...(isAiTaskAnalysis !== undefined && { isAiTaskAnalysis }),
+              },
+            });
+
+            // Label associations
+            if (labelIds && labelIds.length > 0) {
+              await tx.taskLabel.createMany({
+                data: labelIds.map((labelId: number) => ({
+                  taskId: task.id,
+                  labelId,
+                })),
+              });
+            }
+
             return await tx.task.findUnique({
-              where: { id: existingSubtask.id },
+              where: { id: task.id },
               include: {
                 subtasks: true,
                 theme: true,
@@ -646,109 +706,67 @@ ${existingTaskList}
                 },
               },
             });
-          }
-
-          // トランザクション内でサブタスクを作成
-          const task = await tx.task.create({
-            data: {
-              title,
-              ...(description && { description }),
-              status: status ?? "todo",
-              // @ts-ignore
-              priority: priority ?? "medium",
-              ...(labels && { labels }),
-              ...(estimatedHours && { estimatedHours }),
-              ...(dueDate && { dueDate: new Date(dueDate) }),
-              ...(subject && { subject }),
-              parentId,
-              ...(projectId && { projectId }),
-              ...(milestoneId && { milestoneId }),
-              ...(themeId !== undefined && { themeId }),
-              ...(examGoalId !== undefined && { examGoalId }),
-              ...(isDeveloperMode !== undefined && { isDeveloperMode }),
-              ...(isAiTaskAnalysis !== undefined && { isAiTaskAnalysis }),
-            },
+          }, {
+            isolationLevel: 'Serializable', // 競合を防ぐための分離レベル
           });
 
-          // Label associations
-          if (labelIds && labelIds.length > 0) {
-            await tx.taskLabel.createMany({
-              data: labelIds.map((labelId: number) => ({
-                taskId: task.id,
-                labelId,
-              })),
-            });
-          }
+          return result;
+        }
 
-          return await tx.task.findUnique({
-            where: { id: task.id },
-            include: {
-              subtasks: true,
-              theme: true,
-              project: true,
-              milestone: true,
-              examGoal: true,
-              taskLabels: {
-                include: {
-                  label: true,
-                },
+        // 親タスク作成（parentIdがない場合）
+        const task = await prisma.task.create({
+          data: {
+            title,
+            ...(description && { description }),
+            status: status ?? "todo",
+            // @ts-ignore
+            priority: priority ?? "medium",
+            ...(labels && { labels }),
+            ...(estimatedHours && { estimatedHours }),
+            ...(dueDate && { dueDate: new Date(dueDate) }),
+            ...(subject && { subject }),
+            ...(projectId && { projectId }),
+            ...(milestoneId && { milestoneId }),
+            ...(themeId !== undefined && { themeId }),
+            ...(examGoalId !== undefined && { examGoalId }),
+            ...(isDeveloperMode !== undefined && { isDeveloperMode }),
+            ...(isAiTaskAnalysis !== undefined && { isAiTaskAnalysis }),
+          },
+        });
+
+        // Label associations
+        if (labelIds && labelIds.length > 0) {
+          await prisma.taskLabel.createMany({
+            data: labelIds.map((labelId: number) => ({
+              taskId: task.id,
+              labelId,
+            })),
+          });
+        }
+
+        // @ts-ignore
+        return await prisma.task.findUnique({
+          where: { id: task.id },
+          include: {
+            subtasks: true,
+            theme: true,
+            project: true,
+            milestone: true,
+            examGoal: true,
+            taskLabels: {
+              include: {
+                label: true,
               },
             },
-          });
-        }, {
-          isolationLevel: 'Serializable', // 競合を防ぐための分離レベル
-        });
-
-        return result;
-      }
-
-      // 親タスク作成（parentIdがない場合）
-      const task = await prisma.task.create({
-        data: {
-          title,
-          ...(description && { description }),
-          status: status ?? "todo",
-          // @ts-ignore
-          priority: priority ?? "medium",
-          ...(labels && { labels }),
-          ...(estimatedHours && { estimatedHours }),
-          ...(dueDate && { dueDate: new Date(dueDate) }),
-          ...(subject && { subject }),
-          ...(projectId && { projectId }),
-          ...(milestoneId && { milestoneId }),
-          ...(themeId !== undefined && { themeId }),
-          ...(examGoalId !== undefined && { examGoalId }),
-          ...(isDeveloperMode !== undefined && { isDeveloperMode }),
-          ...(isAiTaskAnalysis !== undefined && { isAiTaskAnalysis }),
-        },
-      });
-
-      // Label associations
-      if (labelIds && labelIds.length > 0) {
-        await prisma.taskLabel.createMany({
-          data: labelIds.map((labelId: number) => ({
-            taskId: task.id,
-            labelId,
-          })),
-        });
-      }
-
-      // @ts-ignore
-      return await prisma.task.findUnique({
-        where: { id: task.id },
-        include: {
-          subtasks: true,
-          theme: true,
-          project: true,
-          milestone: true,
-          examGoal: true,
-          taskLabels: {
-            include: {
-              label: true,
-            },
           },
-        },
-      });
+        });
+      } catch (error) {
+        if (error instanceof AppError) {
+          throw error;
+        }
+        console.error("[tasks] Failed to create task:", error);
+        throw new AppError(500, "タスクの作成に失敗しました");
+      }
     },
     {
       body: t.Object({

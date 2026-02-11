@@ -441,6 +441,7 @@ model UserSettings {
   autoResumeInterruptedTasks  Boolean   @default(false)
   autoExecuteAfterCreate      Boolean   @default(false)
   autoGenerateTitle           Boolean   @default(false)
+  autoGenerateTitleDelay      Int       @default(3)       // タイトル自動生成までの待機秒数
   defaultCategoryId           Int?      // デフォルトで選択されるカテゴリ
   activeMode                  String    @default("both") // "development", "learning", "both"
   claudeApiKeyEncrypted       String?

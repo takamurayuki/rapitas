@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { useToast } from "@/components/ui/toast/ToastContainer";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { ListSkeleton } from "@/components/ui/LoadingSpinner";
 import {
   ICON_DATA,
   ICON_NAMES,
@@ -61,7 +61,7 @@ type Props = {
 export default function CategoryManager({ config }: Props) {
   const { showToast } = useToast();
   const [items, setItems] = useState<CategoryItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [iconSearchQuery, setIconSearchQuery] = useState("");
@@ -457,7 +457,7 @@ export default function CategoryManager({ config }: Props) {
 
         {/* リスト */}
         {loading ? (
-          <LoadingSpinner />
+          <ListSkeleton count={4} />
         ) : items.length === 0 ? (
           <div className="text-center py-16 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
             <TitleIcon className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />

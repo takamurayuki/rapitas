@@ -22,6 +22,7 @@ import {
   Camera,
   Maximize2,
   Globe,
+  Code2,
 } from "lucide-react";
 import { DiffViewer } from "./DiffViewer";
 import type { FileDiff, AgentExecution, ReviewComment, ScreenshotInfo } from "@/types";
@@ -90,10 +91,6 @@ export function ExecutionReviewPanel({
   useEffect(() => {
     if (initialScreenshots && initialScreenshots.length > 0) {
       setScreenshots(initialScreenshots);
-      console.log(
-        `[ExecutionReviewPanel] Received ${initialScreenshots.length} screenshot(s):`,
-        initialScreenshots.map((s) => ({ page: s.page, url: s.url })),
-      );
     }
   }, [initialScreenshots]);
   const [showCaptureForm, setShowCaptureForm] = useState(false);
@@ -312,27 +309,11 @@ export function ExecutionReviewPanel({
 
       {/* Implementation Summary */}
       {implementationSummary && (
-        <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-violet-100 dark:bg-violet-900/30 rounded-lg shrink-0">
-              <FileText className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                実装内容の説明
-              </h4>
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{implementationSummary}</ReactMarkdown>
-              </div>
-            </div>
-          </div>
-          {executionTimeMs && (
-            <div className="flex items-center gap-2 mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-              <Timer className="w-3.5 h-3.5" />
-              <span>実行時間: {Math.round(executionTimeMs / 1000)}秒</span>
-            </div>
-          )}
-        </div>
+        <ImplementationSummarySection
+          summary={implementationSummary}
+          executionTimeMs={executionTimeMs}
+          filesCount={files.length}
+        />
       )}
 
       {/* Execution Log */}
@@ -828,6 +809,67 @@ export function ExecutionReviewPanel({
           )}
           コミット & PR作成
         </button>
+      </div>
+    </div>
+  );
+}
+
+/** 実装内容の説明セクション（長い場合は折りたたみ可能） */
+function ImplementationSummarySection({
+  summary,
+  executionTimeMs,
+  filesCount,
+}: {
+  summary: string;
+  executionTimeMs?: number;
+  filesCount: number;
+}) {
+  const COLLAPSE_THRESHOLD = 300;
+  const isLong = summary.length > COLLAPSE_THRESHOLD;
+  const [isExpanded, setIsExpanded] = useState(!isLong);
+
+  const displaySummary = isExpanded
+    ? summary
+    : summary.substring(0, COLLAPSE_THRESHOLD).replace(/\s+\S*$/, "") + "...";
+
+  return (
+    <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="flex items-start gap-3">
+        <div className="p-2 bg-violet-100 dark:bg-violet-900/30 rounded-lg shrink-0">
+          <FileText className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              実装内容の説明
+            </h4>
+            <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+              {filesCount > 0 && (
+                <span className="flex items-center gap-1">
+                  <Code2 className="w-3.5 h-3.5" />
+                  {filesCount}ファイル変更
+                </span>
+              )}
+              {executionTimeMs && (
+                <span className="flex items-center gap-1">
+                  <Timer className="w-3.5 h-3.5" />
+                  {Math.round(executionTimeMs / 1000)}秒
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="prose prose-sm dark:prose-invert max-w-none">
+            <ReactMarkdown>{displaySummary}</ReactMarkdown>
+          </div>
+          {isLong && (
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="mt-2 text-xs font-medium text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
+            >
+              {isExpanded ? "折りたたむ" : "すべて表示"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

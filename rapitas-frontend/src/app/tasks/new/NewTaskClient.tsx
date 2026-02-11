@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -223,6 +223,40 @@ export default function NewTaskClient() {
     }
   };
 
+  // タイトル自動生成のデバウンスタイマー
+  const autoGenerateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    // クリーンアップ
+    if (autoGenerateTimerRef.current) {
+      clearTimeout(autoGenerateTimerRef.current);
+      autoGenerateTimerRef.current = null;
+    }
+
+    // 自動生成がONで、descriptionがあり、titleが空の場合のみ
+    if (
+      !globalSettings?.autoGenerateTitle ||
+      !description.trim() ||
+      title.trim() ||
+      isGeneratingTitle
+    ) {
+      return;
+    }
+
+    const delaySec = globalSettings?.autoGenerateTitleDelay ?? 3;
+    autoGenerateTimerRef.current = setTimeout(() => {
+      handleGenerateTitle();
+    }, delaySec * 1000);
+
+    return () => {
+      if (autoGenerateTimerRef.current) {
+        clearTimeout(autoGenerateTimerRef.current);
+        autoGenerateTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [description, globalSettings?.autoGenerateTitle, globalSettings?.autoGenerateTitleDelay]);
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (isSubmitting || !title.trim()) return;
@@ -259,11 +293,11 @@ export default function NewTaskClient() {
 
       // サブタスク作成
       if (subtasks.length > 0) {
-        await Promise.all(
+        const subtaskResults = await Promise.allSettled(
           subtasks
             .filter((st) => st.title.trim())
-            .map((st) =>
-              fetch(`${API_BASE}/tasks`, {
+            .map(async (st) => {
+              const subtaskRes = await fetch(`${API_BASE}/tasks`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -271,9 +305,19 @@ export default function NewTaskClient() {
                   status: "todo",
                   parentId: createdTask.id,
                 }),
-              }),
-            ),
+              });
+              if (!subtaskRes.ok) {
+                const errorText = await subtaskRes.text();
+                console.error(`[NewTaskClient] Failed to create subtask "${st.title}":`, errorText);
+              }
+              return subtaskRes;
+            }),
         );
+
+        const failedCount = subtaskResults.filter((r) => r.status === "rejected").length;
+        if (failedCount > 0) {
+          console.warn(`[NewTaskClient] ${failedCount} subtask(s) failed to create`);
+        }
       }
 
       if (executeAfterCreate) {

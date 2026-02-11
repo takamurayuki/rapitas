@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { useToast } from "@/components/ui/toast/ToastContainer";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { ListSkeleton } from "@/components/ui/LoadingSpinner";
 import { DirectoryPicker } from "@/components/ui/DirectoryPicker";
 import {
   ICON_DATA,
@@ -85,7 +85,7 @@ const defaultFormData: FormData = {
 export default function ThemesPage() {
   const { showToast } = useToast();
   const [items, setItems] = useState<Theme[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [iconSearchQuery, setIconSearchQuery] = useState("");
@@ -962,7 +962,7 @@ export default function ThemesPage() {
 
         {/* リスト（新規追加時は非表示） */}
         {!isAdding && (loading ? (
-          <LoadingSpinner />
+          <ListSkeleton count={3} showTabs showBadges />
         ) : (() => {
           const filteredItems = selectedCategoryId === null
             ? items

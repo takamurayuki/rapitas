@@ -114,6 +114,8 @@ export class AgentOrchestrator {
   private eventListeners: Set<EventListener> = new Set();
   private isShuttingDown: boolean = false;
   private shutdownPromise: Promise<void> | null = null;
+  /** サーバー起動時刻（リカバリ時にこの時刻以前の実行のみをstaleとして扱う） */
+  private serverStartedAt: Date = new Date();
   /** サーバー停止コールバック（リスニングソケットを正しく閉じるため） */
   private serverStopCallback: (() => Promise<void> | void) | null = null;
   /** 質問タイムアウト管理用マップ（executionId -> QuestionTimeoutInfo） */
@@ -369,10 +371,12 @@ export class AgentOrchestrator {
       const activeExecutionIds = this.getActiveExecutions().map((e) => e.executionId);
 
       // running/pending/waiting_for_input のままDB上に残っている実行を検索
+      // サーバー起動以前に作成された実行のみを対象にする（起動後の新規実行を誤検出しない）
       const staleExecutions = await this.prisma.agentExecution.findMany({
         where: {
           status: { in: ["running", "pending", "waiting_for_input"] },
           id: { notIn: activeExecutionIds },
+          createdAt: { lt: this.serverStartedAt },
         },
         include: {
           session: {

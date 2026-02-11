@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Bot, AlertCircle, Loader2, RotateCcw, Zap, Sparkles } from "lucide-react";
 import type { UserSettings } from "@/types";
 import { useToast } from "@/components/ui/toast/ToastContainer";
@@ -13,6 +13,10 @@ export default function DeveloperModeSettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { showToast } = useToast();
+
+  // 自動生成待機時間のローカル状態（即座に反映し、デバウンスで保存）
+  const [localDelay, setLocalDelay] = useState<number | "">(3);
+  const delayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 自動再開設定
   const [isSavingAutoResume, setIsSavingAutoResume] = useState(false);
@@ -27,6 +31,7 @@ export default function DeveloperModeSettingsPage() {
       if (res.ok) {
         const data = await res.json();
         setSettings(data);
+        setLocalDelay(data.autoGenerateTitleDelay ?? 3);
       }
     } catch {
       setError("設定の取得に失敗しました");
@@ -57,6 +62,46 @@ export default function DeveloperModeSettingsPage() {
       showToast(err instanceof Error ? err.message : "設定の保存に失敗しました", "error");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // 待機時間のデバウンス保存
+  const saveDelayDebounced = useCallback((val: number) => {
+    if (delayTimerRef.current) {
+      clearTimeout(delayTimerRef.current);
+    }
+    delayTimerRef.current = setTimeout(() => {
+      updateSettings({ autoGenerateTitleDelay: val });
+    }, 500);
+  }, []);
+
+  // クリーンアップ
+  useEffect(() => {
+    return () => {
+      if (delayTimerRef.current) {
+        clearTimeout(delayTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleDelayChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    if (raw === "") {
+      setLocalDelay("");
+      return;
+    }
+    const num = Number(raw);
+    if (isNaN(num)) return;
+    const clamped = Math.max(1, Math.min(30, num));
+    setLocalDelay(clamped);
+    saveDelayDebounced(clamped);
+  };
+
+  const handleDelayBlur = () => {
+    // 空欄のままフォーカスを外したらデフォルト値に戻す
+    if (localDelay === "" || localDelay < 1) {
+      setLocalDelay(3);
+      saveDelayDebounced(3);
     }
   };
 
@@ -245,6 +290,30 @@ export default function DeveloperModeSettingsPage() {
               </button>
             </div>
           </div>
+          {settings?.autoGenerateTitle && (
+            <div className="flex items-center justify-between mt-3 ml-4 pl-4 border-l-2 border-violet-200 dark:border-violet-800">
+              <div>
+                <h3 className="font-medium text-sm text-zinc-900 dark:text-zinc-50">
+                  自動生成までの待機時間
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  入力が止まってから自動生成を開始するまでの秒数
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={localDelay}
+                  onChange={handleDelayChange}
+                  onBlur={handleDelayBlur}
+                  className="w-16 px-2 py-1 text-sm text-center rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">秒</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

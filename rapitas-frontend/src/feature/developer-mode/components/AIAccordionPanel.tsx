@@ -1266,7 +1266,7 @@ export function AIAccordionPanel({
                     リセット
                   </button>
                   <a
-                    href="/approvals?hideHeader=true"
+                    href="/approvals"
                     onClick={(e) => e.stopPropagation()}
                     className="flex items-center gap-1 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-medium rounded transition-colors"
                   >

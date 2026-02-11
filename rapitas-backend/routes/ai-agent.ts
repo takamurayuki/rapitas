@@ -40,6 +40,69 @@ function sanitizeScreenshots(screenshots: ScreenshotResult[]) {
   return screenshots.map(({ path, ...rest }) => rest);
 }
 
+/**
+ * エージェント出力からクリーンな実装サマリーを抽出する。
+ * ログ出力やデバッグ情報、重複する説明を除去し、ユーザーが分かりやすい簡潔な説明にまとめる。
+ */
+function cleanImplementationSummary(rawOutput: string): string {
+  if (!rawOutput || rawOutput.trim().length === 0) {
+    return "実装が完了しました。";
+  }
+
+  const lines = rawOutput.split("\n");
+  const cleanedLines: string[] = [];
+  const seenContent = new Set<string>();
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // 空行はスキップ（後で必要に応じて追加）
+    if (trimmed === "") continue;
+
+    // ログ出力パターンを除外
+    if (/^\[(?:実行開始|実行中|API|DEBUG|INFO|WARN|ERROR|LOG)\]/.test(trimmed)) continue;
+    if (/^\[[\d\-T:.Z]+\]/.test(trimmed)) continue; // タイムスタンプ付きログ
+    if (/^(?:>|>>|\$)\s/.test(trimmed)) continue; // コマンド実行行
+    if (/^(?:npm|bun|yarn|pnpm)\s(?:run|install|build|test|exec)/.test(trimmed)) continue;
+    if (/^(?:Running|Executing|Starting|Compiling|Building|Installing)[\s:]/.test(trimmed)) continue;
+    if (/^(?:stdout|stderr|exit code|pid|process)[\s:]/i.test(trimmed)) continue;
+    if (/^(?:✓|✗|✔|✘|⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏)\s/.test(trimmed)) continue; // スピナー・チェックマーク
+    if (/^(?:warning|error|info|debug|trace|verbose)\s*:/i.test(trimmed)) continue;
+    if (/^(?:at\s+|Error:|TypeError:|ReferenceError:|SyntaxError:)/.test(trimmed)) continue; // スタックトレース
+    if (/^(?:\d+\s+(?:passing|failing|pending))/.test(trimmed)) continue; // テスト結果の詳細行
+    if (/console\.(?:log|error|warn|info|debug)\s*\(/.test(trimmed)) continue; // console.log呼び出し
+    if (/^[\-=]{3,}$/.test(trimmed)) continue; // 区切り線
+    if (/^#{4,}\s/.test(trimmed)) continue; // 深すぎる見出し（h4以下）は除外
+
+    // 重複コンテンツを除去（正規化して比較）
+    const normalized = trimmed.replace(/\s+/g, " ").toLowerCase();
+    if (seenContent.has(normalized)) continue;
+    seenContent.add(normalized);
+
+    cleanedLines.push(line);
+  }
+
+  let result = cleanedLines.join("\n").trim();
+
+  // 結果が空なら元のテキストの先頭部分を使用
+  if (result.length === 0) {
+    result = rawOutput.trim().substring(0, 500);
+  }
+
+  // 長すぎる場合は切り詰める（マークダウンの構造を壊さないように段落単位で）
+  if (result.length > 2000) {
+    const paragraphs = result.split(/\n\n+/);
+    let truncated = "";
+    for (const paragraph of paragraphs) {
+      if (truncated.length + paragraph.length > 1800) break;
+      truncated += (truncated ? "\n\n" : "") + paragraph;
+    }
+    result = truncated || result.substring(0, 1800);
+  }
+
+  return result;
+}
+
 // Parallel executor instance
 let parallelExecutor: ParallelExecutor | null = null;
 function getParallelExecutor(): ParallelExecutor {
@@ -1224,7 +1287,7 @@ export const aiAgentRoutes = new Elysia()
 
             if (diff && diff !== "No changes detected") {
               const implementationSummary =
-                result.output || "実装が完了しました。";
+                cleanImplementationSummary(result.output || "実装が完了しました。");
 
               // UI変更がある場合はスクリーンショットを撮影
               let screenshots: ScreenshotResult[] = [];
@@ -1807,7 +1870,7 @@ export const aiAgentRoutes = new Elysia()
                 const structuredDiff =
                   await orchestrator.getDiff(workingDirectory);
                 const implementationSummary =
-                  execResult.output || "実装が完了しました。";
+                  cleanImplementationSummary(execResult.output || "実装が完了しました。");
 
                 // UI変更がある場合はスクリーンショットを撮影
                 let screenshots: ScreenshotResult[] = [];
@@ -2268,96 +2331,10 @@ export const aiAgentRoutes = new Elysia()
   // This handles both intentionally interrupted executions and ones left in "running" state after server restart
   .get("/agents/resumable-executions", async () => {
     try {
-      // First, mark any "running" executions that are not actively running as "interrupted"
-      // This handles the case where the server was restarted while an execution was in progress
-      const activeExecutionIds = orchestrator
-        .getActiveExecutions()
-        .map((e) => e.executionId);
+      // Stale execution recovery is handled at startup by orchestrator.recoverStaleExecutions()
+      // This endpoint only reads data — no recovery logic here to avoid race conditions
+      // with newly created executions that haven't been added to activeExecutions yet.
 
-      // Find executions that are marked as "running"/"pending"/"waiting_for_input" but not actually running in memory
-      const staleRunningExecutions = await prisma.agentExecution.findMany({
-        where: {
-          status: { in: ["running", "pending", "waiting_for_input"] },
-          id: { notIn: activeExecutionIds },
-        },
-      });
-
-      // Update stale executions to "interrupted" status
-      if (staleRunningExecutions.length > 0) {
-        console.log(
-          `[resumable-executions] Found ${staleRunningExecutions.length} stale running executions, marking as interrupted`,
-        );
-
-        const affectedSessionIds = new Set<number>();
-        const affectedTaskIds = new Set<number>();
-
-        for (const exec of staleRunningExecutions) {
-          await prisma.agentExecution.update({
-            where: { id: exec.id },
-            data: {
-              status: "interrupted",
-              completedAt: new Date(),
-              errorMessage: `サーバー再起動により中断されました。\n\n【最後の出力】\n${(exec.output || "").slice(-1000)}`,
-            },
-          });
-          affectedSessionIds.add(exec.sessionId);
-        }
-
-        // 影響を受けたセッションとタスクのステータスも更新
-        for (const sessionId of affectedSessionIds) {
-          try {
-            const session = await prisma.agentSession.findUnique({
-              where: { id: sessionId },
-              include: {
-                config: {
-                  include: {
-                    task: { select: { id: true, status: true } },
-                  },
-                },
-              },
-            });
-
-            // セッションのステータスを interrupted に更新
-            const activeCount = await prisma.agentExecution.count({
-              where: {
-                sessionId,
-                status: { in: ["running", "pending", "waiting_for_input"] },
-              },
-            });
-
-            if (activeCount === 0) {
-              await prisma.agentSession.update({
-                where: { id: sessionId },
-                data: {
-                  status: "interrupted",
-                  lastActivityAt: new Date(),
-                },
-              });
-            }
-
-            // タスクのステータスを todo に戻す
-            const taskId = session?.config?.task?.id;
-            const taskStatus = session?.config?.task?.status;
-            if (taskId && taskStatus === "in-progress") {
-              await prisma.task.update({
-                where: { id: taskId },
-                data: { status: "todo" },
-              });
-              console.log(
-                `[resumable-executions] Reverted task ${taskId} status to 'todo'`,
-              );
-            }
-          } catch (error) {
-            console.error(
-              `[resumable-executions] Failed to update session/task for session ${sessionId}:`,
-              error,
-            );
-          }
-        }
-      }
-
-      // Now get all resumable executions (interrupted status) and actually active running executions
-      // Re-fetch active execution IDs to ensure consistency after stale cleanup
       const currentActiveIds = orchestrator
         .getActiveExecutions()
         .map((e) => e.executionId);
@@ -2719,7 +2696,7 @@ export const aiAgentRoutes = new Elysia()
                 const structuredDiff =
                   await orchestrator.getDiff(workingDirectory);
                 const implementationSummary =
-                  result.output || "再開した作業が完了しました。";
+                  cleanImplementationSummary(result.output || "再開した作業が完了しました。");
 
                 // UI変更がある場合はスクリーンショットを撮影
                 let screenshots: ScreenshotResult[] = [];

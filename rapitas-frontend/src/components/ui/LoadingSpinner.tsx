@@ -1,10 +1,61 @@
-function SkeletonBlock({ className = "" }: { className?: string }) {
+export function SkeletonBlock({ className = "" }: { className?: string }) {
   return (
     <div
       className={`bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse ${className}`}
     />
   );
 }
+
+interface ListSkeletonProps {
+  count?: number;
+  showTabs?: boolean;
+  showBadges?: boolean;
+}
+
+export const ListSkeleton = ({ count = 4, showTabs = false, showBadges = false }: ListSkeletonProps) => {
+  return (
+    <div>
+      {showTabs && (
+        <div className="mb-6 flex items-center gap-2">
+          {[1, 2, 3].map((i) => (
+            <SkeletonBlock key={i} className={`h-10 rounded-lg ${i === 1 ? "w-28" : i === 2 ? "w-24" : "w-20"}`} />
+          ))}
+        </div>
+      )}
+      <div className="grid gap-4">
+        {Array.from({ length: count }).map((_, i) => (
+          <div
+            key={i}
+            className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900 p-5"
+          >
+            <div className="flex items-center gap-4">
+              <SkeletonBlock className="w-6 h-6 rounded" />
+              <SkeletonBlock className="w-14 h-14 rounded-xl shrink-0" />
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="flex items-center gap-2">
+                  <SkeletonBlock className={`h-6 ${i % 2 === 0 ? "w-40" : "w-32"}`} />
+                  {showBadges && (
+                    <SkeletonBlock className="h-5 w-16 rounded-full" />
+                  )}
+                </div>
+                <SkeletonBlock className={`h-4 ${i % 3 === 0 ? "w-64" : i % 3 === 1 ? "w-48" : "w-56"}`} />
+                <div className="flex items-center gap-3">
+                  <SkeletonBlock className="h-6 w-20 rounded-md" />
+                  <SkeletonBlock className="h-4 w-16" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <SkeletonBlock className="h-9 w-28 rounded-lg" />
+                <SkeletonBlock className="h-9 w-16 rounded-lg" />
+                <SkeletonBlock className="h-9 w-16 rounded-lg" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 interface PageSkeletonProps {
   variant?: "default" | "compact";

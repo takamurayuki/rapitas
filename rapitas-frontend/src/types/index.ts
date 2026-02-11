@@ -633,6 +633,7 @@ export type UserSettings = {
   autoResumeInterruptedTasks: boolean;
   autoExecuteAfterCreate: boolean;
   autoGenerateTitle: boolean;
+  autoGenerateTitleDelay: number;
   defaultCategoryId?: number | null;
   activeMode: ActiveMode;
   claudeApiKeyConfigured?: boolean;
