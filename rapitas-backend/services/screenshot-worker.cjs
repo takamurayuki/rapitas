@@ -32,7 +32,7 @@ async function launchBrowser(executablePath) {
       const browser = await chromium.launch({
         executablePath,
         headless: true,
-        timeout: 30000,
+        timeout: 20000,
         args: [
           "--no-sandbox",
           "--disable-gpu",
@@ -73,8 +73,11 @@ async function main() {
     fs.mkdirSync(screenshotDir, { recursive: true });
   }
 
-  const targetPages = pages.slice(0, 5);
+  const targetPages = pages;
   const results = [];
+
+  // ページごとのタイムアウト（ナビゲーション + 待機 + スクリーンショット）
+  const perPageTimeoutMs = 30000;
 
   let browser;
   try {
@@ -93,56 +96,68 @@ async function main() {
     const page = await context.newPage();
 
     for (const target of targetPages) {
+      const pageStart = Date.now();
       try {
         const url = target.path.startsWith("http")
           ? target.path
           : `${baseUrl}${target.path}`;
         process.stderr.write(`[ScreenshotWorker] Capturing: ${url}\n`);
 
-        await page.goto(url, {
-          waitUntil: "domcontentloaded",
-          timeout: 15000,
-        });
-
-        await page.waitForTimeout(waitMs);
-
-        if (darkMode) {
-          await page.evaluate(() => {
-            document.documentElement.classList.add("dark");
+        // ページごとにタイムアウトを設定
+        const capturePromise = (async () => {
+          await page.goto(url, {
+            waitUntil: "domcontentloaded",
+            timeout: 20000,
           });
-          await page.waitForTimeout(500);
-        }
 
-        const screenshotId = randomUUID();
-        const filename = `${screenshotId}.png`;
-        const filePath = join(screenshotDir, filename);
+          await page.waitForTimeout(waitMs);
 
-        await page.screenshot({
-          path: filePath,
-          fullPage: false,
+          if (darkMode) {
+            await page.evaluate(() => {
+              document.documentElement.classList.add("dark");
+            });
+            await page.waitForTimeout(500);
+          }
+
+          const screenshotId = randomUUID();
+          const filename = `${screenshotId}.png`;
+          const filePath = join(screenshotDir, filename);
+
+          await page.screenshot({
+            path: filePath,
+            fullPage: false,
+          });
+
+          return {
+            id: screenshotId,
+            filename,
+            path: filePath,
+            url: `/screenshots/${filename}`,
+            page: target.path,
+            label: target.label,
+            capturedAt: new Date().toISOString(),
+          };
+        })();
+
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error(`Page capture timed out after ${perPageTimeoutMs / 1000}s`)), perPageTimeoutMs);
         });
 
-        const result = {
-          id: screenshotId,
-          filename,
-          path: filePath,
-          url: `/screenshots/${filename}`,
-          page: target.path,
-          label: target.label,
-          capturedAt: new Date().toISOString(),
-        };
+        const result = await Promise.race([capturePromise, timeoutPromise]);
 
         results.push(result);
 
         // 逐次出力: 1行1JSON（NDJSON）でタイムアウト時も途中結果を回収可能にする
         process.stdout.write(JSON.stringify(result) + "\n");
 
+        const elapsed = Date.now() - pageStart;
         process.stderr.write(
-          `[ScreenshotWorker] Captured: ${target.path} -> ${filename}\n`
+          `[ScreenshotWorker] Captured: ${target.path} -> ${result.filename} (${Math.round(elapsed / 1000)}s)\n`
         );
       } catch (err) {
+        const elapsed = Date.now() - pageStart;
         process.stderr.write(
-          `[ScreenshotWorker] Failed to capture ${target.path}: ${err.message}\n`
+          `[ScreenshotWorker] Failed to capture ${target.path} (${Math.round(elapsed / 1000)}s): ${err.message}\n`
         );
       }
     }

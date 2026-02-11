@@ -4,7 +4,7 @@
  */
 import { Elysia } from "elysia";
 import { join } from "path";
-import { existsSync, readFileSync } from "fs";
+import { existsSync } from "fs";
 import {
   captureScreenshots,
   captureAllScreenshots,
@@ -19,25 +19,34 @@ export const screenshotsRoutes = new Elysia()
   // スクリーンショット画像の配信
   .get(
     "/screenshots/:filename",
-    async ({ params, set }: { params: { filename: string }; set: any }) => {
+    async ({ params }: { params: { filename: string } }) => {
       const { filename } = params;
 
       // パストラバーサル防止
       if (filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
-        set.status = 400;
-        return { error: "Invalid filename" };
+        return new Response(JSON.stringify({ error: "Invalid filename" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
       }
 
       const filePath = join(SCREENSHOT_DIR, filename);
 
       if (!existsSync(filePath)) {
-        set.status = 404;
-        return { error: "Screenshot not found" };
+        return new Response(JSON.stringify({ error: "Screenshot not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        });
       }
 
-      set.headers["Content-Type"] = "image/png";
-      set.headers["Cache-Control"] = "public, max-age=86400";
-      return new Response(readFileSync(filePath));
+      // Bun.file() を使用して効率的にファイルを配信
+      return new Response(Bun.file(filePath), {
+        headers: {
+          "Content-Type": "image/png",
+          "Cache-Control": "public, max-age=86400",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
     },
   )
 
@@ -61,10 +70,10 @@ export const screenshotsRoutes = new Elysia()
     },
   )
 
-  // 全ページのスクリーンショットを撮影
+  // 全ページのスクリーンショットを撮影（changedFiles 指定時は変更ページのみ）
   .post(
     "/screenshots/capture-all",
-    async ({ body }: { body: ScreenshotOptions }) => {
+    async ({ body }: { body: ScreenshotOptions & { changedFiles?: string[] } }) => {
       try {
         if (!body.workingDirectory) {
           return {

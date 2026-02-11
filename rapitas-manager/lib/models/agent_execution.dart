@@ -3,7 +3,8 @@ class AgentExecution {
   final String? sessionId;
   final String? agentConfigId;
   final String? command;
-  final String status; // pending, running, completed, failed, cancelled, interrupted
+  final String
+      status; // pending, running, completed, failed, cancelled, interrupted
   final String? output;
   final Map<String, dynamic>? artifacts;
   final DateTime? startedAt;
@@ -107,10 +108,10 @@ class AgentExecution {
   String get durationText {
     if (executionTimeMs == null) return '-';
     final seconds = executionTimeMs! ~/ 1000;
-    if (seconds < 60) return '${seconds}秒';
+    if (seconds < 60) return '$seconds秒';
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
-    return '$minutes分${remainingSeconds}秒';
+    return '$minutes分$remainingSeconds秒';
   }
 }
 

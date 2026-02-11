@@ -9,7 +9,12 @@ import { agentFactory } from "../services/agents/agent-factory";
 import { orchestrator } from "./approvals";
 import { toJsonString, fromJsonString } from "../utils/db-helpers";
 import { ParallelExecutor } from "../services/parallel-execution/parallel-executor";
-import { encrypt, decrypt, maskApiKey, isEncryptionKeyConfigured } from "../utils/encryption";
+import {
+  encrypt,
+  decrypt,
+  maskApiKey,
+  isEncryptionKeyConfigured,
+} from "../utils/encryption";
 import {
   getAgentConfigSchema,
   getAllAgentConfigSchemas,
@@ -27,6 +32,13 @@ import {
   type ScreenshotResult,
 } from "../services/screenshot-service";
 import { realtimeService } from "../services/realtime-service";
+
+/**
+ * スクリーンショット結果からフロントエンド表示に不要な path（ファイルシステムパス）を除外する
+ */
+function sanitizeScreenshots(screenshots: ScreenshotResult[]) {
+  return screenshots.map(({ path, ...rest }) => rest);
+}
 
 // Parallel executor instance
 let parallelExecutor: ParallelExecutor | null = null;
@@ -68,8 +80,15 @@ export const aiAgentRoutes = new Elysia()
         isDefault?: boolean;
       };
     }) => {
-      const { agentType, name, apiKey, endpoint, modelId, capabilities, isDefault } =
-        body;
+      const {
+        agentType,
+        name,
+        apiKey,
+        endpoint,
+        modelId,
+        capabilities,
+        isDefault,
+      } = body;
 
       if (isDefault) {
         await prisma.aIAgentConfig.updateMany({
@@ -82,7 +101,9 @@ export const aiAgentRoutes = new Elysia()
       let apiKeyEncrypted: string | null = null;
       if (apiKey) {
         if (!isEncryptionKeyConfigured()) {
-          console.warn("[agents] Encryption key not configured. API keys should be set via environment variables in production.");
+          console.warn(
+            "[agents] Encryption key not configured. API keys should be set via environment variables in production.",
+          );
         }
         apiKeyEncrypted = encrypt(apiKey);
       }
@@ -137,8 +158,16 @@ export const aiAgentRoutes = new Elysia()
       };
     }) => {
       const { id } = params;
-      const { name, apiKey, clearApiKey, endpoint, modelId, capabilities, isDefault, isActive } =
-        body;
+      const {
+        name,
+        apiKey,
+        clearApiKey,
+        endpoint,
+        modelId,
+        capabilities,
+        isDefault,
+        isActive,
+      } = body;
 
       if (isDefault) {
         await prisma.aIAgentConfig.updateMany({
@@ -158,7 +187,9 @@ export const aiAgentRoutes = new Elysia()
         apiKeyEncrypted = null;
       } else if (apiKey) {
         if (!isEncryptionKeyConfigured()) {
-          console.warn("[agents] Encryption key not configured. API keys should be set via environment variables in production.");
+          console.warn(
+            "[agents] Encryption key not configured. API keys should be set via environment variables in production.",
+          );
         }
         apiKeyEncrypted = encrypt(apiKey);
       }
@@ -194,7 +225,7 @@ export const aiAgentRoutes = new Elysia()
             isDefault: updated.isDefault,
             isActive: updated.isActive,
             hasApiKey: !!updated.apiKeyEncrypted,
-          }
+          },
         );
 
         if (Object.keys(changes).length > 0) {
@@ -225,43 +256,49 @@ export const aiAgentRoutes = new Elysia()
   )
 
   // Get single agent configuration with masked API key
-  .get("/agents/:id", async ({ params, set }: { params: { id: string }; set: any }) => {
-    const { id } = params;
-    const agent = await prisma.aIAgentConfig.findUnique({
-      where: { id: parseInt(id) },
-      include: {
-        _count: { select: { executions: true } },
-      },
-    });
+  .get(
+    "/agents/:id",
+    async ({ params, set }: { params: { id: string }; set: any }) => {
+      const { id } = params;
+      const agent = await prisma.aIAgentConfig.findUnique({
+        where: { id: parseInt(id) },
+        include: {
+          _count: { select: { executions: true } },
+        },
+      });
 
-    if (!agent) {
-      set.status = 404;
-      return { error: "Agent not found" };
-    }
-
-    // APIキーが設定されているかどうかと、マスクされた値を返す
-    let maskedApiKey: string | null = null;
-    let hasApiKey = false;
-    if (agent.apiKeyEncrypted) {
-      try {
-        const decryptedKey = decrypt(agent.apiKeyEncrypted);
-        maskedApiKey = maskApiKey(decryptedKey);
-        hasApiKey = true;
-      } catch (e) {
-        console.error(`[agents] Failed to decrypt API key for agent ${id}:`, e);
-        maskedApiKey = "*** (decryption failed)";
-        hasApiKey = true;
+      if (!agent) {
+        set.status = 404;
+        return { error: "Agent not found" };
       }
-    }
 
-    return {
-      ...agent,
-      apiKeyEncrypted: undefined, // 暗号化されたキーは返さない
-      maskedApiKey,
-      apiKeyMasked: maskedApiKey, // フロントエンド互換のフィールド名
-      hasApiKey,
-    };
-  })
+      // APIキーが設定されているかどうかと、マスクされた値を返す
+      let maskedApiKey: string | null = null;
+      let hasApiKey = false;
+      if (agent.apiKeyEncrypted) {
+        try {
+          const decryptedKey = decrypt(agent.apiKeyEncrypted);
+          maskedApiKey = maskApiKey(decryptedKey);
+          hasApiKey = true;
+        } catch (e) {
+          console.error(
+            `[agents] Failed to decrypt API key for agent ${id}:`,
+            e,
+          );
+          maskedApiKey = "*** (decryption failed)";
+          hasApiKey = true;
+        }
+      }
+
+      return {
+        ...agent,
+        apiKeyEncrypted: undefined, // 暗号化されたキーは返さない
+        maskedApiKey,
+        apiKeyMasked: maskedApiKey, // フロントエンド互換のフィールド名
+        hasApiKey,
+      };
+    },
+  )
 
   // Delete agent configuration
   .delete("/agents/:id", async ({ params }: { params: { id: string } }) => {
@@ -315,7 +352,7 @@ export const aiAgentRoutes = new Elysia()
 
       if (!isEncryptionKeyConfigured()) {
         console.warn(
-          "[agents] Encryption key not configured. API keys should be set via environment variables in production."
+          "[agents] Encryption key not configured. API keys should be set via environment variables in production.",
         );
       }
 
@@ -349,7 +386,7 @@ export const aiAgentRoutes = new Elysia()
         message: "API key saved successfully",
         apiKeyMasked: maskApiKey(apiKey),
       };
-    }
+    },
   )
 
   // Delete API key for agent
@@ -382,7 +419,7 @@ export const aiAgentRoutes = new Elysia()
         success: true,
         message: "API key deleted successfully",
       };
-    }
+    },
   )
 
   // Test connection for agent (alias for test-connection)
@@ -405,48 +442,49 @@ export const aiAgentRoutes = new Elysia()
             const { spawn } = await import("child_process");
             const claudePath = process.env.CLAUDE_CODE_PATH || "claude";
 
-            const result = await new Promise<{ success: boolean; message: string }>(
-              (resolve) => {
-                const proc = spawn(claudePath, ["--version"], { shell: true });
-                let stdout = "";
-                let stderr = "";
+            const result = await new Promise<{
+              success: boolean;
+              message: string;
+            }>((resolve) => {
+              const proc = spawn(claudePath, ["--version"], { shell: true });
+              let stdout = "";
+              let stderr = "";
 
-                const timeout = setTimeout(() => {
-                  proc.kill();
-                  resolve({ success: false, message: "Claude CLI timeout" });
-                }, 10000);
+              const timeout = setTimeout(() => {
+                proc.kill();
+                resolve({ success: false, message: "Claude CLI timeout" });
+              }, 10000);
 
-                proc.stdout?.on("data", (data) => {
-                  stdout += data.toString();
-                });
-                proc.stderr?.on("data", (data) => {
-                  stderr += data.toString();
-                });
+              proc.stdout?.on("data", (data) => {
+                stdout += data.toString();
+              });
+              proc.stderr?.on("data", (data) => {
+                stderr += data.toString();
+              });
 
-                proc.on("close", (code) => {
-                  clearTimeout(timeout);
-                  if (code === 0) {
-                    resolve({
-                      success: true,
-                      message: `Claude CLI available: ${stdout.trim()}`,
-                    });
-                  } else {
-                    resolve({
-                      success: false,
-                      message: stderr || `Exit code: ${code}`,
-                    });
-                  }
-                });
-
-                proc.on("error", (err) => {
-                  clearTimeout(timeout);
+              proc.on("close", (code) => {
+                clearTimeout(timeout);
+                if (code === 0) {
+                  resolve({
+                    success: true,
+                    message: `Claude CLI available: ${stdout.trim()}`,
+                  });
+                } else {
                   resolve({
                     success: false,
-                    message: `Claude CLI not found: ${err.message}`,
+                    message: stderr || `Exit code: ${code}`,
                   });
+                }
+              });
+
+              proc.on("error", (err) => {
+                clearTimeout(timeout);
+                resolve({
+                  success: false,
+                  message: `Claude CLI not found: ${err.message}`,
                 });
-              }
-            );
+              });
+            });
             return result;
           }
 
@@ -456,19 +494,22 @@ export const aiAgentRoutes = new Elysia()
             }
 
             const apiKey = decrypt(agent.apiKeyEncrypted);
-            const response = await fetch("https://api.anthropic.com/v1/messages", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "x-api-key": apiKey,
-                "anthropic-version": "2023-06-01",
+            const response = await fetch(
+              "https://api.anthropic.com/v1/messages",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "x-api-key": apiKey,
+                  "anthropic-version": "2023-06-01",
+                },
+                body: JSON.stringify({
+                  model: agent.modelId || "claude-sonnet-4-20250514",
+                  max_tokens: 10,
+                  messages: [{ role: "user", content: "Hi" }],
+                }),
               },
-              body: JSON.stringify({
-                model: agent.modelId || "claude-sonnet-4-20250514",
-                max_tokens: 10,
-                messages: [{ role: "user", content: "Hi" }],
-              }),
-            });
+            );
 
             if (response.ok) {
               return { success: true, message: "Anthropic API接続成功" };
@@ -521,7 +562,7 @@ export const aiAgentRoutes = new Elysia()
                 headers: {
                   "api-key": apiKey,
                 },
-              }
+              },
             );
 
             if (response.ok || response.status === 404) {
@@ -539,37 +580,51 @@ export const aiAgentRoutes = new Elysia()
               // Gemini CLIの場合はAPIキーなしでもCLI確認を実施
               const { spawn } = await import("child_process");
               const geminiPath = process.env.GEMINI_CLI_PATH || "gemini";
-              const cliResult = await new Promise<{ success: boolean; message: string }>(
-                (resolve) => {
-                  const proc = spawn(geminiPath, ["--version"], { shell: true });
-                  let stdout = "";
-                  let stderr = "";
-                  const timeout = setTimeout(() => {
-                    proc.kill();
-                    resolve({ success: false, message: "Gemini CLI timeout" });
-                  }, 10000);
-                  proc.stdout?.on("data", (data) => { stdout += data.toString(); });
-                  proc.stderr?.on("data", (data) => { stderr += data.toString(); });
-                  proc.on("close", (code) => {
-                    clearTimeout(timeout);
-                    if (code === 0) {
-                      resolve({ success: true, message: `Gemini CLI available: ${stdout.trim()}` });
-                    } else {
-                      resolve({ success: false, message: stderr || `Exit code: ${code}` });
-                    }
+              const cliResult = await new Promise<{
+                success: boolean;
+                message: string;
+              }>((resolve) => {
+                const proc = spawn(geminiPath, ["--version"], { shell: true });
+                let stdout = "";
+                let stderr = "";
+                const timeout = setTimeout(() => {
+                  proc.kill();
+                  resolve({ success: false, message: "Gemini CLI timeout" });
+                }, 10000);
+                proc.stdout?.on("data", (data) => {
+                  stdout += data.toString();
+                });
+                proc.stderr?.on("data", (data) => {
+                  stderr += data.toString();
+                });
+                proc.on("close", (code) => {
+                  clearTimeout(timeout);
+                  if (code === 0) {
+                    resolve({
+                      success: true,
+                      message: `Gemini CLI available: ${stdout.trim()}`,
+                    });
+                  } else {
+                    resolve({
+                      success: false,
+                      message: stderr || `Exit code: ${code}`,
+                    });
+                  }
+                });
+                proc.on("error", (err) => {
+                  clearTimeout(timeout);
+                  resolve({
+                    success: false,
+                    message: `Gemini CLI not found: ${err.message}`,
                   });
-                  proc.on("error", (err) => {
-                    clearTimeout(timeout);
-                    resolve({ success: false, message: `Gemini CLI not found: ${err.message}` });
-                  });
-                }
-              );
+                });
+              });
               return cliResult;
             }
 
             const apiKey = decrypt(agent.apiKeyEncrypted);
             const response = await fetch(
-              `https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`
+              `https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`,
             );
 
             if (response.ok) {
@@ -587,48 +642,49 @@ export const aiAgentRoutes = new Elysia()
             const { spawn } = await import("child_process");
             const codexPath = process.env.CODEX_CLI_PATH || "codex";
 
-            const result = await new Promise<{ success: boolean; message: string }>(
-              (resolve) => {
-                const proc = spawn(codexPath, ["--version"], { shell: true });
-                let stdout = "";
-                let stderr = "";
+            const result = await new Promise<{
+              success: boolean;
+              message: string;
+            }>((resolve) => {
+              const proc = spawn(codexPath, ["--version"], { shell: true });
+              let stdout = "";
+              let stderr = "";
 
-                const timeout = setTimeout(() => {
-                  proc.kill();
-                  resolve({ success: false, message: "Codex CLI timeout" });
-                }, 10000);
+              const timeout = setTimeout(() => {
+                proc.kill();
+                resolve({ success: false, message: "Codex CLI timeout" });
+              }, 10000);
 
-                proc.stdout?.on("data", (data) => {
-                  stdout += data.toString();
-                });
-                proc.stderr?.on("data", (data) => {
-                  stderr += data.toString();
-                });
+              proc.stdout?.on("data", (data) => {
+                stdout += data.toString();
+              });
+              proc.stderr?.on("data", (data) => {
+                stderr += data.toString();
+              });
 
-                proc.on("close", (code) => {
-                  clearTimeout(timeout);
-                  if (code === 0) {
-                    resolve({
-                      success: true,
-                      message: `Codex CLI available: ${stdout.trim()}`,
-                    });
-                  } else {
-                    resolve({
-                      success: false,
-                      message: stderr || `Exit code: ${code}`,
-                    });
-                  }
-                });
-
-                proc.on("error", (err) => {
-                  clearTimeout(timeout);
+              proc.on("close", (code) => {
+                clearTimeout(timeout);
+                if (code === 0) {
+                  resolve({
+                    success: true,
+                    message: `Codex CLI available: ${stdout.trim()}`,
+                  });
+                } else {
                   resolve({
                     success: false,
-                    message: `Codex CLI not found: ${err.message}`,
+                    message: stderr || `Exit code: ${code}`,
                   });
+                }
+              });
+
+              proc.on("error", (err) => {
+                clearTimeout(timeout);
+                resolve({
+                  success: false,
+                  message: `Codex CLI not found: ${err.message}`,
                 });
-              }
-            );
+              });
+            });
             return result;
           }
 
@@ -654,7 +710,7 @@ export const aiAgentRoutes = new Elysia()
           message: `Connection test failed: ${error instanceof Error ? error.message : "Unknown error"}`,
         };
       }
-    }
+    },
   )
 
   // Available agent types
@@ -685,17 +741,20 @@ export const aiAgentRoutes = new Elysia()
   })
 
   // Get configuration schema for a specific agent type
-  .get("/agents/config-schema/:agentType", async ({ params, set }: { params: { agentType: string }; set: any }) => {
-    const { agentType } = params;
-    const schema = getAgentConfigSchema(agentType);
+  .get(
+    "/agents/config-schema/:agentType",
+    async ({ params, set }: { params: { agentType: string }; set: any }) => {
+      const { agentType } = params;
+      const schema = getAgentConfigSchema(agentType);
 
-    if (!schema) {
-      set.status = 404;
-      return { error: `Unknown agent type: ${agentType}` };
-    }
+      if (!schema) {
+        set.status = 404;
+        return { error: `Unknown agent type: ${agentType}` };
+      }
 
-    return { schema };
-  })
+      return { schema };
+    },
+  )
 
   // Validate agent configuration
   .post(
@@ -742,19 +801,25 @@ export const aiAgentRoutes = new Elysia()
       }
 
       return { valid: true, errors: [] };
-    }
+    },
   )
 
   // Get audit logs for a specific agent
   .get(
     "/agents/:id/audit-logs",
-    async ({ params, query }: { params: { id: string }; query: { limit?: string } }) => {
+    async ({
+      params,
+      query,
+    }: {
+      params: { id: string };
+      query: { limit?: string };
+    }) => {
       const { id } = params;
       const limit = query.limit ? parseInt(query.limit) : 50;
 
       const logs = await getAgentConfigAuditLogs(parseInt(id), limit);
       return { logs };
-    }
+    },
   )
 
   // Get recent audit logs (all agents)
@@ -764,7 +829,7 @@ export const aiAgentRoutes = new Elysia()
       const limit = query.limit ? parseInt(query.limit) : 100;
       const logs = await getRecentAuditLogs(limit);
       return { logs };
-    }
+    },
   )
 
   // Test API key connection for an agent
@@ -788,7 +853,11 @@ export const aiAgentRoutes = new Elysia()
           const { spawn } = await import("child_process");
           const claudePath = process.env.CLAUDE_CODE_PATH || "claude";
 
-          const testResult = await new Promise<{ success: boolean; output?: string; error?: string }>((resolve) => {
+          const testResult = await new Promise<{
+            success: boolean;
+            output?: string;
+            error?: string;
+          }>((resolve) => {
             const proc = spawn(claudePath, ["--version"], { shell: true });
             let stdout = "";
             let stderr = "";
@@ -798,15 +867,21 @@ export const aiAgentRoutes = new Elysia()
               resolve({ success: false, error: "Timeout (10s)" });
             }, 10000);
 
-            proc.stdout?.on("data", (data) => { stdout += data.toString(); });
-            proc.stderr?.on("data", (data) => { stderr += data.toString(); });
+            proc.stdout?.on("data", (data) => {
+              stdout += data.toString();
+            });
+            proc.stderr?.on("data", (data) => {
+              stderr += data.toString();
+            });
 
             proc.on("close", (code) => {
               clearTimeout(timeout);
               resolve({
                 success: code === 0,
                 output: stdout.trim(),
-                error: stderr.trim() || (code !== 0 ? `Exit code: ${code}` : undefined),
+                error:
+                  stderr.trim() ||
+                  (code !== 0 ? `Exit code: ${code}` : undefined),
               });
             });
 
@@ -1087,24 +1162,36 @@ export const aiAgentRoutes = new Elysia()
           if (result.waitingForInput) {
             // 質問待ち状態: タスクは実行中のまま維持（todoに戻さない）
             // ユーザーの回答を待ってから同じセッションで継続する
-            console.log(`[API] Task ${taskIdNum} is waiting for user input, keeping status as 'in_progress'`);
-            await prisma.task.update({
-              where: { id: taskIdNum },
-              data: { status: "in_progress" },
-            }).catch((e: any) => {
-              console.error(`[API] Failed to update task ${taskIdNum} status to in_progress:`, e);
-            });
+            console.log(
+              `[API] Task ${taskIdNum} is waiting for user input, keeping status as 'in_progress'`,
+            );
+            await prisma.task
+              .update({
+                where: { id: taskIdNum },
+                data: { status: "in_progress" },
+              })
+              .catch((e: any) => {
+                console.error(
+                  `[API] Failed to update task ${taskIdNum} status to in_progress:`,
+                  e,
+                );
+              });
 
             // セッションも実行中のまま維持
-            await prisma.agentSession.update({
-              where: { id: session.id },
-              data: {
-                status: "running",
-                lastActivityAt: new Date(),
-              },
-            }).catch((e: any) => {
-              console.error(`[API] Failed to update session ${session.id} status to running:`, e);
-            });
+            await prisma.agentSession
+              .update({
+                where: { id: session.id },
+                data: {
+                  status: "running",
+                  lastActivityAt: new Date(),
+                },
+              })
+              .catch((e: any) => {
+                console.error(
+                  `[API] Failed to update session ${session.id} status to running:`,
+                  e,
+                );
+              });
           } else if (result.success) {
             // タスクのステータスを「完了」に更新
             await prisma.task.update({
@@ -1117,15 +1204,20 @@ export const aiAgentRoutes = new Elysia()
             console.log(`[API] Updated task ${taskIdNum} status to 'done'`);
 
             // セッションのステータスも完了に更新
-            await prisma.agentSession.update({
-              where: { id: session.id },
-              data: {
-                status: "completed",
-                completedAt: new Date(),
-              },
-            }).catch((e: any) => {
-              console.error(`[API] Failed to update session ${session.id} status:`, e);
-            });
+            await prisma.agentSession
+              .update({
+                where: { id: session.id },
+                data: {
+                  status: "completed",
+                  completedAt: new Date(),
+                },
+              })
+              .catch((e: any) => {
+                console.error(
+                  `[API] Failed to update session ${session.id} status:`,
+                  e,
+                );
+              });
 
             const diff = await orchestrator.getFullGitDiff(workDir);
             const structuredDiff = await orchestrator.getDiff(workDir);
@@ -1142,12 +1234,21 @@ export const aiAgentRoutes = new Elysia()
                   agentOutput: result.output || "",
                 });
                 if (screenshots.length > 0) {
-                  console.log(`[API] Captured ${screenshots.length} screenshots for task ${taskIdNum}`);
+                  console.log(
+                    `[API] Captured ${screenshots.length} screenshots for task ${taskIdNum}: ${screenshots.map((s) => s.page).join(", ")}`,
+                  );
                 }
               } catch (screenshotErr) {
-                console.warn("[API] Screenshot capture failed (non-fatal):", screenshotErr);
+                console.warn(
+                  "[API] Screenshot capture failed (non-fatal):",
+                  screenshotErr,
+                );
               }
 
+              const screenshotData = sanitizeScreenshots(screenshots);
+              console.log(
+                `[API] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s: any) => s.url).join(", ")}`,
+              );
               const approvalRequest = await prisma.approvalRequest.create({
                 data: {
                   configId: developerModeConfig!.id,
@@ -1159,15 +1260,13 @@ export const aiAgentRoutes = new Elysia()
                     sessionId: session.id,
                     workingDirectory: workDir,
                     branchName,
-                    diff,
                     structuredDiff,
                     implementationSummary,
                     executionTimeMs: result.executionTimeMs,
-                    screenshots,
+                    screenshots: screenshotData,
                   }),
                   executionType: "code_review",
                   estimatedChanges: toJsonString({
-                    diff,
                     filesChanged: structuredDiff.length,
                     summary: implementationSummary.substring(0, 500),
                   }),
@@ -1210,19 +1309,26 @@ export const aiAgentRoutes = new Elysia()
                 status: "todo",
               },
             });
-            console.log(`[API] Reverted task ${taskIdNum} status to 'todo' due to failure`);
+            console.log(
+              `[API] Reverted task ${taskIdNum} status to 'todo' due to failure`,
+            );
 
             // セッションのステータスも失敗に更新
-            await prisma.agentSession.update({
-              where: { id: session.id },
-              data: {
-                status: "failed",
-                completedAt: new Date(),
-                errorMessage: result.errorMessage || "Execution failed",
-              },
-            }).catch((e: any) => {
-              console.error(`[API] Failed to update session ${session.id} status:`, e);
-            });
+            await prisma.agentSession
+              .update({
+                where: { id: session.id },
+                data: {
+                  status: "failed",
+                  completedAt: new Date(),
+                  errorMessage: result.errorMessage || "Execution failed",
+                },
+              })
+              .catch((e: any) => {
+                console.error(
+                  `[API] Failed to update session ${session.id} status:`,
+                  e,
+                );
+              });
 
             await prisma.notification.create({
               data: {
@@ -1242,23 +1348,29 @@ export const aiAgentRoutes = new Elysia()
           console.error("Agent execution error:", error);
 
           // エラー時もタスクのステータスを「未着手」に戻す
-          await prisma.task.update({
-            where: { id: taskIdNum },
-            data: {
-              status: "todo",
-            },
-          }).catch(() => {});
-          console.log(`[API] Reverted task ${taskIdNum} status to 'todo' due to error`);
+          await prisma.task
+            .update({
+              where: { id: taskIdNum },
+              data: {
+                status: "todo",
+              },
+            })
+            .catch(() => {});
+          console.log(
+            `[API] Reverted task ${taskIdNum} status to 'todo' due to error`,
+          );
 
           // セッションのステータスも失敗に更新
-          await prisma.agentSession.update({
-            where: { id: session.id },
-            data: {
-              status: "failed",
-              completedAt: new Date(),
-              errorMessage: error.message || "Execution error",
-            },
-          }).catch(() => {});
+          await prisma.agentSession
+            .update({
+              where: { id: session.id },
+              data: {
+                status: "failed",
+                completedAt: new Date(),
+                errorMessage: error.message || "Execution error",
+              },
+            })
+            .catch(() => {});
 
           await prisma.notification.create({
             data: {
@@ -1624,47 +1736,71 @@ export const aiAgentRoutes = new Elysia()
             if (execResult.waitingForInput) {
               // 質問待ち状態: タスクはin_progressのまま維持
               // ユーザーの回答を待ってから同じセッションで継続する
-              console.log(`[agent-respond] Task ${taskId} is waiting for another user input, keeping session active`);
-              await prisma.task.update({
-                where: { id: taskId },
-                data: { status: "in_progress" },
-              }).catch((e: any) => {
-                console.error(`[agent-respond] Failed to update task ${taskId} status to in_progress:`, e);
-              });
+              console.log(
+                `[agent-respond] Task ${taskId} is waiting for another user input, keeping session active`,
+              );
+              await prisma.task
+                .update({
+                  where: { id: taskId },
+                  data: { status: "in_progress" },
+                })
+                .catch((e: any) => {
+                  console.error(
+                    `[agent-respond] Failed to update task ${taskId} status to in_progress:`,
+                    e,
+                  );
+                });
 
               // セッションも実行中のまま維持
-              await prisma.agentSession.update({
-                where: { id: session.id },
-                data: {
-                  status: "running",
-                  lastActivityAt: new Date(),
-                },
-              }).catch((e: any) => {
-                console.error(`[agent-respond] Failed to update session ${session.id} status to running:`, e);
-              });
+              await prisma.agentSession
+                .update({
+                  where: { id: session.id },
+                  data: {
+                    status: "running",
+                    lastActivityAt: new Date(),
+                  },
+                })
+                .catch((e: any) => {
+                  console.error(
+                    `[agent-respond] Failed to update session ${session.id} status to running:`,
+                    e,
+                  );
+                });
             } else if (execResult.success) {
               // タスクのステータスを完了に更新
-              await prisma.task.update({
-                where: { id: taskId },
-                data: {
-                  status: "done",
-                  completedAt: new Date(),
-                },
-              }).catch((e: any) => {
-                console.error(`[agent-respond] Failed to update task ${taskId} status:`, e);
-              });
-              console.log(`[agent-respond] Updated task ${taskId} status to 'done'`);
+              await prisma.task
+                .update({
+                  where: { id: taskId },
+                  data: {
+                    status: "done",
+                    completedAt: new Date(),
+                  },
+                })
+                .catch((e: any) => {
+                  console.error(
+                    `[agent-respond] Failed to update task ${taskId} status:`,
+                    e,
+                  );
+                });
+              console.log(
+                `[agent-respond] Updated task ${taskId} status to 'done'`,
+              );
 
               // セッションのステータスも完了に更新
-              await prisma.agentSession.update({
-                where: { id: session.id },
-                data: {
-                  status: "completed",
-                  completedAt: new Date(),
-                },
-              }).catch((e: any) => {
-                console.error(`[agent-respond] Failed to update session ${session.id} status:`, e);
-              });
+              await prisma.agentSession
+                .update({
+                  where: { id: session.id },
+                  data: {
+                    status: "completed",
+                    completedAt: new Date(),
+                  },
+                })
+                .catch((e: any) => {
+                  console.error(
+                    `[agent-respond] Failed to update session ${session.id} status:`,
+                    e,
+                  );
+                });
 
               const diff = await orchestrator.getFullGitDiff(workingDirectory);
               if (diff && diff !== "No changes detected") {
@@ -1676,14 +1812,29 @@ export const aiAgentRoutes = new Elysia()
                 // UI変更がある場合はスクリーンショットを撮影
                 let screenshots: ScreenshotResult[] = [];
                 try {
-                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory });
+                  screenshots = await captureScreenshotsForDiff(
+                    structuredDiff,
+                    {
+                      workingDirectory,
+                      agentOutput: execResult.output || "",
+                    },
+                  );
                   if (screenshots.length > 0) {
-                    console.log(`[agent-respond] Captured ${screenshots.length} screenshots for task ${taskId}`);
+                    console.log(
+                      `[agent-respond] Captured ${screenshots.length} screenshots for task ${taskId}: ${screenshots.map((s) => s.page).join(", ")}`,
+                    );
                   }
                 } catch (screenshotErr) {
-                  console.warn("[agent-respond] Screenshot capture failed (non-fatal):", screenshotErr);
+                  console.warn(
+                    "[agent-respond] Screenshot capture failed (non-fatal):",
+                    screenshotErr,
+                  );
                 }
 
+                const screenshotData = sanitizeScreenshots(screenshots);
+                console.log(
+                  `[agent-respond] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s: any) => s.url).join(", ")}`,
+                );
                 const approvalRequest = await prisma.approvalRequest.create({
                   data: {
                     configId: config.id,
@@ -1694,14 +1845,12 @@ export const aiAgentRoutes = new Elysia()
                       taskId,
                       sessionId: session.id,
                       workingDirectory,
-                      diff,
                       structuredDiff,
                       implementationSummary,
                       executionTimeMs: execResult.executionTimeMs,
-                      screenshots,
+                      screenshots: screenshotData,
                     }),
                     estimatedChanges: toJsonString({
-                      diff,
                       filesChanged: structuredDiff.length,
                       summary: implementationSummary.substring(0, 500),
                     }),
@@ -1720,59 +1869,75 @@ export const aiAgentRoutes = new Elysia()
               }
             } else {
               // 失敗時はタスクステータスを todo に戻す
-              await prisma.task.update({
-                where: { id: taskId },
-                data: { status: "todo" },
-              }).catch(() => {});
+              await prisma.task
+                .update({
+                  where: { id: taskId },
+                  data: { status: "todo" },
+                })
+                .catch(() => {});
 
               // セッションのステータスも失敗に更新
-              await prisma.agentSession.update({
-                where: { id: session.id },
-                data: {
-                  status: "failed",
-                  completedAt: new Date(),
-                  errorMessage: execResult.errorMessage || "Execution failed",
-                },
-              }).catch(() => {});
+              await prisma.agentSession
+                .update({
+                  where: { id: session.id },
+                  data: {
+                    status: "failed",
+                    completedAt: new Date(),
+                    errorMessage: execResult.errorMessage || "Execution failed",
+                  },
+                })
+                .catch(() => {});
             }
           })
           .catch(async (error) => {
             const errorMsg = error.message || "Unknown error";
-            const isSessionError = /session|expired|invalid|not found|code 1|SIGTERM|timeout/i.test(errorMsg);
-            console.error(`Agent respond execution failed (sessionError: ${isSessionError}):`, errorMsg);
+            const isSessionError =
+              /session|expired|invalid|not found|code 1|SIGTERM|timeout/i.test(
+                errorMsg,
+              );
+            console.error(
+              `Agent respond execution failed (sessionError: ${isSessionError}):`,
+              errorMsg,
+            );
 
             // エラー時はタスクステータスを todo に戻す
-            await prisma.task.update({
-              where: { id: taskId },
-              data: { status: "todo" },
-            }).catch(() => {});
+            await prisma.task
+              .update({
+                where: { id: taskId },
+                data: { status: "todo" },
+              })
+              .catch(() => {});
 
             // 実行レコードのステータスを失敗に更新
             // 質問フィールドもクリアして、フロントエンドが古い質問を再表示しないようにする
             const detailedErrorMessage = isSessionError
               ? `セッション再開に失敗しました（全てのフォールバックが失敗）: ${errorMsg}`
               : `回答送信後の実行継続に失敗しました: ${errorMsg}`;
-            await prisma.agentExecution.update({
-              where: { id: latestExecution.id },
-              data: {
-                status: "failed",
-                completedAt: new Date(),
-                errorMessage: detailedErrorMessage,
-                question: null,
-                questionType: null,
-                questionDetails: null,
-              },
-            }).catch(() => {});
+            await prisma.agentExecution
+              .update({
+                where: { id: latestExecution.id },
+                data: {
+                  status: "failed",
+                  completedAt: new Date(),
+                  errorMessage: detailedErrorMessage,
+                  question: null,
+                  questionType: null,
+                  questionDetails: null,
+                },
+              })
+              .catch(() => {});
 
             // セッションのステータスも失敗に更新
-            await prisma.agentSession.update({
-              where: { id: session.id },
-              data: {
-                status: "failed",
-                completedAt: new Date(),
-                errorMessage: detailedErrorMessage,
-              },
-            }).catch(() => {});
+            await prisma.agentSession
+              .update({
+                where: { id: session.id },
+                data: {
+                  status: "failed",
+                  completedAt: new Date(),
+                  errorMessage: detailedErrorMessage,
+                },
+              })
+              .catch(() => {});
           });
 
         return {
@@ -2178,10 +2343,15 @@ export const aiAgentRoutes = new Elysia()
                 where: { id: taskId },
                 data: { status: "todo" },
               });
-              console.log(`[resumable-executions] Reverted task ${taskId} status to 'todo'`);
+              console.log(
+                `[resumable-executions] Reverted task ${taskId} status to 'todo'`,
+              );
             }
           } catch (error) {
-            console.error(`[resumable-executions] Failed to update session/task for session ${sessionId}:`, error);
+            console.error(
+              `[resumable-executions] Failed to update session/task for session ${sessionId}:`,
+              error,
+            );
           }
         }
       }
@@ -2428,7 +2598,9 @@ export const aiAgentRoutes = new Elysia()
         });
 
         const hasSubtasks = subtasks.length > 0;
-        console.log(`[resume] Task ${task.id} has ${subtasks.length} in-progress subtasks`);
+        console.log(
+          `[resume] Task ${task.id} has ${subtasks.length} in-progress subtasks`,
+        );
 
         // 通知を作成
         await prisma.notification.create({
@@ -2448,7 +2620,9 @@ export const aiAgentRoutes = new Elysia()
 
         // 進行中のサブタスクがある場合は並列実行
         if (hasSubtasks) {
-          console.log(`[resume] Starting parallel execution for task ${task.id} with ${subtasks.length} in-progress subtasks`);
+          console.log(
+            `[resume] Starting parallel execution for task ${task.id} with ${subtasks.length} in-progress subtasks`,
+          );
 
           // 並列実行を開始
           const executor = getParallelExecutor();
@@ -2468,9 +2642,16 @@ export const aiAgentRoutes = new Elysia()
 
           // 非同期で並列実行を開始（analysisResult.treeMap.nodesを使用）
           executor
-            .startSession(task.id, analysisResult.plan, analysisResult.treeMap.nodes, workingDirectory)
+            .startSession(
+              task.id,
+              analysisResult.plan,
+              analysisResult.treeMap.nodes,
+              workingDirectory,
+            )
             .then(async (session) => {
-              console.log(`[resume] Parallel execution session started: ${session.sessionId}`);
+              console.log(
+                `[resume] Parallel execution session started: ${session.sessionId}`,
+              );
             })
             .catch(async (error) => {
               console.error("[resume] Parallel execution error:", error);
@@ -2523,13 +2704,15 @@ export const aiAgentRoutes = new Elysia()
               console.log(`[resume] Updated task ${task.id} status to 'done'`);
 
               // セッションのステータスも完了に更新
-              await prisma.agentSession.update({
-                where: { id: execution.sessionId },
-                data: {
-                  status: "completed",
-                  completedAt: new Date(),
-                },
-              }).catch(() => {});
+              await prisma.agentSession
+                .update({
+                  where: { id: execution.sessionId },
+                  data: {
+                    status: "completed",
+                    completedAt: new Date(),
+                  },
+                })
+                .catch(() => {});
 
               const diff = await orchestrator.getFullGitDiff(workingDirectory);
               if (diff && diff !== "No changes detected") {
@@ -2541,16 +2724,31 @@ export const aiAgentRoutes = new Elysia()
                 // UI変更がある場合はスクリーンショットを撮影
                 let screenshots: ScreenshotResult[] = [];
                 try {
-                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory });
+                  screenshots = await captureScreenshotsForDiff(
+                    structuredDiff,
+                    {
+                      workingDirectory,
+                      agentOutput: result.output || "",
+                    },
+                  );
                   if (screenshots.length > 0) {
-                    console.log(`[agent-resume] Captured ${screenshots.length} screenshots for task ${task.id}`);
+                    console.log(
+                      `[agent-resume] Captured ${screenshots.length} screenshots for task ${task.id}: ${screenshots.map((s) => s.page).join(", ")}`,
+                    );
                   }
                 } catch (screenshotErr) {
-                  console.warn("[agent-resume] Screenshot capture failed (non-fatal):", screenshotErr);
+                  console.warn(
+                    "[agent-resume] Screenshot capture failed (non-fatal):",
+                    screenshotErr,
+                  );
                 }
 
+                const screenshotData = sanitizeScreenshots(screenshots);
                 const config = execution.session.config;
                 if (config) {
+                  console.log(
+                    `[agent-resume] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s: any) => s.url).join(", ")}`,
+                  );
                   const approvalRequest = await prisma.approvalRequest.create({
                     data: {
                       configId: config.id,
@@ -2561,15 +2759,14 @@ export const aiAgentRoutes = new Elysia()
                         taskId: task.id,
                         sessionId: execution.sessionId,
                         workingDirectory,
-                        diff,
                         structuredDiff,
                         implementationSummary,
                         executionTimeMs: result.executionTimeMs,
                         resumed: true,
-                        screenshots,
+                        screenshots: screenshotData,
                       }),
+                      executionType: "code_review",
                       estimatedChanges: toJsonString({
-                        diff,
                         filesChanged: structuredDiff.length,
                         summary: implementationSummary.substring(0, 500),
                       }),
@@ -2598,24 +2795,31 @@ export const aiAgentRoutes = new Elysia()
               }
             } else if (result.waitingForInput) {
               // 質問待ちの場合はタスクステータスを in-progress のまま維持
-              console.log(`[resume] Task ${task.id} is waiting for input after resume`);
+              console.log(
+                `[resume] Task ${task.id} is waiting for input after resume`,
+              );
             } else {
               // 失敗の場合はタスクステータスを todo に戻す
               await prisma.task.update({
                 where: { id: task.id },
                 data: { status: "todo" },
               });
-              console.log(`[resume] Reverted task ${task.id} status to 'todo' due to failure`);
+              console.log(
+                `[resume] Reverted task ${task.id} status to 'todo' due to failure`,
+              );
 
               // セッションのステータスも失敗に更新
-              await prisma.agentSession.update({
-                where: { id: execution.sessionId },
-                data: {
-                  status: "failed",
-                  completedAt: new Date(),
-                  errorMessage: result.errorMessage || "Execution failed after resume",
-                },
-              }).catch(() => {});
+              await prisma.agentSession
+                .update({
+                  where: { id: execution.sessionId },
+                  data: {
+                    status: "failed",
+                    completedAt: new Date(),
+                    errorMessage:
+                      result.errorMessage || "Execution failed after resume",
+                  },
+                })
+                .catch(() => {});
 
               await prisma.notification.create({
                 data: {
@@ -2631,21 +2835,27 @@ export const aiAgentRoutes = new Elysia()
             console.error("[resume] Resume execution error:", error);
 
             // エラー時はタスクステータスを todo に戻す
-            await prisma.task.update({
-              where: { id: task.id },
-              data: { status: "todo" },
-            }).catch(() => {});
-            console.log(`[resume] Reverted task ${task.id} status to 'todo' due to error`);
+            await prisma.task
+              .update({
+                where: { id: task.id },
+                data: { status: "todo" },
+              })
+              .catch(() => {});
+            console.log(
+              `[resume] Reverted task ${task.id} status to 'todo' due to error`,
+            );
 
             // セッションのステータスも失敗に更新
-            await prisma.agentSession.update({
-              where: { id: execution.sessionId },
-              data: {
-                status: "failed",
-                completedAt: new Date(),
-                errorMessage: error.message || "Resume execution error",
-              },
-            }).catch(() => {});
+            await prisma.agentSession
+              .update({
+                where: { id: execution.sessionId },
+                data: {
+                  status: "failed",
+                  completedAt: new Date(),
+                  errorMessage: error.message || "Resume execution error",
+                },
+              })
+              .catch(() => {});
 
             await prisma.notification.create({
               data: {
@@ -2835,7 +3045,9 @@ export const aiAgentRoutes = new Elysia()
           realtimeService.shutdown();
 
           // Step 2: リスニングソケットを即座に閉じる（ポート解放を最優先）
-          console.log("[shutdown] Closing listening socket first for quick port release...");
+          console.log(
+            "[shutdown] Closing listening socket first for quick port release...",
+          );
           await orchestrator.stopServer();
           console.log("[shutdown] Listening socket closed, port released.");
 
@@ -2861,7 +3073,10 @@ export const aiAgentRoutes = new Elysia()
       console.error("[shutdown] Error:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to initiate shutdown",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to initiate shutdown",
       };
     }
   })
@@ -2882,7 +3097,9 @@ export const aiAgentRoutes = new Elysia()
           realtimeService.shutdown();
 
           // Step 2: リスニングソケットを即座に閉じる（ポート解放を最優先）
-          console.log("[restart] Closing listening socket first for quick port release...");
+          console.log(
+            "[restart] Closing listening socket first for quick port release...",
+          );
           await orchestrator.stopServer();
           console.log("[restart] Listening socket closed, port released.");
 
@@ -2901,14 +3118,16 @@ export const aiAgentRoutes = new Elysia()
 
       return {
         success: true,
-        message: "Server restart initiated. Server will stop and restart automatically.",
+        message:
+          "Server restart initiated. Server will stop and restart automatically.",
         activeExecutions: activeCount,
       };
     } catch (error) {
       console.error("[restart] Error:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to initiate restart",
+        error:
+          error instanceof Error ? error.message : "Failed to initiate restart",
       };
     }
   });

@@ -18,11 +18,11 @@
  *   node scripts/dev.js          # 安定モード（AIエージェント実行向け）
  *   node scripts/dev.js --watch  # ホットリロードモード（バックエンド開発向け）
  */
-const { spawn, execSync } = require('child_process');
-const path = require('path');
-const fs = require('fs');
+const { spawn, execSync } = require("child_process");
+const path = require("path");
+const fs = require("fs");
 
-const BACKEND_PORT = 3001;
+const BACKEND_PORT = 3002;
 const FRONTEND_PORT = 3000;
 
 // ─── ユーティリティ ───
@@ -45,10 +45,13 @@ function sleepSync(ms) {
  */
 function isPortListening(port) {
   try {
-    const result = execSync(`netstat -aon | findstr ":${port} " | findstr "LISTEN"`, {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    const result = execSync(
+      `netstat -aon | findstr ":${port} " | findstr "LISTEN"`,
+      {
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
     return result.trim().length > 0;
   } catch {
     return false;
@@ -62,19 +65,50 @@ function isPortListening(port) {
 function getListeningPids(port) {
   const pids = new Set();
   try {
-    const result = execSync(`netstat -aon | findstr ":${port} " | findstr "LISTEN"`, {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    for (const line of result.trim().split('\n')) {
+    const result = execSync(
+      `netstat -aon | findstr ":${port} " | findstr "LISTEN"`,
+      {
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
+    for (const line of result.trim().split("\n")) {
       const parts = line.trim().split(/\s+/);
       const pid = parseInt(parts[parts.length - 1]);
-      if (pid && pid > 0) pids.add(pid);
+      // netstatに表示されていても実際に存在しないプロセス（ゾンビ）は除外
+      if (pid && pid > 0 && isProcessRunning(pid)) {
+        pids.add(pid);
+      }
     }
   } catch {
     // findstr でヒットしなければ空
   }
   return pids;
+}
+
+/**
+ * プロセスが実際に存在するかチェックする
+ * @param {number} pid
+ * @returns {boolean}
+ */
+function isProcessRunning(pid) {
+  try {
+    const result = execSync(`tasklist /FI "PID eq ${pid}" /NH`, {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    // 「情報: 指定された条件に一致するタスクは実行されていません。」または英語版
+    if (
+      result.includes("INFO:") ||
+      result.includes("No tasks") ||
+      result.includes("情報:")
+    ) {
+      return false;
+    }
+    return result.includes(String(pid));
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -87,10 +121,10 @@ function getProcessesOnPort(port) {
   const pids = new Set();
   try {
     const result = execSync(`netstat -aon | findstr ":${port} "`, {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
     });
-    for (const line of result.trim().split('\n')) {
+    for (const line of result.trim().split("\n")) {
       const parts = line.trim().split(/\s+/);
       const pid = parseInt(parts[parts.length - 1]);
       if (pid && pid > 0) pids.add(pid);
@@ -130,7 +164,7 @@ function tryGracefulShutdownSync(port) {
   try {
     execSync(
       `curl -s -X POST -H "Content-Type: application/json" --connect-timeout 2 --max-time 3 http://localhost:${port}/agents/shutdown`,
-      { stdio: 'pipe', timeout: 5000 }
+      { stdio: "pipe", timeout: 5000 },
     );
     console.log(`  Graceful shutdown requested on port ${port} via curl.`);
     return true;
@@ -139,7 +173,7 @@ function tryGracefulShutdownSync(port) {
     try {
       execSync(
         `node -e "const h=require('http');const r=h.request({hostname:'localhost',port:${port},path:'/agents/shutdown',method:'POST',headers:{'Content-Type':'application/json'},timeout:3000},()=>process.exit(0));r.on('error',()=>process.exit(0));r.on('timeout',()=>{r.destroy();process.exit(0)});r.end()"`,
-        { stdio: 'pipe', timeout: 5000 }
+        { stdio: "pipe", timeout: 5000 },
       );
       console.log(`  Graceful shutdown requested on port ${port} via node.`);
       return true;
@@ -155,26 +189,36 @@ function tryGracefulShutdownSync(port) {
  */
 async function tryGracefulShutdownViaHttp(port) {
   try {
-    const http = require('http');
+    const http = require("http");
     await new Promise((resolve, reject) => {
-      const req = http.request({
-        hostname: 'localhost',
-        port: port,
-        path: '/agents/shutdown',
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 5000,
-      }, (res) => {
-        let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-          console.log(`  Graceful shutdown requested on port ${port} (status: ${res.statusCode})`);
-          resolve(data);
-        });
-        res.on('error', () => resolve(data)); // レスポンスエラーは無視
+      const req = http.request(
+        {
+          hostname: "localhost",
+          port: port,
+          path: "/agents/shutdown",
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          timeout: 5000,
+        },
+        (res) => {
+          let data = "";
+          res.on("data", (chunk) => {
+            data += chunk;
+          });
+          res.on("end", () => {
+            console.log(
+              `  Graceful shutdown requested on port ${port} (status: ${res.statusCode})`,
+            );
+            resolve(data);
+          });
+          res.on("error", () => resolve(data)); // レスポンスエラーは無視
+        },
+      );
+      req.on("error", reject);
+      req.on("timeout", () => {
+        req.destroy();
+        reject(new Error("timeout"));
       });
-      req.on('error', reject);
-      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
       req.end();
     });
     return true;
@@ -200,7 +244,9 @@ async function ensurePortAvailable(port) {
   // LISTEN状態のPIDを特定してログ出力
   const listeningPids = getListeningPids(port);
   if (listeningPids.size > 0) {
-    console.log(`  Found LISTENING process(es) on port ${port}: PID ${[...listeningPids].join(', ')}`);
+    console.log(
+      `  Found LISTENING process(es) on port ${port}: PID ${[...listeningPids].join(", ")}`,
+    );
   }
 
   // バックエンドポートの場合、まずグレースフルシャットダウンを試行
@@ -214,7 +260,9 @@ async function ensurePortAvailable(port) {
         console.log(`  Port ${port} released after graceful shutdown.`);
         return port;
       } catch {
-        console.log(`  Graceful shutdown did not release port in time, forcing...`);
+        console.log(
+          `  Graceful shutdown did not release port in time, forcing...`,
+        );
       }
     } else {
       console.log(`  Graceful shutdown API not available, will force kill.`);
@@ -229,18 +277,41 @@ async function ensurePortAvailable(port) {
   }
 
   // ツリーkillで失敗した場合、直接PID kill（/T なし）を試行
-  console.log(`  Tree kill failed, attempting direct PID kill on port ${port}...`);
+  console.log(
+    `  Tree kill failed, attempting direct PID kill on port ${port}...`,
+  );
+  // 少し待って netstat の状態を更新させる
+  sleepSync(500);
   const pids = getListeningPids(port);
+  if (pids.size === 0) {
+    console.log(
+      `  No active processes found on port ${port} (may be zombie sockets).`,
+    );
+  }
   for (const pid of pids) {
     try {
-      execSync(`taskkill /F /PID ${pid}`, { stdio: 'pipe' });
+      execSync(`taskkill /F /PID ${pid}`, { stdio: "pipe" });
       console.log(`  Direct-killed PID ${pid} on port ${port}`);
     } catch (err) {
-      console.log(`  Failed to kill PID ${pid}: ${err.message || 'unknown error'}`);
+      const errMsg = err.message || err.stderr?.toString() || "";
+      // 「見つかりません」エラーはプロセスが既に終了しているので成功とみなす
+      if (
+        errMsg.includes("見つかりません") ||
+        errMsg.includes("not found") ||
+        errMsg.includes("not be found")
+      ) {
+        console.log(`  PID ${pid} already terminated.`);
+      } else {
+        console.log(
+          `  Failed to kill PID ${pid}: ${errMsg || "unknown error"}`,
+        );
+      }
     }
   }
 
   // forceKill 後、ソケットの解放を十分に待つ（最大15秒）
+  // Windows TCPスタックがポートを完全に解放するまでには時間がかかる
+  sleepSync(1500);
   try {
     await waitForPortRelease(port, 15000);
     console.log(`  Port ${port} is now available (after wait).`);
@@ -252,19 +323,28 @@ async function ensurePortAvailable(port) {
     if (remainingPids.size === 0) {
       // LISTEN状態のプロセスは無い = TIME_WAIT/CLOSE_WAITのゾンビソケットのみ
       // バックエンドは reusePort: true なのでバインド可能
-      console.log(`  ⚠️  Port ${port} has zombie sockets (TIME_WAIT/CLOSE_WAIT) but no active listener.`);
-      console.log(`  → Proceeding anyway (backend uses reusePort for TIME_WAIT handling).`);
+      console.log(
+        `  ⚠️  Port ${port} has zombie sockets (TIME_WAIT/CLOSE_WAIT) but no active listener.`,
+      );
+      console.log(
+        `  → Proceeding anyway (backend uses reusePort for TIME_WAIT handling).`,
+      );
       return port;
     }
 
     // LISTEN状態のプロセスがまだ残っている → 本当にkillできなかった
-    console.log(`  ⚠️  Port ${port} still has active listener(s): PID ${[...remainingPids].join(', ')}`);
+    console.log(
+      `  ⚠️  Port ${port} still has active listener(s): PID ${[...remainingPids].join(", ")}`,
+    );
     console.log(`  → Attempting one final kill with elevated wmic...`);
 
     // 最終手段: wmic process delete を試行
     for (const pid of remainingPids) {
       try {
-        execSync(`wmic process where ProcessId=${pid} delete`, { stdio: 'pipe', timeout: 5000 });
+        execSync(`wmic process where ProcessId=${pid} delete`, {
+          stdio: "pipe",
+          timeout: 5000,
+        });
         console.log(`  Killed PID ${pid} via wmic.`);
       } catch {
         console.log(`  wmic kill failed for PID ${pid}.`);
@@ -280,7 +360,9 @@ async function ensurePortAvailable(port) {
 
     // 本当にダメな場合はエラーメッセージを出すが、process.exit(1)はしない
     // reusePort により起動できる可能性があるため、試行を続行
-    console.log(`  ❌ Could not fully release port ${port}. Will attempt to start anyway with reusePort.`);
+    console.log(
+      `  ❌ Could not fully release port ${port}. Will attempt to start anyway with reusePort.`,
+    );
     return port;
   }
 }
@@ -299,10 +381,12 @@ function killProcessTree(childProcess) {
 
   // Step 1: ツリーkillで一括停止
   try {
-    execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'pipe' });
+    execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
   } catch {
     // ツリーkill失敗時は直接killを試行
-    try { childProcess.kill('SIGKILL'); } catch {}
+    try {
+      childProcess.kill("SIGKILL");
+    } catch {}
   }
 
   // Step 2: wmic で子プロセスを列挙し、残っていれば個別にkill
@@ -310,15 +394,17 @@ function killProcessTree(childProcess) {
   try {
     const wmicResult = execSync(
       `wmic process where (ParentProcessId=${pid}) get ProcessId /format:list`,
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+      { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
     );
-    for (const line of wmicResult.split('\n')) {
+    for (const line of wmicResult.split("\n")) {
       const match = line.match(/ProcessId=(\d+)/);
       if (match) {
         const childPid = parseInt(match[1]);
         try {
-          execSync(`taskkill /F /T /PID ${childPid}`, { stdio: 'pipe' });
-          console.log(`  Killed child process PID ${childPid} (parent: ${pid})`);
+          execSync(`taskkill /F /T /PID ${childPid}`, { stdio: "pipe" });
+          console.log(
+            `  Killed child process PID ${childPid} (parent: ${pid})`,
+          );
         } catch {}
       }
     }
@@ -335,22 +421,48 @@ function killProcessTree(childProcess) {
  */
 function forceKillAllOnPort(port, maxRetries = 5) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
+    // 判定前にnetstatキャッシュが更新されるのを待つ
+    if (attempt > 0) sleepSync(500);
+
     if (!isPortListening(port)) return true;
 
     const pids = getListeningPids(port);
-    if (pids.size === 0) return true;
+    if (pids.size === 0) {
+      // netstatでは見えるがプロセスは存在しない = ゾンビソケット
+      console.log(
+        `  Port ${port} shows in netstat but no active process (zombie socket).`,
+      );
+      return true;
+    }
 
     for (const pid of pids) {
       try {
-        execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'pipe' });
-        console.log(`  Killed PID ${pid} on port ${port} (attempt ${attempt + 1})`);
-      } catch {
-        // プロセスが既に終了している場合は無視
+        execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
+        console.log(
+          `  Killed PID ${pid} on port ${port} (attempt ${attempt + 1})`,
+        );
+      } catch (err) {
+        const errMsg = err.message || err.stderr?.toString() || "";
+        // 「見つかりません」は成功とみなす
+        if (
+          errMsg.includes("見つかりません") ||
+          errMsg.includes("not found") ||
+          errMsg.includes("not be found")
+        ) {
+          console.log(`  PID ${pid} already terminated.`);
+        }
+        // それ以外のエラーは無視して続行
       }
     }
 
     // kill後にソケット解放を待つ（Windows TCPスタックがソケットを解放するまでのラグ対策）
-    sleepSync(1000);
+    sleepSync(1500);
+  }
+
+  // 最終チェック: プロセスは存在しないがポートがまだ見える場合はゾンビソケット
+  const finalPids = getListeningPids(port);
+  if (finalPids.size === 0) {
+    return true;
   }
 
   return !isPortListening(port);
@@ -369,7 +481,7 @@ function waitForProcessExit(childProcess, timeoutMs = 15000) {
     const timer = setTimeout(() => {
       resolve(false);
     }, timeoutMs);
-    childProcess.on('exit', () => {
+    childProcess.on("exit", () => {
       clearTimeout(timer);
       resolve(true);
     });
@@ -379,41 +491,57 @@ function waitForProcessExit(childProcess, timeoutMs = 15000) {
 // ─── メイン処理 ───
 
 const args = process.argv.slice(2);
-const useWatch = args.includes('--watch');
+const useWatch = args.includes("--watch");
 
-const FRONTEND_DIR = path.resolve(__dirname, '../../rapitas-frontend');
-const BACKEND_DIR = path.resolve(__dirname, '../../rapitas-backend');
-const BINARIES_DIR = path.resolve(__dirname, '../src-tauri/binaries');
+const FRONTEND_DIR = path.resolve(__dirname, "../../rapitas-frontend");
+const BACKEND_DIR = path.resolve(__dirname, "../../rapitas-backend");
+const BINARIES_DIR = path.resolve(__dirname, "../src-tauri/binaries");
 
 if (useWatch) {
-  console.log('Starting development servers for Tauri (PostgreSQL) with HOT RELOAD...');
-  console.log('⚠️  注意: ファイル変更時にバックエンドが再起動します。AIエージェント実行中は中断される可能性があります。');
+  console.log(
+    "Starting development servers for Tauri (PostgreSQL) with HOT RELOAD...",
+  );
+  console.log(
+    "⚠️  注意: ファイル変更時にバックエンドが再起動します。AIエージェント実行中は中断される可能性があります。",
+  );
 } else {
-  console.log('Starting development servers for Tauri (PostgreSQL) in STABLE mode...');
-  console.log('ℹ️  バックエンドのホットリロードは無効です。コード変更後は手動で再起動してください。');
-  console.log('ℹ️  ホットリロードを有効にするには: node scripts/dev.js --watch');
+  console.log(
+    "Starting development servers for Tauri (PostgreSQL) in STABLE mode...",
+  );
+  console.log(
+    "ℹ️  バックエンドのホットリロードは無効です。コード変更後は手動で再起動してください。",
+  );
+  console.log(
+    "ℹ️  ホットリロードを有効にするには: node scripts/dev.js --watch",
+  );
 }
 
 // 開発モード用にダミーのsidecarバイナリを作成（Tauriがパスを検証するため）
-const targetTriple = 'x86_64-pc-windows-msvc';
-const dummyBinaryPath = path.join(BINARIES_DIR, `rapitas-backend-${targetTriple}.exe`);
+const targetTriple = "x86_64-pc-windows-msvc";
+const dummyBinaryPath = path.join(
+  BINARIES_DIR,
+  `rapitas-backend-${targetTriple}.exe`,
+);
 
 if (!fs.existsSync(BINARIES_DIR)) {
   fs.mkdirSync(BINARIES_DIR, { recursive: true });
 }
 
 if (!fs.existsSync(dummyBinaryPath)) {
-  console.log('Creating dummy sidecar binary for development...');
-  fs.writeFileSync(dummyBinaryPath, '');
+  console.log("Creating dummy sidecar binary for development...");
+  fs.writeFileSync(dummyBinaryPath, "");
   console.log(`Created: ${dummyBinaryPath}`);
 }
 
 // 開発モード用にダミーの.next-tauriディレクトリを作成
-const NEXT_TAURI_DIR = path.join(FRONTEND_DIR, '.next-tauri');
+const NEXT_TAURI_DIR = path.join(FRONTEND_DIR, ".next-tauri");
 if (!fs.existsSync(NEXT_TAURI_DIR)) {
-  console.log('Creating dummy .next-tauri directory for development...');
+  console.log("Creating dummy .next-tauri directory for development...");
   fs.mkdirSync(NEXT_TAURI_DIR, { recursive: true });
-  fs.writeFileSync(path.join(NEXT_TAURI_DIR, 'index.html'), '<!-- Dummy file for Tauri dev mode -->');
+  fs.writeFileSync(
+    path.join(NEXT_TAURI_DIR, "index.html"),
+    "<!-- Dummy file for Tauri dev mode -->",
+  );
   console.log(`Created: ${NEXT_TAURI_DIR}`);
 }
 
@@ -421,26 +549,32 @@ let backend = null;
 let frontend = null;
 let actualBackendPort = BACKEND_PORT;
 let actualFrontendPort = FRONTEND_PORT;
+let isHotRestarting = false;
+let fileWatchers = [];
+let lastRestartCompletedAt = 0;
 
 /**
  * データベーススキーマの同期とPrisma Client生成
  */
 function syncDatabaseAndGenerateClient() {
-  console.log('\nSyncing database schema...');
+  console.log("\nSyncing database schema...");
   try {
-    execSync('bunx prisma db push --skip-generate --accept-data-loss', { cwd: BACKEND_DIR, stdio: 'inherit' });
-    console.log('Database schema synced.');
+    execSync("bunx prisma db push --skip-generate --accept-data-loss", {
+      cwd: BACKEND_DIR,
+      stdio: "inherit",
+    });
+    console.log("Database schema synced.");
   } catch (err) {
-    console.error('Failed to sync database schema:', err.message);
-    console.log('⚠️  PostgreSQLが起動していることを確認してください。');
+    console.error("Failed to sync database schema:", err.message);
+    console.log("⚠️  PostgreSQLが起動していることを確認してください。");
     throw err;
   }
 
-  console.log('Generating Prisma Client...');
+  console.log("Generating Prisma Client...");
   try {
-    execSync('bun run db:generate', { cwd: BACKEND_DIR, stdio: 'inherit' });
+    execSync("bun run db:generate", { cwd: BACKEND_DIR, stdio: "inherit" });
   } catch (err) {
-    console.error('Failed to generate Prisma Client:', err.message);
+    console.error("Failed to generate Prisma Client:", err.message);
     throw err;
   }
 }
@@ -452,30 +586,35 @@ const RESTART_EXIT_CODE = 75;
  * バックエンドプロセスを起動する
  */
 function startBackend() {
-  const backendScript = useWatch ? 'dev:simple' : 'dev:stable';
-  console.log(`\nBackend mode: ${useWatch ? 'dev:simple (hot reload)' : 'dev:stable (stable)'}`);
+  // Always use dev:stable (no bun --watch) to ensure graceful shutdown handlers run
+  const backendScript = "dev:stable";
+  console.log(
+    `\nBackend mode: dev:stable ${useWatch ? "(fs.watch hot reload)" : "(stable)"}`,
+  );
 
-  backend = spawn('bun', ['run', backendScript], {
+  backend = spawn("bun", ["run", backendScript], {
     cwd: BACKEND_DIR,
-    stdio: 'inherit',
+    stdio: "inherit",
     shell: true,
     env: {
       ...process.env,
-      TAURI_BUILD: 'true',
+      TAURI_BUILD: "true",
       PORT: String(actualBackendPort),
-    }
+    },
   });
 
-  backend.on('error', (err) => console.error('Backend error:', err));
+  backend.on("error", (err) => console.error("Backend error:", err));
 
   // 再起動要求の終了コードを監視
-  backend.on('exit', (code) => {
+  backend.on("exit", (code) => {
     if (isCleaningUp) return; // cleanup中の終了は無視
     if (code === RESTART_EXIT_CODE) {
-      console.log(`\n🔄 Backend exited with restart code (${RESTART_EXIT_CODE}), initiating restart...`);
+      console.log(
+        `\n🔄 Backend exited with restart code (${RESTART_EXIT_CODE}), initiating restart...`,
+      );
       // プロセスは既に終了済みなのでシャットダウンAPIの呼び出しをスキップ
       restartBackend(true).catch((err) => {
-        console.error('❌ Backend restart failed:', err);
+        console.error("❌ Backend restart failed:", err);
       });
     }
   });
@@ -489,57 +628,77 @@ async function stopBackendCompletely(skipShutdownApi = false) {
   const isRunning = backend && !backend.killed && backend.exitCode === null;
 
   if (!skipShutdownApi && isRunning) {
-    console.log('  Requesting graceful shutdown of backend...');
+    console.log("  Requesting graceful shutdown of backend...");
 
     // HTTPでシャットダウンAPIを呼び出す
     try {
-      const http = require('http');
+      const http = require("http");
       await new Promise((resolve, reject) => {
-        const req = http.request({
-          hostname: 'localhost',
-          port: actualBackendPort,
-          path: '/agents/shutdown',
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 5000,
-        }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => { data += chunk; });
-          res.on('end', () => {
-            console.log(`  Shutdown API response: ${res.statusCode}`);
-            resolve(data);
-          });
-          res.on('error', () => resolve(data)); // レスポンスエラーは無視
+        const req = http.request(
+          {
+            hostname: "localhost",
+            port: actualBackendPort,
+            path: "/agents/shutdown",
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            timeout: 5000,
+          },
+          (res) => {
+            let data = "";
+            res.on("data", (chunk) => {
+              data += chunk;
+            });
+            res.on("end", () => {
+              console.log(`  Shutdown API response: ${res.statusCode}`);
+              resolve(data);
+            });
+            res.on("error", () => resolve(data)); // レスポンスエラーは無視
+          },
+        );
+        req.on("error", (err) => {
+          if (err.code === "ECONNRESET") {
+            // ECONNRESET = バックエンドがシャットダウンリクエストを受信し、
+            // ソケットを閉じた可能性が高い。成功とみなしてプロセス終了を待つ。
+            console.log(
+              "  Shutdown request sent (connection reset - backend is shutting down)",
+            );
+            resolve("ECONNRESET");
+          } else {
+            console.log(
+              `  Shutdown API unavailable (${err.code || err.message}), will force stop`,
+            );
+            reject(err);
+          }
         });
-        req.on('error', (err) => {
-          console.log(`  Shutdown API unavailable (${err.code || err.message}), will force stop`);
-          reject(err);
-        });
-        req.on('timeout', () => {
+        req.on("timeout", () => {
           req.destroy();
-          reject(new Error('timeout'));
+          reject(new Error("timeout"));
         });
         req.end();
       });
 
-      // プロセスの終了を待機（最大15秒）
-      console.log('  Waiting for backend process to exit...');
-      const exited = await waitForProcessExit(backend, 15000);
+      // プロセスの終了を待機（最大20秒 - グレースフルシャットダウンには時間がかかる）
+      console.log("  Waiting for backend process to exit...");
+      const exited = await waitForProcessExit(backend, 20000);
       if (!exited) {
-        console.log('  Backend did not exit in time, forcing stop...');
+        console.log("  Backend did not exit in time, forcing stop...");
         killProcessTree(backend);
+        // 強制終了後、ソケットクリーンアップのために追加待機
+        sleepSync(1500);
       } else {
-        console.log('  Backend stopped gracefully.');
+        console.log("  Backend stopped gracefully.");
+        // グレースフルシャットダウン後もソケットクリーンアップのために少し待機
+        sleepSync(500);
       }
     } catch {
       // シャットダウンAPIが応答しない場合はフォールバック: 強制終了
       if (isRunning) {
         killProcessTree(backend);
-        console.log('  Backend force-stopped.');
+        console.log("  Backend force-stopped.");
       }
     }
   } else if (!isRunning) {
-    console.log('  Backend process already exited.');
+    console.log("  Backend process already exited.");
   }
 
   // ポートが完全に解放されるまで待機
@@ -547,12 +706,16 @@ async function stopBackendCompletely(skipShutdownApi = false) {
     await waitForPortRelease(actualBackendPort, 20000);
     console.log(`  Port ${actualBackendPort} released successfully.`);
   } catch {
-    console.log(`  Port ${actualBackendPort} not yet released, forcing cleanup...`);
+    console.log(
+      `  Port ${actualBackendPort} not yet released, forcing cleanup...`,
+    );
     const released = forceKillAllOnPort(actualBackendPort);
     if (released) {
       console.log(`  Port ${actualBackendPort} released after force cleanup.`);
     } else {
-      console.log(`  Port ${actualBackendPort} still not released (will auto-clear).`);
+      console.log(
+        `  Port ${actualBackendPort} still not released (will auto-clear).`,
+      );
     }
   }
 
@@ -564,26 +727,216 @@ async function stopBackendCompletely(skipShutdownApi = false) {
  * @param {boolean} processAlreadyExited - trueの場合、プロセスが既に終了済み（シャットダウンAPIスキップ）
  */
 async function restartBackend(processAlreadyExited = false) {
-  console.log('\n🔄 Restarting backend server...');
-  console.log('  Step 1/3: Stopping backend completely...');
+  console.log("\n🔄 Restarting backend server...");
+  console.log("  Step 1/3: Stopping backend completely...");
   await stopBackendCompletely(processAlreadyExited);
 
-  console.log('  Step 2/3: Syncing database and generating Prisma Client...');
+  console.log("  Step 2/3: Syncing database and generating Prisma Client...");
   try {
     syncDatabaseAndGenerateClient();
   } catch (err) {
-    console.error('❌ Failed to sync database during restart:', err.message);
-    console.log('  Attempting to start backend without DB sync...');
+    console.error("❌ Failed to sync database during restart:", err.message);
+    console.log("  Attempting to start backend without DB sync...");
   }
 
-  console.log('  Step 3/3: Starting backend...');
+  console.log("  Step 3/3: Starting backend...");
   startBackend();
-  console.log('✅ Backend restart completed.');
+  console.log("✅ Backend restart completed.");
+}
+
+/**
+ * バックエンドの /agents/system-status APIを呼び出し、
+ * エージェント実行がアクティブかどうかをチェックする。
+ * アクティブな場合、リスタートを抑制してエージェントの中断を防ぐ。
+ * @returns {Promise<boolean>} エージェント実行中ならtrue
+ */
+async function isAgentExecutionActive() {
+  try {
+    const http = require("http");
+    const data = await new Promise((resolve, reject) => {
+      const req = http.get(
+        {
+          hostname: "localhost",
+          port: actualBackendPort,
+          path: "/agents/system-status",
+          timeout: 3000,
+        },
+        (res) => {
+          let body = "";
+          res.on("data", (chunk) => {
+            body += chunk;
+          });
+          res.on("end", () => {
+            try {
+              resolve(JSON.parse(body));
+            } catch {
+              resolve(null);
+            }
+          });
+        },
+      );
+      req.on("error", () => resolve(null));
+      req.on("timeout", () => {
+        req.destroy();
+        resolve(null);
+      });
+    });
+    if (data && (data.activeExecutions > 0 || data.runningExecutions > 0)) {
+      return true;
+    }
+    return false;
+  } catch {
+    // APIが応答しない場合は安全側に倒してリスタート許可
+    return false;
+  }
+}
+
+/**
+ * ホットリスタート: DB同期をスキップした軽量リスタート
+ * ファイル変更検出時に使用。stopBackendCompletely() でグレースフルシャットダウンを経由する。
+ */
+async function hotRestartBackend() {
+  if (isHotRestarting) {
+    console.log("  Hot restart already in progress, skipping...");
+    return;
+  }
+  isHotRestarting = true;
+  try {
+    console.log("\n🔥 Hot-restarting backend server...");
+    console.log("  Step 1/2: Stopping backend completely...");
+    await stopBackendCompletely();
+
+    console.log("  Step 2/2: Starting backend...");
+    startBackend();
+    console.log("✅ Hot restart completed.");
+  } catch (err) {
+    console.error("❌ Hot restart failed:", err.message || err);
+  } finally {
+    isHotRestarting = false;
+    lastRestartCompletedAt = Date.now();
+  }
+}
+
+/**
+ * バックエンドの .ts ファイル変更を監視し、変更検出時にホットリスタートを実行する
+ * schema.prisma の変更時はDB同期付きの完全リスタートを実行する
+ */
+function startFileWatcher() {
+  const watchDirs = [
+    "index.ts",
+    "services",
+    "utils",
+    "routes",
+    "config",
+    "middleware",
+    "schemas",
+    "types",
+  ];
+
+  let debounceTimer = null;
+  let pendingPrismaRestart = false;
+
+  let pendingChanges = [];
+
+  function handleChange(filename) {
+    if (!filename) return;
+    // リスタート中 or クールダウン中（3秒）はイベントを無視
+    if (isHotRestarting) return;
+    if (Date.now() - lastRestartCompletedAt < 3000) return;
+    // schema.prisma の変更はDB同期付きリスタート
+    if (filename.endsWith("schema.prisma")) {
+      pendingPrismaRestart = true;
+    }
+    // .ts ファイルまたは schema.prisma のみ対象
+    if (!filename.endsWith(".ts") && !filename.endsWith("schema.prisma")) {
+      return;
+    }
+    pendingChanges.push(filename);
+    // デバウンス: 500ms以内の連続変更をまとめる
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+      debounceTimer = null;
+      const changes = [...pendingChanges];
+      pendingChanges = [];
+      const uniqueFiles = [...new Set(changes)].join(", ");
+      console.log(`\n📁 File change detected: ${uniqueFiles}`);
+
+      // エージェント実行中はリスタートを抑制
+      const agentActive = await isAgentExecutionActive();
+      if (agentActive) {
+        console.log(
+          "  ⏸️  Agent execution in progress, deferring restart. Changes will apply on next restart.",
+        );
+        return;
+      }
+
+      if (pendingPrismaRestart) {
+        pendingPrismaRestart = false;
+        console.log(
+          "  Prisma schema changed, performing full restart with DB sync...",
+        );
+        await restartBackend().catch((err) => {
+          console.error("❌ Full restart failed:", err.message || err);
+        });
+      } else {
+        await hotRestartBackend();
+      }
+    }, 500);
+  }
+
+  // 各ディレクトリ/ファイルを監視
+  for (const target of watchDirs) {
+    const fullPath = path.join(BACKEND_DIR, target);
+    if (!fs.existsSync(fullPath)) continue;
+
+    try {
+      const stat = fs.statSync(fullPath);
+      const options = stat.isDirectory() ? { recursive: true } : {};
+
+      const watcher = fs.watch(fullPath, options, (eventType, filename) => {
+        // ディレクトリの場合はfilename付き、ファイルの場合はtarget自体
+        const changedFile = filename || target;
+        handleChange(changedFile);
+      });
+
+      watcher.on("error", (err) => {
+        console.error(`  File watcher error for ${target}:`, err.message);
+      });
+
+      fileWatchers.push(watcher);
+    } catch (err) {
+      console.warn(`  Could not watch ${target}: ${err.message}`);
+    }
+  }
+
+  // prisma ディレクトリも監視
+  const prismaDir = path.join(BACKEND_DIR, "prisma");
+  if (fs.existsSync(prismaDir)) {
+    try {
+      const watcher = fs.watch(
+        prismaDir,
+        { recursive: true },
+        (eventType, filename) => {
+          if (filename) handleChange(filename);
+        },
+      );
+      watcher.on("error", (err) => {
+        console.error(`  File watcher error for prisma/:`, err.message);
+      });
+      fileWatchers.push(watcher);
+    } catch (err) {
+      console.warn(`  Could not watch prisma/: ${err.message}`);
+    }
+  }
+
+  console.log(
+    `📂 File watcher started (watching ${fileWatchers.length} targets in backend)`,
+  );
 }
 
 async function main() {
   // ポートのクリーンアップ（前回クラッシュ時のゾンビプロセス対策）
-  console.log('\nChecking ports...');
+  console.log("\nChecking ports...");
   actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
   actualFrontendPort = await ensurePortAvailable(FRONTEND_PORT);
 
@@ -591,21 +944,30 @@ async function main() {
   startBackend();
 
   // フロントエンドを起動
-  frontend = spawn('pnpm', ['run', 'dev'], {
+  frontend = spawn("pnpm", ["run", "dev"], {
     cwd: FRONTEND_DIR,
-    stdio: 'inherit',
+    stdio: "inherit",
     shell: true,
     env: {
       ...process.env,
       PORT: String(actualFrontendPort),
       NEXT_PUBLIC_API_BASE_URL: `http://localhost:${actualBackendPort}`,
-    }
+    },
   });
 
-  console.log(`\n🖥️  Development mode: Backend :${actualBackendPort}, Frontend :${actualFrontendPort}`);
-  console.log('ℹ️  Changes will be reflected via hot reload (no rebuild needed)');
+  console.log(
+    `\n🖥️  Development mode: Backend :${actualBackendPort}, Frontend :${actualFrontendPort}`,
+  );
+  console.log(
+    "ℹ️  Changes will be reflected via hot reload (no rebuild needed)",
+  );
 
-  frontend.on('error', (err) => console.error('Frontend error:', err));
+  frontend.on("error", (err) => console.error("Frontend error:", err));
+
+  // --watch モード時は fs.watch ベースのファイル監視を開始
+  if (useWatch) {
+    startFileWatcher();
+  }
 }
 
 // プロセス終了時のクリーンアップ
@@ -626,31 +988,45 @@ function cleanupSync() {
   if (isCleaningUp) return;
   isCleaningUp = true;
 
-  console.log('\nStopping development servers...');
+  // ファイルウォッチャーを先に閉じてリスタート競合を防止
+  for (const watcher of fileWatchers) {
+    try {
+      watcher.close();
+    } catch {}
+  }
+  fileWatchers = [];
+
+  console.log("\nStopping development servers...");
 
   // Step 0: バックエンドにグレースフルシャットダウンを要求
   // これによりリスニングソケットが正しく閉じられ、次回起動時のポート競合を防止
   if (isPortListening(actualBackendPort)) {
-    console.log('  Step 0: Requesting graceful shutdown via HTTP...');
+    console.log("  Step 0: Requesting graceful shutdown via HTTP...");
     const shutdownOk = tryGracefulShutdownSync(actualBackendPort);
     if (shutdownOk) {
-      // シャットダウンAPIはリスニングソケットを即座に閉じるので、少し待つ
-      sleepSync(2000);
+      // シャットダウンAPIはリスニングソケットを即座に閉じるので、十分に待つ
+      // バックエンドがグレースフルに終了するまで最大4秒待機
+      console.log("  Waiting for backend to complete graceful shutdown...");
+      sleepSync(4000);
       if (!isPortListening(actualBackendPort)) {
-        console.log('  Backend shut down gracefully, port released.');
+        console.log("  Backend shut down gracefully, port released.");
         // フロントエンドも停止
         killProcessTree(frontend);
-        console.log('  Cleanup completed.');
+        console.log("  Cleanup completed.");
         return;
       }
-      console.log('  Port still in use after graceful shutdown, proceeding with force kill...');
+      console.log(
+        "  Port still in use after graceful shutdown, proceeding with force kill...",
+      );
     } else {
-      console.log('  Graceful shutdown request failed, proceeding with force kill...');
+      console.log(
+        "  Graceful shutdown request failed, proceeding with force kill...",
+      );
     }
   }
 
   // Step 1: 子プロセスツリーを停止
-  console.log('  Step 1: Killing child process trees...');
+  console.log("  Step 1: Killing child process trees...");
   killProcessTree(backend);
   killProcessTree(frontend);
 
@@ -658,7 +1034,7 @@ function cleanupSync() {
   sleepSync(1000);
 
   // Step 2: ポートベースで残存プロセスを停止（子プロセスkillで漏れた孫プロセス対策）
-  console.log('  Step 2: Ensuring ports are released...');
+  console.log("  Step 2: Ensuring ports are released...");
 
   const portsToClean = new Set([
     actualBackendPort,
@@ -675,7 +1051,7 @@ function cleanupSync() {
   }
 
   // Step 3: 最終確認 - まだ残っている場合は個別PIDを直接killして待機
-  console.log('  Step 3: Final verification...');
+  console.log("  Step 3: Final verification...");
   let allClean = true;
   for (const port of portsToClean) {
     if (isPortListening(port)) {
@@ -684,13 +1060,15 @@ function cleanupSync() {
       for (const pid of pids) {
         try {
           // /T なしで直接PIDのみkill（ツリーkillが失敗した場合の補完）
-          execSync(`taskkill /F /PID ${pid}`, { stdio: 'pipe' });
+          execSync(`taskkill /F /PID ${pid}`, { stdio: "pipe" });
           console.log(`  Direct-killed PID ${pid} on port ${port}`);
         } catch {}
       }
       sleepSync(1000);
       if (isPortListening(port)) {
-        console.log(`  ⚠️  Port ${port} could not be released (zombie socket, will auto-clear in ~2min).`);
+        console.log(
+          `  ⚠️  Port ${port} could not be released (zombie socket, will auto-clear in ~2min).`,
+        );
       } else {
         console.log(`  Port ${port} released after direct kill.`);
       }
@@ -700,33 +1078,33 @@ function cleanupSync() {
   }
 
   if (allClean) {
-    console.log('  All ports released successfully.');
+    console.log("  All ports released successfully.");
   }
 
-  console.log('  Cleanup completed.');
+  console.log("  Cleanup completed.");
 }
 
-process.on('SIGINT', () => {
+process.on("SIGINT", () => {
   cleanupSync();
   process.exit(0);
 });
-process.on('SIGTERM', () => {
+process.on("SIGTERM", () => {
   cleanupSync();
   process.exit(0);
 });
-process.on('exit', () => {
+process.on("exit", () => {
   // exit イベントでは非同期処理不可なので同期的にクリーンアップ
   // SIGINT/SIGTERM で既にクリーンアップ済みなら isCleaningUp=true でスキップされる
   cleanupSync();
 });
 
 // 未処理のPromise拒否でクラッシュしないようにする
-process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled rejection in dev.js:', reason);
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection in dev.js:", reason);
   // クラッシュせずにログのみ出力
 });
 
 main().catch((err) => {
-  console.error('Failed to start development servers:', err);
+  console.error("Failed to start development servers:", err);
   process.exit(1);
 });

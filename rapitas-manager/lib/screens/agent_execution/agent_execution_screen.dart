@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/task.dart';
 import '../../providers/execution_provider.dart';
-import '../../providers/task_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../services/voice_command_parser.dart';
 import '../../widgets/status_badge.dart';
@@ -37,7 +36,8 @@ class AgentExecutionScreen extends ConsumerWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.smart_toy_outlined, size: 64, color: Colors.grey),
+                    Icon(Icons.smart_toy_outlined,
+                        size: 64, color: Colors.grey),
                     SizedBox(height: 16),
                     Text('実行履歴はありません'),
                   ],
@@ -53,7 +53,9 @@ class AgentExecutionScreen extends ConsumerWidget {
                   child: ExpansionTile(
                     leading: _statusIcon(execution.status),
                     title: Text(
-                      execution.task?.title ?? execution.command ?? '実行 #${execution.id.substring(0, 8)}',
+                      execution.task?.title ??
+                          execution.command ??
+                          '実行 #${execution.id.substring(0, 8)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -77,7 +79,8 @@ class AgentExecutionScreen extends ConsumerWidget {
                     trailing: execution.isRunning
                         ? IconButton(
                             icon: const Icon(Icons.stop, color: Colors.red),
-                            onPressed: () => _cancelExecution(context, ref, execution.id),
+                            onPressed: () =>
+                                _cancelExecution(context, ref, execution.id),
                           )
                         : Text(
                             DateFormatter.formatRelative(execution.createdAt),
@@ -87,7 +90,10 @@ class AgentExecutionScreen extends ConsumerWidget {
                       if (execution.hasQuestion)
                         Container(
                           padding: const EdgeInsets.all(16),
-                          color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.2),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primaryContainer
+                              .withOpacity(0.2),
                           child: Row(
                             children: [
                               const Icon(Icons.help, color: Colors.orange),
@@ -96,12 +102,14 @@ class AgentExecutionScreen extends ConsumerWidget {
                             ],
                           ),
                         ),
-                      if (execution.output != null && execution.output!.isNotEmpty)
+                      if (execution.output != null &&
+                          execution.output!.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.all(16),
                           child: Text(
                             execution.output!,
-                            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                            style: const TextStyle(
+                                fontFamily: 'monospace', fontSize: 12),
                           ),
                         ),
                       if (execution.errorMessage != null)
@@ -110,7 +118,8 @@ class AgentExecutionScreen extends ConsumerWidget {
                           color: Colors.red.withOpacity(0.1),
                           child: Text(
                             execution.errorMessage!,
-                            style: const TextStyle(color: Colors.red, fontSize: 12),
+                            style: const TextStyle(
+                                color: Colors.red, fontSize: 12),
                           ),
                         ),
                       Padding(
@@ -122,12 +131,14 @@ class AgentExecutionScreen extends ConsumerWidget {
                               TextButton.icon(
                                 icon: const Icon(Icons.play_arrow),
                                 label: const Text('再開'),
-                                onPressed: () => _resumeExecution(context, ref, execution.id),
+                                onPressed: () => _resumeExecution(
+                                    context, ref, execution.id),
                               ),
                             TextButton.icon(
                               icon: const Icon(Icons.article),
                               label: const Text('ログ'),
-                              onPressed: () => _showLogs(context, ref, execution.id),
+                              onPressed: () =>
+                                  _showLogs(context, ref, execution.id),
                             ),
                           ],
                         ),
@@ -185,7 +196,8 @@ class AgentExecutionScreen extends ConsumerWidget {
       List<Task> tasks;
 
       // クエリが単純な実行コマンドの場合は実行可能なタスク一覧を取得
-      final isSimpleExecute = RegExp(r'^(?:実行|自動実行|エージェント実行)(?:して|する)?$').hasMatch(query.trim());
+      final isSimpleExecute =
+          RegExp(r'^(?:実行|自動実行|エージェント実行)(?:して|する)?$').hasMatch(query.trim());
       if (isSimpleExecute) {
         tasks = await taskService.getTasks(status: 'todo');
       } else {
@@ -195,7 +207,8 @@ class AgentExecutionScreen extends ConsumerWidget {
         }
       }
 
-      final executableTasks = tasks.where((t) => t.agentExecutable || t.isDeveloperMode).toList();
+      final executableTasks =
+          tasks.where((t) => t.agentExecutable || t.isDeveloperMode).toList();
 
       if (!context.mounted) return;
 
@@ -218,7 +231,8 @@ class AgentExecutionScreen extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final task = executableTasks[index];
                 return ListTile(
-                  title: Text(task.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  title: Text(task.title,
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
                   subtitle: Text(task.status),
                   leading: const Icon(Icons.smart_toy),
                   onTap: () => Navigator.pop(context, task),
@@ -244,8 +258,12 @@ class AgentExecutionScreen extends ConsumerWidget {
           title: const Text('タスクを実行'),
           content: Text('「${selected.title}」をAIエージェントで実行しますか？'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('キャンセル')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('実行')),
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('キャンセル')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('実行')),
           ],
         ),
       );
@@ -289,15 +307,20 @@ class AgentExecutionScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _cancelExecution(BuildContext context, WidgetRef ref, String id) async {
+  Future<void> _cancelExecution(
+      BuildContext context, WidgetRef ref, String id) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('実行キャンセル'),
         content: const Text('この実行をキャンセルしますか？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('いいえ')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('はい')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('いいえ')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('はい')),
         ],
       ),
     );
@@ -316,7 +339,8 @@ class AgentExecutionScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _resumeExecution(BuildContext context, WidgetRef ref, String id) async {
+  Future<void> _resumeExecution(
+      BuildContext context, WidgetRef ref, String id) async {
     try {
       await ref.read(agentServiceProvider).resumeExecution(id);
       ref.invalidate(executionListProvider);
@@ -355,7 +379,8 @@ class AgentExecutionScreen extends ConsumerWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('実行ログ', style: Theme.of(context).textTheme.titleMedium),
+                          Text('実行ログ',
+                              style: Theme.of(context).textTheme.titleMedium),
                           IconButton(
                             icon: const Icon(Icons.close),
                             onPressed: () => Navigator.pop(context),
@@ -369,8 +394,10 @@ class AgentExecutionScreen extends ConsumerWidget {
                           logs: logs,
                           scrollController: scrollController,
                         ),
-                        loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (e, _) => Center(child: Text('ログの取得に失敗しました: $e')),
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (e, _) =>
+                            Center(child: Text('ログの取得に失敗しました: $e')),
                       ),
                     ),
                   ],

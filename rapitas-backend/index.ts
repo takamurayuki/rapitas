@@ -172,25 +172,57 @@ let isShuttingDown = false;
 const handleProcessSignal = async (signal: string) => {
   if (isShuttingDown) return;
   isShuttingDown = true;
-  
-  console.log(`[Server] Received ${signal}, cleaning up SSE connections...`);
-  
-  // SSE接続を全て閉じる（CLOSE_WAIT蓄積を防止）
-  realtimeService.shutdown();
-  console.log("[Server] SSE connections closed.");
-  
-  // サーバーを停止
+
+  console.log(`[Server] Received ${signal}, initiating graceful shutdown...`);
+
+  // 強制終了タイマー（8秒後に強制終了）
+  const forceExitTimer = setTimeout(() => {
+    console.error("[Server] Graceful shutdown timeout, forcing exit...");
+    process.exit(1);
+  }, 8000);
+
   try {
-    app.stop();
-    console.log("[Server] HTTP server stopped.");
+    // Step 1: まずリスニングソケットを閉じる（新規接続を拒否）
+    console.log("[Server] Step 1: Stopping listener (no new connections)...");
+    try {
+      app.stop();
+    } catch (error) {
+      console.error("[Server] Error stopping listener:", error);
+    }
+
+    // Step 2: SSE接続を全て閉じる（既存接続のクリーンアップ）
+    console.log("[Server] Step 2: Closing SSE connections...");
+    const clientCount = realtimeService.getClientCount();
+    realtimeService.shutdown();
+    console.log(`[Server] Closed ${clientCount} SSE client(s).`);
+
+    // Step 3: 接続がドレインされるのを待つ
+    // TCPソケットが完全に閉じるまでに少し時間が必要
+    console.log("[Server] Step 3: Waiting for connections to drain...");
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // Step 4: データベース接続を閉じる
+    console.log("[Server] Step 4: Closing database connection...");
+    try {
+      await prisma.$disconnect();
+      console.log("[Server] Database connection closed.");
+    } catch (error) {
+      console.error("[Server] Error closing database connection:", error);
+    }
+
+    clearTimeout(forceExitTimer);
+
+    // TCPスタックがソケットを解放する時間を確保
+    console.log("[Server] Waiting for socket cleanup...");
+    setTimeout(() => {
+      console.log("[Server] Shutdown complete.");
+      process.exit(0);
+    }, 500);
   } catch (error) {
-    console.error("[Server] Error stopping HTTP server:", error);
+    console.error("[Server] Error during shutdown:", error);
+    clearTimeout(forceExitTimer);
+    process.exit(1);
   }
-  
-  // 少し待ってからプロセス終了（ソケットクリーンアップの時間を確保）
-  setTimeout(() => {
-    process.exit(0);
-  }, 500);
 };
 
 process.on("SIGTERM", () => handleProcessSignal("SIGTERM"));
@@ -206,7 +238,7 @@ const startupRecovery = async () => {
 
   if (result.recoveredExecutions > 0) {
     console.log(
-      `🔄 Startup recovery: ${result.recoveredExecutions} executions, ${result.updatedTasks} tasks, ${result.updatedSessions} sessions recovered`
+      `🔄 Startup recovery: ${result.recoveredExecutions} executions, ${result.updatedTasks} tasks, ${result.updatedSessions} sessions recovered`,
     );
   }
 
@@ -216,37 +248,56 @@ const startupRecovery = async () => {
       const settings = await prisma.userSettings.findFirst();
       if (settings?.autoResumeInterruptedTasks) {
         // 自動再開前にサーバーが安定するまで追加の待機
-        console.log(`🔄 Auto-resume enabled. Waiting for server to stabilize before resuming ${result.interruptedExecutionIds.length} executions...`);
+        console.log(
+          `🔄 Auto-resume enabled. Waiting for server to stabilize before resuming ${result.interruptedExecutionIds.length} executions...`,
+        );
         await new Promise((resolve) => setTimeout(resolve, 3000));
 
         for (const executionId of result.interruptedExecutionIds) {
           try {
-            const res = await fetch(`http://localhost:${PORT}/agents/executions/${executionId}/resume`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-            });
-            const data = await res.json() as { success: boolean; taskTitle?: string; message?: string; error?: string };
+            const res = await fetch(
+              `http://localhost:${PORT}/agents/executions/${executionId}/resume`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+              },
+            );
+            const data = (await res.json()) as {
+              success: boolean;
+              taskTitle?: string;
+              message?: string;
+              error?: string;
+            };
             if (data.success) {
-              console.log(`✅ Auto-resumed execution ${executionId}: ${data.taskTitle || data.message}`);
+              console.log(
+                `✅ Auto-resumed execution ${executionId}: ${data.taskTitle || data.message}`,
+              );
             } else {
-              console.warn(`⚠️ Failed to auto-resume execution ${executionId}: ${data.error}`);
+              console.warn(
+                `⚠️ Failed to auto-resume execution ${executionId}: ${data.error}`,
+              );
             }
           } catch (error) {
-            console.error(`❌ Error auto-resuming execution ${executionId}:`, error);
+            console.error(
+              `❌ Error auto-resuming execution ${executionId}:`,
+              error,
+            );
           }
         }
 
         // Create notification about auto-resume
-        await prisma.notification.create({
-          data: {
-            type: "agent_execution_resumed",
-            title: "自動再開完了",
-            message: `サーバー再起動後、${result.interruptedExecutionIds.length}件の中断されたタスクを自動再開しました。`,
-            link: "/",
-          },
-        }).catch((err: Error) => {
-          console.error("❌ Failed to create auto-resume notification:", err);
-        });
+        await prisma.notification
+          .create({
+            data: {
+              type: "agent_execution_resumed",
+              title: "自動再開完了",
+              message: `サーバー再起動後、${result.interruptedExecutionIds.length}件の中断されたタスクを自動再開しました。`,
+              link: "/",
+            },
+          })
+          .catch((err: Error) => {
+            console.error("❌ Failed to create auto-resume notification:", err);
+          });
       }
     } catch (error) {
       console.error("❌ Auto-resume check failed:", error);

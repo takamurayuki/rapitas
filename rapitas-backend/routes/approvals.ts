@@ -90,15 +90,50 @@ export { orchestrator };
 // Prisma の String 型で保存された JSON フィールドをパースするヘルパー
 function parseApprovalJsonFields(approval: any) {
   if (!approval) return approval;
-  return {
+
+  let proposedChanges = approval.proposedChanges;
+  if (typeof proposedChanges === "string") {
+    proposedChanges = fromJsonString(proposedChanges);
+    if (proposedChanges === null) {
+      console.error(
+        `[approvals] Failed to parse proposedChanges for approval ${approval.id}`,
+      );
+      proposedChanges = {};
+    }
+  }
+
+  // proposedChanges から diff（プレーンテキスト）を除外してレスポンスサイズを削減
+  // structuredDiff はフロントのDiffViewerで使用されるため残す
+  // diff は /approvals/:id/diff エンドポイントで別途取得可能
+  const { diff: _diff, ...proposedChangesWithoutDiff } = proposedChanges || {};
+
+  let estimatedChanges = typeof approval.estimatedChanges === "string"
+    ? fromJsonString(approval.estimatedChanges)
+    : approval.estimatedChanges;
+  // estimatedChanges からも diff を除外
+  if (estimatedChanges && typeof estimatedChanges === "object" && "diff" in estimatedChanges) {
+    const { diff: _estDiff, ...estWithoutDiff } = estimatedChanges as Record<string, unknown>;
+    estimatedChanges = estWithoutDiff;
+  }
+
+  const parsed = {
     ...approval,
-    proposedChanges: typeof approval.proposedChanges === "string"
-      ? fromJsonString(approval.proposedChanges)
-      : approval.proposedChanges,
-    estimatedChanges: typeof approval.estimatedChanges === "string"
-      ? fromJsonString(approval.estimatedChanges)
-      : approval.estimatedChanges,
+    proposedChanges: proposedChangesWithoutDiff,
+    estimatedChanges,
   };
+
+  // スクリーンショットのデバッグログ
+  const screenshots = parsed.proposedChanges?.screenshots;
+  if (screenshots && screenshots.length > 0) {
+    console.log(
+      `[approvals] Approval ${approval.id} has ${screenshots.length} screenshot(s): ${screenshots.map((s: any) => s.url).join(", ")}`,
+    );
+  } else {
+    console.log(
+      `[approvals] Approval ${approval.id} has no screenshots. Keys: ${Object.keys(parsed.proposedChanges || {}).join(", ")}`,
+    );
+  }
+  return parsed;
 }
 
 export const approvalsRoutes = new Elysia({ prefix: "/approvals" })
@@ -110,7 +145,16 @@ export const approvalsRoutes = new Elysia({ prefix: "/approvals" })
       include: {
         config: {
           include: {
-            task: true,
+            task: {
+              include: {
+                theme: {
+                  select: {
+                    defaultBranch: true,
+                    workingDirectory: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -127,7 +171,16 @@ export const approvalsRoutes = new Elysia({ prefix: "/approvals" })
       include: {
         config: {
           include: {
-            task: true,
+            task: {
+              include: {
+                theme: {
+                  select: {
+                    defaultBranch: true,
+                    workingDirectory: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -846,14 +899,19 @@ ${previousImplementation}
                 // UI変更がある場合はスクリーンショットを撮影
                 let screenshots: ScreenshotResult[] = [];
                 try {
-                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory });
+                  screenshots = await captureScreenshotsForDiff(structuredDiff, {
+                    workingDirectory,
+                    agentOutput: result.output || "",
+                  });
                   if (screenshots.length > 0) {
-                    console.log(`[approvals] Captured ${screenshots.length} screenshots for task ${task.id}`);
+                    console.log(`[approvals] Captured ${screenshots.length} screenshots for task ${task.id}: ${screenshots.map((s) => s.page).join(", ")}`);
                   }
                 } catch (screenshotErr) {
                   console.warn("[approvals] Screenshot capture failed (non-fatal):", screenshotErr);
                 }
 
+                // path（ファイルシステムパス）を除外してフロントに安全なデータのみ保存
+                const screenshotData = screenshots.map(({ path, ...rest }) => rest);
                 const newApprovalRequest = await prisma.approvalRequest.create({
                   data: {
                     configId: approval.configId,
@@ -864,17 +922,15 @@ ${previousImplementation}
                       taskId: task.id,
                       sessionId: session.id,
                       workingDirectory,
-                      diff,
                       structuredDiff,
                       implementationSummary,
                       executionTimeMs: result.executionTimeMs,
                       feedbackIteration: true,
                       previousFeedback: feedback,
                       previousComments: comments,
-                      screenshots,
+                      screenshots: screenshotData,
                     }),
                     estimatedChanges: toJsonString({
-                      diff,
                       filesChanged: structuredDiff.length,
                       summary: implementationSummary.substring(0, 500),
                     }),

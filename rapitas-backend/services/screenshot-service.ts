@@ -39,8 +39,6 @@ export type ScreenshotOptions = {
   workingDirectory?: string;
   /** 最大撮影ページ数（デフォルト: 5、全ページモード時は30） */
   maxPages?: number;
-  /** trueの場合、変更ファイルに関係なく全ページのスクリーンショットを撮影 */
-  captureAll?: boolean;
 };
 
 export type ProjectInfo = {
@@ -309,6 +307,10 @@ export function hasUIChanges(
 
 /**
  * 変更されたファイルから関連するページを推定する（汎用版）
+ *
+ * 精度重視: ページコンポーネント（page.tsx, Client.tsx）の変更は直接そのルートを、
+ * feature ディレクトリや共通コンポーネントの変更は関連ページのみを対象にする。
+ * 最大撮影ページ数を制限して不要なスクリーンショットを防止する。
  */
 export function detectAffectedPages(
   changedFiles: string[],
@@ -317,9 +319,71 @@ export function detectAffectedPages(
   const pages: Array<{ path: string; label: string }> = [];
   const addedPaths = new Set<string>();
 
-  const projectInfo = workingDirectory
-    ? detectProjectInfo(workingDirectory)
-    : null;
+  function addPage(path: string, label: string) {
+    // 動的ルート（[id]など）はスキップ
+    if (path.includes("[")) return;
+    if (!addedPaths.has(path)) {
+      addedPaths.add(path);
+      pages.push({ path, label });
+    }
+  }
+
+  // feature ディレクトリからページへのマッピング（全 feature 対応）
+  const featurePageMapping: Record<string, Array<{ path: string; label: string }>> = {
+    "developer-mode": [
+      { path: "/approvals", label: "approvals" },
+      { path: "/settings/developer-mode", label: "developer-mode" },
+    ],
+    "calendar": [
+      { path: "/calendar", label: "calendar" },
+    ],
+    "tasks": [
+      { path: "/", label: "home" },
+      { path: "/kanban", label: "kanban" },
+      { path: "/tasks/new", label: "tasks-new" },
+      { path: "/tasks/detail", label: "tasks-detail" },
+      { path: "/task-detail", label: "task-detail" },
+    ],
+  };
+
+  // src/app/ 内のコンポーネント（*Client.tsx など page.tsx 以外）から
+  // ページルートを推測するマッピング
+  const appComponentMapping: Record<string, Array<{ path: string; label: string }>> = {
+    "achievements": [{ path: "/achievements", label: "achievements" }],
+    "agents": [{ path: "/agents", label: "agents" }],
+    "approvals": [{ path: "/approvals", label: "approvals" }],
+    "categories": [{ path: "/categories", label: "categories" }],
+    "dashboard": [{ path: "/dashboard", label: "dashboard" }],
+    "exam-goals": [{ path: "/exam-goals", label: "exam-goals" }],
+    "flashcards": [{ path: "/flashcards", label: "flashcards" }],
+    "focus": [{ path: "/focus", label: "focus" }],
+    "github": [
+      { path: "/github", label: "github" },
+      { path: "/github/issues", label: "github-issues" },
+      { path: "/github/pull-requests", label: "github-pull-requests" },
+    ],
+    "habits": [
+      { path: "/habits", label: "habits" },
+      { path: "/habits/daily-schedule", label: "daily-schedule" },
+    ],
+    "kanban": [{ path: "/kanban", label: "kanban" }],
+    "labels": [{ path: "/labels", label: "labels" }],
+    "learning-goals": [{ path: "/learning-goals", label: "learning-goals" }],
+    "reports": [{ path: "/reports", label: "reports" }],
+    "settings": [
+      { path: "/settings", label: "settings" },
+      { path: "/settings/general", label: "settings-general" },
+      { path: "/settings/developer-mode", label: "settings-developer-mode" },
+      { path: "/settings/shortcuts", label: "settings-shortcuts" },
+    ],
+    "system-prompts": [{ path: "/system-prompts", label: "system-prompts" }],
+    "task-detail": [{ path: "/task-detail", label: "task-detail" }],
+    "tasks": [
+      { path: "/tasks/new", label: "tasks-new" },
+      { path: "/tasks/detail", label: "tasks-detail" },
+    ],
+    "themes": [{ path: "/themes", label: "themes" }],
+  };
 
   for (const file of changedFiles) {
     const normalized = file.replace(/\\/g, "/");
@@ -335,133 +399,124 @@ export function detectAffectedPages(
 
     if (!isUIFile) continue;
 
-    // Next.js App Router: src/app/xxx/page.tsx → /xxx
+    // 1. Next.js App Router: src/app/xxx/page.tsx or xxxClient.tsx → /xxx
     const appRouterMatch = normalized.match(
-      /(?:[\w-]+\/)?src\/app\/(.+?)\/(?:page\.[tj]sx?|.*Client\.[tj]sx?|layout\.[tj]sx?)/,
+      /(?:[\w-]+\/)?src\/app\/(.+?)\/(?:page\.[tj]sx?|[A-Z]\w*Client\.[tj]sx?)/,
     );
     if (appRouterMatch) {
       const routePath = `/${appRouterMatch[1]}`;
-      if (!addedPaths.has(routePath)) {
-        addedPaths.add(routePath);
-        pages.push({
-          path: routePath,
-          label: routePath.split("/").pop() || routePath,
-        });
-      }
+      addPage(routePath, routePath.split("/").filter(Boolean).pop() || "home");
       continue;
     }
 
-    // Next.js App Router (no src): app/xxx/page.tsx → /xxx
+    // 2. Next.js App Router: ルートの page.tsx (src/app/page.tsx)
+    if (/(?:[\w-]+\/)?src\/app\/page\.[tj]sx?$/.test(normalized)) {
+      addPage("/", "home");
+      continue;
+    }
+
+    // 3. Next.js App Router: layout.tsx の変更 → そのルートとその子ルートの1つ
+    const layoutMatch = normalized.match(
+      /(?:[\w-]+\/)?src\/app\/(.+?)\/layout\.[tj]sx?/,
+    );
+    if (layoutMatch) {
+      const routePath = `/${layoutMatch[1]}`;
+      addPage(routePath, routePath.split("/").filter(Boolean).pop() || "home");
+      continue;
+    }
+
+    // 4. ルートの layout.tsx
+    if (/(?:[\w-]+\/)?src\/app\/layout\.[tj]sx?$/.test(normalized)) {
+      addPage("/", "home");
+      continue;
+    }
+
+    // 5. Next.js App Router (no src): app/xxx/page.tsx → /xxx
     const appDirMatch = normalized.match(
-      /app\/(.+?)\/(?:page\.[tj]sx?|.*Client\.[tj]sx?|layout\.[tj]sx?)/,
+      /app\/(.+?)\/(?:page\.[tj]sx?|[A-Z]\w*Client\.[tj]sx?)/,
     );
     if (appDirMatch && !normalized.includes("src/app/")) {
       const routePath = `/${appDirMatch[1]}`;
-      if (!addedPaths.has(routePath)) {
-        addedPaths.add(routePath);
-        pages.push({
-          path: routePath,
-          label: routePath.split("/").pop() || routePath,
-        });
-      }
+      addPage(routePath, routePath.split("/").filter(Boolean).pop() || "home");
       continue;
     }
 
-    // Next.js Pages Router / Nuxt: pages/xxx.tsx → /xxx
+    // 6. Next.js Pages Router / Nuxt: pages/xxx.tsx → /xxx
     const pagesMatch = normalized.match(
       /pages\/(.+?)\.[tj]sx?$|pages\/(.+?)\.vue$/,
     );
     if (pagesMatch) {
       const pageName = (pagesMatch[1] || pagesMatch[2]).replace(/\/index$/, "");
       if (pageName === "index" || pageName === "_app" || pageName === "_document") {
-        if (!addedPaths.has("/")) {
-          addedPaths.add("/");
-          pages.push({ path: "/", label: "home" });
-        }
+        addPage("/", "home");
       } else if (!pageName.startsWith("_")) {
         const routePath = `/${pageName}`;
-        if (!addedPaths.has(routePath)) {
-          addedPaths.add(routePath);
-          pages.push({
-            path: routePath,
-            label: routePath.split("/").pop() || routePath,
-          });
-        }
+        addPage(routePath, routePath.split("/").filter(Boolean).pop() || pageName);
       }
       continue;
     }
 
-    // Vue Router / React Router: views/xxx.vue or views/xxx.tsx
+    // 7. Vue Router / React Router: views/xxx.vue or views/xxx.tsx
     const viewsMatch = normalized.match(
       /views\/(.+?)\.[tj]sx?$|views\/(.+?)\.vue$/,
     );
     if (viewsMatch) {
       const viewName = (viewsMatch[1] || viewsMatch[2]).replace(/\/index$/, "");
       const routePath = `/${viewName.toLowerCase()}`;
-      if (!addedPaths.has(routePath)) {
-        addedPaths.add(routePath);
-        pages.push({
-          path: routePath,
-          label: viewName.split("/").pop() || viewName,
-        });
-      }
+      addPage(routePath, viewName.split("/").pop() || viewName);
       continue;
     }
 
-    // featureディレクトリの変更 → 関連ページを撮影
+    // 8. feature ディレクトリの変更 → マッピングされたページのみ
     const featureMatch = normalized.match(
       /src\/feature\/([^/]+)\//,
     );
     if (featureMatch) {
       const featureName = featureMatch[1];
-      const featurePageMapping: Record<string, Array<{ path: string; label: string }>> = {
-        "developer-mode": [
-          { path: "/approvals", label: "approvals" },
-        ],
-        "calendar": [
-          { path: "/calendar", label: "calendar" },
-        ],
-        "tasks": [
-          { path: "/", label: "home" },
-          { path: "/kanban", label: "kanban" },
-        ],
-      };
       const mappedPages = featurePageMapping[featureName];
       if (mappedPages) {
         for (const mp of mappedPages) {
-          if (!addedPaths.has(mp.path)) {
-            addedPaths.add(mp.path);
-            pages.push(mp);
-          }
+          addPage(mp.path, mp.label);
         }
+      } else {
+        // マッピングがない feature は feature 名をルートとして推測
+        // 例: src/feature/habits/ → /habits
+        addPage(`/${featureName}`, featureName);
       }
       continue;
     }
 
-    // 共通コンポーネントの変更 → トップページを撮影
-    if (
-      normalized.includes("/components/") &&
-      !normalized.includes("/app/") &&
-      !normalized.includes("/pages/")
-    ) {
-      if (!addedPaths.has("/")) {
-        addedPaths.add("/");
-        pages.push({ path: "/", label: "home" });
+    // 9. src/app/xxx/ 内の任意のコンポーネントファイル変更
+    //    page.tsx や *Client.tsx 以外のファイル（例: src/app/dashboard/Chart.tsx）
+    const appDirComponentMatch = normalized.match(
+      /(?:[\w-]+\/)?src\/app\/([^/]+)\//,
+    );
+    if (appDirComponentMatch) {
+      const dirName = appDirComponentMatch[1];
+      const mappedPages = appComponentMapping[dirName];
+      if (mappedPages) {
+        for (const mp of mappedPages) {
+          addPage(mp.path, mp.label);
+        }
+      } else if (!dirName.startsWith("_") && !dirName.startsWith(".")) {
+        // マッピングがないディレクトリ名をルートとして推測
+        addPage(`/${dirName}`, dirName);
       }
+      continue;
     }
 
-    // グローバルCSS / レイアウトの変更 → トップページ
+    // 10. グローバルCSS の変更 → トップページのみ
     if (
       normalized.includes("globals.css") ||
       normalized.includes("global.css") ||
-      normalized.includes("index.css") ||
-      (normalized.includes("layout.") && !normalized.includes("/app/"))
+      normalized.includes("index.css")
     ) {
-      if (!addedPaths.has("/")) {
-        addedPaths.add("/");
-        pages.push({ path: "/", label: "home" });
-      }
+      addPage("/", "home");
+      continue;
     }
+
+    // 11. 共通コンポーネント・ユーティリティの変更は無視（影響範囲が広すぎるため）
+    // page.tsx や Client.tsx を直接変更した場合のみスクリーンショットを撮影
   }
 
   return pages;
@@ -779,9 +834,9 @@ function runScreenshotWorker(
     child.stdin.write(JSON.stringify(workerInput));
     child.stdin.end();
 
-    // タイムアウト: ページ数に応じて動的に設定（1ページあたり30秒 + ブラウザ起動30秒）
+    // タイムアウト: ページ数に応じて動的に設定（1ページあたり35秒 + ブラウザ起動30秒）
     const pages = (workerInput.pages as Array<unknown>) || [];
-    const timeoutMs = 30000 + pages.length * 30000;
+    const timeoutMs = 30000 + pages.length * 35000;
     setTimeout(() => {
       if (resolved) return;
       resolved = true;
@@ -808,7 +863,7 @@ export async function captureScreenshots(
   const {
     workingDirectory,
     viewport = { width: 1280, height: 720 },
-    waitMs = 2000,
+    waitMs = 1500,
     darkMode = false,
     maxPages = 5,
   } = options;
@@ -868,9 +923,11 @@ export async function captureScreenshots(
 /**
  * プロジェクトの全ページのスクリーンショットを撮影する（汎用版）
  * フロントエンドのルート構造を自動検出して全静的ページを撮影
+ *
+ * changedFiles が指定された場合は変更されたファイルに関連するページのみを撮影する
  */
 export async function captureAllScreenshots(
-  options: ScreenshotOptions = {},
+  options: ScreenshotOptions & { changedFiles?: string[] } = {},
 ): Promise<ScreenshotResult[]> {
   const workingDirectory = options.workingDirectory;
   if (!workingDirectory) {
@@ -878,15 +935,34 @@ export async function captureAllScreenshots(
     return [];
   }
 
-  const allPages = detectAllPages(workingDirectory);
-  console.log(
-    `[ScreenshotService] Detected ${allPages.length} page(s): ${allPages.map((p) => p.path).join(", ")}`,
-  );
+  let targetPages: Array<{ path: string; label: string }>;
 
+  if (options.changedFiles && options.changedFiles.length > 0) {
+    // diffベース: 変更ファイルから影響のあるページのみを対象にする
+    if (!hasUIChanges(options.changedFiles, workingDirectory)) {
+      console.log("[ScreenshotService] captureAll: no UI changes detected, skipping.");
+      return [];
+    }
+    targetPages = detectAffectedPages(options.changedFiles, workingDirectory);
+    if (targetPages.length === 0) {
+      targetPages = [{ path: "/", label: "home" }];
+    }
+    console.log(
+      `[ScreenshotService] captureAll (diff-based): ${targetPages.length} affected page(s): ${targetPages.map((p) => p.path).join(", ")}`,
+    );
+  } else {
+    // 全ページモード
+    targetPages = detectAllPages(workingDirectory);
+    console.log(
+      `[ScreenshotService] captureAll: detected ${targetPages.length} page(s): ${targetPages.map((p) => p.path).join(", ")}`,
+    );
+  }
+
+  // maxPages のデフォルトを10に制限（不要なスクリーンショットを防止）
   return captureScreenshots({
     ...options,
-    pages: allPages,
-    maxPages: options.maxPages || 30,
+    pages: targetPages,
+    maxPages: options.maxPages || 10,
     workingDirectory,
   });
 }
@@ -942,7 +1018,7 @@ export function detectPagesFromAgentOutput(
 
 /**
  * structuredDiffとエージェント出力からスクリーンショットを撮影
- * captureAll: true の場合、UI変更があれば全ページのスクリーンショットを撮影
+ * 変更されたページのみを対象にし、不要なスクリーンショットを防止する
  */
 export async function captureScreenshotsForDiff(
   structuredDiff: Array<{ filename: string }>,
@@ -951,6 +1027,10 @@ export async function captureScreenshotsForDiff(
   const changedFiles = structuredDiff.map((d) => d.filename);
   const workingDirectory = options?.workingDirectory;
 
+  console.log(
+    `[ScreenshotService] captureScreenshotsForDiff: ${changedFiles.length} changed file(s)`,
+  );
+
   if (!hasUIChanges(changedFiles, workingDirectory)) {
     console.log(
       "[ScreenshotService] No UI changes detected, skipping screenshots.",
@@ -958,18 +1038,11 @@ export async function captureScreenshotsForDiff(
     return [];
   }
 
-  // captureAll モード: UI変更があれば全ページを撮影
-  if (options?.captureAll && workingDirectory) {
-    console.log(
-      "[ScreenshotService] captureAll mode: capturing all pages",
-    );
-    return captureAllScreenshots({
-      ...options,
-      workingDirectory,
-    });
-  }
-
   const pages = detectAffectedPages(changedFiles, workingDirectory);
+
+  console.log(
+    `[ScreenshotService] Detected ${pages.length} affected page(s) from diff: ${pages.map((p) => p.path).join(", ")}`,
+  );
 
   // エージェントの出力テキストからも追加ページを検出
   if (options?.agentOutput) {
@@ -991,8 +1064,8 @@ export async function captureScreenshotsForDiff(
     pages.push({ path: "/", label: "home" });
   }
 
-  // 最大ページ数を制限（デフォルト: 10）
-  const maxPages = options?.maxPages || 10;
+  // 最大ページ数を制限（デフォルト: 5）
+  const maxPages = options?.maxPages || 5;
   const targetPages = pages.slice(0, maxPages);
   if (pages.length > maxPages) {
     console.log(
@@ -1001,7 +1074,7 @@ export async function captureScreenshotsForDiff(
   }
 
   console.log(
-    `[ScreenshotService] Target pages: ${targetPages.map((p) => p.path).join(", ")}`,
+    `[ScreenshotService] Capturing ${targetPages.length} page(s): ${targetPages.map((p) => p.path).join(", ")}`,
   );
 
   return captureScreenshots({

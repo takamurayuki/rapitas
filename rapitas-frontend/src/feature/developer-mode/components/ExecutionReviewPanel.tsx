@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   CheckCircle,
   XCircle,
@@ -85,6 +85,17 @@ export function ExecutionReviewPanel({
   // 手動スクリーンショット撮影用の状態
   const [screenshots, setScreenshots] = useState<ScreenshotInfo[]>(initialScreenshots || []);
   const [isCapturing, setIsCapturing] = useState(false);
+
+  // initialScreenshots が後から変更された場合にも反映する
+  useEffect(() => {
+    if (initialScreenshots && initialScreenshots.length > 0) {
+      setScreenshots(initialScreenshots);
+      console.log(
+        `[ExecutionReviewPanel] Received ${initialScreenshots.length} screenshot(s):`,
+        initialScreenshots.map((s) => ({ page: s.page, url: s.url })),
+      );
+    }
+  }, [initialScreenshots]);
   const [showCaptureForm, setShowCaptureForm] = useState(false);
   const [captureBaseUrl, setCaptureBaseUrl] = useState("");
   const [capturePages, setCapturePages] = useState<Array<{ path: string; label: string }>>([
@@ -536,9 +547,19 @@ export function ExecutionReviewPanel({
                       <img
                         src={`${API_BASE_URL}${screenshot.url}`}
                         alt={`Screenshot of ${screenshot.page}`}
-                        className="w-full h-auto"
+                        className="w-full h-auto min-h-[100px] bg-zinc-200 dark:bg-zinc-700 object-contain"
                         loading="lazy"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          target.style.display = "none";
+                          const fallback = target.parentElement?.querySelector(".screenshot-error");
+                          if (fallback instanceof HTMLElement) fallback.style.display = "flex";
+                        }}
                       />
+                      <div className="screenshot-error hidden items-center justify-center gap-2 py-8 text-zinc-400 dark:text-zinc-500 text-sm">
+                        <AlertCircle className="w-4 h-4" />
+                        画像を読み込めませんでした
+                      </div>
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
                         <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
                       </div>
