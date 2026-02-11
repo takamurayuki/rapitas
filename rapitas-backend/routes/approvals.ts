@@ -87,11 +87,25 @@ orchestrator.addEventListener((event) => {
 // Export orchestrator for use in other modules
 export { orchestrator };
 
+// Prisma の String 型で保存された JSON フィールドをパースするヘルパー
+function parseApprovalJsonFields(approval: any) {
+  if (!approval) return approval;
+  return {
+    ...approval,
+    proposedChanges: typeof approval.proposedChanges === "string"
+      ? fromJsonString(approval.proposedChanges)
+      : approval.proposedChanges,
+    estimatedChanges: typeof approval.estimatedChanges === "string"
+      ? fromJsonString(approval.estimatedChanges)
+      : approval.estimatedChanges,
+  };
+}
+
 export const approvalsRoutes = new Elysia({ prefix: "/approvals" })
   // Get approval list
   .get("/", async ({ query }: { query: { status?: string } }) => {
     const { status } = query;
-    return await prisma.approvalRequest.findMany({
+    const approvals = await prisma.approvalRequest.findMany({
       where: status ? { status } : { status: "pending" },
       include: {
         config: {
@@ -102,12 +116,13 @@ export const approvalsRoutes = new Elysia({ prefix: "/approvals" })
       },
       orderBy: { createdAt: "desc" },
     });
+    return approvals.map(parseApprovalJsonFields);
   })
 
   // Get approval details
   .get("/:id", async ({ params }: { params: { id: string } }) => {
     const { id } = params;
-    return await prisma.approvalRequest.findUnique({
+    const approval = await prisma.approvalRequest.findUnique({
       where: { id: parseInt(id) },
       include: {
         config: {
@@ -117,6 +132,7 @@ export const approvalsRoutes = new Elysia({ prefix: "/approvals" })
         },
       },
     });
+    return parseApprovalJsonFields(approval);
   })
 
   // Approve request
@@ -830,7 +846,7 @@ ${previousImplementation}
                 // UI変更がある場合はスクリーンショットを撮影
                 let screenshots: ScreenshotResult[] = [];
                 try {
-                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory, captureAll: true });
+                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory });
                   if (screenshots.length > 0) {
                     console.log(`[approvals] Captured ${screenshots.length} screenshots for task ${task.id}`);
                   }

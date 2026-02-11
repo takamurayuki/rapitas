@@ -40,6 +40,8 @@ export class RealtimeService {
   private maxHistorySize: number = 100;
   private pingInterval: NodeJS.Timeout | null = null;
   private nextClientId: number = 1;
+  /** SSE接続のReadableStreamController管理用マップ（明示的にcloseするため） */
+  private streamControllers: Map<string, ReadableStreamDefaultController<Uint8Array>> = new Map();
 
   private constructor() {
     // 定期的なping送信を開始（30秒ごと）
@@ -83,6 +85,23 @@ export class RealtimeService {
    */
   removeClient(clientId: string): void {
     this.clients.delete(clientId);
+    // ストリームコントローラーも削除（すでにcloseされている場合もある）
+    this.streamControllers.delete(clientId);
+  }
+
+  /**
+   * SSE接続のStreamControllerを登録
+   * シャットダウン時に明示的にcloseするために使用
+   */
+  registerStreamController(clientId: string, controller: ReadableStreamDefaultController<Uint8Array>): void {
+    this.streamControllers.set(clientId, controller);
+  }
+
+  /**
+   * SSE接続のStreamControllerを削除
+   */
+  removeStreamController(clientId: string): void {
+    this.streamControllers.delete(clientId);
   }
 
   /**
@@ -299,6 +318,7 @@ export class RealtimeService {
 
   /**
    * サービスを停止
+   * 全てのSSE接続を明示的にクローズしてソケットを解放する
    */
   shutdown(): void {
     if (this.pingInterval) {
@@ -308,6 +328,22 @@ export class RealtimeService {
 
     // 全クライアントに切断通知を送信
     this.broadcastAll('shutdown', { reason: 'Server shutting down' });
+
+    // 全てのSSEストリームを明示的にclose（CLOSE_WAIT蓄積を防止）
+    const controllerCount = this.streamControllers.size;
+    for (const [clientId, controller] of this.streamControllers) {
+      try {
+        controller.close();
+        console.log(`[SSE] Closed stream for client ${clientId}`);
+      } catch (error) {
+        // 既にcloseされている場合は無視
+      }
+    }
+    if (controllerCount > 0) {
+      console.log(`[SSE] Closed ${controllerCount} SSE stream(s) during shutdown`);
+    }
+
+    this.streamControllers.clear();
     this.clients.clear();
   }
 

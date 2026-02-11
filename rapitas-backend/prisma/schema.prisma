@@ -214,20 +214,6 @@ model StudyStreak {
   updatedAt       DateTime @updatedAt
 }
 
-model StudyPlan {
-  id            Int       @id @default(autoincrement())
-  examGoalId    Int?
-  subject       String
-  prompt        String
-  generatedPlan String    // JSON stored as string
-  totalDays     Int
-  startDate     DateTime
-  endDate       DateTime
-  isApplied     Boolean   @default(false)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-}
-
 // 学習目標（自由な目標設定 → タスク自動生成）
 model LearningGoal {
   id              Int       @id @default(autoincrement())

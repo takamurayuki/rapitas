@@ -115,36 +115,6 @@ export type StudyStreak = {
   updatedAt: string;
 };
 
-export type StudyPlanPhase = {
-  name: string;
-  days: number;
-  tasks: string[];
-  dailyHours: number;
-};
-
-export type GeneratedStudyPlan = {
-  subject: string;
-  targetScore?: string;
-  totalDays: number;
-  studyHoursPerDay: number;
-  phases: StudyPlanPhase[];
-  tips: string[];
-};
-
-export type StudyPlan = {
-  id: number;
-  examGoalId?: number | null;
-  subject: string;
-  prompt: string;
-  generatedPlan: GeneratedStudyPlan;
-  totalDays: number;
-  startDate: string;
-  endDate: string;
-  isApplied: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
-
 // 学習目標
 export type LearningGoalSubtask = {
   title: string;

@@ -23,7 +23,6 @@ import {
   studyStreaksRoutes,
   resourcesRoutes,
   directoriesRoutes,
-  studyPlansRoutes,
   statisticsRoutes,
   achievementsRoutes,
   habitsRoutes,
@@ -55,6 +54,9 @@ import { prisma, ensureDatabaseConnection } from "./config";
 
 // Import orchestrator for startup recovery
 import { orchestrator } from "./routes/approvals";
+
+// Import realtime service for SSE cleanup on shutdown
+import { realtimeService } from "./services/realtime-service";
 
 // Ensure database connection before starting server
 await ensureDatabaseConnection();
@@ -97,7 +99,7 @@ app.use(
         },
         {
           name: "Study",
-          description: "Study-related features (exam goals, streaks, plans)",
+          description: "Study-related features (exam goals, streaks)",
         },
         { name: "Resources", description: "Resource management" },
         { name: "AI Chat", description: "AI chat functionality" },
@@ -125,7 +127,6 @@ app.use(examGoalsRoutes);
 app.use(studyStreaksRoutes);
 app.use(resourcesRoutes);
 app.use(directoriesRoutes);
-app.use(studyPlansRoutes);
 app.use(statisticsRoutes);
 app.use(achievementsRoutes);
 app.use(habitsRoutes);
@@ -156,6 +157,7 @@ const PORT = parseInt(process.env.PORT || "3001", 10);
 app.listen({
   port: PORT,
   idleTimeout: 30, // 30秒のアイドルタイムアウトでCLOSE_WAIT蓄積を防止
+  reusePort: true, // TIME_WAIT状態のゾンビソケットがあってもバインド可能にする
 });
 console.log(`🚀 Rapitas backend running on http://localhost:${PORT}`);
 
@@ -163,6 +165,36 @@ console.log(`🚀 Rapitas backend running on http://localhost:${PORT}`);
 orchestrator.setServerStopCallback(() => {
   app.stop();
 });
+
+// bun --watch からのシグナル処理（dev:simpleモード用）
+// SIGTERM/SIGINT受信時にSSE接続を即座に閉じてCLOSE_WAIT蓄積を防止
+let isShuttingDown = false;
+const handleProcessSignal = async (signal: string) => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  
+  console.log(`[Server] Received ${signal}, cleaning up SSE connections...`);
+  
+  // SSE接続を全て閉じる（CLOSE_WAIT蓄積を防止）
+  realtimeService.shutdown();
+  console.log("[Server] SSE connections closed.");
+  
+  // サーバーを停止
+  try {
+    app.stop();
+    console.log("[Server] HTTP server stopped.");
+  } catch (error) {
+    console.error("[Server] Error stopping HTTP server:", error);
+  }
+  
+  // 少し待ってからプロセス終了（ソケットクリーンアップの時間を確保）
+  setTimeout(() => {
+    process.exit(0);
+  }, 500);
+};
+
+process.on("SIGTERM", () => handleProcessSignal("SIGTERM"));
+process.on("SIGINT", () => handleProcessSignal("SIGINT"));
 
 // Startup recovery: mark stale running/pending executions as interrupted
 // and update related Task/Session statuses, then auto-resume if enabled

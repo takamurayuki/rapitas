@@ -63,7 +63,7 @@ async function main() {
     baseUrl = "http://localhost:3000",
     pages = [{ path: "/", label: "home" }],
     viewport = { width: 1280, height: 720 },
-    waitMs = 5000,
+    waitMs = 1500,
     darkMode = false,
     screenshotDir,
   } = options;
@@ -101,7 +101,7 @@ async function main() {
 
         await page.goto(url, {
           waitUntil: "domcontentloaded",
-          timeout: 30000,
+          timeout: 15000,
         });
 
         await page.waitForTimeout(waitMs);
@@ -122,7 +122,7 @@ async function main() {
           fullPage: false,
         });
 
-        results.push({
+        const result = {
           id: screenshotId,
           filename,
           path: filePath,
@@ -130,7 +130,12 @@ async function main() {
           page: target.path,
           label: target.label,
           capturedAt: new Date().toISOString(),
-        });
+        };
+
+        results.push(result);
+
+        // 逐次出力: 1行1JSON（NDJSON）でタイムアウト時も途中結果を回収可能にする
+        process.stdout.write(JSON.stringify(result) + "\n");
 
         process.stderr.write(
           `[ScreenshotWorker] Captured: ${target.path} -> ${filename}\n`
@@ -151,13 +156,9 @@ async function main() {
       await browser.close().catch(() => {});
     }
   }
-
-  // 結果を stdout に JSON で出力
-  process.stdout.write(JSON.stringify(results));
 }
 
 main().catch((err) => {
   process.stderr.write(`[ScreenshotWorker] Fatal error: ${err.message}\n`);
-  process.stdout.write(JSON.stringify([]));
   process.exit(1);
 });

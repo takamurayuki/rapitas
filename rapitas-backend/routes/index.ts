@@ -16,7 +16,6 @@ export { examGoalsRoutes } from "./exam-goals";
 export { studyStreaksRoutes } from "./study-streaks";
 export { resourcesRoutes } from "./resources";
 export { directoriesRoutes } from "./directories";
-export { studyPlansRoutes } from "./study-plans";
 export { statisticsRoutes } from "./statistics";
 export { achievementsRoutes } from "./achievements";
 export { habitsRoutes } from "./habits";

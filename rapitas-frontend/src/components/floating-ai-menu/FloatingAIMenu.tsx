@@ -85,7 +85,7 @@ const ChatMessage = memo(function ChatMessage({
 type ModelOption = { value: string; label: string };
 
 export default function FloatingAIMenu({
-  systemPrompt = "あなたはRapi+アプリケーションのAIアシスタントです。ユーザーのタスク管理や学習計画に関する質問に日本語で丁寧に回答してください。",
+  systemPrompt = "あなたはRapi+アプリケーションのAIアシスタントです。ユーザーのタスク管理や学習に関する質問に日本語で丁寧に回答してください。",
   placeholder = "AIに質問する...",
   title = "AIアシスタント",
   position = "bottom-right",
@@ -354,7 +354,7 @@ export default function FloatingAIMenu({
                 AIに質問してみましょう
                 <br />
                 <span className="text-xs">
-                  タスク管理や学習計画について
+                  タスク管理や学習について
                   <br />
                   何でもお気軽にどうぞ
                 </span>

@@ -26,7 +26,7 @@ const MODE_OPTIONS: {
     value: "learning",
     label: "学習モード",
     description:
-      "試験目標・学習計画・フラッシュカードなど学習関連のナビゲーションのみ表示します",
+      "試験目標・学習目標・フラッシュカードなど学習関連のナビゲーションのみ表示します",
     icon: GraduationCap,
   },
 ];

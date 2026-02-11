@@ -711,8 +711,27 @@ function scanAngularRoutes(
  *
  * Bun 環境では Playwright の pipe 接続（--remote-debugging-pipe）が
  * ハングするため、Node.js サブプロセスとして実行する。
+ * ワーカーは NDJSON（1行1JSON）で逐次出力し、タイムアウト時も途中結果を回収可能。
  * 参考: https://github.com/oven-sh/bun/issues/23826
  */
+
+/**
+ * NDJSON（1行1JSON）をパースして ScreenshotResult 配列を返す
+ */
+function parseNdjson(stdout: string): ScreenshotResult[] {
+  const results: ScreenshotResult[] = [];
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      results.push(JSON.parse(trimmed));
+    } catch {
+      // パース不能行はスキップ
+    }
+  }
+  return results;
+}
+
 function runScreenshotWorker(
   workerInput: Record<string, unknown>,
 ): Promise<ScreenshotResult[]> {
@@ -724,6 +743,7 @@ function runScreenshotWorker(
 
     let stdout = "";
     let stderr = "";
+    let resolved = false;
 
     child.stdout.on("data", (data: Buffer) => {
       stdout += data.toString();
@@ -737,20 +757,20 @@ function runScreenshotWorker(
     });
 
     child.on("close", (code: number | null) => {
+      if (resolved) return;
+      resolved = true;
       if (code !== 0) {
         console.error(`[ScreenshotService] Worker exited with code ${code}`);
       }
 
-      try {
-        const results = JSON.parse(stdout || "[]");
-        resolve(results);
-      } catch {
-        console.error("[ScreenshotService] Failed to parse worker output:", stdout);
-        resolve([]);
-      }
+      // NDJSON 形式でパース（1行1結果）
+      const results = parseNdjson(stdout);
+      resolve(results);
     });
 
     child.on("error", (err: Error) => {
+      if (resolved) return;
+      resolved = true;
       console.error("[ScreenshotService] Failed to spawn worker:", err.message);
       resolve([]);
     });
@@ -759,14 +779,22 @@ function runScreenshotWorker(
     child.stdin.write(JSON.stringify(workerInput));
     child.stdin.end();
 
-    // 全体のタイムアウト（3分）
+    // タイムアウト: ページ数に応じて動的に設定（1ページあたり30秒 + ブラウザ起動30秒）
+    const pages = (workerInput.pages as Array<unknown>) || [];
+    const timeoutMs = 30000 + pages.length * 30000;
     setTimeout(() => {
+      if (resolved) return;
+      resolved = true;
       try {
         child.kill();
       } catch {}
-      console.error("[ScreenshotService] Worker timed out after 180s");
-      resolve([]);
-    }, 180000);
+      // タイムアウト時も途中結果を返す（NDJSON で逐次出力されている分を回収）
+      const partialResults = parseNdjson(stdout);
+      console.error(
+        `[ScreenshotService] Worker timed out after ${timeoutMs / 1000}s, recovered ${partialResults.length} screenshot(s)`,
+      );
+      resolve(partialResults);
+    }, timeoutMs);
   });
 }
 
@@ -780,7 +808,7 @@ export async function captureScreenshots(
   const {
     workingDirectory,
     viewport = { width: 1280, height: 720 },
-    waitMs = 5000,
+    waitMs = 2000,
     darkMode = false,
     maxPages = 5,
   } = options;
@@ -963,13 +991,23 @@ export async function captureScreenshotsForDiff(
     pages.push({ path: "/", label: "home" });
   }
 
+  // 最大ページ数を制限（デフォルト: 10）
+  const maxPages = options?.maxPages || 10;
+  const targetPages = pages.slice(0, maxPages);
+  if (pages.length > maxPages) {
+    console.log(
+      `[ScreenshotService] Limiting screenshots from ${pages.length} to ${maxPages} pages`,
+    );
+  }
+
   console.log(
-    `[ScreenshotService] Target pages: ${pages.map((p) => p.path).join(", ")}`,
+    `[ScreenshotService] Target pages: ${targetPages.map((p) => p.path).join(", ")}`,
   );
 
   return captureScreenshots({
     ...options,
-    pages,
+    pages: targetPages,
+    maxPages,
     workingDirectory,
   });
 }

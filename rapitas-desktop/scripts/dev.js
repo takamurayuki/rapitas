@@ -6,8 +6,8 @@
  *
  * ポート管理:
  *   - 起動前にポート 3001/3000 の競合を自動検出・解消
- *   - 生きたプロセスは taskkill /T でツリーごと終了
- *   - ゾンビソケット(プロセス死亡後もカーネルに残る)検出時はフォールバックポートに自動切替
+ *   - グレースフルシャットダウン → ツリーkill → 直接PID kill の三段構え
+ *   - バックエンドは reusePort: true でTIME_WAITソケットを無視してバインド可能
  *   - 終了時にプロセスツリーごとクリーンアップ（孤児プロセス防止）
  *
  * オプション:
@@ -56,36 +56,49 @@ function isPortListening(port) {
 }
 
 /**
- * 指定ポートを使用しているプロセスを検出し、プロセスツリーごと終了させる
- * @returns {boolean} 競合が検出されたか
+ * LISTEN状態のプロセスのPIDを取得する（有効なPID > 0のみ）
+ * @returns {Set<number>} LISTEN状態のPIDセット
  */
-function killProcessOnPort(port) {
+function getListeningPids(port) {
+  const pids = new Set();
   try {
     const result = execSync(`netstat -aon | findstr ":${port} " | findstr "LISTEN"`, {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     });
-
-    const pids = new Set();
     for (const line of result.trim().split('\n')) {
       const parts = line.trim().split(/\s+/);
       const pid = parseInt(parts[parts.length - 1]);
       if (pid && pid > 0) pids.add(pid);
     }
-
-    for (const pid of pids) {
-      try {
-        execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'pipe' });
-        console.log(`  Killed process tree PID ${pid} on port ${port}`);
-      } catch {
-        console.log(`  PID ${pid} on port ${port}: zombie socket (process already dead)`);
-      }
-    }
-
-    return pids.size > 0;
   } catch {
-    return false;
+    // findstr でヒットしなければ空
   }
+  return pids;
+}
+
+/**
+ * 指定ポートを使用しているすべてのプロセスのPIDを取得する
+ * LISTEN状態だけでなく、ESTABLISHED/TIME_WAIT等も含めて検出する
+ * @param {number} port
+ * @returns {Set<number>} PIDのセット
+ */
+function getProcessesOnPort(port) {
+  const pids = new Set();
+  try {
+    const result = execSync(`netstat -aon | findstr ":${port} "`, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    for (const line of result.trim().split('\n')) {
+      const parts = line.trim().split(/\s+/);
+      const pid = parseInt(parts[parts.length - 1]);
+      if (pid && pid > 0) pids.add(pid);
+    }
+  } catch {
+    // netstat でヒットしなければ空
+  }
+  return pids;
 }
 
 /**
@@ -108,8 +121,37 @@ function waitForPortRelease(port, timeoutMs = 10000) {
 }
 
 /**
- * HTTPリクエストでバックエンドのグレースフルシャットダウンを試行する
- * ポートクリーンアップ時に使用
+ * curl を使用して同期的にグレースフルシャットダウンを要求する
+ * cleanupSync（同期的なクリーンアップ）から呼び出すために使用
+ * @param {number} port
+ * @returns {boolean} リクエストが成功したか
+ */
+function tryGracefulShutdownSync(port) {
+  try {
+    execSync(
+      `curl -s -X POST -H "Content-Type: application/json" --connect-timeout 2 --max-time 3 http://localhost:${port}/agents/shutdown`,
+      { stdio: 'pipe', timeout: 5000 }
+    );
+    console.log(`  Graceful shutdown requested on port ${port} via curl.`);
+    return true;
+  } catch {
+    // curl が使えないか、リクエストが失敗した場合はNode.js one-linerを試行
+    try {
+      execSync(
+        `node -e "const h=require('http');const r=h.request({hostname:'localhost',port:${port},path:'/agents/shutdown',method:'POST',headers:{'Content-Type':'application/json'},timeout:3000},()=>process.exit(0));r.on('error',()=>process.exit(0));r.on('timeout',()=>{r.destroy();process.exit(0)});r.end()"`,
+        { stdio: 'pipe', timeout: 5000 }
+      );
+      console.log(`  Graceful shutdown requested on port ${port} via node.`);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/**
+ * HTTPリクエスト（非同期）でバックエンドのグレースフルシャットダウンを試行する
+ * ensurePortAvailable（非同期なポート確保）から呼び出すために使用
  */
 async function tryGracefulShutdownViaHttp(port) {
   try {
@@ -129,6 +171,7 @@ async function tryGracefulShutdownViaHttp(port) {
           console.log(`  Graceful shutdown requested on port ${port} (status: ${res.statusCode})`);
           resolve(data);
         });
+        res.on('error', () => resolve(data)); // レスポンスエラーは無視
       });
       req.on('error', reject);
       req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
@@ -146,7 +189,7 @@ async function tryGracefulShutdownViaHttp(port) {
  * 2. プロセスが使用中 → forceKillAllOnPort でリトライ付きkill
  * 3. ポートベースkill + 直接PID kill の二段構え
  * 4. それでもダメなら waitForPortRelease でポーリング
- * 5. 最終手段としてフォールバックポートに切り替え
+ * 5. LISTEN状態のプロセスが無ければTIME_WAIT/CLOSE_WAITのみ → reusePortで対応可能なので続行
  * @returns {Promise<number>} 使用するポート番号
  */
 async function ensurePortAvailable(port) {
@@ -154,18 +197,27 @@ async function ensurePortAvailable(port) {
 
   console.log(`  Port ${port} is in use, attempting cleanup...`);
 
+  // LISTEN状態のPIDを特定してログ出力
+  const listeningPids = getListeningPids(port);
+  if (listeningPids.size > 0) {
+    console.log(`  Found LISTENING process(es) on port ${port}: PID ${[...listeningPids].join(', ')}`);
+  }
+
   // バックエンドポートの場合、まずグレースフルシャットダウンを試行
-  if (port === BACKEND_PORT || port === BACKEND_PORT + 1) {
+  if (port === BACKEND_PORT) {
+    console.log(`  Attempting graceful shutdown on port ${port}...`);
     const shutdownRequested = await tryGracefulShutdownViaHttp(port);
     if (shutdownRequested) {
-      // グレースフルシャットダウンの完了を待つ（最大15秒）
+      // シャットダウンAPIはリスニングソケットを即座に閉じるので、短時間で解放されるはず
       try {
-        await waitForPortRelease(port, 15000);
+        await waitForPortRelease(port, 10000);
         console.log(`  Port ${port} released after graceful shutdown.`);
         return port;
       } catch {
         console.log(`  Graceful shutdown did not release port in time, forcing...`);
       }
+    } else {
+      console.log(`  Graceful shutdown API not available, will force kill.`);
     }
   }
 
@@ -178,12 +230,14 @@ async function ensurePortAvailable(port) {
 
   // ツリーkillで失敗した場合、直接PID kill（/T なし）を試行
   console.log(`  Tree kill failed, attempting direct PID kill on port ${port}...`);
-  const pids = getProcessesOnPort(port);
+  const pids = getListeningPids(port);
   for (const pid of pids) {
     try {
       execSync(`taskkill /F /PID ${pid}`, { stdio: 'pipe' });
       console.log(`  Direct-killed PID ${pid} on port ${port}`);
-    } catch {}
+    } catch (err) {
+      console.log(`  Failed to kill PID ${pid}: ${err.message || 'unknown error'}`);
+    }
   }
 
   // forceKill 後、ソケットの解放を十分に待つ（最大15秒）
@@ -192,21 +246,42 @@ async function ensurePortAvailable(port) {
     console.log(`  Port ${port} is now available (after wait).`);
     return port;
   } catch {
-    // プロセスを終了してもソケットが残っている = ゾンビ
-    const fallback = port + 1;
-    console.log(`  ⚠️  Port ${port} has zombie sockets (will auto-clear after ~2min).`);
-    console.log(`  → Using fallback port ${fallback}`);
+    // ポートが解放されなかった場合の最終チェック:
+    // LISTEN状態のプロセスが残っているか確認
+    const remainingPids = getListeningPids(port);
+    if (remainingPids.size === 0) {
+      // LISTEN状態のプロセスは無い = TIME_WAIT/CLOSE_WAITのゾンビソケットのみ
+      // バックエンドは reusePort: true なのでバインド可能
+      console.log(`  ⚠️  Port ${port} has zombie sockets (TIME_WAIT/CLOSE_WAIT) but no active listener.`);
+      console.log(`  → Proceeding anyway (backend uses reusePort for TIME_WAIT handling).`);
+      return port;
+    }
 
-    if (isPortListening(fallback)) {
-      forceKillAllOnPort(fallback);
+    // LISTEN状態のプロセスがまだ残っている → 本当にkillできなかった
+    console.log(`  ⚠️  Port ${port} still has active listener(s): PID ${[...remainingPids].join(', ')}`);
+    console.log(`  → Attempting one final kill with elevated wmic...`);
+
+    // 最終手段: wmic process delete を試行
+    for (const pid of remainingPids) {
       try {
-        await waitForPortRelease(fallback, 10000);
+        execSync(`wmic process where ProcessId=${pid} delete`, { stdio: 'pipe', timeout: 5000 });
+        console.log(`  Killed PID ${pid} via wmic.`);
       } catch {
-        console.error(`  ❌ Port ${fallback} also unavailable. Please wait a few minutes or restart your PC.`);
-        process.exit(1);
+        console.log(`  wmic kill failed for PID ${pid}.`);
       }
     }
-    return fallback;
+
+    sleepSync(2000);
+
+    if (!isPortListening(port)) {
+      console.log(`  Port ${port} is now available (after wmic kill).`);
+      return port;
+    }
+
+    // 本当にダメな場合はエラーメッセージを出すが、process.exit(1)はしない
+    // reusePort により起動できる可能性があるため、試行を続行
+    console.log(`  ❌ Could not fully release port ${port}. Will attempt to start anyway with reusePort.`);
+    return port;
   }
 }
 
@@ -253,31 +328,6 @@ function killProcessTree(childProcess) {
 }
 
 /**
- * 指定ポートを使用しているすべてのプロセスのPIDを取得する
- * LISTEN状態だけでなく、ESTABLISHED/TIME_WAIT等も含めて検出する
- * @param {number} port
- * @returns {Set<number>} PIDのセット
- */
-function getProcessesOnPort(port) {
-  const pids = new Set();
-  try {
-    // LISTEN状態のプロセスを検索
-    const result = execSync(`netstat -aon | findstr ":${port} "`, {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    for (const line of result.trim().split('\n')) {
-      const parts = line.trim().split(/\s+/);
-      const pid = parseInt(parts[parts.length - 1]);
-      if (pid && pid > 0) pids.add(pid);
-    }
-  } catch {
-    // netstat でヒットしなければ空
-  }
-  return pids;
-}
-
-/**
  * 指定ポートを使用しているすべてのプロセスを確実に終了する（リトライ付き）
  * killProcessTree で取りこぼしたプロセスをポート番号から確実に回収する
  * @param {number} port
@@ -287,7 +337,7 @@ function forceKillAllOnPort(port, maxRetries = 5) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     if (!isPortListening(port)) return true;
 
-    const pids = getProcessesOnPort(port);
+    const pids = getListeningPids(port);
     if (pids.size === 0) return true;
 
     for (const pid of pids) {
@@ -459,6 +509,7 @@ async function stopBackendCompletely(skipShutdownApi = false) {
             console.log(`  Shutdown API response: ${res.statusCode}`);
             resolve(data);
           });
+          res.on('error', () => resolve(data)); // レスポンスエラーは無視
         });
         req.on('error', (err) => {
           console.log(`  Shutdown API unavailable (${err.code || err.message}), will force stop`);
@@ -565,7 +616,8 @@ let isCleaningUp = false;
  * Windows環境ではSIGINTハンドラ内の非同期処理が中断されるため、
  * すべて execSync ベースの同期処理で行う。
  *
- * 三段構えの停止戦略:
+ * 四段構えの停止戦略:
+ *   0. バックエンドにHTTPでグレースフルシャットダウンを要求（ソケットを正しく閉じるため）
  *   1. 子プロセスの PID ツリーを taskkill で停止
  *   2. ポート番号から残存プロセスを検索・停止（取りこぼし対策）
  *   3. 最終確認: ポートがまだ使用中なら追加でkillを試行
@@ -576,13 +628,34 @@ function cleanupSync() {
 
   console.log('\nStopping development servers...');
 
+  // Step 0: バックエンドにグレースフルシャットダウンを要求
+  // これによりリスニングソケットが正しく閉じられ、次回起動時のポート競合を防止
+  if (isPortListening(actualBackendPort)) {
+    console.log('  Step 0: Requesting graceful shutdown via HTTP...');
+    const shutdownOk = tryGracefulShutdownSync(actualBackendPort);
+    if (shutdownOk) {
+      // シャットダウンAPIはリスニングソケットを即座に閉じるので、少し待つ
+      sleepSync(2000);
+      if (!isPortListening(actualBackendPort)) {
+        console.log('  Backend shut down gracefully, port released.');
+        // フロントエンドも停止
+        killProcessTree(frontend);
+        console.log('  Cleanup completed.');
+        return;
+      }
+      console.log('  Port still in use after graceful shutdown, proceeding with force kill...');
+    } else {
+      console.log('  Graceful shutdown request failed, proceeding with force kill...');
+    }
+  }
+
   // Step 1: 子プロセスツリーを停止
   console.log('  Step 1: Killing child process trees...');
   killProcessTree(backend);
   killProcessTree(frontend);
 
   // 子プロセスkill後、ソケット解放を少し待つ
-  sleepSync(500);
+  sleepSync(1000);
 
   // Step 2: ポートベースで残存プロセスを停止（子プロセスkillで漏れた孫プロセス対策）
   console.log('  Step 2: Ensuring ports are released...');
@@ -607,7 +680,7 @@ function cleanupSync() {
   for (const port of portsToClean) {
     if (isPortListening(port)) {
       allClean = false;
-      const pids = getProcessesOnPort(port);
+      const pids = getListeningPids(port);
       for (const pid of pids) {
         try {
           // /T なしで直接PIDのみkill（ツリーkillが失敗した場合の補完）
@@ -645,6 +718,12 @@ process.on('exit', () => {
   // exit イベントでは非同期処理不可なので同期的にクリーンアップ
   // SIGINT/SIGTERM で既にクリーンアップ済みなら isCleaningUp=true でスキップされる
   cleanupSync();
+});
+
+// 未処理のPromise拒否でクラッシュしないようにする
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection in dev.js:', reason);
+  // クラッシュせずにログのみ出力
 });
 
 main().catch((err) => {

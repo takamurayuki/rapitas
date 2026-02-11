@@ -17,7 +17,6 @@ import {
   ChevronRight,
   Target,
   BarChart3,
-  ClipboardList,
   Trophy,
   Flame,
   Brain,
@@ -285,11 +284,6 @@ export default function Header() {
           href: "/exam-goals",
           label: "試験目標",
           icon: Target,
-        },
-        {
-          href: "/study-plans",
-          label: "AI学習計画",
-          icon: ClipboardList,
         },
         {
           href: "/flashcards",

@@ -44,9 +44,12 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
 
           realtimeService.removeClient(clientId);
           activeClientId = realtimeService.registerClient(client, ["*"]);
+          // シャットダウン時にストリームを閉じるためにcontrollerを登録
+          realtimeService.registerStreamController(activeClientId, controller);
         },
         cancel() {
           realtimeService.removeClient(activeClientId);
+          realtimeService.removeStreamController(activeClientId);
           console.log(`[SSE] Client ${activeClientId} disconnected (stream)`);
         },
       }),
@@ -100,6 +103,8 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
             };
 
             activeClientId = realtimeService.registerClient(client, [channel]);
+            // シャットダウン時にストリームを閉じるためにcontrollerを登録
+            realtimeService.registerStreamController(activeClientId, controller);
             console.log(
               `[SSE] Client ${activeClientId} registered for channel: ${channel}`,
             );
@@ -123,6 +128,7 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
           },
           cancel() {
             realtimeService.removeClient(activeClientId);
+            realtimeService.removeStreamController(activeClientId);
             console.log(`[SSE] Client ${activeClientId} disconnected (${channel})`);
           },
         }),

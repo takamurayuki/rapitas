@@ -47,7 +47,7 @@ export const aiChatRoutes = new Elysia()
         ];
 
         const defaultSystemPrompt = `あなたはRapi+アプリケーションのAIアシスタントです。
-ユーザーのタスク管理や学習計画に関する質問に日本語で丁寧に回答してください。
+ユーザーのタスク管理や学習に関する質問に日本語で丁寧に回答してください。
 簡潔で分かりやすい回答を心がけてください。`;
 
         const response = await sendAIMessage({
@@ -102,7 +102,7 @@ export const aiChatRoutes = new Elysia()
       };
 
       const defaultSystemPrompt = `あなたはRapi+アプリケーションのAIアシスタントです。
-ユーザーのタスク管理や学習計画に関する質問に日本語で丁寧に回答してください。
+ユーザーのタスク管理や学習に関する質問に日本語で丁寧に回答してください。
 簡潔で分かりやすい回答を心がけてください。`;
 
       const messages: AIMessage[] = [

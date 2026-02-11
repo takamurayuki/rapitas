@@ -26,6 +26,7 @@ import {
   captureScreenshotsForDiff,
   type ScreenshotResult,
 } from "../services/screenshot-service";
+import { realtimeService } from "../services/realtime-service";
 
 // Parallel executor instance
 let parallelExecutor: ParallelExecutor | null = null;
@@ -1139,7 +1140,6 @@ export const aiAgentRoutes = new Elysia()
                 screenshots = await captureScreenshotsForDiff(structuredDiff, {
                   workingDirectory: workDir,
                   agentOutput: result.output || "",
-                  captureAll: true,
                 });
                 if (screenshots.length > 0) {
                   console.log(`[API] Captured ${screenshots.length} screenshots for task ${taskIdNum}`);
@@ -1676,7 +1676,7 @@ export const aiAgentRoutes = new Elysia()
                 // UI変更がある場合はスクリーンショットを撮影
                 let screenshots: ScreenshotResult[] = [];
                 try {
-                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory, captureAll: true });
+                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory });
                   if (screenshots.length > 0) {
                     console.log(`[agent-respond] Captured ${screenshots.length} screenshots for task ${taskId}`);
                   }
@@ -2541,7 +2541,7 @@ export const aiAgentRoutes = new Elysia()
                 // UI変更がある場合はスクリーンショットを撮影
                 let screenshots: ScreenshotResult[] = [];
                 try {
-                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory, captureAll: true });
+                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory });
                   if (screenshots.length > 0) {
                     console.log(`[agent-resume] Captured ${screenshots.length} screenshots for task ${task.id}`);
                   }
@@ -2826,18 +2826,31 @@ export const aiAgentRoutes = new Elysia()
 
       const activeCount = orchestrator.getActiveExecutionCount();
 
-      // エージェント停止とDB保存を先に実行（サーバー停止はスキップしてレスポンスを返せるようにする）
-      orchestrator.gracefulShutdown({ skipServerStop: true }).then(async () => {
-        console.log("[shutdown] Agent shutdown completed, stopping server...");
-        // レスポンスが送信される時間を確保してからサーバーを停止
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        await orchestrator.stopServer();
-        console.log("[shutdown] Server stopped, exiting process...");
-        setTimeout(() => process.exit(0), 200);
-      }).catch((error) => {
-        console.error("[shutdown] Graceful shutdown error:", error);
-        process.exit(1);
-      });
+      // レスポンス送信後に即座にリスニングソケットを閉じ、その後エージェントを停止する
+      // ポートを素早く解放することで、次回起動時のポート競合を防止
+      setTimeout(async () => {
+        try {
+          // Step 1: SSE接続を全て閉じる（CLOSE_WAIT蓄積を防止）
+          console.log("[shutdown] Closing all SSE connections...");
+          realtimeService.shutdown();
+
+          // Step 2: リスニングソケットを即座に閉じる（ポート解放を最優先）
+          console.log("[shutdown] Closing listening socket first for quick port release...");
+          await orchestrator.stopServer();
+          console.log("[shutdown] Listening socket closed, port released.");
+
+          // Step 3: エージェント停止とDB保存
+          console.log("[shutdown] Stopping agents and saving state...");
+          await orchestrator.gracefulShutdown({ skipServerStop: true });
+          console.log("[shutdown] Agent shutdown completed.");
+        } catch (error) {
+          console.error("[shutdown] Graceful shutdown error:", error);
+        } finally {
+          // Step 4: プロセス終了
+          console.log("[shutdown] Exiting process...");
+          setTimeout(() => process.exit(0), 200);
+        }
+      }, 300); // レスポンス送信の時間を確保
 
       return {
         success: true,
@@ -2861,19 +2874,30 @@ export const aiAgentRoutes = new Elysia()
 
       const activeCount = orchestrator.getActiveExecutionCount();
 
-      // エージェント停止とDB保存を先に実行（サーバー停止はスキップしてレスポンスを返せるようにする）
-      orchestrator.gracefulShutdown({ skipServerStop: true }).then(async () => {
-        console.log("[restart] Agent shutdown completed, stopping server for restart...");
-        // レスポンスが送信される時間を確保してからサーバーを停止
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        await orchestrator.stopServer();
-        console.log("[restart] Server stopped, exiting with restart code...");
-        // 終了コード75でdev.jsに再起動を通知
-        setTimeout(() => process.exit(75), 200);
-      }).catch((error) => {
-        console.error("[restart] Graceful shutdown error:", error);
-        process.exit(1);
-      });
+      // レスポンス送信後に即座にリスニングソケットを閉じ、その後エージェントを停止する
+      setTimeout(async () => {
+        try {
+          // Step 1: SSE接続を全て閉じる（CLOSE_WAIT蓄積を防止）
+          console.log("[restart] Closing all SSE connections...");
+          realtimeService.shutdown();
+
+          // Step 2: リスニングソケットを即座に閉じる（ポート解放を最優先）
+          console.log("[restart] Closing listening socket first for quick port release...");
+          await orchestrator.stopServer();
+          console.log("[restart] Listening socket closed, port released.");
+
+          // Step 3: エージェント停止とDB保存
+          console.log("[restart] Stopping agents and saving state...");
+          await orchestrator.gracefulShutdown({ skipServerStop: true });
+          console.log("[restart] Agent shutdown completed.");
+        } catch (error) {
+          console.error("[restart] Graceful shutdown error:", error);
+        } finally {
+          // Step 4: 終了コード75でdev.jsに再起動を通知
+          console.log("[restart] Exiting with restart code...");
+          setTimeout(() => process.exit(75), 200);
+        }
+      }, 300); // レスポンス送信の時間を確保
 
       return {
         success: true,
