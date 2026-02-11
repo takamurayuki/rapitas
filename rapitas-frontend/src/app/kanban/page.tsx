@@ -17,25 +17,11 @@ import { useTaskDetailVisibilityStore } from "@/stores/taskDetailVisibilityStore
 import { getTaskDetailPath } from "@/utils/tauri";
 import { API_BASE_URL } from "@/utils/api";
 import { useExecutingTasksPolling } from "@/hooks/useExecutingTasksPolling";
+import { useTaskCacheStore } from "@/stores/taskCacheStore";
 import { ExternalLink, Search, Filter, X, Flag, Tag } from "lucide-react";
 import type { Label } from "@/types";
 
 type Priority = "low" | "medium" | "high" | "urgent";
-
-type Task = {
-  id: number;
-  title: string;
-  description?: string | null;
-  status: string;
-  priority?: Priority;
-  labels?: string[];
-  estimatedHours?: number | null;
-  parentId?: number | null;
-  subtasks?: Task[];
-  taskLabels?: { label: Label }[];
-  createdAt: string;
-  updatedAt: string;
-};
 
 const priorityConfig: Record<
   Priority,
@@ -73,7 +59,12 @@ const columns = [
 
 export default function KanbanPage() {
   const router = useRouter();
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const tasks = useTaskCacheStore((s) => s.tasks);
+  const taskCacheInitialized = useTaskCacheStore((s) => s.initialized);
+  const taskCacheLoading = useTaskCacheStore((s) => s.loading);
+  const fetchAllTasks = useTaskCacheStore((s) => s.fetchAll);
+  const fetchTaskUpdates = useTaskCacheStore((s) => s.fetchUpdates);
+  const updateTaskLocally = useTaskCacheStore((s) => s.updateTaskLocally);
   const [loading, setLoading] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -107,7 +98,7 @@ export default function KanbanPage() {
 
       // ラベルフィルター
       if (selectedLabelIds.length > 0) {
-        const taskLabelIds = task.taskLabels?.map((tl) => tl.label.id) || [];
+        const taskLabelIds = task.taskLabels?.map((tl) => tl.label?.id).filter((id): id is number => id != null) || [];
         const hasMatchingLabel = selectedLabelIds.some((id) =>
           taskLabelIds.includes(id),
         );
@@ -152,23 +143,19 @@ export default function KanbanPage() {
     }
   };
 
-  const fetchTasks = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/tasks`);
-      if (!res.ok) throw new Error("取得に失敗しました");
-      const data = await res.json();
-      setTasks(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
+  const fetchTasks = useCallback(async () => {
+    if (taskCacheInitialized) {
+      await fetchTaskUpdates();
+    } else {
+      setLoading(true);
+      await fetchAllTasks();
       setLoading(false);
     }
-  };
+  }, [taskCacheInitialized, fetchTaskUpdates, fetchAllTasks]);
 
   const updateStatus = async (id: number, status: string) => {
-    const oldTasks = [...tasks];
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status } : t)));
+    const oldTask = tasks.find((t) => t.id === id);
+    updateTaskLocally(id, { status: status as import("@/types").Status });
 
     try {
       const res = await fetch(`${API_BASE}/tasks/${id}`, {
@@ -179,7 +166,9 @@ export default function KanbanPage() {
       if (!res.ok) throw new Error("更新に失敗しました");
     } catch (e) {
       console.error(e);
-      setTasks(oldTasks);
+      if (oldTask) {
+        updateTaskLocally(id, { status: oldTask.status });
+      }
     }
   };
 
@@ -238,6 +227,12 @@ export default function KanbanPage() {
   useEffect(() => {
     fetchTasks();
     fetchLabels();
+
+    const handleFocus = () => {
+      fetchTaskUpdates();
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
   const getTasksByStatus = (status: string) =>
@@ -338,7 +333,7 @@ export default function KanbanPage() {
           )}
         </div>
 
-        {loading && tasks.length === 0 ? (
+        {(loading || taskCacheLoading) && tasks.length === 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="space-y-3">

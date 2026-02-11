@@ -551,6 +551,8 @@ export type ApprovalRequest = {
     structuredDiff?: FileDiff[];
     implementationSummary?: string;
     executionTimeMs?: number;
+    // スクリーンショット
+    screenshots?: ScreenshotInfo[];
   };
   estimatedChanges?: {
     diff?: string;
@@ -832,6 +834,15 @@ export type FileDiff = {
   additions: number;
   deletions: number;
   patch?: string;
+};
+
+export type ScreenshotInfo = {
+  id: string;
+  filename: string;
+  url: string;
+  page: string;
+  label: string;
+  capturedAt: string;
 };
 
 // ==================== リアルタイム通信関連 ====================

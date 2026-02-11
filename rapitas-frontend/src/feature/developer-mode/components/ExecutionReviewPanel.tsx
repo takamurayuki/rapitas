@@ -19,10 +19,14 @@ import {
   RefreshCw,
   Plus,
   X,
+  Camera,
+  Maximize2,
+  Globe,
 } from "lucide-react";
 import { DiffViewer } from "./DiffViewer";
-import type { FileDiff, AgentExecution, ReviewComment } from "@/types";
+import type { FileDiff, AgentExecution, ReviewComment, ScreenshotInfo } from "@/types";
 import ReactMarkdown from "react-markdown";
+import { API_BASE_URL } from "@/utils/api";
 
 type ExecutionReviewPanelProps = {
   execution?: AgentExecution;
@@ -41,6 +45,8 @@ type ExecutionReviewPanelProps = {
   implementationSummary?: string;
   executionTimeMs?: number;
   taskId?: number;
+  screenshots?: ScreenshotInfo[];
+  workingDirectory?: string;
 };
 
 export function ExecutionReviewPanel({
@@ -57,6 +63,8 @@ export function ExecutionReviewPanel({
   implementationSummary,
   executionTimeMs,
   taskId,
+  screenshots: initialScreenshots,
+  workingDirectory,
 }: ExecutionReviewPanelProps) {
   const [showLog, setShowLog] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
@@ -71,6 +79,25 @@ export function ExecutionReviewPanel({
   const [newCommentContent, setNewCommentContent] = useState("");
   const [newCommentType, setNewCommentType] =
     useState<ReviewComment["type"]>("change_request");
+  const [showScreenshots, setShowScreenshots] = useState(true);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
+  // 手動スクリーンショット撮影用の状態
+  const [screenshots, setScreenshots] = useState<ScreenshotInfo[]>(initialScreenshots || []);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [showCaptureForm, setShowCaptureForm] = useState(false);
+  const [captureBaseUrl, setCaptureBaseUrl] = useState("");
+  const [capturePages, setCapturePages] = useState<Array<{ path: string; label: string }>>([
+    { path: "/", label: "home" },
+  ]);
+  const [newPagePath, setNewPagePath] = useState("");
+  const [newPageLabel, setNewPageLabel] = useState("");
+  const [captureError, setCaptureError] = useState<string | null>(null);
+  const [detectedProject, setDetectedProject] = useState<{
+    type: string;
+    baseUrl: string;
+    devPort: number;
+  } | null>(null);
 
   const handleApprove = async () => {
     if (!commitMessage.trim()) return;
@@ -124,6 +151,79 @@ export function ExecutionReviewPanel({
 
   const removeComment = (id: string) => {
     setReviewComments(reviewComments.filter((c) => c.id !== id));
+  };
+
+  // プロジェクト構造を自動検出
+  const detectProject = async () => {
+    if (!workingDirectory) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/screenshots/detect-project`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workingDirectory }),
+      });
+      const data = await res.json();
+      if (data.success && data.project) {
+        setDetectedProject({
+          type: data.project.type,
+          baseUrl: data.project.baseUrl,
+          devPort: data.project.devPort,
+        });
+        setCaptureBaseUrl(data.project.baseUrl);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  // 手動スクリーンショット撮影
+  const handleCapture = async () => {
+    if (capturePages.length === 0) return;
+
+    setIsCapturing(true);
+    setCaptureError(null);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/screenshots/capture`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baseUrl: captureBaseUrl || undefined,
+          pages: capturePages,
+          workingDirectory: workingDirectory || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.screenshots) {
+        setScreenshots((prev) => [...prev, ...data.screenshots]);
+        setShowCaptureForm(false);
+        setShowScreenshots(true);
+      } else {
+        setCaptureError(data.error || "スクリーンショットの撮影に失敗しました");
+      }
+    } catch (err: any) {
+      setCaptureError(err.message || "スクリーンショットの撮影に失敗しました");
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  const addCapturePage = () => {
+    if (!newPagePath.trim()) return;
+    setCapturePages([
+      ...capturePages,
+      {
+        path: newPagePath.startsWith("/") ? newPagePath : `/${newPagePath}`,
+        label: newPageLabel.trim() || newPagePath.replace(/^\//, ""),
+      },
+    ]);
+    setNewPagePath("");
+    setNewPageLabel("");
+  };
+
+  const removeCapturePage = (index: number) => {
+    setCapturePages(capturePages.filter((_, i) => i !== index));
   };
 
   const getCommentTypeLabel = (type: ReviewComment["type"]) => {
@@ -248,6 +348,233 @@ export function ExecutionReviewPanel({
               </pre>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Screenshots */}
+      <div className="border-b border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-center">
+          <button
+            onClick={() => setShowScreenshots(!showScreenshots)}
+            className="flex-1 flex items-center gap-3 px-6 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors"
+          >
+            {showScreenshots ? (
+              <ChevronDown className="w-4 h-4 text-zinc-400" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-zinc-400" />
+            )}
+            <Camera className="w-4 h-4 text-emerald-500" />
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              画面スクリーンショット
+            </span>
+            {screenshots.length > 0 && (
+              <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full text-xs font-medium">
+                {screenshots.length}
+              </span>
+            )}
+          </button>
+          {/* 手動撮影ボタン */}
+          <button
+            onClick={() => {
+              setShowCaptureForm(!showCaptureForm);
+              setShowScreenshots(true);
+              if (!detectedProject && workingDirectory) {
+                detectProject();
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 mr-4 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-md transition-colors"
+          >
+            <Camera className="w-3.5 h-3.5" />
+            撮影
+          </button>
+        </div>
+
+        {showScreenshots && (
+          <div className="px-6 pb-4 space-y-4">
+            {/* 手動撮影フォーム */}
+            {showCaptureForm && (
+              <div className="p-4 bg-zinc-50 dark:bg-indigo-dark-800/30 rounded-lg border border-zinc-200 dark:border-zinc-700 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
+                    <Globe className="w-4 h-4" />
+                    スクリーンショット撮影
+                  </h5>
+                  {detectedProject && (
+                    <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-xs font-medium">
+                      {detectedProject.type} 検出済み
+                    </span>
+                  )}
+                </div>
+
+                {/* ベースURL */}
+                <div>
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                    ベースURL
+                  </label>
+                  <input
+                    type="text"
+                    value={captureBaseUrl}
+                    onChange={(e) => setCaptureBaseUrl(e.target.value)}
+                    placeholder={detectedProject ? detectedProject.baseUrl : "http://localhost:3000"}
+                    className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                  {detectedProject && (
+                    <p className="mt-1 text-xs text-zinc-400">
+                      検出されたポート: {detectedProject.devPort}
+                    </p>
+                  )}
+                </div>
+
+                {/* ページリスト */}
+                <div>
+                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                    撮影ページ
+                  </label>
+                  <div className="space-y-1.5">
+                    {capturePages.map((page, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-indigo-dark-800 rounded border border-zinc-200 dark:border-zinc-700"
+                      >
+                        <span className="text-sm font-mono text-zinc-600 dark:text-zinc-400 flex-1">
+                          {page.path}
+                        </span>
+                        <span className="text-xs text-zinc-400">
+                          {page.label}
+                        </span>
+                        <button
+                          onClick={() => removeCapturePage(index)}
+                          className="p-0.5 text-zinc-400 hover:text-red-500 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* ページ追加 */}
+                  <div className="flex items-center gap-2 mt-2">
+                    <input
+                      type="text"
+                      value={newPagePath}
+                      onChange={(e) => setNewPagePath(e.target.value)}
+                      placeholder="/dashboard"
+                      className="flex-1 px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addCapturePage();
+                        }
+                      }}
+                    />
+                    <input
+                      type="text"
+                      value={newPageLabel}
+                      onChange={(e) => setNewPageLabel(e.target.value)}
+                      placeholder="ラベル"
+                      className="w-24 px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addCapturePage();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={addCapturePage}
+                      disabled={!newPagePath.trim()}
+                      className="p-1.5 text-emerald-600 hover:text-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {captureError && (
+                  <div className="flex items-center gap-2 text-red-500 text-xs">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {captureError}
+                  </div>
+                )}
+
+                {/* 撮影ボタン */}
+                <button
+                  onClick={handleCapture}
+                  disabled={isCapturing || capturePages.length === 0}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isCapturing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Camera className="w-4 h-4" />
+                  )}
+                  {isCapturing ? "撮影中..." : "スクリーンショットを撮影"}
+                </button>
+              </div>
+            )}
+
+            {/* スクリーンショット一覧 */}
+            {screenshots.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {screenshots.map((screenshot) => (
+                  <div
+                    key={screenshot.id}
+                    className="group relative rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-zinc-50 dark:bg-indigo-dark-800/30"
+                  >
+                    <div className="flex items-center justify-between px-3 py-2 bg-zinc-100 dark:bg-indigo-dark-800/50 border-b border-zinc-200 dark:border-zinc-700">
+                      <div className="flex items-center gap-2">
+                        <Camera className="w-3.5 h-3.5 text-zinc-400" />
+                        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                          {screenshot.page}
+                        </span>
+                      </div>
+                      <span className="text-xs text-zinc-400">
+                        {screenshot.label}
+                      </span>
+                    </div>
+                    <div className="relative cursor-pointer" onClick={() => setLightboxImage(`${API_BASE_URL}${screenshot.url}`)}>
+                      <img
+                        src={`${API_BASE_URL}${screenshot.url}`}
+                        alt={`Screenshot of ${screenshot.page}`}
+                        className="w-full h-auto"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                        <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              !showCaptureForm && (
+                <p className="text-sm text-zinc-400 dark:text-zinc-500 text-center py-4">
+                  スクリーンショットはありません。「撮影」ボタンから手動で撮影できます。
+                </p>
+              )
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Lightbox */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            className="absolute top-4 right-4 p-2 text-white/80 hover:text-white transition-colors"
+            onClick={() => setLightboxImage(null)}
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={lightboxImage}
+            alt="Screenshot preview"
+            className="max-w-full max-h-full rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
 

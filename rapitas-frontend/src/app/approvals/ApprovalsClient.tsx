@@ -789,6 +789,8 @@ function CodeReviewCard({
             }
             executionTimeMs={approval.proposedChanges?.executionTimeMs}
             taskId={approval.config?.task?.id}
+            screenshots={approval.proposedChanges?.screenshots}
+            workingDirectory={approval.proposedChanges?.workingDirectory}
           />
         </div>
       )}

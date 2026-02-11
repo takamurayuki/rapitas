@@ -18,6 +18,7 @@ import {
 import { useToast } from "@/components/ui/toast/ToastContainer";
 import { getTaskDetailPath } from "@/utils/tauri";
 import { API_BASE_URL } from "@/utils/api";
+import { useTaskCacheStore } from "@/stores/taskCacheStore";
 import ScheduleEventDialog from "@/feature/calendar/components/ScheduleEventDialog";
 import { getHolidaysForMonth, type Holiday } from "@/utils/holidays";
 
@@ -40,6 +41,10 @@ type CalendarEvent = {
 export default function CalendarPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const cachedTasks = useTaskCacheStore((s) => s.tasks);
+  const taskCacheInitialized = useTaskCacheStore((s) => s.initialized);
+  const fetchAllTasks = useTaskCacheStore((s) => s.fetchAll);
+  const fetchTaskUpdates = useTaskCacheStore((s) => s.fetchUpdates);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,81 +53,99 @@ export default function CalendarPage() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [creating, setCreating] = useState(false);
+  const [exams, setExams] = useState<ExamGoal[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleEvent[]>([]);
 
   const fetchEvents = useCallback(async () => {
     try {
-      const [tasksRes, examsRes, schedulesRes] = await Promise.all([
-        fetch(`${API_BASE}/tasks`),
+      // Use cache store for tasks; fetch exams and schedules separately
+      const taskFetch = taskCacheInitialized
+        ? fetchTaskUpdates()
+        : fetchAllTasks();
+
+      const [, examsRes, schedulesRes] = await Promise.all([
+        taskFetch,
         fetch(`${API_BASE}/exam-goals`),
         fetch(`${API_BASE}/schedules`),
       ]);
 
-      const tasks: Task[] = tasksRes.ok ? await tasksRes.json() : [];
-      const exams: ExamGoal[] = examsRes.ok ? await examsRes.json() : [];
-      const schedules: ScheduleEvent[] = schedulesRes.ok
+      const examsData: ExamGoal[] = examsRes.ok ? await examsRes.json() : [];
+      const schedulesData: ScheduleEvent[] = schedulesRes.ok
         ? await schedulesRes.json()
         : [];
 
-      const taskEvents: CalendarEvent[] = tasks
-        .filter((t) => t.dueDate)
-        .map((t) => ({
-          id: t.id,
-          title: t.title,
-          date: t.dueDate!.split("T")[0],
-          type: "task" as const,
-          status: t.status,
-          color: t.theme?.color,
-        }));
-
-      const examEvents: CalendarEvent[] = exams.map((e) => ({
-        id: e.id,
-        title: e.name,
-        date: e.examDate.split("T")[0],
-        type: "exam" as const,
-        color: e.color,
-      }));
-
-      const scheduleEvents: CalendarEvent[] = schedules.map((s) => {
-        const startDateObj = new Date(s.startAt);
-        const timeStr = s.isAllDay
-          ? undefined
-          : startDateObj.toLocaleTimeString("ja-JP", {
-              hour: "2-digit",
-              minute: "2-digit",
-            });
-        const endTimeStr = s.endAt && !s.isAllDay
-          ? new Date(s.endAt).toLocaleTimeString("ja-JP", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : undefined;
-        const startDateStr = s.startAt.split("T")[0];
-        const endDateStr = s.endAt ? s.endAt.split("T")[0] : undefined;
-        return {
-          id: s.id,
-          title: s.title,
-          date: startDateStr,
-          endDate: endDateStr && endDateStr > startDateStr ? endDateStr : undefined,
-          type: "schedule" as const,
-          color: s.color,
-          time: timeStr,
-          endTime: endTimeStr,
-          reminderMinutes: s.reminderMinutes,
-          description: s.description,
-        };
-      });
-
-      setEvents([...taskEvents, ...examEvents, ...scheduleEvents]);
+      setExams(examsData);
+      setSchedules(schedulesData);
     } catch (e) {
       console.error("Failed to fetch events:", e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [taskCacheInitialized, fetchTaskUpdates, fetchAllTasks]);
+
+  // Build events from cached tasks + local exams/schedules
+  useEffect(() => {
+    const taskEvents: CalendarEvent[] = cachedTasks
+      .filter((t) => t.dueDate)
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        date: t.dueDate!.split("T")[0],
+        type: "task" as const,
+        status: t.status,
+        color: t.theme?.color,
+      }));
+
+    const examEvents: CalendarEvent[] = exams.map((e) => ({
+      id: e.id,
+      title: e.name,
+      date: e.examDate.split("T")[0],
+      type: "exam" as const,
+      color: e.color,
+    }));
+
+    const scheduleEvents: CalendarEvent[] = schedules.map((s) => {
+      const startDateObj = new Date(s.startAt);
+      const timeStr = s.isAllDay
+        ? undefined
+        : startDateObj.toLocaleTimeString("ja-JP", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+      const endTimeStr = s.endAt && !s.isAllDay
+        ? new Date(s.endAt).toLocaleTimeString("ja-JP", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : undefined;
+      const startDateStr = s.startAt.split("T")[0];
+      const endDateStr = s.endAt ? s.endAt.split("T")[0] : undefined;
+      return {
+        id: s.id,
+        title: s.title,
+        date: startDateStr,
+        endDate: endDateStr && endDateStr > startDateStr ? endDateStr : undefined,
+        type: "schedule" as const,
+        color: s.color,
+        time: timeStr,
+        endTime: endTimeStr,
+        reminderMinutes: s.reminderMinutes,
+        description: s.description,
+      };
+    });
+
+    setEvents([...taskEvents, ...examEvents, ...scheduleEvents]);
+  }, [cachedTasks, exams, schedules]);
 
   useEffect(() => {
     fetchEvents();
-  }, [fetchEvents, currentDate]);
+
+    const handleFocus = () => {
+      fetchTaskUpdates();
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [fetchEvents]);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -221,7 +244,8 @@ export default function CalendarPage() {
         showToast("タスクを作成しました", "success");
         setNewTaskTitle("");
         setShowCreateModal(false);
-        fetchEvents();
+        // Refresh task cache so new task appears on calendar
+        await fetchTaskUpdates();
       } else {
         showToast("タスクの作成に失敗しました", "error");
       }

@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from "react";
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type {
-  Task,
   Theme,
   Category,
   Priority,
@@ -34,9 +33,10 @@ import {
   Plus,
 } from "lucide-react";
 import { getIconComponent } from "@/components/category/IconData";
-import { API_BASE_URL, fetchWithRetry } from "@/utils/api";
+import { API_BASE_URL } from "@/utils/api";
 import { useExecutingTasksPolling } from "@/hooks/useExecutingTasksPolling";
 import { useAppModeStore } from "@/stores/appModeStore";
+import { useTaskCacheStore } from "@/stores/taskCacheStore";
 
 const API_BASE = API_BASE_URL;
 
@@ -47,7 +47,12 @@ export default function HomeClientPage() {
   const { showToast } = useToast();
   const { showTaskDetail, hideTaskDetail } = useTaskDetailVisibilityStore();
   const appMode = useAppModeStore((state) => state.mode);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const tasks = useTaskCacheStore((s) => s.tasks);
+  const taskCacheInitialized = useTaskCacheStore((s) => s.initialized);
+  const fetchAllTasks = useTaskCacheStore((s) => s.fetchAll);
+  const fetchTaskUpdates = useTaskCacheStore((s) => s.fetchUpdates);
+  const updateTaskLocally = useTaskCacheStore((s) => s.updateTaskLocally);
+  const removeTaskLocally = useTaskCacheStore((s) => s.removeTaskLocally);
   const [themes, setThemes] = useState<Theme[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,20 +91,14 @@ export default function HomeClientPage() {
     null,
   );
 
-  const fetchTasks = async () => {
-    try {
-      const res = await fetchWithRetry(`${API_BASE}/tasks`);
-      if (!res.ok) {
-        const text = await res.text().catch(() => "<no body>");
-        console.error("GET /tasks failed:", res.status, res.statusText, text);
-        throw new Error("取得に失敗しました");
-      }
-      const data = await res.json();
-      setTasks(data);
-    } catch (e) {
-      console.error(e);
+  // fetchTasks: initial load uses full fetch, subsequent calls use incremental updates
+  const fetchTasks = useCallback(async () => {
+    if (taskCacheInitialized) {
+      await fetchTaskUpdates();
+    } else {
+      await fetchAllTasks();
     }
-  };
+  }, [taskCacheInitialized, fetchTaskUpdates, fetchAllTasks]);
 
   const fetchCategories = async () => {
     try {
@@ -181,19 +180,9 @@ export default function HomeClientPage() {
   };
 
   const updateStatus = async (id: number, status: Status) => {
-    const oldTasks = [...tasks];
-    setTasks((prev: Task[]) =>
-      prev.map((t: Task) => {
-        // if (t.id === id) {
-        //   // 進行中から完了に変更された場合は完了オーバーレイを表示
-        //   if (t.status !== "done" && status === "done") {
-        //     setShowCompleteOverlay(true);
-        //   }
-        // }
-
-        return t.id === id ? { ...t, status } : t;
-      }),
-    );
+    const oldTask = tasks.find((t) => t.id === id);
+    // Optimistic update
+    updateTaskLocally(id, { status });
 
     try {
       const res = await fetch(`${API_BASE}/tasks/${id}`, {
@@ -204,7 +193,10 @@ export default function HomeClientPage() {
       if (!res.ok) throw new Error("更新に失敗しました");
     } catch (e) {
       console.error(e);
-      setTasks(oldTasks);
+      // Rollback on failure
+      if (oldTask) {
+        updateTaskLocally(id, { status: oldTask.status });
+      }
     }
   };
 
@@ -296,11 +288,9 @@ export default function HomeClientPage() {
           }),
         ),
       );
-      setTasks((prev: Task[]) =>
-        prev.map((t: Task) =>
-          taskIds.includes(t.id) ? { ...t, status: status as Status } : t,
-        ),
-      );
+      for (const id of taskIds) {
+        updateTaskLocally(id, { status: status as Status });
+      }
       showToast(`${taskIds.length}件のタスクを更新しました`, "success");
       setSelectedTasks(new Set());
       setIsSelectionMode(false);
@@ -319,9 +309,9 @@ export default function HomeClientPage() {
           fetch(`${API_BASE}/tasks/${id}`, { method: "DELETE" }),
         ),
       );
-      setTasks((prev: Task[]) =>
-        prev.filter((t: Task) => !taskIds.includes(t.id)),
-      );
+      for (const id of taskIds) {
+        removeTaskLocally(id);
+      }
       showToast(`${taskIds.length}件のタスクを削除しました`, "success");
       setSelectedTasks(new Set());
       setIsSelectionMode(false);
@@ -391,8 +381,12 @@ export default function HomeClientPage() {
     // 初回読み込み時はすべてのデータを取得してからloadingを解除
     const initialLoad = async () => {
       setLoading(true);
+      // If cache is already initialized, use incremental fetch; otherwise full fetch
+      const taskFetch = taskCacheInitialized
+        ? fetchTaskUpdates()
+        : fetchAllTasks();
       const [, , categoriesData, settings] = await Promise.all([
-        fetchTasks(),
+        taskFetch,
         fetchThemes(),
         fetchCategories(),
         fetchGlobalSettings(),
@@ -419,9 +413,9 @@ export default function HomeClientPage() {
     };
     initialLoad();
 
-    // ページがフォーカスを取得したときにタスクを再読み込み（ローディング表示なし）
+    // ページがフォーカスを取得したときに差分のみ取得（ローディング表示なし）
     const handleFocus = () => {
-      fetchTasks();
+      fetchTaskUpdates();
     };
 
     window.addEventListener("focus", handleFocus);

@@ -22,6 +22,10 @@ import {
   getAgentConfigAuditLogs,
   getRecentAuditLogs,
 } from "../utils/agent-audit-log";
+import {
+  captureScreenshotsForDiff,
+  type ScreenshotResult,
+} from "../services/screenshot-service";
 
 // Parallel executor instance
 let parallelExecutor: ParallelExecutor | null = null;
@@ -1129,6 +1133,17 @@ export const aiAgentRoutes = new Elysia()
               const implementationSummary =
                 result.output || "実装が完了しました。";
 
+              // UI変更がある場合はスクリーンショットを撮影
+              let screenshots: ScreenshotResult[] = [];
+              try {
+                screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory: workDir });
+                if (screenshots.length > 0) {
+                  console.log(`[API] Captured ${screenshots.length} screenshots for task ${taskIdNum}`);
+                }
+              } catch (screenshotErr) {
+                console.warn("[API] Screenshot capture failed (non-fatal):", screenshotErr);
+              }
+
               const approvalRequest = await prisma.approvalRequest.create({
                 data: {
                   configId: developerModeConfig!.id,
@@ -1144,6 +1159,7 @@ export const aiAgentRoutes = new Elysia()
                     structuredDiff,
                     implementationSummary,
                     executionTimeMs: result.executionTimeMs,
+                    screenshots,
                   }),
                   executionType: "code_review",
                   estimatedChanges: toJsonString({
@@ -1653,6 +1669,17 @@ export const aiAgentRoutes = new Elysia()
                 const implementationSummary =
                   execResult.output || "実装が完了しました。";
 
+                // UI変更がある場合はスクリーンショットを撮影
+                let screenshots: ScreenshotResult[] = [];
+                try {
+                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory });
+                  if (screenshots.length > 0) {
+                    console.log(`[agent-respond] Captured ${screenshots.length} screenshots for task ${taskId}`);
+                  }
+                } catch (screenshotErr) {
+                  console.warn("[agent-respond] Screenshot capture failed (non-fatal):", screenshotErr);
+                }
+
                 const approvalRequest = await prisma.approvalRequest.create({
                   data: {
                     configId: config.id,
@@ -1667,6 +1694,7 @@ export const aiAgentRoutes = new Elysia()
                       structuredDiff,
                       implementationSummary,
                       executionTimeMs: execResult.executionTimeMs,
+                      screenshots,
                     }),
                     estimatedChanges: toJsonString({
                       diff,
@@ -2506,6 +2534,17 @@ export const aiAgentRoutes = new Elysia()
                 const implementationSummary =
                   result.output || "再開した作業が完了しました。";
 
+                // UI変更がある場合はスクリーンショットを撮影
+                let screenshots: ScreenshotResult[] = [];
+                try {
+                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory });
+                  if (screenshots.length > 0) {
+                    console.log(`[agent-resume] Captured ${screenshots.length} screenshots for task ${task.id}`);
+                  }
+                } catch (screenshotErr) {
+                  console.warn("[agent-resume] Screenshot capture failed (non-fatal):", screenshotErr);
+                }
+
                 const config = execution.session.config;
                 if (config) {
                   const approvalRequest = await prisma.approvalRequest.create({
@@ -2523,6 +2562,7 @@ export const aiAgentRoutes = new Elysia()
                         implementationSummary,
                         executionTimeMs: result.executionTimeMs,
                         resumed: true,
+                        screenshots,
                       }),
                       estimatedChanges: toJsonString({
                         diff,

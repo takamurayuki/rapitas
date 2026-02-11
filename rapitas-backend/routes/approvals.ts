@@ -9,6 +9,10 @@ import { GitHubService } from "../services/github-service";
 import { realtimeService } from "../services/realtime-service";
 import { toJsonString, fromJsonString } from "../utils/db-helpers";
 import type { SubtaskProposal } from "../services/claude-agent";
+import {
+  captureScreenshotsForDiff,
+  type ScreenshotResult,
+} from "../services/screenshot-service";
 
 // Create service instances
 const orchestrator = createOrchestrator(prisma);
@@ -823,6 +827,17 @@ ${previousImplementation}
                 const implementationSummary =
                   result.output || "修正が完了しました。";
 
+                // UI変更がある場合はスクリーンショットを撮影
+                let screenshots: ScreenshotResult[] = [];
+                try {
+                  screenshots = await captureScreenshotsForDiff(structuredDiff, { workingDirectory });
+                  if (screenshots.length > 0) {
+                    console.log(`[approvals] Captured ${screenshots.length} screenshots for task ${task.id}`);
+                  }
+                } catch (screenshotErr) {
+                  console.warn("[approvals] Screenshot capture failed (non-fatal):", screenshotErr);
+                }
+
                 const newApprovalRequest = await prisma.approvalRequest.create({
                   data: {
                     configId: approval.configId,
@@ -840,6 +855,7 @@ ${previousImplementation}
                       feedbackIteration: true,
                       previousFeedback: feedback,
                       previousComments: comments,
+                      screenshots,
                     }),
                     estimatedChanges: toJsonString({
                       diff,

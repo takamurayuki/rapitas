@@ -960,8 +960,8 @@ export default function ThemesPage() {
           </div>
         )}
 
-        {/* リスト */}
-        {loading ? (
+        {/* リスト（新規追加時は非表示） */}
+        {!isAdding && (loading ? (
           <LoadingSpinner />
         ) : (() => {
           const filteredItems = selectedCategoryId === null
@@ -1121,7 +1121,7 @@ export default function ThemesPage() {
             </Droppable>
           </DragDropContext>
         );
-        })()}
+        })())}
       </div>
     </div>
   );

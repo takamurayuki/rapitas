@@ -467,21 +467,64 @@ ${existingTaskList}
     }
   )
 
-  // Get all tasks
+  // Get all tasks (supports incremental fetch via `since` param)
   .get(
     "/",
     async ({ query }: {
-      query: { projectId?: string; milestoneId?: string; priority?: string }
+      query: { projectId?: string; milestoneId?: string; priority?: string; since?: string }
     }) => {
-      const { projectId, milestoneId, priority } = query;
+      const { projectId, milestoneId, priority, since } = query;
 
-      return await prisma.task.findMany({
-        where: {
-          parentId: null,
-          ...(projectId && { projectId: parseInt(projectId) }),
-          ...(milestoneId && { milestoneId: parseInt(milestoneId) }),
-          ...(priority && { priority }),
-        },
+      const baseWhere = {
+        parentId: null,
+        ...(projectId && { projectId: parseInt(projectId) }),
+        ...(milestoneId && { milestoneId: parseInt(milestoneId) }),
+        ...(priority && { priority }),
+      };
+
+      // If `since` is provided, return only tasks updated after that timestamp + total count
+      if (since) {
+        const sinceDate = new Date(since);
+        if (isNaN(sinceDate.getTime())) {
+          throw new ValidationError("Invalid `since` parameter");
+        }
+
+        const [updated, totalCount] = await Promise.all([
+          prisma.task.findMany({
+            where: {
+              ...baseWhere,
+              updatedAt: { gt: sinceDate },
+            },
+            include: {
+              subtasks: {
+                orderBy: { createdAt: "asc" },
+              },
+              theme: true,
+              project: true,
+              milestone: true,
+              examGoal: true,
+              taskLabels: {
+                include: {
+                  label: true,
+                },
+              },
+            },
+            orderBy: { createdAt: "desc" },
+          }),
+          prisma.task.count({ where: baseWhere }),
+        ]);
+
+        return {
+          tasks: updated,
+          totalCount,
+          since: sinceDate.toISOString(),
+          incremental: true,
+        };
+      }
+
+      // Full fetch (no `since`)
+      const tasks = await prisma.task.findMany({
+        where: baseWhere,
         include: {
           subtasks: {
             orderBy: { createdAt: "asc" },
@@ -498,6 +541,8 @@ ${existingTaskList}
         },
         orderBy: { createdAt: "desc" },
       });
+
+      return tasks;
     }
   )
 
