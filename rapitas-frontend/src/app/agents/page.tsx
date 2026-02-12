@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Cpu,
-  Plus,
   Settings,
   Loader2,
   CheckCircle2,
@@ -12,77 +11,326 @@ import {
   Terminal,
   Zap,
   Activity,
+  Star,
+  AlertTriangle,
+  Globe,
+  ChevronDown,
+  Code,
+  Search,
+  Trash2,
+  Save,
 } from "lucide-react";
 import type { AIAgentConfig } from "@/types";
 import { API_BASE_URL } from "@/utils/api";
-import { validateName } from "@/utils/validation";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { UsageRateLimitGraph } from "@/components/UsageRateLimitGraph";
+
+type RegisteredAgentType = {
+  type: string;
+  name: string;
+  description?: string;
+  capabilities?: {
+    codeGeneration?: boolean;
+    codeReview?: boolean;
+    taskAnalysis?: boolean;
+    fileOperations?: boolean;
+    terminalAccess?: boolean;
+    gitOperations?: boolean;
+    webSearch?: boolean;
+  };
+};
+
+type ModelOption = {
+  value: string;
+  label: string;
+  description?: string;
+};
+
+// Cache configuration
+const CACHE_KEYS = {
+  agents: 'agents-cache',
+  agentTypes: 'agent-types-cache',
+  models: 'agent-models-cache',
+} as const;
+
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+function getCachedData<T>(key: string): T | null {
+  try {
+    const cached = localStorage.getItem(key);
+    if (!cached) return null;
+    const { data, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp > CACHE_DURATION) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedData<T>(key: string, data: T): void {
+  try {
+    localStorage.setItem(key, JSON.stringify({
+      data,
+      timestamp: Date.now(),
+    }));
+  } catch (error) {
+    console.error('Failed to cache data:', error);
+  }
+}
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const [agentTypes, setAgentTypes] = useState<{
-    registered: Array<{
-      type: string;
-      name: string;
-      description?: string;
-      capabilities?: {
-        codeGeneration?: boolean;
-        codeReview?: boolean;
-        taskAnalysis?: boolean;
-        fileOperations?: boolean;
-        terminalAccess?: boolean;
-        gitOperations?: boolean;
-        webSearch?: boolean;
-      };
-    }>;
+    registered: RegisteredAgentType[];
     available: string[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [settingDefault, setSettingDefault] = useState<string | null>(null);
+  const [enablingType, setEnablingType] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [availableModels, setAvailableModels] = useState<
+    Record<string, ModelOption[]>
+  >({});
+  const [developmentAgent, setDevelopmentAgent] = useState<{
+    type: string;
+    model: string;
+  }>({ type: '', model: '' });
+  const [reviewAgent, setReviewAgent] = useState<{
+    type: string;
+    model: string;
+  }>({ type: '', model: '' });
+  const [savingDevelopmentAgent, setSavingDevelopmentAgent] = useState(false);
+  const [savingReviewAgent, setSavingReviewAgent] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const [agentsRes, typesRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/agents`),
+      // Check cache first
+      const cachedAgents = getCachedData<AIAgentConfig[]>(CACHE_KEYS.agents);
+      const cachedTypes = getCachedData<typeof agentTypes>(CACHE_KEYS.agentTypes);
+      const cachedModels = getCachedData<Record<string, ModelOption[]>>(CACHE_KEYS.models);
+
+      if (cachedAgents && cachedTypes && cachedModels) {
+        setAgents(cachedAgents);
+        setAgentTypes(cachedTypes);
+        setAvailableModels(cachedModels);
+        setLoading(false);
+
+        // Fetch in background to update cache
+        Promise.all([
+          fetch(`${API_BASE_URL}/agents/all`),
+          fetch(`${API_BASE_URL}/agents/types`),
+          fetch(`${API_BASE_URL}/agents/models`),
+        ]).then(async ([agentsRes, typesRes, modelsRes]) => {
+          if (agentsRes.ok) {
+            const agentsData = await agentsRes.json();
+            setAgents(agentsData);
+            setCachedData(CACHE_KEYS.agents, agentsData);
+          }
+          if (typesRes.ok) {
+            const typesData = await typesRes.json();
+            setAgentTypes(typesData);
+            setCachedData(CACHE_KEYS.agentTypes, typesData);
+          }
+          if (modelsRes.ok) {
+            const modelsData = await modelsRes.json();
+            setAvailableModels(modelsData);
+            setCachedData(CACHE_KEYS.models, modelsData);
+          }
+        });
+        return;
+      }
+
+      const [agentsRes, typesRes, modelsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/agents/all`),
         fetch(`${API_BASE_URL}/agents/types`),
+        fetch(`${API_BASE_URL}/agents/models`),
       ]);
 
       if (agentsRes.ok) {
-        setAgents(await agentsRes.json());
+        const agentsData = await agentsRes.json();
+        setAgents(agentsData);
+        setCachedData(CACHE_KEYS.agents, agentsData);
       }
       if (typesRes.ok) {
-        setAgentTypes(await typesRes.json());
+        const typesData = await typesRes.json();
+        setAgentTypes(typesData);
+        setCachedData(CACHE_KEYS.agentTypes, typesData);
       }
-    } catch (error) {
-      console.error("Failed to fetch agents:", error);
+      if (modelsRes.ok) {
+        const modelsData = await modelsRes.json();
+        setAvailableModels(modelsData);
+        setCachedData(CACHE_KEYS.models, modelsData);
+      }
+    } catch (err) {
+      console.error("Failed to fetch agents:", err);
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    // Set default agent selections based on current agents
+    const developmentAgentConfig = agents.find(a => a.isActive && a.agentType === 'claude-code');
+    const reviewAgentConfig = agents.find(a => a.isActive && a.capabilities?.codeReview);
+
+    if (developmentAgentConfig) {
+      setDevelopmentAgent({
+        type: developmentAgentConfig.agentType,
+        model: developmentAgentConfig.modelId || '',
+      });
+    }
+
+    if (reviewAgentConfig) {
+      setReviewAgent({
+        type: reviewAgentConfig.agentType,
+        model: reviewAgentConfig.modelId || '',
+      });
+    }
+  }, [agents]);
+
+  const handleSetDefault = async (agentId: number) => {
+    setSettingDefault(String(agentId));
+    setError(null);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/agents/${agentId}/set-default`,
+        { method: "PUT" },
+      );
+      if (res.ok) {
+        await fetchData();
+      } else {
+        const data = await res.json();
+        setError(data.error || "デフォルトの設定に失敗しました");
+      }
+    } catch {
+      setError("デフォルトの設定に失敗しました");
+    } finally {
+      setSettingDefault(null);
+    }
+  };
+
+  // エージェントタイプを有効化（DB上にレコードがなければ作成）
+  const handleEnableAgentType = async (agentType: string, agentName: string) => {
+    setEnablingType(agentType);
+    setError(null);
+    try {
+      // 既にこのタイプのエージェントがDB上にあるか確認
+      const existing = agents.find((a) => a.agentType === agentType);
+      if (existing) {
+        // 無効化されていれば有効化
+        if (!existing.isActive) {
+          const res = await fetch(
+            `${API_BASE_URL}/agents/${existing.id}/toggle-active`,
+            { method: "PUT" },
+          );
+          if (!res.ok) {
+            const data = await res.json();
+            setError(data.error || "エージェントの有効化に失敗しました");
+          }
+        }
+      } else {
+        // 新規作成
+        const res = await fetch(`${API_BASE_URL}/agents`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: agentName,
+            agentType,
+            isDefault: agents.filter((a) => a.isActive).length === 0,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          setError(data.error || "エージェントの追加に失敗しました");
+        }
+      }
+      await fetchData();
+    } catch {
+      setError("エージェントの有効化に失敗しました");
+    } finally {
+      setEnablingType(null);
+    }
+  };
+
+  // エージェントタイプを無効化
+  const handleDisableAgentType = async (agentType: string) => {
+    setEnablingType(agentType);
+    setError(null);
+    try {
+      const existing = agents.find((a) => a.agentType === agentType && a.isActive);
+      if (existing) {
+        const res = await fetch(
+          `${API_BASE_URL}/agents/${existing.id}/toggle-active`,
+          { method: "PUT" },
+        );
+        if (!res.ok) {
+          const data = await res.json();
+          setError(data.error || "エージェントの無効化に失敗しました");
+        }
+        await fetchData();
+      }
+    } catch {
+      setError("エージェントの無効化に失敗しました");
+    } finally {
+      setEnablingType(null);
     }
   };
 
   const getAgentTypeInfo = (type: string) => {
     const typeInfo: Record<
       string,
-      { name: string; icon: React.ReactNode; color: string }
+      { name: string; icon: React.ReactNode; color: string; bgColor: string }
     > = {
       "claude-code": {
         name: "Claude Code",
         icon: <Terminal className="w-5 h-5" />,
         color: "text-orange-500",
+        bgColor: "bg-orange-100 dark:bg-orange-900/30",
+      },
+      "anthropic-api": {
+        name: "Anthropic API",
+        icon: <Terminal className="w-5 h-5" />,
+        color: "text-orange-500",
+        bgColor: "bg-orange-100 dark:bg-orange-900/30",
       },
       codex: {
         name: "OpenAI Codex",
         icon: <Zap className="w-5 h-5" />,
         color: "text-green-500",
+        bgColor: "bg-green-100 dark:bg-green-900/30",
+      },
+      openai: {
+        name: "OpenAI",
+        icon: <Zap className="w-5 h-5" />,
+        color: "text-green-500",
+        bgColor: "bg-green-100 dark:bg-green-900/30",
+      },
+      "azure-openai": {
+        name: "Azure OpenAI",
+        icon: <Globe className="w-5 h-5" />,
+        color: "text-blue-500",
+        bgColor: "bg-blue-100 dark:bg-blue-900/30",
       },
       gemini: {
         name: "Google Gemini",
         icon: <Activity className="w-5 h-5" />,
         color: "text-blue-500",
+        bgColor: "bg-blue-100 dark:bg-blue-900/30",
+      },
+      custom: {
+        name: "カスタム",
+        icon: <Cpu className="w-5 h-5" />,
+        color: "text-zinc-500",
+        bgColor: "bg-zinc-100 dark:bg-zinc-700",
       },
     };
     return (
@@ -90,8 +338,104 @@ export default function AgentsPage() {
         name: type,
         icon: <Cpu className="w-5 h-5" />,
         color: "text-zinc-500",
+        bgColor: "bg-zinc-100 dark:bg-zinc-700",
       }
     );
+  };
+
+  const capabilityLabels: Record<string, string> = {
+    codeGeneration: "コード生成",
+    codeReview: "レビュー",
+    taskAnalysis: "分析",
+    fileOperations: "ファイル操作",
+    terminalAccess: "ターミナル",
+    gitOperations: "Git",
+    webSearch: "Web検索",
+  };
+
+  const handleSaveDevelopmentAgent = async () => {
+    if (!developmentAgent.type) return;
+
+    setSavingDevelopmentAgent(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/agents/development`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(developmentAgent),
+      });
+      if (!res.ok) {
+        throw new Error("開発エージェントの設定に失敗しました");
+      }
+      setSuccessMessage("開発エージェントの設定を保存しました");
+      // Clear cache to ensure fresh data
+      localStorage.removeItem(CACHE_KEYS.agents);
+      await fetchData();
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
+    } finally {
+      setSavingDevelopmentAgent(false);
+    }
+  };
+
+  const handleSaveReviewAgent = async () => {
+    if (!reviewAgent.type) return;
+
+    setSavingReviewAgent(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/agents/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reviewAgent),
+      });
+      if (!res.ok) {
+        throw new Error("レビューエージェントの設定に失敗しました");
+      }
+      setSuccessMessage("レビューエージェントの設定を保存しました");
+      // Clear cache to ensure fresh data
+      localStorage.removeItem(CACHE_KEYS.agents);
+      await fetchData();
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
+    } finally {
+      setSavingReviewAgent(false);
+    }
+  };
+
+  const handleDeleteAgent = async (agentId: number) => {
+    const agent = agents.find(a => a.id === agentId);
+    if (!agent) return;
+
+    if (!confirm(`エージェント「${agent.name}」を削除しますか？`)) return;
+
+    setDeletingId(agentId);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/agents/${agentId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        throw new Error("エージェントの削除に失敗しました");
+      }
+      setSuccessMessage(`エージェント「${agent.name}」を削除しました`);
+      // Clear cache to ensure fresh data
+      localStorage.removeItem(CACHE_KEYS.agents);
+      await fetchData();
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   if (loading) {
@@ -100,161 +444,300 @@ export default function AgentsPage() {
 
   return (
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-[var(--background)] scrollbar-thin">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ヘッダー */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-              AIエージェント
-            </h1>
-            <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-              エージェントの管理・実行状況の確認
-            </p>
-          </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            エージェントを追加
-          </button>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+            AIエージェント管理
+          </h1>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-1">
+            利用可能なエージェントタイプを選択し、設定を管理します
+          </p>
         </div>
 
-        {/* 利用可能なエージェントタイプ */}
+        {/* エラー・成功表示 */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
+            <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+            <button
+              onClick={() => setError(null)}
+              className="ml-auto text-red-400 hover:text-red-600 dark:hover:text-red-300"
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0" />
+            <p className="text-green-600 dark:text-green-400 text-sm">{successMessage}</p>
+            <button
+              onClick={() => setSuccessMessage(null)}
+              className="ml-auto text-green-400 hover:text-green-600 dark:hover:text-green-300"
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* 使用制限グラフ */}
+        <div className="mb-6">
+          <UsageRateLimitGraph />
+        </div>
+
+        {/* エージェント設定 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* 開発エージェント設定 */}
+          <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
+                <Code className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
+                  開発エージェント
+                </h3>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  コード生成・実装用のエージェント
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                  エージェントタイプ
+                </label>
+                <select
+                  value={developmentAgent.type}
+                  onChange={(e) => setDevelopmentAgent({ ...developmentAgent, type: e.target.value })}
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  <option value="">選択してください</option>
+                  {agentTypes?.registered.map((type) => (
+                    <option key={type.type} value={type.type}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {developmentAgent.type && availableModels[developmentAgent.type] && (
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                    モデル
+                  </label>
+                  <select
+                    value={developmentAgent.model}
+                    onChange={(e) => setDevelopmentAgent({ ...developmentAgent, model: e.target.value })}
+                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  >
+                    <option value="">選択してください</option>
+                    {availableModels[developmentAgent.type].map((model) => (
+                      <option key={model.value} value={model.value}>
+                        {model.label} {model.description && `- ${model.description}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <button
+                onClick={handleSaveDevelopmentAgent}
+                disabled={!developmentAgent.type || !developmentAgent.model || savingDevelopmentAgent}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                {savingDevelopmentAgent ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    保存
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* レビュー用エージェント設定 */}
+          <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
+                <Search className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
+                  レビュー用エージェント
+                </h3>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  コードレビュー・分析用のエージェント
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                  エージェントタイプ
+                </label>
+                <select
+                  value={reviewAgent.type}
+                  onChange={(e) => setReviewAgent({ ...reviewAgent, type: e.target.value })}
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  <option value="">選択してください</option>
+                  {agentTypes?.registered.map((type) => (
+                    <option key={type.type} value={type.type}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {reviewAgent.type && availableModels[reviewAgent.type] && (
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                    モデル
+                  </label>
+                  <select
+                    value={reviewAgent.model}
+                    onChange={(e) => setReviewAgent({ ...reviewAgent, model: e.target.value })}
+                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  >
+                    <option value="">選択してください</option>
+                    {availableModels[reviewAgent.type].map((model) => (
+                      <option key={model.value} value={model.value}>
+                        {model.label} {model.description && `- ${model.description}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <button
+                onClick={handleSaveReviewAgent}
+                disabled={!reviewAgent.type || !reviewAgent.model || savingReviewAgent}
+                className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                {savingReviewAgent ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    保存
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 利用可能なエージェント一覧 */}
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
             利用可能なエージェント
           </h2>
-          <div className="grid gap-4 md:grid-cols-3">
-            {agentTypes?.registered.map((agentTypeInfo) => {
-              const info = getAgentTypeInfo(agentTypeInfo.type);
-              const isAvailable = agentTypes.available.includes(
-                agentTypeInfo.type,
-              );
-
-              return (
-                <div
-                  key={agentTypeInfo.type}
-                  className={`p-4 rounded-lg border ${
-                    isAvailable
-                      ? "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700"
-                      : "bg-zinc-50 dark:bg-indigo-dark-900 border-zinc-200 dark:border-zinc-800 opacity-60"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className={info.color}>{info.icon}</div>
-                    <div>
-                      <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
-                        {agentTypeInfo.name}
-                      </h3>
-                      {isAvailable ? (
-                        <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" />
-                          利用可能
-                        </span>
-                      ) : (
-                        <span className="text-xs text-zinc-400 flex items-center gap-1">
-                          <XCircle className="w-3 h-3" />
-                          未設定
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {agentTypeInfo.description || agentTypeInfo.name}
-                  </p>
-                  {agentTypeInfo.capabilities && (
-                    <div className="mt-3 flex flex-wrap gap-1">
-                      {Object.entries(agentTypeInfo.capabilities)
-                        .filter(([, v]) => v)
-                        .map(([key]) => (
-                          <span
-                            key={key}
-                            className="px-2 py-0.5 text-xs bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 rounded"
-                          >
-                            {key === "codeGeneration" && "コード生成"}
-                            {key === "codeReview" && "レビュー"}
-                            {key === "taskAnalysis" && "分析"}
-                            {key === "fileOperations" && "ファイル操作"}
-                            {key === "terminalAccess" && "ターミナル"}
-                            {key === "gitOperations" && "Git"}
-                            {key === "webSearch" && "Web検索"}
-                          </span>
-                        ))}
-                    </div>
-                  )}
+          <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="border-b border-zinc-200 dark:border-zinc-700">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-xs uppercase text-zinc-500 dark:text-zinc-400">
+                      エージェント
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-xs uppercase text-zinc-500 dark:text-zinc-400">
+                      モデル
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-xs uppercase text-zinc-500 dark:text-zinc-400">
+                      ステータス
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-xs uppercase text-zinc-500 dark:text-zinc-400">
+                      アクション
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-700/50">
+                  {agents
+                    .filter((agent) => agent.isActive)
+                    .map((agent) => {
+                      const info = getAgentTypeInfo(agent.agentType);
+                      return (
+                        <tr key={agent.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-lg bg-zinc-100 dark:bg-zinc-700 ${info.color}`}>
+                                {info.icon}
+                              </div>
+                              <div>
+                                <p className="font-medium text-zinc-900 dark:text-zinc-100">
+                                  {agent.name}
+                                </p>
+                                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                  {info.name}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-sm text-zinc-600 dark:text-zinc-300">
+                              {agent.modelId || '-'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full">
+                                アクティブ
+                              </span>
+                              {agent.isDefault && (
+                                <span className="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full">
+                                  デフォルト
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-2">
+                              <Link
+                                href={`/agents/${agent.id}/settings`}
+                                className="p-1.5 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+                                title="設定"
+                              >
+                                <Settings className="w-4 h-4" />
+                              </Link>
+                              <button
+                                onClick={() => handleDeleteAgent(agent.id)}
+                                disabled={deletingId === agent.id}
+                                className="p-1.5 text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                                title="削除"
+                              >
+                                {deletingId === agent.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-4 h-4" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+              {agents.filter((a) => a.isActive).length === 0 && (
+                <div className="p-8 text-center text-zinc-500 dark:text-zinc-400">
+                  アクティブなエージェントがありません
                 </div>
-              );
-            })}
+              )}
+            </div>
           </div>
-        </div>
-
-        {/* 設定済みエージェント */}
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
-            設定済みエージェント
-          </h2>
-          {agents.length === 0 ? (
-            <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
-              <Cpu className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
-              <p className="text-zinc-500 dark:text-zinc-400">
-                設定されたエージェントがありません
-              </p>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="mt-4 text-indigo-600 dark:text-indigo-400 hover:underline"
-              >
-                エージェントを追加
-              </button>
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {agents.map((agent) => {
-                const info = getAgentTypeInfo(agent.agentType);
-                return (
-                  <div
-                    key={agent.id}
-                    className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700"
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`p-2 rounded-lg bg-zinc-100 dark:bg-zinc-700 ${info.color}`}
-                        >
-                          {info.icon}
-                        </div>
-                        <div>
-                          <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
-                            {agent.name}
-                          </h3>
-                          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                            {info.name}
-                          </p>
-                        </div>
-                      </div>
-                      {agent.isDefault && (
-                        <span className="px-2 py-0.5 text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 rounded">
-                          デフォルト
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-zinc-500 dark:text-zinc-400">
-                        実行回数: {agent._count?.executions || 0}
-                      </span>
-                      <Link
-                        href={`/agents/${agent.id}/settings`}
-                        className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline"
-                      >
-                        <Settings className="w-4 h-4" />
-                        設定
-                      </Link>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
 
         {/* 使い方ガイド */}
@@ -269,10 +752,10 @@ export default function AgentsPage() {
               </div>
               <div>
                 <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
-                  タスクを選択
+                  エージェントを選択
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  実行したいタスクの詳細ページを開きます
+                  使いたいエージェントを有効化し、デフォルトに設定
                 </p>
               </div>
             </div>
@@ -298,196 +781,11 @@ export default function AgentsPage() {
                   実行を開始
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  「AIで実行」ボタンをクリックして実行開始
+                  「AIで実行」ボタンで実行。エージェントは実行時にも切替可能
                 </p>
               </div>
             </div>
           </div>
-        </div>
-
-        {/* 追加モーダル */}
-        {showAddModal && (
-          <AddAgentModal
-            onClose={() => setShowAddModal(false)}
-            onSuccess={() => {
-              setShowAddModal(false);
-              fetchData();
-            }}
-            agentTypes={agentTypes?.registered || []}
-            availableTypes={agentTypes?.available || []}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function AddAgentModal({
-  onClose,
-  onSuccess,
-  agentTypes,
-  availableTypes,
-}: {
-  onClose: () => void;
-  onSuccess: () => void;
-  agentTypes: Array<{
-    type: string;
-    name: string;
-    description?: string;
-  }>;
-  availableTypes: string[];
-}) {
-  const [name, setName] = useState("");
-  const [agentType, setAgentType] = useState("claude-code");
-  const [isDefault, setIsDefault] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [nameError, setNameError] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setNameError(null);
-
-    // 名前のバリデーション
-    const nameResult = validateName(name, "エージェント名", 1, 50);
-    if (!nameResult.valid) {
-      setNameError(nameResult.error ?? null);
-      return;
-    }
-
-    if (!availableTypes.includes(agentType)) {
-      setError("選択したエージェントタイプは利用できません");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/agents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          agentType,
-          isDefault,
-        }),
-      });
-
-      if (res.ok) {
-        onSuccess();
-      } else {
-        const data = await res.json();
-        setError(data.error || "エージェントの追加に失敗しました");
-      }
-    } catch {
-      setError("エージェントの追加に失敗しました");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md bg-white dark:bg-zinc-800 rounded-lg shadow-xl">
-        <div className="p-6">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
-            エージェントを追加
-          </h2>
-          <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  名前
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setName(val);
-                    if (val.trim()) {
-                      const result = validateName(val, "エージェント名", 1, 50);
-                      setNameError(
-                        result.valid ? null : (result.error ?? null),
-                      );
-                    } else {
-                      setNameError(null);
-                    }
-                  }}
-                  placeholder="例: メイン開発エージェント"
-                  className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:border-transparent ${
-                    nameError
-                      ? "border-red-400 dark:border-red-600 focus:ring-red-500"
-                      : "border-zinc-300 dark:border-zinc-600 focus:ring-indigo-500"
-                  }`}
-                  required
-                />
-                {nameError && (
-                  <p className="text-xs text-red-500 dark:text-red-400 mt-1">
-                    {nameError}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  エージェントタイプ
-                </label>
-                <select
-                  value={agentType}
-                  onChange={(e) => setAgentType(e.target.value)}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                >
-                  {agentTypes.map((agentTypeOption) => (
-                    <option
-                      key={agentTypeOption.type}
-                      value={agentTypeOption.type}
-                      disabled={!availableTypes.includes(agentTypeOption.type)}
-                    >
-                      {agentTypeOption.name}{" "}
-                      {!availableTypes.includes(agentTypeOption.type) &&
-                        "(利用不可)"}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="isDefault"
-                  checked={isDefault}
-                  onChange={(e) => setIsDefault(e.target.checked)}
-                  className="w-4 h-4 text-indigo-600 border-zinc-300 rounded focus:ring-indigo-500"
-                />
-                <label
-                  htmlFor="isDefault"
-                  className="text-sm text-zinc-700 dark:text-zinc-300"
-                >
-                  デフォルトエージェントとして設定
-                </label>
-              </div>
-            </div>
-            {error && (
-              <p className="text-sm text-red-600 dark:text-red-400 mt-4">
-                {error}
-              </p>
-            )}
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
-              >
-                キャンセル
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-              >
-                {saving ? "追加中..." : "追加"}
-              </button>
-            </div>
-          </form>
         </div>
       </div>
     </div>
