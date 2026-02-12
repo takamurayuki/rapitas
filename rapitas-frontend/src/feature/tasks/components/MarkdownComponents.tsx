@@ -1,6 +1,7 @@
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import type { ReactNode, HTMLAttributes, CSSProperties } from "react";
+import { handleExternalLinkClick } from "@/utils/external-links";
 
 // vscDarkPlusのスタイル型
 type SyntaxHighlighterStyle = { [key: string]: CSSProperties };
@@ -21,6 +22,11 @@ type CodeProps = HTMLAttributes<HTMLElement> & {
   node?: MarkdownNode;
   inline?: boolean;
   className?: string;
+  children?: ReactNode;
+};
+
+type LinkProps = HTMLAttributes<HTMLAnchorElement> & {
+  href?: string;
   children?: ReactNode;
 };
 
@@ -97,6 +103,27 @@ export const createMarkdownComponents = () => ({
           {children}
         </code>
       </div>
+    );
+  },
+  // リンクの処理をカスタマイズ（外部リンクを分割表示で開く）
+  a({ href, children, ...props }: LinkProps) {
+    const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+      if (href) {
+        handleExternalLinkClick(event, href);
+      }
+    };
+
+    return (
+      <a
+        href={href}
+        onClick={handleClick}
+        className="text-blue-600 dark:text-blue-400 hover:underline"
+        target={href?.startsWith('http') ? '_blank' : undefined}
+        rel={href?.startsWith('http') ? 'noopener noreferrer' : undefined}
+        {...props}
+      >
+        {children}
+      </a>
     );
   },
 });

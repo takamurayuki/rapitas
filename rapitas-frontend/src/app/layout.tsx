@@ -10,6 +10,7 @@ import ScheduleReminderProvider from "@/components/ScheduleReminderProvider";
 import { Suspense } from "react";
 import { ToastProvider } from "@/components/ui/toast/ToastContainer";
 import { PomodoroProvider } from "@/feature/tasks/pomodoro/PomodoroProvider";
+import ExternalLinksProvider from "@/components/ExternalLinksProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -59,19 +60,23 @@ export default function RootLayout({
       >
         <PomodoroProvider>
           <ToastProvider>
-            <Suspense fallback={<div className="h-16" />}>
-              <Header />
-            </Suspense>
-            {children}
-            <Suspense fallback={null}>
-              <KeyboardShortcuts />
-            </Suspense>
-            <FloatingAIMenuWrapper />
-            <AchievementNotifications />
-            <Suspense fallback={null}>
-              <ResumableExecutionsBanner />
-            </Suspense>
-            <ScheduleReminderProvider />
+            <ExternalLinksProvider>
+              <Suspense fallback={<div className="h-16" />}>
+                <Suspense fallback={<div className="h-16" />}>
+                  <Header />
+                </Suspense>
+                {children}
+                <Suspense fallback={null}>
+                  <KeyboardShortcuts />
+                </Suspense>
+                <FloatingAIMenuWrapper />
+                <AchievementNotifications />
+                <Suspense fallback={null}>
+                  <ResumableExecutionsBanner />
+                </Suspense>
+                <ScheduleReminderProvider />
+              </Suspense>
+            </ExternalLinksProvider>
           </ToastProvider>
         </PomodoroProvider>
       </body>

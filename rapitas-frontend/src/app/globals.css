@@ -368,3 +368,15 @@ html {
 .animate-task-complete-fade-out {
   animation: task-complete-fade-out 2.5s ease-in-out forwards;
 }
+
+/* Split View iFrameローディング */
+.iframe-loading {
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+iframe:not([src=""]) + .iframe-loading {
+  opacity: 0;
+  pointer-events: none;
+}
