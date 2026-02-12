@@ -32,6 +32,7 @@ import {
   type ScreenshotResult,
 } from "../services/screenshot-service";
 import { realtimeService } from "../services/realtime-service";
+import { getModelsForAgentType, getAllModels } from "../utils/agent-models";
 
 /**
  * スクリーンショット結果からフロントエンド表示に不要な path（ファイルシステムパス）を除外する
@@ -39,6 +40,17 @@ import { realtimeService } from "../services/realtime-service";
 function sanitizeScreenshots(screenshots: ScreenshotResult[]) {
   return screenshots.map(({ path, ...rest }) => rest);
 }
+
+/**
+ * AgentExecution に question/questionType/questionDetails/claudeSessionId が
+ * DB 上は存在するが Prisma の型定義に含まれないケースを安全にキャストするための型
+ */
+type ExecutionWithExtras = {
+  question?: string | null;
+  questionType?: string | null;
+  questionDetails?: string | null;
+  claudeSessionId?: string | null;
+};
 
 /**
  * エージェント出力からクリーンな実装サマリーを抽出する。
@@ -116,15 +128,156 @@ function getParallelExecutor(): ParallelExecutor {
 const UPLOAD_DIR = join(process.cwd(), "uploads");
 
 export const aiAgentRoutes = new Elysia()
-  // Agent configuration list
+  // Agent configuration list (active only)
   .get("/agents", async () => {
-    return await prisma.aIAgentConfig.findMany({
+    const agents = await prisma.aIAgentConfig.findMany({
       where: { isActive: true },
       include: {
         _count: { select: { executions: true } },
       },
       orderBy: { createdAt: "desc" },
     });
+
+    // 開発用とレビュー用のエージェントのみを返す
+    const filteredAgents = agents.filter(agent => {
+      // 開発用エージェント設定を確認
+      const isDevelopmentAgent = agent.name.includes("Development Agent");
+      // レビュー用エージェント設定を確認
+      const isReviewAgent = agent.name.includes("Review Agent");
+      // デフォルトエージェント
+      const isDefaultAgent = agent.isDefault;
+
+      return isDevelopmentAgent || isReviewAgent || isDefaultAgent;
+    });
+
+    return filteredAgents.map((agent) => ({
+      ...agent,
+      capabilities: fromJsonString(agent.capabilities) ?? {},
+    }));
+  })
+
+  // Agent configuration list (all, including inactive - for management page)
+  .get("/agents/all", async () => {
+    const agents = await prisma.aIAgentConfig.findMany({
+      include: {
+        _count: { select: { executions: true } },
+      },
+      orderBy: [{ isDefault: "desc" }, { isActive: "desc" }, { createdAt: "desc" }],
+    });
+    return agents.map((agent) => ({
+      ...agent,
+      capabilities: fromJsonString(agent.capabilities) ?? {},
+    }));
+  })
+
+  // Toggle agent active status
+  .put(
+    "/agents/:id/toggle-active",
+    async ({ params }: { params: { id: string } }) => {
+      const agentId = parseInt(params.id, 10);
+      if (isNaN(agentId)) {
+        return { error: "Invalid agent ID" };
+      }
+
+      const agent = await prisma.aIAgentConfig.findUnique({
+        where: { id: agentId },
+      });
+      if (!agent) {
+        return { error: "Agent not found" };
+      }
+
+      // デフォルトエージェントは無効化できない
+      if (agent.isDefault && agent.isActive) {
+        return { error: "デフォルトエージェントは無効化できません。先に別のエージェントをデフォルトに設定してください。" };
+      }
+
+      const updated = await prisma.aIAgentConfig.update({
+        where: { id: agentId },
+        data: { isActive: !agent.isActive },
+      });
+
+      await logAgentConfigChange({
+        agentConfigId: agentId,
+        action: "update",
+        changeDetails: { isActive: { from: agent.isActive, to: updated.isActive } },
+        previousValues: { isActive: agent.isActive },
+        newValues: { isActive: updated.isActive },
+      });
+
+      return updated;
+    },
+  )
+
+  // Get default agent configuration
+  .get("/agents/default", async () => {
+    const defaultAgent = await prisma.aIAgentConfig.findFirst({
+      where: { isDefault: true, isActive: true },
+    });
+    if (!defaultAgent) {
+      // DBにデフォルトエージェントが設定されていない場合、組み込みのClaude Codeをフォールバックとして返す
+      return {
+        id: null,
+        agentType: "claude-code",
+        name: "Claude Code Agent",
+        modelId: null,
+        isDefault: true,
+        isActive: true,
+        isBuiltinFallback: true,
+      };
+    }
+    return { ...defaultAgent, capabilities: fromJsonString(defaultAgent.capabilities) ?? {}, isBuiltinFallback: false };
+  })
+
+  // Set default agent by ID
+  .put(
+    "/agents/:id/set-default",
+    async ({ params }: { params: { id: string } }) => {
+      const agentId = parseInt(params.id, 10);
+      if (isNaN(agentId)) {
+        return { error: "Invalid agent ID" };
+      }
+
+      // 対象エージェントが存在・アクティブか確認
+      const agent = await prisma.aIAgentConfig.findUnique({
+        where: { id: agentId },
+      });
+      if (!agent || !agent.isActive) {
+        return { error: "Agent not found or inactive" };
+      }
+
+      // 既存のデフォルトを解除
+      await prisma.aIAgentConfig.updateMany({
+        where: { isDefault: true },
+        data: { isDefault: false },
+      });
+
+      // 新しいデフォルトを設定
+      const updated = await prisma.aIAgentConfig.update({
+        where: { id: agentId },
+        data: { isDefault: true },
+      });
+
+      // 監査ログを記録
+      await logAgentConfigChange({
+        agentConfigId: agentId,
+        action: "update",
+        previousValues: { isDefault: false },
+        newValues: { isDefault: true },
+      });
+
+      console.log(`[agents] Default agent changed to: ${updated.name} (${updated.agentType})`);
+      return updated;
+    },
+  )
+
+  // Clear default agent (revert to built-in Claude Code)
+  .delete("/agents/default", async () => {
+    await prisma.aIAgentConfig.updateMany({
+      where: { isDefault: true },
+      data: { isDefault: false },
+    });
+    console.log("[agents] Default agent cleared, reverting to built-in Claude Code");
+    return { success: true, message: "Default agent cleared. Will use built-in Claude Code." };
   })
 
   // Create agent configuration
@@ -139,7 +292,7 @@ export const aiAgentRoutes = new Elysia()
         apiKey?: string;
         endpoint?: string;
         modelId?: string;
-        capabilities?: any;
+        capabilities?: Record<string, unknown>;
         isDefault?: boolean;
       };
     }) => {
@@ -178,7 +331,7 @@ export const aiAgentRoutes = new Elysia()
           apiKeyEncrypted,
           endpoint,
           modelId,
-          capabilities: capabilities || {},
+          capabilities: toJsonString(capabilities || {}) ?? "{}",
           isDefault: isDefault || false,
         },
       });
@@ -215,7 +368,7 @@ export const aiAgentRoutes = new Elysia()
         clearApiKey?: boolean;
         endpoint?: string;
         modelId?: string;
-        capabilities?: any;
+        capabilities?: Record<string, unknown>;
         isDefault?: boolean;
         isActive?: boolean;
       };
@@ -264,7 +417,7 @@ export const aiAgentRoutes = new Elysia()
           ...(apiKeyEncrypted !== undefined && { apiKeyEncrypted }),
           ...(endpoint !== undefined && { endpoint }),
           ...(modelId !== undefined && { modelId }),
-          ...(capabilities && { capabilities }),
+          ...(capabilities && { capabilities: toJsonString(capabilities) ?? "{}" }),
           ...(isDefault !== undefined && { isDefault }),
           ...(isActive !== undefined && { isActive }),
         },
@@ -321,7 +474,7 @@ export const aiAgentRoutes = new Elysia()
   // Get single agent configuration with masked API key
   .get(
     "/agents/:id",
-    async ({ params, set }: { params: { id: string }; set: any }) => {
+    async ({ params, set }: { params: { id: string }; set: { status: number } }) => {
       const { id } = params;
       const agent = await prisma.aIAgentConfig.findUnique({
         where: { id: parseInt(id) },
@@ -355,6 +508,7 @@ export const aiAgentRoutes = new Elysia()
 
       return {
         ...agent,
+        capabilities: fromJsonString(agent.capabilities) ?? {},
         apiKeyEncrypted: undefined, // 暗号化されたキーは返さない
         maskedApiKey,
         apiKeyMasked: maskedApiKey, // フロントエンド互換のフィールド名
@@ -403,7 +557,7 @@ export const aiAgentRoutes = new Elysia()
     }: {
       params: { id: string };
       body: { apiKey: string };
-      set: any;
+      set: { status: number };
     }) => {
       const { id } = params;
       const { apiKey } = body;
@@ -455,7 +609,7 @@ export const aiAgentRoutes = new Elysia()
   // Delete API key for agent
   .delete(
     "/agents/:id/api-key",
-    async ({ params, set }: { params: { id: string }; set: any }) => {
+    async ({ params, set }: { params: { id: string }; set: { status: number } }) => {
       const { id } = params;
 
       const agent = await prisma.aIAgentConfig.findUnique({
@@ -488,7 +642,7 @@ export const aiAgentRoutes = new Elysia()
   // Test connection for agent (alias for test-connection)
   .post(
     "/agents/:id/test",
-    async ({ params, set }: { params: { id: string }; set: any }) => {
+    async ({ params, set }: { params: { id: string }; set: { status: number } }) => {
       const { id } = params;
       const agent = await prisma.aIAgentConfig.findUnique({
         where: { id: parseInt(id) },
@@ -577,10 +731,13 @@ export const aiAgentRoutes = new Elysia()
             if (response.ok) {
               return { success: true, message: "Anthropic API接続成功" };
             } else {
-              const error = await response.json().catch(() => ({}));
+              const errorBody = await response.json().catch(() => ({}));
+              const errorMessage = errorBody && typeof errorBody === 'object' && 'error' in errorBody
+                ? (errorBody as { error?: { message?: string } }).error?.message
+                : undefined;
               return {
                 success: false,
-                message: `Anthropic API error: ${(error as any).error?.message || response.statusText}`,
+                message: `Anthropic API error: ${errorMessage || response.statusText}`,
               };
             }
           }
@@ -602,10 +759,13 @@ export const aiAgentRoutes = new Elysia()
             if (response.ok) {
               return { success: true, message: "OpenAI API接続成功" };
             } else {
-              const error = await response.json().catch(() => ({}));
+              const errorBody = await response.json().catch(() => ({}));
+              const errorMessage = errorBody && typeof errorBody === 'object' && 'error' in errorBody
+                ? (errorBody as { error?: { message?: string } }).error?.message
+                : undefined;
               return {
                 success: false,
-                message: `OpenAI API error: ${(error as any).error?.message || response.statusText}`,
+                message: `OpenAI API error: ${errorMessage || response.statusText}`,
               };
             }
           }
@@ -693,10 +853,13 @@ export const aiAgentRoutes = new Elysia()
             if (response.ok) {
               return { success: true, message: "Gemini API接続成功" };
             } else {
-              const error = await response.json().catch(() => ({}));
+              const errorBody = await response.json().catch(() => ({}));
+              const errorMessage = errorBody && typeof errorBody === 'object' && 'error' in errorBody
+                ? (errorBody as { error?: { message?: string } }).error?.message
+                : undefined;
               return {
                 success: false,
-                message: `Gemini API error: ${(error as any).error?.message || response.statusText}`,
+                message: `Gemini API error: ${errorMessage || response.statusText}`,
               };
             }
           }
@@ -786,6 +949,139 @@ export const aiAgentRoutes = new Elysia()
     };
   })
 
+  // Get available models for a specific agent type
+  .get(
+    "/agents/models",
+    async ({ query }: { query: { type?: string } }) => {
+      if (query.type) {
+        const models = await getModelsForAgentType(query.type);
+        return { models };
+      }
+
+      // Return all models grouped by agent type
+      const allModels = await getAllModels();
+      return allModels;
+    },
+  )
+
+  // Set development agent configuration
+  .post(
+    "/agents/development",
+    async ({
+      body,
+    }: {
+      body: {
+        type: string;
+        model: string;
+      };
+    }) => {
+      const { type, model } = body;
+
+      // Find or create agent config
+      let agent = await prisma.aIAgentConfig.findFirst({
+        where: {
+          agentType: type,
+          isActive: true,
+        },
+      });
+
+      if (!agent) {
+        // Create new agent config
+        agent = await prisma.aIAgentConfig.create({
+          data: {
+            agentType: type,
+            name: `Development Agent (${type})`,
+            modelId: model,
+            isActive: true,
+            isDefault: false,
+            capabilities: JSON.stringify({
+              codeGeneration: true,
+              taskAnalysis: true,
+              fileOperations: true,
+              terminalAccess: true,
+              gitOperations: true,
+            }),
+          },
+        });
+      } else {
+        // Update existing agent
+        agent = await prisma.aIAgentConfig.update({
+          where: { id: agent.id },
+          data: {
+            modelId: model,
+            name: `Development Agent (${type})`,
+          },
+        });
+      }
+
+      // Set as default agent for development tasks
+      await prisma.aIAgentConfig.updateMany({
+        where: { isDefault: true },
+        data: { isDefault: false },
+      });
+
+      await prisma.aIAgentConfig.update({
+        where: { id: agent.id },
+        data: { isDefault: true },
+      });
+
+      return { success: true, agent };
+    },
+  )
+
+  // Set review agent configuration
+  .post(
+    "/agents/review",
+    async ({
+      body,
+    }: {
+      body: {
+        type: string;
+        model: string;
+      };
+    }) => {
+      const { type, model } = body;
+
+      // Find or create agent config for review
+      let agent = await prisma.aIAgentConfig.findFirst({
+        where: {
+          agentType: type,
+          name: { contains: "Review" },
+          isActive: true,
+        },
+      });
+
+      if (!agent) {
+        // Create new agent config
+        agent = await prisma.aIAgentConfig.create({
+          data: {
+            agentType: type,
+            name: `Review Agent (${type})`,
+            modelId: model,
+            isActive: true,
+            isDefault: false,
+            capabilities: JSON.stringify({
+              codeReview: true,
+              taskAnalysis: true,
+              fileOperations: true,
+              webSearch: true,
+            }),
+          },
+        });
+      } else {
+        // Update existing agent
+        agent = await prisma.aIAgentConfig.update({
+          where: { id: agent.id },
+          data: {
+            modelId: model,
+          },
+        });
+      }
+
+      return { success: true, agent };
+    },
+  )
+
   // Get encryption configuration status
   .get("/agents/encryption-status", async () => {
     return {
@@ -806,7 +1102,7 @@ export const aiAgentRoutes = new Elysia()
   // Get configuration schema for a specific agent type
   .get(
     "/agents/config-schema/:agentType",
-    async ({ params, set }: { params: { agentType: string }; set: any }) => {
+    async ({ params, set }: { params: { agentType: string }; set: { status: number } }) => {
       const { agentType } = params;
       const schema = getAgentConfigSchema(agentType);
 
@@ -833,7 +1129,7 @@ export const aiAgentRoutes = new Elysia()
         modelId?: string;
         additionalConfig?: Record<string, unknown>;
       };
-      set: any;
+      set: { status: number };
     }) => {
       const { agentType, apiKey, endpoint, modelId, additionalConfig } = body;
 
@@ -898,7 +1194,7 @@ export const aiAgentRoutes = new Elysia()
   // Test API key connection for an agent
   .post(
     "/agents/:id/test-connection",
-    async ({ params, set }: { params: { id: string }; set: any }) => {
+    async ({ params, set }: { params: { id: string }; set: { status: number } }) => {
       const { id } = params;
       const agent = await prisma.aIAgentConfig.findUnique({
         where: { id: parseInt(id) },
@@ -980,12 +1276,13 @@ export const aiAgentRoutes = new Elysia()
           agentType: agent.agentType,
           message: `${agent.agentType}の接続テストはまだ実装されていません`,
         };
-      } catch (error: any) {
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
         return {
           success: false,
           agentType: agent.agentType,
-          error: error.message || "Unknown error",
-          message: `接続テストに失敗しました: ${error.message}`,
+          error: errorMsg,
+          message: `接続テストに失敗しました: ${errorMsg}`,
         };
       }
     },
@@ -1018,7 +1315,7 @@ export const aiAgentRoutes = new Elysia()
           description?: string;
         }>;
       };
-      set: any;
+      set: { status: number };
     }) => {
       const { id } = params;
       const taskIdNum = parseInt(id);
@@ -1168,30 +1465,38 @@ export const aiAgentRoutes = new Elysia()
 
         if (latestAnalysisAction?.output) {
           try {
-            const analysisOutput = fromJsonString<any>(
+            const analysisOutput = fromJsonString<Record<string, unknown>>(
               latestAnalysisAction.output,
             );
             if (analysisOutput?.summary && analysisOutput?.suggestedSubtasks) {
               analysisInfo = {
-                summary: analysisOutput.summary,
-                complexity: analysisOutput.complexity || "medium",
-                estimatedTotalHours: analysisOutput.estimatedTotalHours || 0,
-                subtasks: (analysisOutput.suggestedSubtasks || []).map(
-                  (st: any) => ({
+                summary: analysisOutput.summary as string,
+                complexity: (analysisOutput.complexity as "simple" | "medium" | "complex") || "medium",
+                estimatedTotalHours: (analysisOutput.estimatedTotalHours as number) || 0,
+                subtasks: (
+                  (analysisOutput.suggestedSubtasks as Array<{
+                    title: string;
+                    description?: string;
+                    estimatedHours?: number;
+                    priority?: string;
+                    order?: number;
+                    dependencies?: number[];
+                  }>) || []
+                ).map((st) => ({
                     title: st.title,
                     description: st.description || "",
                     estimatedHours: st.estimatedHours || 0,
-                    priority: st.priority || "medium",
+                    priority: (st.priority as "low" | "medium" | "high" | "urgent") || "medium",
                     order: st.order || 0,
                     dependencies: st.dependencies,
                   }),
                 ),
-                reasoning: analysisOutput.reasoning || "",
-                tips: analysisOutput.tips,
+                reasoning: (analysisOutput.reasoning as string) || "",
+                tips: analysisOutput.tips as string[] | undefined,
               };
               console.log(`[API] Using AI task analysis for task ${taskIdNum}`);
               console.log(
-                `[API] Analysis subtasks count: ${analysisInfo.subtasks.length}`,
+                `[API] Analysis subtasks count: ${analysisInfo!.subtasks.length}`,
               );
             }
           } catch (e) {
@@ -1233,7 +1538,7 @@ export const aiAgentRoutes = new Elysia()
                 where: { id: taskIdNum },
                 data: { status: "in_progress" },
               })
-              .catch((e: any) => {
+              .catch((e: unknown) => {
                 console.error(
                   `[API] Failed to update task ${taskIdNum} status to in_progress:`,
                   e,
@@ -1249,7 +1554,7 @@ export const aiAgentRoutes = new Elysia()
                   lastActivityAt: new Date(),
                 },
               })
-              .catch((e: any) => {
+              .catch((e: unknown) => {
                 console.error(
                   `[API] Failed to update session ${session.id} status to running:`,
                   e,
@@ -1275,7 +1580,7 @@ export const aiAgentRoutes = new Elysia()
                   completedAt: new Date(),
                 },
               })
-              .catch((e: any) => {
+              .catch((e: unknown) => {
                 console.error(
                   `[API] Failed to update session ${session.id} status:`,
                   e,
@@ -1310,7 +1615,7 @@ export const aiAgentRoutes = new Elysia()
 
               const screenshotData = sanitizeScreenshots(screenshots);
               console.log(
-                `[API] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s: any) => s.url).join(", ")}`,
+                `[API] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s) => s.url).join(", ")}`,
               );
               const approvalRequest = await prisma.approvalRequest.create({
                 data: {
@@ -1386,7 +1691,7 @@ export const aiAgentRoutes = new Elysia()
                   errorMessage: result.errorMessage || "Execution failed",
                 },
               })
-              .catch((e: any) => {
+              .catch((e: unknown) => {
                 console.error(
                   `[API] Failed to update session ${session.id} status:`,
                   e,
@@ -1637,6 +1942,11 @@ export const aiAgentRoutes = new Elysia()
                 agentExecutions: {
                   orderBy: { createdAt: "desc" },
                   take: 1,
+                  include: {
+                    agentConfig: {
+                      select: { id: true, agentType: true, name: true, modelId: true },
+                    },
+                  },
                 },
               },
             },
@@ -1649,14 +1959,15 @@ export const aiAgentRoutes = new Elysia()
 
         const latestSession = config.agentSessions[0];
         const latestExecution = latestSession.agentExecutions[0];
+        const execExtras = latestExecution as typeof latestExecution & ExecutionWithExtras;
 
         const isWaitingForInput =
           latestExecution?.status === "waiting_for_input";
-        const questionText = (latestExecution as any)?.question || null;
+        const questionText = execExtras?.question || null;
         // questionTypeはDBの値をそのまま使用（tool_call または none）
         // pattern_matchへのフォールバックは削除 - AIエージェントからの明確なステータスのみを信頼
         const questionType: "tool_call" | "none" =
-          (latestExecution as any)?.questionType === "tool_call"
+          execExtras?.questionType === "tool_call"
             ? "tool_call"
             : "none";
 
@@ -1675,6 +1986,11 @@ export const aiAgentRoutes = new Elysia()
           }
         }
 
+        // エージェント設定情報を取得
+        const agentConfigInfo = (latestExecution as Record<string, unknown>)?.agentConfig as {
+          id: number; agentType: string; name: string; modelId: string | null;
+        } | null;
+
         return {
           sessionId: latestSession.id,
           sessionStatus: latestSession.status,
@@ -1688,7 +2004,8 @@ export const aiAgentRoutes = new Elysia()
           question: questionText,
           questionType,
           questionTimeout: questionTimeoutInfo,
-          claudeSessionId: (latestExecution as any)?.claudeSessionId || null,
+          claudeSessionId: execExtras?.claudeSessionId || null,
+          agentConfig: agentConfigInfo || null,
         };
       } catch (error) {
         console.error("[execution-status] Error fetching status:", error);
@@ -1807,7 +2124,7 @@ export const aiAgentRoutes = new Elysia()
                   where: { id: taskId },
                   data: { status: "in_progress" },
                 })
-                .catch((e: any) => {
+                .catch((e: unknown) => {
                   console.error(
                     `[agent-respond] Failed to update task ${taskId} status to in_progress:`,
                     e,
@@ -1823,7 +2140,7 @@ export const aiAgentRoutes = new Elysia()
                     lastActivityAt: new Date(),
                   },
                 })
-                .catch((e: any) => {
+                .catch((e: unknown) => {
                   console.error(
                     `[agent-respond] Failed to update session ${session.id} status to running:`,
                     e,
@@ -1839,7 +2156,7 @@ export const aiAgentRoutes = new Elysia()
                     completedAt: new Date(),
                   },
                 })
-                .catch((e: any) => {
+                .catch((e: unknown) => {
                   console.error(
                     `[agent-respond] Failed to update task ${taskId} status:`,
                     e,
@@ -1858,7 +2175,7 @@ export const aiAgentRoutes = new Elysia()
                     completedAt: new Date(),
                   },
                 })
-                .catch((e: any) => {
+                .catch((e: unknown) => {
                   console.error(
                     `[agent-respond] Failed to update session ${session.id} status:`,
                     e,
@@ -1896,7 +2213,7 @@ export const aiAgentRoutes = new Elysia()
 
                 const screenshotData = sanitizeScreenshots(screenshots);
                 console.log(
-                  `[agent-respond] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s: any) => s.url).join(", ")}`,
+                  `[agent-respond] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s) => s.url).join(", ")}`,
                 );
                 const approvalRequest = await prisma.approvalRequest.create({
                   data: {
@@ -2008,7 +2325,7 @@ export const aiAgentRoutes = new Elysia()
           message: "Response sent successfully",
           executionId: latestExecution.id,
         };
-      } catch (error: any) {
+      } catch (error) {
         console.error("Agent respond failed:", error);
         // エラー時はロックを解放してステータスを元に戻す（同期エラーなので実行はまだ開始されていない）
         orchestrator.releaseContinuationLock(latestExecution.id);
@@ -2024,7 +2341,7 @@ export const aiAgentRoutes = new Elysia()
             },
           })
           .catch(() => {});
-        return { error: error.message || "Failed to send response" };
+        return { error: error instanceof Error ? error.message : "Failed to send response" };
       }
     },
   )
@@ -2167,9 +2484,9 @@ export const aiAgentRoutes = new Elysia()
         lastSequence,
         output: latestExecution.output,
         errorMessage: latestExecution.errorMessage,
-        question: (latestExecution as any).question,
-        questionType: (latestExecution as any).questionType,
-        questionDetails: (latestExecution as any).questionDetails,
+        question: (latestExecution as typeof latestExecution & ExecutionWithExtras).question,
+        questionType: (latestExecution as typeof latestExecution & ExecutionWithExtras).questionType,
+        questionDetails: (latestExecution as typeof latestExecution & ExecutionWithExtras).questionDetails,
         startedAt: latestExecution.startedAt,
         completedAt: latestExecution.completedAt,
       };
@@ -2376,26 +2693,30 @@ export const aiAgentRoutes = new Elysia()
         take: 50,
       });
 
-      return resumableExecutions.map((exec: any) => ({
-        id: exec.id,
-        taskId: exec.session.config?.task?.id,
-        taskTitle: exec.session.config?.task?.title,
-        sessionId: exec.sessionId,
-        status: exec.status,
-        claudeSessionId: exec.claudeSessionId,
-        errorMessage: exec.errorMessage,
-        output: exec.output?.slice(-500), // 最後の500文字のみ
-        startedAt: exec.startedAt,
-        completedAt: exec.completedAt,
-        createdAt: exec.createdAt,
-        workingDirectory: exec.session.config?.task?.theme?.workingDirectory,
-        canResume: exec.status === "interrupted", // Only interrupted can be resumed
-      }));
-    } catch (error: any) {
-      if (error?.code === "P1001") {
+      return resumableExecutions.map((exec: typeof resumableExecutions[number]) => {
+        const execWithExtras = exec as typeof exec & ExecutionWithExtras;
+        return {
+          id: exec.id,
+          taskId: exec.session.config?.task?.id,
+          taskTitle: exec.session.config?.task?.title,
+          sessionId: exec.sessionId,
+          status: exec.status,
+          claudeSessionId: execWithExtras.claudeSessionId,
+          errorMessage: exec.errorMessage,
+          output: exec.output?.slice(-500), // 最後の500文字のみ
+          startedAt: exec.startedAt,
+          completedAt: exec.completedAt,
+          createdAt: exec.createdAt,
+          workingDirectory: exec.session.config?.task?.theme?.workingDirectory,
+          canResume: exec.status === "interrupted", // Only interrupted can be resumed
+        };
+      });
+    } catch (error) {
+      const errObj = error as { code?: string; message?: string };
+      if (errObj?.code === "P1001") {
         console.warn("[resumable-executions] Database unreachable, skipping");
       } else {
-        console.error("[resumable-executions] Error:", error?.message || error);
+        console.error("[resumable-executions] Error:", error instanceof Error ? error.message : String(error));
       }
       return [];
     }
@@ -2428,20 +2749,23 @@ export const aiAgentRoutes = new Elysia()
         take: 50,
       });
 
-      return interruptedExecutions.map((exec: any) => ({
-        id: exec.id,
-        taskId: exec.session.config?.task?.id,
-        taskTitle: exec.session.config?.task?.title,
-        sessionId: exec.sessionId,
-        status: exec.status,
-        claudeSessionId: exec.claudeSessionId,
-        errorMessage: exec.errorMessage,
-        output: exec.output?.slice(-500), // 最後の500文字のみ
-        startedAt: exec.startedAt,
-        completedAt: exec.completedAt,
-        createdAt: exec.createdAt,
-        canResume: !!exec.claudeSessionId, // Claude Session IDがあれば再開可能
-      }));
+      return interruptedExecutions.map((exec: typeof interruptedExecutions[number]) => {
+        const execWithExtras = exec as typeof exec & ExecutionWithExtras;
+        return {
+          id: exec.id,
+          taskId: exec.session.config?.task?.id,
+          taskTitle: exec.session.config?.task?.title,
+          sessionId: exec.sessionId,
+          status: exec.status,
+          claudeSessionId: execWithExtras.claudeSessionId,
+          errorMessage: exec.errorMessage,
+          output: exec.output?.slice(-500), // 最後の500文字のみ
+          startedAt: exec.startedAt,
+          completedAt: exec.completedAt,
+          createdAt: exec.createdAt,
+          canResume: !!execWithExtras.claudeSessionId, // Claude Session IDがあれば再開可能
+        };
+      });
     } catch (error) {
       console.error("[interrupted-executions] Error:", error);
       return [];
@@ -2607,13 +2931,13 @@ export const aiAgentRoutes = new Elysia()
           // サブタスクの依存関係を分析
           const analysisResult = await executor.analyzeDependencies({
             parentTaskId: task.id,
-            subtasks: subtasks.map((st: any) => ({
+            subtasks: subtasks.map((st: typeof subtasks[number]) => ({
               id: st.id,
               title: st.title,
               description: st.description || "",
               estimatedHours: st.estimatedHours || 1,
               priority: st.priority || "medium",
-              dependencies: [], // TODO: 依存関係を取得
+              dependencies: [] as number[], // TODO: 依存関係を取得
             })),
           });
 
@@ -2724,7 +3048,7 @@ export const aiAgentRoutes = new Elysia()
                 const config = execution.session.config;
                 if (config) {
                   console.log(
-                    `[agent-resume] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s: any) => s.url).join(", ")}`,
+                    `[agent-resume] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s) => s.url).join(", ")}`,
                   );
                   const approvalRequest = await prisma.approvalRequest.create({
                     data: {
@@ -2989,18 +3313,19 @@ export const aiAgentRoutes = new Elysia()
         orderBy: { startedAt: "desc" },
       });
 
-      return executingTasks.map((execution: any) => ({
+      return executingTasks.map((execution: typeof executingTasks[number]) => ({
         executionId: execution.id,
         sessionId: execution.session.id,
         taskId: execution.session.config.taskId,
         executionStatus: execution.status,
         startedAt: execution.startedAt,
       }));
-    } catch (error: any) {
-      if (error?.code === "P1001") {
+    } catch (error) {
+      const errObj = error as { code?: string; message?: string };
+      if (errObj?.code === "P1001") {
         console.warn("[executing-tasks] Database unreachable, skipping");
       } else {
-        console.error("[executing-tasks] Error:", error?.message || error);
+        console.error("[executing-tasks] Error:", error instanceof Error ? error.message : String(error));
       }
       return [];
     }

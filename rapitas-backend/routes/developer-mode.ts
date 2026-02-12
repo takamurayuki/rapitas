@@ -219,8 +219,7 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
         // 自動承認の場合は承認リクエストを作成せず、直接サブタスクを作成
         if (config.autoApprove) {
           // トランザクションで重複チェックと作成を原子的に実行
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const createdSubtasks = await prisma.$transaction(async (tx: any) => {
+          const createdSubtasks = await prisma.$transaction(async (tx: typeof prisma) => {
             // トランザクション内で既存サブタスクを取得
             const existingSubtasks = await tx.task.findMany({
               where: { parentId: taskId },

@@ -582,15 +582,31 @@ function syncDatabaseAndGenerateClient() {
 // 再起動要求を示す終了コード
 const RESTART_EXIT_CODE = 75;
 
+// Bunクラッシュ（Segmentation fault等）を示す終了コード
+const BUN_CRASH_EXIT_CODES = [134, 139]; // 134=SIGABRT, 139=SIGSEGV
+
+// クラッシュリカバリの設定
+const MAX_CRASH_RETRIES = 3;
+const CRASH_RETRY_DELAY_MS = 2000;
+const CRASH_WINDOW_MS = 30000; // この期間内のクラッシュ回数をカウント
+let crashTimestamps = [];
+
 /**
  * バックエンドプロセスを起動する
+ * @param {number} retryCount - クラッシュリカバリのリトライ回数（内部使用）
  */
-function startBackend() {
+function startBackend(retryCount = 0) {
   // Always use dev:stable (no bun --watch) to ensure graceful shutdown handlers run
   const backendScript = "dev:stable";
-  console.log(
-    `\nBackend mode: dev:stable ${useWatch ? "(fs.watch hot reload)" : "(stable)"}`,
-  );
+  if (retryCount === 0) {
+    console.log(
+      `\nBackend mode: dev:stable ${useWatch ? "(fs.watch hot reload)" : "(stable)"}`,
+    );
+  } else {
+    console.log(
+      `\n🔄 Crash recovery attempt ${retryCount}/${MAX_CRASH_RETRIES}...`,
+    );
+  }
 
   backend = spawn("bun", ["run", backendScript], {
     cwd: BACKEND_DIR,
@@ -605,7 +621,7 @@ function startBackend() {
 
   backend.on("error", (err) => console.error("Backend error:", err));
 
-  // 再起動要求の終了コードを監視
+  // 再起動要求の終了コードとクラッシュリカバリを監視
   backend.on("exit", (code) => {
     if (isCleaningUp) return; // cleanup中の終了は無視
     if (code === RESTART_EXIT_CODE) {
@@ -616,6 +632,44 @@ function startBackend() {
       restartBackend(true).catch((err) => {
         console.error("❌ Backend restart failed:", err);
       });
+      return;
+    }
+
+    // Bunクラッシュ検出（Segmentation fault / SIGABRT）
+    if (BUN_CRASH_EXIT_CODES.includes(code)) {
+      const now = Date.now();
+      // 古いクラッシュタイムスタンプを除去
+      crashTimestamps = crashTimestamps.filter(
+        (t) => now - t < CRASH_WINDOW_MS,
+      );
+      crashTimestamps.push(now);
+
+      console.error(
+        `\n⚠️ Bun crashed with exit code ${code} (Segmentation fault / runtime crash)`,
+      );
+
+      if (crashTimestamps.length <= MAX_CRASH_RETRIES) {
+        console.log(
+          `  Auto-recovering in ${CRASH_RETRY_DELAY_MS}ms... (crash ${crashTimestamps.length}/${MAX_CRASH_RETRIES} in last ${CRASH_WINDOW_MS / 1000}s)`,
+        );
+        backend = null;
+        setTimeout(async () => {
+          // ポートが解放されるのを待つ
+          try {
+            await waitForPortRelease(actualBackendPort, 5000);
+          } catch {
+            // ポート未解放でも試行
+          }
+          startBackend(crashTimestamps.length);
+        }, CRASH_RETRY_DELAY_MS);
+      } else {
+        console.error(
+          `\n❌ Bun crashed ${crashTimestamps.length} times in ${CRASH_WINDOW_MS / 1000}s. Stopping auto-recovery.`,
+        );
+        console.error(
+          `  This is a known Bun runtime bug. Try upgrading Bun: bun upgrade`,
+        );
+      }
     }
   });
 }
@@ -740,6 +794,7 @@ async function restartBackend(processAlreadyExited = false) {
   }
 
   console.log("  Step 3/3: Starting backend...");
+  crashTimestamps = []; // フルリスタート時はクラッシュカウンターをリセット
   startBackend();
   console.log("✅ Backend restart completed.");
 }
@@ -807,6 +862,7 @@ async function hotRestartBackend() {
     await stopBackendCompletely();
 
     console.log("  Step 2/2: Starting backend...");
+    crashTimestamps = []; // ホットリスタート時はクラッシュカウンターをリセット
     startBackend();
     console.log("✅ Hot restart completed.");
   } catch (err) {

@@ -53,7 +53,7 @@ export async function logAgentConfigChange(entry: AuditLogEntry): Promise<void> 
 export async function getAgentConfigAuditLogs(
   agentConfigId: number,
   limit: number = 50
-): Promise<any[]> {
+) {
   return prisma.agentConfigAuditLog.findMany({
     where: { agentConfigId },
     orderBy: { createdAt: "desc" },
@@ -64,7 +64,7 @@ export async function getAgentConfigAuditLogs(
 /**
  * 最近の監査ログを取得
  */
-export async function getRecentAuditLogs(limit: number = 100): Promise<any[]> {
+export async function getRecentAuditLogs(limit: number = 100) {
   return prisma.agentConfigAuditLog.findMany({
     orderBy: { createdAt: "desc" },
     take: limit,
@@ -103,17 +103,3 @@ export function calculateChanges(
   return changes;
 }
 
-/**
- * 監査ログのアクション名を日本語に変換
- */
-export function getActionLabel(action: AuditAction): string {
-  const labels: Record<AuditAction, string> = {
-    create: "作成",
-    update: "更新",
-    delete: "削除",
-    api_key_set: "APIキー設定",
-    api_key_delete: "APIキー削除",
-    test_connection: "接続テスト",
-  };
-  return labels[action] || action;
-}

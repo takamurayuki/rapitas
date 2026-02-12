@@ -18,7 +18,16 @@ const PROVIDER_MODEL_COLUMNS = {
   gemini: "geminiDefaultModel",
 } as const;
 
-const AVAILABLE_MODELS: Record<string, Array<{ value: string; label: string }>> = {
+// Cache for available models with expiration
+let modelCache: {
+  data: Record<string, Array<{ value: string; label: string }>>;
+  expiresAt: number;
+} | null = null;
+
+const MODEL_CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
+
+// Fallback models in case dynamic fetching fails
+const FALLBACK_MODELS: Record<string, Array<{ value: string; label: string }>> = {
   claude: [
     { value: "claude-opus-4-6", label: "Claude Opus 4.6" },
     { value: "claude-sonnet-4-5-20250929", label: "Claude Sonnet 4.5" },
@@ -35,12 +44,12 @@ const AVAILABLE_MODELS: Record<string, Array<{ value: string; label: string }>> 
     { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
   ],
   gemini: [
-    { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
     { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-    { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
-    { value: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite" },
+    { value: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
+    { value: "gemini-2.0-flash-exp", label: "Gemini 2.0 Flash (Experimental)" },
     { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
     { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
+    { value: "gemini-1.5-flash-8b", label: "Gemini 1.5 Flash 8B" },
   ],
 };
 
@@ -48,6 +57,111 @@ type ApiProvider = keyof typeof PROVIDER_COLUMNS;
 
 function isValidProvider(provider: string): provider is ApiProvider {
   return provider in PROVIDER_COLUMNS;
+}
+
+/**
+ * Fetch available models dynamically from providers
+ */
+async function fetchAvailableModels(): Promise<Record<string, Array<{ value: string; label: string }>>> {
+  // Check cache first
+  if (modelCache && modelCache.expiresAt > Date.now()) {
+    return modelCache.data;
+  }
+
+  const models: Record<string, Array<{ value: string; label: string }>> = {};
+
+  try {
+    // Fetch Claude models from Anthropic API
+    const claudeApiKey = await getApiKeyForProvider("claude");
+    if (claudeApiKey) {
+      try {
+        const response = await fetch("https://api.anthropic.com/v1/models", {
+          headers: {
+            "x-api-key": claudeApiKey,
+            "anthropic-version": "2023-06-01",
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          models.claude = data.models?.map((model: any) => ({
+            value: model.id,
+            label: model.display_name || model.id,
+          })) || FALLBACK_MODELS.claude;
+        } else {
+          models.claude = FALLBACK_MODELS.claude;
+        }
+      } catch {
+        models.claude = FALLBACK_MODELS.claude;
+      }
+    } else {
+      models.claude = FALLBACK_MODELS.claude;
+    }
+
+    // Fetch OpenAI models
+    const settings = await prisma.userSettings.findFirst();
+    const openaiApiKey = settings?.chatgptApiKeyEncrypted ? decrypt(settings.chatgptApiKeyEncrypted) : null;
+    if (openaiApiKey) {
+      try {
+        const response = await fetch("https://api.openai.com/v1/models", {
+          headers: {
+            "Authorization": `Bearer ${openaiApiKey}`,
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const gptModels = data.data?.filter((model: any) =>
+            model.id.includes("gpt") || model.id.includes("o1")
+          ).map((model: any) => ({
+            value: model.id,
+            label: model.id.replace(/-/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()),
+          })) || [];
+          models.chatgpt = gptModels.length > 0 ? gptModels : FALLBACK_MODELS.chatgpt;
+        } else {
+          models.chatgpt = FALLBACK_MODELS.chatgpt;
+        }
+      } catch {
+        models.chatgpt = FALLBACK_MODELS.chatgpt;
+      }
+    } else {
+      models.chatgpt = FALLBACK_MODELS.chatgpt;
+    }
+
+    // Fetch Gemini models
+    const geminiApiKey = settings?.geminiApiKeyEncrypted ? decrypt(settings.geminiApiKeyEncrypted) : null;
+    if (geminiApiKey) {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${geminiApiKey}`);
+        if (response.ok) {
+          const data = await response.json();
+          const geminiModels = data.models?.filter((model: any) =>
+            model.supportedGenerationMethods?.includes("generateContent")
+          ).map((model: any) => ({
+            value: model.name.replace("models/", ""),
+            label: model.displayName || model.name.replace("models/", ""),
+          })) || [];
+          models.gemini = geminiModels.length > 0 ? geminiModels : FALLBACK_MODELS.gemini;
+        } else {
+          models.gemini = FALLBACK_MODELS.gemini;
+        }
+      } catch {
+        models.gemini = FALLBACK_MODELS.gemini;
+      }
+    } else {
+      models.gemini = FALLBACK_MODELS.gemini;
+    }
+  } catch (error) {
+    console.error("Error fetching dynamic models:", error);
+    // Return fallback models if anything fails
+    return FALLBACK_MODELS;
+  }
+
+  // Cache the results
+  modelCache = {
+    data: models,
+    expiresAt: Date.now() + MODEL_CACHE_DURATION,
+  };
+
+  return models;
 }
 
 /**
@@ -223,7 +337,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   })
 
   // Get API key status for a specific provider
-  .get("/api-key", async ({ query }) => {
+  .get("/api-key", async ({ query }: { query: { provider?: string } }) => {
     const provider = (query.provider as string) || "claude";
 
     if (!isValidProvider(provider)) {
@@ -298,7 +412,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   // Save API key for a specific provider
   .post(
     "/api-key",
-    async ({ body, set }) => {
+    async ({ body, set }: { body: { apiKey: string; provider?: string }; set: { status: number } }) => {
       const { apiKey, provider = "claude" } = body;
 
       if (!isValidProvider(provider)) {
@@ -345,7 +459,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   // Validate API key format for a specific provider
   .post(
     "/api-key/validate",
-    async ({ body, set }) => {
+    async ({ body, set }: { body: { apiKey: string; provider?: string }; set: { status: number } }) => {
       const { apiKey, provider = "claude" } = body;
 
       if (!isValidProvider(provider)) {
@@ -365,7 +479,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   )
 
   // Delete API key for a specific provider
-  .delete("/api-key", async ({ query }) => {
+  .delete("/api-key", async ({ query }: { query: { provider?: string } }) => {
     const provider = (query.provider as string) || "claude";
 
     if (!isValidProvider(provider)) {
@@ -386,12 +500,12 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   })
 
   // Get available models for all providers
-  .get("/models", () => {
-    return AVAILABLE_MODELS;
+  .get("/models", async () => {
+    return await fetchAvailableModels();
   })
 
   // Get default model for a specific provider
-  .get("/model", async ({ query }) => {
+  .get("/model", async ({ query }: { query: { provider?: string } }) => {
     const provider = (query.provider as string) || "claude";
 
     if (!isValidProvider(provider)) {
@@ -410,7 +524,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   // Save default model for a specific provider
   .post(
     "/model",
-    async ({ body, set }) => {
+    async ({ body, set }: { body: { model: string; provider?: string }; set: { status: number } }) => {
       const { model, provider = "claude" } = body;
 
       if (!isValidProvider(provider)) {
@@ -419,7 +533,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       }
 
       // モデルIDのバリデーション
-      const providerModels = AVAILABLE_MODELS[provider];
+      const availableModels = await fetchAvailableModels();
+      const providerModels = availableModels[provider];
       if (providerModels && model) {
         const validModels = providerModels.map((m) => m.value);
         if (!validModels.includes(model)) {

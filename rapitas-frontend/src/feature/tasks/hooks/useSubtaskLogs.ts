@@ -102,7 +102,14 @@ export function useSubtaskLogs({
 
         const result = await res.json();
         if (result.success && result.data) {
-          const logs: SubtaskLogEntry[] = result.data.map((log: any) => ({
+          interface RawLogEntry {
+            timestamp: string;
+            message?: string;
+            data?: { message?: string };
+            level?: "info" | "warn" | "error" | "debug";
+            taskId?: number;
+          }
+          const logs: SubtaskLogEntry[] = result.data.map((log: RawLogEntry) => ({
             timestamp: log.timestamp,
             message: log.message || log.data?.message || JSON.stringify(log.data),
             level: log.level || "info",

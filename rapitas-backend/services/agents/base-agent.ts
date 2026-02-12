@@ -3,9 +3,6 @@
  * 将来的に他のエージェント（Codex, Gemini等）を追加できるよう設計
  */
 
-// 質問判定システムの型は各ファイルで直接インポートしてください
-// re-exportはBunとの互換性問題があるため削除
-// import { QuestionKey, QuestionDetails, ... } from "./question-detection";
 
 export type AgentCapability = {
   codeGeneration: boolean;

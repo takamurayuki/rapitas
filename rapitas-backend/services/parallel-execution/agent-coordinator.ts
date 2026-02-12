@@ -361,7 +361,7 @@ export class AgentCoordinator extends EventEmitter {
       const handler = (message: AgentMessage) => {
         if (
           message.type === 'coordination_response' &&
-          (message.payload as any)?.syncPointId === syncPointId
+          (message.payload as { syncPointId?: string })?.syncPointId === syncPointId
         ) {
           syncState.set(message.fromAgentId, true);
           checkSync();

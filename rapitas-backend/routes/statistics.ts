@@ -238,13 +238,13 @@ export const statisticsRoutes = new Elysia({ prefix: "/statistics" })
         const dateStr = date.toISOString().split("T")[0];
 
         // この日に追加されたタスク数
-        const addedToday = tasksCreatedInPeriod.filter((t) => {
+        const addedToday = tasksCreatedInPeriod.filter((t: typeof tasksCreatedInPeriod[number]) => {
           const created = t.createdAt.toISOString().split("T")[0];
           return created === dateStr;
         }).length;
 
         // この日に完了したタスク数
-        const completedToday = tasksCompletedInPeriod.filter((t) => {
+        const completedToday = tasksCompletedInPeriod.filter((t: typeof tasksCompletedInPeriod[number]) => {
           if (!t.completedAt) return false;
           const completed = t.completedAt.toISOString().split("T")[0];
           return completed === dateStr;

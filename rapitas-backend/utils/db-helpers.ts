@@ -71,10 +71,3 @@ export function parseId(id: string): number {
   return parsed;
 }
 
-/**
- * Safe ID parsing that returns null for invalid IDs
- */
-export function safeParseId(id: string): number | null {
-  const parsed = parseInt(id);
-  return isNaN(parsed) ? null : parsed;
-}

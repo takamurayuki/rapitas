@@ -2,7 +2,8 @@
  * エージェントオーケストレーター
  * エージェントの実行管理、状態追跡、イベント配信を担当
  */
-// import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 import { exec } from "child_process";
 import { promisify } from "util";
 import { agentFactory } from "./agent-factory";
@@ -24,7 +25,7 @@ import { ExecutionFileLogger } from "./execution-file-logger";
 const execAsync = promisify(exec);
 
 // JSONフィールドを文字列に変換するヘルパー関数
-function toJsonString(value: any): string | null {
+function toJsonString(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value === 'string') return value;
   return JSON.stringify(value);
@@ -108,7 +109,7 @@ type ContinuationLockInfo = {
  */
 export class AgentOrchestrator {
   private static instance: AgentOrchestrator;
-  private prisma: any;
+  private prisma: PrismaClientInstance;
   private activeExecutions: Map<number, ExecutionState> = new Map();
   private activeAgents: Map<number, ActiveAgentInfo> = new Map();
   private eventListeners: Set<EventListener> = new Set();
@@ -123,12 +124,12 @@ export class AgentOrchestrator {
   /** 継続実行のロック管理用マップ（executionId -> ContinuationLockInfo）*/
   private continuationLocks: Map<number, ContinuationLockInfo> = new Map();
 
-  private constructor(prisma: any) {
+  private constructor(prisma: PrismaClientInstance) {
     this.prisma = prisma;
     this.setupSignalHandlers();
   }
 
-  static getInstance(prisma: any): AgentOrchestrator {
+  static getInstance(prisma: PrismaClientInstance): AgentOrchestrator {
     if (!AgentOrchestrator.instance) {
       AgentOrchestrator.instance = new AgentOrchestrator(prisma);
     }
@@ -583,6 +584,35 @@ export class AgentOrchestrator {
   }
 
   /**
+   * DB設定からAgentConfigInputを構築するヘルパー
+   */
+  private buildAgentConfigFromDb(
+    dbConfig: { id: number; agentType: string; name: string; apiKeyEncrypted: string | null; endpoint: string | null; modelId: string | null },
+    options: { workingDirectory?: string; timeout?: number },
+  ): AgentConfigInput {
+    let decryptedApiKey: string | undefined;
+    if (dbConfig.apiKeyEncrypted) {
+      try {
+        decryptedApiKey = decrypt(dbConfig.apiKeyEncrypted);
+      } catch (e) {
+        console.error(`[Orchestrator] Failed to decrypt API key for agent ${dbConfig.id}:`, e);
+      }
+    }
+
+    return {
+      type: (dbConfig.agentType as AgentType) || "claude-code",
+      name: dbConfig.name,
+      endpoint: dbConfig.endpoint || undefined,
+      apiKey: decryptedApiKey,
+      modelId: dbConfig.modelId || undefined,
+      workingDirectory: options.workingDirectory,
+      timeout: options.timeout,
+      dangerouslySkipPermissions: true, // Claude Code用
+      yoloMode: true, // Gemini CLI / Codex CLI用: 自動承認モード
+    };
+  }
+
+  /**
    * イベントを発火
    */
   private emitEvent(event: OrchestratorEvent): void {
@@ -742,8 +772,8 @@ export class AgentOrchestrator {
         // 質問のタイプに応じてデフォルト回答を生成
         const defaultResponse = this.generateDefaultResponse(
           timeoutInfo?.questionKey,
-          (execution as any).question,
-          (execution as any).questionDetails
+          execution.question,
+          execution.questionDetails
         );
 
         // タイムアウトイベントを発火（フロントエンドに通知）
@@ -831,17 +861,15 @@ export class AgentOrchestrator {
   private generateDefaultResponse(
     questionKey?: QuestionKey,
     questionText?: string,
-    questionDetails?: any
+    questionDetails?: string | null
   ): string {
     // 質問詳細からオプションがある場合は最初の選択肢を使用
     if (questionDetails) {
-      let details = questionDetails;
-      if (typeof questionDetails === "string") {
-        try {
-          details = JSON.parse(questionDetails);
-        } catch {
-          details = null;
-        }
+      let details: { options?: Array<{ label: string; description?: string }> } | null = null;
+      try {
+        details = JSON.parse(questionDetails) as { options?: Array<{ label: string; description?: string }> };
+      } catch {
+        details = null;
       }
 
       if (details?.options && Array.isArray(details.options) && details.options.length > 0) {
@@ -923,6 +951,7 @@ export class AgentOrchestrator {
     options: ExecutionOptions,
   ): Promise<AgentExecutionResult> {
     // エージェント設定を取得
+    // 優先順: 1) 指定されたagentConfigId → 2) DBのisDefault=true → 3) ハードコードのClaude Code
     let agentConfig: AgentConfigInput = {
       type: "claude-code",
       name: "Claude Code Agent",
@@ -930,44 +959,39 @@ export class AgentOrchestrator {
       timeout: options.timeout,
       dangerouslySkipPermissions: true, // 自動実行モード: ファイル変更を許可
     };
+    let resolvedAgentConfigId = options.agentConfigId;
 
+    // agentConfigIdが指定されている場合はそれを使用
     if (options.agentConfigId) {
       const dbConfig = await this.prisma.aIAgentConfig.findUnique({
         where: { id: options.agentConfigId },
       });
       if (dbConfig) {
-        // APIキーが暗号化されて保存されている場合は復号
-        let decryptedApiKey: string | undefined;
-        if (dbConfig.apiKeyEncrypted) {
-          try {
-            decryptedApiKey = decrypt(dbConfig.apiKeyEncrypted);
-          } catch (e) {
-            console.error(`[Orchestrator] Failed to decrypt API key for agent ${dbConfig.id}:`, e);
-          }
-        }
-
-        agentConfig = {
-          type: (dbConfig.agentType as AgentType) || "claude-code",
-          name: dbConfig.name,
-          endpoint: dbConfig.endpoint || undefined,
-          apiKey: decryptedApiKey,
-          modelId: dbConfig.modelId || undefined,
-          workingDirectory: options.workingDirectory,
-          timeout: options.timeout,
-          dangerouslySkipPermissions: true, // Claude Code用
-          yoloMode: true, // Gemini CLI / Codex CLI用: 自動承認モード
-        };
+        agentConfig = this.buildAgentConfigFromDb(dbConfig, options);
+        resolvedAgentConfigId = dbConfig.id;
+      }
+    } else {
+      // agentConfigIdが未指定の場合、DBでisDefault=trueのエージェントを検索
+      const defaultDbConfig = await this.prisma.aIAgentConfig.findFirst({
+        where: { isDefault: true, isActive: true },
+      });
+      if (defaultDbConfig) {
+        agentConfig = this.buildAgentConfigFromDb(defaultDbConfig, options);
+        resolvedAgentConfigId = defaultDbConfig.id;
+        console.log(`[Orchestrator] Using default agent from DB: ${defaultDbConfig.name} (type: ${defaultDbConfig.agentType})`);
+      } else {
+        console.log(`[Orchestrator] No default agent in DB, falling back to Claude Code`);
       }
     }
 
     // エージェントを作成
     const agent = agentFactory.createAgent(agentConfig);
 
-    // 実行レコードを作成
+    // 実行レコードを作成（resolvedAgentConfigIdを使用）
     const execution = await this.prisma.agentExecution.create({
       data: {
         sessionId: options.sessionId,
-        agentConfigId: options.agentConfigId,
+        agentConfigId: resolvedAgentConfigId,
         command: task.description || task.title,
         status: "pending",
       },
@@ -992,6 +1016,7 @@ export class AgentOrchestrator {
       options.taskId,
       task.title,
       agentConfig.type,
+      agentConfig.name,
       agentConfig.modelId,
     );
     fileLogger.logExecutionStart(task.description || task.title, {
@@ -1047,7 +1072,7 @@ export class AgentOrchestrator {
         console.log(`[Orchestrator] DB updated to waiting_for_input for execution ${execution.id}`);
 
         // 状態も更新
-        state.status = "waiting_for_input" as any;
+        state.status = "waiting_for_input";
 
         // 質問タイムアウトを開始
         this.startQuestionTimeout(execution.id, options.taskId, info.questionKey);
@@ -1204,17 +1229,25 @@ export class AgentOrchestrator {
       await flushLogChunks(); // 残りのログを保存
     };
 
-    // 実行開始イベント
+    // 実行開始イベント（エージェント情報を含む）
     this.emitEvent({
       type: "execution_started",
       executionId: execution.id,
       sessionId: options.sessionId,
       taskId: options.taskId,
+      data: {
+        agentType: agentConfig.type,
+        agentName: agentConfig.name,
+        modelId: agentConfig.modelId,
+      },
       timestamp: new Date(),
     });
 
-    // 初期メッセージを設定
-    const initialMessage = `[実行開始] タスクの実行を開始します...\n`;
+    // 初期メッセージを設定（使用エージェント名を明示）
+    const agentLabel = agentConfig.modelId
+      ? `${agentConfig.name} (${agentConfig.type}, model: ${agentConfig.modelId})`
+      : `${agentConfig.name} (${agentConfig.type})`;
+    const initialMessage = `[実行開始] タスクの実行を開始します...\n[エージェント] ${agentLabel}\n`;
     state.output = initialMessage;
 
     // 実行レコードを更新（初期出力も保存）
@@ -1254,7 +1287,7 @@ export class AgentOrchestrator {
       let executionStatus: string;
       if (result.waitingForInput) {
         executionStatus = "waiting_for_input";
-        state.status = "waiting_for_input" as any;
+        state.status = "waiting_for_input";
         console.log(`[Orchestrator] Setting status to waiting_for_input`);
         fileLogger.logStatusChange("running", "waiting_for_input", "Question detected");
       } else if (result.success) {
@@ -1537,7 +1570,7 @@ export class AgentOrchestrator {
     const task = execution.session.config?.task;
 
     // 保存されているClaudeセッションIDを取得
-    const claudeSessionId = (execution as any).claudeSessionId as string | null;
+    const claudeSessionId = execution.claudeSessionId;
     console.log(`[Orchestrator] Resuming execution with claudeSessionId: ${claudeSessionId}`);
 
     // エージェント設定を取得（--resumeでセッションを再開）
@@ -1595,6 +1628,7 @@ export class AgentOrchestrator {
       taskId,
       task?.title || `Task ${taskId}`,
       agentConfig.type,
+      agentConfig.name,
       agentConfig.modelId,
     );
     fileLogger.logExecutionStart(`[Continuation] User response: ${response.substring(0, 200)}`, {
@@ -1654,13 +1688,13 @@ export class AgentOrchestrator {
             question: info.question || null,
             questionType: info.questionType || null,
             questionDetails: toJsonString(info.questionDetails),
-            claudeSessionId: info.claudeSessionId || (execution as any).claudeSessionId || null,
+            claudeSessionId: info.claudeSessionId || execution.claudeSessionId || null,
           },
         });
         console.log(`[Orchestrator] DB updated to waiting_for_input for execution ${execution.id}`);
 
         // 状態も更新
-        state.status = "waiting_for_input" as any;
+        state.status = "waiting_for_input";
 
         // 質問タイムアウトを開始
         this.startQuestionTimeout(execution.id, taskId, info.questionKey);
@@ -1878,10 +1912,10 @@ export class AgentOrchestrator {
                 question: info.question || null,
                 questionType: info.questionType || null,
                 questionDetails: toJsonString(info.questionDetails),
-                claudeSessionId: info.claudeSessionId || (execution as any).claudeSessionId || null,
+                claudeSessionId: info.claudeSessionId || execution.claudeSessionId || null,
               },
             });
-            state.status = "waiting_for_input" as any;
+            state.status = "waiting_for_input";
             this.startQuestionTimeout(execution.id, taskId, info.questionKey);
             const timeoutInfo = this.getQuestionTimeoutInfo(execution.id);
             this.emitEvent({
@@ -1982,10 +2016,10 @@ export class AgentOrchestrator {
                   question: info.question || null,
                   questionType: info.questionType || null,
                   questionDetails: toJsonString(info.questionDetails),
-                  claudeSessionId: info.claudeSessionId || (execution as any).claudeSessionId || null,
+                  claudeSessionId: info.claudeSessionId || execution.claudeSessionId || null,
                 },
               });
-              state.status = "waiting_for_input" as any;
+              state.status = "waiting_for_input";
               this.startQuestionTimeout(execution.id, taskId, info.questionKey);
               const timeoutInfo = this.getQuestionTimeoutInfo(execution.id);
               this.emitEvent({
@@ -2090,7 +2124,7 @@ export class AgentOrchestrator {
                     claudeSessionId: info.claudeSessionId || null,
                   },
                 });
-                state.status = "waiting_for_input" as any;
+                state.status = "waiting_for_input";
                 this.startQuestionTimeout(execution.id, taskId, info.questionKey);
                 const timeoutInfo = this.getQuestionTimeoutInfo(execution.id);
                 this.emitEvent({
@@ -2179,7 +2213,7 @@ export class AgentOrchestrator {
       let executionStatus: string;
       if (result.waitingForInput) {
         executionStatus = "waiting_for_input";
-        state.status = "waiting_for_input" as any;
+        state.status = "waiting_for_input";
         fileLogger.logStatusChange("running", "waiting_for_input", "Question detected during continuation");
       } else if (result.success) {
         executionStatus = "completed";
@@ -2218,7 +2252,7 @@ export class AgentOrchestrator {
           questionType: result.questionType || null,
           questionDetails: toJsonString(result.questionDetails),
           // セッションIDを更新（新しいセッションが作成された場合）
-          claudeSessionId: result.claudeSessionId || (execution as any).claudeSessionId || null,
+          claudeSessionId: result.claudeSessionId || execution.claudeSessionId || null,
         },
       });
 
@@ -2438,7 +2472,7 @@ export class AgentOrchestrator {
     }
 
     const workingDirectory = task.theme?.workingDirectory || options.workingDirectory || process.cwd();
-    const claudeSessionId = (execution as any).claudeSessionId as string | null;
+    const claudeSessionId = execution.claudeSessionId;
 
     console.log(`[Orchestrator] Resuming interrupted execution ${executionId}`);
     console.log(`[Orchestrator] Task: ${task.title} (ID: ${task.id})`);
@@ -2457,7 +2491,7 @@ export class AgentOrchestrator {
     // 実行ログからコンテキストを構築
     const logSummary = execution.executionLogs
       .slice(-50) // 最後の50件のログ
-      .map((log: any) => log.logChunk)
+      .map((log: { logChunk: string }) => log.logChunk)
       .join("");
 
     // 再開用のプロンプトを構築
@@ -2465,7 +2499,7 @@ export class AgentOrchestrator {
       task,
       lastOutput,
       logSummary.slice(-2000),
-      (execution as any).errorMessage,
+      execution.errorMessage,
     );
 
     // エージェント設定を取得
@@ -2525,13 +2559,14 @@ export class AgentOrchestrator {
       taskId,
       task.title,
       agentConfig.type,
+      agentConfig.name,
       agentConfig.modelId,
     );
     fileLogger.logExecutionStart(`[Resume] Resuming interrupted execution`, {
       claudeSessionId,
       workingDirectory,
       previousOutputLength: previousOutput.length,
-      errorMessage: (execution as any).errorMessage,
+      errorMessage: execution.errorMessage,
     });
 
     // 実行状態を追跡
@@ -2583,11 +2618,11 @@ export class AgentOrchestrator {
             question: info.question || null,
             questionType: info.questionType || null,
             questionDetails: toJsonString(info.questionDetails),
-            claudeSessionId: info.claudeSessionId || (execution as any).claudeSessionId || null,
+            claudeSessionId: info.claudeSessionId || execution.claudeSessionId || null,
           },
         });
 
-        state.status = "waiting_for_input" as any;
+        state.status = "waiting_for_input";
         this.startQuestionTimeout(execution.id, taskId, info.questionKey);
 
         const timeoutInfo = this.getQuestionTimeoutInfo(execution.id);
@@ -2777,7 +2812,7 @@ export class AgentOrchestrator {
       let executionStatus: string;
       if (result.waitingForInput) {
         executionStatus = "waiting_for_input";
-        state.status = "waiting_for_input" as any;
+        state.status = "waiting_for_input";
         fileLogger.logStatusChange("running", "waiting_for_input", "Question detected during resume");
       } else if (result.success) {
         executionStatus = "completed";
@@ -2806,7 +2841,7 @@ export class AgentOrchestrator {
           output: state.output + "\n" + result.output,
           artifacts: result.artifacts
             ? toJsonString(result.artifacts)
-            : (execution as any).artifacts,
+            : execution.artifacts,
           completedAt: result.waitingForInput ? null : new Date(),
           tokensUsed: (execution.tokensUsed || 0) + (result.tokensUsed || 0),
           executionTimeMs:
@@ -2815,7 +2850,7 @@ export class AgentOrchestrator {
           question: result.question || null,
           questionType: result.questionType || null,
           questionDetails: toJsonString(result.questionDetails),
-          claudeSessionId: result.claudeSessionId || (execution as any).claudeSessionId || null,
+          claudeSessionId: result.claudeSessionId || execution.claudeSessionId || null,
         },
       });
 
@@ -2933,7 +2968,7 @@ export class AgentOrchestrator {
    * 再開用のプロンプトを構築
    */
   private buildResumePrompt(
-    task: any,
+    task: { title: string; description: string | null },
     lastOutput: string,
     logSummary: string,
     errorMessage: string | null,
@@ -3082,8 +3117,8 @@ ${errorMessage}
       });
 
       return { success: true, commitHash: hash.trim() };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
 
@@ -3139,8 +3174,8 @@ ${errorMessage}
       const prNumber = prMatch ? parseInt(prMatch[1], 10) : undefined;
 
       return { success: true, prUrl, prNumber };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
 
@@ -3443,6 +3478,6 @@ ${errorMessage}
 }
 
 // ファクトリー関数
-export function createOrchestrator(prisma: any): AgentOrchestrator {
+export function createOrchestrator(prisma: PrismaClientInstance): AgentOrchestrator {
   return AgentOrchestrator.getInstance(prisma);
 }

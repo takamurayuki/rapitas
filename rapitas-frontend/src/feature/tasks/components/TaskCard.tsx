@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
-import type { Task } from "@/types";
-import { Status } from "@/types";
+import type { Task, Status } from "@/types";
 import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
 import SubtaskStatusButtons from "@/feature/tasks/components/SubtaskStatusButtons";
 import PriorityIcon from "@/feature/tasks/components/PriorityIcon";

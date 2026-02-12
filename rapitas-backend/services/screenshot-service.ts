@@ -7,7 +7,7 @@
  * Node.js サブプロセスでスクリーンショットワーカーを実行する。
  */
 import { join, basename, relative } from "path";
-import { existsSync, mkdirSync, readFileSync, readdirSync } from "fs";
+import { Dirent, existsSync, mkdirSync, readFileSync, readdirSync } from "fs";
 import { randomUUID } from "crypto";
 import { spawn } from "child_process";
 
@@ -50,6 +50,12 @@ export type ProjectInfo = {
   appDir: string | null;
   pagesDir: string | null;
 };
+
+interface PackageJson {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  [key: string]: unknown;
+}
 
 /**
  * 作業ディレクトリからプロジェクト構造を自動検出する
@@ -98,7 +104,7 @@ export function detectProjectInfo(workingDirectory: string): ProjectInfo {
 
     if (!existsSync(packageJsonPath)) continue;
 
-    let packageJson: any;
+    let packageJson: PackageJson;
     try {
       packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
     } catch {
@@ -591,7 +597,7 @@ function scanNextJsAppDir(
   appRoot: string,
   addPage: (path: string, label: string) => void,
 ) {
-  let entries: ReturnType<typeof readdirSync>;
+  let entries: Dirent<string>[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
   } catch {
@@ -634,7 +640,7 @@ function scanPagesDir(
   pagesRoot: string,
   addPage: (path: string, label: string) => void,
 ) {
-  let entries: ReturnType<typeof readdirSync>;
+  let entries: Dirent<string>[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
   } catch {
@@ -685,7 +691,7 @@ function scanViewsDir(
   viewsRoot: string,
   addPage: (path: string, label: string) => void,
 ) {
-  let entries: ReturnType<typeof readdirSync>;
+  let entries: Dirent<string>[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
   } catch {

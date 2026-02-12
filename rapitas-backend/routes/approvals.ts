@@ -88,7 +88,14 @@ orchestrator.addEventListener((event) => {
 export { orchestrator };
 
 // Prisma の String 型で保存された JSON フィールドをパースするヘルパー
-function parseApprovalJsonFields(approval: any) {
+interface ApprovalWithChanges {
+  id: number;
+  proposedChanges: string | Record<string, unknown> | null;
+  estimatedChanges: string | Record<string, unknown> | null;
+  [key: string]: unknown;
+}
+
+function parseApprovalJsonFields(approval: ApprovalWithChanges | null) {
   if (!approval) return approval;
 
   let proposedChanges = approval.proposedChanges;
@@ -105,7 +112,8 @@ function parseApprovalJsonFields(approval: any) {
   // proposedChanges から diff（プレーンテキスト）を除外してレスポンスサイズを削減
   // structuredDiff はフロントのDiffViewerで使用されるため残す
   // diff は /approvals/:id/diff エンドポイントで別途取得可能
-  const { diff: _diff, ...proposedChangesWithoutDiff } = proposedChanges || {};
+  const parsedChanges = (proposedChanges || {}) as Record<string, unknown>;
+  const { diff: _diff, ...proposedChangesWithoutDiff } = parsedChanges;
 
   let estimatedChanges = typeof approval.estimatedChanges === "string"
     ? fromJsonString(approval.estimatedChanges)
@@ -123,10 +131,10 @@ function parseApprovalJsonFields(approval: any) {
   };
 
   // スクリーンショットのデバッグログ
-  const screenshots = parsed.proposedChanges?.screenshots;
+  const screenshots = parsed.proposedChanges?.screenshots as Array<{ url: string }> | undefined;
   if (screenshots && screenshots.length > 0) {
     console.log(
-      `[approvals] Approval ${approval.id} has ${screenshots.length} screenshot(s): ${screenshots.map((s: any) => s.url).join(", ")}`,
+      `[approvals] Approval ${approval.id} has ${screenshots.length} screenshot(s): ${screenshots.map((s) => s.url).join(", ")}`,
     );
   } else {
     console.log(
@@ -438,8 +446,7 @@ Task ID: ${task.id}
           : proposedChanges.subtasks;
 
         // トランザクションで重複チェックと作成を原子的に実行
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const createdSubtasks = await prisma.$transaction(async (tx: any) => {
+        const createdSubtasks = await prisma.$transaction(async (tx: typeof prisma) => {
           // トランザクション内で既存サブタスクを取得
           const existingSubtasks = await tx.task.findMany({
             where: { parentId: approval.config.taskId },
@@ -659,9 +666,9 @@ Task ID: ${task.id}
           commit: commitResult,
           pr: prResult,
         };
-      } catch (error: any) {
+      } catch (error) {
         console.error("Code review approval failed:", error);
-        return { error: error.message || "Code review approval failed" };
+        return { error: error instanceof Error ? error.message : String(error) };
       }
     },
   )
@@ -730,9 +737,9 @@ Task ID: ${task.id}
         });
 
         return { success: true, reverted };
-      } catch (error: any) {
+      } catch (error) {
         console.error("Code review rejection failed:", error);
-        return { error: error.message || "Code review rejection failed" };
+        return { error: error instanceof Error ? error.message : String(error) };
       }
     },
   )
@@ -956,9 +963,9 @@ ${previousImplementation}
           message: "修正依頼を受け付けました。再実行を開始します。",
           sessionId: session.id,
         };
-      } catch (error: any) {
+      } catch (error) {
         console.error("Request changes failed:", error);
-        return { error: error.message || "Request changes failed" };
+        return { error: error instanceof Error ? error.message : String(error) };
       }
     },
   )
@@ -995,9 +1002,9 @@ ${previousImplementation}
     try {
       const diff = await orchestrator.getDiff(workingDirectory);
       return { files: diff };
-    } catch (error: any) {
+    } catch (error) {
       console.error("Failed to get diff:", error);
-      return { error: error.message || "Failed to get diff" };
+      return { error: error instanceof Error ? error.message : String(error) };
     }
   })
 

@@ -120,7 +120,7 @@ export const reportsRoutes = new Elysia()
     return {
       exportedAt: new Date().toISOString(),
       version: "1.0",
-      tasks: tasks.map((t) => ({
+      tasks: tasks.map((t: typeof tasks[number]) => ({
         id: t.id,
         title: t.title,
         description: t.description,
@@ -131,8 +131,8 @@ export const reportsRoutes = new Elysia()
         estimatedHours: t.estimatedHours,
         actualHours: t.actualHours,
         theme: t.theme?.name,
-        labels: t.taskLabels.map((tl) => tl.label.name),
-        subtasks: t.subtasks.map((st) => ({
+        labels: t.taskLabels.map((tl: { label: { name: string } }) => tl.label.name),
+        subtasks: t.subtasks.map((st: { title: string; status: string }) => ({
           title: st.title,
           status: st.status,
         })),

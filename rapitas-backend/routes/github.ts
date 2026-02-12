@@ -4,7 +4,7 @@
  */
 import { Elysia } from "elysia";
 import { prisma } from "../config/database";
-import { GitHubService } from "../services/github-service";
+import { GitHubService, type GitHubWebhookPayload } from "../services/github-service";
 
 // Create GitHub service instance
 const githubService = new GitHubService(prisma);
@@ -447,7 +447,7 @@ export const githubRoutes = new Elysia({ prefix: "/github" })
   // Webhook receiver
   .post(
     "/webhook",
-    async ({ request, body }: { request: Request; body: {} }) => {
+    async ({ request, body }: { request: Request; body: GitHubWebhookPayload }) => {
       const event = request.headers.get("x-github-event");
       if (!event) {
         return { error: "Missing X-GitHub-Event header" };

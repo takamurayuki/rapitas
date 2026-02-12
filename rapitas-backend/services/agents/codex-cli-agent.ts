@@ -180,7 +180,13 @@ export class CodexCliAgent extends BaseAgent {
 
       // モデル指定
       if (this.config.model) {
-        args.push("-m", this.config.model);
+        // ChatGPTアカウントでgpt-4oが指定された場合は、gpt-4-turboに置き換える
+        let model = this.config.model;
+        if (model === "gpt-4o" && !this.config.apiKey && !process.env.OPENAI_API_KEY) {
+          console.log(`${this.logPrefix} Replacing gpt-4o with gpt-4-turbo for ChatGPT account`);
+          model = "gpt-4-turbo";
+        }
+        args.push("-m", model);
       }
 
       // サンドボックスモード
@@ -504,7 +510,14 @@ export class CodexCliAgent extends BaseAgent {
                       `${this.logPrefix} System error:`,
                       JSON.stringify(json),
                     );
-                    displayOutput += `[System Error: ${json.error || json.subtype || "unknown"}]\n`;
+
+                    // gpt-4oモデルエラーの特別処理
+                    if (json.error && json.error.includes("gpt-4o") && json.error.includes("ChatGPT account")) {
+                      displayOutput += `[エラー] ChatGPTアカウントではgpt-4oモデルは使用できません。\n`;
+                      displayOutput += `[ヒント] 代わりにgpt-4-turboまたはgpt-3.5-turboをお使いください。\n`;
+                    } else {
+                      displayOutput += `[System Error: ${json.error || json.subtype || "unknown"}]\n`;
+                    }
                   } else if (json.subtype !== "init") {
                     displayOutput += `[System: ${json.subtype || "info"}]\n`;
                   }

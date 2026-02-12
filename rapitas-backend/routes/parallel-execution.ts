@@ -47,7 +47,7 @@ async function buildAnalysisInput(taskId: number): Promise<DependencyAnalysisInp
   }
 
   // サブタスクの情報を変換
-  const subtasks = task.subtasks.map((subtask) => {
+  const subtasks = task.subtasks.map((subtask: typeof task.subtasks[number]) => {
     // 説明とプロンプトからファイルパスを抽出
     const files: string[] = [];
 
@@ -110,7 +110,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .get(
     "/tasks/:id/analyze",
-    async ({ params }) => {
+    async ({ params }: { params: { id: string } }) => {
       try {
         const taskId = parseInt(params.id);
         const input = await buildAnalysisInput(taskId);
@@ -119,8 +119,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
         const result = analyzer.analyze(input);
 
         // ツリーマップをシリアライズ可能な形式に変換
-        const nodes = Array.from(result.treeMap.nodes.entries()).map(([id, node]) => ({
-          id,
+        const nodes = Array.from(result.treeMap.nodes.entries()).map(([_id, node]) => ({
           ...node,
         }));
 
@@ -167,7 +166,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .get(
     "/tasks/:id/analyze/stream",
-    async ({ params, set }) => {
+    async ({ params, set }: { params: { id: string }; set: { headers: Record<string, string> } }) => {
       const taskId = parseInt(params.id);
 
       set.headers = {
@@ -198,8 +197,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
           const result = analyzer.analyze(input);
           sseController.sendProgress(70, "ツリーマップを生成中...");
 
-          const nodes = Array.from(result.treeMap.nodes.entries()).map(([id, node]) => ({
-            id,
+          const nodes = Array.from(result.treeMap.nodes.entries()).map(([_id, node]) => ({
             ...node,
           }));
 
@@ -257,7 +255,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .post(
     "/tasks/:id/execute",
-    async ({ params, body }) => {
+    async ({ params, body }: { params: { id: string }; body: { config?: Partial<ParallelExecutionConfig> } }) => {
       try {
         const taskId = parseInt(params.id);
         const config = body.config as Partial<ParallelExecutionConfig> | undefined;
@@ -377,7 +375,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .get(
     "/sessions/:sessionId/status",
-    async ({ params }) => {
+    async ({ params }: { params: { sessionId: string } }) => {
       try {
         const executor = getParallelExecutor();
         const status = executor.getSessionStatus(params.sessionId);
@@ -410,7 +408,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .post(
     "/sessions/:sessionId/stop",
-    async ({ params }) => {
+    async ({ params }: { params: { sessionId: string } }) => {
       try {
         const executor = getParallelExecutor();
         await executor.stopSession(params.sessionId);
@@ -439,13 +437,13 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .get(
     "/sessions/:sessionId/logs",
-    async ({ params, query }) => {
+    async ({ params, query }: { params: { sessionId: string }; query: { taskId?: string; level?: string; limit?: string } }) => {
       try {
         const executor = getParallelExecutor();
         const logs = executor.getLogs({
           sessionId: params.sessionId,
           taskId: query.taskId ? parseInt(query.taskId) : undefined,
-          level: query.level as any,
+          level: query.level ? [query.level as "info" | "warn" | "error" | "debug"] : undefined,
           limit: query.limit ? parseInt(query.limit) : 100,
         });
 
@@ -478,7 +476,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .get(
     "/sessions/:sessionId/logs/stream",
-    async ({ params, set }) => {
+    async ({ params, set }: { params: { sessionId: string }; set: { headers: Record<string, string> } }) => {
       set.headers = {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
@@ -496,7 +494,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
       const stream = sseController.createStream();
       const executor = getParallelExecutor();
 
-      const eventHandler = (event: any) => {
+      const eventHandler = (event: { type: string; sessionId: string; taskId?: number; level?: number; data?: unknown; timestamp: Date }) => {
         sseController.sendData({
           type: event.type,
           sessionId: event.sessionId,
@@ -515,12 +513,32 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
 
       executor.addEventListener(eventHandler);
 
-      // クリーンアップ
-      stream.on("close", () => {
-        executor.removeEventListener(eventHandler);
+      // ReadableStreamをラップしてクリーンアップハンドラを追加
+      const wrappedStream = new ReadableStream({
+        start(controller) {
+          const reader = stream.getReader();
+          function pump(): void {
+            reader.read().then(({ done, value }) => {
+              if (done) {
+                controller.close();
+                executor.removeEventListener(eventHandler);
+                return;
+              }
+              controller.enqueue(value);
+              pump();
+            }).catch(() => {
+              controller.close();
+              executor.removeEventListener(eventHandler);
+            });
+          }
+          pump();
+        },
+        cancel() {
+          executor.removeEventListener(eventHandler);
+        },
       });
 
-      return new Response(stream, {
+      return new Response(wrappedStream, {
         headers: {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",

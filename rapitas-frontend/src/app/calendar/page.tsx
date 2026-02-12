@@ -14,13 +14,16 @@ import {
   Clock,
   Bell,
   Trash2,
+  Coffee,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast/ToastContainer";
 import { getTaskDetailPath } from "@/utils/tauri";
 import { API_BASE_URL } from "@/utils/api";
 import { useTaskCacheStore } from "@/stores/taskCacheStore";
 import ScheduleEventDialog from "@/feature/calendar/components/ScheduleEventDialog";
+import PaidLeaveDialog from "@/feature/calendar/components/PaidLeaveDialog";
 import { getHolidaysForMonth, type Holiday } from "@/utils/holidays";
+import type { PaidLeaveBalance } from "@/types";
 
 const API_BASE = API_BASE_URL;
 
@@ -51,14 +54,28 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showPaidLeaveModal, setShowPaidLeaveModal] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [exams, setExams] = useState<ExamGoal[]>([]);
   const [schedules, setSchedules] = useState<ScheduleEvent[]>([]);
+  const [paidLeaveBalance, setPaidLeaveBalance] = useState<PaidLeaveBalance | null>(null);
+
+  const fetchPaidLeaveBalance = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/paid-leave/balance`);
+      if (res.ok) {
+        const balance = await res.json();
+        setPaidLeaveBalance(balance.data || balance);
+      }
+    } catch (e) {
+      console.error("Failed to fetch paid leave balance:", e);
+    }
+  }, []);
 
   const fetchEvents = useCallback(async () => {
     try {
-      // Use cache store for tasks; fetch exams and schedules separately
+      // Use cache store for tasks; fetch exams, schedules, and paid leave balance
       const taskFetch = taskCacheInitialized
         ? fetchTaskUpdates()
         : fetchAllTasks();
@@ -67,6 +84,7 @@ export default function CalendarPage() {
         taskFetch,
         fetch(`${API_BASE}/exam-goals`),
         fetch(`${API_BASE}/schedules`),
+        fetchPaidLeaveBalance(),
       ]);
 
       const examsData: ExamGoal[] = examsRes.ok ? await examsRes.json() : [];
@@ -81,7 +99,7 @@ export default function CalendarPage() {
     } finally {
       setLoading(false);
     }
-  }, [taskCacheInitialized, fetchTaskUpdates, fetchAllTasks]);
+  }, [taskCacheInitialized, fetchTaskUpdates, fetchAllTasks, fetchPaidLeaveBalance]);
 
   // Build events from cached tasks + local exams/schedules
   useEffect(() => {
@@ -273,6 +291,27 @@ export default function CalendarPage() {
     }
   };
 
+  const createPaidLeave = async (data: ScheduleEventInput) => {
+    try {
+      const res = await fetch(`${API_BASE}/schedules`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...data, type: "PAID_LEAVE" }),
+      });
+
+      if (res.ok) {
+        showToast("有給申請を登録しました", "success");
+        setShowPaidLeaveModal(false);
+        fetchEvents(); // Will refresh paid leave balance too
+      } else {
+        showToast("有給申請の登録に失敗しました", "error");
+      }
+    } catch (e) {
+      console.error("Failed to create paid leave:", e);
+      showToast("エラーが発生しました", "error");
+    }
+  };
+
   const deleteScheduleEvent = async (eventId: number) => {
     try {
       const res = await fetch(`${API_BASE}/schedules/${eventId}`, {
@@ -427,16 +466,48 @@ export default function CalendarPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <CalendarIcon className="w-8 h-8 text-indigo-500" />
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            カレンダー
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            スケジュール・締め切り・試験日を一覧表示
-          </p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <CalendarIcon className="w-8 h-8 text-indigo-500" />
+          <div>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+              カレンダー
+            </h1>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              スケジュール・締め切り・試験日を一覧表示
+            </p>
+          </div>
         </div>
+
+        {/* Paid Leave Balance */}
+        {paidLeaveBalance && (
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                有給残日数
+              </p>
+              <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                {paidLeaveBalance.remainingDays}日
+              </p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                {paidLeaveBalance.fiscalYear}年度
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                if (selectedDate) {
+                  setShowPaidLeaveModal(true);
+                } else {
+                  showToast("日付を選択してから有給申請してください", "info");
+                }
+              }}
+              className="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors text-sm font-medium flex items-center gap-2"
+            >
+              <Coffee className="w-4 h-4" />
+              有給申請
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -592,12 +663,21 @@ export default function CalendarPage() {
                             {/* イベント内容表示エリア */}
                             <div className="px-0.5 py-0.5 space-y-0.5 overflow-hidden">
                               {singleDayEvents.slice(0, MAX_VISIBLE_EVENTS).map((event) => {
-                                const bgColor =
-                                  event.type === "exam"
-                                    ? event.color || "#10B981"
-                                    : event.type === "schedule"
-                                      ? event.color || "#6366F1"
-                                      : event.color || "#3B82F6";
+                                let bgColor = event.color || "#3B82F6";
+                                let eventIcon = null;
+
+                                if (event.type === "exam") {
+                                  bgColor = event.color || "#10B981";
+                                } else if (event.type === "schedule") {
+                                  const scheduleEvent = schedules.find(s => s.id === event.id);
+                                  if (scheduleEvent?.type === "PAID_LEAVE") {
+                                    bgColor = event.color || "#FF6B6B";
+                                    eventIcon = <Coffee className="w-2.5 h-2.5 shrink-0 opacity-80" />;
+                                  } else {
+                                    bgColor = event.color || "#6366F1";
+                                  }
+                                }
+
                                 return (
                                   <div
                                     key={`${event.type}-${event.id}`}
@@ -608,6 +688,7 @@ export default function CalendarPage() {
                                       borderLeft: `2px solid ${bgColor}`,
                                     }}
                                   >
+                                    {eventIcon}
                                     {event.time && (
                                       <span className="shrink-0 opacity-70">{event.time}</span>
                                     )}
@@ -717,7 +798,7 @@ export default function CalendarPage() {
               )}
             </div>
             {selectedDate && (
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-wrap">
                 <button
                   onClick={() => setShowScheduleModal(true)}
                   className="flex items-center gap-1 px-2 py-1 text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
@@ -731,6 +812,13 @@ export default function CalendarPage() {
                 >
                   <Plus className="w-4 h-4" />
                   タスク
+                </button>
+                <button
+                  onClick={() => setShowPaidLeaveModal(true)}
+                  className="flex items-center gap-1 px-2 py-1 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                >
+                  <Coffee className="w-4 h-4" />
+                  有給
                 </button>
               </div>
             )}
@@ -764,7 +852,11 @@ export default function CalendarPage() {
                         {event.type === "exam" ? (
                           <Target className="w-4 h-4" />
                         ) : event.type === "schedule" ? (
-                          <CalendarIcon className="w-4 h-4" />
+                          schedules.find(s => s.id === event.id)?.type === "PAID_LEAVE" ? (
+                            <Coffee className="w-4 h-4" />
+                          ) : (
+                            <CalendarIcon className="w-4 h-4" />
+                          )
                         ) : event.status === "done" ? (
                           <CheckCircle2 className="w-4 h-4" />
                         ) : (
@@ -780,7 +872,9 @@ export default function CalendarPage() {
                             {event.type === "exam"
                               ? "試験"
                               : event.type === "schedule"
-                                ? "スケジュール"
+                                ? schedules.find(s => s.id === event.id)?.type === "PAID_LEAVE"
+                                  ? "有給休暇"
+                                  : "スケジュール"
                                 : "タスク"}
                             {event.status === "done" && " ・ 完了"}
                           </p>
@@ -840,6 +934,13 @@ export default function CalendarPage() {
                   >
                     <Plus className="w-4 h-4" />
                     スケジュールを追加
+                  </button>
+                  <button
+                    onClick={() => setShowPaidLeaveModal(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm font-medium"
+                  >
+                    <Coffee className="w-4 h-4" />
+                    有給申請
                   </button>
                   <button
                     onClick={openCreateModal}
@@ -927,6 +1028,16 @@ export default function CalendarPage() {
           selectedDate={selectedDate}
           onClose={() => setShowScheduleModal(false)}
           onSubmit={createScheduleEvent}
+        />
+      )}
+
+      {/* 有給申請モーダル */}
+      {showPaidLeaveModal && selectedDate && (
+        <PaidLeaveDialog
+          selectedDate={selectedDate}
+          onClose={() => setShowPaidLeaveModal(false)}
+          onSubmit={createPaidLeave}
+          remainingDays={paidLeaveBalance?.remainingDays || 0}
         />
       )}
     </div>

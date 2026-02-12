@@ -36,7 +36,7 @@ import type {
 
 export type GeminiCliAgentConfig = {
   workingDirectory?: string;
-  model?: string; // gemini-2.5-pro, gemini-2.5-flash など
+  model?: string; // gemini-2.0-flash, gemini-1.5-flash など
   timeout?: number; // milliseconds
   maxTokens?: number;
   projectId?: string; // Google Cloud Project ID

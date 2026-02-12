@@ -54,6 +54,7 @@ type ExecutionSummary = {
   taskId: number;
   taskTitle: string;
   agentType: string;
+  agentName: string;
   modelId?: string;
   status: string;
   startedAt: string;
@@ -96,6 +97,7 @@ export class ExecutionFileLogger {
   private taskId: number;
   private taskTitle: string;
   private agentType: string;
+  private agentName: string;
   private modelId?: string;
   private startedAt: Date;
   private errorCount = 0;
@@ -111,6 +113,7 @@ export class ExecutionFileLogger {
     taskId: number,
     taskTitle: string,
     agentType: string,
+    agentName?: string,
     modelId?: string,
     config?: Partial<FileLoggerConfig>,
   ) {
@@ -120,6 +123,7 @@ export class ExecutionFileLogger {
     this.taskId = taskId;
     this.taskTitle = taskTitle;
     this.agentType = agentType;
+    this.agentName = agentName || agentType;
     this.modelId = modelId;
     this.startedAt = new Date();
 
@@ -172,7 +176,7 @@ export class ExecutionFileLogger {
         name: error.name,
         message: error.message,
         stack: error.stack,
-        code: (error as any).code,
+        code: 'code' in error ? (error as NodeJS.ErrnoException).code : undefined,
       };
       this.lastError = error.message;
     }
@@ -226,9 +230,10 @@ export class ExecutionFileLogger {
    * 実行開始を記録
    */
   logExecutionStart(command: string, config: Record<string, unknown>): void {
-    this.log("INFO", "execution_start", `Execution started: ${command}`, {
+    this.log("INFO", "execution_start", `Execution started: ${command} [Agent: ${this.agentName} (${this.agentType})]`, {
       command,
       agentType: this.agentType,
+      agentName: this.agentName,
       modelId: this.modelId,
       taskId: this.taskId,
       taskTitle: this.taskTitle,
@@ -330,6 +335,7 @@ export class ExecutionFileLogger {
         taskId: this.taskId,
         taskTitle: this.taskTitle,
         agentType: this.agentType,
+        agentName: this.agentName,
         modelId: this.modelId,
         status: this.getLatestStatus(),
         startedAt: this.startedAt.toISOString(),
@@ -376,6 +382,7 @@ export class ExecutionFileLogger {
     sections.push(`  Task ID       : ${summary.taskId}`);
     sections.push(`  Task Title    : ${summary.taskTitle}`);
     sections.push(`  Agent Type    : ${summary.agentType}`);
+    sections.push(`  Agent Name    : ${summary.agentName}`);
     if (summary.modelId) {
       sections.push(`  Model ID      : ${summary.modelId}`);
     }

@@ -26,7 +26,7 @@ import { generateAgentId } from '../abstraction';
  */
 export interface GeminiCliConfig extends GeminiCliProviderConfig {
   workingDirectory?: string;
-  model?: string; // gemini-2.5-pro, gemini-2.5-flash など
+  model?: string; // gemini-2.0-flash, gemini-1.5-flash など
   timeout?: number;
   maxTokens?: number;
 }
@@ -308,7 +308,27 @@ export class GeminiCliAgentV2 extends AbstractAgent {
 
       // モデル指定
       if (this.config.model) {
-        args.push('-m', this.config.model);
+        // モデル名のマッピング（Gemini CLIが期待する形式に変換）
+        const modelMapping: Record<string, string> = {
+          'gemini-2.0-flash': 'gemini-2.0-flash-exp-0111',
+          'gemini-1.5-flash': 'gemini-1.5-flash',
+          'gemini-1.5-pro': 'gemini-1.5-pro',
+          'gemini-2.0-flash-thinking': 'gemini-2.0-flash-thinking-exp-01-21',
+        };
+
+        let modelName = this.config.model;
+
+        // マッピングがあれば使用
+        if (modelMapping[modelName]) {
+          modelName = modelMapping[modelName];
+        }
+
+        // models/プレフィックスがない場合は追加
+        if (!modelName.startsWith('models/')) {
+          modelName = `models/${modelName}`;
+        }
+
+        args.push('-m', modelName);
       }
 
       // チェックポイントIDで会話を再開
@@ -345,7 +365,12 @@ export class GeminiCliAgentV2 extends AbstractAgent {
         finalArgs = args;
       }
 
-      this.log('info', `Starting Gemini CLI execution`, { workDir, promptLength: prompt.length });
+      this.log('info', `Starting Gemini CLI execution`, {
+        workDir,
+        promptLength: prompt.length,
+        command: isWindows ? finalCommand : `${finalCommand} ${args.join(' ')}`,
+        model: this.config.model
+      });
 
       try {
         // 環境変数
@@ -359,6 +384,8 @@ export class GeminiCliAgentV2 extends AbstractAgent {
 
         if (this.config.apiKey) {
           env.GEMINI_API_KEY = this.config.apiKey;
+          // Gemini CLIはGOOGLE_API_KEYも使用する可能性がある
+          env.GOOGLE_API_KEY = this.config.apiKey;
         }
         if (this.config.projectId) {
           env.GOOGLE_CLOUD_PROJECT = this.config.projectId;
@@ -366,6 +393,16 @@ export class GeminiCliAgentV2 extends AbstractAgent {
         if (this.config.location) {
           env.GOOGLE_CLOUD_LOCATION = this.config.location;
         }
+
+        // API KEY設定の確認（セキュリティのため最初の数文字のみ表示）
+        const hasApiKey = !!env.GEMINI_API_KEY || !!process.env.GEMINI_API_KEY || !!process.env.GOOGLE_API_KEY;
+        const apiKeyPrefix = (env.GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').substring(0, 8);
+        this.log('info', 'Gemini API configuration', {
+          hasApiKey,
+          apiKeyPrefix: apiKeyPrefix ? `${apiKeyPrefix}...` : 'NOT SET',
+          hasProjectId: !!env.GOOGLE_CLOUD_PROJECT,
+          hasLocation: !!env.GOOGLE_CLOUD_LOCATION
+        });
 
         this.process = spawn(finalCommand, finalArgs, {
           cwd: workDir,
@@ -469,6 +506,14 @@ export class GeminiCliAgentV2 extends AbstractAgent {
           const output = data.toString();
           this.errorBuffer += output;
           lastOutputTime = Date.now();
+
+          // エラー詳細をログ出力
+          this.log('error', 'Gemini CLI stderr output', {
+            error: output,
+            model: this.config.model,
+            workDir
+          });
+
           await this.emitOutput(output, true, true);
         });
 
@@ -500,11 +545,23 @@ export class GeminiCliAgentV2 extends AbstractAgent {
             return;
           }
 
+          let errorMessage = undefined;
+          if (code !== 0) {
+            errorMessage = `Process exited with code ${code}`;
+            if (this.errorBuffer.trim()) {
+              errorMessage += `\nError output: ${this.errorBuffer.trim()}`;
+            }
+            // ModelNotFoundErrorをチェック
+            if (this.errorBuffer.includes('ModelNotFoundError') || this.errorBuffer.includes('Requested entity was not found')) {
+              errorMessage += '\nNote: The specified model may not be available. Try using a different model or check your API access.';
+            }
+          }
+
           resolve({
             success: code === 0,
             state: code === 0 ? 'completed' : 'failed',
             output: this.outputBuffer,
-            errorMessage: code !== 0 ? `Process exited with code ${code}` : undefined,
+            errorMessage,
             sessionId: this.checkpointId || this.geminiSessionId || undefined,
             metrics: {
               startTime: new Date(startTime),
@@ -648,7 +705,7 @@ export class GeminiCliProvider implements IAgentProvider {
     this.defaultConfig = {
       providerId: 'google-gemini',
       enabled: true,
-      model: 'gemini-2.5-pro',
+      model: 'gemini-2.0-flash',
       ...config,
     };
   }

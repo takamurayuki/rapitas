@@ -41,6 +41,8 @@ import {
   Moon,
   Sun,
   BookMarked,
+  RotateCw,
+  Loader2,
 } from "lucide-react";
 import AppIcon from "@/components/AppIcon";
 import GlobalPomodoroWidget from "@/feature/tasks/pomodoro/GlobalPomodoroWidget";
@@ -48,6 +50,7 @@ import { OPEN_SHORTCUTS_EVENT } from "@/components/KeyboardShortcuts";
 import NotificationBell from "@/components/NotificationBell";
 import { useDarkMode } from "@/hooks/use-dark-mode";
 import { isTauri, hideToTray } from "@/utils/tauri";
+import { API_BASE_URL } from "@/utils/api";
 import { useShortcutStore, type ShortcutId } from "@/stores/shortcutStore";
 import { useAppModeStore, type AppMode } from "@/stores/appModeStore";
 
@@ -99,6 +102,11 @@ export default function Header() {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [isTauriEnv, setIsTauriEnv] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false);
+  const [restartConfirmDialog, setRestartConfirmDialog] = useState<{
+    open: boolean;
+    activeExecutions: number;
+  }>({ open: false, activeExecutions: 0 });
 
   const { isDarkMode, mounted: darkModeMounted, toggleTheme } = useDarkMode();
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -116,6 +124,61 @@ export default function Header() {
     if (binding.shift) parts.push("\u21E7");
     parts.push(binding.key.toUpperCase());
     return parts.join("");
+  };
+
+  // サーバー再起動を実行
+  const executeRestart = async () => {
+    setIsRestarting(true);
+    setRestartConfirmDialog({ open: false, activeExecutions: 0 });
+    setIsMoreMenuOpen(false);
+    try {
+      await fetch(`${API_BASE_URL}/agents/restart`, { method: "POST" });
+    } catch {
+      // サーバーが停止するため接続エラーは想定内
+    }
+    // サーバーが再起動するまで待機してからリロード
+    const waitForServer = async () => {
+      const maxAttempts = 30;
+      for (let i = 0; i < maxAttempts; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        try {
+          const res = await fetch(`${API_BASE_URL}/agents/system-status`);
+          if (res.ok) {
+            window.location.reload();
+            return;
+          }
+        } catch {
+          // サーバーがまだ起動中
+        }
+      }
+      // タイムアウトした場合もリロードを試行
+      setIsRestarting(false);
+      alert(
+        "サーバーの再起動がタイムアウトしました。手動でページをリロードしてください。",
+      );
+    };
+    waitForServer();
+  };
+
+  // 再起動ボタンのクリックハンドラ
+  const handleRestartClick = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/agents/system-status`);
+      if (!res.ok) throw new Error("Failed to fetch system status");
+      const status = await res.json();
+      const activeCount =
+        (status.activeExecutions || 0) + (status.runningExecutions || 0);
+      if (activeCount > 0) {
+        // 実行中のタスクがある場合は確認ダイアログを表示
+        setRestartConfirmDialog({ open: true, activeExecutions: activeCount });
+      } else {
+        // 実行中のタスクがない場合は即座に再起動
+        executeRestart();
+      }
+    } catch {
+      // ステータス取得に失敗した場合は確認ダイアログなしで再起動
+      executeRestart();
+    }
   };
 
   // Tauri環境かどうかを判定
@@ -381,7 +444,10 @@ export default function Header() {
     },
   ];
 
-  const filterNavItems = (items: NavItem[], currentMode: AppMode): NavItem[] => {
+  const filterNavItems = (
+    items: NavItem[],
+    currentMode: AppMode,
+  ): NavItem[] => {
     if (currentMode === "all") return items;
     return items.filter((item) => {
       if (!item.mode) return true;
@@ -786,7 +852,11 @@ export default function Header() {
                       ) : (
                         <Moon className="w-4 h-4" />
                       )}
-                      <span>{darkModeMounted && isDarkMode ? "ライトモードに切替" : "ダークモードに切替"}</span>
+                      <span>
+                        {darkModeMounted && isDarkMode
+                          ? "ライトモードに切替"
+                          : "ダークモードに切替"}
+                      </span>
                     </button>
                     {/* 全体設定 */}
                     <Link
@@ -810,6 +880,23 @@ export default function Header() {
                         <span>タスクトレイに格納</span>
                       </button>
                     )}
+                    {/* 区切り線 */}
+                    <div className="my-1 border-t border-zinc-200 dark:border-zinc-700" />
+                    {/* サーバー再起動 */}
+                    <button
+                      onClick={handleRestartClick}
+                      disabled={isRestarting}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isRestarting ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RotateCw className="w-4 h-4" />
+                      )}
+                      <span>
+                        {isRestarting ? "再起動中..." : "サーバー再起動"}
+                      </span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -883,6 +970,55 @@ export default function Header() {
           </div>
         </div>
       </nav>
+
+      {/* 再起動確認ダイアログ */}
+      {restartConfirmDialog.open && (
+        <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-2xl p-6 max-w-sm mx-4">
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+              サーバーを再起動しますか？
+            </h3>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+              現在{" "}
+              <span className="font-semibold text-amber-600 dark:text-amber-400">
+                {restartConfirmDialog.activeExecutions}件
+              </span>{" "}
+              のタスクが実行中です。再起動すると実行中のタスクは中断されます。
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() =>
+                  setRestartConfirmDialog({ open: false, activeExecutions: 0 })
+                }
+                className="px-4 py-2 text-sm rounded-lg text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={executeRestart}
+                className="px-4 py-2 text-sm rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-medium transition-colors"
+              >
+                再起動する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 再起動中オーバーレイ */}
+      {isRestarting && (
+        <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-2xl p-8 flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+            <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              サーバーを再起動しています...
+            </p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              完了後に自動でページがリロードされます
+            </p>
+          </div>
+        </div>
+      )}
     </>
   );
 }

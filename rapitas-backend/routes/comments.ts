@@ -273,7 +273,7 @@ export const commentsRoutes = new Elysia()
     }
 
     // Combine outgoing and incoming links
-    const outgoingLinks = comment.linksFrom.map((link) => ({
+    const outgoingLinks = comment.linksFrom.map((link: { id: number; label: string | null; createdAt: Date; toComment: { id: number; content: string; taskId: number; createdAt: Date } }) => ({
       id: link.id,
       direction: "outgoing" as const,
       label: link.label,
@@ -281,7 +281,7 @@ export const commentsRoutes = new Elysia()
       createdAt: link.createdAt,
     }));
 
-    const incomingLinks = comment.linksTo.map((link) => ({
+    const incomingLinks = comment.linksTo.map((link: { id: number; label: string | null; createdAt: Date; fromComment: { id: number; content: string; taskId: number; createdAt: Date } }) => ({
       id: link.id,
       direction: "incoming" as const,
       label: link.label,

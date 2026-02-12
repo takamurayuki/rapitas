@@ -41,3 +41,5 @@ export { schedulesRoutes } from "./schedules";
 export { dailyScheduleRoutes } from "./daily-schedule";
 export { screenshotsRoutes } from "./screenshots";
 export { learningGoalsRoutes } from "./learning-goals";
+export { rateLimitRoutes } from "./rate-limits";
+export { paidLeaveRoutes } from "./paid-leave";

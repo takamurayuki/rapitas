@@ -49,6 +49,8 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
         color?: string;
         reminderMinutes?: number | null;
         taskId?: number | null;
+        type?: string;
+        userId?: string;
       };
     }) => {
       if (!body.title?.trim()) throw new ValidationError("Title is required");
@@ -65,6 +67,8 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
           color: body.color || "#6366F1",
           reminderMinutes: body.reminderMinutes ?? null,
           taskId: body.taskId ?? null,
+          type: body.type as any || "GENERAL",
+          userId: body.userId || "default",
         },
       });
     },
@@ -88,6 +92,8 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
         reminderMinutes?: number | null;
         reminderSentAt?: string | null;
         taskId?: number | null;
+        type?: string;
+        userId?: string;
       };
     }) => {
       const id = parseInt(params.id);

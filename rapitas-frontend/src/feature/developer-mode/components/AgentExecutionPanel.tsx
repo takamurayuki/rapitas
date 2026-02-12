@@ -41,6 +41,7 @@ import {
   ExecutionLogViewer,
   type ExecutionLogStatus,
 } from "./ExecutionLogViewer";
+import { AgentSwitcher } from "@/components/ui/AgentSwitcher";
 import { API_BASE_URL } from "@/utils/api";
 
 type Props = {
@@ -97,6 +98,9 @@ export function AgentExecutionPanel({
   const [isExpanded, setIsExpanded] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [showLogs, setShowLogs] = useState(true);
+  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(
+    agentConfigId ?? null,
+  );
   const [showLogsExternal, setShowLogsExternal] = useState(false); // 外部（独立）でログを表示するか
   const [instruction, setInstruction] = useState("");
   const [branchName, setBranchName] = useState("");
@@ -323,7 +327,7 @@ export function AgentExecutionPanel({
       branchName: branchName.trim() || undefined,
       useTaskAnalysis, // AIタスク分析を使用するかどうかを渡す
       optimizedPrompt: optimizedPrompt || undefined, // 最適化されたプロンプトを渡す
-      agentConfigId: agentConfigId ?? undefined, // 選択されたエージェント設定IDを渡す
+      agentConfigId: selectedAgentId ?? agentConfigId ?? undefined, // パネル内で選択されたエージェントを優先
     });
     if (result?.sessionId) {
       setShowLogs(true);
@@ -339,7 +343,7 @@ export function AgentExecutionPanel({
     setFollowUpInstruction("");
     const result = await onExecute({
       instruction: trimmedInstruction,
-      agentConfigId: agentConfigId ?? undefined,
+      agentConfigId: selectedAgentId ?? agentConfigId ?? undefined,
     });
     if (result?.sessionId) {
       setShowLogs(true);
@@ -1089,6 +1093,16 @@ export function AgentExecutionPanel({
             {/* 詳細オプション内容 */}
             {showOptions && (
               <div className="mt-3 space-y-4 p-4 bg-zinc-50 dark:bg-zinc-800/30 rounded-lg border border-zinc-200 dark:border-zinc-700 animate-in slide-in-from-top-1 duration-200">
+                {/* エージェント切替 */}
+                <div>
+                  <AgentSwitcher
+                    selectedAgentId={selectedAgentId}
+                    onSelect={setSelectedAgentId}
+                    size="md"
+                    showLabel={true}
+                  />
+                </div>
+
                 {/* 追加指示 */}
                 <div>
                   <label className="flex text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">

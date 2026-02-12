@@ -308,7 +308,7 @@ export const taskDependencyRoutes = new Elysia()
   // SSE-based dependency analysis stream
   .get(
     "/tasks/:id/dependency-analysis/stream",
-    async ({ params, set }: { params: { id: string }; set: any }) => {
+    async ({ params, set }: { params: { id: string }; set: { status: number; headers: Record<string, string> } }) => {
       const taskIdNum = parseInt(params.id);
 
       set.headers = {

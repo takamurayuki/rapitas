@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import type { UserSettings, ApiProvider } from "@/types";
 import { API_BASE_URL } from "@/utils/api";
+import { ClaudeIcon, ChatGPTIcon, GeminiIcon } from "@/components/icons/ProviderIcons";
+import { UsageRateLimitGraph } from "@/components/UsageRateLimitGraph";
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
   claude: "Claude",
@@ -39,6 +41,8 @@ type ProviderConfig = {
   consoleName: string;
   configuredField: keyof UserSettings;
   modelField: keyof UserSettings;
+  icon: React.ComponentType<{ className?: string }>;
+  iconColor: string;
 };
 
 const PROVIDERS: ProviderConfig[] = [
@@ -51,6 +55,8 @@ const PROVIDERS: ProviderConfig[] = [
     consoleName: "Anthropic Console",
     configuredField: "claudeApiKeyConfigured",
     modelField: "claudeDefaultModel",
+    icon: ClaudeIcon,
+    iconColor: "text-orange-500",
   },
   {
     key: "chatgpt",
@@ -61,6 +67,8 @@ const PROVIDERS: ProviderConfig[] = [
     consoleName: "OpenAI Platform",
     configuredField: "chatgptApiKeyConfigured",
     modelField: "chatgptDefaultModel",
+    icon: ChatGPTIcon,
+    iconColor: "text-green-500",
   },
   {
     key: "gemini",
@@ -71,6 +79,8 @@ const PROVIDERS: ProviderConfig[] = [
     consoleName: "Google AI Studio",
     configuredField: "geminiApiKeyConfigured",
     modelField: "geminiDefaultModel",
+    icon: GeminiIcon,
+    iconColor: "text-blue-500",
   },
 ];
 
@@ -91,6 +101,41 @@ const initialProviderState: ProviderState = {
 };
 
 type ModelOption = { value: string; label: string };
+
+// Cache keys
+const CACHE_KEYS = {
+  settings: 'settings-cache',
+  models: 'models-cache',
+  apiKeys: 'api-keys-cache',
+} as const;
+
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+function getCachedData<T>(key: string): T | null {
+  try {
+    const cached = localStorage.getItem(key);
+    if (!cached) return null;
+    const { data, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp > CACHE_DURATION) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedData<T>(key: string, data: T): void {
+  try {
+    localStorage.setItem(key, JSON.stringify({
+      data,
+      timestamp: Date.now(),
+    }));
+  } catch (error) {
+    console.error('Failed to cache data:', error);
+  }
+}
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
@@ -124,10 +169,28 @@ export default function SettingsPage() {
   const fetchSettings = useCallback(async () => {
     setIsLoading(true);
     try {
+      // Check cache first
+      const cached = getCachedData<UserSettings>(CACHE_KEYS.settings);
+      if (cached) {
+        setSettings(cached);
+        setIsLoading(false);
+        // Still fetch in background to update cache
+        fetch(`${API_BASE_URL}/settings`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data) {
+              setSettings(data);
+              setCachedData(CACHE_KEYS.settings, data);
+            }
+          });
+        return;
+      }
+
       const res = await fetch(`${API_BASE_URL}/settings`);
       if (res.ok) {
         const data = await res.json();
         setSettings(data);
+        setCachedData(CACHE_KEYS.settings, data);
       }
     } catch {
       setError("設定の取得に失敗しました");
@@ -138,12 +201,23 @@ export default function SettingsPage() {
 
   const fetchApiKeys = useCallback(async () => {
     try {
+      // Check cache first
+      const cached = getCachedData<Record<string, { configured: boolean; maskedKey: string | null }>>(CACHE_KEYS.apiKeys);
+      if (cached) {
+        for (const [provider, info] of Object.entries(cached)) {
+          if (info.configured && info.maskedKey) {
+            updateProviderState(provider, { maskedApiKey: info.maskedKey });
+          }
+        }
+      }
+
       const res = await fetch(`${API_BASE_URL}/settings/api-keys`);
       if (res.ok) {
         const data: Record<
           string,
           { configured: boolean; maskedKey: string | null }
         > = await res.json();
+        setCachedData(CACHE_KEYS.apiKeys, data);
         for (const [provider, info] of Object.entries(data)) {
           if (info.configured && info.maskedKey) {
             updateProviderState(provider, { maskedApiKey: info.maskedKey });
@@ -157,10 +231,27 @@ export default function SettingsPage() {
 
   const fetchModels = useCallback(async () => {
     try {
+      // Check cache first
+      const cached = getCachedData<Record<string, ModelOption[]>>(CACHE_KEYS.models);
+      if (cached) {
+        setAvailableModels(cached);
+        // Still fetch in background to update cache
+        fetch(`${API_BASE_URL}/settings/models`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data) {
+              setAvailableModels(data);
+              setCachedData(CACHE_KEYS.models, data);
+            }
+          });
+        return;
+      }
+
       const res = await fetch(`${API_BASE_URL}/settings/models`);
       if (res.ok) {
         const data: Record<string, ModelOption[]> = await res.json();
         setAvailableModels(data);
+        setCachedData(CACHE_KEYS.models, data);
       }
     } catch (err) {
       console.error("モデル一覧の取得に失敗:", err);
@@ -185,6 +276,8 @@ export default function SettingsPage() {
         );
         setSuccessMessage("デフォルトモデルを保存しました");
         setTimeout(() => setSuccessMessage(null), 3000);
+        // Clear cache to ensure fresh data
+        localStorage.removeItem(CACHE_KEYS.settings);
       } else {
         const errData = await res.json().catch(() => null);
         throw new Error(errData?.error ?? "モデルの保存に失敗しました");
@@ -208,6 +301,8 @@ export default function SettingsPage() {
         );
         setSuccessMessage("デフォルトAIプロバイダーを保存しました");
         setTimeout(() => setSuccessMessage(null), 3000);
+        // Clear cache to ensure fresh data
+        localStorage.removeItem(CACHE_KEYS.settings);
       } else {
         throw new Error("保存に失敗しました");
       }
@@ -258,6 +353,9 @@ export default function SettingsPage() {
           `${provider?.label ?? "API"}キーを保存しました`,
         );
         setTimeout(() => setSuccessMessage(null), 3000);
+        // Clear cache to ensure fresh data
+        localStorage.removeItem(CACHE_KEYS.apiKeys);
+        localStorage.removeItem(CACHE_KEYS.models);
       } else {
         const errData = await res.json().catch(() => null);
         throw new Error(errData?.error ?? "保存に失敗しました");
@@ -303,6 +401,9 @@ export default function SettingsPage() {
           `${provider?.label ?? "API"}キーを削除しました`,
         );
         setTimeout(() => setSuccessMessage(null), 3000);
+        // Clear cache to ensure fresh data
+        localStorage.removeItem(CACHE_KEYS.apiKeys);
+        localStorage.removeItem(CACHE_KEYS.models);
       } else {
         throw new Error("削除に失敗しました");
       }
@@ -354,6 +455,9 @@ export default function SettingsPage() {
       )}
 
       <div className="space-y-6">
+        {/* 使用制限グラフ */}
+        <UsageRateLimitGraph />
+
         {/* API設定 */}
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
@@ -374,13 +478,18 @@ export default function SettingsPage() {
               return (
                 <div key={provider.key} className="p-6">
                   <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                        {provider.label}
-                      </h3>
-                      <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                        {provider.description}
-                      </p>
+                    <div className="flex items-start gap-3">
+                      <div className={`p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 ${provider.iconColor}`}>
+                        <provider.icon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                          {provider.label}
+                        </h3>
+                        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                          {provider.description}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       {isConfigured ? (
@@ -576,7 +685,8 @@ export default function SettingsPage() {
           <div className="p-6">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {(["claude", "chatgpt", "gemini"] as ApiProvider[]).map((p) => {
-                const configField = PROVIDERS.find((pr) => pr.key === p)?.configuredField;
+                const provider = PROVIDERS.find((pr) => pr.key === p);
+                const configField = provider?.configuredField;
                 const isConfigured = !!(
                   configField && settings?.[configField as keyof UserSettings]
                 );
@@ -602,31 +712,40 @@ export default function SettingsPage() {
                         <CheckCircle className="w-5 h-5 text-violet-500" />
                       </div>
                     )}
-                    <h3
-                      className={`font-medium text-sm ${
-                        isSelected
-                          ? "text-violet-700 dark:text-violet-300"
-                          : isConfigured
-                          ? "text-zinc-900 dark:text-zinc-100"
-                          : "text-zinc-400 dark:text-zinc-600"
-                      }`}
-                    >
-                      {PROVIDER_LABELS[p]}
-                    </h3>
-                    <p
-                      className={`text-xs mt-1 ${
-                        isSelected
-                          ? "text-violet-500 dark:text-violet-400"
-                          : "text-zinc-500 dark:text-zinc-400"
-                      }`}
-                    >
-                      {PROVIDER_DESCRIPTIONS[p]}
-                    </p>
-                    {!isConfigured && (
-                      <p className="text-xs text-amber-500 mt-2">
-                        APIキー未設定
-                      </p>
-                    )}
+                    <div className="flex items-start gap-2">
+                      {provider && (
+                        <div className={`p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 ${provider.iconColor}`}>
+                          <provider.icon className="w-4 h-4" />
+                        </div>
+                      )}
+                      <div>
+                        <h3
+                          className={`font-medium text-sm ${
+                            isSelected
+                              ? "text-violet-700 dark:text-violet-300"
+                              : isConfigured
+                              ? "text-zinc-900 dark:text-zinc-100"
+                              : "text-zinc-400 dark:text-zinc-600"
+                          }`}
+                        >
+                          {PROVIDER_LABELS[p]}
+                        </h3>
+                        <p
+                          className={`text-xs mt-1 ${
+                            isSelected
+                              ? "text-violet-500 dark:text-violet-400"
+                              : "text-zinc-500 dark:text-zinc-400"
+                          }`}
+                        >
+                          {PROVIDER_DESCRIPTIONS[p]}
+                        </p>
+                        {!isConfigured && (
+                          <p className="text-xs text-amber-500 mt-2">
+                            APIキー未設定
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </button>
                 );
               })}

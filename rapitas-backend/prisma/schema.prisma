@@ -730,6 +730,12 @@ model SystemPrompt {
   @@index([category])
 }
 
+// スケジュールイベントタイプのEnum
+enum ScheduleEventType {
+  GENERAL     // 一般的なスケジュール
+  PAID_LEAVE  // 有給休暇
+}
+
 // スケジュールイベント（カレンダーのリマインド通知付きスケジュール）
 model ScheduleEvent {
   id              Int       @id @default(autoincrement())
@@ -742,8 +748,31 @@ model ScheduleEvent {
   reminderMinutes Int?      // リマインド通知の何分前か（null=リマインドなし）
   reminderSentAt  DateTime? // リマインド送信済み日時
   taskId          Int?
+  type            ScheduleEventType @default(GENERAL) // スケジュールタイプ
+  userId          String    @default("default") // ユーザーID（将来のマルチユーザー対応）
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  @@index([type])
+  @@index([userId])
+  @@index([startAt])
+}
+
+// 有給残日数管理
+model PaidLeaveBalance {
+  id                    Int       @id @default(autoincrement())
+  userId                String    @unique @default("default")
+  totalDays             Int       @default(20) // 年間付与日数
+  usedDays              Float     @default(0)  // 使用日数（半日休暇対応のためFloat）
+  remainingDays         Float     // 残日数（計算フィールドではなく実際に保存）
+  fiscalYear            Int       // 対象年度
+  carryOverDays         Float     @default(0)  // 前年度からの繰越日数
+  lastCalculatedAt      DateTime  @default(now()) // 最後に計算された日時
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([userId, fiscalYear])
+  @@index([fiscalYear])
 }
 
 // AI提案キャッシュ（テーマごとに保存）

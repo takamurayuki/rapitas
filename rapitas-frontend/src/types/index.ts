@@ -1099,6 +1099,8 @@ export type AgentExecutionConfigInput = Partial<
 
 // ==================== スケジュールイベント ====================
 
+export type ScheduleEventType = "GENERAL" | "PAID_LEAVE";
+
 export type ScheduleEvent = {
   id: number;
   title: string;
@@ -1110,6 +1112,8 @@ export type ScheduleEvent = {
   reminderMinutes?: number | null;
   reminderSentAt?: string | null;
   taskId?: number | null;
+  type: ScheduleEventType;
+  userId: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -1123,6 +1127,25 @@ export type ScheduleEventInput = {
   color?: string;
   reminderMinutes?: number | null;
   taskId?: number | null;
+  type?: ScheduleEventType;
+  userId?: string;
+};
+
+export type PaidLeaveBalance = {
+  id: number;
+  userId: string;
+  totalDays: number;
+  usedDays: number;
+  remainingDays: number;
+  fiscalYear: number;
+  carryOverDays: number;
+  lastCalculatedAt: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PaidLeaveHistoryItem = ScheduleEvent & {
+  usedDays: number;
 };
 
 export type DailyScheduleBlock = {

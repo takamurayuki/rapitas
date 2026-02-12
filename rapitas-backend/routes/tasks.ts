@@ -626,8 +626,7 @@ ${existingTaskList}
             throw new AppError(400, `親タスク(ID: ${parentId})が見つかりません`);
           }
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const result = await prisma.$transaction(async (tx: any) => {
+          const result = await prisma.$transaction(async (tx: typeof prisma) => {
             // トランザクション内で重複チェック
             const existingSubtask = await tx.task.findFirst({
               where: {

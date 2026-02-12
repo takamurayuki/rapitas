@@ -3,6 +3,8 @@
  * すべてのコンポーネントを統合し、サブタスクの並列実行を管理する
  */
 
+import { PrismaClient } from "@prisma/client";
+type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 import { EventEmitter } from "events";
 import {
   DependencyAnalyzer,
@@ -152,9 +154,9 @@ export class ParallelExecutor extends EventEmitter {
   private schedulers: Map<string, ParallelScheduler> = new Map();
 
   // Prismaクライアント
-  private prisma: any;
+  private prisma: PrismaClientInstance;
 
-  constructor(prisma: any, config?: Partial<ParallelExecutionConfig>) {
+  constructor(prisma: PrismaClientInstance, config?: Partial<ParallelExecutionConfig>) {
     super();
     this.prisma = prisma;
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -983,7 +985,7 @@ export class ParallelExecutor extends EventEmitter {
  * 並列実行オーケストレーターのファクトリー関数
  */
 export function createParallelExecutor(
-  prisma: any,
+  prisma: PrismaClientInstance,
   config?: Partial<ParallelExecutionConfig>,
 ): ParallelExecutor {
   return new ParallelExecutor(prisma, config);

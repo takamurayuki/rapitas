@@ -49,13 +49,14 @@ export default function HomeClientPage() {
   const appMode = useAppModeStore((state) => state.mode);
   const tasks = useTaskCacheStore((s) => s.tasks);
   const taskCacheInitialized = useTaskCacheStore((s) => s.initialized);
+  const taskCacheLoading = useTaskCacheStore((s) => s.loading);
   const fetchAllTasks = useTaskCacheStore((s) => s.fetchAll);
   const fetchTaskUpdates = useTaskCacheStore((s) => s.fetchUpdates);
   const updateTaskLocally = useTaskCacheStore((s) => s.updateTaskLocally);
   const removeTaskLocally = useTaskCacheStore((s) => s.removeTaskLocally);
   const [themes, setThemes] = useState<Theme[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialDataLoading, setInitialDataLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<number | null>(null);
   const [themeFilter, setThemeFilter] = useState<number | null>(null);
@@ -378,9 +379,9 @@ export default function HomeClientPage() {
   };
 
   useEffect(() => {
-    // 初回読み込み時はすべてのデータを取得してからloadingを解除
+    // 初回読み込み時はすべてのデータを取得してからinitialDataLoadingを解除
     const initialLoad = async () => {
-      setLoading(true);
+      setInitialDataLoading(true);
       // If cache is already initialized, use incremental fetch; otherwise full fetch
       const taskFetch = taskCacheInitialized
         ? fetchTaskUpdates()
@@ -409,7 +410,7 @@ export default function HomeClientPage() {
           );
         }
       }
-      setLoading(false);
+      setInitialDataLoading(false);
     };
     initialLoad();
 
@@ -785,7 +786,7 @@ export default function HomeClientPage() {
         )}
 
         {/* 統合フィルターバー（アコーディオン） */}
-        {!loading && !isSelectionMode && !isQuickAdding && (
+        {!initialDataLoading && !isSelectionMode && !isQuickAdding && (
           <div className="mb-4 bg-white dark:bg-indigo-dark-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
             {/* カテゴリタブ */}
             {categories.length > 0 && (
@@ -1162,7 +1163,7 @@ export default function HomeClientPage() {
           </div>
         )}
 
-        {loading ? (
+        {initialDataLoading ? (
           <div className="animate-pulse space-y-4">
             {/* 統合フィルターUIスケルトン（アコーディオン） */}
             <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
@@ -1205,6 +1206,12 @@ export default function HomeClientPage() {
                 </div>
               ))}
             </div>
+          </div>
+        ) : taskCacheLoading && !taskCacheInitialized ? (
+          // タスクデータが初回読み込み中の場合は追加でローディング表示
+          <div className="text-center py-8">
+            <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p className="text-zinc-500 dark:text-zinc-400">タスク一覧を読み込み中...</p>
           </div>
         ) : sortedTasks.length === 0 ? (
           <div className="text-center py-12 text-zinc-500 dark:text-zinc-400">
@@ -1274,6 +1281,16 @@ export default function HomeClientPage() {
           </div>
         ) : (
           <>
+            {/* タスクデータが読み込み中の場合は追加で読み込み中表示を表示しつつ、既存データがあれば併用表示 */}
+            {taskCacheLoading && taskCacheInitialized && (
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                  <span className="text-sm text-blue-700 dark:text-blue-300">タスクデータを更新中...</span>
+                </div>
+              </div>
+            )}
+
             <div className="grid gap-3">
               {paginatedTasks.map((task) => (
                 <TaskCard

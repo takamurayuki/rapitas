@@ -5,7 +5,8 @@
 
 import { exec } from "child_process";
 import { promisify } from "util";
-// import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 import { realtimeService } from "./realtime-service";
 
 const execAsync = promisify(exec);
@@ -79,13 +80,110 @@ export type CreatePRCommentInput = {
   commitId?: string;
 };
 
+// ==================== gh CLI JSON output types ====================
+
+interface GhPullRequest {
+  number: number;
+  title: string;
+  body: string | null;
+  state: string;
+  headRefName: string;
+  baseRefName: string;
+  author?: { login: string };
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+  additions?: number;
+  deletions?: number;
+  changedFiles?: number;
+  mergeable?: boolean;
+}
+
+interface GhFileDiff {
+  filename: string;
+  status: string;
+  additions: number;
+  deletions: number;
+  patch?: string;
+}
+
+interface GhReview {
+  id: number;
+  state: string;
+  body: string | null;
+  user?: { login: string };
+  submitted_at: string;
+}
+
+interface GhComment {
+  id: number;
+  body: string;
+  path?: string;
+  line?: number;
+  original_line?: number;
+  user?: { login: string };
+  created_at: string;
+}
+
+interface GhIssue {
+  number: number;
+  title: string;
+  body: string | null;
+  state: string;
+  labels?: Array<{ name: string }>;
+  author?: { login: string };
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface GhLabel {
+  name: string;
+}
+
+export interface GitHubWebhookPayload {
+  action: string;
+  repository: {
+    name: string;
+    html_url: string;
+    owner: { login: string };
+  };
+  pull_request?: {
+    number: number;
+    title: string;
+    body: string | null;
+    state: string;
+    head: { ref: string };
+    base: { ref: string };
+    user: { login: string };
+    html_url: string;
+  };
+  review?: {
+    state: string;
+    user: { login: string };
+  };
+  comment?: {
+    body: string;
+    user: { login: string };
+  };
+  issue?: {
+    number: number;
+    title: string;
+    body: string | null;
+    state: string;
+    labels: Array<{ name: string }>;
+    user: { login: string };
+    html_url: string;
+  };
+}
+
 /**
  * GitHub Service クラス
  */
 export class GitHubService {
-  private prisma: any;
+  private prisma: PrismaClientInstance;
 
-  constructor(prisma: any) {
+  constructor(prisma: PrismaClientInstance) {
     this.prisma = prisma;
   }
 
@@ -106,9 +204,11 @@ export class GitHubService {
         maxBuffer: 10 * 1024 * 1024, // 10MB
       });
       return stdout.trim();
-    } catch (error: any) {
-      console.error(`gh command failed: ${command}`, error.message);
-      throw new Error(error.stderr || error.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const stderr = error && typeof error === 'object' && 'stderr' in error ? (error as { stderr: string }).stderr : undefined;
+      console.error(`gh command failed: ${command}`, message);
+      throw new Error(stderr || message);
     }
   }
 
@@ -162,7 +262,7 @@ export class GitHubService {
     if (!output) return [];
 
     const prs = JSON.parse(output);
-    return prs.map((pr: any) => ({
+    return prs.map((pr: GhPullRequest) => ({
       number: pr.number,
       title: pr.title,
       body: pr.body,
@@ -240,7 +340,7 @@ export class GitHubService {
     ]);
 
     const files = JSON.parse(filesOutput);
-    return files.map((file: any) => ({
+    return files.map((file: GhFileDiff) => ({
       filename: file.filename,
       status: file.status,
       additions: file.additions,
@@ -262,7 +362,7 @@ export class GitHubService {
     ]);
 
     const reviews = JSON.parse(output);
-    return reviews.map((review: any) => ({
+    return reviews.map((review: GhReview) => ({
       id: review.id,
       state: review.state,
       body: review.body,
@@ -284,7 +384,7 @@ export class GitHubService {
     ]);
 
     const comments = JSON.parse(output);
-    return comments.map((comment: any) => ({
+    return comments.map((comment: GhComment) => ({
       id: comment.id,
       body: comment.body,
       path: comment.path,
@@ -433,9 +533,10 @@ export class GitHubService {
       const prNumber = prMatch ? parseInt(prMatch[1], 10) : undefined;
 
       return { success: true, prUrl, prNumber };
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       console.error("Failed to create PR:", error);
-      return { success: false, error: error.message };
+      return { success: false, error: message };
     }
   }
 
@@ -465,12 +566,12 @@ export class GitHubService {
     if (!output) return [];
 
     const issues = JSON.parse(output);
-    return issues.map((issue: any) => ({
+    return issues.map((issue: GhIssue) => ({
       number: issue.number,
       title: issue.title,
       body: issue.body,
       state: issue.state,
-      labels: issue.labels?.map((l: any) => l.name) || [],
+      labels: issue.labels?.map((l: GhLabel) => l.name) || [],
       authorLogin: issue.author?.login || "unknown",
       url: issue.url,
       createdAt: issue.createdAt,
@@ -499,7 +600,7 @@ export class GitHubService {
         title: issue.title,
         body: issue.body,
         state: issue.state,
-        labels: issue.labels?.map((l: any) => l.name) || [],
+        labels: issue.labels?.map((l: GhLabel) => l.name) || [],
         authorLogin: issue.author?.login || "unknown",
         url: issue.url,
         createdAt: issue.createdAt,
@@ -693,7 +794,7 @@ export class GitHubService {
   /**
    * Webhookイベントを処理
    */
-  async handleWebhook(event: string, payload: any): Promise<void> {
+  async handleWebhook(event: string, payload: GitHubWebhookPayload): Promise<void> {
     switch (event) {
       case "pull_request":
         await this.handlePullRequestEvent(payload);
@@ -713,7 +814,8 @@ export class GitHubService {
     }
   }
 
-  private async handlePullRequestEvent(payload: any): Promise<void> {
+  private async handlePullRequestEvent(payload: GitHubWebhookPayload): Promise<void> {
+    if (!payload.pull_request) return;
     const { action, pull_request, repository } = payload;
     const repo = `${repository.owner.login}/${repository.name}`;
 
@@ -763,7 +865,8 @@ export class GitHubService {
     }
   }
 
-  private async handlePullRequestReviewEvent(payload: any): Promise<void> {
+  private async handlePullRequestReviewEvent(payload: GitHubWebhookPayload): Promise<void> {
+    if (!payload.pull_request || !payload.review) return;
     const { action, review, pull_request, repository } = payload;
     const repo = `${repository.owner.login}/${repository.name}`;
 
@@ -798,7 +901,8 @@ export class GitHubService {
     }
   }
 
-  private async handleCommentEvent(event: string, payload: any): Promise<void> {
+  private async handleCommentEvent(event: string, payload: GitHubWebhookPayload): Promise<void> {
+    if (!payload.comment) return;
     const { action, comment, issue, pull_request, repository } = payload;
     const repo = `${repository.owner.login}/${repository.name}`;
     const number = pull_request?.number || issue?.number;
@@ -814,7 +918,8 @@ export class GitHubService {
     });
   }
 
-  private async handleIssueEvent(payload: any): Promise<void> {
+  private async handleIssueEvent(payload: GitHubWebhookPayload): Promise<void> {
+    if (!payload.issue) return;
     const { action, issue, repository } = payload;
     const repo = `${repository.owner.login}/${repository.name}`;
 
@@ -844,7 +949,7 @@ export class GitHubService {
           title: issue.title,
           body: issue.body,
           state: issue.state,
-          labels: issue.labels.map((l: any) => l.name),
+          labels: issue.labels.map((l: { name: string }) => l.name),
           lastSyncedAt: new Date(),
         },
         create: {
@@ -853,7 +958,7 @@ export class GitHubService {
           title: issue.title,
           body: issue.body,
           state: issue.state,
-          labels: issue.labels.map((l: any) => l.name),
+          labels: issue.labels.map((l: { name: string }) => l.name),
           authorLogin: issue.user.login,
           url: issue.html_url,
           lastSyncedAt: new Date(),

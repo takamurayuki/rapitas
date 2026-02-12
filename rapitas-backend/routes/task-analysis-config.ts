@@ -9,7 +9,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
   prefix: "/task-analysis-config",
 })
   // タスク分析設定の取得
-  .get("/:taskId", async ({ params, set }: { params: { taskId: string }; set: any }) => {
+  .get("/:taskId", async ({ params, set }: { params: { taskId: string }; set: { status: number } }) => {
     const taskId = parseInt(params.taskId);
 
     const config = await prisma.taskAnalysisConfig.findUnique({
@@ -62,7 +62,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
         autoOptimizePrompt?: boolean;
         notifyOnComplete?: boolean;
       };
-      set: any;
+      set: { status: number };
     }) => {
       const taskId = parseInt(params.taskId);
 
@@ -189,7 +189,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
         autoOptimizePrompt?: boolean;
         notifyOnComplete?: boolean;
       };
-      set: any;
+      set: { status: number };
     }) => {
       const taskId = parseInt(params.taskId);
 
@@ -258,7 +258,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
   )
 
   // タスク分析設定の削除（デフォルトに戻す）
-  .delete("/:taskId", async ({ params, set }: { params: { taskId: string }; set: any }) => {
+  .delete("/:taskId", async ({ params, set }: { params: { taskId: string }; set: { status: number } }) => {
     const taskId = parseInt(params.taskId);
 
     const existing = await prisma.taskAnalysisConfig.findUnique({

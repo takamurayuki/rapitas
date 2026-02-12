@@ -86,9 +86,9 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
       let entries;
       try {
         entries = fs.readdirSync(normalizedPath, { withFileTypes: true });
-      } catch (e: any) {
+      } catch (e) {
         return {
-          error: `アクセスできません: ${e.message}`,
+          error: `アクセスできません: ${e instanceof Error ? e.message : String(e)}`,
           path: normalizedPath,
         };
       }
@@ -130,8 +130,8 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
         isGitRepo: fs.existsSync(path.join(normalizedPath, ".git")),
         isDriveList: false,
       };
-    } catch (error: any) {
-      return { error: error.message || "ディレクトリの取得に失敗しました" };
+    } catch (error) {
+      return { error: (error instanceof Error ? error.message : String(error)) || "ディレクトリの取得に失敗しました" };
     }
   })
 
@@ -162,8 +162,8 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
           path: normalizedPath,
           isGitRepo: fs.existsSync(path.join(normalizedPath, ".git")),
         };
-      } catch (error: any) {
-        return { valid: false, error: error.message || "検証に失敗しました" };
+      } catch (error) {
+        return { valid: false, error: (error instanceof Error ? error.message : String(error)) || "検証に失敗しました" };
       }
     },
     {
@@ -184,8 +184,8 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
         exists: fs.existsSync(fav.path),
         isGitRepo: fs.existsSync(path.join(fav.path, ".git")),
       }));
-    } catch (error: any) {
-      return { error: error.message || "お気に入りの取得に失敗しました" };
+    } catch (error) {
+      return { error: (error instanceof Error ? error.message : String(error)) || "お気に入りの取得に失敗しました" };
     }
   })
 
@@ -222,8 +222,8 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
           exists: fs.existsSync(normalizedPath),
           isGitRepo: fs.existsSync(path.join(normalizedPath, ".git")),
         };
-      } catch (error: any) {
-        return { error: error.message || "お気に入りの追加に失敗しました" };
+      } catch (error) {
+        return { error: (error instanceof Error ? error.message : String(error)) || "お気に入りの追加に失敗しました" };
       }
     },
     {
@@ -258,8 +258,8 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
           exists: fs.existsSync(favorite.path),
           isGitRepo: fs.existsSync(path.join(favorite.path, ".git")),
         };
-      } catch (error: any) {
-        return { error: error.message || "お気に入りの更新に失敗しました" };
+      } catch (error) {
+        return { error: (error instanceof Error ? error.message : String(error)) || "お気に入りの更新に失敗しました" };
       }
     },
   )
@@ -302,10 +302,10 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
           path: normalizedPath,
           isGitRepo: false,
         };
-      } catch (error: any) {
+      } catch (error) {
         return {
           success: false,
-          error: error.message || "フォルダの作成に失敗しました",
+          error: (error instanceof Error ? error.message : String(error)) || "フォルダの作成に失敗しました",
         };
       }
     },
@@ -323,7 +323,7 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
     try {
       await prisma.favoriteDirectory.delete({ where: { id } });
       return { success: true };
-    } catch (error: any) {
-      return { error: error.message || "お気に入りの削除に失敗しました" };
+    } catch (error) {
+      return { error: (error instanceof Error ? error.message : String(error)) || "お気に入りの削除に失敗しました" };
     }
   });

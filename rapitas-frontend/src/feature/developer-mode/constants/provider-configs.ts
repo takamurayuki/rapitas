@@ -61,11 +61,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
   gemini: {
     name: "Gemini CLI",
     color: "text-blue-500",
-    defaultModel: "gemini-2.5-pro",
+    defaultModel: "gemini-2.0-flash",
     models: [
-      { id: "gemini-2.5-pro", name: "2.5 Pro", description: "最高性能" },
-      { id: "gemini-2.5-flash", name: "2.5 Flash", description: "高速" },
-      { id: "gemini-2.0-flash", name: "2.0 Flash", description: "軽量・高速" },
+      { id: "gemini-1.5-pro", name: "1.5 Pro", description: "最高性能・長文対応" },
+      { id: "gemini-1.5-flash", name: "1.5 Flash", description: "バランス型" },
+      { id: "gemini-2.0-flash", name: "2.0 Flash", description: "最新・高速" },
+      { id: "gemini-2.0-flash-thinking", name: "2.0 Flash Thinking", description: "推論特化" },
     ],
     requiresApiKey: false,
   },

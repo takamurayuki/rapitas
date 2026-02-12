@@ -180,28 +180,12 @@ export default function ShortcutSettingsPage() {
         return;
       }
 
-      const newBinding = {
-        key,
-        meta: e.metaKey || (e.ctrlKey && !e.altKey),
-        shift: e.shiftKey,
-        ctrl: e.ctrlKey && !e.metaKey && e.altKey ? false : e.ctrlKey && !e.metaKey ? true : false,
-      };
-
-      // meta と ctrl の区別: ctrl 単独ならctrl=true, meta=false
-      // Ctrl (Windowsで=meta的な使い方) の場合は meta=true, ctrl=false とする
-      // 簡略化: Ctrlが押されていてShiftも考慮
       const binding: Pick<ShortcutBinding, "key" | "meta" | "shift" | "ctrl"> = {
         key,
         meta: e.ctrlKey || e.metaKey,
         shift: e.shiftKey,
         ctrl: false,
       };
-
-      // ctrlOnly のパターン（Ctrl+E のような alt なしの場合）
-      // 元の KeyboardShortcuts.tsx のロジックに合わせる
-      // meta=true は Ctrl/Cmd として扱われる、ctrl=true は Ctrl 専用
-      // ここではシンプルに: Ctrl/Cmd が押されていたら meta=true とする
-      // ただし、特殊なケース（Ctrl のみで meta ではない）は ctrl=true, meta=false
 
       setEditBinding(binding);
       setIsRecordingInApp(false);

@@ -60,10 +60,10 @@ export const screenshotsRoutes = new Elysia()
           success: true,
           screenshots: results,
         };
-      } catch (error: any) {
+      } catch (error) {
         return {
           success: false,
-          error: error.message,
+          error: (error instanceof Error ? error.message : String(error)),
           screenshots: [],
         };
       }
@@ -87,10 +87,10 @@ export const screenshotsRoutes = new Elysia()
           success: true,
           screenshots: results,
         };
-      } catch (error: any) {
+      } catch (error) {
         return {
           success: false,
-          error: error.message,
+          error: (error instanceof Error ? error.message : String(error)),
           screenshots: [],
         };
       }
@@ -115,10 +115,10 @@ export const screenshotsRoutes = new Elysia()
           pages,
           totalPages: pages.length,
         };
-      } catch (error: any) {
+      } catch (error) {
         return {
           success: false,
-          error: error.message,
+          error: (error instanceof Error ? error.message : String(error)),
         };
       }
     },
@@ -139,10 +139,10 @@ export const screenshotsRoutes = new Elysia()
           success: true,
           project: projectInfo,
         };
-      } catch (error: any) {
+      } catch (error) {
         return {
           success: false,
-          error: error.message,
+          error: (error instanceof Error ? error.message : String(error)),
         };
       }
     },

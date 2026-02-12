@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
-  AlertTriangle,
   Play,
   X,
   ChevronDown,
@@ -14,7 +13,7 @@ import {
   RotateCcw,
   Bot,
 } from "lucide-react";
-import { API_BASE_URL } from "@/utils/api";
+import { API_BASE_URL, fetchWithRetry } from "@/utils/api";
 import { useBackendHealth } from "@/hooks/use-backend-health";
 import { useExecutionStateStore } from "@/stores/executionStateStore";
 
@@ -57,20 +56,23 @@ export function ResumableExecutionsBanner() {
   // バックエンドから自動再開設定を取得
   const fetchAutoResumeSetting = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/settings`);
+      const res = await fetchWithRetry(`${API_BASE_URL}/settings`);
       if (res.ok) {
         const data = await res.json();
         setAutoResume(data.autoResumeInterruptedTasks ?? false);
+      } else {
+        console.warn(`Failed to fetch auto-resume setting: ${res.status} ${res.statusText}`);
       }
     } catch (error) {
       console.error("Failed to fetch auto-resume setting:", error);
+      // Don't break the component if settings can't be fetched
     }
   }, []);
 
   // Fetch resumable executions on mount
   const fetchResumableExecutions = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/agents/resumable-executions`);
+      const res = await fetchWithRetry(`${API_BASE_URL}/agents/resumable-executions`);
       if (res.ok) {
         const data: ResumableExecution[] = await res.json();
         setExecutions((prev) => {
@@ -83,9 +85,12 @@ export function ResumableExecutionsBanner() {
           return data;
         });
         return data;
+      } else {
+        console.warn(`Failed to fetch resumable executions: ${res.status} ${res.statusText}`);
       }
     } catch (error) {
       console.error("Failed to fetch resumable executions:", error);
+      // If the fetch fails completely, keep existing executions but stop loading
     } finally {
       setIsLoading(false);
     }
@@ -177,7 +182,7 @@ export function ResumableExecutionsBanner() {
     setResumingIds((prev) => new Set(prev).add(executionId));
 
     try {
-      const res = await fetch(
+      const res = await fetchWithRetry(
         `${API_BASE_URL}/agents/executions/${executionId}/resume`,
         {
           method: "POST",
@@ -196,7 +201,11 @@ export function ResumableExecutionsBanner() {
           window.location.href = `/tasks/${data.taskId}?showHeader=true`;
         }
       } else {
-        console.error("Failed to resume execution");
+        console.error(`Failed to resume execution: ${res.status} ${res.statusText}`);
+        if (!isAutoResume) {
+          // Show user-friendly error for manual resume attempts
+          alert(`実行の再開に失敗しました。${res.status} エラーが発生しました。`);
+        }
       }
     } catch (error) {
       console.error("Error resuming execution:", error);
@@ -222,7 +231,7 @@ export function ResumableExecutionsBanner() {
     setDismissingIds((prev) => new Set(prev).add(executionId));
 
     try {
-      const res = await fetch(
+      const res = await fetchWithRetry(
         `${API_BASE_URL}/agents/executions/${executionId}/acknowledge`,
         {
           method: "POST",
@@ -232,6 +241,8 @@ export function ResumableExecutionsBanner() {
       if (res.ok) {
         // Remove from list
         setExecutions((prev) => prev.filter((e) => e.id !== executionId));
+      } else {
+        console.error(`Failed to dismiss execution: ${res.status} ${res.statusText}`);
       }
     } catch (error) {
       console.error("Error dismissing execution:", error);

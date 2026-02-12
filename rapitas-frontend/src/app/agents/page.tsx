@@ -541,6 +541,11 @@ export default function AgentsPage() {
                       </option>
                     ))}
                   </select>
+                  {developmentAgent.type === "codex" && developmentAgent.model === "gpt-4o" && (
+                    <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                      注意: ChatGPTアカウントではgpt-4oは使用できません。gpt-4-turboまたはgpt-3.5-turboを推奨します。
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -616,6 +621,11 @@ export default function AgentsPage() {
                       </option>
                     ))}
                   </select>
+                  {reviewAgent.type === "codex" && reviewAgent.model === "gpt-4o" && (
+                    <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                      注意: ChatGPTアカウントではgpt-4oは使用できません。gpt-4-turboまたはgpt-3.5-turboを推奨します。
+                    </p>
+                  )}
                 </div>
               )}
 

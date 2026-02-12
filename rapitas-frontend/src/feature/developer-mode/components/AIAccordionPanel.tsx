@@ -23,7 +23,6 @@ import {
   HelpCircle,
   Square,
   RefreshCw,
-  Terminal,
   ExternalLink,
   GitBranch,
   ListTodo,
@@ -40,7 +39,6 @@ import type {
   ExecutionStatus,
   ExecutionResult,
 } from "../hooks/useDeveloperMode";
-import { TerminalPanel } from "./TerminalPanel";
 import {
   useExecutionPolling,
   useExecutionStream,
@@ -108,7 +106,6 @@ type Props = {
   optimizedPrompt?: string | null;
   resources?: Resource[];
   agentConfigId?: number | null;
-  // TerminalPanel props
   agents?: AIAgentConfig[];
   onAgentChange?: (agentId: number) => void;
   onExecute: (options?: {
@@ -205,8 +202,6 @@ export function AIAccordionPanel({
   const [expandedSection, setExpandedSection] =
     useState<AccordionSection | null>(null);
   const [analysisTab, setAnalysisTab] = useState<AnalysisTabType>("subtasks");
-  const [showTerminal, setShowTerminal] = useState(false);
-
   // 分析パネルの状態
   const [selectedSubtasks, setSelectedSubtasks] = useState<number[]>([]);
   const [isCreatingSubtasks, setIsCreatingSubtasks] = useState(false);
@@ -1573,40 +1568,6 @@ export function AIAccordionPanel({
         </div>
       )}
 
-      {/* ターミナルパネル */}
-      {showAgentPanel && agents && agents.length > 0 && (
-        <div className="border-t border-zinc-100 dark:border-zinc-800">
-          {!showTerminal ? (
-            <div className="px-4 py-3 flex items-center justify-center">
-              <button
-                onClick={() => setShowTerminal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-zinc-800 hover:bg-zinc-800 dark:hover:bg-zinc-700 text-green-400 text-xs font-medium rounded-lg transition-colors border border-zinc-700 dark:border-zinc-600"
-              >
-                <Terminal className="w-4 h-4" />
-                ターミナルを起動
-              </button>
-            </div>
-          ) : (
-            <div className="px-4 pb-3 pt-2">
-              <TerminalPanel
-                taskId={taskId}
-                agents={agents}
-                selectedAgentId={agentConfigId ?? null}
-                onAgentChange={onAgentChange ?? (() => {})}
-                isExecuting={isExecuting}
-                executionStatus={executionStatus}
-                executionResult={executionResult}
-                onExecute={onExecute}
-                onReset={onReset}
-                onStopExecution={onStopExecution}
-                onRestoreExecutionState={onRestoreExecutionState}
-                optimizedPrompt={optimizedPrompt}
-                useTaskAnalysis={useTaskAnalysis}
-              />
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

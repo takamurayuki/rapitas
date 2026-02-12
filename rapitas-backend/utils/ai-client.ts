@@ -43,7 +43,7 @@ const PROVIDER_MODEL_COLUMNS: Record<AIProvider, ProviderModelColumn> = {
 const DEFAULT_MODELS: Record<AIProvider, string> = {
   claude: "claude-sonnet-4-20250514",
   chatgpt: "gpt-4o",
-  gemini: "gemini-2.0-flash",
+  gemini: "gemini-2.5-flash",
 };
 
 /**

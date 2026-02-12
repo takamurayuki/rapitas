@@ -301,13 +301,15 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         className={
           log.includes("[エラー]")
             ? "text-red-400"
-            : log.includes("[実行開始]") ||
-                log.includes("[継続]") ||
-                log.includes("[完了]")
-              ? "text-blue-400"
-              : /^\[.+?\]/.test(log.trimStart())
-                ? "text-cyan-400"
-                : ""
+            : log.includes("[エージェント]")
+              ? "text-emerald-400 font-semibold"
+              : log.includes("[実行開始]") ||
+                  log.includes("[継続]") ||
+                  log.includes("[完了]")
+                ? "text-blue-400"
+                : /^\[.+?\]/.test(log.trimStart())
+                  ? "text-cyan-400"
+                  : ""
         }
       >
         {searchQuery ? highlightText(log, searchQuery) : log}

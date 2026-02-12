@@ -210,8 +210,8 @@ export function ExecutionReviewPanel({
       } else {
         setCaptureError(data.error || "スクリーンショットの撮影に失敗しました");
       }
-    } catch (err: any) {
-      setCaptureError(err.message || "スクリーンショットの撮影に失敗しました");
+    } catch (err) {
+      setCaptureError(err instanceof Error ? err.message : "スクリーンショットの撮影に失敗しました");
     } finally {
       setIsCapturing(false);
     }
