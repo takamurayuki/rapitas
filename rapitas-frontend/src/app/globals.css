@@ -97,6 +97,15 @@ html {
   -ms-overflow-style: none; /* IE/Edge: デフォルトで非表示 */
 }
 
+/* Floating AI Menu のz-index設定 */
+.floating-ai-menu-panel {
+  z-index: 9999;
+}
+
+.floating-ai-menu-button {
+  z-index: 9999;
+}
+
 /* スクロール可能な場合のみスクロールバーを表示 */
 .scrollbar-thin:hover {
   scrollbar-width: thin;

@@ -3,6 +3,7 @@
  */
 import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
+import { decrypt } from "../utils/encryption";
 
 export const flashcardsRoutes = new Elysia()
   .get("/flashcard-decks", async () => {
@@ -183,4 +184,157 @@ export const flashcardsRoutes = new Elysia()
       },
       orderBy: { nextReview: "asc" },
     });
-  });
+  })
+
+  // AIでフラッシュカードを自動生成
+  .post(
+    "/flashcard-decks/:deckId/generate",
+    async ({
+      params,
+      body,
+    }: {
+      params: { deckId: string };
+      body: {
+        topic: string;
+        count?: number;
+        difficulty?: "beginner" | "intermediate" | "advanced";
+        language?: "ja" | "en";
+      };
+    }) => {
+      const deckId = parseInt(params.deckId);
+      const { topic, count = 10, difficulty = "intermediate", language = "ja" } = body;
+
+      // デッキの存在確認
+      const deck = await prisma.flashcardDeck.findUnique({
+        where: { id: deckId },
+      });
+      if (!deck) {
+        return { error: "Deck not found" };
+      }
+
+      // APIキーの取得
+      const settings = await prisma.userSettings.findFirst();
+      let apiKey: string | undefined;
+
+      if (settings?.claudeApiKeyEncrypted) {
+        try {
+          apiKey = decrypt(settings.claudeApiKeyEncrypted);
+        } catch (error) {
+          console.error("Failed to decrypt API key:", error);
+          return { error: "Failed to decrypt API key" };
+        }
+      } else {
+        apiKey = process.env.CLAUDE_API_KEY;
+      }
+
+      if (!apiKey) {
+        return { error: "API key not configured" };
+      }
+
+      try {
+        // Claude APIを使用してフラッシュカードを生成
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model: "claude-3-haiku-20240307",
+            max_tokens: 4096,
+            messages: [
+              {
+                role: "user",
+                content: `
+${language === "ja" ?
+`「${topic}」に関するフラッシュカードを${count}枚作成してください。
+
+条件：
+- 難易度: ${difficulty === "beginner" ? "初級" : difficulty === "intermediate" ? "中級" : "上級"}
+- 各カードは「質問」と「回答」のペアで構成
+- 学習効果を高めるため、段階的に難しくなるように配置
+- 回答は簡潔で覚えやすく、必要に応じて例や説明を含める
+
+以下のJSON形式で出力してください：
+{
+  "cards": [
+    {
+      "front": "質問内容",
+      "back": "回答内容"
+    }
+  ]
+}` :
+`Create ${count} flashcards about "${topic}".
+
+Requirements:
+- Difficulty level: ${difficulty}
+- Each card consists of a "question" and "answer" pair
+- Arrange cards progressively from easier to harder concepts
+- Answers should be concise, memorable, and include examples when helpful
+
+Output in the following JSON format:
+{
+  "cards": [
+    {
+      "front": "Question text",
+      "back": "Answer text"
+    }
+  ]
+}`}`,
+              },
+            ],
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`API request failed: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const content = data.content[0].text;
+
+        // JSON部分を抽出
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          throw new Error("Failed to parse AI response");
+        }
+
+        const generatedData = JSON.parse(jsonMatch[0]);
+        const cards = generatedData.cards;
+
+        // フラッシュカードをDBに保存
+        const createdCards = await Promise.all(
+          cards.map((card: { front: string; back: string }) =>
+            prisma.flashcard.create({
+              data: {
+                deckId,
+                front: card.front,
+                back: card.back,
+              },
+            })
+          )
+        );
+
+        return {
+          success: true,
+          cardsCreated: createdCards.length,
+          cards: createdCards,
+        };
+      } catch (error) {
+        console.error("Error generating flashcards:", error);
+        return {
+          error: "Failed to generate flashcards",
+          details: error instanceof Error ? error.message : "Unknown error",
+        };
+      }
+    },
+    {
+      body: t.Object({
+        topic: t.String({ minLength: 1 }),
+        count: t.Optional(t.Number({ minimum: 1, maximum: 50 })),
+        difficulty: t.Optional(t.Enum({ beginner: "beginner", intermediate: "intermediate", advanced: "advanced" })),
+        language: t.Optional(t.Enum({ ja: "ja", en: "en" })),
+      }),
+    }
+  );

@@ -162,7 +162,8 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
 2. 各フェーズには具体的な学習ソース（書籍名、Webサイト、コース名、問題集など）を明記する
 3. タスクは「〜を読む」「〜を解く」「〜を実装する」のように具体的なアクションにする
 4. 期限に合わせた現実的なペース配分にする
-5. 必要に応じてサブタスク（より細かい学習ステップ）を含める
+5. サブタスクは実施順序を考慮して、ステップバイステップで実行可能な粒度にする
+6. 各サブタスクには必ず見積もり時間を設定し、全サブタスクの合計時間がタスクの見積もり時間と一致するようにする
 
 必ず以下のJSON形式で回答してください：
 {
@@ -181,9 +182,9 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
           "priority": "high" | "medium" | "low",
           "subtasks": [
             {
-              "title": "サブタスク名",
-              "description": "サブタスクの説明",
-              "estimatedHours": 見積もり時間
+              "title": "サブタスク名（具体的なステップ）",
+              "description": "サブタスクの詳細説明。何を、どのように、どこまで実施するか明確に記載",
+              "estimatedHours": 見積もり時間（必須、0.5時間単位）
             }
           ]
         }
@@ -215,8 +216,13 @@ ${goal.targetLevel || "未指定"}
 ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
 
 上記の学習目標に対して、期限内に達成するための具体的な学習プランを生成してください。
-各タスクには必ず具体的な学習ソース（書籍、Webサイト、動画、問題集など）を説明に含めてください。
-サブタスクは必要に応じて含め、タスクが大きすぎる場合は分割してください。`;
+
+重要：
+- 各タスクには必ず具体的な学習ソース（書籍、Webサイト、動画、問題集など）を説明に含めてください
+- サブタスクは実行順序を考慮し、前のサブタスクの成果物や知識を次のサブタスクで使うような流れにしてください
+- サブタスクの粒度は1〜4時間で完了できるものにし、具体的に何をするか一目でわかるようにしてください
+- 各サブタスクには必ず見積もり時間を0.5時間単位で設定してください
+- サブタスクの合計時間がタスクの見積もり時間と一致するようにしてください`;
 
       try {
         const provider = await getDefaultProvider();
@@ -324,12 +330,25 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
           },
         });
 
-        // サブタスクがあれば作成
+        // サブタスクがあれば作成（順序を保持）
         if (taskDef.subtasks && taskDef.subtasks.length > 0) {
-          for (const sub of taskDef.subtasks) {
+          const hoursPerDay = Math.min(goal.dailyHours, 8); // 1日あたりの最大学習時間
+          let accumulatedDays = 0;
+
+          for (let i = 0; i < taskDef.subtasks.length; i++) {
+            const sub = taskDef.subtasks[i];
+            const subtaskDays = Math.ceil((sub.estimatedHours || 0) / hoursPerDay);
+
+            // サブタスクの期限を計算（親タスクの期限内に収める）
+            const subtaskDueDate = new Date(currentDate);
+            subtaskDueDate.setDate(subtaskDueDate.getDate() + accumulatedDays + subtaskDays);
+
+            // 期限が親タスクの期限を超えないように調整
+            const adjustedDueDate = subtaskDueDate > phaseEndDate ? phaseEndDate : subtaskDueDate;
+
             await prisma.task.create({
               data: {
-                title: sub.title,
+                title: `${i + 1}. ${sub.title}`,
                 description: sub.description || null,
                 status: "todo",
                 priority: taskDef.priority || "medium",
@@ -337,8 +356,12 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
                 parentId: task.id,
                 themeId: theme.id,
                 subject: goal.title,
+                dueDate: adjustedDueDate,
+                createdAt: new Date(Date.now() + i * 1000), // createdAtで順序を保証
               },
             });
+
+            accumulatedDays += subtaskDays;
           }
         }
 
@@ -419,12 +442,46 @@ function generateFallbackPlan(
             description: `${title}に関する基礎知識を体系的に学習します。入門書やオンラインコースを活用してください。`,
             estimatedHours: dailyHours * 5,
             priority: "high",
+            subtasks: [
+              {
+                title: "入門教材の選定と学習環境の準備",
+                description: "評価の高い入門書やオンラインコースを選び、学習環境を整えます",
+                estimatedHours: 2,
+              },
+              {
+                title: "基本概念の理解（第1週）",
+                description: "選定した教材の前半部分を学習し、基本用語と概念を理解します",
+                estimatedHours: Math.floor((dailyHours * 5 - 2) / 2),
+              },
+              {
+                title: "基本概念の定着（第2週）",
+                description: "教材の後半部分を学習し、演習問題やサンプルで理解を深めます",
+                estimatedHours: Math.ceil((dailyHours * 5 - 2) / 2),
+              },
+            ],
           },
           {
             title: "学習ロードマップの作成",
             description: `${currentLevel || "現在のレベル"}から${targetLevel || "目標レベル"}に到達するためのロードマップを整理します。`,
             estimatedHours: 2,
             priority: "high",
+            subtasks: [
+              {
+                title: "現在のスキルレベルの棚卸し",
+                description: "現在できること・できないことを具体的にリストアップします",
+                estimatedHours: 0.5,
+              },
+              {
+                title: "目標達成に必要なスキルの洗い出し",
+                description: "目標レベルに必要なスキルを調査し、習得すべき項目を特定します",
+                estimatedHours: 1,
+              },
+              {
+                title: "学習計画の具体化",
+                description: "優先順位をつけて、週単位・月単位の学習計画を立てます",
+                estimatedHours: 0.5,
+              },
+            ],
           },
         ],
       },
@@ -438,12 +495,41 @@ function generateFallbackPlan(
             description: "基礎知識を活かした応用的な課題やプロジェクトに取り組みます。",
             estimatedHours: dailyHours * 7,
             priority: "high",
+            subtasks: [
+              {
+                title: "実践課題の選定",
+                description: "現在のレベルに適した実践的な課題やミニプロジェクトを選びます",
+                estimatedHours: 1,
+              },
+              {
+                title: "課題への取り組み（前半）",
+                description: "選定した課題に着手し、基礎知識を応用しながら進めます",
+                estimatedHours: Math.floor((dailyHours * 7 - 1) / 2),
+              },
+              {
+                title: "課題への取り組み（後半）と振り返り",
+                description: "課題を完成させ、学んだことを整理・記録します",
+                estimatedHours: Math.ceil((dailyHours * 7 - 1) / 2),
+              },
+            ],
           },
           {
             title: "弱点分野の補強",
             description: "基礎段階で見つかった弱点を重点的に学習します。",
             estimatedHours: dailyHours * 3,
             priority: "medium",
+            subtasks: [
+              {
+                title: "弱点の特定と優先順位付け",
+                description: "実践を通じて明らかになった弱点を整理し、優先順位をつけます",
+                estimatedHours: 0.5,
+              },
+              {
+                title: "重点学習の実施",
+                description: "優先度の高い弱点から順に、追加教材や演習で補強します",
+                estimatedHours: dailyHours * 3 - 0.5,
+              },
+            ],
           },
         ],
       },
@@ -457,12 +543,41 @@ function generateFallbackPlan(
             description: `${targetLevel || "目標レベル"}に到達しているかを確認する実力テストを行います。`,
             estimatedHours: dailyHours * 3,
             priority: "high",
+            subtasks: [
+              {
+                title: "模擬テストや実践課題の準備",
+                description: "目標レベルを測定できる適切なテストや課題を選定します",
+                estimatedHours: 1,
+              },
+              {
+                title: "実力テストの実施",
+                description: "時間を計って本番同様の環境でテストを実施します",
+                estimatedHours: dailyHours * 3 - 2,
+              },
+              {
+                title: "結果の分析と改善点の特定",
+                description: "テスト結果を分析し、最終調整が必要な箇所を明確にします",
+                estimatedHours: 1,
+              },
+            ],
           },
           {
             title: "復習と最終調整",
             description: "これまでの学習内容を振り返り、不足している部分を補強します。",
             estimatedHours: dailyHours * 5,
             priority: "medium",
+            subtasks: [
+              {
+                title: "重要項目の総復習",
+                description: "これまでに学んだ重要概念やスキルを体系的に復習します",
+                estimatedHours: Math.floor(dailyHours * 5 / 2),
+              },
+              {
+                title: "最終調整と仕上げ",
+                description: "実力テストで判明した弱点を重点的に補強し、目標達成を確実にします",
+                estimatedHours: Math.ceil(dailyHours * 5 / 2),
+              },
+            ],
           },
         ],
       },

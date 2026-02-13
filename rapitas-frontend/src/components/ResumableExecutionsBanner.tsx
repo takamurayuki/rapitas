@@ -44,6 +44,7 @@ export function ResumableExecutionsBanner() {
   const [resumingIds, setResumingIds] = useState<Set<number>>(new Set());
   const [dismissingIds, setDismissingIds] = useState<Set<number>>(new Set());
   const [autoResume, setAutoResume] = useState(false);
+  const [connectionError, setConnectionError] = useState<Error | null>(null);
 
   // セッション中に一度だけ自動再開を実行するためのフラグ
   const autoResumeCheckedRef = useRef(false);
@@ -56,7 +57,7 @@ export function ResumableExecutionsBanner() {
   // バックエンドから自動再開設定を取得
   const fetchAutoResumeSetting = useCallback(async () => {
     try {
-      const res = await fetchWithRetry(`${API_BASE_URL}/settings`);
+      const res = await fetchWithRetry(`${API_BASE_URL}/settings`, undefined, 2, 500);
       if (res.ok) {
         const data = await res.json();
         setAutoResume(data.autoResumeInterruptedTasks ?? false);
@@ -65,14 +66,16 @@ export function ResumableExecutionsBanner() {
       }
     } catch (error) {
       console.error("Failed to fetch auto-resume setting:", error);
-      // Don't break the component if settings can't be fetched
+      // バックエンドが利用できない場合はデフォルト値を使用
+      setAutoResume(false);
     }
   }, []);
 
   // Fetch resumable executions on mount
   const fetchResumableExecutions = useCallback(async () => {
     try {
-      const res = await fetchWithRetry(`${API_BASE_URL}/agents/resumable-executions`);
+      setConnectionError(null);
+      const res = await fetchWithRetry(`${API_BASE_URL}/agents/resumable-executions`, undefined, 2, 500);
       if (res.ok) {
         const data: ResumableExecution[] = await res.json();
         setExecutions((prev) => {
@@ -87,10 +90,14 @@ export function ResumableExecutionsBanner() {
         return data;
       } else {
         console.warn(`Failed to fetch resumable executions: ${res.status} ${res.statusText}`);
+        // エラーレスポンスの場合は空配列を設定
+        setExecutions([]);
       }
     } catch (error) {
       console.error("Failed to fetch resumable executions:", error);
-      // If the fetch fails completely, keep existing executions but stop loading
+      // ネットワークエラーの場合は接続エラーとして記録
+      setConnectionError(error instanceof Error ? error : new Error(String(error)));
+      setExecutions([]);
     } finally {
       setIsLoading(false);
     }
@@ -98,15 +105,21 @@ export function ResumableExecutionsBanner() {
   }, []);
 
   // バックエンド復帰時に再フェッチする
-  useBackendHealth({
+  const { isConnected } = useBackendHealth({
     onReconnect: () => {
       console.log("[ResumableExecutionsBanner] Backend reconnected, re-fetching executions");
       setIsLoading(true);
+      setConnectionError(null);
       fetchResumableExecutions();
+    },
+    onDisconnect: () => {
+      console.log("[ResumableExecutionsBanner] Backend disconnected");
+      setConnectionError(new Error("バックエンドサーバーとの接続が切断されました"));
     },
   });
 
   useEffect(() => {
+    console.log("[ResumableExecutionsBanner] Component mounted, fetching initial data");
     fetchAutoResumeSetting();
     fetchResumableExecutions();
   }, [fetchAutoResumeSetting, fetchResumableExecutions]);
@@ -122,7 +135,7 @@ export function ResumableExecutionsBanner() {
 
   // 定期的にポーリングして新しい実行の開始や完了を検出する
   useEffect(() => {
-    if (isDismissed) return;
+    if (isDismissed || !isConnected) return;
 
     const hasRunningExecutions = executions.some(
       (e) => e.status === "running" || e.status === "waiting_for_input",
@@ -131,11 +144,14 @@ export function ResumableExecutionsBanner() {
     const pollInterval = hasRunningExecutions ? 10000 : 15000;
 
     const interval = setInterval(() => {
-      fetchResumableExecutions();
+      // バックエンドが接続されている場合のみポーリング
+      if (isConnected) {
+        fetchResumableExecutions();
+      }
     }, pollInterval);
 
     return () => clearInterval(interval);
-  }, [executions, isDismissed, fetchResumableExecutions]);
+  }, [executions, isDismissed, isConnected, fetchResumableExecutions]);
 
   // Auto-resume logic - セッション中に一度だけ実行
   useEffect(() => {
@@ -295,9 +311,43 @@ export function ResumableExecutionsBanner() {
     (e) => e.status === "interrupted",
   ).length;
 
-  // Don't show if loading, dismissed, or no executions
-  if (isLoading || isDismissed || executions.length === 0) {
+  // Don't show if loading, dismissed, or (no executions and no error)
+  if (isLoading || isDismissed || (executions.length === 0 && !connectionError)) {
     return null;
+  }
+
+  // Show error state if there's a connection error
+  if (connectionError && !isConnected) {
+    return (
+      <div className="fixed bottom-20 right-6 z-50 max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
+        <div className="border rounded-2xl shadow-xl overflow-hidden backdrop-blur-sm bg-red-50 dark:bg-red-950/95 border-red-200/80 dark:border-red-700/60">
+          <div className="px-4 py-3.5">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-red-500 shadow-lg">
+                <X className="w-4 h-4 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-sm text-red-900 dark:text-red-100">
+                  接続エラー
+                </h3>
+                <p className="text-xs text-red-600 dark:text-red-400">
+                  バックエンドサーバーに接続できません
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setConnectionError(null);
+                  fetchResumableExecutions();
+                }}
+                className="p-1.5 rounded-lg hover:bg-red-200/60 dark:hover:bg-red-800/40"
+              >
+                <RotateCcw className="w-4 h-4 text-red-600 dark:text-red-400" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // バナーのスタイルを実行中と中断で切り替え

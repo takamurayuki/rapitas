@@ -16,7 +16,7 @@ interface SplitViewData {
     x: number;
     y: number;
   };
-  timeout: NodeJS.Timeout;
+  timeout: NodeJS.Timeout | null;
   unlisten: () => void;
 }
 
@@ -25,6 +25,9 @@ interface SplitViewData {
  */
 interface ExtendedWindow extends Window {
   __RAPITAS_SPLIT_VIEW__?: SplitViewData;
+  __RAPITAS_OPENING_EXTERNAL__?: boolean;
+  __RAPITAS_EXTERNAL_URL_QUEUE__?: Set<string>;
+  __RAPITAS_EXTERNAL_URL_TIMESTAMPS__?: Map<string, number>;
 }
 
 /**
@@ -111,7 +114,7 @@ export async function hideToTray(): Promise<void> {
 
 /**
  * 外部URLを分割表示で開く（Tauri v2）
- * メインウィンドウを右半分に配置し、システムのデフォルトブラウザで外部リンクを左側に表示
+ * メインウィンドウを左半分に配置し、システムのデフォルトブラウザで外部リンクを右側に表示
  * @param url 開くURL
  * @param title ウィンドウタイトル（未使用、互換性のため残存）
  */
@@ -125,6 +128,28 @@ export async function openExternalUrlInSplitView(
     return;
   }
 
+  // 処理中URLのタイムスタンプを管理するマップを初期化
+  if (!(window as any).__RAPITAS_EXTERNAL_URL_TIMESTAMPS__) {
+    (window as any).__RAPITAS_EXTERNAL_URL_TIMESTAMPS__ = new Map<
+      string,
+      number
+    >();
+  }
+
+  const urlTimestamps = (window as any)
+    .__RAPITAS_EXTERNAL_URL_TIMESTAMPS__ as Map<string, number>;
+  const now = Date.now();
+
+  // 同じURLが100ms以内に処理された場合はスキップ（ダブルクリック防止）
+  const lastTimestamp = urlTimestamps.get(url);
+  if (lastTimestamp && now - lastTimestamp < 100) {
+    console.log("URL was recently processed, skipping...", url);
+    return;
+  }
+
+  // タイムスタンプを記録
+  urlTimestamps.set(url, now);
+
   try {
     // Tauri v2の公式APIを動的にインポート
     const windowModule = await import("@tauri-apps/api/window");
@@ -132,86 +157,118 @@ export async function openExternalUrlInSplitView(
     const { LogicalSize, LogicalPosition } =
       await import("@tauri-apps/api/dpi");
 
-    const win = windowModule.getCurrentWindow();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const win = windowModule.getCurrentWindow() as any;
 
-    // 利用可能なモニター一覧を取得
-    const monitors = await windowModule.availableMonitors();
-    if (!monitors || monitors.length === 0) {
+    // 既に分割表示中の場合は、新しいURLをブラウザで開くのみ
+    if (isSplitViewActive()) {
+      await open(url);
+      return;
+    }
+
+    // 現在のモニター情報を取得
+    // win.currentMonitor は環境によって未実装/関数でないケースがあるため使用しない
+    const primaryMonitor =
+      (typeof windowModule.primaryMonitor === "function"
+        ? await windowModule.primaryMonitor()
+        : undefined) ||
+      // 最後の手段として availableMonitors の先頭を使用
+      (
+        (typeof windowModule.availableMonitors === "function"
+          ? await windowModule.availableMonitors()
+          : []) as any[]
+      )?.[0];
+
+    if (!primaryMonitor) {
       throw new Error("モニター情報を取得できませんでした");
     }
 
-    // プライマリモニターまたは最初のモニターを使用
-    const primaryMonitor =
-      monitors.find((m) => m.name === "Primary") || monitors[0];
-
-    const { width, height } = primaryMonitor.size;
+    const { width: screenWidth, height: screenHeight } = primaryMonitor.size;
     const scaleFactor = primaryMonitor.scaleFactor || 1;
+    const screenPos = primaryMonitor.position || { x: 0, y: 0 };
 
     // 論理サイズに変換
-    const logicalWidth = Math.floor(width / scaleFactor);
-    const logicalHeight = Math.floor(height / scaleFactor);
+    const logicalScreenWidth = Math.floor(screenWidth / scaleFactor);
+    const logicalScreenHeight = Math.floor(screenHeight / scaleFactor);
+    const logicalMonitorX = Math.floor(screenPos.x / scaleFactor);
+    const logicalMonitorY = Math.floor(screenPos.y / scaleFactor);
 
     // 元のウィンドウサイズと位置を保存（復元用）
     const originalSize = await win.outerSize();
     const originalPosition = await win.outerPosition();
 
-    // 右半分に移動・リサイズ
-    const halfWidth = Math.floor(logicalWidth / 2);
-    await win.setSize(new LogicalSize(halfWidth, logicalHeight));
-    await win.setPosition(new LogicalPosition(halfWidth, 0));
+    // 右半分に移動・リサイズ（外部リンクを左側に表示するため）
+    // Windowsスナップ機能と同様に、画面の正確な半分を使用
+    const halfWidth = Math.round(logicalScreenWidth / 2);
+    const rightPositionX = logicalMonitorX + halfWidth;
+    const headerHeightOffset = 30; // ヘッダー分の高さ
+    const splitViewRightOffsetPx = 10; // 右側に寄せる微調整
+
+    await win.setSize(
+      new LogicalSize(halfWidth, logicalScreenHeight - headerHeightOffset),
+    );
+    await win.setPosition(
+      new LogicalPosition(
+        rightPositionX - splitViewRightOffsetPx,
+        logicalMonitorY,
+      ),
+    );
+
+    // ウィンドウの位置調整が完了するまで少し待つ
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     // システムのデフォルトブラウザで外部リンクを開く
     await open(url);
 
-    // 元のサイズに戻すためのタイマーを設定（30秒後に自動復元）
-    const restoreTimeout = setTimeout(async () => {
-      try {
-        // 元のサイズと位置に復元
-        await win.setSize(originalSize);
-        await win.setPosition(originalPosition);
-        console.log("Main window restored to original size after timeout");
-      } catch (e) {
-        console.error("Failed to restore main window after timeout:", e);
-        // フォールバック: 画面中央に配置
-        try {
-          await win.setSize(
-            new LogicalSize(
-              Math.floor(logicalWidth * 0.8),
-              Math.floor(logicalHeight * 0.8),
-            ),
-          );
-          await win.center();
-        } catch (fallbackError) {
-          console.error(
-            "Failed to fallback restore main window:",
-            fallbackError,
-          );
-        }
-      }
-    }, 30000); // 30秒後に復元
-
     // 手動復元用のウィンドウリサイズリスナー（分割状態から復元したい場合）
-    const handleResize = () => {
-      clearTimeout(restoreTimeout);
+    const handleResize = async () => {
+      // ユーザーが手動でリサイズした場合、分割表示状態をクリア
+      const splitViewData = (window as ExtendedWindow).__RAPITAS_SPLIT_VIEW__;
+      if (splitViewData) {
+        splitViewData.unlisten();
+        delete (window as ExtendedWindow).__RAPITAS_SPLIT_VIEW__;
+      }
     };
 
-    // ウィンドウサイズ変更イベントをリッスン（ユーザーが手動でリサイズした場合はタイマーをクリア）
+    // ウィンドウサイズ変更イベントをリッスン
     const unlisten = await win.listen("tauri://resize", handleResize);
 
     // 分割表示状態を保存して、後で手動復元できるようにする
     const splitViewData: SplitViewData = {
       originalSize,
       originalPosition,
-      timeout: restoreTimeout,
+      timeout: null as any, // タイムアウトは設定しない
       unlisten,
     };
 
     // グローバルに保存（手動復元用）
     (window as ExtendedWindow).__RAPITAS_SPLIT_VIEW__ = splitViewData;
+
+    // 分割表示が開始されたことを示すカスタムイベントを発火
+    // これにより、UIコンポーネントが即座に反応できる
+    window.dispatchEvent(
+      new CustomEvent("rapitas:split-view-activated", {
+        detail: { active: true },
+      }),
+    );
   } catch (e) {
     console.error("Failed to open external URL in split view:", e);
     // フォールバック: システムのデフォルトブラウザで開く
     openUrlInDefaultBrowser(url);
+  } finally {
+    // 古いタイムスタンプを定期的にクリーンアップ（1秒以上経過したもの）
+    const urlTimestamps = (window as any)
+      .__RAPITAS_EXTERNAL_URL_TIMESTAMPS__ as Map<string, number>;
+    if (urlTimestamps) {
+      const cutoffTime = Date.now() - 1000;
+      for (const [storedUrl, timestamp] of Array.from(
+        urlTimestamps.entries(),
+      )) {
+        if (timestamp < cutoffTime) {
+          urlTimestamps.delete(storedUrl);
+        }
+      }
+    }
   }
 }
 
@@ -231,7 +288,6 @@ export async function openExternalUrlInNewWindow(
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tauri = (window as any).__TAURI__;
     const webviewWindow = tauri?.webviewWindow?.WebviewWindow;
 

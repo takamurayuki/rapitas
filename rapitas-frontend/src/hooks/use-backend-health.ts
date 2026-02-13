@@ -54,19 +54,22 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
       if (res.ok) {
         if (wasDisconnectedRef.current) {
           wasDisconnectedRef.current = false;
+          console.log("[useBackendHealth] Backend reconnected");
           onReconnectRef.current?.();
         }
         setStatus("connected");
       } else {
         if (!wasDisconnectedRef.current) {
           wasDisconnectedRef.current = true;
+          console.warn(`[useBackendHealth] Backend disconnected: ${res.status} ${res.statusText}`);
           onDisconnectRef.current?.();
         }
         setStatus("disconnected");
       }
-    } catch {
+    } catch (error) {
       if (!wasDisconnectedRef.current) {
         wasDisconnectedRef.current = true;
+        console.error("[useBackendHealth] Backend health check failed:", error);
         onDisconnectRef.current?.();
       }
       setStatus("disconnected");

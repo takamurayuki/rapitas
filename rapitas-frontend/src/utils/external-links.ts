@@ -34,8 +34,17 @@ export function isExternalLink(href: string): boolean {
  */
 export function openExternalLinkInSplitView(href: string): void {
   if (isTauri()) {
-    // Tauri環境では分割表示（メインウィンドウを右半分に、デフォルトブラウザを左側に表示）
-    openExternalUrlInSplitView(href);
+    // 分割表示が開始されることを事前に通知
+    // これにより、UIコンポーネントが即座に位置調整を開始できる
+    window.dispatchEvent(new CustomEvent('rapitas:split-view-preparing', {
+      detail: { url: href }
+    }));
+
+    // UIコンポーネントの位置調整のための短い遅延を入れる
+    requestAnimationFrame(() => {
+      // Tauri環境では分割表示（メインウィンドウを右半分に、デフォルトブラウザを左側に表示）
+      openExternalUrlInSplitView(href);
+    });
   } else {
     // Web環境では通常の新しいタブで開く
     window.open(href, '_blank');
@@ -46,7 +55,7 @@ export function openExternalLinkInSplitView(href: string): void {
  * 外部リンクのクリックイベントを処理する
  */
 export function handleExternalLinkClick(
-  event: React.MouseEvent<HTMLAnchorElement>,
+  event: React.MouseEvent<HTMLAnchorElement> | MouseEvent,
   href: string
 ): void {
   // Ctrl/Cmd + クリックやミドルクリックの場合は通常の動作を維持
@@ -56,7 +65,16 @@ export function handleExternalLinkClick(
 
   // 外部リンクの場合は分割表示で開く
   if (isExternalLink(href)) {
+    // すべてのデフォルト動作を防ぐ
     event.preventDefault();
+    event.stopPropagation();
+
+    // ネイティブイベントの場合のみstopImmediatePropagationを呼び出す
+    if ('stopImmediatePropagation' in event && typeof event.stopImmediatePropagation === 'function') {
+      event.stopImmediatePropagation();
+    }
+
+    // 分割表示で開く
     openExternalLinkInSplitView(href);
   }
 }
@@ -75,12 +93,31 @@ export function setupExternalLinkHandlers(): void {
     if (link.hasAttribute('data-external-handler-set')) return;
 
     if (isExternalLink(href)) {
-      link.addEventListener('click', (event) => {
-        handleExternalLinkClick(event as any, href);
-      });
+      // 古いイベントリスナーを削除（存在する場合）
+      const existingHandler = (link as any).__externalLinkHandler;
+      if (existingHandler) {
+        link.removeEventListener('click', existingHandler, true);
+        delete (link as any).__externalLinkHandler;
+      }
+
+      // 新しいイベントリスナーを作成（captureフェーズで実行して他のハンドラーより先に処理）
+      const newHandler = (event: Event) => {
+        handleExternalLinkClick(event as MouseEvent, href);
+      };
+
+      // イベントリスナーを登録（captureフェーズで実行）
+      link.addEventListener('click', newHandler, true);
+
+      // ハンドラーへの参照を保存（後で削除できるように）
+      (link as any).__externalLinkHandler = newHandler;
 
       // ハンドラー設定済みのマークを追加
       link.setAttribute('data-external-handler-set', 'true');
+
+      // target="_blank"を削除（デフォルトのブラウザ動作を防ぐ）
+      if (link.hasAttribute('target')) {
+        link.removeAttribute('target');
+      }
     }
   });
 }

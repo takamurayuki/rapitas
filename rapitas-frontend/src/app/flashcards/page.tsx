@@ -10,6 +10,7 @@ import {
   Check,
   X,
   Layers,
+  Sparkles,
 } from "lucide-react";
 import { API_BASE_URL } from "@/utils/api";
 
@@ -19,6 +20,7 @@ export default function FlashcardsPage() {
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [isStudyMode, setIsStudyMode] = useState(false);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -26,6 +28,11 @@ export default function FlashcardsPage() {
   const [deckColor] = useState("#3B82F6");
   const [cardFront, setCardFront] = useState("");
   const [cardBack, setCardBack] = useState("");
+  const [generateTopic, setGenerateTopic] = useState("");
+  const [generateCount, setGenerateCount] = useState(10);
+  const [generateDifficulty, setGenerateDifficulty] = useState<"beginner" | "intermediate" | "advanced">("intermediate");
+  const [generateLanguage, setGenerateLanguage] = useState<"ja" | "en">("ja");
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     fetchDecks();
@@ -163,6 +170,49 @@ export default function FlashcardsPage() {
     setIsStudyMode(true);
   };
 
+  const handleGenerateCards = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!generateTopic.trim() || !selectedDeck) return;
+
+    setIsGenerating(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/flashcard-decks/${selectedDeck.id}/generate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topic: generateTopic,
+            count: generateCount,
+            difficulty: generateDifficulty,
+            language: generateLanguage,
+          }),
+        },
+      );
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        fetchDeck(selectedDeck.id);
+        setIsGenerateModalOpen(false);
+        setGenerateTopic("");
+        setGenerateCount(10);
+        setGenerateDifficulty("intermediate");
+      } else {
+        if (data.error === "API key not configured") {
+          alert("APIキーが設定されていません。設定 > AI設定からClaude APIキーを設定してください。");
+        } else {
+          alert(data.error || "カードの生成に失敗しました");
+        }
+      }
+    } catch (e) {
+      console.error("Failed to generate cards:", e);
+      alert("カードの生成に失敗しました");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto p-6">
@@ -293,6 +343,13 @@ export default function FlashcardsPage() {
           </div>
           <div className="flex gap-2">
             <button
+              onClick={() => setIsGenerateModalOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700"
+            >
+              <Sparkles className="w-4 h-4" />
+              AI生成
+            </button>
+            <button
               onClick={() => setIsCardModalOpen(true)}
               className="flex items-center gap-2 px-3 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700"
             >
@@ -355,12 +412,21 @@ export default function FlashcardsPage() {
             <p className="text-zinc-500 dark:text-zinc-400 mb-4">
               カードがありません
             </p>
-            <button
-              onClick={() => setIsCardModalOpen(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              カードを追加
-            </button>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setIsGenerateModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Sparkles className="w-4 h-4" />
+                AIで生成
+              </button>
+              <button
+                onClick={() => setIsCardModalOpen(true)}
+                className="px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700"
+              >
+                手動で追加
+              </button>
+            </div>
           </div>
         )}
 
@@ -415,6 +481,128 @@ export default function FlashcardsPage() {
             </div>
           </div>
         )}
+
+        {/* AI生成モーダル */}
+        {isGenerateModalOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
+                  AIでフラッシュカードを生成
+                </h2>
+              </div>
+              <form onSubmit={handleGenerateCards} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                    学習したいトピック
+                  </label>
+                  <input
+                    type="text"
+                    value={generateTopic}
+                    onChange={(e) => setGenerateTopic(e.target.value)}
+                    placeholder="例: 日本史の鎌倉時代、Python基礎文法"
+                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
+                    required
+                    disabled={isGenerating}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                      生成枚数
+                    </label>
+                    <select
+                      value={generateCount}
+                      onChange={(e) => setGenerateCount(Number(e.target.value))}
+                      className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
+                      disabled={isGenerating}
+                    >
+                      <option value={5}>5枚</option>
+                      <option value={10}>10枚</option>
+                      <option value={15}>15枚</option>
+                      <option value={20}>20枚</option>
+                      <option value={30}>30枚</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                      難易度
+                    </label>
+                    <select
+                      value={generateDifficulty}
+                      onChange={(e) => setGenerateDifficulty(e.target.value as "beginner" | "intermediate" | "advanced")}
+                      className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
+                      disabled={isGenerating}
+                    >
+                      <option value="beginner">初級</option>
+                      <option value="intermediate">中級</option>
+                      <option value="advanced">上級</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                    言語
+                  </label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="language"
+                        value="ja"
+                        checked={generateLanguage === "ja"}
+                        onChange={(e) => setGenerateLanguage(e.target.value as "ja")}
+                        className="mr-2"
+                        disabled={isGenerating}
+                      />
+                      日本語
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="language"
+                        value="en"
+                        checked={generateLanguage === "en"}
+                        onChange={(e) => setGenerateLanguage(e.target.value as "en")}
+                        className="mr-2"
+                        disabled={isGenerating}
+                      />
+                      英語
+                    </label>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsGenerateModalOpen(false)}
+                    disabled={isGenerating}
+                    className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg disabled:opacity-50"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isGenerating}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        生成中...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        生成
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -430,7 +618,7 @@ export default function FlashcardsPage() {
               フラッシュカード
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              忘却曲線に基づく効率的な暗記学習
+              AIが自動生成する効率的な暗記学習
             </p>
           </div>
         </div>
@@ -507,6 +695,12 @@ export default function FlashcardsPage() {
                   className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700"
                   required
                 />
+              </div>
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                <p className="text-sm text-blue-700 dark:text-blue-300 flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  デッキ作成後、AIが学習内容に最適なフラッシュカードを自動生成できます
+                </p>
               </div>
               <div className="flex gap-3">
                 <button

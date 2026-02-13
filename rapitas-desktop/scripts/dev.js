@@ -22,7 +22,7 @@ const { spawn, execSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
-const BACKEND_PORT = 3002;
+const BACKEND_PORT = 3001;
 const FRONTEND_PORT = 3000;
 
 // ─── ユーティリティ ───

@@ -24,6 +24,7 @@ import { useAIChat } from "./useAIChat";
 import { fetchConfiguredProviders, fetchAvailableModels } from "./aiService";
 import Link from "next/link";
 import type { AIChatMessage, ApiProvider } from "@/types";
+import { isTauri, isSplitViewActive } from "@/utils/tauri";
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
   claude: "Claude",
@@ -94,6 +95,7 @@ export default function FloatingAIMenu({
   const [inputValue, setInputValue] = useState("");
   const [isHovering, setIsHovering] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [isSplitView, setIsSplitView] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -177,6 +179,120 @@ export default function FloatingAIMenu({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isExpanded, setExpanded]);
 
+  // 分割表示状態を監視
+  useEffect(() => {
+    if (!isTauri()) return;
+
+    // 初期状態をチェック
+    setIsSplitView(isSplitViewActive());
+
+    // 分割表示の状態変更を検知するための高頻度チェック
+    let rapidCheckCount = 0;
+    let rapidCheckInterval: NodeJS.Timeout | null = null;
+
+    // 高頻度チェックを開始する関数
+    const startRapidCheck = () => {
+      if (rapidCheckInterval) clearInterval(rapidCheckInterval);
+      rapidCheckCount = 0;
+
+      rapidCheckInterval = setInterval(() => {
+        const isActive = isSplitViewActive();
+        const prevState = isSplitView;
+        setIsSplitView(isActive);
+
+        // 状態が変化した場合、即座にDOMを更新
+        if (isActive !== prevState && containerRef.current) {
+          // CSSトランジションを一時的に無効化して即座に移動
+          containerRef.current.style.transition = 'none';
+          containerRef.current.style.transform = 'translateX(0)';
+          void containerRef.current.offsetHeight; // リフローを強制
+
+          // 少し後にトランジションを再有効化
+          setTimeout(() => {
+            if (containerRef.current) {
+              containerRef.current.style.transition = '';
+            }
+          }, 50);
+        }
+
+        rapidCheckCount++;
+        // 10回チェック（500ms）したら通常の間隔に戻る
+        if (rapidCheckCount >= 10 && rapidCheckInterval) {
+          clearInterval(rapidCheckInterval);
+          rapidCheckInterval = null;
+        }
+      }, 50); // 50ms間隔で高頻度チェック
+    };
+
+    // 通常のチェック間隔
+    const checkInterval = setInterval(() => {
+      const isActive = isSplitViewActive();
+      if (isActive !== isSplitView) {
+        setIsSplitView(isActive);
+        // 状態変化を検出したら高頻度チェックを開始
+        startRapidCheck();
+      }
+    }, 500); // 通常は500ms間隔
+
+    // ウィンドウリサイズイベントを監視
+    const handleResize = () => {
+      // リサイズ時は即座に高頻度チェックを開始
+      startRapidCheck();
+
+      // 即座に状態をチェック
+      const isActive = isSplitViewActive();
+      setIsSplitView(isActive);
+    };
+
+    // クリックイベントを監視（外部リンククリック時の検知用）
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // リンククリックを検知
+      if (target.tagName === 'A' || target.closest('a')) {
+        // 高頻度チェックを開始
+        startRapidCheck();
+      }
+    };
+
+    // カスタムイベントを監視（分割表示の開始・終了を即座に検知）
+    const handleSplitViewEvent = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const isActive = customEvent.detail?.active ?? false;
+      setIsSplitView(isActive);
+
+      // 即座に位置を更新
+      if (containerRef.current) {
+        containerRef.current.style.transition = 'none';
+        void containerRef.current.offsetHeight; // リフローを強制
+        setTimeout(() => {
+          if (containerRef.current) {
+            containerRef.current.style.transition = '';
+          }
+        }, 50);
+      }
+    };
+
+    // 分割表示準備イベントを監視（分割表示開始前に位置調整）
+    const handleSplitViewPreparing = () => {
+      // 高頻度チェックを即座に開始
+      startRapidCheck();
+    };
+
+    window.addEventListener("resize", handleResize);
+    document.addEventListener("click", handleClick, true);
+    window.addEventListener("rapitas:split-view-activated", handleSplitViewEvent);
+    window.addEventListener("rapitas:split-view-preparing", handleSplitViewPreparing);
+
+    return () => {
+      clearInterval(checkInterval);
+      if (rapidCheckInterval) clearInterval(rapidCheckInterval);
+      window.removeEventListener("resize", handleResize);
+      document.removeEventListener("click", handleClick, true);
+      window.removeEventListener("rapitas:split-view-activated", handleSplitViewEvent);
+      window.removeEventListener("rapitas:split-view-preparing", handleSplitViewPreparing);
+    };
+  }, [isSplitView]);
+
   const handleSendMessage = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
 
@@ -204,15 +320,26 @@ export default function FloatingAIMenu({
     [],
   );
 
-  const positionClasses =
-    position === "bottom-right" ? "right-4 bottom-4" : "left-4 bottom-4";
+  // 分割表示時は位置を調整（右半分の画面になるため）
+  const getPositionClasses = () => {
+    // 分割表示時も通常時も同じ位置を維持（画面が右半分になるため自動的に調整される）
+    const basePosition = position === "bottom-right" ? "right-4" : "left-4";
+    return `${basePosition} bottom-4`;
+  };
+
+  const positionClasses = getPositionClasses();
 
   const currentModels = availableModels[selectedProvider] || [];
 
   return (
     <div
       ref={containerRef}
-      className={`fixed ${positionClasses} z-9999 ${className}`}
+      className={`fixed ${positionClasses} z-[9999] ${className}`}
+      style={{
+        // 分割表示切り替え時のアニメーションを無効化（即座に移動）
+        transition: 'none',
+        willChange: 'right, bottom',
+      }}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
@@ -220,11 +347,18 @@ export default function FloatingAIMenu({
       <div
         className={`floating-ai-menu-panel absolute bottom-12 ${
           position === "bottom-right" ? "right-0" : "left-0"
-        } w-80 sm:w-96 bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden transition-all duration-300 ease-out ${
+        } w-80 sm:w-96 bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden ${
           isExpanded
             ? "opacity-100 translate-y-0 scale-100"
             : "opacity-0 translate-y-4 scale-95 pointer-events-none"
         }`}
+        style={{
+          // パネルのトランジションを最適化
+          transition: isExpanded
+            ? 'opacity 300ms ease-out, transform 300ms ease-out'
+            : 'opacity 200ms ease-in, transform 200ms ease-in',
+          willChange: 'opacity, transform',
+        }}
         role="dialog"
         aria-label={title}
         aria-hidden={!isExpanded}
