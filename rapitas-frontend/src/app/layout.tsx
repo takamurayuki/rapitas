@@ -11,6 +11,7 @@ import { Suspense } from "react";
 import { ToastProvider } from "@/components/ui/toast/ToastContainer";
 import { PomodoroProvider } from "@/feature/tasks/pomodoro/PomodoroProvider";
 import ExternalLinksProvider from "@/components/ExternalLinksProvider";
+import NoteProvider from "@/components/note/NoteProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -75,6 +76,7 @@ export default function RootLayout({
                   <ResumableExecutionsBanner />
                 </Suspense>
                 <ScheduleReminderProvider />
+                <NoteProvider />
               </Suspense>
             </ExternalLinksProvider>
           </ToastProvider>

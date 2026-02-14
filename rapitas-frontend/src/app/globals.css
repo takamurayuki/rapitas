@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+@import "../styles/note-animations.css";
 
 /* クラスベースのダークモード切り替え */
 @custom-variant dark (&:where(.dark, .dark *));

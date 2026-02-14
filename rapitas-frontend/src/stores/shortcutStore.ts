@@ -9,7 +9,8 @@ export type ShortcutId =
   | "calendar"
   | "focusMode"
   | "shortcutHelp"
-  | "toggleAI";
+  | "toggleAI"
+  | "toggleNote";
 
 export type ShortcutBinding = {
   id: ShortcutId;
@@ -33,6 +34,7 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   { id: "focusMode", label: "フォーカスモード", key: "F", meta: true, shift: true, ctrl: false },
   { id: "shortcutHelp", label: "ショートカットヘルプ", key: "/", meta: true, shift: false, ctrl: false },
   { id: "toggleAI", label: "AIアシスタント表示切替", key: "E", meta: false, shift: false, ctrl: true },
+  { id: "toggleNote", label: "ノート表示切替", key: "M", meta: true, shift: false, ctrl: false },
 ];
 
 interface ShortcutState {

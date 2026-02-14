@@ -49,6 +49,7 @@ import {
   learningGoalsRoutes,
   rateLimitRoutes,
   paidLeaveRoutes,
+  favoriteLinksRoutes,
 } from "./routes";
 
 // Import shared database client
@@ -155,6 +156,7 @@ app.use(screenshotsRoutes);
 app.use(learningGoalsRoutes);
 app.use(rateLimitRoutes);
 app.use(paidLeaveRoutes);
+app.use(favoriteLinksRoutes);
 
 // Start server
 const PORT = parseInt(process.env.PORT || "3001", 10);

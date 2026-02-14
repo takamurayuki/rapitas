@@ -807,3 +807,23 @@ model AgentConfigAuditLog {
   @@index([agentConfigId])
   @@index([createdAt])
 }
+
+// 外部リンクのお気に入り
+model FavoriteLink {
+  id          Int       @id @default(autoincrement())
+  title       String
+  url         String
+  description String?
+  icon        String?   // アイコンURL or emoji
+  color       String    @default("#3B82F6")
+  category    String?   // リンクのカテゴリ（例: "documentation", "tools", "reference"）
+  tags        String    @default("[]") // JSON array stored as string
+  sortOrder   Int       @default(0)
+  lastVisited DateTime? // 最後にアクセスした日時
+  visitCount  Int       @default(0) // アクセス回数
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([sortOrder])
+  @@index([category])
+}
