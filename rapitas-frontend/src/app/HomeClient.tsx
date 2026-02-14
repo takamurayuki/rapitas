@@ -84,8 +84,8 @@ export default function HomeClientPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // フィルターアコーディオン
-  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+  // フィルターアコーディオン（デフォルトで展開）
+  const [isFilterExpanded, setIsFilterExpanded] = useState(true);
 
   // グローバル設定（activeMode, defaultCategoryId）
   const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(
@@ -951,7 +951,7 @@ export default function HomeClientPage() {
 
             {/* フィルター・ソート（アコーディオンコンテンツ） */}
             <div
-              className={`overflow-hidden transition-all duration-200 ease-in-out ${
+              className={`overflow-hidden transition-all duration-300 ease-out ${
                 isFilterExpanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
               }`}
             >
@@ -1002,7 +1002,7 @@ export default function HomeClientPage() {
                         <button
                           key={status}
                           onClick={() => setFilter(status)}
-                          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap ${
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-all duration-200 ${
                             filter === status
                               ? config.color === "theme"
                                 ? "text-white shadow-md"
@@ -1086,7 +1086,7 @@ export default function HomeClientPage() {
                               : null,
                           )
                         }
-                        className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
+                        className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all duration-200 whitespace-nowrap focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
                           (priorityFilter || "") === priority.value
                             ? `${priority.bgColor} text-white shadow-md`
                             : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700"
@@ -1292,20 +1292,27 @@ export default function HomeClientPage() {
             )}
 
             <div className="grid gap-3">
-              {paginatedTasks.map((task) => (
-                <TaskCard
+              {paginatedTasks.map((task, index) => (
+                <div
                   key={task.id}
-                  task={task}
-                  isSelected={selectedTasks.has(task.id)}
-                  isSelectionMode={isSelectionMode}
-                  onTaskClick={openTaskPanel}
-                  onStatusChange={(taskId: number, status: Status) => {
-                    updateStatus(taskId, status);
+                  className="slide-in-bottom"
+                  style={{
+                    animationDelay: `${index * 0.05}s`,
                   }}
-                  onToggleSelect={toggleTaskSelection}
-                  onTaskUpdated={fetchTasks}
-                  onOpenInPage={openTaskInPage}
-                />
+                >
+                    <TaskCard
+                    task={task}
+                    isSelected={selectedTasks.has(task.id)}
+                    isSelectionMode={isSelectionMode}
+                    onTaskClick={openTaskPanel}
+                    onStatusChange={(taskId: number, status: Status) => {
+                      updateStatus(taskId, status);
+                    }}
+                    onToggleSelect={toggleTaskSelection}
+                    onTaskUpdated={fetchTasks}
+                    onOpenInPage={openTaskInPage}
+                  />
+                </div>
               ))}
             </div>
 

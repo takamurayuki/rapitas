@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { Task, Status } from "@/types";
 import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
 import SubtaskStatusButtons from "@/feature/tasks/components/SubtaskStatusButtons";
@@ -8,9 +8,11 @@ import {
   statusConfig,
   renderStatusIcon,
 } from "@/feature/tasks/config/StatusConfig";
-import { ExternalLink, Tag } from "lucide-react";
+import { ExternalLink, Tag, Copy, Trash2, Edit } from "lucide-react";
 import { getLabelsArray, hasLabels } from "@/utils/labels";
 import { getIconComponent } from "@/components/category/IconData";
+import { useToast } from "@/components/ui/toast/ToastContainer";
+import { API_BASE_URL } from "@/utils/api";
 
 interface TaskCardProps {
   task: Task;
@@ -34,6 +36,10 @@ export default function TaskCard({
   onOpenInPage,
 }: TaskCardProps) {
   const [expandedSubtasks, setExpandedSubtasks] = useState(false);
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const { showToast } = useToast();
 
   const currentStatus =
     statusConfig[task.status as keyof typeof statusConfig] || statusConfig.todo;
@@ -52,19 +58,88 @@ export default function TaskCard({
     return "bg-gradient-to-r from-blue-500 to-orange-500";
   };
 
+  // コンテキストメニューを閉じる
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setShowContextMenu(false);
+      }
+    };
+
+    if (showContextMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showContextMenu]);
+
+  // タスクを複製
+  const duplicateTask = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `${task.title} (コピー)`,
+          status: task.status,
+          priority: task.priority,
+          themeId: task.themeId,
+          description: task.description,
+          estimatedHours: task.estimatedHours,
+        }),
+      });
+
+      if (!res.ok) throw new Error("複製に失敗しました");
+      showToast("タスクを複製しました", "success");
+      onTaskUpdated?.();
+      setShowContextMenu(false);
+    } catch (e) {
+      console.error(e);
+      showToast("タスクの複製に失敗しました", "error");
+    }
+  };
+
+  // タスクを削除
+  const deleteTask = async () => {
+    if (!confirm("このタスクを削除しますか？")) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks/${task.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error("削除に失敗しました");
+      showToast("タスクを削除しました", "success");
+      onTaskUpdated?.();
+      setShowContextMenu(false);
+    } catch (e) {
+      console.error(e);
+      showToast("タスクの削除に失敗しました", "error");
+    }
+  };
+
   return (
     <div
-      className={`group relative rounded-lg border-l-4 border-t border-r border-b transition-all duration-150 ${
+      className={`group relative rounded-lg border-l-4 border-t border-r border-b transition-all duration-200 ${
         currentStatus.borderColor
-      } ${`border-zinc-200 dark:border-zinc-800 ${currentStatus.bgColor} dark:bg-indigo-dark-900 hover:shadow-sm`}`}
+      } ${`border-zinc-200 dark:border-zinc-800 ${currentStatus.bgColor} dark:bg-indigo-dark-900 hover:shadow-lg hover:scale-[1.02] hover:border-opacity-80`}`}
     >
       <div
-        className="flex items-center gap-3 px-3 py-2.5 cursor-pointer"
+        className="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all duration-200 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 rounded-t-lg"
         onClick={() => {
           if (isSelectionMode && onToggleSelect) {
             onToggleSelect(task.id);
           } else {
             onTaskClick(task.id);
+          }
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          if (!isSelectionMode) {
+            setContextMenuPosition({ x: e.clientX, y: e.clientY });
+            setShowContextMenu(true);
           }
         }}
       >
@@ -250,6 +325,44 @@ export default function TaskCard({
           </div>
         )}
       </div>
+
+      {/* コンテキストメニュー */}
+      {showContextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="fixed z-50 bg-white dark:bg-zinc-800 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-700 py-1 min-w-[160px] animate-in fade-in duration-100"
+          style={{
+            left: `${contextMenuPosition.x}px`,
+            top: `${contextMenuPosition.y}px`,
+          }}
+        >
+          <button
+            onClick={() => {
+              onTaskClick(task.id);
+              setShowContextMenu(false);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+          >
+            <Edit className="w-4 h-4" />
+            編集
+          </button>
+          <button
+            onClick={duplicateTask}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+          >
+            <Copy className="w-4 h-4" />
+            複製
+          </button>
+          <div className="my-1 border-t border-zinc-200 dark:border-zinc-700" />
+          <button
+            onClick={deleteTask}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            削除
+          </button>
+        </div>
+      )}
 
       {/* サブタスク展開エリア */}
       {expandedSubtasks && task.subtasks && task.subtasks.length > 0 && (
