@@ -13,6 +13,7 @@ export function FavoriteLinksWidget() {
   const { favoriteLinks, visitFavoriteLink } = useFavoriteLinks();
   const [isOpen, setIsOpen] = useState(false);
   const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set());
+  const [clickingLinkId, setClickingLinkId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // ドメイン別にグループ化
@@ -37,11 +38,24 @@ export function FavoriteLinksWidget() {
   }, [isOpen]);
 
   const handleLinkClick = async (link: FavoriteLink) => {
-    // 訪問カウントを更新
-    await visitFavoriteLink(link);
-    // その後、外部リンクを開く
-    openExternalLinkInSplitView(link.url);
-    setIsOpen(false);
+    // クリック時の視覚的フィードバック
+    setClickingLinkId(link.id);
+
+    try {
+      // 訪問カウントを更新
+      await visitFavoriteLink(link);
+      // その後、外部リンクを開く
+      openExternalLinkInSplitView(link.url);
+
+      // 少し遅延を入れてからメニューを閉じる（スムーズな体験のため）
+      setTimeout(() => {
+        setIsOpen(false);
+        setClickingLinkId(null);
+      }, 200);
+    } catch (error) {
+      console.error('Failed to open link:', error);
+      setClickingLinkId(null);
+    }
   };
 
   const toggleDomain = (domain: string) => {
@@ -64,14 +78,25 @@ export function FavoriteLinksWidget() {
     <div ref={dropdownRef} className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2 hover:bg-gray-100 dark:hover:bg-indigo-dark-800 rounded-lg transition-colors flex items-center gap-1"
+        className={`
+          p-2 rounded-lg
+          hover:bg-gray-100 dark:hover:bg-indigo-dark-800
+          hover:shadow-sm
+          transition-all duration-200
+          flex items-center gap-1
+          ${isOpen ? 'bg-gray-100 dark:bg-indigo-dark-800 shadow-sm' : ''}
+        `}
         title="お気に入りリンク"
       >
-        <LinkIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+        <LinkIcon className={`
+          w-5 h-5 text-gray-600 dark:text-gray-400
+          transition-transform duration-200
+          ${isOpen ? 'scale-110' : ''}
+        `} />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-indigo-dark-900 rounded-lg shadow-xl border border-gray-200 dark:border-indigo-dark-700/70 overflow-hidden z-50">
+        <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-indigo-dark-900 rounded-lg shadow-xl border border-gray-200 dark:border-indigo-dark-700/70 overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="p-2 border-b border-gray-200 dark:border-indigo-dark-700">
             <h3 className="font-medium text-sm text-gray-900 dark:text-white">お気に入りリンク</h3>
           </div>
@@ -88,12 +113,12 @@ export function FavoriteLinksWidget() {
                   {/* ドメインヘッダー */}
                   <button
                     onClick={() => toggleDomain(group.domain)}
-                    className="w-full px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-indigo-dark-800/50 transition-all duration-200 flex items-center gap-2"
+                    className="w-full px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-indigo-dark-800/50 transition-all duration-200 flex items-center gap-2 group/domain"
                   >
                     {expandedDomains.has(group.domain) ? (
-                      <ChevronDown className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+                      <ChevronDown className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-transform duration-200" />
                     ) : (
-                      <ChevronRight className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+                      <ChevronRight className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-transform duration-200 group-hover/domain:translate-x-0.5" />
                     )}
 
                     {/* Domain favicon */}
@@ -128,29 +153,36 @@ export function FavoriteLinksWidget() {
 
                   {/* リンク一覧 */}
                   {expandedDomains.has(group.domain) && (
-                    <div className="pl-6">
+                    <div className="pl-6 animate-in slide-in-from-top-1 duration-200">
                       {group.links.map((link) => (
                         <button
                           key={link.id}
                           onClick={() => handleLinkClick(link)}
-                          className="w-full px-2 py-1 hover:bg-gray-50 dark:hover:bg-indigo-dark-800/50 transition-all duration-200 flex items-center gap-2 text-left"
+                          className={`
+                            w-full px-2 py-1
+                            hover:bg-gray-50 dark:hover:bg-indigo-dark-800/50
+                            transition-all duration-200
+                            flex items-center gap-2 text-left
+                            group/link
+                            ${clickingLinkId === link.id ? 'scale-[0.98] bg-gray-100 dark:bg-indigo-dark-800' : ''}
+                          `}
                         >
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors line-clamp-1">
+                            <div className="text-sm text-gray-900 dark:text-gray-100 group-hover/link:text-blue-600 dark:group-hover/link:text-blue-400 transition-colors line-clamp-1">
                               {link.title}
                             </div>
                             {link.description && (
-                              <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+                              <div className="text-xs text-gray-500 dark:text-gray-400 group-hover/link:text-gray-600 dark:group-hover/link:text-gray-300 transition-colors line-clamp-1">
                                 {link.description}
                               </div>
                             )}
                           </div>
                           {link.visitCount > 0 && (
-                            <span className="text-xs text-gray-400 dark:text-gray-500">
+                            <span className="text-xs text-gray-400 dark:text-gray-500 group-hover/link:text-gray-500 dark:group-hover/link:text-gray-400 transition-colors">
                               {link.visitCount}
                             </span>
                           )}
-                          <ChevronRight className="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 flex-shrink-0" />
+                          <ChevronRight className="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 flex-shrink-0 transition-transform duration-200 group-hover/link:translate-x-0.5" />
                         </button>
                       ))}
                     </div>

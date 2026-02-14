@@ -67,7 +67,7 @@ export function FavoriteLinksManager() {
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">お気に入りリンク</h2>
         <button
           onClick={handleCreate}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white text-sm rounded-lg transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white text-sm rounded-lg transition-all duration-200 hover:shadow-lg hover:scale-105 active:scale-95"
         >
           <Plus className="w-4 h-4" />
           追加
@@ -113,8 +113,8 @@ export function FavoriteLinksManager() {
 
       {/* Delete Confirmation Dialog */}
       {isDeleteConfirmOpen && linkToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white dark:bg-indigo-dark-900 rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-indigo-dark-900 rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
               リンクを削除しますか？
             </h3>
@@ -131,13 +131,13 @@ export function FavoriteLinksManager() {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setIsDeleteConfirmOpen(false)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-indigo-dark-800 rounded-lg transition-colors"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-indigo-dark-800 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95"
               >
                 キャンセル
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 text-white rounded-lg transition-colors"
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 text-white rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 hover:shadow-lg"
               >
                 削除
               </button>

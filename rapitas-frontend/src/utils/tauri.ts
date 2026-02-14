@@ -16,6 +16,8 @@ interface SplitViewData {
     x: number;
     y: number;
   };
+  wasMaximized: boolean;
+  wasFullscreen: boolean;
   timeout: NodeJS.Timeout | null;
   unlisten: () => void;
 }
@@ -183,42 +185,113 @@ export async function openExternalUrlInSplitView(
       throw new Error("モニター情報を取得できませんでした");
     }
 
+    // ウィンドウが最大化または全画面表示の場合は解除する
+    const isMaximized = await win.isMaximized();
+    const isFullscreen = await win.isFullscreen();
+
+    console.log("Window state before split view:", { isMaximized, isFullscreen });
+
+    // 画面サイズ計算（共通で使用）
     const { width: screenWidth, height: screenHeight } = primaryMonitor.size;
     const scaleFactor = primaryMonitor.scaleFactor || 1;
     const screenPos = primaryMonitor.position || { x: 0, y: 0 };
 
-    // 論理サイズに変換
     const logicalScreenWidth = Math.floor(screenWidth / scaleFactor);
     const logicalScreenHeight = Math.floor(screenHeight / scaleFactor);
     const logicalMonitorX = Math.floor(screenPos.x / scaleFactor);
     const logicalMonitorY = Math.floor(screenPos.y / scaleFactor);
 
-    // 元のウィンドウサイズと位置を保存（復元用）
-    const originalSize = await win.outerSize();
-    const originalPosition = await win.outerPosition();
-
-    // 右半分に移動・リサイズ（外部リンクを左側に表示するため）
-    // Windowsスナップ機能と同様に、画面の正確な半分を使用
+    // 分割表示のサイズ計算
     const halfWidth = Math.round(logicalScreenWidth / 2);
     const rightPositionX = logicalMonitorX + halfWidth;
-    const headerHeightOffset = 30; // ヘッダー分の高さ
-    const splitViewRightOffsetPx = 10; // 右側に寄せる微調整
+    const headerHeightOffset = 30;
+    const splitViewRightOffsetPx = 10;
 
-    await win.setSize(
-      new LogicalSize(halfWidth, logicalScreenHeight - headerHeightOffset),
-    );
-    await win.setPosition(
-      new LogicalPosition(
-        rightPositionX - splitViewRightOffsetPx,
-        logicalMonitorY,
-      ),
-    );
+    // 最大化/全画面の場合は、まず右半分の位置に小さく配置する
+    // これにより、ブラウザが全画面で開くのを防ぐ
+    if (isMaximized || isFullscreen) {
+      // 先に、デスクトップに小さなウィンドウとして配置
+      // これにより、ブラウザがデスクトップのサイズを正しく認識できる
+      const tempWidth = Math.floor(halfWidth * 0.8);
+      const tempHeight = Math.floor((logicalScreenHeight - headerHeightOffset) * 0.8);
+      const tempX = logicalMonitorX + Math.floor((logicalScreenWidth - tempWidth) / 2);
+      const tempY = logicalMonitorY + Math.floor((logicalScreenHeight - tempHeight) / 2);
 
-    // ウィンドウの位置調整が完了するまで少し待つ
-    await new Promise((resolve) => setTimeout(resolve, 100));
+      if (isFullscreen) {
+        console.log("Exiting fullscreen...");
+        await win.setFullscreen(false);
+        // 全画面解除を確実に待つ
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+
+      if (isMaximized) {
+        console.log("Unmaximizing window...");
+        await win.unmaximize();
+        // 最大化解除を確実に待つ
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+
+      // 一時的に中央に小さく配置
+      await win.setSize(new LogicalSize(tempWidth, tempHeight));
+      await win.setPosition(new LogicalPosition(tempX, tempY));
+
+      // ウィンドウマネージャーが状態を更新するのを待つ
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // その後、右半分のサイズと位置に設定
+      await win.setSize(
+        new LogicalSize(halfWidth, logicalScreenHeight - headerHeightOffset),
+      );
+      await win.setPosition(
+        new LogicalPosition(
+          rightPositionX - splitViewRightOffsetPx,
+          logicalMonitorY,
+        ),
+      );
+
+      // 最終的な位置設定が完了するまで待つ
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
+    // 元のウィンドウサイズと位置を保存（復元用）
+    const originalSize = isMaximized || isFullscreen
+      ? new LogicalSize(logicalScreenWidth * 0.8, logicalScreenHeight * 0.8)
+      : await win.outerSize();
+    const originalPosition = isMaximized || isFullscreen
+      ? new LogicalPosition(
+          Math.floor((logicalScreenWidth - logicalScreenWidth * 0.8) / 2),
+          Math.floor((logicalScreenHeight - logicalScreenHeight * 0.8) / 2)
+        )
+      : await win.outerPosition();
+
+    // 右半分に移動・リサイズ（まだ設定されていない場合）
+    if (!isMaximized && !isFullscreen) {
+      await win.setSize(
+        new LogicalSize(halfWidth, logicalScreenHeight - headerHeightOffset),
+      );
+      await win.setPosition(
+        new LogicalPosition(
+          rightPositionX - splitViewRightOffsetPx,
+          logicalMonitorY,
+        ),
+      );
+
+      // ウィンドウの位置調整が完了するまで待つ
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    // rapitasウィンドウをアクティブにして、デスクトップの状態を確実にする
+    await win.setFocus();
 
     // システムのデフォルトブラウザで外部リンクを開く
+    // ブラウザは通常、最後にアクティブだったウィンドウのサイズを参考にするため、
+    // rapitasが右半分にある状態でブラウザが開かれると、左半分に配置される可能性が高い
     await open(url);
+
+    // ブラウザが開いた後、rapitasウィンドウを再度最前面に表示
+    // これにより、分割表示の視覚的な一貫性を保つ
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await win.setFocus();
 
     // 手動復元用のウィンドウリサイズリスナー（分割状態から復元したい場合）
     const handleResize = async () => {
@@ -237,6 +310,8 @@ export async function openExternalUrlInSplitView(
     const splitViewData: SplitViewData = {
       originalSize,
       originalPosition,
+      wasMaximized: isMaximized,
+      wasFullscreen: isFullscreen,
       timeout: null as any, // タイムアウトは設定しない
       unlisten,
     };
@@ -337,6 +412,51 @@ export async function openExternalUrlInNewWindow(
 export function isSplitViewActive(): boolean {
   if (!isTauri()) return false;
   return !!(window as ExtendedWindow).__RAPITAS_SPLIT_VIEW__;
+}
+
+/**
+ * 分割表示状態を解除し、元のウィンドウ状態に復元する
+ */
+export async function restoreFromSplitView(): Promise<void> {
+  if (!isTauri()) return;
+
+  const splitViewData = (window as ExtendedWindow).__RAPITAS_SPLIT_VIEW__;
+  if (!splitViewData) return;
+
+  try {
+    const windowModule = await import("@tauri-apps/api/window");
+    const win = windowModule.getCurrentWindow() as any;
+
+    // リスナーを解除
+    if (splitViewData.unlisten) {
+      splitViewData.unlisten();
+    }
+
+    // 元のサイズと位置に戻す
+    if (splitViewData.originalSize && splitViewData.originalPosition) {
+      await win.setSize(splitViewData.originalSize);
+      await win.setPosition(splitViewData.originalPosition);
+    }
+
+    // 元の最大化/全画面状態を復元
+    if (splitViewData.wasMaximized) {
+      await win.maximize();
+    } else if (splitViewData.wasFullscreen) {
+      await win.setFullscreen(true);
+    }
+
+    // 分割表示状態をクリア
+    delete (window as ExtendedWindow).__RAPITAS_SPLIT_VIEW__;
+
+    // 分割表示が解除されたことを通知
+    window.dispatchEvent(
+      new CustomEvent("rapitas:split-view-deactivated", {
+        detail: { active: false },
+      }),
+    );
+  } catch (e) {
+    console.error("Failed to restore from split view:", e);
+  }
 }
 
 /**

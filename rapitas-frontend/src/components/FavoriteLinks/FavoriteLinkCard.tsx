@@ -27,14 +27,24 @@ export function FavoriteLinkCard({
   onVisit,
 }: FavoriteLinkCardProps) {
   const [faviconError, setFaviconError] = useState(false);
+  const [isClicking, setIsClicking] = useState(false);
   const faviconUrl = getFaviconUrl(link.url);
 
   const handleClick = async (e: React.MouseEvent) => {
     e.preventDefault();
-    // 訪問カウントを更新
-    await onVisit(link);
-    // その後、外部リンクを開く
-    openExternalLinkInSplitView(link.url);
+
+    // クリック時の視覚的フィードバック
+    setIsClicking(true);
+
+    try {
+      // 訪問カウントを更新
+      await onVisit(link);
+      // その後、外部リンクを開く
+      openExternalLinkInSplitView(link.url);
+    } finally {
+      // アニメーション完了後にリセット
+      setTimeout(() => setIsClicking(false), 300);
+    }
   };
 
   const handleFaviconError = () => {
@@ -42,11 +52,22 @@ export function FavoriteLinkCard({
   };
 
   return (
-    <div className="group relative bg-white dark:bg-indigo-dark-900 border border-gray-200 dark:border-indigo-dark-700 rounded-lg px-3 py-2 hover:bg-gray-50 dark:hover:bg-indigo-dark-800 transition-colors">
+    <div
+      className={`
+        group relative bg-white dark:bg-indigo-dark-900
+        border border-gray-200 dark:border-indigo-dark-700
+        rounded-lg px-3 py-2
+        hover:bg-gray-50 dark:hover:bg-indigo-dark-800
+        hover:shadow-md dark:hover:shadow-indigo-dark-700/20
+        hover:scale-[1.02] hover:border-blue-300 dark:hover:border-indigo-dark-600
+        transition-all duration-200 ease-out
+        ${isClicking ? 'scale-[0.98] shadow-none' : ''}
+      `}
+    >
       {/* Menu */}
       <Menu
         as="div"
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-200"
       >
         <Menu.Button className="p-1 rounded hover:bg-gray-200 dark:hover:bg-indigo-dark-700">
           <MoreVertical className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
@@ -85,7 +106,7 @@ export function FavoriteLinkCard({
       <a
         href={link.url}
         onClick={handleClick}
-        className="flex items-center gap-2"
+        className="flex items-center gap-2 cursor-pointer"
         target="_blank"
         rel="noopener noreferrer"
       >
@@ -104,21 +125,21 @@ export function FavoriteLinkCard({
         </div>
 
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 line-clamp-1">
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 line-clamp-1 transition-colors duration-200">
             {link.title}
           </h3>
           {link.description && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors duration-200">
               {link.description}
             </p>
           )}
           <div className="flex items-center gap-3">
-            <p className="text-xs text-gray-400 dark:text-gray-500 truncate flex-1">
+            <p className="text-xs text-gray-400 dark:text-gray-500 truncate flex-1 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors duration-200">
               {link.url}
             </p>
             {/* Visit count */}
             {link.visitCount > 0 && (
-              <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+              <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 group-hover:text-gray-500 dark:group-hover:text-gray-400 transition-colors duration-200">
                 <Eye className="w-3 h-3" />
                 <span>{link.visitCount}</span>
               </div>
