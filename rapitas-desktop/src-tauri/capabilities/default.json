@@ -21,6 +21,7 @@
     "core:window:allow-outer-size",
     "core:window:allow-outer-position",
     "core:window:allow-center",
-    "core:window:allow-available-monitors"
+    "core:window:allow-available-monitors",
+    "core:window:allow-unmaximize"
   ]
 }
