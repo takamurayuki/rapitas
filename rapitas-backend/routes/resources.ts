@@ -114,27 +114,32 @@ async function ensureUploadDir() {
 
 export const resourcesRoutes = new Elysia()
   // Get resources for a task
-  .get("/tasks/:id/resources", async ({ params }: { params: { id: string } }) => {
-    const id = parseInt(params.id);
-    if (isNaN(id)) throw new ValidationError("無効なIDです");
+  .get(
+    "/tasks/:id/resources",
+    async ({ params }: { params: { id: string } }) => {
+      const id = parseInt(params.id);
+      if (isNaN(id)) throw new ValidationError("無効なIDです");
 
-    return await prisma.resource.findMany({
-      where: { taskId: id },
-      orderBy: { createdAt: "desc" },
-    });
-  })
+      return await prisma.resource.findMany({
+        where: { taskId: id },
+        orderBy: { createdAt: "desc" },
+      });
+    },
+  )
 
   // Create URL-based resource
   .post(
     "/resources",
-    async ({ body }: {
+    async ({
+      body,
+    }: {
       body: {
         taskId?: number;
         title: string;
         url?: string;
         type: string;
         description?: string;
-      }
+      };
     }) => {
       const { taskId, title, url, type, description } = body;
       return await prisma.resource.create({
@@ -155,19 +160,21 @@ export const resourcesRoutes = new Elysia()
         type: t.String(),
         description: t.Optional(t.String()),
       }),
-    }
+    },
   )
 
   // Upload file resource
   .post(
     "/resources/upload",
-    async ({ body }: {
+    async ({
+      body,
+    }: {
       body: {
         taskId?: string;
         file: File;
         title?: string;
         description?: string;
-      }
+      };
     }) => {
       const { taskId: taskIdStr, file, title, description } = body;
 
@@ -184,13 +191,17 @@ export const resourcesRoutes = new Elysia()
 
       // Validate file size
       if (file.size > MAX_FILE_SIZE) {
-        throw new ValidationError(`ファイルサイズは${MAX_FILE_SIZE / 1024 / 1024}MB以下にしてください`);
+        throw new ValidationError(
+          `ファイルサイズは${MAX_FILE_SIZE / 1024 / 1024}MB以下にしてください`,
+        );
       }
 
       // Validate MIME type (extract base MIME type without charset)
       const baseMimeType = file.type.split(";")[0].trim();
       if (!ALLOWED_MIME_TYPES.includes(baseMimeType)) {
-        throw new ValidationError(`許可されていないファイル形式です: ${file.type}`);
+        throw new ValidationError(
+          `許可されていないファイル形式です: ${file.type}`,
+        );
       }
 
       await ensureUploadDir();
@@ -225,19 +236,21 @@ export const resourcesRoutes = new Elysia()
     },
     {
       type: "formdata",
-    }
+    },
   )
 
   // Upload file from path (for Tauri drag-drop)
   .post(
     "/resources/upload-from-path",
-    async ({ body }: {
+    async ({
+      body,
+    }: {
       body: {
         taskId: number;
         filePath: string;
         title?: string;
         description?: string;
-      }
+      };
     }) => {
       const { taskId, filePath: sourcePath, title, description } = body;
 
@@ -249,7 +262,9 @@ export const resourcesRoutes = new Elysia()
       // Get file stats
       const stats = await stat(sourcePath);
       if (stats.size > MAX_FILE_SIZE) {
-        throw new ValidationError(`ファイルサイズは${MAX_FILE_SIZE / 1024 / 1024}MB以下にしてください`);
+        throw new ValidationError(
+          `ファイルサイズは${MAX_FILE_SIZE / 1024 / 1024}MB以下にしてください`,
+        );
       }
 
       // Get file info
@@ -260,7 +275,9 @@ export const resourcesRoutes = new Elysia()
       // Validate MIME type
       const baseMimeType = mimeType.split(";")[0].trim();
       if (!ALLOWED_MIME_TYPES.includes(baseMimeType)) {
-        throw new ValidationError(`許可されていないファイル形式です: ${mimeType}`);
+        throw new ValidationError(
+          `許可されていないファイル形式です: ${mimeType}`,
+        );
       }
 
       await ensureUploadDir();
@@ -298,50 +315,97 @@ export const resourcesRoutes = new Elysia()
         title: t.Optional(t.String()),
         description: t.Optional(t.String()),
       }),
-    }
+    },
   )
 
   // Serve uploaded file (inline - for viewing)
-  .get("/resources/file/:filename", async ({ params, set }: { params: { filename: string }; set: { headers: Record<string, string> } }) => {
-    const { filename } = params;
-    const filePath = join(UPLOAD_DIR, filename);
+  .get(
+    "/resources/file/:filename",
+    async ({
+      params,
+      set,
+    }: {
+      params: { filename: string };
+      set: { headers: Record<string, string> };
+    }) => {
+      const { filename } = params;
+      const filePath = join(UPLOAD_DIR, filename);
 
-    if (!existsSync(filePath)) {
-      throw new ValidationError("ファイルが見つかりません");
-    }
+      if (!existsSync(filePath)) {
+        throw new ValidationError("ファイルが見つかりません");
+      }
 
-    // Get resource info for MIME type
-    const resource = await prisma.resource.findFirst({
-      where: { filePath: filename },
-    });
+      // Get resource info for MIME type
+      const resource = await prisma.resource.findFirst({
+        where: { filePath: filename },
+      });
 
-    const file = Bun.file(filePath);
-    set.headers["Content-Type"] = resource?.mimeType || "application/octet-stream";
-    set.headers["Content-Disposition"] = `inline; filename="${resource?.fileName || filename}"`;
+      const file = Bun.file(filePath);
+      const mimeType = resource?.mimeType || getMimeType(filePath);
 
-    return file;
-  })
+      set.headers["Content-Type"] = mimeType.includes("text")
+        ? `${mimeType}; charset=utf-8`
+        : mimeType;
+      set.headers["Cache-Control"] = "public, max-age=3600";
+
+      if (resource?.fileName) {
+        const encodedFilename = encodeURIComponent(resource.fileName)
+          .replace(/'/g, "%27")
+          .replace(/\(/g, "%28")
+          .replace(/\)/g, "%29")
+          .replace(/\*/g, "%2A");
+        set.headers["Content-Disposition"] =
+          `inline; filename*=UTF-8''${encodedFilename}`;
+      } else {
+        set.headers["Content-Disposition"] = `inline; filename="${filename}"`;
+      }
+
+      return file;
+    },
+  )
 
   // Download uploaded file (attachment - for downloading)
-  .get("/resources/download/:filename", async ({ params, set }: { params: { filename: string }; set: { headers: Record<string, string> } }) => {
-    const { filename } = params;
-    const filePath = join(UPLOAD_DIR, filename);
+  .get(
+    "/resources/download/:filename",
+    async ({
+      params,
+      set,
+    }: {
+      params: { filename: string };
+      set: { headers: Record<string, string> };
+    }) => {
+      const { filename } = params;
+      const filePath = join(UPLOAD_DIR, filename);
 
-    if (!existsSync(filePath)) {
-      throw new ValidationError("ファイルが見つかりません");
-    }
+      if (!existsSync(filePath)) {
+        throw new ValidationError("ファイルが見つかりません");
+      }
 
-    // Get resource info for MIME type and original filename
-    const resource = await prisma.resource.findFirst({
-      where: { filePath: filename },
-    });
+      // Get resource info for MIME type and original filename
+      const resource = await prisma.resource.findFirst({
+        where: { filePath: filename },
+      });
 
-    const file = Bun.file(filePath);
-    set.headers["Content-Type"] = resource?.mimeType || "application/octet-stream";
-    set.headers["Content-Disposition"] = `attachment; filename="${resource?.fileName || filename}"`;
+      const file = Bun.file(filePath);
+      set.headers["Content-Type"] =
+        resource?.mimeType || "application/octet-stream";
 
-    return file;
-  })
+      if (resource?.fileName) {
+        const encodedFilename = encodeURIComponent(resource.fileName)
+          .replace(/'/g, "%27")
+          .replace(/\(/g, "%28")
+          .replace(/\)/g, "%29")
+          .replace(/\*/g, "%2A");
+        set.headers["Content-Disposition"] =
+          `attachment; filename*=UTF-8''${encodedFilename}`;
+      } else {
+        set.headers["Content-Disposition"] =
+          `attachment; filename="${filename}"`;
+      }
+
+      return file;
+    },
+  )
 
   // Delete resource (and file if exists)
   .delete("/resources/:id", async ({ params }: { params: { id: string } }) => {

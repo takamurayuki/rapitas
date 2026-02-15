@@ -7,6 +7,7 @@ import {
   useCallback,
   KeyboardEvent,
   memo,
+  MouseEvent as ReactMouseEvent,
 } from "react";
 import {
   MessageCircle,
@@ -19,12 +20,14 @@ import {
   AlertCircle,
   Minimize2,
   Settings,
+  GripVertical,
 } from "lucide-react";
 import { useAIChat } from "./useAIChat";
 import { fetchConfiguredProviders, fetchAvailableModels } from "./aiService";
 import Link from "next/link";
 import type { AIChatMessage, ApiProvider } from "@/types";
 import { isTauri, isSplitViewActive } from "@/utils/tauri";
+import { useFloatingAIMenuStore } from "@/stores/floatingAIMenuStore";
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
   claude: "Claude",
@@ -44,6 +47,7 @@ type FloatingAIMenuProps = {
   title?: string;
   position?: "bottom-right" | "bottom-left";
   className?: string;
+  style?: React.CSSProperties;
 };
 
 const ChatMessage = memo(function ChatMessage({
@@ -91,6 +95,7 @@ export default function FloatingAIMenu({
   title = "AIアシスタント",
   position = "bottom-right",
   className = "",
+  style,
 }: FloatingAIMenuProps) {
   const [inputValue, setInputValue] = useState("");
   const [isHovering, setIsHovering] = useState(false);
@@ -99,6 +104,14 @@ export default function FloatingAIMenu({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // ドラッグ関連の状態
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // ストアから位置情報を取得
+  const { position: storedPosition, updatePosition, resetPosition } = useFloatingAIMenuStore();
 
   // プロバイダー/モデル選択
   const [selectedProvider, setSelectedProvider] = useState<ApiProvider>("claude");
@@ -120,6 +133,9 @@ export default function FloatingAIMenu({
     provider: selectedProvider,
     model: selectedModel || undefined,
   });
+
+  // AIメニューの有効状態を取得
+  const { isEnabled, enable } = useFloatingAIMenuStore();
 
   // 設定済みプロバイダーとモデル一覧を取得
   useEffect(() => {
@@ -176,8 +192,34 @@ export default function FloatingAIMenu({
     }
 
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [isExpanded, setExpanded]);
+
+  // Ctrl+Eでトグルするイベント（別のuseEffectで管理）
+  useEffect(() => {
+    function handleToggleAI() {
+      console.log("toggleFloatingAI event received"); // デバッグログ
+
+      // AIメニューが無効な場合は有効にしてから展開
+      if (!isEnabled) {
+        enable();
+        // 状態更新後に展開
+        setTimeout(() => {
+          setExpanded(true);
+        }, 50);
+      } else {
+        // 既に有効な場合は展開状態をトグル
+        toggleExpanded();
+      }
+    }
+
+    window.addEventListener("toggleFloatingAI", handleToggleAI);
+    return () => {
+      window.removeEventListener("toggleFloatingAI", handleToggleAI);
+    };
+  }, [toggleExpanded, isEnabled, enable, setExpanded]);
 
   // 分割表示状態を監視
   useEffect(() => {
@@ -320,34 +362,142 @@ export default function FloatingAIMenu({
     [],
   );
 
-  // 分割表示時は位置を調整（右半分の画面になるため）
-  const getPositionClasses = () => {
-    // 分割表示時も通常時も同じ位置を維持（画面が右半分になるため自動的に調整される）
-    const basePosition = position === "bottom-right" ? "right-4" : "left-4";
-    return `${basePosition} bottom-4`;
-  };
+  // ドラッグイベントハンドラー
+  const dragStartPos = useRef({ x: 0, y: 0 });
+  const hasDragged = useRef(false);
 
-  const positionClasses = getPositionClasses();
+  const handleMouseDown = useCallback((e: ReactMouseEvent<HTMLButtonElement>) => {
+    // 左クリックのみドラッグを開始
+    if (e.button !== 0) return;
+
+    e.preventDefault();
+    e.stopPropagation(); // クリックイベントの伝播を停止
+    setIsDragging(true);
+    hasDragged.current = false;
+
+    // ドラッグ開始位置を記録
+    dragStartPos.current = { x: e.clientX, y: e.clientY };
+
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (rect) {
+      // ボタンの中心からのオフセットを計算
+      setDragOffset({
+        x: e.clientX - (rect.left + rect.width / 2),
+        y: e.clientY - (rect.top + rect.height / 2),
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    let animationFrameId: number | null = null;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current || !buttonRef.current) return;
+
+      // 前のアニメーションフレームをキャンセル
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+
+      // requestAnimationFrameを使用して描画を最適化
+      animationFrameId = requestAnimationFrame(() => {
+        // ドラッグ距離をチェック（5px以上動いたらドラッグとみなす）
+        const dragDistance = Math.sqrt(
+          Math.pow(e.clientX - dragStartPos.current.x, 2) +
+          Math.pow(e.clientY - dragStartPos.current.y, 2)
+        );
+        if (dragDistance > 5) {
+          hasDragged.current = true;
+        }
+
+        // 画面サイズを取得
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        // ボタンサイズを取得
+        const buttonWidth = 40; // w-10 = 40px
+        const buttonHeight = 40; // h-10 = 40px
+
+        // マウス位置からボタン中心の位置を計算（オフセットを考慮）
+        const centerX = e.clientX - dragOffset.x;
+        const centerY = e.clientY - dragOffset.y;
+
+        // 右下からの距離を計算
+        let newRight = viewportWidth - centerX;
+        let newBottom = viewportHeight - centerY;
+
+        // 画面外に出ないように制限（ボタンの半分程度は画面外に出せるように）
+        const minMargin = buttonWidth / 2;
+        newRight = Math.max(-minMargin, Math.min(viewportWidth - minMargin, newRight));
+        newBottom = Math.max(-minMargin, Math.min(viewportHeight - minMargin, newBottom));
+
+        // 位置を更新
+        updatePosition({ right: newRight, bottom: newBottom });
+      });
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      // ドラッグが終了
+      if (isDragging) {
+        setIsDragging(false);
+
+        // ドラッグしていた場合は、少しの間クリックを無視する
+        if (hasDragged.current) {
+          setTimeout(() => {
+            hasDragged.current = false;
+          }, 100);
+        }
+      }
+    };
+
+    // グローバルにイベントリスナーを追加
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      // クリーンアップ時にアニメーションフレームをキャンセル
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragOffset, updatePosition]);
+
+  // ダブルクリックで位置をリセット
+  const handleDoubleClick = useCallback(() => {
+    resetPosition();
+  }, [resetPosition]);
 
   const currentModels = availableModels[selectedProvider] || [];
 
   return (
     <div
       ref={containerRef}
-      className={`fixed ${positionClasses} z-[9999] ${className}`}
+      className={`fixed z-9999 ${className}`}
       style={{
-        // 分割表示切り替え時のアニメーションを無効化（即座に移動）
-        transition: 'none',
-        willChange: 'right, bottom',
+        // 位置を動的に設定
+        right: `${storedPosition.right}px`,
+        bottom: `${storedPosition.bottom}px`,
+        // ドラッグ中はトランジションを完全に無効化
+        transition: isDragging ? 'none !important' : undefined,
+        // will-changeは使用しない（残像の原因になるため）
+        willChange: 'auto',
+        // GPUアクセラレーションを使用
+        transform: 'translateZ(0)',
+        // アイコンの重なりを防ぐ
+        isolation: 'isolate',
+        // 外部からのスタイルを適用
+        ...style,
       }}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
       {/* 展開時のチャットパネル */}
       <div
-        className={`floating-ai-menu-panel absolute bottom-12 ${
-          position === "bottom-right" ? "right-0" : "left-0"
-        } w-80 sm:w-96 bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden ${
+        className={`floating-ai-menu-panel absolute bottom-12 right-0 w-80 sm:w-96 bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden ${
           isExpanded
             ? "opacity-100 translate-y-0 scale-100"
             : "opacity-0 translate-y-4 scale-95 pointer-events-none"
@@ -357,7 +507,10 @@ export default function FloatingAIMenu({
           transition: isExpanded
             ? 'opacity 300ms ease-out, transform 300ms ease-out'
             : 'opacity 200ms ease-in, transform 200ms ease-in',
-          willChange: 'opacity, transform',
+          // will-changeはアニメーション中のみ設定
+          willChange: isExpanded ? 'opacity, transform' : 'auto',
+          // GPUアクセラレーションを使用
+          transform: isExpanded ? 'translateY(0) translateZ(0)' : 'translateY(4px) translateZ(0)',
         }}
         role="dialog"
         aria-label={title}
@@ -572,18 +725,30 @@ export default function FloatingAIMenu({
 
       {/* フローティングボタン */}
       <button
-        onClick={toggleExpanded}
+        ref={buttonRef}
+        onMouseDown={handleMouseDown}
+        onMouseUp={(e) => {
+          // ドラッグしていない場合はクリックとして処理
+          if (!hasDragged.current && isDragging) {
+            setIsDragging(false);
+            toggleExpanded();
+          }
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          handleDoubleClick();
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             toggleExpanded();
           }
         }}
-        className={`floating-ai-menu-button group relative w-10 h-10 rounded-full shadow-lg transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+        className={`floating-ai-menu-button group relative w-10 h-10 rounded-full shadow-lg ${isDragging ? '' : 'transition-all duration-300 ease-out'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
           isExpanded
             ? "bg-zinc-700 hover:bg-zinc-800 rotate-0"
-            : "bg-linear-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 hover:scale-110"
-        }`}
+            : "bg-linear-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700"
+        } ${isDragging ? 'cursor-grabbing scale-110' : 'cursor-grab hover:scale-110'}`}
         aria-label={isExpanded ? "閉じる" : "AIアシスタントを開く"}
         aria-expanded={isExpanded}
       >
@@ -603,10 +768,17 @@ export default function FloatingAIMenu({
         </span>
 
         {/* ツールチップ */}
-        {!isExpanded && (
+        {!isExpanded && !isDragging && (
           <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-zinc-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-            AIに質問する
+            AIに質問する（ドラッグで移動）
           </span>
+        )}
+
+        {/* ドラッグ中のインジケーター */}
+        {isDragging && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <GripVertical className="w-5 h-5 text-white opacity-50" />
+          </div>
         )}
       </button>
     </div>

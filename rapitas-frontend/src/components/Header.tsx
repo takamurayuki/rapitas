@@ -43,7 +43,7 @@ import {
   BookMarked,
   RotateCw,
   Loader2,
-  Link as LinkIcon,
+  StickyNote,
 } from "lucide-react";
 import AppIcon from "@/components/AppIcon";
 import GlobalPomodoroWidget from "@/feature/tasks/pomodoro/GlobalPomodoroWidget";
@@ -54,7 +54,6 @@ import { isTauri, hideToTray } from "@/utils/tauri";
 import { API_BASE_URL } from "@/utils/api";
 import { useShortcutStore, type ShortcutId } from "@/stores/shortcutStore";
 import { useAppModeStore, type AppMode } from "@/stores/appModeStore";
-import { useNoteStore } from "@/stores/noteStore";
 
 type NavItem = {
   href: string;
@@ -115,7 +114,6 @@ export default function Header() {
 
   const shortcutBindings = useShortcutStore((state) => state.shortcuts);
   const appMode = useAppModeStore((state) => state.mode);
-  const toggleNoteModal = useNoteStore((state) => state.toggleModal);
 
   // ショートカットIDからラベルを取得するヘルパー
   const getShortcutLabel = (id: ShortcutId): string | undefined => {
@@ -429,11 +427,6 @@ export default function Header() {
           icon: MessageSquare,
         },
       ],
-    },
-    {
-      href: "/favorite-links",
-      label: "お気に入りリンク",
-      icon: LinkIcon,
     },
     {
       href: "/settings/general",
@@ -838,15 +831,6 @@ export default function Header() {
               {/* 通知ベル */}
               <NotificationBell />
 
-              {/* ノートボタン */}
-              <button
-                onClick={toggleNoteModal}
-                className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                aria-label="ノート"
-                title={`ノート (${getShortcutLabel('toggleNote') || 'Cmd+M'})`}
-              >
-                <FileText className="w-5 h-5" />
-              </button>
               {/* 三点リーダーメニュー */}
               <div className="relative" ref={moreMenuRef}>
                 <button

@@ -84,8 +84,8 @@ export default function HomeClientPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // フィルターアコーディオン（デフォルトで展開）
-  const [isFilterExpanded, setIsFilterExpanded] = useState(true);
+  // フィルターアコーディオン（デフォルトで閉じる）
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
 
   // グローバル設定（activeMode, defaultCategoryId）
   const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(

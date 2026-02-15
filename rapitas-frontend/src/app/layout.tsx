@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
 import KeyboardShortcuts from "@/components/KeyboardShortcuts";
-import { FloatingAIMenuWrapper } from "@/components/floating-ai-menu";
 import AchievementNotifications from "@/components/AchievementToast";
 import { ResumableExecutionsBanner } from "@/components/ResumableExecutionsBanner";
 import ScheduleReminderProvider from "@/components/ScheduleReminderProvider";
@@ -12,6 +11,10 @@ import { ToastProvider } from "@/components/ui/toast/ToastContainer";
 import { PomodoroProvider } from "@/feature/tasks/pomodoro/PomodoroProvider";
 import ExternalLinksProvider from "@/components/ExternalLinksProvider";
 import NoteProvider from "@/components/note/NoteProvider";
+
+import FloatingAIMenuWrapper from "@/components/floating-ai-menu/FloatingAIMenuWrapper";
+import FloatingModeToggle from "@/components/FloatingModeToggle";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -70,13 +73,20 @@ export default function RootLayout({
                 <Suspense fallback={null}>
                   <KeyboardShortcuts />
                 </Suspense>
-                <FloatingAIMenuWrapper />
                 <AchievementNotifications />
                 <Suspense fallback={null}>
                   <ResumableExecutionsBanner />
                 </Suspense>
                 <ScheduleReminderProvider />
-                <NoteProvider />
+                <Suspense fallback={null}>
+                  <NoteProvider />
+                </Suspense>
+                <Suspense fallback={null}>
+                  <FloatingAIMenuWrapper />
+                </Suspense>
+                <Suspense fallback={null}>
+                  <FloatingModeToggle />
+                </Suspense>
               </Suspense>
             </ExternalLinksProvider>
           </ToastProvider>

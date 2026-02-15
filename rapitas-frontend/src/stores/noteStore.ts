@@ -12,12 +12,16 @@ export interface Note {
   color?: string;
 }
 
+export type ModalTab = "note" | "ai";
+
 export interface NoteModalState {
   isOpen: boolean;
   position: { x: number; y: number };
   size: { width: number; height: number };
   isMinimized: boolean;
+  isMaximized: boolean;
   zIndex: number;
+  activeTab: ModalTab;
 }
 
 interface NoteState {
@@ -35,12 +39,14 @@ interface NoteState {
 
   // Modal operations
   toggleModal: () => void;
-  openModal: () => void;
+  openModal: (tab?: ModalTab) => void;
   closeModal: () => void;
   setModalPosition: (x: number, y: number) => void;
   setModalSize: (width: number, height: number) => void;
   toggleMinimize: () => void;
+  toggleMaximize: () => void;
   bringToFront: () => void;
+  setModalTab: (tab: ModalTab) => void;
 
   // Search and filter
   setSearchQuery: (query: string) => void;
@@ -59,7 +65,9 @@ const defaultModalState: NoteModalState = {
   position: { x: 100, y: 100 },
   size: { width: 600, height: 500 },
   isMinimized: false,
+  isMaximized: false,
   zIndex: 1000,
+  activeTab: "note",
 };
 
 export const useNoteStore = create<NoteState>()(
@@ -129,17 +137,18 @@ export const useNoteStore = create<NoteState>()(
         }
       },
 
-      openModal: () => {
+      openModal: (tab) => {
         set((state) => ({
           modalState: {
             ...state.modalState,
             isOpen: true,
             zIndex: ++nextZIndex,
             isMinimized: false,
+            ...(tab ? { activeTab: tab } : {}),
           },
         }));
         const state = get();
-        if (state.notes.length === 0) {
+        if ((!tab || tab === "note") && state.notes.length === 0) {
           get().createNote();
         }
       },
@@ -163,10 +172,41 @@ export const useNoteStore = create<NoteState>()(
       },
 
       toggleMinimize: () => {
+        const ICON_SIZE = 32;
+        set((state) => {
+          const { position, size, isMinimized } = state.modalState;
+          if (!isMinimized) {
+            // モーダル → アイコン: モーダルの右下 = アイコンの右上
+            return {
+              modalState: {
+                ...state.modalState,
+                isMinimized: true,
+                position: {
+                  x: position.x + size.width - ICON_SIZE,
+                  y: position.y + size.height,
+                },
+              },
+            };
+          }
+          // アイコン → モーダル: アイコンの右上 = モーダルの右下
+          return {
+            modalState: {
+              ...state.modalState,
+              isMinimized: false,
+              position: {
+                x: position.x + ICON_SIZE - size.width,
+                y: position.y - size.height,
+              },
+            },
+          };
+        });
+      },
+
+      toggleMaximize: () => {
         set((state) => ({
           modalState: {
             ...state.modalState,
-            isMinimized: !state.modalState.isMinimized,
+            isMaximized: !state.modalState.isMaximized,
           },
         }));
       },
@@ -174,6 +214,12 @@ export const useNoteStore = create<NoteState>()(
       bringToFront: () => {
         set((state) => ({
           modalState: { ...state.modalState, zIndex: ++nextZIndex },
+        }));
+      },
+
+      setModalTab: (tab) => {
+        set((state) => ({
+          modalState: { ...state.modalState, activeTab: tab },
         }));
       },
 
@@ -221,7 +267,7 @@ export const useNoteStore = create<NoteState>()(
           if (a.isPinned !== b.isPinned) {
             return a.isPinned ? -1 : 1;
           }
-          return b.updatedAt.getTime() - a.updatedAt.getTime();
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
         });
       },
 
@@ -229,7 +275,7 @@ export const useNoteStore = create<NoteState>()(
         const state = get();
         const tagSet = new Set<string>();
         state.notes.forEach((note) => {
-          note.tags.forEach((tag) => tagSet.add(tag));
+          note.tags?.forEach((tag) => tagSet.add(tag));
         });
         return Array.from(tagSet).sort();
       },

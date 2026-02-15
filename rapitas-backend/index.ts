@@ -49,7 +49,7 @@ import {
   learningGoalsRoutes,
   rateLimitRoutes,
   paidLeaveRoutes,
-  favoriteLinksRoutes,
+  urlMetadataRoutes,
 } from "./routes";
 
 // Import shared database client
@@ -68,6 +68,7 @@ const app = new Elysia();
 
 // Apply middleware
 app.use(cors());
+
 app.use(errorHandler);
 
 // Swagger documentation
@@ -156,7 +157,7 @@ app.use(screenshotsRoutes);
 app.use(learningGoalsRoutes);
 app.use(rateLimitRoutes);
 app.use(paidLeaveRoutes);
-app.use(favoriteLinksRoutes);
+app.use(urlMetadataRoutes);
 
 // Start server
 const PORT = parseInt(process.env.PORT || "3001", 10);

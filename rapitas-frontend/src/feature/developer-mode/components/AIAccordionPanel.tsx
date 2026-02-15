@@ -27,6 +27,7 @@ import {
   GitBranch,
   ListTodo,
   FileText,
+  MessageSquarePlus,
 } from "lucide-react";
 import type {
   DeveloperModeConfig,
@@ -114,6 +115,7 @@ type Props = {
     useTaskAnalysis?: boolean;
     optimizedPrompt?: string;
     agentConfigId?: number;
+    sessionId?: number;
     attachments?: Array<{
       id: number;
       title: string;
@@ -225,6 +227,9 @@ export function AIAccordionPanel({
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
   const hasRestoredRef = useRef(false);
+  const [continueInstruction, setContinueInstruction] = useState("");
+  const previousLogsLengthRef = useRef(0);
+  // 実行履歴とタブ表示機能を削除
 
   // SSEベースのリアルタイムログ取得
   const {
@@ -380,7 +385,10 @@ export function AIAccordionPanel({
         if (restoredState) {
           setSessionId(restoredState.sessionId);
 
-          if (restoredState.status === "running" || restoredState.status === "waiting_for_input") {
+          if (
+            restoredState.status === "running" ||
+            restoredState.status === "waiting_for_input"
+          ) {
             // 実行中の場合：ログを復元してポーリングを開始
             startPolling({
               initialOutput: restoredState.output,
@@ -430,7 +438,13 @@ export function AIAccordionPanel({
       }
       setExpandedSection("execution");
     }
-  }, [executionSessionId, executionOutput, startPolling, isRestoring, isPollingRunning]);
+  }, [
+    executionSessionId,
+    executionOutput,
+    startPolling,
+    isRestoring,
+    isPollingRunning,
+  ]);
 
   useEffect(() => {
     if (isExecuting && !isPollingRunning && !isRestoring) {
@@ -600,6 +614,7 @@ export function AIAccordionPanel({
     clearLogs();
     setSessionId(null);
     hasRestoredRef.current = false;
+    setContinueInstruction("");
     onReset();
   };
 
@@ -608,6 +623,41 @@ export function AIAccordionPanel({
     handleReset();
     // リセット後に実行を開始
     await handleExecute();
+  };
+
+  // 継続実行のハンドラー
+  const handleContinueExecution = async () => {
+    if (!continueInstruction.trim() || !sessionId) return;
+
+    // 前回の実行内容をサマリーとして追加
+    const previousSummary = `\n【前回の実施内容】\n${logs.slice(-30).join("")}\n\n【追加指示】\n`;
+    const fullInstruction = previousSummary + continueInstruction.trim();
+
+    // 継続実行の開始
+    const result = await onExecute({
+      instruction: fullInstruction,
+      branchName: branchName.trim() || undefined,
+      useTaskAnalysis: false, // 継続実行時は分析結果は使わない
+      agentConfigId: agentConfigId ?? undefined,
+      sessionId: sessionId, // 既存のセッションIDを使って継続
+    });
+
+    if (result?.sessionId) {
+      // 入力欄をクリア
+      setContinueInstruction("");
+      // ログ表示を継続
+      setShowLogs(true);
+      setExpandedSection("execution");
+      // 既存のセッションIDで実行を再開
+      setSessionId(result.sessionId);
+      // ポーリングを再開（ログを保持）
+      // 少し遅延を入れて、バックエンドの継続実行処理が開始されるのを待つ
+      setTimeout(() => {
+        startPolling({
+          preserveLogs: true,
+        });
+      }, 500);
+    }
   };
 
   // 質問検出（APIからのステータスのみを使用、パターンマッチングは廃止）
@@ -657,9 +707,14 @@ export function AIAccordionPanel({
     finalStatus === "failed" || executionError || pollingError || sseError;
   // 中断判定: 復元した実行が interrupted だった場合（ログがあり、executionResultがある）
   const isInterrupted =
-    !isCompleted && !isFailed && !isCancelled &&
-    executionResult?.output && logs.length > 0 &&
-    !isExecuting && !isPollingRunning && !isSseRunning &&
+    !isCompleted &&
+    !isFailed &&
+    !isCancelled &&
+    executionResult?.output &&
+    logs.length > 0 &&
+    !isExecuting &&
+    !isPollingRunning &&
+    !isSseRunning &&
     finalStatus === "idle";
   // 実行中判定: 終了ステータスの場合は実行中ではない（並列実行も含む）
   const isRunning =
@@ -1334,20 +1389,24 @@ export function AIAccordionPanel({
                 </>
               )}
               {/* 初期状態: 実行開始 */}
-              {!isRunning && !isCompleted && !isCancelled && !isFailed && !isInterrupted && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleExecute();
-                  }}
-                  disabled={isExecuting || isParallelExecutionRunning}
-                  className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
-                  aria-label={hasSubtasks ? "サブタスクを実行" : "実行開始"}
-                >
-                  <Play className="w-2.5 h-2.5" />
-                  {hasSubtasks ? "サブタスクを実行" : "実行"}
-                </button>
-              )}
+              {!isRunning &&
+                !isCompleted &&
+                !isCancelled &&
+                !isFailed &&
+                !isInterrupted && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExecute();
+                    }}
+                    disabled={isExecuting || isParallelExecutionRunning}
+                    className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
+                    aria-label={hasSubtasks ? "サブタスクを実行" : "実行開始"}
+                  >
+                    <Play className="w-2.5 h-2.5" />
+                    {hasSubtasks ? "サブタスクを実行" : "実行"}
+                  </button>
+                )}
               {expandedSection === "execution" ? (
                 <ChevronUp className="w-4 h-4 text-zinc-400" />
               ) : (
@@ -1455,6 +1514,47 @@ export function AIAccordionPanel({
                       maxHeight={150}
                     />
                   ) : null}
+                  {/* 継続実行用の入力欄 */}
+                  <div className="p-3 bg-linear-to-br from-indigo-50 via-violet-50 to-purple-50 dark:from-indigo-900/20 dark:via-violet-900/20 dark:to-purple-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800/50 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1 bg-indigo-100 dark:bg-indigo-900/40 rounded">
+                        <MessageSquarePlus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-semibold text-indigo-900 dark:text-indigo-100">
+                          継続実行
+                        </h4>
+                        <p className="text-[10px] text-indigo-700 dark:text-indigo-300">
+                          前回の実行結果を踏まえて、追加の指示を与えることができます
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <textarea
+                        value={continueInstruction}
+                        onChange={(e) => setContinueInstruction(e.target.value)}
+                        placeholder="例: エラーを修正してください / テストを追加してください / リファクタリングしてください"
+                        rows={3}
+                        className="flex-1 px-3 py-2 bg-white dark:bg-zinc-800 border border-indigo-200 dark:border-indigo-700 rounded-lg text-xs resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        aria-label="継続実行の内容"
+                      />
+                      <div className="flex flex-col gap-1.5">
+                        <button
+                          onClick={handleContinueExecution}
+                          disabled={!continueInstruction.trim() || isExecuting}
+                          className="flex items-center gap-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                          aria-label="継続実行"
+                        >
+                          {isExecuting ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Play className="w-3 h-3" />
+                          )}
+                          継続実行
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : isCancelled ? (
                 /* キャンセル */
@@ -1567,7 +1667,6 @@ export function AIAccordionPanel({
           )}
         </div>
       )}
-
     </div>
   );
 }

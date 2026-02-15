@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Keyboard } from "lucide-react";
-import { useFloatingAIMenuStore } from "@/stores/floatingAIMenuStore";
 import { useShortcutStore, type ShortcutId } from "@/stores/shortcutStore";
 import { useNoteStore } from "@/stores/noteStore";
 
@@ -19,9 +18,7 @@ export default function KeyboardShortcuts() {
   const router = useRouter();
   const [showHelp, setShowHelp] = useState(false);
   const [isMac, setIsMac] = useState(false);
-  const toggleFloatingAIMenu = useFloatingAIMenuStore((state) => state.toggle);
   const shortcuts = useShortcutStore((state) => state.shortcuts);
-  const toggleNoteModal = useNoteStore((state) => state.toggleModal);
 
   // クライアントサイドでOS検出
   useEffect(() => {
@@ -44,8 +41,10 @@ export default function KeyboardShortcuts() {
     calendar: () => router.push("/calendar"),
     focusMode: () => router.push("/focus"),
     shortcutHelp: () => setShowHelp(true),
-    toggleAI: () => toggleFloatingAIMenu(),
-    toggleNote: () => toggleNoteModal(),
+    toggleAI: () => {
+      const noteStore = useNoteStore.getState();
+      noteStore.toggleModal();
+    },
   };
 
   useEffect(() => {

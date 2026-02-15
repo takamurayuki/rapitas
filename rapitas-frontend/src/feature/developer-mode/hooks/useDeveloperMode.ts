@@ -325,6 +325,7 @@ export function useDeveloperMode(taskId: number) {
       useTaskAnalysis?: boolean; // AIタスク分析を使用するか
       optimizedPrompt?: string; // 最適化されたプロンプト
       agentConfigId?: number; // 使用するエージェント設定ID
+      sessionId?: number; // 既存のセッションID（継続実行時）
       attachments?: Array<{
         id: number;
         title: string;
@@ -340,33 +341,66 @@ export function useDeveloperMode(taskId: number) {
       setExecutionResult(null);
       setError(null);
       try {
-        // agentConfigIdはoptions内の値を優先し、なければhookの状態値を使用
-        const requestBody = {
-          ...options,
-          agentConfigId: options?.agentConfigId ?? agentConfigId ?? undefined,
-        };
-        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/execute`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setExecutionResult({
-            success: true,
-            sessionId: data.sessionId,
-            message: data.message || "エージェント実行を開始しました",
+        // 既存のセッションIDがある場合は継続実行エンドポイントを使用
+        if (options?.sessionId && options?.instruction) {
+          // 継続実行用のエンドポイント
+          const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/continue-execution`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              instruction: options.instruction,
+              sessionId: options.sessionId,
+              agentConfigId: options.agentConfigId ?? agentConfigId ?? undefined,
+            }),
           });
-          setExecutionStatus("completed");
-          // グローバルストアに実行中タスクを記録
-          setExecutingTask({
-            taskId,
-            sessionId: data.sessionId,
-            status: "running",
-          });
-          return data;
+          const data = await res.json();
+          if (res.ok) {
+            setExecutionResult({
+              success: true,
+              sessionId: data.sessionId,
+              message: data.message || "継続実行を開始しました",
+            });
+            setExecutionStatus("completed");
+            // グローバルストアに実行中タスクを記録
+            setExecutingTask({
+              taskId,
+              sessionId: data.sessionId,
+              status: "running",
+            });
+            return data;
+          } else {
+            throw new Error(data.error || "継続実行に失敗しました");
+          }
         } else {
-          throw new Error(data.error || "エージェントの実行に失敗しました");
+          // 新規実行の場合は通常のエンドポイントを使用
+          // agentConfigIdはoptions内の値を優先し、なければhookの状態値を使用
+          const requestBody = {
+            ...options,
+            agentConfigId: options?.agentConfigId ?? agentConfigId ?? undefined,
+          };
+          const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/execute`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(requestBody),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            setExecutionResult({
+              success: true,
+              sessionId: data.sessionId,
+              message: data.message || "エージェント実行を開始しました",
+            });
+            setExecutionStatus("completed");
+            // グローバルストアに実行中タスクを記録
+            setExecutingTask({
+              taskId,
+              sessionId: data.sessionId,
+              status: "running",
+            });
+            return data;
+          } else {
+            throw new Error(data.error || "エージェントの実行に失敗しました");
+          }
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "エラーが発生しました";

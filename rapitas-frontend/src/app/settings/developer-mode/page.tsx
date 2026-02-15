@@ -291,28 +291,63 @@ export default function DeveloperModeSettingsPage() {
             </div>
           </div>
           {settings?.autoGenerateTitle && (
-            <div className="flex items-center justify-between mt-3 ml-4 pl-4 border-l-2 border-violet-200 dark:border-violet-800">
-              <div>
-                <h3 className="font-medium text-sm text-zinc-900 dark:text-zinc-50">
-                  自動生成までの待機時間
-                </h3>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                  入力が止まってから自動生成を開始するまでの秒数
-                </p>
+            <>
+              <div className="flex items-center justify-between mt-3 ml-4 pl-4 border-l-2 border-violet-200 dark:border-violet-800">
+                <div>
+                  <h3 className="font-medium text-sm text-zinc-900 dark:text-zinc-50">
+                    自動生成までの待機時間
+                  </h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                    入力が止まってから自動生成を開始するまでの秒数
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={localDelay}
+                    onChange={handleDelayChange}
+                    onBlur={handleDelayBlur}
+                    className="w-16 px-2 py-1 text-sm text-center rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  />
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">秒</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  max={30}
-                  value={localDelay}
-                  onChange={handleDelayChange}
-                  onBlur={handleDelayBlur}
-                  className="w-16 px-2 py-1 text-sm text-center rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                />
-                <span className="text-sm text-zinc-500 dark:text-zinc-400">秒</span>
+              <div className="flex items-center justify-between mt-3 ml-4 pl-4 border-l-2 border-violet-200 dark:border-violet-800">
+                <div>
+                  <h3 className="font-medium text-sm text-zinc-900 dark:text-zinc-50">
+                    タイトル生成後に自動作成
+                  </h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                    AIによるタイトル生成が完了したら自動的にタスクを作成します
+                  </p>
+                </div>
+                <button
+                  onClick={() =>
+                    updateSettings({
+                      autoCreateAfterTitleGeneration: !settings?.autoCreateAfterTitleGeneration,
+                    })
+                  }
+                  disabled={isSaving}
+                  className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    settings?.autoCreateAfterTitleGeneration
+                      ? "bg-violet-500"
+                      : "bg-zinc-300 dark:bg-zinc-600"
+                  }`}
+                  role="switch"
+                  aria-checked={settings?.autoCreateAfterTitleGeneration ?? false}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      settings?.autoCreateAfterTitleGeneration
+                        ? "translate-x-5"
+                        : "translate-x-0"
+                    }`}
+                  />
+                </button>
               </div>
-            </div>
+            </>
           )}
         </div>
       </div>

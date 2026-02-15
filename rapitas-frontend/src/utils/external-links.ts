@@ -92,6 +92,9 @@ export function setupExternalLinkHandlers(): void {
     // すでにハンドラーが設定されている場合はスキップ
     if (link.hasAttribute('data-external-handler-set')) return;
 
+    // contentEditable内のリンクはスキップ（ノートエディタ等）
+    if ((link as HTMLElement).isContentEditable) return;
+
     if (isExternalLink(href)) {
       // 古いイベントリスナーを削除（存在する場合）
       const existingHandler = (link as any).__externalLinkHandler;

@@ -7,6 +7,7 @@ import { useTaskDetailVisibilityStore } from "@/stores/taskDetailVisibilityStore
 import { useFloatingAIMenuStore } from "@/stores/floatingAIMenuStore";
 import { isTauri } from "@/utils/tauri";
 
+
 /**
  * FloatingAIMenuのラッパーコンポーネント
  * Ctrl+Yで表示/非表示切替可能
@@ -29,10 +30,8 @@ export default function FloatingAIMenuWrapper() {
     }
   }, []);
 
-  // ユーザーがCtrl+Yで無効化している場合は非表示
-  if (!isEnabled) {
-    return null;
-  }
+  // ユーザーがCtrl+Yで無効化している場合でも、Ctrl+Eイベントを受信できるようにする
+  // Ctrl+Eが押されたらメニューが有効化されるため、常にレンダリングする必要がある
 
   // タスク詳細ページでは非表示にする
   // Web環境: /tasks/[id] 形式
@@ -44,9 +43,12 @@ export default function FloatingAIMenuWrapper() {
     : /^\/tasks\/\d+$/.test(currentPath);
 
   // タスク詳細ページまたはタスク詳細パネルが表示されている場合は非表示
-  if (isTaskDetailPage || isTaskDetailVisible) {
-    return null;
-  }
+  // ただし、無効化されている場合でもCtrl+Eイベントを受信するためにコンポーネントは存在する必要がある
+  const shouldHide = isTaskDetailPage || isTaskDetailVisible;
 
-  return <FloatingAIMenu />;
+  return (
+    <div style={{ visibility: shouldHide || !isEnabled ? 'hidden' : 'visible' }}>
+      <FloatingAIMenu />
+    </div>
+  );
 }

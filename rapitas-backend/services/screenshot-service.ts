@@ -247,7 +247,19 @@ function detectPort(dir: string, projectType: string): number | null {
 }
 
 /**
- * 変更されたファイルにUI関連のファイルが含まれるかチェック（汎用版）
+ * 変更されたファイルにUI関連のファイルが含まれるかチェック（厳格版）
+ *
+ * スクリーンショット取得を最小限にするため、以下の条件を満たす場合のみtrueを返す：
+ * 1. ページコンポーネント（page.tsx, Client.tsx）の直接的な変更
+ * 2. ルートレイアウトやグローバルスタイルの変更
+ * 3. 特定のfeatureコンポーネントの変更（ページに直接表示されるもの）
+ *
+ * 除外するもの：
+ * - 共通コンポーネント（components/common/, components/ui/）
+ * - ユーティリティ関数（utils/, helpers/）
+ * - 型定義ファイル（*.d.ts, types/）
+ * - テストファイル（*.test.*, *.spec.*）
+ * - ストア・フック（stores/, hooks/）※UIに直接影響しない
  */
 export function hasUIChanges(
   changedFiles: string[],
@@ -260,19 +272,48 @@ export function hasUIChanges(
   return changedFiles.some((file) => {
     const normalized = file.replace(/\\/g, "/");
 
-    // UI関連の拡張子
+    // 除外パターン（共通コンポーネント、ユーティリティなど）
+    const excludePatterns = [
+      /\/components\/common\//,
+      /\/components\/ui\//,
+      /\/components\/shared\//,
+      /\/utils\//,
+      /\/helpers\//,
+      /\/lib\//,
+      /\/hooks\//,
+      /\/stores\//,
+      /\/services\//,
+      /\/api\//,
+      /\/types\//,
+      /\.d\.ts$/,
+      /\.test\.[tj]sx?$/,
+      /\.spec\.[tj]sx?$/,
+      /\.stories\.[tj]sx?$/,
+      /__tests__\//,
+      /__mocks__\//,
+    ];
+
+    // 除外パターンに該当する場合はfalse
+    if (excludePatterns.some(pattern => pattern.test(normalized))) {
+      return false;
+    }
+
+    // UI関連の拡張子（CSSは特定の場合のみ）
     const isUIExtension =
       normalized.endsWith(".tsx") ||
       normalized.endsWith(".jsx") ||
       normalized.endsWith(".vue") ||
-      normalized.endsWith(".svelte") ||
-      normalized.endsWith(".css") ||
-      normalized.endsWith(".scss") ||
-      normalized.endsWith(".less") ||
-      normalized.endsWith(".module.css") ||
-      normalized.endsWith(".module.scss");
+      normalized.endsWith(".svelte");
 
-    if (!isUIExtension) return false;
+    // CSSファイルは特定のもののみ対象
+    const isImportantCSS =
+      normalized.endsWith("globals.css") ||
+      normalized.endsWith("global.css") ||
+      normalized.endsWith("index.css") ||
+      normalized.endsWith("app.css") ||
+      normalized.endsWith("main.css");
+
+    if (!isUIExtension && !isImportantCSS) return false;
 
     // プロジェクト固有の判定
     if (projectInfo && projectInfo.type !== "unknown") {
@@ -280,42 +321,48 @@ export function hasUIChanges(
         ? basename(projectInfo.frontendDir)
         : null;
 
-      // フロントエンドディレクトリ内のファイルか
-      if (frontendDirName && normalized.includes(`${frontendDirName}/`)) {
-        return true;
+      // フロントエンドディレクトリ外の変更は除外
+      if (frontendDirName && !normalized.includes(`${frontendDirName}/`)) {
+        return false;
       }
     }
 
-    // 汎用的なUI関連パスパターン
-    return (
-      normalized.includes("src/app/") ||
-      normalized.includes("src/pages/") ||
-      normalized.includes("src/components/") ||
-      normalized.includes("src/views/") ||
-      normalized.includes("src/layouts/") ||
-      normalized.includes("src/feature/") ||
-      normalized.includes("src/features/") ||
-      normalized.includes("app/") ||
-      normalized.includes("pages/") ||
-      normalized.includes("components/") ||
-      normalized.includes("views/") ||
-      normalized.includes("globals.css") ||
-      normalized.includes("global.css") ||
-      normalized.includes("index.css") ||
-      normalized.includes("App.tsx") ||
-      normalized.includes("App.jsx") ||
-      normalized.includes("App.vue") ||
-      normalized.includes("layout.tsx") ||
-      normalized.includes("layout.jsx")
-    );
+    // 重要なUIファイルのパターン
+    const importantUIPatterns = [
+      // ページコンポーネント
+      /\/page\.[tj]sx?$/,
+      /[A-Z]\w*Client\.[tj]sx?$/,
+      /\/views\/[^/]+\.[tj]sx?$/,
+
+      // レイアウトコンポーネント
+      /\/layout\.[tj]sx?$/,
+      /\/Layout\.[tj]sx?$/,
+
+      // ルートコンポーネント
+      /\/App\.[tj]sx?$/,
+      /\/_app\.[tj]sx?$/,
+      /\/index\.[tj]sx?$/,
+
+      // 特定のfeatureコンポーネント（ページに直接表示される主要コンポーネント）
+      /\/feature\/[^/]+\/components\/[^/]+Panel\.[tj]sx?$/,
+      /\/feature\/[^/]+\/components\/[^/]+View\.[tj]sx?$/,
+      /\/feature\/[^/]+\/components\/[^/]+Page\.[tj]sx?$/,
+    ];
+
+    // 重要なUIファイルの場合のみtrue
+    return importantUIPatterns.some(pattern => pattern.test(normalized)) || isImportantCSS;
   });
 }
 
 /**
- * 変更されたファイルから関連するページを推定する（汎用版）
+ * 変更されたファイルから関連するページを推定する（厳格版）
  *
- * 精度重視: ページコンポーネント（page.tsx, Client.tsx）の変更は直接そのルートを、
- * feature ディレクトリや共通コンポーネントの変更は関連ページのみを対象にする。
+ * 精度重視: 直接的な影響があるページのみを検出
+ * - ページコンポーネント（page.tsx, Client.tsx）の変更 → そのページのみ
+ * - feature内の主要コンポーネント → マッピングされた特定ページのみ
+ * - レイアウト変更 → そのレイアウトが適用されるページの代表的なもの1つ
+ * - グローバルスタイル → ホームページのみ
+ *
  * 最大撮影ページ数を制限して不要なスクリーンショットを防止する。
  */
 export function detectAffectedPages(
@@ -324,6 +371,7 @@ export function detectAffectedPages(
 ): Array<{ path: string; label: string }> {
   const pages: Array<{ path: string; label: string }> = [];
   const addedPaths = new Set<string>();
+  const affectedFeatures = new Set<string>();
 
   function addPage(path: string, label: string) {
     // 動的ルート（[id]など）はスキップ
@@ -334,61 +382,18 @@ export function detectAffectedPages(
     }
   }
 
-  // feature ディレクトリからページへのマッピング（全 feature 対応）
+  // feature ディレクトリからページへのマッピング（厳格版）
+  // 各featureの主要コンポーネントが直接表示される代表的なページのみをマッピング
   const featurePageMapping: Record<string, Array<{ path: string; label: string }>> = {
     "developer-mode": [
-      { path: "/approvals", label: "approvals" },
-      { path: "/settings/developer-mode", label: "developer-mode" },
+      { path: "/approvals", label: "approvals" }, // 最大1ページ
     ],
     "calendar": [
       { path: "/calendar", label: "calendar" },
     ],
     "tasks": [
-      { path: "/", label: "home" },
-      { path: "/kanban", label: "kanban" },
-      { path: "/tasks/new", label: "tasks-new" },
-      { path: "/tasks/detail", label: "tasks-detail" },
-      { path: "/task-detail", label: "task-detail" },
+      { path: "/", label: "home" }, // タスク一覧が表示されるメインページのみ
     ],
-  };
-
-  // src/app/ 内のコンポーネント（*Client.tsx など page.tsx 以外）から
-  // ページルートを推測するマッピング
-  const appComponentMapping: Record<string, Array<{ path: string; label: string }>> = {
-    "achievements": [{ path: "/achievements", label: "achievements" }],
-    "agents": [{ path: "/agents", label: "agents" }],
-    "approvals": [{ path: "/approvals", label: "approvals" }],
-    "categories": [{ path: "/categories", label: "categories" }],
-    "dashboard": [{ path: "/dashboard", label: "dashboard" }],
-    "exam-goals": [{ path: "/exam-goals", label: "exam-goals" }],
-    "flashcards": [{ path: "/flashcards", label: "flashcards" }],
-    "focus": [{ path: "/focus", label: "focus" }],
-    "github": [
-      { path: "/github", label: "github" },
-      { path: "/github/issues", label: "github-issues" },
-      { path: "/github/pull-requests", label: "github-pull-requests" },
-    ],
-    "habits": [
-      { path: "/habits", label: "habits" },
-      { path: "/habits/daily-schedule", label: "daily-schedule" },
-    ],
-    "kanban": [{ path: "/kanban", label: "kanban" }],
-    "labels": [{ path: "/labels", label: "labels" }],
-    "learning-goals": [{ path: "/learning-goals", label: "learning-goals" }],
-    "reports": [{ path: "/reports", label: "reports" }],
-    "settings": [
-      { path: "/settings", label: "settings" },
-      { path: "/settings/general", label: "settings-general" },
-      { path: "/settings/developer-mode", label: "settings-developer-mode" },
-      { path: "/settings/shortcuts", label: "settings-shortcuts" },
-    ],
-    "system-prompts": [{ path: "/system-prompts", label: "system-prompts" }],
-    "task-detail": [{ path: "/task-detail", label: "task-detail" }],
-    "tasks": [
-      { path: "/tasks/new", label: "tasks-new" },
-      { path: "/tasks/detail", label: "tasks-detail" },
-    ],
-    "themes": [{ path: "/themes", label: "themes" }],
   };
 
   for (const file of changedFiles) {
@@ -473,43 +478,38 @@ export function detectAffectedPages(
       continue;
     }
 
-    // 8. feature ディレクトリの変更 → マッピングされたページのみ
+    // 8. feature ディレクトリの変更 → 主要コンポーネントのみ対象
     const featureMatch = normalized.match(
-      /src\/feature\/([^/]+)\//,
+      /src\/feature\/([^/]+)\/components\/([^/]+)\.[tj]sx?$/,
     );
     if (featureMatch) {
       const featureName = featureMatch[1];
-      const mappedPages = featurePageMapping[featureName];
-      if (mappedPages) {
-        for (const mp of mappedPages) {
-          addPage(mp.path, mp.label);
+      const componentName = featureMatch[2];
+
+      // 主要なコンポーネント（Panel, View, Page系）の場合のみ
+      if (
+        componentName.endsWith("Panel") ||
+        componentName.endsWith("View") ||
+        componentName.endsWith("Page") ||
+        componentName.includes("Client")
+      ) {
+        // すでにこのfeatureを処理済みの場合はスキップ（重複防止）
+        if (affectedFeatures.has(featureName)) {
+          continue;
         }
-      } else {
-        // マッピングがない feature は feature 名をルートとして推測
-        // 例: src/feature/habits/ → /habits
-        addPage(`/${featureName}`, featureName);
+        affectedFeatures.add(featureName);
+
+        const mappedPages = featurePageMapping[featureName];
+        if (mappedPages && mappedPages.length > 0) {
+          // マッピングがある場合は最初の1ページのみ追加
+          addPage(mappedPages[0].path, mappedPages[0].label);
+        }
       }
       continue;
     }
 
-    // 9. src/app/xxx/ 内の任意のコンポーネントファイル変更
-    //    page.tsx や *Client.tsx 以外のファイル（例: src/app/dashboard/Chart.tsx）
-    const appDirComponentMatch = normalized.match(
-      /(?:[\w-]+\/)?src\/app\/([^/]+)\//,
-    );
-    if (appDirComponentMatch) {
-      const dirName = appDirComponentMatch[1];
-      const mappedPages = appComponentMapping[dirName];
-      if (mappedPages) {
-        for (const mp of mappedPages) {
-          addPage(mp.path, mp.label);
-        }
-      } else if (!dirName.startsWith("_") && !dirName.startsWith(".")) {
-        // マッピングがないディレクトリ名をルートとして推測
-        addPage(`/${dirName}`, dirName);
-      }
-      continue;
-    }
+    // 9. src/app/xxx/ 内の任意のコンポーネントファイル変更は無視
+    // （page.tsx や *Client.tsx の直接的な変更のみを対象とする）
 
     // 10. グローバルCSS の変更 → トップページのみ
     if (
@@ -521,8 +521,7 @@ export function detectAffectedPages(
       continue;
     }
 
-    // 11. 共通コンポーネント・ユーティリティの変更は無視（影響範囲が広すぎるため）
-    // page.tsx や Client.tsx を直接変更した場合のみスクリーンショットを撮影
+    // 11. その他の変更は無視（共通コンポーネント、ユーティリティなど）
   }
 
   return pages;
@@ -964,11 +963,11 @@ export async function captureAllScreenshots(
     );
   }
 
-  // maxPages のデフォルトを10に制限（不要なスクリーンショットを防止）
+  // maxPages のデフォルトを5に制限（不要なスクリーンショットを防止）
   return captureScreenshots({
     ...options,
     pages: targetPages,
-    maxPages: options.maxPages || 10,
+    maxPages: options.maxPages || 5,
     workingDirectory,
   });
 }
@@ -1070,8 +1069,8 @@ export async function captureScreenshotsForDiff(
     pages.push({ path: "/", label: "home" });
   }
 
-  // 最大ページ数を制限（デフォルト: 5）
-  const maxPages = options?.maxPages || 5;
+  // 最大ページ数を制限（デフォルト: 3）より厳格な制限
+  const maxPages = options?.maxPages || 3;
   const targetPages = pages.slice(0, maxPages);
   if (pages.length > maxPages) {
     console.log(

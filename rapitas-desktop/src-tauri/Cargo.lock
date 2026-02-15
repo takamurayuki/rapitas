@@ -2606,12 +2606,15 @@ dependencies = [
 name = "rapitas-desktop"
 version = "1.0.0"
 dependencies = [
+ "open",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-global-shortcut",
  "tauri-plugin-shell",
+ "url",
+ "winapi",
 ]
 
 [[package]]

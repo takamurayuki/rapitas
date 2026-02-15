@@ -263,13 +263,14 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
         autoExecuteAfterCreate?: boolean;
         autoGenerateTitle?: boolean;
         autoGenerateTitleDelay?: number;
+        autoCreateAfterTitleGeneration?: boolean;
         defaultAiProvider?: string;
         defaultCategoryId?: number | null;
         activeMode?: string;
       };
       set: { status?: number };
     }) => {
-      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, autoExecuteAfterCreate, autoGenerateTitle, autoGenerateTitleDelay, defaultAiProvider, defaultCategoryId, activeMode } = body;
+      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, autoExecuteAfterCreate, autoGenerateTitle, autoGenerateTitleDelay, autoCreateAfterTitleGeneration, defaultAiProvider, defaultCategoryId, activeMode } = body;
 
       try {
         let settings = await prisma.userSettings.findFirst();
@@ -282,6 +283,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
               autoExecuteAfterCreate: autoExecuteAfterCreate ?? false,
               autoGenerateTitle: autoGenerateTitle ?? false,
               ...(autoGenerateTitleDelay !== undefined && { autoGenerateTitleDelay }),
+              autoCreateAfterTitleGeneration: autoCreateAfterTitleGeneration ?? false,
               ...(defaultCategoryId !== undefined && { defaultCategoryId }),
               ...(activeMode !== undefined && { activeMode }),
             },
@@ -296,6 +298,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
               ...(autoExecuteAfterCreate !== undefined && { autoExecuteAfterCreate }),
               ...(autoGenerateTitle !== undefined && { autoGenerateTitle }),
               ...(autoGenerateTitleDelay !== undefined && { autoGenerateTitleDelay }),
+              ...(autoCreateAfterTitleGeneration !== undefined && { autoCreateAfterTitleGeneration }),
               ...(defaultAiProvider !== undefined && { defaultAiProvider }),
               ...(defaultCategoryId !== undefined && { defaultCategoryId }),
               ...(activeMode !== undefined && { activeMode }),
@@ -321,6 +324,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
         autoExecuteAfterCreate: t.Optional(t.Boolean()),
         autoGenerateTitle: t.Optional(t.Boolean()),
         autoGenerateTitleDelay: t.Optional(t.Number()),
+        autoCreateAfterTitleGeneration: t.Optional(t.Boolean()),
         defaultAiProvider: t.Optional(t.String()),
         defaultCategoryId: t.Optional(t.Union([t.Number(), t.Null()])),
         activeMode: t.Optional(t.String()),

@@ -41,6 +41,8 @@ export type ExecutionOptions = {
   onOutput?: AgentOutputHandler;
   /** AIタスク分析結果（有効な場合に渡される） */
   analysisInfo?: TaskAnalysisInfo;
+  /** 前回の実行からの継続であることを示すフラグ */
+  continueFromPrevious?: boolean;
 };
 
 export type ExecutionState = {
@@ -1243,11 +1245,39 @@ export class AgentOrchestrator {
       timestamp: new Date(),
     });
 
+    // 継続実行の場合は前回のログを取得
+    let previousOutput = "";
+    if (options.continueFromPrevious && options.sessionId) {
+      try {
+        // 同じセッションの前回の実行を取得
+        const previousExecution = await this.prisma.agentExecution.findFirst({
+          where: {
+            sessionId: options.sessionId,
+            id: { not: execution.id }, // 現在の実行を除外
+          },
+          orderBy: { createdAt: "desc" },
+          select: { output: true },
+        });
+
+        if (previousExecution?.output) {
+          previousOutput = previousExecution.output;
+          console.log(`[Orchestrator] Previous execution output loaded for continuation (${previousOutput.length} chars)`);
+        }
+      } catch (error) {
+        console.error("[Orchestrator] Failed to load previous execution output:", error);
+      }
+    }
+
     // 初期メッセージを設定（使用エージェント名を明示）
     const agentLabel = agentConfig.modelId
       ? `${agentConfig.name} (${agentConfig.type}, model: ${agentConfig.modelId})`
       : `${agentConfig.name} (${agentConfig.type})`;
-    const initialMessage = `[実行開始] タスクの実行を開始します...\n[エージェント] ${agentLabel}\n`;
+
+    // 継続実行の場合は前回のログから継続、新規実行の場合は新しいメッセージから開始
+    const initialMessage = options.continueFromPrevious && previousOutput
+      ? previousOutput + "\n[継続実行] 追加指示の実行を開始します...\n"
+      : `[実行開始] タスクの実行を開始します...\n[エージェント] ${agentLabel}\n`;
+
     state.output = initialMessage;
 
     // 実行レコードを更新（初期出力も保存）
@@ -1312,11 +1342,13 @@ export class AgentOrchestrator {
       }
 
       // 実行レコードを更新（claudeSessionIdを含む）
+      // state.outputは前回の出力を含む蓄積済み出力（継続実行時にpreviousOutput + 新出力）
+      // result.outputはエージェントの新規出力のみ。state.outputを使って完全なログを保存する
       await this.prisma.agentExecution.update({
         where: { id: execution.id },
         data: {
           status: executionStatus,
-          output: result.output,
+          output: state.output || result.output,
           artifacts: toJsonString(result.artifacts),
           completedAt: result.waitingForInput ? null : new Date(),
           tokensUsed: result.tokensUsed || 0,
@@ -2235,11 +2267,13 @@ export class AgentOrchestrator {
       }
 
       // 実行レコードを更新（claudeSessionIdを更新して会話継続に備える）
+      // state.outputにはexecution.output（既存出力）+ 新しい出力チャンクが蓄積済み
+      // result.outputはエージェントの生出力のみなので、state.outputを使用する
       await this.prisma.agentExecution.update({
         where: { id: execution.id },
         data: {
           status: executionStatus,
-          output: state.output + "\n" + result.output,
+          output: state.output,
           artifacts: result.artifacts
             ? toJsonString(result.artifacts)
             : execution.artifacts,
@@ -2834,11 +2868,13 @@ export class AgentOrchestrator {
       }
 
       // 実行レコードを更新
+      // state.outputにはexecution.output（既存出力）+ 新しい出力チャンクが蓄積済み
+      // result.outputはエージェントの生出力のみなので、state.outputを使用する
       await this.prisma.agentExecution.update({
         where: { id: execution.id },
         data: {
           status: executionStatus,
-          output: state.output + "\n" + result.output,
+          output: state.output,
           artifacts: result.artifacts
             ? toJsonString(result.artifacts)
             : execution.artifacts,

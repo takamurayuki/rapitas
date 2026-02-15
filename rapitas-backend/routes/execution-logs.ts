@@ -99,7 +99,10 @@ export const executionLogsRoutes = new Elysia()
 
     const content = await readFile(logFile.path, "utf-8");
     set.headers["Content-Type"] = "text/plain; charset=utf-8";
-    set.headers["Content-Disposition"] = `attachment; filename="${logFile.filename}"`;
+
+    // Encode filename for Content-Disposition header
+    const encodedFileName = encodeURIComponent(logFile.filename);
+    set.headers["Content-Disposition"] = `attachment; filename="${encodedFileName}"; filename*=UTF-8''${encodedFileName}`;
     return content;
   })
 

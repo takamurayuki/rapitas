@@ -11,9 +11,11 @@ import {
   ExternalLink,
   Loader2,
   Check,
+  Eye,
 } from "lucide-react";
 import type { Resource } from "@/types";
 import { API_BASE_URL } from "@/utils/api";
+import FileViewer from "@/components/file-viewer/FileViewer";
 
 // ダウンロード状態の型
 type DownloadState = "idle" | "downloading" | "completed";
@@ -57,6 +59,7 @@ export default function FileUploader({
   const [downloadStates, setDownloadStates] = useState<
     Record<number, DownloadState>
   >({});
+  const [viewingResource, setViewingResource] = useState<Resource | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ダウンロード処理（アニメーション付き）
@@ -99,6 +102,7 @@ export default function FileUploader({
             const errorData = await res.json().catch(() => ({}));
             throw new Error(errorData.message || "アップロードに失敗しました");
           }
+          await res.json();
         }
 
         onResourcesChange();
@@ -115,7 +119,6 @@ export default function FileUploader({
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log("[FileUploader] handleDragEnter", e.dataTransfer.types);
     setDragActive(true);
   }, []);
 
@@ -125,7 +128,6 @@ export default function FileUploader({
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX;
     const y = e.clientY;
-    console.log("[FileUploader] handleDragLeave", { x, y });
     if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
       setDragActive(false);
     }
@@ -141,18 +143,10 @@ export default function FileUploader({
       e.preventDefault();
       e.stopPropagation();
       setDragActive(false);
-      console.log(
-        "[FileUploader] handleDrop",
-        e.dataTransfer.files,
-        e.dataTransfer.types,
-      );
 
       const files = e.dataTransfer.files;
       if (files && files.length > 0) {
-        console.log("[FileUploader] Uploading files:", files.length);
         uploadFiles(files);
-      } else {
-        console.log("[FileUploader] No files in dataTransfer");
       }
     },
     [uploadFiles],
@@ -313,12 +307,19 @@ export default function FileUploader({
 
               {/* Actions */}
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => setViewingResource(resource)}
+                  className="p-1.5 text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                  title="プレビュー"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
                 <a
                   href={getFileUrl(resource)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-1.5 text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                  title="開く"
+                  title="新しいタブで開く"
                 >
                   <ExternalLink className="w-4 h-4" />
                 </a>
@@ -377,6 +378,17 @@ export default function FileUploader({
             </div>
           ))}
         </div>
+      )}
+
+      {/* File Viewer */}
+      {viewingResource && (
+        <FileViewer
+          resource={viewingResource}
+          isOpen={!!viewingResource}
+          onClose={() => setViewingResource(null)}
+          resources={fileResources}
+          onNavigate={(res) => setViewingResource(res)}
+        />
       )}
     </div>
   );

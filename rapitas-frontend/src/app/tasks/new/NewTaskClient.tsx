@@ -191,7 +191,7 @@ export default function NewTaskClient() {
     setSubtasks(subtasks.filter((st) => st.id !== id));
   };
 
-  const handleGenerateTitle = async () => {
+  const handleGenerateTitle = async (fromAutoGenerate = false) => {
     if (!description.trim() || isGeneratingTitle) return;
 
     setIsGeneratingTitle(true);
@@ -211,6 +211,15 @@ export default function NewTaskClient() {
       if (data.title) {
         setTitle(data.title);
         showToast("タイトルを自動生成しました", "success");
+
+        // タイトル生成後の自動作成が有効な場合（自動生成から呼ばれた場合のみ）
+        if (fromAutoGenerate && globalSettings?.autoCreateAfterTitleGeneration) {
+          showToast("タスクを自動作成します...", "info");
+          // 少し遅延を入れてタイトルがセットされたことを確認
+          setTimeout(() => {
+            handleSubmit();
+          }, 500);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -245,7 +254,7 @@ export default function NewTaskClient() {
 
     const delaySec = globalSettings?.autoGenerateTitleDelay ?? 3;
     autoGenerateTimerRef.current = setTimeout(() => {
-      handleGenerateTitle();
+      handleGenerateTitle(true); // fromAutoGenerateフラグをtrueで呼び出し
     }, delaySec * 1000);
 
     return () => {
@@ -558,7 +567,7 @@ export default function NewTaskClient() {
             headerExtra={
               <button
                 type="button"
-                onClick={handleGenerateTitle}
+                onClick={() => handleGenerateTitle(false)}
                 disabled={!description.trim() || isGeneratingTitle}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-900 disabled:opacity-40 disabled:cursor-not-allowed"
                 title="説明からタイトルを自動生成"

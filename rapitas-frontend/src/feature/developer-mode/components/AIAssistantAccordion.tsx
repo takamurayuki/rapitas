@@ -174,7 +174,10 @@ export function AIAssistantAccordion({
       // リサイズ完了時にローカルストレージに保存
       const finalHeight = Math.min(
         MAX_HEIGHT,
-        Math.max(MIN_HEIGHT, startHeightRef.current + (e.clientY - startYRef.current)),
+        Math.max(
+          MIN_HEIGHT,
+          startHeightRef.current + (e.clientY - startYRef.current),
+        ),
       );
       localStorage.setItem(STORAGE_KEY, String(finalHeight));
     };
@@ -331,12 +334,14 @@ export function AIAssistantAccordion({
           {/* リサイズハンドル - コンテンツの直下に配置 */}
           <div
             onMouseDown={handleResizeStart}
-            className={`flex-shrink-0 h-5 flex items-center justify-center bg-zinc-100 dark:bg-indigo-dark-800 border-t border-zinc-200 dark:border-zinc-700 hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors group select-none touch-none ${isResizing ? "bg-violet-200 dark:bg-violet-900/50" : ""}`}
+            className={`shrink-0 h-5 flex items-center justify-center bg-zinc-100 dark:bg-indigo-dark-800 border-t border-zinc-200 dark:border-zinc-700 hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors group select-none touch-none ${isResizing ? "bg-violet-200 dark:bg-violet-900/50" : ""}`}
             style={{ cursor: "ns-resize" }}
             title="ドラッグしてサイズを変更"
           >
             <div className="flex items-center gap-0.5">
-              <div className={`w-8 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600 group-hover:bg-violet-400 dark:group-hover:bg-violet-500 transition-colors ${isResizing ? "bg-violet-500 dark:bg-violet-400" : ""}`} />
+              <div
+                className={`w-8 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600 group-hover:bg-violet-400 dark:group-hover:bg-violet-500 transition-colors ${isResizing ? "bg-violet-500 dark:bg-violet-400" : ""}`}
+              />
             </div>
           </div>
         </div>

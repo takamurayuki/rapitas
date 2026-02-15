@@ -1,7 +1,7 @@
 {
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": ["main", "external-view"],
   "permissions": [
     "core:default",
     "shell:allow-spawn",
@@ -22,6 +22,12 @@
     "core:window:allow-outer-position",
     "core:window:allow-center",
     "core:window:allow-available-monitors",
-    "core:window:allow-unmaximize"
+    "core:window:allow-unmaximize",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-maximize",
+    "core:window:allow-minimize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-is-fullscreen",
+    "core:window:allow-set-fullscreen"
   ]
 }

@@ -1,6 +1,31 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 @import "../styles/note-animations.css";
+@import "../styles/note-modal-enhanced.css";
+@import "../styles/note-editor-enhanced.css";
+
+/* ノートホバーサイドバー用のアニメーション */
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
 
 /* クラスベースのダークモード切り替え */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -105,6 +130,11 @@ html {
 
 .floating-ai-menu-button {
   z-index: 9999;
+  /* ドラッグ時の重複を防ぐ */
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  perspective: 1000;
+  -webkit-perspective: 1000;
 }
 
 /* スクロール可能な場合のみスクロールバーを表示 */
@@ -391,6 +421,43 @@ iframe:not([src=""]) + .iframe-loading {
   pointer-events: none;
 }
 
+/* ファイルダウンロード用アニメーション */
+@keyframes successPop {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* 追加のアニメーション用のキーフレーム */
 @keyframes animate-in {
   from {
@@ -443,6 +510,112 @@ iframe:not([src=""]) + .iframe-loading {
     transform: scale(1);
     opacity: 1;
   }
+}
+
+/* contentEditableの基本スタイル */
+[contenteditable="true"] {
+  -webkit-user-modify: read-write;
+  word-wrap: break-word;
+  line-break: after-white-space;
+  -webkit-line-break: after-white-space;
+}
+
+/* ノートエディタのスタイル修正 */
+.note-editor[contenteditable="true"] {
+  cursor: text;
+  caret-color: currentColor;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* contentEditable内での選択スタイル */
+.note-editor[contenteditable="true"]::selection,
+.note-editor[contenteditable="true"] *::selection {
+  background-color: #b3d4fc;
+  color: #000;
+}
+
+.dark .note-editor[contenteditable="true"]::selection,
+.dark .note-editor[contenteditable="true"] *::selection {
+  background-color: #4f46e5;
+  color: #fff;
+}
+
+/* ノートエディタ内のテーブルスタイル */
+.note-editor table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0;
+}
+
+.note-editor table th,
+.note-editor table td {
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.note-editor table th {
+  background-color: var(--surface-muted);
+  font-weight: 600;
+}
+
+.note-editor table tr:hover {
+  background-color: var(--surface-muted);
+}
+
+.dark .note-editor table th,
+.dark .note-editor table td {
+  border-color: #334155;
+}
+
+.dark .note-editor table th {
+  background-color: #1e293b;
+}
+
+.dark .note-editor table tr:hover {
+  background-color: #1e293b;
+}
+
+/* テーブルコンテキストメニュー */
+.table-context-menu {
+  animation: fade-in 0.1s ease-out;
+}
+
+/* ノートエディタのテーブル操作 */
+.note-table th[contenteditable="true"],
+.note-table td[contenteditable="true"] {
+  cursor: text;
+}
+
+.note-table th[contenteditable="true"]:hover,
+.note-table td[contenteditable="true"]:hover {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.note-table th[contenteditable="true"]:focus,
+.note-table td[contenteditable="true"]:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background-color: rgba(79, 70, 229, 0.05);
+}
+
+.dark .note-table th[contenteditable="true"]:focus,
+.dark .note-table td[contenteditable="true"]:focus {
+  background-color: rgba(129, 140, 248, 0.1);
+}
+
+/* ノートエディタ内のリンクスタイル */
+.note-editor a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.note-editor a:hover {
+  border-bottom-color: var(--accent);
 }
 
 /* アニメーションクラス */

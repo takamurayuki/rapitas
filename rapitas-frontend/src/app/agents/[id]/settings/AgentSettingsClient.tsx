@@ -49,6 +49,12 @@ type AgentConfig = {
   updatedAt: string;
 };
 
+type ModelOption = {
+  value: string;
+  label: string;
+  description?: string;
+};
+
 type ProviderConfig = {
   name: string;
   icon: React.ReactNode;

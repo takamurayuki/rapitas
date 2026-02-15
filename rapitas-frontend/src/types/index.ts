@@ -634,6 +634,7 @@ export type UserSettings = {
   autoExecuteAfterCreate: boolean;
   autoGenerateTitle: boolean;
   autoGenerateTitleDelay: number;
+  autoCreateAfterTitleGeneration: boolean;
   defaultCategoryId?: number | null;
   activeMode: ActiveMode;
   claudeApiKeyConfigured?: boolean;

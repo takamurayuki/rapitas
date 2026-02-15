@@ -72,15 +72,27 @@ function cleanImplementationSummary(rawOutput: string): string {
     if (trimmed === "") continue;
 
     // ログ出力パターンを除外
-    if (/^\[(?:実行開始|実行中|API|DEBUG|INFO|WARN|ERROR|LOG)\]/.test(trimmed)) continue;
+    if (/^\[(?:実行開始|実行中|API|DEBUG|INFO|WARN|ERROR|LOG)\]/.test(trimmed))
+      continue;
     if (/^\[[\d\-T:.Z]+\]/.test(trimmed)) continue; // タイムスタンプ付きログ
     if (/^(?:>|>>|\$)\s/.test(trimmed)) continue; // コマンド実行行
-    if (/^(?:npm|bun|yarn|pnpm)\s(?:run|install|build|test|exec)/.test(trimmed)) continue;
-    if (/^(?:Running|Executing|Starting|Compiling|Building|Installing)[\s:]/.test(trimmed)) continue;
-    if (/^(?:stdout|stderr|exit code|pid|process)[\s:]/i.test(trimmed)) continue;
+    if (/^(?:npm|bun|yarn|pnpm)\s(?:run|install|build|test|exec)/.test(trimmed))
+      continue;
+    if (
+      /^(?:Running|Executing|Starting|Compiling|Building|Installing)[\s:]/.test(
+        trimmed,
+      )
+    )
+      continue;
+    if (/^(?:stdout|stderr|exit code|pid|process)[\s:]/i.test(trimmed))
+      continue;
     if (/^(?:✓|✗|✔|✘|⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏)\s/.test(trimmed)) continue; // スピナー・チェックマーク
-    if (/^(?:warning|error|info|debug|trace|verbose)\s*:/i.test(trimmed)) continue;
-    if (/^(?:at\s+|Error:|TypeError:|ReferenceError:|SyntaxError:)/.test(trimmed)) continue; // スタックトレース
+    if (/^(?:warning|error|info|debug|trace|verbose)\s*:/i.test(trimmed))
+      continue;
+    if (
+      /^(?:at\s+|Error:|TypeError:|ReferenceError:|SyntaxError:)/.test(trimmed)
+    )
+      continue; // スタックトレース
     if (/^(?:\d+\s+(?:passing|failing|pending))/.test(trimmed)) continue; // テスト結果の詳細行
     if (/console\.(?:log|error|warn|info|debug)\s*\(/.test(trimmed)) continue; // console.log呼び出し
     if (/^[\-=]{3,}$/.test(trimmed)) continue; // 区切り線
@@ -139,7 +151,7 @@ export const aiAgentRoutes = new Elysia()
     });
 
     // 開発用とレビュー用のエージェントのみを返す
-    const filteredAgents = agents.filter(agent => {
+    const filteredAgents = agents.filter((agent) => {
       // 開発用エージェント設定を確認
       const isDevelopmentAgent = agent.name.includes("Development Agent");
       // レビュー用エージェント設定を確認
@@ -162,7 +174,11 @@ export const aiAgentRoutes = new Elysia()
       include: {
         _count: { select: { executions: true } },
       },
-      orderBy: [{ isDefault: "desc" }, { isActive: "desc" }, { createdAt: "desc" }],
+      orderBy: [
+        { isDefault: "desc" },
+        { isActive: "desc" },
+        { createdAt: "desc" },
+      ],
     });
     return agents.map((agent) => ({
       ...agent,
@@ -188,7 +204,10 @@ export const aiAgentRoutes = new Elysia()
 
       // デフォルトエージェントは無効化できない
       if (agent.isDefault && agent.isActive) {
-        return { error: "デフォルトエージェントは無効化できません。先に別のエージェントをデフォルトに設定してください。" };
+        return {
+          error:
+            "デフォルトエージェントは無効化できません。先に別のエージェントをデフォルトに設定してください。",
+        };
       }
 
       const updated = await prisma.aIAgentConfig.update({
@@ -199,7 +218,9 @@ export const aiAgentRoutes = new Elysia()
       await logAgentConfigChange({
         agentConfigId: agentId,
         action: "update",
-        changeDetails: { isActive: { from: agent.isActive, to: updated.isActive } },
+        changeDetails: {
+          isActive: { from: agent.isActive, to: updated.isActive },
+        },
         previousValues: { isActive: agent.isActive },
         newValues: { isActive: updated.isActive },
       });
@@ -225,7 +246,11 @@ export const aiAgentRoutes = new Elysia()
         isBuiltinFallback: true,
       };
     }
-    return { ...defaultAgent, capabilities: fromJsonString(defaultAgent.capabilities) ?? {}, isBuiltinFallback: false };
+    return {
+      ...defaultAgent,
+      capabilities: fromJsonString(defaultAgent.capabilities) ?? {},
+      isBuiltinFallback: false,
+    };
   })
 
   // Set default agent by ID
@@ -265,7 +290,9 @@ export const aiAgentRoutes = new Elysia()
         newValues: { isDefault: true },
       });
 
-      console.log(`[agents] Default agent changed to: ${updated.name} (${updated.agentType})`);
+      console.log(
+        `[agents] Default agent changed to: ${updated.name} (${updated.agentType})`,
+      );
       return updated;
     },
   )
@@ -276,8 +303,13 @@ export const aiAgentRoutes = new Elysia()
       where: { isDefault: true },
       data: { isDefault: false },
     });
-    console.log("[agents] Default agent cleared, reverting to built-in Claude Code");
-    return { success: true, message: "Default agent cleared. Will use built-in Claude Code." };
+    console.log(
+      "[agents] Default agent cleared, reverting to built-in Claude Code",
+    );
+    return {
+      success: true,
+      message: "Default agent cleared. Will use built-in Claude Code.",
+    };
   })
 
   // Create agent configuration
@@ -417,7 +449,9 @@ export const aiAgentRoutes = new Elysia()
           ...(apiKeyEncrypted !== undefined && { apiKeyEncrypted }),
           ...(endpoint !== undefined && { endpoint }),
           ...(modelId !== undefined && { modelId }),
-          ...(capabilities && { capabilities: toJsonString(capabilities) ?? "{}" }),
+          ...(capabilities && {
+            capabilities: toJsonString(capabilities) ?? "{}",
+          }),
           ...(isDefault !== undefined && { isDefault }),
           ...(isActive !== undefined && { isActive }),
         },
@@ -474,7 +508,13 @@ export const aiAgentRoutes = new Elysia()
   // Get single agent configuration with masked API key
   .get(
     "/agents/:id",
-    async ({ params, set }: { params: { id: string }; set: { status: number } }) => {
+    async ({
+      params,
+      set,
+    }: {
+      params: { id: string };
+      set: { status: number };
+    }) => {
       const { id } = params;
       const agent = await prisma.aIAgentConfig.findUnique({
         where: { id: parseInt(id) },
@@ -609,7 +649,13 @@ export const aiAgentRoutes = new Elysia()
   // Delete API key for agent
   .delete(
     "/agents/:id/api-key",
-    async ({ params, set }: { params: { id: string }; set: { status: number } }) => {
+    async ({
+      params,
+      set,
+    }: {
+      params: { id: string };
+      set: { status: number };
+    }) => {
       const { id } = params;
 
       const agent = await prisma.aIAgentConfig.findUnique({
@@ -642,7 +688,13 @@ export const aiAgentRoutes = new Elysia()
   // Test connection for agent (alias for test-connection)
   .post(
     "/agents/:id/test",
-    async ({ params, set }: { params: { id: string }; set: { status: number } }) => {
+    async ({
+      params,
+      set,
+    }: {
+      params: { id: string };
+      set: { status: number };
+    }) => {
       const { id } = params;
       const agent = await prisma.aIAgentConfig.findUnique({
         where: { id: parseInt(id) },
@@ -732,9 +784,13 @@ export const aiAgentRoutes = new Elysia()
               return { success: true, message: "Anthropic API接続成功" };
             } else {
               const errorBody = await response.json().catch(() => ({}));
-              const errorMessage = errorBody && typeof errorBody === 'object' && 'error' in errorBody
-                ? (errorBody as { error?: { message?: string } }).error?.message
-                : undefined;
+              const errorMessage =
+                errorBody &&
+                typeof errorBody === "object" &&
+                "error" in errorBody
+                  ? (errorBody as { error?: { message?: string } }).error
+                      ?.message
+                  : undefined;
               return {
                 success: false,
                 message: `Anthropic API error: ${errorMessage || response.statusText}`,
@@ -760,9 +816,13 @@ export const aiAgentRoutes = new Elysia()
               return { success: true, message: "OpenAI API接続成功" };
             } else {
               const errorBody = await response.json().catch(() => ({}));
-              const errorMessage = errorBody && typeof errorBody === 'object' && 'error' in errorBody
-                ? (errorBody as { error?: { message?: string } }).error?.message
-                : undefined;
+              const errorMessage =
+                errorBody &&
+                typeof errorBody === "object" &&
+                "error" in errorBody
+                  ? (errorBody as { error?: { message?: string } }).error
+                      ?.message
+                  : undefined;
               return {
                 success: false,
                 message: `OpenAI API error: ${errorMessage || response.statusText}`,
@@ -854,9 +914,13 @@ export const aiAgentRoutes = new Elysia()
               return { success: true, message: "Gemini API接続成功" };
             } else {
               const errorBody = await response.json().catch(() => ({}));
-              const errorMessage = errorBody && typeof errorBody === 'object' && 'error' in errorBody
-                ? (errorBody as { error?: { message?: string } }).error?.message
-                : undefined;
+              const errorMessage =
+                errorBody &&
+                typeof errorBody === "object" &&
+                "error" in errorBody
+                  ? (errorBody as { error?: { message?: string } }).error
+                      ?.message
+                  : undefined;
               return {
                 success: false,
                 message: `Gemini API error: ${errorMessage || response.statusText}`,
@@ -950,19 +1014,16 @@ export const aiAgentRoutes = new Elysia()
   })
 
   // Get available models for a specific agent type
-  .get(
-    "/agents/models",
-    async ({ query }: { query: { type?: string } }) => {
-      if (query.type) {
-        const models = await getModelsForAgentType(query.type);
-        return { models };
-      }
+  .get("/agents/models", async ({ query }: { query: { type?: string } }) => {
+    if (query.type) {
+      const models = await getModelsForAgentType(query.type);
+      return { models };
+    }
 
-      // Return all models grouped by agent type
-      const allModels = await getAllModels();
-      return allModels;
-    },
-  )
+    // Return all models grouped by agent type
+    const allModels = await getAllModels();
+    return allModels;
+  })
 
   // Set development agent configuration
   .post(
@@ -1102,7 +1163,13 @@ export const aiAgentRoutes = new Elysia()
   // Get configuration schema for a specific agent type
   .get(
     "/agents/config-schema/:agentType",
-    async ({ params, set }: { params: { agentType: string }; set: { status: number } }) => {
+    async ({
+      params,
+      set,
+    }: {
+      params: { agentType: string };
+      set: { status: number };
+    }) => {
       const { agentType } = params;
       const schema = getAgentConfigSchema(agentType);
 
@@ -1194,7 +1261,13 @@ export const aiAgentRoutes = new Elysia()
   // Test API key connection for an agent
   .post(
     "/agents/:id/test-connection",
-    async ({ params, set }: { params: { id: string }; set: { status: number } }) => {
+    async ({
+      params,
+      set,
+    }: {
+      params: { id: string };
+      set: { status: number };
+    }) => {
       const { id } = params;
       const agent = await prisma.aIAgentConfig.findUnique({
         where: { id: parseInt(id) },
@@ -1305,6 +1378,7 @@ export const aiAgentRoutes = new Elysia()
         branchName?: string;
         useTaskAnalysis?: boolean;
         optimizedPrompt?: string;
+        sessionId?: number;
         attachments?: Array<{
           id: number;
           title: string;
@@ -1327,6 +1401,7 @@ export const aiAgentRoutes = new Elysia()
         branchName,
         useTaskAnalysis,
         optimizedPrompt,
+        sessionId,
         attachments,
       } = body;
 
@@ -1362,12 +1437,36 @@ export const aiAgentRoutes = new Elysia()
         });
       }
 
-      const session = await prisma.agentSession.create({
-        data: {
-          configId: developerModeConfig.id,
-          status: "pending",
-        },
-      });
+      // 継続実行の場合は既存のセッションを使用、なければ新規作成
+      let session;
+      if (sessionId) {
+        // 既存のセッションを取得して検証
+        const existingSession = await prisma.agentSession.findUnique({
+          where: { id: sessionId },
+        });
+        if (!existingSession) {
+          set.status = 404;
+          return { error: "Session not found" };
+        }
+        if (existingSession.configId !== developerModeConfig.id) {
+          set.status = 400;
+          return { error: "Session does not belong to this task" };
+        }
+        // セッションを再利用
+        session = existingSession;
+        console.log(
+          `[API] Continuing execution with existing session ${sessionId}`,
+        );
+      } else {
+        // 新規セッション作成
+        session = await prisma.agentSession.create({
+          data: {
+            configId: developerModeConfig.id,
+            status: "pending",
+          },
+        });
+        console.log(`[API] Created new session ${session.id}`);
+      }
 
       if (branchName) {
         const branchCreated = await orchestrator.createBranch(
@@ -1471,8 +1570,13 @@ export const aiAgentRoutes = new Elysia()
             if (analysisOutput?.summary && analysisOutput?.suggestedSubtasks) {
               analysisInfo = {
                 summary: analysisOutput.summary as string,
-                complexity: (analysisOutput.complexity as "simple" | "medium" | "complex") || "medium",
-                estimatedTotalHours: (analysisOutput.estimatedTotalHours as number) || 0,
+                complexity:
+                  (analysisOutput.complexity as
+                    | "simple"
+                    | "medium"
+                    | "complex") || "medium",
+                estimatedTotalHours:
+                  (analysisOutput.estimatedTotalHours as number) || 0,
                 subtasks: (
                   (analysisOutput.suggestedSubtasks as Array<{
                     title: string;
@@ -1483,14 +1587,15 @@ export const aiAgentRoutes = new Elysia()
                     dependencies?: number[];
                   }>) || []
                 ).map((st) => ({
-                    title: st.title,
-                    description: st.description || "",
-                    estimatedHours: st.estimatedHours || 0,
-                    priority: (st.priority as "low" | "medium" | "high" | "urgent") || "medium",
-                    order: st.order || 0,
-                    dependencies: st.dependencies,
-                  }),
-                ),
+                  title: st.title,
+                  description: st.description || "",
+                  estimatedHours: st.estimatedHours || 0,
+                  priority:
+                    (st.priority as "low" | "medium" | "high" | "urgent") ||
+                    "medium",
+                  order: st.order || 0,
+                  dependencies: st.dependencies,
+                })),
                 reasoning: (analysisOutput.reasoning as string) || "",
                 tips: analysisOutput.tips as string[] | undefined,
               };
@@ -1591,8 +1696,9 @@ export const aiAgentRoutes = new Elysia()
             const structuredDiff = await orchestrator.getDiff(workDir);
 
             if (diff && diff !== "No changes detected") {
-              const implementationSummary =
-                cleanImplementationSummary(result.output || "実装が完了しました。");
+              const implementationSummary = cleanImplementationSummary(
+                result.output || "実装が完了しました。",
+              );
 
               // UI変更がある場合はスクリーンショットを撮影
               let screenshots: ScreenshotResult[] = [];
@@ -1944,7 +2050,12 @@ export const aiAgentRoutes = new Elysia()
                   take: 1,
                   include: {
                     agentConfig: {
-                      select: { id: true, agentType: true, name: true, modelId: true },
+                      select: {
+                        id: true,
+                        agentType: true,
+                        name: true,
+                        modelId: true,
+                      },
                     },
                   },
                 },
@@ -1959,7 +2070,8 @@ export const aiAgentRoutes = new Elysia()
 
         const latestSession = config.agentSessions[0];
         const latestExecution = latestSession.agentExecutions[0];
-        const execExtras = latestExecution as typeof latestExecution & ExecutionWithExtras;
+        const execExtras = latestExecution as typeof latestExecution &
+          ExecutionWithExtras;
 
         const isWaitingForInput =
           latestExecution?.status === "waiting_for_input";
@@ -1967,9 +2079,7 @@ export const aiAgentRoutes = new Elysia()
         // questionTypeはDBの値をそのまま使用（tool_call または none）
         // pattern_matchへのフォールバックは削除 - AIエージェントからの明確なステータスのみを信頼
         const questionType: "tool_call" | "none" =
-          execExtras?.questionType === "tool_call"
-            ? "tool_call"
-            : "none";
+          execExtras?.questionType === "tool_call" ? "tool_call" : "none";
 
         // タイムアウト情報を取得
         let questionTimeoutInfo = null;
@@ -1987,8 +2097,12 @@ export const aiAgentRoutes = new Elysia()
         }
 
         // エージェント設定情報を取得
-        const agentConfigInfo = (latestExecution as Record<string, unknown>)?.agentConfig as {
-          id: number; agentType: string; name: string; modelId: string | null;
+        const agentConfigInfo = (latestExecution as Record<string, unknown>)
+          ?.agentConfig as {
+          id: number;
+          agentType: string;
+          name: string;
+          modelId: string | null;
         } | null;
 
         return {
@@ -2186,8 +2300,9 @@ export const aiAgentRoutes = new Elysia()
               if (diff && diff !== "No changes detected") {
                 const structuredDiff =
                   await orchestrator.getDiff(workingDirectory);
-                const implementationSummary =
-                  cleanImplementationSummary(execResult.output || "実装が完了しました。");
+                const implementationSummary = cleanImplementationSummary(
+                  execResult.output || "実装が完了しました。",
+                );
 
                 // UI変更がある場合はスクリーンショットを撮影
                 let screenshots: ScreenshotResult[] = [];
@@ -2341,7 +2456,10 @@ export const aiAgentRoutes = new Elysia()
             },
           })
           .catch(() => {});
-        return { error: error instanceof Error ? error.message : "Failed to send response" };
+        return {
+          error:
+            error instanceof Error ? error.message : "Failed to send response",
+        };
       }
     },
   )
@@ -2422,6 +2540,11 @@ export const aiAgentRoutes = new Elysia()
         ? parseInt(query.afterSequence)
         : undefined;
 
+      // 互換性のため: executionId / afterSequence が指定されている場合は従来通り
+      // 「単一 execution のログ」を返す（差分取得用途）
+      const singleExecutionMode =
+        !!executionId || typeof afterSequence === "number";
+
       const config = await prisma.developerModeConfig.findUnique({
         where: { taskId },
         include: {
@@ -2432,11 +2555,13 @@ export const aiAgentRoutes = new Elysia()
               agentExecutions: {
                 where: executionId ? { id: executionId } : {},
                 orderBy: { createdAt: "desc" },
-                take: 1,
+                take: singleExecutionMode ? 1 : 50,
                 include: {
                   executionLogs: {
-                    where: afterSequence
-                      ? { sequenceNumber: { gt: afterSequence } }
+                    where: singleExecutionMode
+                      ? afterSequence
+                        ? { sequenceNumber: { gt: afterSequence } }
+                        : {}
                       : {},
                     orderBy: { sequenceNumber: "asc" },
                   },
@@ -2452,21 +2577,63 @@ export const aiAgentRoutes = new Elysia()
       }
 
       const latestSession = config.agentSessions[0];
-      const latestExecution = latestSession.agentExecutions[0];
+      const executions = latestSession.agentExecutions || [];
 
-      if (!latestExecution) {
+      if (executions.length === 0) {
         return { logs: [], lastSequence: 0, status: "none" };
       }
 
-      const logs = latestExecution.executionLogs || [];
-      const lastSequence =
-        logs.length > 0 ? logs[logs.length - 1].sequenceNumber : 0;
+      // 単一 execution モードは従来互換のレスポンス
+      if (singleExecutionMode) {
+        const latestExecution = executions[0];
+        const logs = latestExecution.executionLogs || [];
+        const lastSequence =
+          logs.length > 0 ? logs[logs.length - 1].sequenceNumber : 0;
 
-      return {
-        executionId: latestExecution.id,
-        sessionId: latestSession.id,
-        status: latestExecution.status,
-        logs: logs.map(
+        return {
+          executionId: latestExecution.id,
+          sessionId: latestSession.id,
+          status: latestExecution.status,
+          logs: logs.map(
+            (log: {
+              id: number;
+              logChunk: string;
+              logType: string;
+              sequenceNumber: number;
+              timestamp: Date;
+            }) => ({
+              id: log.id,
+              chunk: log.logChunk,
+              type: log.logType,
+              sequence: log.sequenceNumber,
+              timestamp: log.timestamp,
+            }),
+          ),
+          lastSequence,
+          output: latestExecution.output,
+          errorMessage: latestExecution.errorMessage,
+          question: (
+            latestExecution as typeof latestExecution & ExecutionWithExtras
+          ).question,
+          questionType: (
+            latestExecution as typeof latestExecution & ExecutionWithExtras
+          ).questionType,
+          questionDetails: (
+            latestExecution as typeof latestExecution & ExecutionWithExtras
+          ).questionDetails,
+          startedAt: latestExecution.startedAt,
+          completedAt: latestExecution.completedAt,
+        };
+      }
+
+      // 復元用途: 最新セッション内の複数 execution のログを結合して返す
+      // - createdAt 昇順で execution を並べ、各 execution 内は sequenceNumber 昇順
+      const executionsAsc = [...executions].sort(
+        (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+      );
+      const combinedLogs = executionsAsc.flatMap((exec) => {
+        const execLogs = exec.executionLogs || [];
+        return execLogs.map(
           (log: {
             id: number;
             logChunk: string;
@@ -2479,14 +2646,35 @@ export const aiAgentRoutes = new Elysia()
             type: log.logType,
             sequence: log.sequenceNumber,
             timestamp: log.timestamp,
+            executionId: exec.id,
           }),
-        ),
+        );
+      });
+
+      const latestExecution = executions[0];
+      const latestLogs = latestExecution.executionLogs || [];
+      const lastSequence =
+        latestLogs.length > 0
+          ? latestLogs[latestLogs.length - 1].sequenceNumber
+          : 0;
+
+      return {
+        executionId: latestExecution.id,
+        sessionId: latestSession.id,
+        status: latestExecution.status,
+        logs: combinedLogs,
         lastSequence,
         output: latestExecution.output,
         errorMessage: latestExecution.errorMessage,
-        question: (latestExecution as typeof latestExecution & ExecutionWithExtras).question,
-        questionType: (latestExecution as typeof latestExecution & ExecutionWithExtras).questionType,
-        questionDetails: (latestExecution as typeof latestExecution & ExecutionWithExtras).questionDetails,
+        question: (
+          latestExecution as typeof latestExecution & ExecutionWithExtras
+        ).question,
+        questionType: (
+          latestExecution as typeof latestExecution & ExecutionWithExtras
+        ).questionType,
+        questionDetails: (
+          latestExecution as typeof latestExecution & ExecutionWithExtras
+        ).questionDetails,
         startedAt: latestExecution.startedAt,
         completedAt: latestExecution.completedAt,
       };
@@ -2693,30 +2881,36 @@ export const aiAgentRoutes = new Elysia()
         take: 50,
       });
 
-      return resumableExecutions.map((exec: typeof resumableExecutions[number]) => {
-        const execWithExtras = exec as typeof exec & ExecutionWithExtras;
-        return {
-          id: exec.id,
-          taskId: exec.session.config?.task?.id,
-          taskTitle: exec.session.config?.task?.title,
-          sessionId: exec.sessionId,
-          status: exec.status,
-          claudeSessionId: execWithExtras.claudeSessionId,
-          errorMessage: exec.errorMessage,
-          output: exec.output?.slice(-500), // 最後の500文字のみ
-          startedAt: exec.startedAt,
-          completedAt: exec.completedAt,
-          createdAt: exec.createdAt,
-          workingDirectory: exec.session.config?.task?.theme?.workingDirectory,
-          canResume: exec.status === "interrupted", // Only interrupted can be resumed
-        };
-      });
+      return resumableExecutions.map(
+        (exec: (typeof resumableExecutions)[number]) => {
+          const execWithExtras = exec as typeof exec & ExecutionWithExtras;
+          return {
+            id: exec.id,
+            taskId: exec.session.config?.task?.id,
+            taskTitle: exec.session.config?.task?.title,
+            sessionId: exec.sessionId,
+            status: exec.status,
+            claudeSessionId: execWithExtras.claudeSessionId,
+            errorMessage: exec.errorMessage,
+            output: exec.output?.slice(-500), // 最後の500文字のみ
+            startedAt: exec.startedAt,
+            completedAt: exec.completedAt,
+            createdAt: exec.createdAt,
+            workingDirectory:
+              exec.session.config?.task?.theme?.workingDirectory,
+            canResume: exec.status === "interrupted", // Only interrupted can be resumed
+          };
+        },
+      );
     } catch (error) {
       const errObj = error as { code?: string; message?: string };
       if (errObj?.code === "P1001") {
         console.warn("[resumable-executions] Database unreachable, skipping");
       } else {
-        console.error("[resumable-executions] Error:", error instanceof Error ? error.message : String(error));
+        console.error(
+          "[resumable-executions] Error:",
+          error instanceof Error ? error.message : String(error),
+        );
       }
       return [];
     }
@@ -2749,23 +2943,25 @@ export const aiAgentRoutes = new Elysia()
         take: 50,
       });
 
-      return interruptedExecutions.map((exec: typeof interruptedExecutions[number]) => {
-        const execWithExtras = exec as typeof exec & ExecutionWithExtras;
-        return {
-          id: exec.id,
-          taskId: exec.session.config?.task?.id,
-          taskTitle: exec.session.config?.task?.title,
-          sessionId: exec.sessionId,
-          status: exec.status,
-          claudeSessionId: execWithExtras.claudeSessionId,
-          errorMessage: exec.errorMessage,
-          output: exec.output?.slice(-500), // 最後の500文字のみ
-          startedAt: exec.startedAt,
-          completedAt: exec.completedAt,
-          createdAt: exec.createdAt,
-          canResume: !!execWithExtras.claudeSessionId, // Claude Session IDがあれば再開可能
-        };
-      });
+      return interruptedExecutions.map(
+        (exec: (typeof interruptedExecutions)[number]) => {
+          const execWithExtras = exec as typeof exec & ExecutionWithExtras;
+          return {
+            id: exec.id,
+            taskId: exec.session.config?.task?.id,
+            taskTitle: exec.session.config?.task?.title,
+            sessionId: exec.sessionId,
+            status: exec.status,
+            claudeSessionId: execWithExtras.claudeSessionId,
+            errorMessage: exec.errorMessage,
+            output: exec.output?.slice(-500), // 最後の500文字のみ
+            startedAt: exec.startedAt,
+            completedAt: exec.completedAt,
+            createdAt: exec.createdAt,
+            canResume: !!execWithExtras.claudeSessionId, // Claude Session IDがあれば再開可能
+          };
+        },
+      );
     } catch (error) {
       console.error("[interrupted-executions] Error:", error);
       return [];
@@ -2931,7 +3127,7 @@ export const aiAgentRoutes = new Elysia()
           // サブタスクの依存関係を分析
           const analysisResult = await executor.analyzeDependencies({
             parentTaskId: task.id,
-            subtasks: subtasks.map((st: typeof subtasks[number]) => ({
+            subtasks: subtasks.map((st: (typeof subtasks)[number]) => ({
               id: st.id,
               title: st.title,
               description: st.description || "",
@@ -3019,8 +3215,9 @@ export const aiAgentRoutes = new Elysia()
               if (diff && diff !== "No changes detected") {
                 const structuredDiff =
                   await orchestrator.getDiff(workingDirectory);
-                const implementationSummary =
-                  cleanImplementationSummary(result.output || "再開した作業が完了しました。");
+                const implementationSummary = cleanImplementationSummary(
+                  result.output || "再開した作業が完了しました。",
+                );
 
                 // UI変更がある場合はスクリーンショットを撮影
                 let screenshots: ScreenshotResult[] = [];
@@ -3313,19 +3510,24 @@ export const aiAgentRoutes = new Elysia()
         orderBy: { startedAt: "desc" },
       });
 
-      return executingTasks.map((execution: typeof executingTasks[number]) => ({
-        executionId: execution.id,
-        sessionId: execution.session.id,
-        taskId: execution.session.config.taskId,
-        executionStatus: execution.status,
-        startedAt: execution.startedAt,
-      }));
+      return executingTasks.map(
+        (execution: (typeof executingTasks)[number]) => ({
+          executionId: execution.id,
+          sessionId: execution.session.id,
+          taskId: execution.session.config.taskId,
+          executionStatus: execution.status,
+          startedAt: execution.startedAt,
+        }),
+      );
     } catch (error) {
       const errObj = error as { code?: string; message?: string };
       if (errObj?.code === "P1001") {
         console.warn("[executing-tasks] Database unreachable, skipping");
       } else {
-        console.error("[executing-tasks] Error:", error instanceof Error ? error.message : String(error));
+        console.error(
+          "[executing-tasks] Error:",
+          error instanceof Error ? error.message : String(error),
+        );
       }
       return [];
     }
@@ -3382,6 +3584,321 @@ export const aiAgentRoutes = new Elysia()
       };
     }
   })
+
+  // Continue execution with additional instruction
+  .post(
+    "/tasks/:id/continue-execution",
+    async ({
+      params,
+      body,
+      set,
+    }: {
+      params: { id: string };
+      body: {
+        instruction: string;
+        sessionId?: number;
+        agentConfigId?: number;
+      };
+      set: { status: number };
+    }) => {
+      const taskId = parseInt(params.id);
+      const { instruction, sessionId, agentConfigId } = body;
+
+      if (!instruction?.trim()) {
+        set.status = 400;
+        return { error: "Instruction is required" };
+      }
+
+      try {
+        // タスクと設定を取得
+        const task = await prisma.task.findUnique({
+          where: { id: taskId },
+          include: {
+            developerModeConfig: true,
+            theme: true,
+          },
+        });
+
+        if (!task) {
+          set.status = 404;
+          return { error: "Task not found" };
+        }
+
+        // セッションIDが指定されていない場合は最新の完了済みセッションを取得
+        let targetSessionId = sessionId;
+        if (!targetSessionId && task.developerModeConfig) {
+          const latestSession = await prisma.agentSession.findFirst({
+            where: {
+              configId: task.developerModeConfig.id,
+              status: "completed",
+            },
+            orderBy: { createdAt: "desc" },
+          });
+
+          if (latestSession) {
+            targetSessionId = latestSession.id;
+          }
+        }
+
+        if (!targetSessionId) {
+          set.status = 404;
+          return { error: "No completed session found for this task" };
+        }
+
+        // セッション情報を取得
+        const session = await prisma.agentSession.findUnique({
+          where: { id: targetSessionId },
+          include: {
+            agentExecutions: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+            },
+          },
+        });
+
+        if (!session) {
+          set.status = 404;
+          return { error: "Session not found" };
+        }
+
+        if (session.status !== "completed") {
+          set.status = 400;
+          return { error: "Can only continue from completed sessions" };
+        }
+
+        // 前回の実行情報を取得
+        const previousExecution = session.agentExecutions[0];
+        const workingDirectory = task.theme?.workingDirectory || process.cwd();
+
+        // セッションを再開状態に更新
+        await prisma.agentSession.update({
+          where: { id: targetSessionId },
+          data: {
+            status: "running",
+            lastActivityAt: new Date(),
+          },
+        });
+
+        // タスクのステータスを「進行中」に更新
+        await prisma.task.update({
+          where: { id: taskId },
+          data: {
+            status: "in-progress",
+          },
+        });
+
+        console.log(
+          `[continue-execution] Continuing execution for task ${taskId} in session ${targetSessionId}`,
+        );
+
+        // 通知を作成
+        await prisma.notification.create({
+          data: {
+            type: "agent_execution_continued",
+            title: "追加指示実行開始",
+            message: `「${task.title}」に追加指示を実行しています`,
+            link: `/tasks/${taskId}`,
+            metadata: toJsonString({ sessionId: targetSessionId, taskId }),
+          },
+        });
+
+        // 前回の実行ログを含めて新しい指示を作成
+        let fullInstruction = `## 追加指示\n\n${instruction}`;
+
+        // 前回の実行で生成したコードや変更内容を参考情報として含める
+        if (previousExecution?.output) {
+          const prevOutput = previousExecution.output.substring(0, 3000);
+          fullInstruction = `## 前回の実行内容\n\n前回の実行で以下の作業を行いました：\n\n${prevOutput}${previousExecution.output.length > 3000 ? "\n...(省略)" : ""}\n\n${fullInstruction}`;
+        }
+
+        // オーケストレーターで実行（同じセッションで継続）
+        orchestrator
+          .executeTask(
+            {
+              id: taskId,
+              title: task.title,
+              description: fullInstruction,
+              context: task.executionInstructions || undefined,
+              workingDirectory,
+            },
+            {
+              taskId,
+              sessionId: targetSessionId,
+              agentConfigId: agentConfigId || previousExecution?.agentConfigId,
+              workingDirectory,
+              continueFromPrevious: true, // 前回の実行からの継続であることを示すフラグ
+            },
+          )
+          .then(async (result) => {
+            if (result.success) {
+              // タスクのステータスを「完了」に更新
+              await prisma.task.update({
+                where: { id: taskId },
+                data: {
+                  status: "done",
+                  completedAt: new Date(),
+                },
+              });
+
+              // セッションのステータスも完了に更新
+              await prisma.agentSession.update({
+                where: { id: targetSessionId },
+                data: {
+                  status: "completed",
+                  completedAt: new Date(),
+                },
+              });
+
+              // 差分を取得して承認リクエストを作成
+              const diff = await orchestrator.getFullGitDiff(workingDirectory);
+              const structuredDiff =
+                await orchestrator.getDiff(workingDirectory);
+
+              if (diff && diff !== "No changes detected") {
+                const implementationSummary = cleanImplementationSummary(
+                  result.output || "追加指示の実装が完了しました。",
+                );
+
+                // スクリーンショットを撮影
+                let screenshots: ScreenshotResult[] = [];
+                try {
+                  screenshots = await captureScreenshotsForDiff(
+                    structuredDiff,
+                    {
+                      workingDirectory,
+                      agentOutput: result.output || "",
+                    },
+                  );
+                } catch (screenshotErr) {
+                  console.warn(
+                    "[continue-execution] Screenshot capture failed:",
+                    screenshotErr,
+                  );
+                }
+
+                const approvalRequest = await prisma.approvalRequest.create({
+                  data: {
+                    configId: task.developerModeConfig!.id,
+                    requestType: "code_review",
+                    title: `「${task.title}」の追加変更レビュー`,
+                    description: implementationSummary,
+                    proposedChanges: toJsonString({
+                      taskId,
+                      sessionId: targetSessionId,
+                      workingDirectory,
+                      structuredDiff,
+                      implementationSummary,
+                      executionTimeMs: result.executionTimeMs,
+                      screenshots: sanitizeScreenshots(screenshots),
+                      isContinuation: true,
+                    }),
+                    executionType: "code_review",
+                    estimatedChanges: toJsonString({
+                      filesChanged: structuredDiff.length,
+                      summary: implementationSummary.substring(0, 500),
+                    }),
+                    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                  },
+                });
+
+                await prisma.notification.create({
+                  data: {
+                    type: "pr_review_requested",
+                    title: "追加変更のレビュー依頼",
+                    message: `「${task.title}」の追加変更が完了しました。レビューをお願いします。`,
+                    link: `/approvals/${approvalRequest.id}`,
+                    metadata: toJsonString({
+                      approvalRequestId: approvalRequest.id,
+                      sessionId: targetSessionId,
+                      taskId,
+                    }),
+                  },
+                });
+              }
+            } else {
+              // 失敗時はタスクを未着手に戻す
+              await prisma.task.update({
+                where: { id: taskId },
+                data: { status: "todo" },
+              });
+
+              // セッションも失敗状態に
+              await prisma.agentSession.update({
+                where: { id: targetSessionId },
+                data: {
+                  status: "failed",
+                  completedAt: new Date(),
+                  errorMessage: result.errorMessage || "Continuation failed",
+                },
+              });
+
+              await prisma.notification.create({
+                data: {
+                  type: "agent_error",
+                  title: "追加指示実行失敗",
+                  message: `「${task.title}」の追加指示実行が失敗しました: ${result.errorMessage}`,
+                  link: `/tasks/${taskId}`,
+                  metadata: toJsonString({
+                    sessionId: targetSessionId,
+                    taskId,
+                  }),
+                },
+              });
+            }
+          })
+          .catch(async (error) => {
+            console.error("[continue-execution] Error:", error);
+
+            // エラー時もタスクを未着手に戻す
+            await prisma.task
+              .update({
+                where: { id: taskId },
+                data: { status: "todo" },
+              })
+              .catch(() => {});
+
+            // セッションも失敗状態に
+            await prisma.agentSession
+              .update({
+                where: { id: targetSessionId },
+                data: {
+                  status: "failed",
+                  completedAt: new Date(),
+                  errorMessage: error.message || "Continuation error",
+                },
+              })
+              .catch(() => {});
+
+            await prisma.notification.create({
+              data: {
+                type: "agent_error",
+                title: "追加指示実行エラー",
+                message: `「${task.title}」の追加指示実行中にエラーが発生しました`,
+                link: `/tasks/${taskId}`,
+              },
+            });
+          });
+
+        return {
+          success: true,
+          sessionId: targetSessionId,
+          taskId,
+          workingDirectory,
+          message:
+            "追加指示の実行を開始しました。リアルタイムで進捗を確認できます。",
+        };
+      } catch (error) {
+        console.error("[continue-execution] Error:", error);
+        set.status = 500;
+        return {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to continue execution",
+        };
+      }
+    },
+  )
 
   // Server restart endpoint (called by frontend or dev tools)
   // Performs graceful shutdown then exits with code 75 to signal dev.js to restart

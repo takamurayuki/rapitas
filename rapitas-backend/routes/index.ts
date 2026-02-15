@@ -43,4 +43,4 @@ export { screenshotsRoutes } from "./screenshots";
 export { learningGoalsRoutes } from "./learning-goals";
 export { rateLimitRoutes } from "./rate-limits";
 export { paidLeaveRoutes } from "./paid-leave";
-export { favoriteLinksRouter as favoriteLinksRoutes } from "./favorite-links";
+export { urlMetadataRoutes } from "./url-metadata";

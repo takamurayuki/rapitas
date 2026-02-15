@@ -101,7 +101,6 @@ export function AgentExecutionPanel({
   const [selectedAgentId, setSelectedAgentId] = useState<number | null>(
     agentConfigId ?? null,
   );
-  const [showLogsExternal, setShowLogsExternal] = useState(false); // 外部（独立）でログを表示するか
   const [instruction, setInstruction] = useState("");
   const [branchName, setBranchName] = useState("");
   const [userResponse, setUserResponse] = useState("");
@@ -334,19 +333,61 @@ export function AgentExecutionPanel({
     }
   };
 
-  // 追加指示で再実行
+  // 追加指示で継続実行
   const handleFollowUpExecute = async () => {
     const trimmedInstruction = followUpInstruction.trim();
     if (!trimmedInstruction) return;
 
-    clearLogs();
     setFollowUpInstruction("");
-    const result = await onExecute({
-      instruction: trimmedInstruction,
-      agentConfigId: selectedAgentId ?? agentConfigId ?? undefined,
-    });
-    if (result?.sessionId) {
-      setShowLogs(true);
+
+    try {
+      // 新しい継続実行エンドポイントを呼び出す
+      const response = await fetch(
+        `${API_BASE_URL}/tasks/${taskId}/continue-execution`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            instruction: trimmedInstruction,
+            sessionId: sessionId || executionResult?.sessionId,
+            agentConfigId: selectedAgentId ?? agentConfigId,
+          }),
+        },
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+
+        // セッションIDを更新（同じセッションで継続）
+        if (data.sessionId) {
+          setSessionId(data.sessionId);
+        }
+
+        // ログをクリアせず、継続して表示
+        // clearLogs(); // コメントアウト：ログは継続表示
+
+        // ポーリングを開始（前のログを保持）
+        // 継続実行では、バックエンドが新しい execution を作成するまで
+        // 旧 execution の completed が返ることがあるため、少し待ってから再開する
+        setTimeout(() => {
+          startPolling({
+            preserveLogs: true, // 既存のログを保持
+            terminalGraceMs: 3000, // レース吸収
+          });
+        }, 500);
+
+        setShowLogs(true);
+
+        // 注意: ここで onExecute を呼ぶと新規実行が発火して
+        // ログや状態が上書きされるため呼ばない
+      } else {
+        const errorData = await response.json();
+        console.error("Failed to continue execution:", errorData);
+        // エラーメッセージを表示するなどの処理
+      }
+    } catch (error) {
+      console.error("Error continuing execution:", error);
+      // エラーハンドリング
     }
   };
 
@@ -355,7 +396,8 @@ export function AgentExecutionPanel({
 
   const handleSendResponse = async () => {
     const trimmedResponse = userResponse.trim();
-    if (!trimmedResponse || isSendingResponse || sendingResponseRef.current) return;
+    if (!trimmedResponse || isSendingResponse || sendingResponseRef.current)
+      return;
 
     // 即座にrefをセットして重複送信を防止
     sendingResponseRef.current = true;
@@ -480,26 +522,6 @@ export function AgentExecutionPanel({
     if (isFailed) return "failed";
     return "idle";
   }, [isRunning, isCancelled, isCompleted, isFailed]);
-
-  // ログ表示切替のトグル関数
-  const toggleShowLogsExternal = useCallback(() => {
-    setShowLogsExternal((prev) => !prev);
-  }, []);
-
-  // 外部ログビューアコンポーネント（独立表示用）
-  const externalLogViewer = showLogsExternal && logs.length > 0 && (
-    <div className="mt-4">
-      <ExecutionLogViewer
-        logs={logs}
-        status={logViewerStatus}
-        isConnected={isSseConnected}
-        isRunning={isRunning}
-        collapsible={true}
-        showHeader={true}
-        maxHeight={400}
-      />
-    </div>
-  );
 
   // 実行中の表示
   if (isRunning) {
@@ -662,23 +684,10 @@ export function AgentExecutionPanel({
             </div>
           )}
 
-          {/* ログ表示切替ボタン */}
-          <div className="mx-6 mb-4 flex items-center gap-2">
-            <button
-              onClick={() => setShowLogs(!showLogs)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                showLogs
-                  ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
-                  : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-              }`}
-            >
-              <Terminal className="w-4 h-4" />
-              実行ログを表示
-            </button>
-          </div>
+          {/* ログ表示 */}
 
-          {/* カード内にログを表示 */}
-          {showLogs && logs.length > 0 && (
+          {/* ログを表示 */}
+          {logs.length > 0 && (
             <div className="mx-6 mb-4">
               <ExecutionLogViewer
                 logs={logs}
@@ -691,8 +700,6 @@ export function AgentExecutionPanel({
             </div>
           )}
         </div>
-        {/* 独立表示のログビューア */}
-        {externalLogViewer}
       </>
     );
   }
@@ -772,53 +779,20 @@ export function AgentExecutionPanel({
             </p>
           </div>
 
-          {/* ログ表示オプション */}
+          {/* ログ表示 */}
           {logs.length > 0 && (
             <div className="px-6 py-3 bg-emerald-100/50 dark:bg-emerald-900/20 border-t border-emerald-200 dark:border-emerald-800">
-              <div className="flex items-center gap-2 mb-2">
-                <button
-                  onClick={() => setShowLogs(!showLogs)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    showLogs
-                      ? "bg-emerald-200 dark:bg-emerald-800/60 text-emerald-800 dark:text-emerald-200"
-                      : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
-                  }`}
-                >
-                  <Terminal className="w-4 h-4" />
-                  カード内に表示
-                  {showLogs ? (
-                    <ChevronUp className="w-3 h-3" />
-                  ) : (
-                    <ChevronDown className="w-3 h-3" />
-                  )}
-                </button>
-                <button
-                  onClick={toggleShowLogsExternal}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    showLogsExternal
-                      ? "bg-emerald-200 dark:bg-emerald-800/60 text-emerald-800 dark:text-emerald-200"
-                      : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
-                  }`}
-                >
-                  <FileText className="w-4 h-4" />
-                  独立表示
-                </button>
-              </div>
-              {showLogs && (
-                <ExecutionLogViewer
-                  logs={logs}
-                  status={logViewerStatus}
-                  isConnected={isSseConnected}
-                  isRunning={false}
-                  collapsible={false}
-                  maxHeight={256}
-                />
-              )}
+              <ExecutionLogViewer
+                logs={logs}
+                status={logViewerStatus}
+                isConnected={isSseConnected}
+                isRunning={false}
+                collapsible={false}
+                maxHeight={256}
+              />
             </div>
           )}
         </div>
-        {/* 独立表示のログビューア */}
-        {externalLogViewer}
       </>
     );
   }
@@ -854,50 +828,17 @@ export function AgentExecutionPanel({
           {/* 停止時もログを表示 */}
           {logs.length > 0 && (
             <div className="px-6 py-3 bg-yellow-100/50 dark:bg-yellow-900/20 border-t border-yellow-200 dark:border-yellow-800">
-              <div className="flex items-center gap-2 mb-2">
-                <button
-                  onClick={() => setShowLogs(!showLogs)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    showLogs
-                      ? "bg-yellow-200 dark:bg-yellow-800/60 text-yellow-800 dark:text-yellow-200"
-                      : "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-900/40"
-                  }`}
-                >
-                  <Terminal className="w-4 h-4" />
-                  カード内に表示
-                  {showLogs ? (
-                    <ChevronUp className="w-3 h-3" />
-                  ) : (
-                    <ChevronDown className="w-3 h-3" />
-                  )}
-                </button>
-                <button
-                  onClick={toggleShowLogsExternal}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    showLogsExternal
-                      ? "bg-yellow-200 dark:bg-yellow-800/60 text-yellow-800 dark:text-yellow-200"
-                      : "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-900/40"
-                  }`}
-                >
-                  <FileText className="w-4 h-4" />
-                  独立表示
-                </button>
-              </div>
-              {showLogs && (
-                <ExecutionLogViewer
-                  logs={logs}
-                  status={logViewerStatus}
-                  isConnected={isSseConnected}
-                  isRunning={false}
-                  collapsible={false}
-                  maxHeight={256}
-                />
-              )}
+              <ExecutionLogViewer
+                logs={logs}
+                status={logViewerStatus}
+                isConnected={isSseConnected}
+                isRunning={false}
+                collapsible={false}
+                maxHeight={256}
+              />
             </div>
           )}
         </div>
-        {/* 独立表示のログビューア */}
-        {externalLogViewer}
       </>
     );
   }
@@ -946,50 +887,17 @@ export function AgentExecutionPanel({
           {/* エラー時もログを表示 */}
           {logs.length > 0 && (
             <div className="px-6 py-3 bg-red-100/50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800">
-              <div className="flex items-center gap-2 mb-2">
-                <button
-                  onClick={() => setShowLogs(!showLogs)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    showLogs
-                      ? "bg-red-200 dark:bg-red-800/60 text-red-800 dark:text-red-200"
-                      : "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40"
-                  }`}
-                >
-                  <Terminal className="w-4 h-4" />
-                  カード内に表示
-                  {showLogs ? (
-                    <ChevronUp className="w-3 h-3" />
-                  ) : (
-                    <ChevronDown className="w-3 h-3" />
-                  )}
-                </button>
-                <button
-                  onClick={toggleShowLogsExternal}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    showLogsExternal
-                      ? "bg-red-200 dark:bg-red-800/60 text-red-800 dark:text-red-200"
-                      : "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40"
-                  }`}
-                >
-                  <FileText className="w-4 h-4" />
-                  独立表示
-                </button>
-              </div>
-              {showLogs && (
-                <ExecutionLogViewer
-                  logs={logs}
-                  status={logViewerStatus}
-                  isConnected={isSseConnected}
-                  isRunning={false}
-                  collapsible={false}
-                  maxHeight={256}
-                />
-              )}
+              <ExecutionLogViewer
+                logs={logs}
+                status={logViewerStatus}
+                isConnected={isSseConnected}
+                isRunning={false}
+                collapsible={false}
+                maxHeight={256}
+              />
             </div>
           )}
         </div>
-        {/* 独立表示のログビューア */}
-        {externalLogViewer}
       </>
     );
   }
@@ -1089,7 +997,6 @@ export function AgentExecutionPanel({
                 実行
               </button>
             </div>
-
             {/* 詳細オプション内容 */}
             {showOptions && (
               <div className="mt-3 space-y-4 p-4 bg-zinc-50 dark:bg-zinc-800/30 rounded-lg border border-zinc-200 dark:border-zinc-700 animate-in slide-in-from-top-1 duration-200">
@@ -1134,6 +1041,20 @@ export function AgentExecutionPanel({
                     指定しない場合、自動でフィーチャーブランチが作成されます。
                   </p>
                 </div>
+              </div>
+            )}
+
+            {/* ログ表示（初期/再実行待ち状態でも最新ログを継続表示） */}
+            {logs.length > 0 && (
+              <div className="mt-4">
+                <ExecutionLogViewer
+                  logs={logs}
+                  status={logViewerStatus}
+                  isConnected={isSseConnected}
+                  isRunning={isRunning}
+                  collapsible={false}
+                  maxHeight={256}
+                />
               </div>
             )}
           </div>

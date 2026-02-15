@@ -7,6 +7,14 @@ use tauri::{
     Manager,
 };
 
+#[cfg(target_os = "windows")]
+mod window_manager;
+
+mod browser_launcher;
+
+#[cfg(target_os = "windows")]
+mod split_screen_manager;
+
 #[cfg(not(debug_assertions))]
 mod release {
     use std::sync::Mutex;
@@ -184,7 +192,35 @@ fn parse_shortcut_from_config(
     Some(Shortcut::new(mods, code))
 }
 
-/// Tauriコマンド: 現在のショートカット設定を取得
+/// Tauriコマンド: ウィンドウの装飾情報を取得
+#[tauri::command]
+fn get_window_decorations(window: tauri::Window) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use serde_json::json;
+
+        // Windowsの標準タイトルバーの高さ（DPI考慮なし）
+        let title_bar_height = 32;
+
+        // 実際のDPIを考慮した高さの計算も可能
+        // ただし、ここではシンプルに固定値を返す
+        Ok(json!({
+            "titleBarHeight": title_bar_height,
+            "hasDecorations": window.is_decorated().unwrap_or(true),
+        }))
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        use serde_json::json;
+        Ok(json!({
+            "titleBarHeight": 0,
+            "hasDecorations": window.is_decorated().unwrap_or(true),
+        }))
+    }
+}
+
+// Tauriコマンド: 現在のショートカット設定を取得
 #[tauri::command]
 fn get_global_shortcut(app: tauri::AppHandle) -> String {
     load_shortcut_config(&app)
@@ -217,6 +253,62 @@ fn set_global_shortcut(app: tauri::AppHandle, shortcut: String) -> Result<String
 
     println!("[Shortcut] Global shortcut changed to: {}", shortcut);
     Ok(shortcut)
+}
+
+/// Tauriコマンド: 画面分割表示でURLを開く（ネイティブブラウザを使用）
+#[tauri::command]
+async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    let monitor = app
+        .primary_monitor()
+        .map_err(|e| format!("モニター取得失敗: {}", e))?
+        .ok_or("モニターが見つかりません")?;
+
+    let screen_size = monitor.size();
+    let screen_width = screen_size.width as i32;
+    let screen_height = screen_size.height as i32;
+
+    // Windows環境で統合された画面分割処理を使用
+    #[cfg(target_os = "windows")]
+    {
+        split_screen_manager::split_screen_with_browser(&url, screen_width, screen_height)?;
+    }
+
+    // 他のOS環境では既存の方法を使用
+    #[cfg(not(target_os = "windows"))]
+    {
+        // メインウィンドウを右半分に移動
+        if let Some(main_window) = app.get_webview_window("main") {
+            main_window.unmaximize().ok();
+            main_window
+                .set_position(tauri::Position::Physical(
+                    tauri::PhysicalPosition {
+                        x: (screen_width / 2) as i32,
+                        y: 0,
+                    }
+                ))
+                .ok();
+            main_window
+                .set_size(tauri::Size::Physical(
+                    tauri::PhysicalSize {
+                        width: screen_width / 2,
+                        height: screen_height,
+                    }
+                ))
+                .ok();
+            main_window.show().ok();
+        }
+
+        // ブラウザでURLを開く
+        open::that(&url).map_err(|e| format!("ブラウザ起動失敗: {}", e))?;
+
+        // フォーカスを戻す
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+        if let Some(main_window) = app.get_webview_window("main") {
+            main_window.set_focus().ok();
+        }
+    }
+
+    Ok(())
 }
 
 /// メインウィンドウを表示してフォーカスする
@@ -307,7 +399,7 @@ fn main() {
         tauri::Builder::default()
             .plugin(tauri_plugin_shell::init())
             .manage(Mutex::new(release::BackendState { child: None }))
-            .invoke_handler(tauri::generate_handler![get_global_shortcut, set_global_shortcut])
+            .invoke_handler(tauri::generate_handler![get_global_shortcut, set_global_shortcut, open_split_view, get_window_decorations])
             .setup(|app| {
                 release::setup_sidecar(app);
                 setup_tray(app)?;
@@ -331,7 +423,7 @@ fn main() {
         println!("[Dev Mode] Skipping sidecar - backend started by dev.js");
         tauri::Builder::default()
             .plugin(tauri_plugin_shell::init())
-            .invoke_handler(tauri::generate_handler![get_global_shortcut, set_global_shortcut])
+            .invoke_handler(tauri::generate_handler![get_global_shortcut, set_global_shortcut, open_split_view, get_window_decorations])
             .setup(|app| {
                 setup_tray(app)?;
                 setup_global_shortcut(app)?;

@@ -116,7 +116,7 @@ export async function hideToTray(): Promise<void> {
 
 /**
  * 外部URLを分割表示で開く（Tauri v2）
- * メインウィンドウを左半分に配置し、システムのデフォルトブラウザで外部リンクを右側に表示
+ * ブラウザを画面左半分、Rapitasを画面右半分に配置する
  * @param url 開くURL
  * @param title ウィンドウタイトル（未使用、互換性のため残存）
  */
@@ -125,225 +125,42 @@ export async function openExternalUrlInSplitView(
   title: string = "External Link",
 ): Promise<void> {
   if (!isTauri()) {
-    // Web環境では通常の新しいタブで開く
     window.open(url, "_blank");
     return;
   }
 
-  // 処理中URLのタイムスタンプを管理するマップを初期化
-  if (!(window as any).__RAPITAS_EXTERNAL_URL_TIMESTAMPS__) {
-    (window as any).__RAPITAS_EXTERNAL_URL_TIMESTAMPS__ = new Map<
-      string,
-      number
-    >();
-  }
-
-  const urlTimestamps = (window as any)
-    .__RAPITAS_EXTERNAL_URL_TIMESTAMPS__ as Map<string, number>;
-  const now = Date.now();
-
-  // 同じURLが100ms以内に処理された場合はスキップ（ダブルクリック防止）
-  const lastTimestamp = urlTimestamps.get(url);
-  if (lastTimestamp && now - lastTimestamp < 100) {
-    console.log("URL was recently processed, skipping...", url);
-    return;
-  }
-
-  // タイムスタンプを記録
-  urlTimestamps.set(url, now);
+  console.log("Opening external URL in split view:", url);
 
   try {
-    // Tauri v2の公式APIを動的にインポート
-    const windowModule = await import("@tauri-apps/api/window");
-    const { open } = await import("@tauri-apps/plugin-shell");
-    const { LogicalSize, LogicalPosition } =
-      await import("@tauri-apps/api/dpi");
+    // Rustのopen_split_viewコマンドを呼び出す
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("open_split_view", { url });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const win = windowModule.getCurrentWindow() as any;
+    console.log("Split view opened successfully");
 
-    // 既に分割表示中の場合は、新しいURLをブラウザで開くのみ
-    if (isSplitViewActive()) {
-      await open(url);
-      return;
-    }
-
-    // 現在のモニター情報を取得
-    // win.currentMonitor は環境によって未実装/関数でないケースがあるため使用しない
-    const primaryMonitor =
-      (typeof windowModule.primaryMonitor === "function"
-        ? await windowModule.primaryMonitor()
-        : undefined) ||
-      // 最後の手段として availableMonitors の先頭を使用
-      (
-        (typeof windowModule.availableMonitors === "function"
-          ? await windowModule.availableMonitors()
-          : []) as any[]
-      )?.[0];
-
-    if (!primaryMonitor) {
-      throw new Error("モニター情報を取得できませんでした");
-    }
-
-    // ウィンドウが最大化または全画面表示の場合は解除する
-    const isMaximized = await win.isMaximized();
-    const isFullscreen = await win.isFullscreen();
-
-    console.log("Window state before split view:", { isMaximized, isFullscreen });
-
-    // 画面サイズ計算（共通で使用）
-    const { width: screenWidth, height: screenHeight } = primaryMonitor.size;
-    const scaleFactor = primaryMonitor.scaleFactor || 1;
-    const screenPos = primaryMonitor.position || { x: 0, y: 0 };
-
-    const logicalScreenWidth = Math.floor(screenWidth / scaleFactor);
-    const logicalScreenHeight = Math.floor(screenHeight / scaleFactor);
-    const logicalMonitorX = Math.floor(screenPos.x / scaleFactor);
-    const logicalMonitorY = Math.floor(screenPos.y / scaleFactor);
-
-    // 分割表示のサイズ計算
-    const halfWidth = Math.round(logicalScreenWidth / 2);
-    const rightPositionX = logicalMonitorX + halfWidth;
-    const headerHeightOffset = 30;
-    const splitViewRightOffsetPx = 10;
-
-    // 最大化/全画面の場合は、まず右半分の位置に小さく配置する
-    // これにより、ブラウザが全画面で開くのを防ぐ
-    if (isMaximized || isFullscreen) {
-      // 先に、デスクトップに小さなウィンドウとして配置
-      // これにより、ブラウザがデスクトップのサイズを正しく認識できる
-      const tempWidth = Math.floor(halfWidth * 0.8);
-      const tempHeight = Math.floor((logicalScreenHeight - headerHeightOffset) * 0.8);
-      const tempX = logicalMonitorX + Math.floor((logicalScreenWidth - tempWidth) / 2);
-      const tempY = logicalMonitorY + Math.floor((logicalScreenHeight - tempHeight) / 2);
-
-      if (isFullscreen) {
-        console.log("Exiting fullscreen...");
-        await win.setFullscreen(false);
-        // 全画面解除を確実に待つ
-        await new Promise((resolve) => setTimeout(resolve, 300));
-      }
-
-      if (isMaximized) {
-        console.log("Unmaximizing window...");
-        await win.unmaximize();
-        // 最大化解除を確実に待つ
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      }
-
-      // 一時的に中央に小さく配置
-      await win.setSize(new LogicalSize(tempWidth, tempHeight));
-      await win.setPosition(new LogicalPosition(tempX, tempY));
-
-      // ウィンドウマネージャーが状態を更新するのを待つ
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      // その後、右半分のサイズと位置に設定
-      await win.setSize(
-        new LogicalSize(halfWidth, logicalScreenHeight - headerHeightOffset),
-      );
-      await win.setPosition(
-        new LogicalPosition(
-          rightPositionX - splitViewRightOffsetPx,
-          logicalMonitorY,
-        ),
-      );
-
-      // 最終的な位置設定が完了するまで待つ
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-
-    // 元のウィンドウサイズと位置を保存（復元用）
-    const originalSize = isMaximized || isFullscreen
-      ? new LogicalSize(logicalScreenWidth * 0.8, logicalScreenHeight * 0.8)
-      : await win.outerSize();
-    const originalPosition = isMaximized || isFullscreen
-      ? new LogicalPosition(
-          Math.floor((logicalScreenWidth - logicalScreenWidth * 0.8) / 2),
-          Math.floor((logicalScreenHeight - logicalScreenHeight * 0.8) / 2)
-        )
-      : await win.outerPosition();
-
-    // 右半分に移動・リサイズ（まだ設定されていない場合）
-    if (!isMaximized && !isFullscreen) {
-      await win.setSize(
-        new LogicalSize(halfWidth, logicalScreenHeight - headerHeightOffset),
-      );
-      await win.setPosition(
-        new LogicalPosition(
-          rightPositionX - splitViewRightOffsetPx,
-          logicalMonitorY,
-        ),
-      );
-
-      // ウィンドウの位置調整が完了するまで待つ
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-
-    // rapitasウィンドウをアクティブにして、デスクトップの状態を確実にする
-    await win.setFocus();
-
-    // システムのデフォルトブラウザで外部リンクを開く
-    // ブラウザは通常、最後にアクティブだったウィンドウのサイズを参考にするため、
-    // rapitasが右半分にある状態でブラウザが開かれると、左半分に配置される可能性が高い
-    await open(url);
-
-    // ブラウザが開いた後、rapitasウィンドウを再度最前面に表示
-    // これにより、分割表示の視覚的な一貫性を保つ
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    await win.setFocus();
-
-    // 手動復元用のウィンドウリサイズリスナー（分割状態から復元したい場合）
-    const handleResize = async () => {
-      // ユーザーが手動でリサイズした場合、分割表示状態をクリア
-      const splitViewData = (window as ExtendedWindow).__RAPITAS_SPLIT_VIEW__;
-      if (splitViewData) {
-        splitViewData.unlisten();
-        delete (window as ExtendedWindow).__RAPITAS_SPLIT_VIEW__;
-      }
-    };
-
-    // ウィンドウサイズ変更イベントをリッスン
-    const unlisten = await win.listen("tauri://resize", handleResize);
-
-    // 分割表示状態を保存して、後で手動復元できるようにする
+    // 分割表示状態を記録
     const splitViewData: SplitViewData = {
-      originalSize,
-      originalPosition,
-      wasMaximized: isMaximized,
-      wasFullscreen: isFullscreen,
-      timeout: null as any, // タイムアウトは設定しない
-      unlisten,
+      originalSize: null as any,
+      originalPosition: null as any,
+      wasMaximized: false,
+      wasFullscreen: false,
+      timeout: null,
+      unlisten: () => {},
     };
 
-    // グローバルに保存（手動復元用）
     (window as ExtendedWindow).__RAPITAS_SPLIT_VIEW__ = splitViewData;
 
-    // 分割表示が開始されたことを示すカスタムイベントを発火
-    // これにより、UIコンポーネントが即座に反応できる
     window.dispatchEvent(
       new CustomEvent("rapitas:split-view-activated", {
         detail: { active: true },
       }),
     );
-  } catch (e) {
-    console.error("Failed to open external URL in split view:", e);
-    // フォールバック: システムのデフォルトブラウザで開く
-    openUrlInDefaultBrowser(url);
-  } finally {
-    // 古いタイムスタンプを定期的にクリーンアップ（1秒以上経過したもの）
-    const urlTimestamps = (window as any)
-      .__RAPITAS_EXTERNAL_URL_TIMESTAMPS__ as Map<string, number>;
-    if (urlTimestamps) {
-      const cutoffTime = Date.now() - 1000;
-      for (const [storedUrl, timestamp] of Array.from(
-        urlTimestamps.entries(),
-      )) {
-        if (timestamp < cutoffTime) {
-          urlTimestamps.delete(storedUrl);
-        }
-      }
-    }
+  } catch (error) {
+    console.error("Failed to open URL in split view:", error);
+
+    // フォールバック: 通常のブラウザで開く
+    const { open } = await import("@tauri-apps/plugin-shell");
+    await open(url);
   }
 }
 

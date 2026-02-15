@@ -66,10 +66,14 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
         }
         setStatus("disconnected");
       }
-    } catch (error) {
+    } catch (error: any) {
+      // タイムアウトエラーかどうかを判定
+      const isTimeout = error?.name === 'AbortError';
+      const errorMessage = isTimeout ? 'Request timeout' : error?.message || 'Unknown error';
+
       if (!wasDisconnectedRef.current) {
         wasDisconnectedRef.current = true;
-        console.error("[useBackendHealth] Backend health check failed:", error);
+        console.error(`[useBackendHealth] Backend health check failed: ${errorMessage}`, error);
         onDisconnectRef.current?.();
       }
       setStatus("disconnected");

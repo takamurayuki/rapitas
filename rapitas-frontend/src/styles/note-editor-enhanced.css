@@ -1,0 +1,120 @@
+/* ノートエディタの拡張スタイル */
+
+/* タグのアニメーション */
+.note-tag {
+  animation: tagEnter 0.2s ease-out;
+}
+
+@keyframes tagEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 保存インジケーターアニメーション */
+.save-indicator-enter {
+  animation: saveIndicatorPulse 0.5s ease-out;
+}
+
+@keyframes saveIndicatorPulse {
+  0% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* エディタのフォーカススタイル */
+.note-editor:focus-within {
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2);
+  transition: box-shadow 0.2s ease-out;
+}
+
+/* 選択テキストのハイライト */
+.note-editor .highlight-yellow {
+  background-color: #fef08a;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.note-editor .highlight-green {
+  background-color: #bbf7d0;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.note-editor .highlight-blue {
+  background-color: #bfdbfe;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.note-editor .highlight-pink {
+  background-color: #fbcfe8;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.note-editor .highlight-purple {
+  background-color: #e9d5ff;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.note-editor .highlight-orange {
+  background-color: #fed7aa;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+/* コードブロックスタイル */
+.note-editor pre {
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 12px;
+  overflow-x: auto;
+  font-family: var(--font-geist-mono);
+}
+
+.dark .note-editor pre {
+  background-color: #1f2937;
+  border-color: #374151;
+}
+
+.note-editor code {
+  background-color: #f3f4f6;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 0.875em;
+  font-family: var(--font-geist-mono);
+}
+
+.dark .note-editor code {
+  background-color: #1f2937;
+}
+
+/* 引用ブロックスタイル */
+.note-editor blockquote {
+  border-left: 4px solid #6366f1;
+  padding-left: 16px;
+  margin-left: 0;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.dark .note-editor blockquote {
+  border-left-color: #818cf8;
+  color: #9ca3af;
+}
