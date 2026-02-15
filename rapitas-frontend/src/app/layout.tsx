@@ -12,7 +12,6 @@ import { PomodoroProvider } from "@/feature/tasks/pomodoro/PomodoroProvider";
 import ExternalLinksProvider from "@/components/ExternalLinksProvider";
 import NoteProvider from "@/components/note/NoteProvider";
 
-import FloatingAIMenuWrapper from "@/components/floating-ai-menu/FloatingAIMenuWrapper";
 import FloatingModeToggle from "@/components/FloatingModeToggle";
 
 
@@ -80,9 +79,6 @@ export default function RootLayout({
                 <ScheduleReminderProvider />
                 <Suspense fallback={null}>
                   <NoteProvider />
-                </Suspense>
-                <Suspense fallback={null}>
-                  <FloatingAIMenuWrapper />
                 </Suspense>
                 <Suspense fallback={null}>
                   <FloatingModeToggle />

@@ -123,19 +123,6 @@ html {
   -ms-overflow-style: none; /* IE/Edge: デフォルトで非表示 */
 }
 
-/* Floating AI Menu のz-index設定 */
-.floating-ai-menu-panel {
-  z-index: 9999;
-}
-
-.floating-ai-menu-button {
-  z-index: 9999;
-  /* ドラッグ時の重複を防ぐ */
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  perspective: 1000;
-  -webkit-perspective: 1000;
-}
 
 /* スクロール可能な場合のみスクロールバーを表示 */
 .scrollbar-thin:hover {

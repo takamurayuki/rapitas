@@ -21,11 +21,11 @@ import {
 import { useNoteStore, type ModalTab } from "@/stores/noteStore";
 import NoteEditor from "./NoteEditor";
 import NoteSidebar from "./NoteSidebar";
-import { useAIChat } from "../floating-ai-menu/useAIChat";
+import { useAIChat } from "./useAIChat";
 import {
   fetchConfiguredProviders,
   fetchAvailableModels,
-} from "../floating-ai-menu/aiService";
+} from "./aiService";
 import Link from "next/link";
 import type { AIChatMessage, ApiProvider } from "@/types";
 

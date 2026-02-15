@@ -13,8 +13,8 @@ import {
   Minimize2,
   Maximize2,
 } from "lucide-react";
-import { useAIChat } from "./floating-ai-menu/useAIChat";
-import { fetchConfiguredProviders, fetchAvailableModels } from "./floating-ai-menu/aiService";
+import { useAIChat } from "./note/useAIChat";
+import { fetchConfiguredProviders, fetchAvailableModels } from "./note/aiService";
 import Link from "next/link";
 import type { AIChatMessage, ApiProvider } from "@/types";
 import { useUIModeStore } from "@/stores/uiModeStore";

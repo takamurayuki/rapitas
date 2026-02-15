@@ -246,7 +246,7 @@ src/
 ├── components/             # Shared components
 │   ├── ui/                 # Reusable UI (Button, Toast, etc.)
 │   ├── Header.tsx
-│   └── floating-ai-menu/   # AI chat interface
+│   └── note/               # Note-taking with AI integration
 ├── feature/                # Domain modules
 │   ├── tasks/
 │   │   ├── components/     # TaskCard, TaskDetail, SubtaskList
