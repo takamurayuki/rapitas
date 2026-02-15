@@ -21,10 +21,7 @@ import { useNoteStore, type ModalTab } from "@/stores/noteStore";
 import NoteEditor from "./NoteEditor";
 import NoteSidebar from "./NoteSidebar";
 import { useAIChat } from "./useAIChat";
-import {
-  fetchConfiguredProviders,
-  fetchAvailableModels,
-} from "./aiService";
+import { fetchConfiguredProviders, fetchAvailableModels } from "./aiService";
 import Link from "next/link";
 import type { AIChatMessage, ApiProvider } from "@/types";
 
@@ -47,7 +44,7 @@ function ChatMessage({ message }: { message: AIChatMessage }) {
       <div
         className={`max-w-[80%] rounded-2xl px-3 py-2 ${
           isUser
-            ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-br-md"
+            ? "bg-linear-to-r from-blue-500 to-indigo-600 text-white rounded-br-md"
             : "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-bl-md"
         }`}
       >
@@ -79,7 +76,7 @@ function AITabContent() {
     useState<ApiProvider>("claude");
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [configuredProviders, setConfiguredProviders] = useState<ApiProvider[]>(
-    []
+    [],
   );
   const [availableModels, setAvailableModels] = useState<
     Record<string, { value: string; label: string }[]>
@@ -126,7 +123,7 @@ function AITabContent() {
         handleSendMessage();
       }
     },
-    [handleSendMessage]
+    [handleSendMessage],
   );
 
   const handleInputChange = useCallback(
@@ -135,7 +132,7 @@ function AITabContent() {
       e.target.style.height = "auto";
       e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
     },
-    []
+    [],
   );
 
   const currentModels = availableModels[selectedProvider] || [];
@@ -198,10 +195,10 @@ function AITabContent() {
                     disabled={!isConfigured}
                     className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       isSelected
-                        ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white"
+                        ? "bg-linear-to-r from-blue-500 to-indigo-600 text-white"
                         : isConfigured
-                        ? "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-600"
-                        : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed"
+                          ? "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-600"
+                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed"
                     }`}
                   >
                     <span
@@ -306,13 +303,13 @@ function AITabContent() {
             onKeyDown={handleKeyDown}
             placeholder="メッセージを入力..."
             disabled={isLoading}
-            className="flex-1 resize-none rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed min-h-[40px] max-h-[120px]"
+            className="flex-1 resize-none rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed min-h-10 max-h-[120px]"
             rows={1}
           />
           <button
             onClick={handleSendMessage}
             disabled={!inputValue.trim() || isLoading}
-            className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-zinc-300 disabled:to-zinc-300 dark:disabled:from-zinc-700 dark:disabled:to-zinc-700 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 bg-linear-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-zinc-300 disabled:to-zinc-300 dark:disabled:from-zinc-700 dark:disabled:to-zinc-700 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {isLoading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -331,12 +328,7 @@ function AITabContent() {
 
 /** ドラッグ/リサイズ中に背景を覆い、マウスイベントを奪うオーバーレイ */
 function DragOverlay({ cursor }: { cursor: string }) {
-  return (
-    <div
-      className="fixed inset-0"
-      style={{ zIndex: 99999, cursor }}
-    />
-  );
+  return <div className="fixed inset-0" style={{ zIndex: 99999, cursor }} />;
 }
 
 export default function NoteModal() {
@@ -413,7 +405,7 @@ export default function NoteModal() {
       didDragRef.current = true;
       setModalPosition(
         e.clientX - dragStartRef.current.x,
-        e.clientY - dragStartRef.current.y
+        e.clientY - dragStartRef.current.y,
       );
     };
     const onUp = () => {
@@ -448,7 +440,7 @@ export default function NoteModal() {
       const s = resizeStartRef.current;
       setModalSize(
         Math.max(400, s.width + e.clientX - s.x),
-        Math.max(300, s.height + e.clientY - s.y)
+        Math.max(300, s.height + e.clientY - s.y),
       );
     };
     const onUp = () => setIsResizing(false);
@@ -489,9 +481,7 @@ export default function NoteModal() {
       <div
         ref={modalRef}
         className={`fixed bg-white dark:bg-zinc-900 overflow-hidden note-modal-enter ${
-          modalState.isMaximized
-            ? "rounded-none"
-            : "rounded-xl shadow-2xl"
+          modalState.isMaximized ? "rounded-none" : "rounded-xl shadow-2xl"
         }`}
         style={
           modalState.isMaximized
@@ -515,7 +505,7 @@ export default function NoteModal() {
       >
         {/* ヘッダー */}
         <div
-          className={`h-12 bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 flex items-center justify-between px-3 select-none ${
+          className={`h-12 bg-linear-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 flex items-center justify-between px-3 select-none ${
             modalState.isMaximized ? "cursor-default" : "cursor-move"
           }`}
           onMouseDown={modalState.isMaximized ? undefined : handleDragStart}
@@ -547,7 +537,11 @@ export default function NoteModal() {
           <div className="flex items-center gap-1">
             {/* ノートタブ時のみ検索 */}
             {activeTab === "note" && (
-              <div className="relative" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+              <div
+                className="relative"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/50" />
                 <input
                   type="text"

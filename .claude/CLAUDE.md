@@ -28,7 +28,7 @@
 
 # GitHub 運用ルール
 
-- **URL:** `https://github.com/taka-y-0820`
+- **URL:** `https://github.com/takamurayuki`
 - **ツール:** GitHub操作（接続・起票・閲覧）には必ず `gh` コマンドを使用すること。
 - **Issueベース開発:**
   - 修正や機能追加はIssueの内容に基づいて実施する。
