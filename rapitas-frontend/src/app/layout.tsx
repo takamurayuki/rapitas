@@ -12,8 +12,6 @@ import { PomodoroProvider } from "@/feature/tasks/pomodoro/PomodoroProvider";
 import ExternalLinksProvider from "@/components/ExternalLinksProvider";
 import NoteProvider from "@/components/note/NoteProvider";
 
-import FloatingModeToggle from "@/components/FloatingModeToggle";
-
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -79,9 +77,6 @@ export default function RootLayout({
                 <ScheduleReminderProvider />
                 <Suspense fallback={null}>
                   <NoteProvider />
-                </Suspense>
-                <Suspense fallback={null}>
-                  <FloatingModeToggle />
                 </Suspense>
               </Suspense>
             </ExternalLinksProvider>

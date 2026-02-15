@@ -18,7 +18,6 @@ export interface NoteModalState {
   isOpen: boolean;
   position: { x: number; y: number };
   size: { width: number; height: number };
-  isMinimized: boolean;
   isMaximized: boolean;
   zIndex: number;
   activeTab: ModalTab;
@@ -43,7 +42,6 @@ interface NoteState {
   closeModal: () => void;
   setModalPosition: (x: number, y: number) => void;
   setModalSize: (width: number, height: number) => void;
-  toggleMinimize: () => void;
   toggleMaximize: () => void;
   bringToFront: () => void;
   setModalTab: (tab: ModalTab) => void;
@@ -64,7 +62,6 @@ const defaultModalState: NoteModalState = {
   isOpen: false,
   position: { x: 100, y: 100 },
   size: { width: 600, height: 500 },
-  isMinimized: false,
   isMaximized: false,
   zIndex: 1000,
   activeTab: "note",
@@ -96,25 +93,94 @@ export const useNoteStore = create<NoteState>()(
       },
 
       updateNote: (id, updates) => {
-        set((state) => ({
-          notes: state.notes.map((note) =>
-            note.id === id
-              ? { ...note, ...updates, updatedAt: new Date() }
-              : note
-          ),
-        }));
+        set((state) => {
+          const newState = {
+            notes: state.notes.map((note) =>
+              note.id === id
+                ? { ...note, ...updates, updatedAt: new Date() }
+                : note
+            ),
+          };
+
+          // ノートが保存されて内容が空でない場合、空のノートが存在しなければ新規ノートを自動作成
+          const updatedNote = newState.notes.find(n => n.id === id);
+          if (updatedNote && (updatedNote.content.trim() !== "" || updatedNote.title !== "新しいノート")) {
+            const hasEmptyNote = newState.notes.some(n =>
+              n.content.trim() === "" && n.title === "新しいノート" && n.id !== id
+            );
+
+            if (!hasEmptyNote) {
+              const newNote: Note = {
+                id: Date.now().toString(),
+                title: "新しいノート",
+                content: "",
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                isPinned: false,
+                tags: [],
+              };
+              newState.notes = [newNote, ...newState.notes];
+            }
+          }
+
+          return newState;
+        });
       },
 
       deleteNote: (id) => {
         set((state) => {
           const newNotes = state.notes.filter((note) => note.id !== id);
           const currentNote = state.currentNoteId === id ? null : state.currentNoteId;
+
+          // 削除後に空のノートが存在しなければ新規作成
+          const hasEmptyNote = newNotes.some(n =>
+            n.content.trim() === "" && n.title === "新しいノート"
+          );
+
+          if (!hasEmptyNote && newNotes.length > 0) {
+            const newNote: Note = {
+              id: Date.now().toString() + "-delete",
+              title: "新しいノート",
+              content: "",
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              isPinned: false,
+              tags: [],
+            };
+            newNotes.unshift(newNote);
+          }
+
           return { notes: newNotes, currentNoteId: currentNote };
         });
       },
 
       setCurrentNote: (id) => {
         set({ currentNoteId: id });
+
+        // 空のノートに切り替えたときに、他に空のノートがなければ新規作成
+        if (id) {
+          const state = get();
+          const currentNote = state.notes.find(n => n.id === id);
+          if (currentNote && currentNote.content.trim() === "" && currentNote.title === "新しいノート") {
+            const otherEmptyNote = state.notes.find(n =>
+              n.content.trim() === "" && n.title === "新しいノート" && n.id !== id
+            );
+            if (!otherEmptyNote) {
+              const newNote: Note = {
+                id: Date.now().toString() + "-auto",
+                title: "新しいノート",
+                content: "",
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                isPinned: false,
+                tags: [],
+              };
+              set((state) => ({
+                notes: [newNote, ...state.notes],
+              }));
+            }
+          }
+        }
       },
 
       toggleModal: () => {
@@ -127,7 +193,6 @@ export const useNoteStore = create<NoteState>()(
               ...state.modalState,
               isOpen: true,
               zIndex: ++nextZIndex,
-              isMinimized: false,
             },
           });
           // ノートが無い場合は新規作成
@@ -143,7 +208,6 @@ export const useNoteStore = create<NoteState>()(
             ...state.modalState,
             isOpen: true,
             zIndex: ++nextZIndex,
-            isMinimized: false,
             ...(tab ? { activeTab: tab } : {}),
           },
         }));
@@ -169,37 +233,6 @@ export const useNoteStore = create<NoteState>()(
         set((state) => ({
           modalState: { ...state.modalState, size: { width, height } },
         }));
-      },
-
-      toggleMinimize: () => {
-        const ICON_SIZE = 32;
-        set((state) => {
-          const { position, size, isMinimized } = state.modalState;
-          if (!isMinimized) {
-            // モーダル → アイコン: モーダルの右下 = アイコンの右上
-            return {
-              modalState: {
-                ...state.modalState,
-                isMinimized: true,
-                position: {
-                  x: position.x + size.width - ICON_SIZE,
-                  y: position.y + size.height,
-                },
-              },
-            };
-          }
-          // アイコン → モーダル: アイコンの右上 = モーダルの右下
-          return {
-            modalState: {
-              ...state.modalState,
-              isMinimized: false,
-              position: {
-                x: position.x + ICON_SIZE - size.width,
-                y: position.y - size.height,
-              },
-            },
-          };
-        });
       },
 
       toggleMaximize: () => {

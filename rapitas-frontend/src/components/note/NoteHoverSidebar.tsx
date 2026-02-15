@@ -14,6 +14,7 @@ import {
 import { useNoteStore } from "@/stores/noteStore";
 import { useDarkMode } from "@/hooks/use-dark-mode";
 import { useUIModeStore } from "@/stores/uiModeStore";
+import DeleteNoteModal from "./DeleteNoteModal";
 
 export default function NoteHoverSidebar() {
   const {
@@ -35,6 +36,15 @@ export default function NoteHoverSidebar() {
   const { currentMode } = useUIModeStore();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [deleteModalState, setDeleteModalState] = useState<{
+    isOpen: boolean;
+    noteId: string | null;
+    noteTitle: string;
+  }>({
+    isOpen: false,
+    noteId: null,
+    noteTitle: "",
+  });
   const sidebarRef = useRef<HTMLDivElement>(null);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -68,10 +78,23 @@ export default function NoteHoverSidebar() {
   // ノートモードでない場合は表示しない
   if (currentMode !== "note") return null;
 
-  const handleDeleteNote = (id: string) => {
-    if (confirm("このノートを削除しますか？")) {
-      deleteNote(id);
+  const handleDeleteNote = (id: string, title: string) => {
+    setDeleteModalState({
+      isOpen: true,
+      noteId: id,
+      noteTitle: title,
+    });
+  };
+
+  const confirmDelete = () => {
+    if (deleteModalState.noteId) {
+      deleteNote(deleteModalState.noteId);
     }
+    setDeleteModalState({ isOpen: false, noteId: null, noteTitle: "" });
+  };
+
+  const cancelDelete = () => {
+    setDeleteModalState({ isOpen: false, noteId: null, noteTitle: "" });
   };
 
   const formatDate = (date: Date) => {
@@ -237,7 +260,7 @@ export default function NoteHoverSidebar() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteNote(note.id);
+                          handleDeleteNote(note.id, note.title);
                         }}
                         className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-red-500 transition-all duration-200 shrink-0"
                         title="削除"
@@ -252,6 +275,14 @@ export default function NoteHoverSidebar() {
           </div>
         </div>
       </div>
+
+      {/* 削除確認モーダル */}
+      <DeleteNoteModal
+        isOpen={deleteModalState.isOpen}
+        noteTitle={deleteModalState.noteTitle}
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+      />
     </div>
   );
 }

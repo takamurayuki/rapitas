@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
   X,
-  Minus,
   Plus,
   FileText,
   StickyNote,
@@ -28,8 +27,6 @@ import {
 } from "./aiService";
 import Link from "next/link";
 import type { AIChatMessage, ApiProvider } from "@/types";
-
-const ICON_SIZE = 32;
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
   claude: "Claude",
@@ -349,7 +346,6 @@ export default function NoteModal() {
     currentNoteId,
     searchQuery,
     closeModal,
-    toggleMinimize,
     toggleMaximize,
     setModalPosition,
     setModalSize,
@@ -467,7 +463,7 @@ export default function NoteModal() {
   // ショートカットキー
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Escape") {
+      if (e.key === "Escape") {
         closeModal();
       }
     };
@@ -483,36 +479,6 @@ export default function NoteModal() {
   };
 
   if (!modalState.isOpen) return null;
-
-  // ─── 最小化時：アイコン表示 ───
-  if (modalState.isMinimized) {
-    return (
-      <>
-        {isDragging && <DragOverlay cursor="move" />}
-        <div
-          className="fixed cursor-move select-none"
-          style={{
-            left: `${modalState.position.x}px`,
-            top: `${modalState.position.y}px`,
-            width: `${ICON_SIZE}px`,
-            height: `${ICON_SIZE}px`,
-            zIndex: modalState.zIndex,
-          }}
-          onMouseDown={handleDragStart}
-          onClick={() => { if (!didDragRef.current) toggleMinimize(); }}
-          title="クリックで復元"
-        >
-          <div className="w-full h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 shadow-lg hover:shadow-xl flex items-center justify-center transition-shadow">
-            {activeTab === "note" ? (
-              <StickyNote className="w-4 h-4 text-white" />
-            ) : (
-              <Sparkles className="w-4 h-4 text-white" />
-            )}
-          </div>
-        </div>
-      </>
-    );
-  }
 
   // ─── 通常表示 ───
   return (
@@ -592,13 +558,6 @@ export default function NoteModal() {
                 />
               </div>
             )}
-            <button
-              onClick={toggleMinimize}
-              className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-              title="最小化"
-            >
-              <Minus className="w-4 h-4" />
-            </button>
             <button
               onClick={toggleMaximize}
               className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"

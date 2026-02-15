@@ -43,7 +43,13 @@ export default function KeyboardShortcuts() {
     shortcutHelp: () => setShowHelp(true),
     toggleAI: () => {
       const noteStore = useNoteStore.getState();
-      noteStore.toggleModal();
+      if (noteStore.modalState.isOpen) {
+        // 既に開いている場合は、タブを切り替える
+        noteStore.setModalTab(noteStore.modalState.activeTab === "ai" ? "note" : "ai");
+      } else {
+        // 閉じている場合は、AIタブで開く
+        noteStore.openModal("ai");
+      }
     },
   };
 

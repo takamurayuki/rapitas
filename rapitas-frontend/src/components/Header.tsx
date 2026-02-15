@@ -44,6 +44,7 @@ import {
   RotateCw,
   Loader2,
   StickyNote,
+  Sparkles,
 } from "lucide-react";
 import AppIcon from "@/components/AppIcon";
 import GlobalPomodoroWidget from "@/feature/tasks/pomodoro/GlobalPomodoroWidget";
@@ -54,6 +55,7 @@ import { isTauri, hideToTray } from "@/utils/tauri";
 import { API_BASE_URL } from "@/utils/api";
 import { useShortcutStore, type ShortcutId } from "@/stores/shortcutStore";
 import { useAppModeStore, type AppMode } from "@/stores/appModeStore";
+import { useNoteStore } from "@/stores/noteStore";
 
 type NavItem = {
   href: string;
@@ -114,6 +116,7 @@ export default function Header() {
 
   const shortcutBindings = useShortcutStore((state) => state.shortcuts);
   const appMode = useAppModeStore((state) => state.mode);
+  const { modalState, openModal, closeModal } = useNoteStore();
 
   // ショートカットIDからラベルを取得するヘルパー
   const getShortcutLabel = (id: ShortcutId): string | undefined => {
@@ -801,6 +804,7 @@ export default function Header() {
             <div className="flex items-center gap-3">
               {/* ポモドーロタイマー表示（タスク詳細ページでは非表示） */}
               {!pathname?.startsWith("/tasks/") && <GlobalPomodoroWidget />}
+
               {(pathname === "/" || pathname === "/kanban") && (
                 <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
                   <button
@@ -830,6 +834,28 @@ export default function Header() {
 
               {/* 通知ベル */}
               <NotificationBell />
+
+              {/* ノート・AIモーダルボタン */}
+              <button
+                onClick={() => {
+                  if (modalState.isOpen) {
+                    closeModal();
+                  } else {
+                    openModal();
+                  }
+                }}
+                className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors relative"
+                title={modalState.isOpen ? "ノート・AIを閉じる" : "ノート・AIを開く (Ctrl+E)"}
+              >
+                {modalState.activeTab === "ai" ? (
+                  <Sparkles className="w-5 h-5" />
+                ) : (
+                  <StickyNote className="w-5 h-5" />
+                )}
+                {modalState.isOpen && (
+                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-indigo-500 rounded-full" />
+                )}
+              </button>
 
               {/* 三点リーダーメニュー */}
               <div className="relative" ref={moreMenuRef}>

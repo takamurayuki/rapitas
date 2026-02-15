@@ -1,12 +1,13 @@
 "use client";
 import {
-  Plus,
   FileText,
   Pin,
   Trash2,
   Calendar,
 } from "lucide-react";
 import { useNoteStore } from "@/stores/noteStore";
+import { useState, useEffect } from "react";
+import DeleteNoteModal from "./DeleteNoteModal";
 
 export default function NoteSidebar() {
   const {
@@ -17,12 +18,35 @@ export default function NoteSidebar() {
     setCurrentNote,
   } = useNoteStore();
 
+  const [deleteModalState, setDeleteModalState] = useState<{
+    isOpen: boolean;
+    noteId: string | null;
+    noteTitle: string;
+  }>({
+    isOpen: false,
+    noteId: null,
+    noteTitle: "",
+  });
+
   const filteredNotes = getFilteredNotes();
 
-  const handleDeleteNote = (id: string) => {
-    if (confirm("このノートを削除しますか？")) {
-      deleteNote(id);
+  const handleDeleteNote = (id: string, title: string) => {
+    setDeleteModalState({
+      isOpen: true,
+      noteId: id,
+      noteTitle: title,
+    });
+  };
+
+  const confirmDelete = () => {
+    if (deleteModalState.noteId) {
+      deleteNote(deleteModalState.noteId);
     }
+    setDeleteModalState({ isOpen: false, noteId: null, noteTitle: "" });
+  };
+
+  const cancelDelete = () => {
+    setDeleteModalState({ isOpen: false, noteId: null, noteTitle: "" });
   };
 
   const formatDate = (date: Date) => {
@@ -37,21 +61,18 @@ export default function NoteSidebar() {
     return d.toLocaleDateString("ja-JP", { month: "short", day: "numeric" });
   };
 
+  // ノートリストが空の場合、初回のみ新規ノートを作成
+  useEffect(() => {
+    const notes = getFilteredNotes();
+    if (notes.length === 0) {
+      createNote();
+    }
+  }, []); // 初回マウント時のみ実行
+
   return (
     <div className="flex flex-col h-full bg-zinc-50 dark:bg-zinc-800/50 custom-scrollbar">
-      {/* 新規作成 */}
-      <div className="p-3">
-        <button
-          onClick={createNote}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          新規ノート
-        </button>
-      </div>
-
       {/* ノートリスト */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 overflow-y-auto custom-scrollbar pt-3">
         {filteredNotes.length === 0 ? (
           <div className="p-4 text-center">
             <FileText className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-2" />
@@ -96,7 +117,7 @@ export default function NoteSidebar() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDeleteNote(note.id);
+                      handleDeleteNote(note.id, note.title);
                     }}
                     className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-red-500 transition-opacity"
                   >
@@ -108,6 +129,14 @@ export default function NoteSidebar() {
           </div>
         )}
       </div>
+
+      {/* 削除確認モーダル */}
+      <DeleteNoteModal
+        isOpen={deleteModalState.isOpen}
+        noteTitle={deleteModalState.noteTitle}
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+      />
     </div>
   );
 }
