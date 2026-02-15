@@ -117,6 +117,23 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     setIsDirty(true);
   };
 
+  // タイトルペースト時にHTMLタグを除去
+  const handleTitlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData("text/plain");
+    const target = e.target as HTMLInputElement;
+    const start = target.selectionStart || 0;
+    const end = target.selectionEnd || 0;
+    const newValue =
+      target.value.substring(0, start) + text + target.value.substring(end);
+    setDraftTitle(newValue);
+    setIsDirty(true);
+    // カーソル位置を調整
+    setTimeout(() => {
+      target.selectionStart = target.selectionEnd = start + text.length;
+    }, 0);
+  };
+
   // コンテンツ変更（ダーティフラグのみ）
   const handleContentChange = () => {
     setIsDirty(true);
@@ -220,15 +237,47 @@ export default function NoteEditor({ note }: NoteEditorProps) {
 
   // テキストフォーマット適用
   const applyFormat = (command: string, value?: string) => {
+    // タイトル入力欄にフォーカスがある場合は何もしない
+    const activeElement = document.activeElement;
+    if (
+      activeElement &&
+      activeElement.tagName === "INPUT" &&
+      (activeElement as HTMLInputElement).type === "text"
+    ) {
+      return;
+    }
+
+    // コンテンツエディタにフォーカスがない場合は、フォーカスを移す
+    if (!contentRef.current?.contains(activeElement)) {
+      contentRef.current?.focus();
+    }
+
     document.execCommand(command, false, value);
     handleContentChange();
   };
 
   // ハイライト適用
   const applyHighlight = (color: string) => {
+    // タイトル入力欄にフォーカスがある場合は何もしない
+    const activeElement = document.activeElement;
+    if (
+      activeElement &&
+      activeElement.tagName === "INPUT" &&
+      (activeElement as HTMLInputElement).type === "text"
+    ) {
+      setShowColorPicker(false);
+      return;
+    }
+
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0) {
       const range = selection.getRangeAt(0);
+      // 選択範囲がコンテンツエディタ内にあることを確認
+      if (!contentRef.current?.contains(range.commonAncestorContainer)) {
+        setShowColorPicker(false);
+        return;
+      }
+
       const span = document.createElement("span");
       const style = highlightStyles[highlightStyleIndex];
 
@@ -256,9 +305,26 @@ export default function NoteEditor({ note }: NoteEditorProps) {
 
   // 左側縦線を適用
   const applyBorderLine = (color: string) => {
+    // タイトル入力欄にフォーカスがある場合は何もしない
+    const activeElement = document.activeElement;
+    if (
+      activeElement &&
+      activeElement.tagName === "INPUT" &&
+      (activeElement as HTMLInputElement).type === "text"
+    ) {
+      setShowBorderPicker(false);
+      return;
+    }
+
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0) {
       const range = selection.getRangeAt(0);
+      // 選択範囲がコンテンツエディタ内にあることを確認
+      if (!contentRef.current?.contains(range.commonAncestorContainer)) {
+        setShowBorderPicker(false);
+        return;
+      }
+
       const span = document.createElement("span");
       span.style.borderLeft = `3px solid ${color}`;
       span.style.paddingLeft = "8px";
@@ -279,10 +345,24 @@ export default function NoteEditor({ note }: NoteEditorProps) {
 
   // リンク挿入ダイアログを開く
   const openLinkInput = () => {
+    // タイトル入力欄にフォーカスがある場合は何もしない
+    const activeElement = document.activeElement;
+    if (
+      activeElement &&
+      activeElement.tagName === "INPUT" &&
+      (activeElement as HTMLInputElement).type === "text"
+    ) {
+      return;
+    }
+
     // 現在の選択範囲を保存
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0) {
-      savedSelectionRef.current = selection.getRangeAt(0).cloneRange();
+      const range = selection.getRangeAt(0);
+      // 選択範囲がコンテンツエディタ内にある場合のみ保存
+      if (contentRef.current?.contains(range.commonAncestorContainer)) {
+        savedSelectionRef.current = range.cloneRange();
+      }
     }
     setShowLinkInput(true);
     setShowColorPicker(false);
@@ -442,12 +522,31 @@ export default function NoteEditor({ note }: NoteEditorProps) {
 
   // テーブル挿入
   const insertTable = () => {
+    // タイトル入力欄にフォーカスがある場合は何もしない
+    const activeElement = document.activeElement;
+    if (
+      activeElement &&
+      activeElement.tagName === "INPUT" &&
+      (activeElement as HTMLInputElement).type === "text"
+    ) {
+      return;
+    }
+
+    // コンテンツエディタにフォーカスがない場合は、フォーカスを移す
+    if (!contentRef.current?.contains(activeElement)) {
+      contentRef.current?.focus();
+    }
+
     const frag = createTableNode();
     const lastChild = frag.lastChild;
 
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0) {
       const range = selection.getRangeAt(0);
+      // 選択範囲がコンテンツエディタ内にあることを確認
+      if (!contentRef.current?.contains(range.commonAncestorContainer)) {
+        return;
+      }
       range.deleteContents();
       range.insertNode(frag);
       if (lastChild) {
@@ -471,12 +570,13 @@ export default function NoteEditor({ note }: NoteEditorProps) {
           type="text"
           value={draftTitle}
           onChange={handleTitleChange}
+          onPaste={handleTitlePaste}
           className="flex-1 text-xl font-bold bg-transparent outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-zinc-900 dark:text-zinc-100"
           placeholder="タイトルを入力..."
           style={{
             fontStyle: "normal",
             textDecoration: "none",
-            fontWeight: 700
+            fontWeight: 700,
           }}
         />
         <button
