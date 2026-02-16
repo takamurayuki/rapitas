@@ -222,7 +222,7 @@ export function ProgressRing({
       ref={ringRef}
       data-progress-ring
       className="relative shrink-0"
-      style={{ width: RING_SIZE, height: RING_SIZE, zIndex: 100, overflow: 'visible' }}
+      style={{ width: RING_SIZE, height: RING_SIZE, zIndex: 10, overflow: 'visible' }}
     >
       <svg
         width={RING_SIZE}
