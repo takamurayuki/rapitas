@@ -534,11 +534,12 @@ export default function NoteModal() {
               <span>AI</span>
             </button>
           </div>
-          <div className="flex items-center gap-1">
-            {/* ノートタブ時のみ検索 */}
-            {activeTab === "note" && (
+
+          {/* 中央検索バー（ノートタブ時のみ） */}
+          {activeTab === "note" && (
+            <div className="flex-1 flex items-center justify-center px-4">
               <div
-                className="relative"
+                className="relative w-full max-w-xs"
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
               >
@@ -547,11 +548,17 @@ export default function NoteModal() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="検索..."
-                  className="w-32 focus:w-44 transition-all pl-7 pr-2 py-1 bg-white/15 hover:bg-white/20 focus:bg-white/25 text-white placeholder:text-white/50 text-sm rounded-lg border border-white/10 focus:border-white/30 focus:outline-none"
+                  placeholder="ノートを検索..."
+                  className="w-full pl-7 pr-2 py-1 bg-white/15 hover:bg-white/20 focus:bg-white/25 text-white placeholder:text-white/50 text-sm rounded-lg border border-white/10 focus:border-white/30 focus:outline-none transition-all"
                 />
               </div>
-            )}
+            </div>
+          )}
+
+          {/* AIタブ時は右側に余白を確保 */}
+          {activeTab === "ai" && <div className="flex-1" />}
+
+          <div className="flex items-center gap-1">
             <button
               onClick={toggleMaximize}
               className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"

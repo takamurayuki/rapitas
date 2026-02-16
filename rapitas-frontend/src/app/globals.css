@@ -1,8 +1,8 @@
 @import "tailwindcss";
-@plugin "@tailwindcss/typography";
 @import "../styles/note-animations.css";
 @import "../styles/note-modal-enhanced.css";
 @import "../styles/note-editor-enhanced.css";
+@plugin "@tailwindcss/typography";
 
 /* ノートホバーサイドバー用のアニメーション */
 @keyframes slideIn {
@@ -624,4 +624,217 @@ iframe:not([src=""]) + .iframe-loading {
 
 .zoom-in-95 {
   animation: zoom-in-95 0.2s ease-out;
+}
+
+/* コードブロックのスタイル */
+.code-block-container {
+  margin: 16px 0;
+}
+
+.code-block-container code {
+  tab-size: 2;
+  -moz-tab-size: 2;
+}
+
+/* シンタックスハイライト基本色 */
+.code-block-container .token.comment,
+.code-block-container .token.prolog,
+.code-block-container .token.doctype,
+.code-block-container .token.cdata {
+  color: #6b7280;
+}
+
+.code-block-container .token.punctuation {
+  color: #e2e8f0;
+}
+
+.code-block-container .token.property,
+.code-block-container .token.tag,
+.code-block-container .token.boolean,
+.code-block-container .token.number,
+.code-block-container .token.constant,
+.code-block-container .token.symbol {
+  color: #f59e0b;
+}
+
+.code-block-container .token.selector,
+.code-block-container .token.attr-name,
+.code-block-container .token.string,
+.code-block-container .token.char,
+.code-block-container .token.builtin {
+  color: #10b981;
+}
+
+.code-block-container .token.operator,
+.code-block-container .token.entity,
+.code-block-container .token.url,
+.code-block-container .language-css .token.string,
+.code-block-container .style .token.string {
+  color: #8b5cf6;
+}
+
+.code-block-container .token.atrule,
+.code-block-container .token.attr-value,
+.code-block-container .token.keyword {
+  color: #3b82f6;
+}
+
+.code-block-container .token.function {
+  color: #ec4899;
+}
+
+.code-block-container .token.regex,
+.code-block-container .token.important,
+.code-block-container .token.variable {
+  color: #f59e0b;
+}
+
+.code-block-container .token.important,
+.code-block-container .token.bold {
+  font-weight: bold;
+}
+
+.code-block-container .token.italic {
+  font-style: italic;
+}
+
+.code-block-container .token.entity {
+  cursor: help;
+}
+
+/* コードブロックのスクロールバー */
+.code-block-container pre::-webkit-scrollbar {
+  height: 8px;
+}
+
+.code-block-container pre::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+.code-block-container pre::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+.code-block-container pre::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* 言語別のシンタックスハイライト（JavaScript/TypeScript） */
+.code-block-container .language-javascript .token.keyword,
+.code-block-container .language-typescript .token.keyword {
+  color: #c792ea;
+}
+
+.code-block-container .language-javascript .token.function,
+.code-block-container .language-typescript .token.function {
+  color: #82aaff;
+}
+
+.code-block-container .language-javascript .token.string,
+.code-block-container .language-typescript .token.string {
+  color: #c3e88d;
+}
+
+.code-block-container .language-javascript .token.comment,
+.code-block-container .language-typescript .token.comment {
+  color: #546e7a;
+  font-style: italic;
+}
+
+/* Python */
+.code-block-container .language-python .token.keyword {
+  color: #ff6188;
+}
+
+.code-block-container .language-python .token.builtin {
+  color: #78dce8;
+}
+
+.code-block-container .language-python .token.string {
+  color: #ffd866;
+}
+
+.code-block-container .language-python .token.decorator {
+  color: #ff6188;
+}
+
+.code-block-container .language-python .token.function {
+  color: #a9dc76;
+}
+
+/* Java/C#/C++/C */
+.code-block-container .language-java .token.keyword,
+.code-block-container .language-csharp .token.keyword,
+.code-block-container .language-cpp .token.keyword,
+.code-block-container .language-c .token.keyword {
+  color: #569cd6;
+}
+
+.code-block-container .language-java .token.class-name,
+.code-block-container .language-csharp .token.class-name,
+.code-block-container .language-cpp .token.class-name,
+.code-block-container .language-c .token.class-name {
+  color: #4ec9b0;
+}
+
+/* HTML/XML */
+.code-block-container .language-html .token.tag,
+.code-block-container .language-xml .token.tag {
+  color: #569cd6;
+}
+
+.code-block-container .language-html .token.attr-name,
+.code-block-container .language-xml .token.attr-name {
+  color: #9cdcfe;
+}
+
+.code-block-container .language-html .token.attr-value,
+.code-block-container .language-xml .token.attr-value {
+  color: #ce9178;
+}
+
+/* CSS */
+.code-block-container .language-css .token.selector {
+  color: #d7ba7d;
+}
+
+.code-block-container .language-css .token.property {
+  color: #9cdcfe;
+}
+
+.code-block-container .language-css .token.important {
+  color: #569cd6;
+}
+
+/* JSON */
+.code-block-container .language-json .token.property {
+  color: #9cdcfe;
+}
+
+.code-block-container .language-json .token.string {
+  color: #ce9178;
+}
+
+/* SQL */
+.code-block-container .language-sql .token.keyword {
+  color: #569cd6;
+  text-transform: uppercase;
+}
+
+.code-block-container .language-sql .token.function {
+  color: #dcdcaa;
+}
+
+/* コードブロック選択時のハイライト */
+.code-block-container code::selection,
+.code-block-container code *::selection {
+  background-color: rgba(33, 150, 243, 0.3);
+  color: inherit;
+}
+
+/* 削除ボタンのホバーアニメーション */
+.code-block-container button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }

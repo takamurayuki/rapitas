@@ -332,31 +332,33 @@ export default function HomeClientPage() {
         return;
       }
 
-      switch (e.key.toLowerCase()) {
-        case "n":
-          e.preventDefault();
-          const themeParam = themeFilter || defaultTheme?.id;
-          router.push(
-            `/tasks/new${themeParam ? `?themeId=${themeParam}` : ""}`,
-          );
-          break;
-        case "q":
-          e.preventDefault();
-          setIsQuickAdding(true);
-          break;
-        case "s":
-          e.preventDefault();
-          setIsSelectionMode((prev) => !prev);
-          if (isSelectionMode) {
-            setSelectedTasks(new Set());
-          }
-          break;
-        case "escape":
-          if (isQuickAdding) {
-            setIsQuickAdding(false);
-            setQuickTaskTitle("");
-          }
-          break;
+      // Ctrlキー（またはMacのCmdキー）との組み合わせをチェック
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key.toLowerCase()) {
+          case "n":
+            e.preventDefault();
+            const themeParam = themeFilter || defaultTheme?.id;
+            router.push(
+              `/tasks/new${themeParam ? `?themeId=${themeParam}` : ""}`,
+            );
+            break;
+          case "q":
+            e.preventDefault();
+            setIsQuickAdding(true);
+            break;
+          case "s":
+            e.preventDefault();
+            setIsSelectionMode((prev) => !prev);
+            if (isSelectionMode) {
+              setSelectedTasks(new Set());
+            }
+            break;
+        }
+      } else if (e.key === "Escape") {
+        if (isQuickAdding) {
+          setIsQuickAdding(false);
+          setQuickTaskTitle("");
+        }
       }
     };
 
@@ -530,6 +532,7 @@ export default function HomeClientPage() {
       <div className="mx-auto max-w-6xl px-4 py-4">
         {/* ヘッダー - アクションボタン */}
         <div className="mb-4 flex items-center justify-end">
+          {/* アクションボタン */}
           <div className="flex items-center gap-2">
             {/* バルク操作ボタン（選択時のみ表示） */}
             {isSelectionMode && selectedTasks.size > 0 && (
@@ -582,7 +585,7 @@ export default function HomeClientPage() {
                         ? "bg-green-500 dark:bg-green-600 text-white shadow-sm"
                         : "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/30"
                     }`}
-                    title="クイック追加 (Q)"
+                    title="クイック追加 (Ctrl+Q)"
                   >
                     <svg
                       className="w-4 h-4"
@@ -610,7 +613,7 @@ export default function HomeClientPage() {
                       );
                     }}
                     className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30 rounded text-xs transition-all flex items-center gap-1.5"
-                    title="新規タスク (N)"
+                    title="新規タスク (Ctrl+N)"
                   >
                     <svg
                       className="w-4 h-4"
@@ -704,7 +707,7 @@ export default function HomeClientPage() {
                     ? "bg-purple-500 dark:bg-purple-600 text-white shadow-sm"
                     : "bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/30"
                 }`}
-                title="一括選択モード (S)"
+                title="一括選択モード (Ctrl+S)"
               >
                 <svg
                   className="w-4 h-4"
