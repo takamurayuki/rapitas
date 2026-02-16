@@ -1300,7 +1300,8 @@ export default function HomeClientPage() {
                   key={task.id}
                   className="slide-in-bottom"
                   style={{
-                    animationDelay: `${index * 0.05}s`,
+                    animationDelay: `${index * 0.02}s`,
+                    animationFillMode: 'both',
                   }}
                 >
                     <TaskCard

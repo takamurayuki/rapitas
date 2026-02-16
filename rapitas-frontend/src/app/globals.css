@@ -468,11 +468,11 @@ iframe:not([src=""]) + .iframe-loading {
 
 @keyframes slide-in-bottom {
   from {
-    transform: translateY(10px);
+    transform: scale(0.98);
     opacity: 0;
   }
   to {
-    transform: translateY(0);
+    transform: scale(1);
     opacity: 1;
   }
 }
@@ -615,7 +615,7 @@ iframe:not([src=""]) + .iframe-loading {
 }
 
 .slide-in-bottom {
-  animation: slide-in-bottom 0.3s ease-out;
+  animation: slide-in-bottom 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .slide-in-from-top-1 {
