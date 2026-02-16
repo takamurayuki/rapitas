@@ -604,11 +604,14 @@ export default function HomeClientPage() {
                 本日のタスク
               </h1>
               <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                {completedTasksCount} / {totalTasksCount} 完了
-                {colors.isComplete && totalTasksCount > 0 && (
-                  <span className="ml-2 text-xs font-semibold text-blue-600 dark:text-blue-400 animate-fade-in">
-                    ✨ すべて完了！
-                  </span>
+                {totalTasksCount > 0 ? (
+                  completedTasksCount === totalTasksCount ? (
+                    <span className="text-green-600 dark:text-green-400">すべて完了！</span>
+                  ) : (
+                    `${completedTasksCount} / ${totalTasksCount} 完了`
+                  )
+                ) : (
+                  "タスクが作成されていません"
                 )}
               </div>
             </div>

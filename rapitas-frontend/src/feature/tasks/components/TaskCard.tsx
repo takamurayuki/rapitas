@@ -13,16 +13,18 @@ import { getLabelsArray, hasLabels } from "@/utils/labels";
 import { getIconComponent } from "@/components/category/IconData";
 import { useToast } from "@/components/ui/toast/ToastContainer";
 import { API_BASE_URL } from "@/utils/api";
+import { CardLightSweep, useProgressColors } from "./TaskCompletionAnimation";
 
 interface TaskCardProps {
   task: Task;
   isSelected?: boolean;
   isSelectionMode?: boolean;
   onTaskClick: (taskId: number) => void;
-  onStatusChange: (taskId: number, status: Status) => void;
+  onStatusChange: (taskId: number, status: Status, cardElement?: HTMLElement) => void;
   onToggleSelect?: (taskId: number) => void;
   onTaskUpdated?: () => void;
   onOpenInPage?: (taskId: number) => void;
+  sweepingTaskId?: number | null;
 }
 
 export default function TaskCard({
@@ -34,7 +36,9 @@ export default function TaskCard({
   onToggleSelect,
   onTaskUpdated,
   onOpenInPage,
+  sweepingTaskId,
 }: TaskCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null);
   const [expandedSubtasks, setExpandedSubtasks] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
@@ -120,12 +124,18 @@ export default function TaskCard({
     }
   };
 
+  // ライトスイープ用のカラー設定（仮の値）
+  const sweepColors = useProgressColors(1, 2);
+
   return (
     <div
+      ref={cardRef}
       className={`group relative rounded-lg border-l-4 border-t border-r border-b transition-all duration-200 ${
         currentStatus.borderColor
       } ${`border-zinc-200 dark:border-zinc-800 ${currentStatus.bgColor} dark:bg-indigo-dark-900 hover:shadow-lg hover:scale-[1.02] hover:border-opacity-80`}`}
     >
+      {/* カードライトスイープエフェクト */}
+      <CardLightSweep active={sweepingTaskId === task.id} colors={sweepColors} />
       <div
         className="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all duration-200 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 rounded-t-lg"
         onClick={() => {
@@ -303,7 +313,7 @@ export default function TaskCard({
                   config={config}
                   renderIcon={renderStatusIcon}
                   onClick={(status: string) =>
-                    onStatusChange(task.id, status as Status)
+                    onStatusChange(task.id, status as Status, cardRef.current || undefined)
                   }
                   size="md"
                 />
