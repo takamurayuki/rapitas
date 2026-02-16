@@ -575,8 +575,19 @@ export default function HomeClientPage() {
       <div className="mx-auto max-w-6xl px-4 py-4">
         {/* ヘッダー - タイトルとプログレスリング */}
         <div className="mb-4 flex items-center justify-between">
-          {/* 左側: タイトルとプログレスリング */}
+          {/* 左側: プログレスリングとタイトル */}
           <div className="flex items-center gap-4">
+            {/* プログレスリング */}
+            {totalTasksCount > 0 && (
+              <ProgressRing
+                completed={completedTasksCount}
+                total={totalTasksCount}
+                bursts={bursts}
+                onBurstDone={handleBurstDone}
+                ringRef={progressRingRef as React.RefObject<HTMLDivElement>}
+                colors={colors}
+              />
+            )}
             <div>
               <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
                 本日のタスク
@@ -590,17 +601,6 @@ export default function HomeClientPage() {
                 )}
               </div>
             </div>
-            {/* プログレスリング */}
-            {totalTasksCount > 0 && (
-              <ProgressRing
-                completed={completedTasksCount}
-                total={totalTasksCount}
-                bursts={bursts}
-                onBurstDone={handleBurstDone}
-                ringRef={progressRingRef as React.RefObject<HTMLDivElement>}
-                colors={colors}
-              />
-            )}
           </div>
 
           {/* 右側: アクションボタン */}
