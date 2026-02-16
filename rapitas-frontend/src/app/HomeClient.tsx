@@ -599,15 +599,9 @@ export default function HomeClientPage() {
                 本日のタスク
               </h1>
               <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                {totalTasksCount > 0 ? (
-                  completedTasksCount === totalTasksCount ? (
-                    <span className="text-green-600 dark:text-green-400">すべて完了！</span>
-                  ) : (
-                    `${completedTasksCount} / ${totalTasksCount} 完了`
-                  )
-                ) : (
-                  "タスクが作成されていません"
-                )}
+                {totalTasksCount > 0
+                  ? `${completedTasksCount} / ${totalTasksCount} 完了`
+                  : "タスクが作成されていません"}
               </div>
             </div>
           </div>
