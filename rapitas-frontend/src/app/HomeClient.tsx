@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Theme, Category, Priority, Status, UserSettings } from "@/types";
@@ -31,6 +31,12 @@ import { API_BASE_URL } from "@/utils/api";
 import { useExecutingTasksPolling } from "@/hooks/useExecutingTasksPolling";
 import { useAppModeStore } from "@/stores/appModeStore";
 import { useTaskCacheStore } from "@/stores/taskCacheStore";
+import {
+  ProgressRing,
+  CardLightSweep,
+  FlyingParticle,
+  useTaskCompletionAnimation,
+} from "@/feature/tasks/components/TaskCompletionAnimation";
 
 const API_BASE = API_BASE_URL;
 
@@ -64,6 +70,9 @@ export default function HomeClientPage() {
   const [isQuickAdding, setIsQuickAdding] = useState(false);
   const [quickTaskTitle, setQuickTaskTitle] = useState("");
 
+  // プログレスリング用ref
+  const progressRingRef = useRef<HTMLDivElement>(null);
+
   // ソート
   const [sortBy, setSortBy] = useState<"createdAt" | "priority" | "title">(
     "createdAt",
@@ -94,6 +103,33 @@ export default function HomeClientPage() {
       await fetchAllTasks();
     }
   }, [taskCacheInitialized, fetchTaskUpdates, fetchAllTasks]);
+
+  // 完了タスクの数とアニメーション設定（選択されたテーマでフィルタリング）
+  const todayTasks = tasks.filter((t) => {
+    if (t.parentId) return false;
+    // テーマフィルターが設定されている場合は、そのテーマのタスクのみカウント
+    if (themeFilter !== null && t.themeId !== themeFilter) return false;
+    return true;
+  });
+  const completedTasksCount = todayTasks.filter(
+    (t) => t.status === "done",
+  ).length;
+  const totalTasksCount = todayTasks.length;
+
+  const {
+    particles,
+    bursts,
+    sweepingTaskId,
+    colors,
+    nextColors,
+    triggerTaskCompletion,
+    handleParticleArrive,
+    handleBurstDone,
+  } = useTaskCompletionAnimation(
+    totalTasksCount,
+    completedTasksCount,
+    progressRingRef as React.RefObject<HTMLDivElement>,
+  );
 
   const fetchCategories = async () => {
     try {
@@ -174,8 +210,21 @@ export default function HomeClientPage() {
     }
   };
 
-  const updateStatus = async (id: number, status: Status) => {
+  const updateStatus = async (
+    id: number,
+    status: Status,
+    cardElement?: HTMLElement,
+  ) => {
     const oldTask = tasks.find((t) => t.id === id);
+
+    // タスクを完了にする場合、アニメーションをトリガー
+    if (status === "done" && oldTask?.status !== "done" && cardElement) {
+      const rect = cardElement.getBoundingClientRect();
+      const x = rect.left + rect.width * 0.15;
+      const y = rect.top + rect.height / 2;
+      triggerTaskCompletion(id, x, y);
+    }
+
     // Optimistic update
     updateTaskLocally(id, { status });
 
@@ -524,9 +573,37 @@ export default function HomeClientPage() {
   return (
     <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-background">
       <div className="mx-auto max-w-6xl px-4 py-4">
-        {/* ヘッダー - アクションボタン */}
-        <div className="mb-4 flex items-center justify-end">
-          {/* アクションボタン */}
+        {/* ヘッダー - タイトルとプログレスリング */}
+        <div className="mb-4 flex items-center justify-between">
+          {/* 左側: タイトルとプログレスリング */}
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+                本日のタスク
+              </h1>
+              <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                {completedTasksCount} / {totalTasksCount} 完了
+                {colors.isComplete && totalTasksCount > 0 && (
+                  <span className="ml-2 text-xs font-semibold text-blue-600 dark:text-blue-400 animate-fade-in">
+                    ✨ すべて完了！
+                  </span>
+                )}
+              </div>
+            </div>
+            {/* プログレスリング */}
+            {totalTasksCount > 0 && (
+              <ProgressRing
+                completed={completedTasksCount}
+                total={totalTasksCount}
+                bursts={bursts}
+                onBurstDone={handleBurstDone}
+                ringRef={progressRingRef as React.RefObject<HTMLDivElement>}
+                colors={colors}
+              />
+            )}
+          </div>
+
+          {/* 右側: アクションボタン */}
           <div className="flex items-center gap-2">
             {/* バルク操作ボタン（選択時のみ表示） */}
             {isSelectionMode && selectedTasks.size > 0 && (
@@ -1307,12 +1384,17 @@ export default function HomeClientPage() {
                     isSelected={selectedTasks.has(task.id)}
                     isSelectionMode={isSelectionMode}
                     onTaskClick={openTaskPanel}
-                    onStatusChange={(taskId: number, status: Status) => {
-                      updateStatus(taskId, status);
+                    onStatusChange={(
+                      taskId: number,
+                      status: Status,
+                      cardElement?: HTMLElement,
+                    ) => {
+                      updateStatus(taskId, status, cardElement);
                     }}
                     onToggleSelect={toggleTaskSelection}
                     onTaskUpdated={fetchTasks}
                     onOpenInPage={openTaskInPage}
+                    sweepingTaskId={sweepingTaskId}
                   />
                 </div>
               ))}
@@ -1342,6 +1424,19 @@ export default function HomeClientPage() {
         show={showCompleteOverlay}
         onComplete={() => setShowCompleteOverlay(false)}
       /> */}
+
+      {/* 飛翔する粒子 */}
+      {particles.map((p) => (
+        <FlyingParticle
+          key={p.id}
+          startX={p.startX}
+          startY={p.startY}
+          targetX={p.targetX}
+          targetY={p.targetY}
+          colors={nextColors}
+          onArrive={handleParticleArrive}
+        />
+      ))}
     </div>
   );
 }
