@@ -120,26 +120,46 @@ interface RingBurstProps {
 }
 
 function RingBurst({ color, onDone }: RingBurstProps) {
+  const ref = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const timer = setTimeout(onDone, 700);
     return () => clearTimeout(timer);
   }, [onDone]);
 
-  return (
+  // ProgressRingの位置を取得して、その位置に波紋を表示
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    // ProgressRingの要素を探す
+    const progressRing = document.querySelector('[data-progress-ring]');
+    if (!progressRing) return;
+
+    const rect = progressRing.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    // 波紋の中心を設定
+    el.style.left = `${centerX}px`;
+    el.style.top = `${centerY}px`;
+  }, []);
+
+  return createPortal(
     <div
-      className="absolute inset-0 pointer-events-none animate-task-burst-expand"
+      ref={ref}
+      className="fixed pointer-events-none animate-task-burst-expand"
       style={{
         width: RING_SIZE + 24,
         height: RING_SIZE + 24,
-        top: "50%",
-        left: "50%",
         marginTop: -(RING_SIZE + 24) / 2,
         marginLeft: -(RING_SIZE + 24) / 2,
         border: `2px solid ${color}`,
         borderRadius: "50%",
         zIndex: 9999,
       }}
-    />
+    />,
+    document.body
   );
 }
 
@@ -200,8 +220,9 @@ export function ProgressRing({
   return (
     <div
       ref={ringRef}
+      data-progress-ring
       className="relative shrink-0"
-      style={{ width: RING_SIZE, height: RING_SIZE }}
+      style={{ width: RING_SIZE, height: RING_SIZE, zIndex: 100, overflow: 'visible' }}
     >
       <svg
         width={RING_SIZE}

@@ -515,11 +515,6 @@ export default function HomeClientPage() {
   const filteredTasks = tasks.filter((t) => {
     if (t.parentId) return false;
 
-    // 今日のタスクのみフィルタリング
-    const taskDate = new Date(t.createdAt);
-    taskDate.setHours(0, 0, 0, 0);
-    if (taskDate.getTime() !== today.getTime()) return false;
-
     if (filter !== "all" && t.status !== filter) return false;
     if (themeFilter !== null && t.themeId !== themeFilter) return false;
     // カテゴリフィルタ: テーマフィルタが未設定（ロード中）の場合にカテゴリで絞り込む
