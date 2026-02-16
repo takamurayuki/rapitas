@@ -105,11 +105,16 @@ export default function HomeClientPage() {
   }, [taskCacheInitialized, fetchTaskUpdates, fetchAllTasks]);
 
   // 完了タスクの数とアニメーション設定（選択されたテーマでフィルタリング）
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const todayTasks = tasks.filter((t) => {
     if (t.parentId) return false;
     // テーマフィルターが設定されている場合は、そのテーマのタスクのみカウント
     if (themeFilter !== null && t.themeId !== themeFilter) return false;
-    return true;
+    // 今日のタスクのみフィルタリング（createdAtが今日の日付）
+    const taskDate = new Date(t.createdAt);
+    taskDate.setHours(0, 0, 0, 0);
+    return taskDate.getTime() === today.getTime();
   });
   const completedTasksCount = todayTasks.filter(
     (t) => t.status === "done",
@@ -509,6 +514,12 @@ export default function HomeClientPage() {
 
   const filteredTasks = tasks.filter((t) => {
     if (t.parentId) return false;
+
+    // 今日のタスクのみフィルタリング
+    const taskDate = new Date(t.createdAt);
+    taskDate.setHours(0, 0, 0, 0);
+    if (taskDate.getTime() !== today.getTime()) return false;
+
     if (filter !== "all" && t.status !== filter) return false;
     if (themeFilter !== null && t.themeId !== themeFilter) return false;
     // カテゴリフィルタ: テーマフィルタが未設定（ロード中）の場合にカテゴリで絞り込む
