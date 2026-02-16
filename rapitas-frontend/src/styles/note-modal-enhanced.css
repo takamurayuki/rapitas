@@ -3,17 +3,43 @@
 /* モーダルのアニメーション */
 .note-modal-enter {
   animation: noteModalEnter 0.2s ease-out;
+  animation-fill-mode: backwards;
 }
 
 @keyframes noteModalEnter {
   from {
     opacity: 0;
-    transform: scale(0.95) translateY(10px);
+    transform: scale(0.95);
   }
   to {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: scale(1);
   }
+}
+
+/* ドラッグ・リサイズのパフォーマンス最適化 */
+.note-modal-dragging,
+.note-modal-resizing {
+  /* GPUアクセラレーション */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+
+  /* レイアウトの再計算を防ぐ */
+  contain: layout style paint;
+}
+
+/* スムーズな移動とリサイズのためのトランジション（ドラッグ中は無効） */
+.note-modal-smooth {
+  transition: left 0.1s ease-out, top 0.1s ease-out, width 0.1s ease-out, height 0.1s ease-out;
+}
+
+/* ドラッグ・リサイズ中のポインターイベント最適化 */
+.note-modal-interactive {
+  pointer-events: auto;
+}
+
+.note-modal-non-interactive {
+  pointer-events: none;
 }
 
 /* 最小化時のアニメーション */

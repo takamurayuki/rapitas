@@ -60,7 +60,10 @@ let nextZIndex = 1000;
 
 const defaultModalState: NoteModalState = {
   isOpen: false,
-  position: { x: 100, y: 100 },
+  position: {
+    x: typeof window !== "undefined" ? Math.max(100, (window.innerWidth - 600) / 2) : 100,
+    y: typeof window !== "undefined" ? Math.max(100, (window.innerHeight - 500) / 2) : 100
+  },
   size: { width: 600, height: 500 },
   isMaximized: false,
   zIndex: 1000,

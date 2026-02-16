@@ -2,13 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type {
-  Theme,
-  Category,
-  Priority,
-  Status,
-  UserSettings,
-} from "@/types";
+import type { Theme, Category, Priority, Status, UserSettings } from "@/types";
 import TaskSlidePanel from "@/feature/tasks/components/TaskSlidePanel";
 import TaskCard from "@/feature/tasks/components/TaskCard";
 import { useToast } from "@/components/ui/toast/ToastContainer";
@@ -528,7 +522,7 @@ export default function HomeClientPage() {
   }, [totalPages, currentPage]);
 
   return (
-    <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-[var(--background)]">
+    <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-background">
       <div className="mx-auto max-w-6xl px-4 py-4">
         {/* ヘッダー - アクションボタン */}
         <div className="mb-4 flex items-center justify-end">
@@ -841,7 +835,7 @@ export default function HomeClientPage() {
                         className={`relative flex items-center gap-1.5 px-4 py-2 text-xs font-medium transition-all whitespace-nowrap shrink-0 border-b-2 ${
                           isActive
                             ? "bg-black/5 dark:bg-white/5"
-                            : "text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] border-transparent"
+                            : "text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-black/2 dark:hover:bg-white/2 border-transparent"
                         }`}
                         style={{
                           borderBottomColor: isActive ? cat.color : undefined,
@@ -1214,7 +1208,9 @@ export default function HomeClientPage() {
           // タスクデータが初回読み込み中の場合は追加でローディング表示
           <div className="text-center py-8">
             <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-            <p className="text-zinc-500 dark:text-zinc-400">タスク一覧を読み込み中...</p>
+            <p className="text-zinc-500 dark:text-zinc-400">
+              タスク一覧を読み込み中...
+            </p>
           </div>
         ) : sortedTasks.length === 0 ? (
           <div className="text-center py-12 text-zinc-500 dark:text-zinc-400">
@@ -1289,7 +1285,9 @@ export default function HomeClientPage() {
               <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
                 <div className="flex items-center gap-2">
                   <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                  <span className="text-sm text-blue-700 dark:text-blue-300">タスクデータを更新中...</span>
+                  <span className="text-sm text-blue-700 dark:text-blue-300">
+                    タスクデータを更新中...
+                  </span>
                 </div>
               </div>
             )}
@@ -1301,10 +1299,10 @@ export default function HomeClientPage() {
                   className="slide-in-bottom"
                   style={{
                     animationDelay: `${index * 0.02}s`,
-                    animationFillMode: 'both',
+                    animationFillMode: "both",
                   }}
                 >
-                    <TaskCard
+                  <TaskCard
                     task={task}
                     isSelected={selectedTasks.has(task.id)}
                     isSelectionMode={isSelectionMode}

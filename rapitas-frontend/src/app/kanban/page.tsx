@@ -18,7 +18,14 @@ import { getTaskDetailPath } from "@/utils/tauri";
 import { API_BASE_URL } from "@/utils/api";
 import { useExecutingTasksPolling } from "@/hooks/useExecutingTasksPolling";
 import { useTaskCacheStore } from "@/stores/taskCacheStore";
-import { ExternalLink, Search, Filter, X, Flag, Tag } from "lucide-react";
+import {
+  ExternalLink,
+  Flag,
+  Tag,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+} from "lucide-react";
 import type { Label } from "@/types";
 
 type Priority = "low" | "medium" | "high" | "urgent";
@@ -77,9 +84,54 @@ export default function KanbanPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [labels, setLabels] = useState<Label[]>([]);
 
+  // 週間表示の状態
+  const [currentWeek, setCurrentWeek] = useState(0); // 0 = 今週, -1 = 先週, 1 = 来週
+
+  // 週の開始日と終了日を計算
+  const getWeekDateRange = (weekOffset: number) => {
+    const now = new Date();
+    const currentDay = now.getDay();
+    const diff = currentDay === 0 ? -6 : 1 - currentDay; // 月曜日を週の始まりとする
+
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() + diff + weekOffset * 7);
+    weekStart.setHours(0, 0, 0, 0);
+
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    return { start: weekStart, end: weekEnd };
+  };
+
+  // 現在の週の日付範囲を取得
+  const currentWeekRange = useMemo(() => {
+    return getWeekDateRange(currentWeek);
+  }, [currentWeek]);
+
   // フィルタリングされたタスク
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
+      // 週フィルター:
+      // 1. 進行中のタスクは常に表示
+      // 2. 期日が現在の週に含まれるタスク
+      // 3. 作成日が現在の週に含まれるタスク
+      const taskCreatedAt = new Date(task.createdAt);
+      const taskDueDate = task.dueDate ? new Date(task.dueDate) : null;
+
+      const isInProgress = task.status === "in-progress";
+      const isCreatedInWeek =
+        taskCreatedAt >= currentWeekRange.start &&
+        taskCreatedAt <= currentWeekRange.end;
+      const isDueInWeek =
+        taskDueDate &&
+        taskDueDate >= currentWeekRange.start &&
+        taskDueDate <= currentWeekRange.end;
+
+      const isInWeek = isInProgress || isCreatedInWeek || isDueInWeek;
+
+      if (!isInWeek) return false;
+
       // 検索フィルター
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -98,7 +150,10 @@ export default function KanbanPage() {
 
       // ラベルフィルター
       if (selectedLabelIds.length > 0) {
-        const taskLabelIds = task.taskLabels?.map((tl) => tl.label?.id).filter((id): id is number => id != null) || [];
+        const taskLabelIds =
+          task.taskLabels
+            ?.map((tl) => tl.label?.id)
+            .filter((id): id is number => id != null) || [];
         const hasMatchingLabel = selectedLabelIds.some((id) =>
           taskLabelIds.includes(id),
         );
@@ -107,7 +162,13 @@ export default function KanbanPage() {
 
       return true;
     });
-  }, [tasks, searchQuery, selectedPriorities, selectedLabelIds]);
+  }, [
+    tasks,
+    searchQuery,
+    selectedPriorities,
+    selectedLabelIds,
+    currentWeekRange,
+  ]);
 
   const hasActiveFilters =
     searchQuery || selectedPriorities.length > 0 || selectedLabelIds.length > 0;
@@ -238,9 +299,59 @@ export default function KanbanPage() {
   const getTasksByStatus = (status: string) =>
     filteredTasks.filter((t) => t.status === status && !t.parentId);
 
+  // 週の表示文字列を生成
+  const getWeekDisplayText = () => {
+    const start = currentWeekRange.start.toLocaleDateString("ja-JP", {
+      month: "numeric",
+      day: "numeric",
+    });
+    const end = currentWeekRange.end.toLocaleDateString("ja-JP", {
+      month: "numeric",
+      day: "numeric",
+    });
+
+    if (currentWeek === 0) {
+      return `今週 (${start} - ${end})`;
+    } else if (currentWeek < 0) {
+      return `${Math.abs(currentWeek)}週間前 (${start} - ${end})`;
+    } else {
+      return `${currentWeek}週間後 (${start} - ${end})`;
+    }
+  };
+
   return (
     <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-background scrollbar-thin">
       <div className="mx-auto max-w-7xl px-4 py-8">
+        {/* Week Navigation */}
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentWeek(currentWeek - 1)}
+              className="p-2 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              title="前の週"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setCurrentWeek(0)}
+              className="px-4 py-2 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors flex items-center gap-2"
+              title="今週に戻る"
+            >
+              <Calendar className="w-4 h-4" />
+              <span className="text-sm font-medium">
+                {getWeekDisplayText()}
+              </span>
+            </button>
+            <button
+              onClick={() => setCurrentWeek(currentWeek + 1)}
+              className="p-2 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              title="次の週"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
         {/* Filter Bar */}
         <div className="mb-6 space-y-3">
           <div className="flex items-center gap-3">
@@ -339,7 +450,10 @@ export default function KanbanPage() {
               <div key={i} className="space-y-3">
                 <div className="h-5 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
                 {[1, 2].map((j) => (
-                  <div key={j} className="h-20 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse" />
+                  <div
+                    key={j}
+                    className="h-20 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse"
+                  />
                 ))}
               </div>
             ))}

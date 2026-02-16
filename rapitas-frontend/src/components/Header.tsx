@@ -43,8 +43,8 @@ import {
   BookMarked,
   RotateCw,
   Loader2,
-  StickyNote,
   Sparkles,
+  NotebookTabs,
 } from "lucide-react";
 import AppIcon from "@/components/AppIcon";
 import GlobalPomodoroWidget from "@/feature/tasks/pomodoro/GlobalPomodoroWidget";
@@ -845,12 +845,16 @@ export default function Header() {
                   }
                 }}
                 className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors relative"
-                title={modalState.isOpen ? "ノート・AIを閉じる" : "ノート・AIを開く (Ctrl+E)"}
+                title={
+                  modalState.isOpen
+                    ? "ノート・AIを閉じる"
+                    : "ノート・AIを開く (Ctrl+E)"
+                }
               >
                 {modalState.activeTab === "ai" ? (
                   <Sparkles className="w-5 h-5" />
                 ) : (
-                  <StickyNote className="w-5 h-5" />
+                  <NotebookTabs className="w-5 h-5" />
                 )}
                 {modalState.isOpen && (
                   <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-indigo-500 rounded-full" />

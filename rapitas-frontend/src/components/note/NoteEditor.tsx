@@ -206,10 +206,15 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     showTextColorPicker,
   ]);
 
+  // 現在アクティブな色のspanを追跡
+  const activeColorSpanRef = useRef<HTMLSpanElement | null>(null);
+  // 現在選択されている文字色を保持（常に適用するため）
+  const selectedTextColorRef = useRef<string | null>(null);
+
   // コンテンツ変更（ダーティフラグのみ）
-  const handleContentChange = () => {
+  const handleContentChange = useCallback(() => {
     setIsDirty(true);
-  };
+  }, []);
 
   // 現在の選択範囲のフォーマットを検出
   const detectCurrentFormat = useCallback(() => {
@@ -432,8 +437,268 @@ export default function NoteEditor({ note }: NoteEditorProps) {
       document.removeEventListener("selectionchange", handleSelectionChange);
   }, [detectCurrentFormat]);
 
-  // Enter時にスタイル付きspanから抜ける（ハイライト・縦線共通）
+  // Enter時にスタイル付きspanから抜ける（ハイライト・縦線）、文字色は継続
   const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Backspace処理
+    if (e.key === "Backspace") {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+
+      const range = selection.getRangeAt(0);
+
+      // カーソルが行頭にある場合
+      if (range.collapsed && range.startOffset === 0) {
+        const node = range.startContainer;
+
+        // 現在の行が空かどうかを判定
+        let isLineEmpty = false;
+        let currentElement: Element | null = null;
+
+        if (node.nodeType === Node.TEXT_NODE) {
+          const parent = node.parentElement;
+          if (parent) {
+            currentElement = parent;
+            // 親要素がSPANの場合、さらに親を確認
+            if (parent.tagName === "SPAN" && parent.parentElement) {
+              currentElement = parent.parentElement;
+            }
+          }
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          currentElement = node as Element;
+        }
+
+        // 現在の行の内容を確認
+        if (currentElement) {
+          // LI要素の場合
+          if (currentElement.tagName === "LI") {
+            isLineEmpty = currentElement.textContent?.trim() === "";
+          } else {
+            // 通常の行の場合、前のBR要素と次のBR要素（または終端）の間の内容を確認
+            let checkNode: Node | null = currentElement;
+            let hasContent = false;
+
+            // 現在の位置から次のBRまたはコンテナの終端まで確認
+            while (checkNode && checkNode !== contentRef.current) {
+              if (checkNode.nodeType === Node.TEXT_NODE) {
+                const text = checkNode.textContent || "";
+                if (text.trim() !== "" && text !== "\u200B") {
+                  hasContent = true;
+                  break;
+                }
+              } else if (checkNode.nodeType === Node.ELEMENT_NODE) {
+                const elem = checkNode as Element;
+                if (elem.tagName === "BR") {
+                  break;
+                }
+                // SPAN要素内のテキストも確認
+                if (elem.tagName === "SPAN") {
+                  const spanText = elem.textContent || "";
+                  if (spanText.trim() !== "" && spanText !== "\u200B") {
+                    hasContent = true;
+                    break;
+                  }
+                }
+              }
+
+              // 次のノードを確認
+              if (checkNode.firstChild) {
+                checkNode = checkNode.firstChild;
+              } else if (checkNode.nextSibling) {
+                checkNode = checkNode.nextSibling;
+              } else {
+                // 親に戻って次を探す
+                let parent: Node | null = checkNode.parentNode;
+                while (
+                  parent &&
+                  parent !== contentRef.current &&
+                  !parent.nextSibling
+                ) {
+                  parent = parent.parentNode;
+                }
+                checkNode = parent?.nextSibling || null;
+              }
+            }
+
+            isLineEmpty = !hasContent;
+          }
+        }
+
+        // 行が空の場合のみ、前の行に移動する処理を実行
+        if (isLineEmpty) {
+          // 現在のノードまたは親ノードから前の要素を探す
+          let previousElement: Element | null = null;
+
+          if (node.nodeType === Node.TEXT_NODE) {
+            // テキストノードの場合、親要素から探す
+            const parent = node.parentElement;
+            if (parent && parent.tagName === "SPAN") {
+              previousElement = parent.previousElementSibling;
+
+              // 前の要素がない場合、親の親から探す
+              if (!previousElement && parent.parentElement) {
+                const grandParent = parent.parentElement;
+
+                // リスト項目で、かつ前の要素（前のリスト項目）が存在する場合
+                if (
+                  grandParent.tagName === "LI" &&
+                  grandParent.previousElementSibling
+                ) {
+                  const prevLi = grandParent.previousElementSibling;
+                  if (prevLi.tagName === "LI") {
+                    // 前のリスト項目の最後にカーソルを移動
+                    e.preventDefault();
+                    const newRange = document.createRange();
+                    const lastChild = prevLi.lastChild || prevLi;
+                    if (lastChild.nodeType === Node.TEXT_NODE) {
+                      newRange.setStart(
+                        lastChild,
+                        lastChild.textContent?.length || 0,
+                      );
+                    } else {
+                      newRange.setStartAfter(lastChild);
+                    }
+                    newRange.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(newRange);
+                    handleContentChange();
+                    return;
+                  }
+                }
+
+                // その他の場合、通常の前の要素を取得
+                if (grandParent.previousElementSibling) {
+                  previousElement = grandParent.previousElementSibling;
+                }
+              }
+            }
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+            previousElement = (node as Element).previousElementSibling;
+          }
+
+          // 前の要素がBR（改行）の場合
+          if (previousElement && previousElement.tagName === "BR") {
+            e.preventDefault();
+
+            // BR要素の前の位置にカーソルを移動
+            const newRange = document.createRange();
+
+            // BRの前に要素がある場合、その最後にカーソルを移動
+            if (previousElement.previousSibling) {
+              const prevNode = previousElement.previousSibling;
+              if (prevNode.nodeType === Node.TEXT_NODE) {
+                newRange.setStart(prevNode, prevNode.textContent?.length || 0);
+              } else if (
+                prevNode.nodeType === Node.ELEMENT_NODE &&
+                prevNode.lastChild
+              ) {
+                const lastChild = prevNode.lastChild;
+                if (lastChild.nodeType === Node.TEXT_NODE) {
+                  newRange.setStart(
+                    lastChild,
+                    lastChild.textContent?.length || 0,
+                  );
+                } else {
+                  newRange.setStartAfter(lastChild);
+                }
+              } else {
+                newRange.setStartBefore(previousElement);
+              }
+            } else {
+              newRange.setStartBefore(previousElement);
+            }
+
+            newRange.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+
+            // BR要素を削除
+            previousElement.remove();
+
+            handleContentChange();
+            return;
+          }
+        }
+      }
+
+      // activeColorSpanがある場合の処理
+      if (activeColorSpanRef.current) {
+        const activeSpan = activeColorSpanRef.current;
+        const spanText = activeSpan.textContent || "";
+
+        // spanが空または1文字（ゼロ幅スペースのみ）の場合
+        if (spanText.length <= 1) {
+          // span外で削除操作後に新しいspanを作成
+          setTimeout(() => {
+            if (selectedTextColorRef.current && contentRef.current) {
+              const selection = window.getSelection();
+              if (selection && selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                if (
+                  contentRef.current.contains(range.commonAncestorContainer)
+                ) {
+                  const newSpan = document.createElement("span");
+                  newSpan.style.color = selectedTextColorRef.current;
+                  newSpan.textContent = "\u200B";
+
+                  range.insertNode(newSpan);
+                  activeColorSpanRef.current = newSpan;
+
+                  const newRange = document.createRange();
+                  newRange.setStart(newSpan.firstChild!, 0);
+                  newRange.collapse(true);
+                  selection.removeAllRanges();
+                  selection.addRange(newRange);
+                }
+              }
+            }
+          }, 0);
+        }
+      }
+
+      return;
+    }
+
+    // Delete処理
+    if (e.key === "Delete") {
+      // activeColorSpanがある場合の処理
+      if (activeColorSpanRef.current) {
+        const activeSpan = activeColorSpanRef.current;
+        const spanText = activeSpan.textContent || "";
+
+        // spanが空または1文字（ゼロ幅スペースのみ）の場合
+        if (spanText.length <= 1) {
+          // span外で削除操作後に新しいspanを作成
+          setTimeout(() => {
+            if (selectedTextColorRef.current && contentRef.current) {
+              const selection = window.getSelection();
+              if (selection && selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                if (
+                  contentRef.current.contains(range.commonAncestorContainer)
+                ) {
+                  const newSpan = document.createElement("span");
+                  newSpan.style.color = selectedTextColorRef.current;
+                  newSpan.textContent = "\u200B";
+
+                  range.insertNode(newSpan);
+                  activeColorSpanRef.current = newSpan;
+
+                  const newRange = document.createRange();
+                  newRange.setStart(newSpan.firstChild!, 0);
+                  newRange.collapse(true);
+                  selection.removeAllRanges();
+                  selection.addRange(newRange);
+                }
+              }
+            }
+          }, 0);
+        }
+      }
+
+      return;
+    }
+
+    // Enter処理
     if (e.key !== "Enter" || e.shiftKey) return;
 
     const selection = window.getSelection();
@@ -444,6 +709,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
 
     // カーソル位置の祖先にスタイル付きspanがあるか探す
     let styledSpan: HTMLElement | null = null;
+    let isTextColorSpan = false;
     while (node && node !== contentRef.current) {
       if (
         node.nodeType === Node.ELEMENT_NODE &&
@@ -458,8 +724,46 @@ export default function NoteEditor({ note }: NoteEditorProps) {
           styledSpan = el;
           break;
         }
+        // 文字色のspanは改行後も継続する
+        if (el.style.color) {
+          styledSpan = el;
+          isTextColorSpan = true;
+          break;
+        }
       }
       node = node.parentNode;
+    }
+
+    // スタイル付きspan内でない場合でも、selectedTextColorRefがある場合は新しいspanを作成
+    if (!styledSpan && selectedTextColorRef.current) {
+      e.preventDefault();
+
+      // 改行を挿入
+      const br = document.createElement("br");
+      range.insertNode(br);
+
+      // 新しいspanを作成
+      const newColorSpan = document.createElement("span");
+      newColorSpan.style.color = selectedTextColorRef.current;
+      newColorSpan.textContent = "\u200B"; // ゼロ幅スペース
+      activeColorSpanRef.current = newColorSpan;
+
+      // brの後に挿入
+      if (br.nextSibling) {
+        br.parentNode!.insertBefore(newColorSpan, br.nextSibling);
+      } else {
+        br.parentNode!.appendChild(newColorSpan);
+      }
+
+      // カーソルをspanの中に移動
+      const newRange = document.createRange();
+      newRange.setStart(newColorSpan.firstChild!, 1);
+      newRange.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(newRange);
+
+      handleContentChange();
+      return;
     }
 
     if (!styledSpan) return;
@@ -489,14 +793,52 @@ export default function NoteEditor({ note }: NoteEditorProps) {
       br.parentNode!.insertBefore(trailingSpan, br.nextSibling);
     }
 
-    // カーソルをbrの後（スタイル外）に移動
+    // カーソル位置を設定
     const newRange = document.createRange();
-    if (trailingSpan) {
-      newRange.setStart(trailingSpan, 0);
+    if (isTextColorSpan || selectedTextColorRef.current) {
+      // 文字色のspanの場合は、新しい行でも色を継続
+      const newColorSpan = styledSpan.cloneNode(false) as HTMLElement;
+
+      // selectedTextColorRefがある場合は、それを使用
+      if (selectedTextColorRef.current && !isTextColorSpan) {
+        newColorSpan.style.color = selectedTextColorRef.current;
+      }
+
+      newColorSpan.textContent = "\u200B"; // ゼロ幅スペース
+
+      // activeColorSpanを更新
+      activeColorSpanRef.current = newColorSpan;
+
+      if (trailingSpan) {
+        br.parentNode!.insertBefore(newColorSpan, trailingSpan);
+      } else {
+        br.parentNode!.insertBefore(newColorSpan, br.nextSibling);
+      }
+
+      newRange.setStart(newColorSpan.firstChild!, 1);
+      newRange.collapse(true);
     } else {
-      newRange.setStartAfter(br);
+      // その他のスタイル（ハイライト）は改行でスタイルを抜ける
+      // ただし、縦線（border-left）は改行でスタイルを抜ける
+      if (styledSpan.style.borderLeft) {
+        // 縦線の場合は改行後にスタイルを解除
+        if (trailingSpan) {
+          newRange.setStart(trailingSpan, 0);
+        } else {
+          newRange.setStartAfter(br);
+        }
+        newRange.collapse(true);
+      } else {
+        // ハイライトの場合も改行でスタイルを抜ける
+        if (trailingSpan) {
+          newRange.setStart(trailingSpan, 0);
+        } else {
+          newRange.setStartAfter(br);
+        }
+        newRange.collapse(true);
+      }
     }
-    newRange.collapse(true);
+
     selection.removeAllRanges();
     selection.addRange(newRange);
 
@@ -601,7 +943,8 @@ export default function NoteEditor({ note }: NoteEditorProps) {
       const span = document.createElement("span");
       span.style.borderLeft = `3px solid ${color}`;
       span.style.paddingLeft = "8px";
-      span.style.display = "inline-block";
+      // inline-blockを削除し、インラインで表示するようにする
+      // これにより、テキストが折り返しても縦線が継続される
 
       try {
         range.surroundContents(span);
@@ -916,6 +1259,10 @@ export default function NoteEditor({ note }: NoteEditorProps) {
       return;
     }
 
+    // selectedTextColorRefに色を設定（常に適用するため）
+    selectedTextColorRef.current = color;
+    setCurrentTextColor(color);
+
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0) {
       const range = selection.getRangeAt(0);
@@ -928,16 +1275,208 @@ export default function NoteEditor({ note }: NoteEditorProps) {
       const span = document.createElement("span");
       span.style.color = color;
 
-      try {
-        range.surroundContents(span);
-        handleContentChange();
-      } catch {
-        const contents = range.extractContents();
-        span.appendChild(contents);
+      // 選択範囲がある場合
+      if (!range.collapsed) {
+        try {
+          range.surroundContents(span);
+          handleContentChange();
+        } catch {
+          const contents = range.extractContents();
+          span.appendChild(contents);
+          range.insertNode(span);
+          handleContentChange();
+        }
+      } else {
+        // カーソルのみの場合（何も選択されていない）
+        // 前のアクティブなspanをクリア
+        if (activeColorSpanRef.current) {
+          const oldSpan = activeColorSpanRef.current;
+          if (oldSpan.textContent === "\u200B" || oldSpan.textContent === "") {
+            oldSpan.remove();
+          }
+        }
+
+        // 新しいspanを作成してアクティブに設定
+        span.textContent = "\u200B"; // ゼロ幅スペースを追加
+        activeColorSpanRef.current = span;
         range.insertNode(span);
+
+        // カーソルをspanの中（ゼロ幅スペースの後）に移動
+        const newRange = document.createRange();
+        newRange.setStart(span.firstChild!, 1);
+        newRange.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(newRange);
+
+        // コンテンツエディタにフォーカスを戻す
+        contentRef.current?.focus();
+
         handleContentChange();
       }
+    } else {
+      // 選択範囲がない場合でも処理を行うが、現在のカーソル位置を保持
+      let shouldFocus = false;
+      let savedRange: Range | null = null;
+
+      // 現在の選択範囲を保存
+      const currentSelection = window.getSelection();
+      if (currentSelection && currentSelection.rangeCount > 0) {
+        savedRange = currentSelection.getRangeAt(0).cloneRange();
+      }
+
+      if (
+        contentRef.current &&
+        !contentRef.current.contains(document.activeElement)
+      ) {
+        // コンテンツエディタにフォーカスがない場合のみフォーカスを移動
+        shouldFocus = true;
+      }
+
+      // フォーカスが必要な場合
+      if (shouldFocus && contentRef.current) {
+        contentRef.current.focus();
+
+        // フォーカス後、少し待ってから選択範囲を設定
+        requestAnimationFrame(() => {
+          const newSelection = window.getSelection();
+          if (newSelection) {
+            // 保存した選択範囲があればそれを復元
+            if (savedRange) {
+              try {
+                newSelection.removeAllRanges();
+                newSelection.addRange(savedRange);
+              } catch (e) {
+                // 選択範囲の復元に失敗した場合は、最後の位置にカーソルを配置
+                const newRange = document.createRange();
+                const lastChild = contentRef.current?.lastChild;
+                if (lastChild) {
+                  if (lastChild.nodeType === Node.TEXT_NODE) {
+                    newRange.setStart(
+                      lastChild,
+                      lastChild.textContent?.length || 0,
+                    );
+                  } else {
+                    newRange.setStartAfter(lastChild);
+                  }
+                } else {
+                  newRange.setStart(contentRef.current!, 0);
+                }
+                newRange.collapse(true);
+                newSelection.removeAllRanges();
+                newSelection.addRange(newRange);
+              }
+            } else {
+              // 保存した選択範囲がない場合は、最後の位置にカーソルを配置
+              const newRange = document.createRange();
+              const lastChild = contentRef.current?.lastChild;
+              if (lastChild) {
+                if (lastChild.nodeType === Node.TEXT_NODE) {
+                  newRange.setStart(
+                    lastChild,
+                    lastChild.textContent?.length || 0,
+                  );
+                } else {
+                  newRange.setStartAfter(lastChild);
+                }
+              } else {
+                newRange.setStart(contentRef.current!, 0);
+              }
+              newRange.collapse(true);
+              newSelection.removeAllRanges();
+              newSelection.addRange(newRange);
+            }
+          }
+        });
+        return; // フォーカス設定後は一旦処理を終了
+      }
+
+      // フォーカス設定後に処理を続行するために少し待つ
+      const processColorApplication = () => {
+        const finalSelection = window.getSelection();
+        if (finalSelection && finalSelection.rangeCount > 0) {
+          const range = finalSelection.getRangeAt(0);
+
+          // 前のアクティブなspanをクリア
+          if (activeColorSpanRef.current) {
+            const oldSpan = activeColorSpanRef.current;
+            if (
+              oldSpan.textContent === "\u200B" ||
+              oldSpan.textContent === ""
+            ) {
+              oldSpan.remove();
+            }
+          }
+
+          // 新しいspanを作成
+          const span = document.createElement("span");
+          span.style.color = color;
+          span.textContent = "\u200B"; // ゼロ幅スペースを追加
+          activeColorSpanRef.current = span;
+
+          // 現在のカーソル位置を正確に取得
+          const currentContainer = range.startContainer;
+          const currentOffset = range.startOffset;
+
+          // spanを挿入
+          if (
+            currentContainer.nodeType === Node.TEXT_NODE &&
+            currentContainer.parentNode
+          ) {
+            // テキストノードの場合、その位置で分割してspanを挿入
+            const textNode = currentContainer as Text;
+            const parent = textNode.parentNode;
+            const beforeText =
+              textNode.textContent?.substring(0, currentOffset) || "";
+            const afterText =
+              textNode.textContent?.substring(currentOffset) || "";
+
+            textNode.textContent = beforeText;
+
+            if (afterText) {
+              const afterTextNode = document.createTextNode(afterText);
+              parent?.insertBefore(afterTextNode, textNode.nextSibling);
+              parent?.insertBefore(span, afterTextNode);
+            } else {
+              if (textNode.nextSibling) {
+                parent?.insertBefore(span, textNode.nextSibling);
+              } else {
+                parent?.appendChild(span);
+              }
+            }
+          } else {
+            // 要素ノードの場合
+            range.insertNode(span);
+          }
+
+          // カーソルをspanの中（ゼロ幅スペースの後）に移動
+          const newRange = document.createRange();
+          if (span.firstChild) {
+            newRange.setStart(span.firstChild, 1);
+          } else {
+            // firstChildがない場合は、spanの直後に設定
+            newRange.setStartAfter(span);
+          }
+          newRange.collapse(true);
+          finalSelection.removeAllRanges();
+          finalSelection.addRange(newRange);
+
+          // 選択した文字色を保存
+          selectedTextColorRef.current = color;
+
+          handleContentChange();
+        }
+      };
+
+      // フォーカスが設定されている場合はすぐに処理、そうでない場合は少し待つ
+      if (shouldFocus) {
+        // フォーカス設定後に処理する
+        requestAnimationFrame(processColorApplication);
+      } else {
+        // すでにフォーカスがある場合はすぐに処理
+        processColorApplication();
+      }
     }
+
     setShowTextColorPicker(false);
   };
 
@@ -1616,10 +2155,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
             <ChevronDown className="w-2.5 h-2.5 shrink-0" />
           </button>
           {showFontPicker && (
-            <div
-              className="absolute top-full left-0 mt-1 p-1 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-10 w-52 max-h-64 overflow-y-auto"
-              onMouseDown={(e) => e.preventDefault()}
-            >
+            <div className="absolute top-full left-0 mt-1 p-1 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-10 w-52 max-h-64 overflow-y-auto">
               <div className="space-y-0.5">
                 {fonts.map((font) => (
                   <button
@@ -1692,10 +2228,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
             <ChevronDown className="w-2.5 h-2.5" />
           </button>
           {showFontSizePicker && (
-            <div
-              className="absolute top-full left-0 mt-1 p-1 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-10 w-16"
-              onMouseDown={(e) => e.preventDefault()}
-            >
+            <div className="absolute top-full left-0 mt-1 p-1 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-10 w-16">
               <div className="space-y-0.5 max-h-48 overflow-y-auto">
                 {[
                   8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 32, 36, 48,
@@ -1753,6 +2286,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
         <div className="relative">
           <button
             onClick={() => {
+              const wasOpen = showTextColorPicker;
               setShowTextColorPicker(!showTextColorPicker);
               setShowFontSizePicker(false);
               setShowFontPicker(false);
@@ -1760,6 +2294,47 @@ export default function NoteEditor({ note }: NoteEditorProps) {
               setShowBorderPicker(false);
               setShowLinkInput(false);
               setShowCodeInput(false);
+
+              // ピッカーを開く時に、現在のカーソル位置を保存
+              if (!wasOpen && contentRef.current) {
+                const activeElement = document.activeElement;
+                // タイトル入力欄にフォーカスがある場合は何もしない
+                if (
+                  activeElement &&
+                  activeElement.tagName === "INPUT" &&
+                  (activeElement as HTMLInputElement).type === "text"
+                ) {
+                  return;
+                }
+
+                // コンテンツエディタにフォーカスがない場合のみ処理
+                if (!contentRef.current.contains(activeElement)) {
+                  // 現在の選択範囲を保存
+                  const selection = window.getSelection();
+                  if (selection && selection.rangeCount > 0) {
+                    savedSelectionRef.current = selection
+                      .getRangeAt(0)
+                      .cloneRange();
+                  }
+
+                  // フォーカスを移動
+                  contentRef.current.focus();
+
+                  // 保存した選択範囲を復元
+                  if (savedSelectionRef.current) {
+                    requestAnimationFrame(() => {
+                      const newSelection = window.getSelection();
+                      if (newSelection) {
+                        newSelection.removeAllRanges();
+                        newSelection.addRange(savedSelectionRef.current!);
+                      }
+                    });
+                  } else {
+                    // 選択範囲がない場合は、現在のカーソル位置を維持
+                    // 何もしない（フォーカスを当てるだけで、カーソル位置は変更しない）
+                  }
+                }
+              }
             }}
             className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
             title="文字色"
@@ -1770,10 +2345,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
             />
           </button>
           {showTextColorPicker && (
-            <div
-              className="absolute top-full left-0 mt-1 p-3 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-10 min-w-60"
-              onMouseDown={(e) => e.preventDefault()}
-            >
+            <div className="absolute top-full left-0 mt-1 p-3 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-10 min-w-60">
               <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-2">
                 テキスト色
               </div>
@@ -1793,7 +2365,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
                     onClick={() => {
                       setCurrentTextColor(item.color);
                       applyTextColor(item.color);
-                      setShowTextColorPicker(false);
                     }}
                     className={`w-8 h-8 rounded-md border transition-all flex items-center justify-center ${
                       currentTextColor === item.color
@@ -1833,7 +2404,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
                         onClick={() => {
                           setCurrentTextColor(color);
                           applyTextColor(color);
-                          setShowTextColorPicker(false);
                         }}
                         className={`w-5 h-5 rounded hover:scale-110 transition-all border ${
                           currentTextColor.toUpperCase() === color
@@ -1875,7 +2445,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
                         onClick={() => {
                           setCurrentTextColor(color);
                           applyTextColor(color);
-                          setShowTextColorPicker(false);
                         }}
                         className={`w-5 h-5 rounded hover:scale-110 transition-all border ${
                           currentTextColor.toUpperCase() === color
@@ -1895,12 +2464,30 @@ export default function NoteEditor({ note }: NoteEditorProps) {
                 <button
                   className="w-full text-center text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 py-1 px-2 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
                   onClick={() => {
+                    // selectedTextColorRefをクリア
+                    selectedTextColorRef.current = null;
+
                     const defaultColor =
                       document.documentElement.classList.contains("dark")
                         ? "#E4E4E7"
                         : "#000000";
                     setCurrentTextColor(defaultColor);
-                    applyTextColor(defaultColor);
+
+                    // 既存の色付きspanをクリア
+                    if (activeColorSpanRef.current) {
+                      const oldSpan = activeColorSpanRef.current;
+                      if (
+                        oldSpan.textContent === "\u200B" ||
+                        oldSpan.textContent === ""
+                      ) {
+                        oldSpan.remove();
+                      }
+                      activeColorSpanRef.current = null;
+                    }
+
+                    // 選択している文字色もリセット
+                    selectedTextColorRef.current = null;
+
                     setShowTextColorPicker(false);
                   }}
                 >
@@ -1929,10 +2516,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
             <Highlighter className="w-3.5 h-3.5" />
           </button>
           {showColorPicker && (
-            <div
-              className="absolute top-full left-0 mt-1 p-3 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-10 w-52"
-              onMouseDown={(e) => e.preventDefault()}
-            >
+            <div className="absolute top-full left-0 mt-1 p-3 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-10 w-52">
               {/* スタイル選択 */}
               <div className="flex items-center gap-1 mb-2 p-0.5 bg-zinc-100 dark:bg-zinc-700 rounded-md">
                 {highlightStyles.map((style, i) => (
@@ -2021,7 +2605,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
               className="absolute top-full left-0 mt-1 p-2 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-20 w-64"
               onMouseDown={(e) => {
                 if ((e.target as HTMLElement).tagName !== "INPUT") {
-                  e.preventDefault();
+                  e.stopPropagation();
                 }
               }}
             >
@@ -2078,10 +2662,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
             <TextQuote className="w-3.5 h-3.5" />
           </button>
           {showBorderPicker && (
-            <div
-              className="absolute top-full left-0 mt-1 p-2 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-10 w-40"
-              onMouseDown={(e) => e.preventDefault()}
-            >
+            <div className="absolute top-full left-0 mt-1 p-2 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-10 w-40">
               <div className="space-y-0.5">
                 {borderLineColors.map((color) => (
                   <button
@@ -2125,7 +2706,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
                   (e.target as HTMLElement).tagName !== "SELECT" &&
                   (e.target as HTMLElement).tagName !== "BUTTON"
                 ) {
-                  e.preventDefault();
+                  e.stopPropagation();
                 }
               }}
             >
@@ -2161,8 +2742,234 @@ export default function NoteEditor({ note }: NoteEditorProps) {
           contentEditable
           suppressContentEditableWarning
           className="p-4 min-h-full outline-none prose prose-zinc dark:prose-invert max-w-none note-editor"
-          onInput={handleContentChange}
-          onKeyDown={handleEditorKeyDown}
+          onInput={(e) => {
+            handleContentChange();
+
+            const selection = window.getSelection();
+            if (!selection || selection.rangeCount === 0) return;
+
+            const range = selection.getRangeAt(0);
+            const container = range.startContainer;
+
+            // 現在カーソルが色付きspan内にあるか確認
+            let node: Node | null = container;
+            let currentColorSpan: HTMLElement | null = null;
+            let isInColorSpan = false;
+
+            while (node && node !== contentRef.current) {
+              if (
+                node.nodeType === Node.ELEMENT_NODE &&
+                (node as HTMLElement).tagName === "SPAN" &&
+                (node as HTMLElement).style.color
+              ) {
+                currentColorSpan = node as HTMLElement;
+                isInColorSpan = true;
+                break;
+              }
+              node = node.parentNode;
+            }
+
+            // activeColorSpanに入力されているかチェック
+            if (activeColorSpanRef.current) {
+              const activeSpan = activeColorSpanRef.current;
+
+              // ゼロ幅スペースのみの場合は削除
+              if (
+                activeSpan.textContent &&
+                activeSpan.textContent.length > 1 &&
+                activeSpan.textContent.startsWith("\u200B")
+              ) {
+                activeSpan.textContent = activeSpan.textContent.substring(1);
+              }
+
+              // 現在のカーソルがactiveColorSpanの中にあるか確認
+              let node: Node | null = container;
+              let isInsideActiveSpan = false;
+              while (node && node !== contentRef.current) {
+                if (node === activeColorSpanRef.current) {
+                  isInsideActiveSpan = true;
+                  break;
+                }
+                node = node.parentNode;
+              }
+
+              // activeColorSpanの外に出た場合
+              if (!isInsideActiveSpan) {
+                activeColorSpanRef.current = null;
+
+                // selectedTextColorRefがあり、色付きspan外の場合は新しいspanを作成
+                if (selectedTextColorRef.current && !isInColorSpan) {
+                  // 入力された文字を取得（最後の文字）
+                  const inputTarget = e.target as HTMLElement;
+                  const lastChar = inputTarget.textContent?.slice(-1) || "";
+
+                  if (lastChar && lastChar !== "\n" && lastChar !== "\r") {
+                    // リスト内かどうかを確認
+                    let isInList = false;
+                    let listItem: HTMLElement | null = null;
+                    let checkNode: Node | null = container;
+
+                    while (checkNode && checkNode !== contentRef.current) {
+                      if (checkNode.nodeType === Node.ELEMENT_NODE) {
+                        const tagName = (checkNode as HTMLElement).tagName;
+                        if (tagName === "LI") {
+                          listItem = checkNode as HTMLElement;
+                          isInList = true;
+                        } else if (tagName === "UL" || tagName === "OL") {
+                          isInList = true;
+                        }
+                      }
+                      checkNode = checkNode.parentNode;
+                    }
+
+                    // 最後の文字を削除
+                    if (
+                      container.nodeType === Node.TEXT_NODE &&
+                      container.textContent
+                    ) {
+                      const text = container.textContent;
+                      const newText = text.slice(0, -1);
+                      container.textContent = newText;
+
+                      // 新しいspanを作成して文字を入れる
+                      const newSpan = document.createElement("span");
+                      newSpan.style.color = selectedTextColorRef.current;
+                      newSpan.textContent = lastChar;
+                      activeColorSpanRef.current = newSpan;
+
+                      // カーソル位置を正確に取得
+                      const currentSelection = window.getSelection();
+                      if (currentSelection && currentSelection.rangeCount > 0) {
+                        const currentRange = currentSelection.getRangeAt(0);
+
+                        // 新しいspanを挿入
+                        currentRange.insertNode(newSpan);
+
+                        // カーソルをspanの後に移動
+                        const newRange = document.createRange();
+                        newRange.setStartAfter(newSpan);
+                        newRange.collapse(true);
+                        currentSelection.removeAllRanges();
+                        currentSelection.addRange(newRange);
+                      }
+                    }
+                  }
+                }
+              }
+            } else if (selectedTextColorRef.current && !isInColorSpan) {
+              // activeColorSpanがない場合でも、selectedTextColorRefがあれば適用
+              const inputTarget = e.target as HTMLElement;
+              const lastChar = inputTarget.textContent?.slice(-1) || "";
+
+              if (lastChar && lastChar !== "\n" && lastChar !== "\r") {
+                // リスト内かどうかを確認
+                let isInList = false;
+                let listItem: HTMLElement | null = null;
+                let checkNode: Node | null = container;
+
+                while (checkNode && checkNode !== contentRef.current) {
+                  if (checkNode.nodeType === Node.ELEMENT_NODE) {
+                    const tagName = (checkNode as HTMLElement).tagName;
+                    if (tagName === "LI") {
+                      listItem = checkNode as HTMLElement;
+                      isInList = true;
+                    } else if (tagName === "UL" || tagName === "OL") {
+                      isInList = true;
+                    }
+                  }
+                  checkNode = checkNode.parentNode;
+                }
+
+                // 最後の文字を削除
+                if (
+                  container.nodeType === Node.TEXT_NODE &&
+                  container.textContent
+                ) {
+                  const text = container.textContent;
+                  const newText = text.slice(0, -1);
+                  container.textContent = newText;
+
+                  // 新しいspanを作成して文字を入れる
+                  const newSpan = document.createElement("span");
+                  newSpan.style.color = selectedTextColorRef.current;
+                  newSpan.textContent = lastChar;
+                  activeColorSpanRef.current = newSpan;
+
+                  // カーソル位置を正確に取得
+                  const currentSelection = window.getSelection();
+                  if (currentSelection && currentSelection.rangeCount > 0) {
+                    const currentRange = currentSelection.getRangeAt(0);
+
+                    // 新しいspanを挿入
+                    currentRange.insertNode(newSpan);
+
+                    // カーソルをspanの後に移動
+                    const newRange = document.createRange();
+                    newRange.setStartAfter(newSpan);
+                    newRange.collapse(true);
+                    currentSelection.removeAllRanges();
+                    currentSelection.addRange(newRange);
+                  }
+                }
+              }
+            }
+          }}
+          onKeyDown={(e) => {
+            handleEditorKeyDown(e);
+
+            // BackspaceやDeleteキーの処理
+            if (e.key === "Backspace" || e.key === "Delete") {
+              const selection = window.getSelection();
+              if (!selection || selection.rangeCount === 0) return;
+
+              const range = selection.getRangeAt(0);
+
+              // カーソルのみ（範囲選択なし）でselectedTextColorRefがある場合
+              if (range.collapsed && selectedTextColorRef.current) {
+                setTimeout(() => {
+                  // 削除後もselectedTextColorRefがある場合、新しいspanを作成
+                  const newSelection = window.getSelection();
+                  if (!newSelection || newSelection.rangeCount === 0) return;
+
+                  const newRange = newSelection.getRangeAt(0);
+                  const container = newRange.startContainer;
+
+                  // 現在カーソルが色付きspan内にあるか確認
+                  let node: Node | null = container;
+                  let isInColorSpan = false;
+
+                  while (node && node !== contentRef.current) {
+                    if (
+                      node.nodeType === Node.ELEMENT_NODE &&
+                      (node as HTMLElement).tagName === "SPAN" &&
+                      (node as HTMLElement).style.color
+                    ) {
+                      isInColorSpan = true;
+                      break;
+                    }
+                    node = node.parentNode;
+                  }
+
+                  // 色付きspan外の場合は新しいspanを作成
+                  if (!isInColorSpan && selectedTextColorRef.current) {
+                    const newSpan = document.createElement("span");
+                    newSpan.style.color = selectedTextColorRef.current;
+                    newSpan.textContent = "\u200B"; // ゼロ幅スペース
+                    activeColorSpanRef.current = newSpan;
+
+                    newRange.insertNode(newSpan);
+
+                    // カーソルをspanの中に移動
+                    const cursorRange = document.createRange();
+                    cursorRange.setStart(newSpan.firstChild!, 1);
+                    cursorRange.collapse(true);
+                    newSelection.removeAllRanges();
+                    newSelection.addRange(cursorRange);
+                  }
+                }, 0);
+              }
+            }
+          }}
           style={{
             lineHeight: "1.8",
             fontSize: "16px",

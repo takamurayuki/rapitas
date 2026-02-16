@@ -4,7 +4,7 @@ import {
   X,
   Plus,
   FileText,
-  StickyNote,
+  NotebookTabs,
   Send,
   Loader2,
   Trash2,
@@ -63,170 +63,183 @@ function ChatMessage({ message }: { message: AIChatMessage }) {
           </p>
         ) : (
           <div className="text-sm leading-relaxed prose prose-sm dark:prose-invert max-w-none">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm, remarkBreaks]}
-            components={{
-              // ヘッダー
-              h1: ({ children }) => (
-                <h1 className="text-xl font-bold mt-4 mb-2 text-zinc-900 dark:text-zinc-100">
-                  {children}
-                </h1>
-              ),
-              h2: ({ children }) => (
-                <h2 className="text-lg font-semibold mt-3 mb-2 text-zinc-800 dark:text-zinc-200">
-                  {children}
-                </h2>
-              ),
-              h3: ({ children }) => (
-                <h3 className="text-base font-semibold mt-2 mb-1 text-zinc-800 dark:text-zinc-200">
-                  {children}
-                </h3>
-              ),
-              // パラグラフ
-              p: ({ children }) => (
-                <p className="mb-3 text-zinc-700 dark:text-zinc-300 leading-relaxed">
-                  {children}
-                </p>
-              ),
-              // リスト
-              ul: ({ children }) => (
-                <ul className="list-disc list-inside mb-3 space-y-1 text-zinc-700 dark:text-zinc-300">
-                  {children}
-                </ul>
-              ),
-              ol: ({ children }) => (
-                <ol className="list-decimal list-inside mb-3 space-y-1 text-zinc-700 dark:text-zinc-300">
-                  {children}
-                </ol>
-              ),
-              li: ({ children }) => (
-                <li className="ml-2">
-                  <span className="ml-1">{children}</span>
-                </li>
-              ),
-              // コードブロック
-              code: ({ inline, className, children }) => {
-                if (inline) {
-                  return (
-                    <code className="px-1.5 py-0.5 mx-0.5 rounded text-sm bg-zinc-200 dark:bg-zinc-700 text-pink-600 dark:text-pink-400 font-mono">
-                      {children}
-                    </code>
-                  );
-                }
-                const lang = className?.replace("language-", "") || "text";
-                const codeString = String(children).replace(/\n$/, "");
-                return (
-                  <div className="relative group mb-3">
-                    {lang !== "text" && (
-                      <div className="absolute top-0 right-0 px-2 py-1 text-xs text-zinc-400 bg-zinc-800 rounded-tr-md rounded-bl-md z-10">
-                        {lang}
-                      </div>
-                    )}
-                    <div className="rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
-                      <SyntaxHighlighter
-                        style={oneDark}
-                        language={lang}
-                        PreTag="div"
-                        customStyle={{
-                          margin: 0,
-                          padding: "1rem",
-                          fontSize: "0.875rem",
-                          lineHeight: "1.5",
-                          backgroundColor: "#1e1e1e",
-                        }}
-                        codeTagProps={{
-                          style: {
-                            fontSize: "inherit",
-                            fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace",
-                          }
-                        }}
-                      >
-                        {codeString}
-                      </SyntaxHighlighter>
-                    </div>
-                    {/* コピーボタン */}
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(codeString);
-                        setCopiedCode(codeString);
-                        setTimeout(() => setCopiedCode(null), 2000);
-                      }}
-                      className="absolute top-2 right-2 px-2 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center gap-1"
-                      title="コードをコピー"
-                    >
-                      {copiedCode === codeString ? (
-                        <>
-                          <Check className="w-3 h-3" />
-                          Copied!
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3 h-3" />
-                          Copy
-                        </>
-                      )}
-                    </button>
-                  </div>
-                );
-              },
-              pre: ({ children }) => <>{children}</>,
-              // 引用
-              blockquote: ({ children }) => (
-                <blockquote className="border-l-4 border-blue-500 dark:border-blue-400 pl-4 my-3 text-zinc-600 dark:text-zinc-400 italic">
-                  {children}
-                </blockquote>
-              ),
-              // テーブル
-              table: ({ children }) => (
-                <div className="overflow-x-auto mb-3">
-                  <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkBreaks]}
+              components={{
+                // ヘッダー
+                h1: ({ children }) => (
+                  <h1 className="text-xl font-bold mt-4 mb-2 text-zinc-900 dark:text-zinc-100">
                     {children}
-                  </table>
-                </div>
-              ),
-              thead: ({ children }) => (
-                <thead className="bg-zinc-100 dark:bg-zinc-800">{children}</thead>
-              ),
-              tbody: ({ children }) => (
-                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
-                  {children}
-                </tbody>
-              ),
-              tr: ({ children }) => <tr>{children}</tr>,
-              th: ({ children }) => (
-                <th className="px-3 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
-                  {children}
-                </th>
-              ),
-              td: ({ children }) => (
-                <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">
-                  {children}
-                </td>
-              ),
-              // 水平線
-              hr: () => <hr className="my-4 border-zinc-300 dark:border-zinc-600" />,
-              // リンク
-              a: ({ href, children }) => (
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 underline decoration-1 underline-offset-2"
-                >
-                  {children}
-                </a>
-              ),
-              // 強調
-              strong: ({ children }) => (
-                <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
-                  {children}
-                </strong>
-              ),
-              em: ({ children }) => <em className="italic">{children}</em>,
-            }}
-          >
-            {message.content}
-          </ReactMarkdown>
+                  </h1>
+                ),
+                h2: ({ children }) => (
+                  <h2 className="text-lg font-semibold mt-3 mb-2 text-zinc-800 dark:text-zinc-200">
+                    {children}
+                  </h2>
+                ),
+                h3: ({ children }) => (
+                  <h3 className="text-base font-semibold mt-2 mb-1 text-zinc-800 dark:text-zinc-200">
+                    {children}
+                  </h3>
+                ),
+                // パラグラフ
+                p: ({ children }) => (
+                  <p className="mb-3 text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                    {children}
+                  </p>
+                ),
+                // リスト
+                ul: ({ children }) => (
+                  <ul className="list-disc list-inside mb-3 space-y-1 text-zinc-700 dark:text-zinc-300">
+                    {children}
+                  </ul>
+                ),
+                ol: ({ children }) => (
+                  <ol className="list-decimal list-inside mb-3 space-y-1 text-zinc-700 dark:text-zinc-300">
+                    {children}
+                  </ol>
+                ),
+                li: ({ children }) => (
+                  <li className="ml-2">
+                    <span className="ml-1">{children}</span>
+                  </li>
+                ),
+                // コードブロック
+                code: ({
+                  inline,
+                  className,
+                  children,
+                }: {
+                  inline?: boolean;
+                  className?: string;
+                  children?: React.ReactNode;
+                }) => {
+                  if (inline) {
+                    return (
+                      <code className="px-1.5 py-0.5 mx-0.5 rounded text-sm bg-zinc-200 dark:bg-zinc-700 text-pink-600 dark:text-pink-400 font-mono">
+                        {children}
+                      </code>
+                    );
+                  }
+                  const lang = className?.replace("language-", "") || "text";
+                  const codeString = String(children).replace(/\n$/, "");
+                  return (
+                    <div className="relative group mb-3">
+                      {lang !== "text" && (
+                        <div className="absolute top-0 right-0 px-2 py-1 text-xs text-zinc-400 bg-zinc-800 rounded-tr-md rounded-bl-md z-10">
+                          {lang}
+                        </div>
+                      )}
+                      <div className="rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
+                        <SyntaxHighlighter
+                          style={oneDark}
+                          language={lang}
+                          PreTag="div"
+                          customStyle={{
+                            margin: 0,
+                            padding: "1rem",
+                            fontSize: "0.875rem",
+                            lineHeight: "1.5",
+                            backgroundColor: "#1e1e1e",
+                          }}
+                          codeTagProps={{
+                            style: {
+                              fontSize: "inherit",
+                              fontFamily:
+                                "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace",
+                            },
+                          }}
+                        >
+                          {codeString}
+                        </SyntaxHighlighter>
+                      </div>
+                      {/* コピーボタン */}
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(codeString);
+                          setCopiedCode(codeString);
+                          setTimeout(() => setCopiedCode(null), 2000);
+                        }}
+                        className="absolute top-2 right-2 px-2 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center gap-1"
+                        title="コードをコピー"
+                      >
+                        {copiedCode === codeString ? (
+                          <>
+                            <Check className="w-3 h-3" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            Copy
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  );
+                },
+                pre: ({ children }) => <>{children}</>,
+                // 引用
+                blockquote: ({ children }) => (
+                  <blockquote className="border-l-4 border-blue-500 dark:border-blue-400 pl-4 my-3 text-zinc-600 dark:text-zinc-400 italic">
+                    {children}
+                  </blockquote>
+                ),
+                // テーブル
+                table: ({ children }) => (
+                  <div className="overflow-x-auto mb-3">
+                    <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
+                      {children}
+                    </table>
+                  </div>
+                ),
+                thead: ({ children }) => (
+                  <thead className="bg-zinc-100 dark:bg-zinc-800">
+                    {children}
+                  </thead>
+                ),
+                tbody: ({ children }) => (
+                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
+                    {children}
+                  </tbody>
+                ),
+                tr: ({ children }) => <tr>{children}</tr>,
+                th: ({ children }) => (
+                  <th className="px-3 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
+                    {children}
+                  </th>
+                ),
+                td: ({ children }) => (
+                  <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">
+                    {children}
+                  </td>
+                ),
+                // 水平線
+                hr: () => (
+                  <hr className="my-4 border-zinc-300 dark:border-zinc-600" />
+                ),
+                // リンク
+                a: ({ href, children }) => (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 underline decoration-1 underline-offset-2"
+                  >
+                    {children}
+                  </a>
+                ),
+                // 強調
+                strong: ({ children }) => (
+                  <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
+                    {children}
+                  </strong>
+                ),
+                em: ({ children }) => <em className="italic">{children}</em>,
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
           </div>
         )}
         <span
@@ -506,7 +519,17 @@ function AITabContent() {
 
 /** ドラッグ/リサイズ中に背景を覆い、マウスイベントを奪うオーバーレイ */
 function DragOverlay({ cursor }: { cursor: string }) {
-  return <div className="fixed inset-0" style={{ zIndex: 99999, cursor }} />;
+  return (
+    <div
+      className="fixed inset-0"
+      style={{
+        zIndex: 99999,
+        cursor,
+        userSelect: "none",
+        WebkitUserSelect: "none",
+      }}
+    />
+  );
 }
 
 export default function NoteModal() {
@@ -550,10 +573,14 @@ export default function NoteModal() {
   // --- ドラッグ ---
   const dragOriginRef = useRef({ x: 0, y: 0 });
   const DRAG_THRESHOLD = 3; // px — この距離を超えて初めてドラッグ開始
+  const rafRef = useRef<number | null>(null);
+  const tempPositionRef = useRef({ x: 0, y: 0 });
 
   const handleDragStart = (e: React.MouseEvent) => {
-    // ボタンクリックを除外
-    if ((e.target as HTMLElement).closest("button")) return;
+    // input, select, textareaなどのフォーム要素は除外（ヘッダー内の検索バー用）
+    if ((e.target as HTMLElement).closest("input, select, textarea")) return;
+
+    // マウスダウンイベントをマーク（クリック判定用）
     e.preventDefault();
     didDragRef.current = false;
     dragOriginRef.current = { x: e.clientX, y: e.clientY };
@@ -561,6 +588,7 @@ export default function NoteModal() {
       x: e.clientX - modalState.position.x,
       y: e.clientY - modalState.position.y,
     };
+    tempPositionRef.current = { ...modalState.position };
     setIsDragPending(true);
     bringToFront();
   };
@@ -577,28 +605,73 @@ export default function NoteModal() {
           didDragRef.current = true;
           setIsDragPending(false);
           setIsDragging(true);
+          // モーダルにwill-changeを適用
+          if (modalRef.current) {
+            modalRef.current.style.willChange = "transform";
+          }
         }
         return;
       }
       didDragRef.current = true;
-      setModalPosition(
-        e.clientX - dragStartRef.current.x,
-        e.clientY - dragStartRef.current.y,
-      );
+
+      // transformで即座に更新
+      tempPositionRef.current = {
+        x: e.clientX - dragStartRef.current.x,
+        y: e.clientY - dragStartRef.current.y,
+      };
+
+      if (modalRef.current && !modalState.isMaximized) {
+        modalRef.current.style.left = `${tempPositionRef.current.x}px`;
+        modalRef.current.style.top = `${tempPositionRef.current.y}px`;
+      }
+
+      // requestAnimationFrameでstateを更新
+      if (rafRef.current === null) {
+        rafRef.current = requestAnimationFrame(() => {
+          setModalPosition(
+            tempPositionRef.current.x,
+            tempPositionRef.current.y,
+          );
+          rafRef.current = null;
+        });
+      }
     };
     const onUp = () => {
       setIsDragPending(false);
       setIsDragging(false);
+
+      // will-changeをリセット
+      if (modalRef.current) {
+        modalRef.current.style.willChange = "auto";
+      }
+
+      // rafをキャンセル
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+
+      // 最終位置を確定
+      if (didDragRef.current && tempPositionRef.current) {
+        setModalPosition(tempPositionRef.current.x, tempPositionRef.current.y);
+      }
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
     };
-  }, [isDragging, isDragPending, setModalPosition]);
+  }, [isDragging, isDragPending, setModalPosition, modalState.isMaximized]);
 
   // --- リサイズ ---
+  const resizeRafRef = useRef<number | null>(null);
+  const tempSizeRef = useRef({ width: 0, height: 0 });
+
   const handleResizeStart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -609,26 +682,68 @@ export default function NoteModal() {
       width: modalState.size.width,
       height: modalState.size.height,
     };
+    tempSizeRef.current = { ...modalState.size };
     bringToFront();
+
+    // リサイズ中もwill-changeを適用
+    if (modalRef.current) {
+      modalRef.current.style.willChange = "width, height";
+    }
   };
 
   useEffect(() => {
     if (!isResizing) return;
     const onMove = (e: MouseEvent) => {
       const s = resizeStartRef.current;
-      setModalSize(
-        Math.max(400, s.width + e.clientX - s.x),
-        Math.max(300, s.height + e.clientY - s.y),
-      );
+      tempSizeRef.current = {
+        width: Math.max(400, s.width + e.clientX - s.x),
+        height: Math.max(300, s.height + e.clientY - s.y),
+      };
+
+      // 即座にスタイルを更新
+      if (modalRef.current && !modalState.isMaximized) {
+        modalRef.current.style.width = `${tempSizeRef.current.width}px`;
+        modalRef.current.style.height = `${tempSizeRef.current.height}px`;
+      }
+
+      // requestAnimationFrameでstateを更新
+      if (resizeRafRef.current === null) {
+        resizeRafRef.current = requestAnimationFrame(() => {
+          setModalSize(tempSizeRef.current.width, tempSizeRef.current.height);
+          resizeRafRef.current = null;
+        });
+      }
     };
-    const onUp = () => setIsResizing(false);
+    const onUp = () => {
+      setIsResizing(false);
+
+      // will-changeをリセット
+      if (modalRef.current) {
+        modalRef.current.style.willChange = "auto";
+      }
+
+      // rafをキャンセル
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+        resizeRafRef.current = null;
+      }
+
+      // 最終サイズを確定
+      if (tempSizeRef.current.width && tempSizeRef.current.height) {
+        setModalSize(tempSizeRef.current.width, tempSizeRef.current.height);
+      }
+    };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+        resizeRafRef.current = null;
+      }
     };
-  }, [isResizing, setModalSize]);
+  }, [isResizing, setModalSize, modalState.isMaximized]);
 
   // ショートカットキー
   useEffect(() => {
@@ -640,6 +755,14 @@ export default function NoteModal() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [closeModal]);
+
+  // モーダルが開かれたときに位置をセット
+  useEffect(() => {
+    if (modalState.isOpen && modalRef.current && !modalState.isMaximized) {
+      modalRef.current.style.left = `${modalState.position.x}px`;
+      modalRef.current.style.top = `${modalState.position.y}px`;
+    }
+  }, [modalState.isOpen]);
 
   const handleTabChange = (tab: ModalTab) => {
     setModalTab(tab);
@@ -660,6 +783,8 @@ export default function NoteModal() {
         ref={modalRef}
         className={`fixed bg-white dark:bg-zinc-900 overflow-hidden note-modal-enter ${
           modalState.isMaximized ? "rounded-none" : "rounded-xl shadow-2xl"
+        } ${
+          isDragging || isResizing ? "note-modal-dragging" : "note-modal-smooth"
         }`}
         style={
           modalState.isMaximized
@@ -671,8 +796,8 @@ export default function NoteModal() {
                 zIndex: modalState.zIndex,
               }
             : {
-                left: `${modalState.position.x}px`,
-                top: `${modalState.position.y}px`,
+                left: modalState.position.x,
+                top: modalState.position.y,
                 width: `${modalState.size.width}px`,
                 height: `${modalState.size.height}px`,
                 zIndex: modalState.zIndex,
@@ -683,25 +808,42 @@ export default function NoteModal() {
       >
         {/* ヘッダー */}
         <div
-          className={`h-12 bg-linear-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 flex items-center justify-between px-3 select-none ${
+          className={`relative h-12 bg-linear-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 flex items-center justify-between px-3 select-none ${
             modalState.isMaximized ? "cursor-default" : "cursor-move"
           }`}
           onMouseDown={modalState.isMaximized ? undefined : handleDragStart}
         >
-          <div className="flex items-center bg-white/15 rounded-md p-0.5">
+
+          <div className="relative flex items-center bg-white/15 rounded-md p-0.5">
             <button
-              onClick={() => handleTabChange("note")}
+              onMouseDown={modalState.isMaximized ? undefined : handleDragStart}
+              onClick={(e) => {
+                // ドラッグ中はクリックイベントを無視
+                if (didDragRef.current) {
+                  e.preventDefault();
+                  return;
+                }
+                handleTabChange("note");
+              }}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all select-none ${
                 activeTab === "note"
                   ? "bg-white/25 text-white shadow-sm"
                   : "text-white/60 hover:text-white"
               }`}
             >
-              <StickyNote className="w-3.5 h-3.5" />
+              <NotebookTabs className="w-3.5 h-3.5" />
               <span>ノート</span>
             </button>
             <button
-              onClick={() => handleTabChange("ai")}
+              onMouseDown={modalState.isMaximized ? undefined : handleDragStart}
+              onClick={(e) => {
+                // ドラッグ中はクリックイベントを無視
+                if (didDragRef.current) {
+                  e.preventDefault();
+                  return;
+                }
+                handleTabChange("ai");
+              }}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all select-none ${
                 activeTab === "ai"
                   ? "bg-white/25 text-white shadow-sm"
@@ -715,12 +857,8 @@ export default function NoteModal() {
 
           {/* 中央検索バー（ノートタブ時のみ） */}
           {activeTab === "note" && (
-            <div className="flex-1 flex items-center justify-center px-4">
-              <div
-                className="relative w-full max-w-xs"
-                onClick={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-              >
+            <div className="relative flex-1 flex items-center justify-center px-4">
+              <div className="relative w-full max-w-xs">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/50" />
                 <input
                   type="text"
@@ -734,11 +872,19 @@ export default function NoteModal() {
           )}
 
           {/* AIタブ時は右側に余白を確保 */}
-          {activeTab === "ai" && <div className="flex-1" />}
+          {activeTab === "ai" && <div className="relative flex-1" />}
 
-          <div className="flex items-center gap-1">
+          <div className="relative flex items-center gap-1">
             <button
-              onClick={toggleMaximize}
+              onMouseDown={modalState.isMaximized ? undefined : handleDragStart}
+              onClick={(e) => {
+                // ドラッグ中はクリックイベントを無視
+                if (didDragRef.current) {
+                  e.preventDefault();
+                  return;
+                }
+                toggleMaximize();
+              }}
               className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
               title={modalState.isMaximized ? "元のサイズに戻す" : "全画面表示"}
             >
@@ -749,7 +895,15 @@ export default function NoteModal() {
               )}
             </button>
             <button
-              onClick={closeModal}
+              onMouseDown={modalState.isMaximized ? undefined : handleDragStart}
+              onClick={(e) => {
+                // ドラッグ中はクリックイベントを無視
+                if (didDragRef.current) {
+                  e.preventDefault();
+                  return;
+                }
+                closeModal();
+              }}
               className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
               title="閉じる"
             >
@@ -759,7 +913,13 @@ export default function NoteModal() {
         </div>
 
         {/* コンテンツ */}
-        <div className="h-[calc(100%-48px)]">
+        <div
+          className={`h-[calc(100%-48px)] ${
+            isDragging || isResizing
+              ? "note-modal-non-interactive"
+              : "note-modal-interactive"
+          }`}
+        >
           {activeTab === "note" ? (
             <div className="relative flex h-full">
               {/* ホバー展開サイドバー */}

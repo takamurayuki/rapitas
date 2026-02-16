@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Plus,
   Edit2,
@@ -24,6 +24,8 @@ import {
 } from "@/components/category/IconData";
 import type { Category, CategoryMode, Theme } from "@/types";
 import { API_BASE_URL } from "@/utils/api";
+import { useDebounce } from "@/hooks/useDebounce";
+import { IconGrid } from "@/components/category/IconGrid";
 
 type CategoryWithThemes = Category & {
   themes: (Pick<Theme, "id" | "name" | "color" | "icon" | "isDefault"> & {
@@ -243,7 +245,14 @@ export default function CategoriesPage() {
     }
   };
 
-  const filteredIcons = searchIcons(iconSearchQuery);
+  // デバウンスされた検索クエリ
+  const debouncedIconSearchQuery = useDebounce(iconSearchQuery, 300);
+
+  // メモ化されたアイコン検索結果（最大50個に制限）
+  const filteredIcons = useMemo(() => {
+    const results = searchIcons(debouncedIconSearchQuery);
+    return results.slice(0, 50);
+  }, [debouncedIconSearchQuery]);
 
   const renderIcon = (iconName: string | null | undefined, size = 20) => {
     const IconComponent = getIconComponent(iconName || "");
@@ -344,35 +353,19 @@ export default function CategoriesPage() {
         </div>
 
         <div className="max-h-48 overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
+          {filteredIcons.length === 50 && debouncedIconSearchQuery && (
+            <div className="p-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
+              表示数が多いため、最初の50件のみ表示しています。絞り込むには検索ワードを追加してください。
+            </div>
+          )}
           <div className="grid grid-cols-8 gap-1 p-2">
-            {filteredIcons.length > 0 ? (
-              filteredIcons.map((iconName) => {
-                const isSelected = formData.icon === iconName;
-                return (
-                  <button
-                    key={iconName}
-                    type="button"
-                    onClick={() =>
-                      setFormData({ ...formData, icon: iconName })
-                    }
-                    className={`p-2.5 rounded-lg transition-all ${
-                      isSelected
-                        ? "bg-indigo-500 text-white shadow-lg scale-105"
-                        : "hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:scale-105"
-                    }`}
-                    title={iconName}
-                  >
-                    <div className="flex items-center justify-center">
-                      {renderIcon(iconName, 18)}
-                    </div>
-                  </button>
-                );
-              })
-            ) : (
-              <div className="col-span-8 text-center py-6 text-sm text-zinc-500 dark:text-zinc-400">
-                一致するアイコンがありません
-              </div>
-            )}
+            <IconGrid
+              icons={filteredIcons}
+              selectedIcon={formData.icon}
+              onIconSelect={(iconName) => setFormData({ ...formData, icon: iconName })}
+              renderIcon={renderIcon}
+              accentClass="bg-indigo-500"
+            />
           </div>
         </div>
       </div>

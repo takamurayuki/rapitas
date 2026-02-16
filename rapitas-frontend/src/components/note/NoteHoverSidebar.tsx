@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import {
-  StickyNote,
+  NotebookTabs,
   ChevronRight,
   Plus,
   Search,
@@ -120,27 +120,31 @@ export default function NoteHoverSidebar() {
     >
       {/* タブ部分 */}
       <div
-        className={`absolute top-20 left-0 h-32 w-12 bg-gradient-to-b from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 rounded-r-xl flex items-center justify-center cursor-pointer transition-all duration-300 ${
+        className={`absolute top-20 left-0 h-32 w-12 bg-linear-to-b from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 rounded-r-xl flex items-center justify-center cursor-pointer transition-all duration-300 ${
           isHovered ? "scale-105" : ""
         } shadow-lg`}
       >
         <div className="flex flex-col items-center gap-2 text-white">
-          <StickyNote className="w-5 h-5" />
-          <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`} />
+          <NotebookTabs className="w-5 h-5" />
+          <ChevronRight
+            className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`}
+          />
         </div>
       </div>
 
       {/* サイドバー本体 */}
       <div
         className={`h-full bg-white dark:bg-zinc-900 shadow-2xl transition-all duration-300 ${
-          isExpanded ? "translate-x-0 opacity-100" : "-translate-x-full opacity-0"
+          isExpanded
+            ? "translate-x-0 opacity-100"
+            : "-translate-x-full opacity-0"
         }`}
       >
         <div className="flex flex-col h-full">
           {/* ヘッダー */}
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-2 mb-3">
-              <StickyNote className="w-5 h-5 text-indigo-500" />
+              <NotebookTabs className="w-5 h-5 text-indigo-500" />
               <h3 className="font-semibold text-lg">ノート</h3>
             </div>
 
@@ -169,7 +173,9 @@ export default function NoteHoverSidebar() {
           {/* タグフィルター */}
           {allTags.length > 0 && (
             <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
-              <h4 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">タグフィルター</h4>
+              <h4 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">
+                タグフィルター
+              </h4>
               <div className="flex flex-wrap gap-1">
                 {allTags.map((tag) => (
                   <button
@@ -223,7 +229,9 @@ export default function NoteHoverSidebar() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1 mb-1">
-                          {note.isPinned && <Pin className="w-3 h-3 text-yellow-500 shrink-0" />}
+                          {note.isPinned && (
+                            <Pin className="w-3 h-3 text-yellow-500 shrink-0" />
+                          )}
                           <h4 className="font-medium text-sm truncate text-zinc-900 dark:text-zinc-100">
                             {note.title}
                           </h4>
@@ -231,7 +239,9 @@ export default function NoteHoverSidebar() {
                         <p
                           className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 mb-1"
                           dangerouslySetInnerHTML={{
-                            __html: note.content.replace(/<[^>]*>/g, "") || "内容なし",
+                            __html:
+                              note.content.replace(/<[^>]*>/g, "") ||
+                              "内容なし",
                           }}
                         />
                         <div className="flex items-center gap-2">
@@ -247,7 +257,9 @@ export default function NoteHoverSidebar() {
                                 </span>
                               ))}
                               {note.tags.length > 2 && (
-                                <span className="text-xs text-zinc-400">+{note.tags.length - 2}</span>
+                                <span className="text-xs text-zinc-400">
+                                  +{note.tags.length - 2}
+                                </span>
                               )}
                             </div>
                           )}
