@@ -43,7 +43,7 @@ export default function TaskCompleteOverlay({
             viewBox="0 0 100 100"
             style={{
               // アニメーション名を triangle-ripple から task-complete-ripple に変更
-              animation: `task-complete-ripple 2.5s cubic-bezier(0, 0, 0.2, 1) forwards ${i * 0.3}s`,
+              animation: `task-complete-ripple 2.8s cubic-bezier(0.22, 1, 0.36, 1) forwards ${i * 0.28}s`,
             }}
           >
             <polygon

@@ -2,7 +2,14 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { Theme, Category, Priority, Status, UserSettings } from "@/types";
+import type {
+  Theme,
+  Category,
+  Priority,
+  Status,
+  UserSettings,
+  Task,
+} from "@/types";
 import TaskSlidePanel from "@/feature/tasks/components/TaskSlidePanel";
 import TaskCard from "@/feature/tasks/components/TaskCard";
 import { useToast } from "@/components/ui/toast/ToastContainer";
@@ -130,6 +137,19 @@ export default function HomeClientPage() {
   const completedTasksCount = todayTasksCounts.completed;
   const totalTasksCount = todayTasksCounts.total;
 
+  const isTodayTask = useCallback((task?: Task | null) => {
+    if (!task) return false;
+    if (task.parentId) return false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const taskDate = new Date(task.createdAt);
+    taskDate.setHours(0, 0, 0, 0);
+
+    return taskDate.getTime() === today.getTime();
+  }, []);
+
   const {
     particles,
     bursts,
@@ -194,8 +214,13 @@ export default function HomeClientPage() {
   ) => {
     const oldTask = tasks.find((t) => t.id === id);
 
-    // タスクを完了にする場合、アニメーションをトリガー
-    if (status === "done" && oldTask?.status !== "done" && cardElement) {
+    // タスクを完了にする場合、アニメーションをトリガー（本日のタスクのみ）
+    if (
+      status === "done" &&
+      oldTask?.status !== "done" &&
+      cardElement &&
+      isTodayTask(oldTask)
+    ) {
       const rect = cardElement.getBoundingClientRect();
       const x = rect.left + rect.width * 0.15;
       const y = rect.top + rect.height / 2;
