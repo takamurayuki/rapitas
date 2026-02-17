@@ -363,6 +363,9 @@ export function useTaskCompletionAnimation(
 
   const triggerTaskCompletion = useCallback(
     (taskId: number, cardX: number, cardY: number) => {
+      // 本日のタスクが0件の場合はアニメーションを発生させない
+      if (totalTasks === 0) return;
+
       setSweepingTaskId(taskId);
       setTimeout(() => setSweepingTaskId(null), 650);
 
@@ -385,14 +388,17 @@ export function useTaskCompletionAnimation(
         }, i * 90);
       }
     },
-    [getRingCenter],
+    [getRingCenter, totalTasks],
   );
 
   const handleParticleArrive = useCallback(() => {
     setParticles((prev) => prev.slice(1));
-    const burstId = ++idRef.current;
-    setBursts((prev) => [...prev, burstId]);
-  }, []);
+    // 本日のタスクが0件の場合は波紋を発生させない
+    if (totalTasks > 0) {
+      const burstId = ++idRef.current;
+      setBursts((prev) => [...prev, burstId]);
+    }
+  }, [totalTasks]);
 
   const handleBurstDone = useCallback((id: number) => {
     setBursts((prev) => prev.filter((b) => b !== id));

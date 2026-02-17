@@ -91,7 +91,7 @@ import {
   // ナビゲーション・矢印
   Home,
   MapPin,
-  Map,
+  Map as MapIcon,
   Navigation,
   Compass,
   Globe,
@@ -558,7 +558,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
   // ナビゲーション・場所
   Home: { component: Home, keywords: ["ホーム", "家", "トップ", "メイン", "自宅"] },
   MapPin: { component: MapPin, keywords: ["マップピン", "場所", "位置", "地図", "スポット"] },
-  Map: { component: Map, keywords: ["マップ", "地図", "ナビ", "案内"] },
+  Map: { component: MapIcon, keywords: ["マップ", "地図", "ナビ", "案内"] },
   Navigation: { component: Navigation, keywords: ["ナビゲーション", "案内", "方向", "矢印"] },
   Compass: { component: Compass, keywords: ["コンパス", "方位", "方向", "探検"] },
   Globe: { component: Globe, keywords: ["地球", "グローバル", "世界", "インターナショナル", "国際"] },
