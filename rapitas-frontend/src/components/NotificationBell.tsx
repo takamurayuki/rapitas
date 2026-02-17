@@ -30,6 +30,7 @@ export default function NotificationBell() {
     markAsRead,
     markAllAsRead,
     deleteNotification,
+    deleteAllNotifications,
   } = useNotifications();
 
   // ドロップダウン外クリックで閉じる
@@ -103,15 +104,26 @@ export default function NotificationBell() {
             <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
               通知
             </h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllAsRead}
-                className="flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline"
-              >
-                <CheckCheck className="w-3.5 h-3.5" />
-                すべて既読
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllAsRead}
+                  className="flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                >
+                  <CheckCheck className="w-3.5 h-3.5" />
+                  すべて既読
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={deleteAllNotifications}
+                  className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400 hover:underline"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  すべて削除
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Notifications List */}

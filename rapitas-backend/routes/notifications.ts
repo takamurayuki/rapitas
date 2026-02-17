@@ -67,4 +67,10 @@ export const notificationsRoutes = new Elysia({ prefix: "/notifications" })
     });
 
     return { success: true, id };
+  })
+
+  // Delete all notifications
+  .delete("/", async () => {
+    const result = await prisma.notification.deleteMany({});
+    return { success: true, deletedCount: result.count };
   });

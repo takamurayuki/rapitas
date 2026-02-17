@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "resources": [
+      "../../rapitas-backend/prisma/migrations/**/*",
+      "../../rapitas-backend/prisma/schema.prisma"
+    ]
+  }
+}

@@ -111,6 +111,25 @@ export function useNotifications() {
     return false;
   }, []);
 
+  const deleteAllNotifications = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/notifications`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setNotifications([]);
+        setUnreadCount(0);
+        return true;
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        console.error("Failed to delete all notifications:", res.status, errorData);
+      }
+    } catch (err) {
+      console.error("Failed to delete all notifications:", err);
+    }
+    return false;
+  }, []);
+
   // 初回マウント時に未読数を取得
   useEffect(() => {
     fetchUnreadCount();
@@ -125,5 +144,6 @@ export function useNotifications() {
     markAsRead,
     markAllAsRead,
     deleteNotification,
+    deleteAllNotifications,
   };
 }
