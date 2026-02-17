@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, memo } from "react";
 import type { Task, Status } from "@/types";
 import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
 import SubtaskStatusButtons from "@/feature/tasks/components/SubtaskStatusButtons";
@@ -27,7 +27,7 @@ interface TaskCardProps {
   sweepingTaskId?: number | null;
 }
 
-export default function TaskCard({
+const TaskCard = memo(function TaskCard({
   task,
   isSelected = false,
   isSelectionMode = false,
@@ -436,4 +436,6 @@ export default function TaskCard({
       )}
     </div>
   );
-}
+});
+
+export default TaskCard;

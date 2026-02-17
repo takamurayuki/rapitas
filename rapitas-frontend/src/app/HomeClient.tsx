@@ -37,6 +37,10 @@ import {
   FlyingParticle,
   useTaskCompletionAnimation,
 } from "@/feature/tasks/components/TaskCompletionAnimation";
+import { useFilteredTasks } from "@/hooks/useFilteredTasks";
+import { useTaskSorting } from "@/hooks/useTaskSorting";
+import { useLocalStorageState } from "@/hooks/useLocalStorageState";
+import { useDebounce } from "@/hooks/useDebounce";
 
 const API_BASE = API_BASE_URL;
 
@@ -44,6 +48,7 @@ export default function HomeClientPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchQuery = searchParams.get("search") || "";
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const { showToast } = useToast();
   const { showTaskDetail, hideTaskDetail } = useTaskDetailVisibilityStore();
   const appMode = useAppModeStore((state) => state.mode);
@@ -58,8 +63,8 @@ export default function HomeClientPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [initialDataLoading, setInitialDataLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
-  const [categoryFilter, setCategoryFilter] = useState<number | null>(null);
-  const [themeFilter, setThemeFilter] = useState<number | null>(null);
+  const [categoryFilter, setCategoryFilter] = useLocalStorageState<number | null>("selectedCategoryFilter", null);
+  const [themeFilter, setThemeFilter] = useLocalStorageState<number | null>("selectedThemeFilter", null);
   const [priorityFilter, setPriorityFilter] = useState<Priority | null>(null);
   const [defaultTheme, setDefaultTheme] = useState<Theme | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
@@ -104,22 +109,26 @@ export default function HomeClientPage() {
     }
   }, [taskCacheInitialized, fetchTaskUpdates, fetchAllTasks]);
 
-  // 完了タスクの数とアニメーション設定（選択されたテーマでフィルタリング）
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayTasks = tasks.filter((t) => {
-    if (t.parentId) return false;
-    // テーマフィルターが設定されている場合は、そのテーマのタスクのみカウント
-    if (themeFilter !== null && t.themeId !== themeFilter) return false;
-    // 今日のタスクのみフィルタリング（createdAtが今日の日付）
-    const taskDate = new Date(t.createdAt);
-    taskDate.setHours(0, 0, 0, 0);
-    return taskDate.getTime() === today.getTime();
+  // フィルタリングとカウント処理を最適化
+  const { filteredTasks, statusCounts, todayTasksCounts } = useFilteredTasks({
+    tasks,
+    filter,
+    categoryFilter,
+    themeFilter,
+    priorityFilter,
+    searchQuery: debouncedSearchQuery,
+    themes,
   });
-  const completedTasksCount = todayTasks.filter(
-    (t) => t.status === "done",
-  ).length;
-  const totalTasksCount = todayTasks.length;
+
+  // ソート処理を最適化
+  const sortedTasks = useTaskSorting({
+    tasks: filteredTasks,
+    sortBy,
+    sortOrder,
+  });
+
+  const completedTasksCount = todayTasksCounts.completed;
+  const totalTasksCount = todayTasksCounts.total;
 
   const {
     particles,
@@ -141,18 +150,6 @@ export default function HomeClientPage() {
       const res = await fetch(`${API_BASE}/categories`);
       const data = await res.json();
       setCategories(data);
-      // localStorageからカテゴリフィルタを復元
-      const savedCategoryId = localStorage.getItem("selectedCategoryFilter");
-      if (savedCategoryId !== null && savedCategoryId !== "null") {
-        const parsedId = Number(savedCategoryId);
-        const exists = data.some((c: Category) => c.id === parsedId);
-        if (exists) {
-          setCategoryFilter(parsedId);
-          return data as Category[];
-        }
-      }
-      // 保存値がない or 無効な場合: defaultCategoryIdをチェック（initialLoadで後から適用）
-      // ここではカテゴリデータのみ設定し、デフォルトの選択はinitialLoadに委ねる
       return data as Category[];
     } catch (e) {
       console.error(e);
@@ -170,24 +167,10 @@ export default function HomeClientPage() {
       if (firstDefaultTheme) {
         setDefaultTheme(firstDefaultTheme);
       }
-      // localStorageに保存済みのテーマがあればそちらを復元
-      const savedThemeId = localStorage.getItem("selectedThemeFilter");
-      if (savedThemeId !== null && savedThemeId !== "null") {
-        const parsedId = Number(savedThemeId);
-        const exists = data.some((t: Theme) => t.id === parsedId);
-        if (exists) {
-          setThemeFilter(parsedId);
-          return;
-        }
-      }
-      // 保存値がない or 無効な場合：現在のカテゴリに属するデフォルトテーマを選択
-      const savedCategoryId = localStorage.getItem("selectedCategoryFilter");
-      const currentCategoryId = savedCategoryId
-        ? Number(savedCategoryId)
-        : null;
-      if (currentCategoryId !== null) {
+      // テーマフィルターが未設定の場合、カテゴリに応じたデフォルトテーマを選択
+      if (themeFilter === null && categoryFilter !== null) {
         const themesInCategory = data.filter(
-          (t: Theme) => t.categoryId === currentCategoryId,
+          (t: Theme) => t.categoryId === categoryFilter,
         );
         if (themesInCategory.length > 0) {
           const defaultInCategory = themesInCategory.find(
@@ -195,23 +178,12 @@ export default function HomeClientPage() {
           );
           const targetTheme = defaultInCategory || themesInCategory[0];
           setThemeFilter(targetTheme.id);
-          localStorage.setItem("selectedThemeFilter", String(targetTheme.id));
-          return;
         }
       }
-      // カテゴリが未設定の場合はグローバルデフォルトにフォールバック
-      if (firstDefaultTheme) {
-        setThemeFilter(firstDefaultTheme.id);
-        localStorage.setItem(
-          "selectedThemeFilter",
-          String(firstDefaultTheme.id),
-        );
-      } else if (data.length > 0) {
-        setThemeFilter(data[0].id);
-        localStorage.setItem("selectedThemeFilter", String(data[0].id));
-      }
+      return data;
     } catch (e) {
       console.error(e);
+      return [];
     }
   };
 
@@ -442,22 +414,13 @@ export default function HomeClientPage() {
         fetchCategories(),
         fetchGlobalSettings(),
       ]);
-      // localStorageに有効な保存値がなければデフォルトカテゴリを適用
-      const savedCategoryId = localStorage.getItem("selectedCategoryFilter");
-      if (savedCategoryId === null || savedCategoryId === "null") {
+      // カテゴリフィルタが未設定の場合はデフォルトカテゴリを適用
+      if (categoryFilter === null) {
         if (settings?.defaultCategoryId) {
           setCategoryFilter(settings.defaultCategoryId);
-          localStorage.setItem(
-            "selectedCategoryFilter",
-            String(settings.defaultCategoryId),
-          );
         } else if (categoriesData && categoriesData.length > 0) {
           // defaultCategoryIdも未設定の場合は最初のカテゴリにフォールバック
           setCategoryFilter(categoriesData[0].id);
-          localStorage.setItem(
-            "selectedCategoryFilter",
-            String(categoriesData[0].id),
-          );
         }
       }
       setInitialDataLoading(false);
@@ -486,7 +449,6 @@ export default function HomeClientPage() {
       if (!isVisible && visibleCategories.length > 0) {
         const newCategoryId = visibleCategories[0].id;
         setCategoryFilter(newCategoryId);
-        localStorage.setItem("selectedCategoryFilter", String(newCategoryId));
         // テーマフィルタも調整
         const themesInCategory = themes.filter(
           (t) => t.categoryId === newCategoryId,
@@ -495,73 +457,17 @@ export default function HomeClientPage() {
           const defaultInCategory = themesInCategory.find((t) => t.isDefault);
           const targetTheme = defaultInCategory || themesInCategory[0];
           setThemeFilter(targetTheme.id);
-          localStorage.setItem("selectedThemeFilter", String(targetTheme.id));
         } else {
           setThemeFilter(null);
-          localStorage.removeItem("selectedThemeFilter");
         }
       }
     }
   }, [appMode, categories]);
 
-  // カテゴリに属するテーマIDのセット（カテゴリフィルタ用）
-  const categoryThemeIds = (() => {
-    if (categoryFilter === null) return null;
-    return new Set(
-      themes.filter((t) => t.categoryId === categoryFilter).map((t) => t.id),
-    );
-  })();
-
-  const filteredTasks = tasks.filter((t) => {
-    if (t.parentId) return false;
-
-    if (filter !== "all" && t.status !== filter) return false;
-    if (themeFilter !== null && t.themeId !== themeFilter) return false;
-    // カテゴリフィルタ: テーマフィルタが未設定（ロード中）の場合にカテゴリで絞り込む
-    if (themeFilter === null && categoryThemeIds !== null) {
-      if (!t.themeId || !categoryThemeIds.has(t.themeId)) return false;
-    }
-    if (priorityFilter !== null && t.priority !== priorityFilter) return false;
-
-    // 検索フィルター
-    if (
-      searchQuery &&
-      !t.title.toLowerCase().includes(searchQuery.toLowerCase())
-    ) {
-      return false;
-    }
-
-    return true;
-  });
-
   // フィルター変更時にページを1に戻す
   useEffect(() => {
     setCurrentPage(1);
   }, [filter, categoryFilter, themeFilter, priorityFilter, searchQuery]);
-
-  // ソート処理
-  const sortedTasks = [...filteredTasks].sort((a, b) => {
-    let comparison = 0;
-
-    switch (sortBy) {
-      case "title":
-        comparison = a.title.localeCompare(b.title);
-        break;
-      case "priority":
-        const priorityOrder = { urgent: 4, high: 3, medium: 2, low: 1 };
-        comparison =
-          (priorityOrder[a.priority as keyof typeof priorityOrder] || 0) -
-          (priorityOrder[b.priority as keyof typeof priorityOrder] || 0);
-        break;
-      case "createdAt":
-      default:
-        comparison =
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-        break;
-    }
-
-    return sortOrder === "asc" ? comparison : -comparison;
-  });
 
   // ページネーション処理
   const totalPages = Math.ceil(sortedTasks.length / itemsPerPage);
@@ -883,16 +789,11 @@ export default function HomeClientPage() {
                         key={cat.id}
                         onClick={() => {
                           setCategoryFilter(cat.id);
-                          localStorage.setItem(
-                            "selectedCategoryFilter",
-                            String(cat.id),
-                          );
                           const themesInCategory = themes.filter(
                             (t) => t.categoryId === cat.id,
                           );
                           if (themesInCategory.length === 0) {
                             setThemeFilter(null);
-                            localStorage.removeItem("selectedThemeFilter");
                           } else {
                             const currentThemeInCategory =
                               themesInCategory.find(
@@ -905,10 +806,6 @@ export default function HomeClientPage() {
                               const targetTheme =
                                 defaultInCategory || themesInCategory[0];
                               setThemeFilter(targetTheme.id);
-                              localStorage.setItem(
-                                "selectedThemeFilter",
-                                String(targetTheme.id),
-                              );
                             }
                           }
                         }}
@@ -971,10 +868,6 @@ export default function HomeClientPage() {
                         key={theme.id}
                         onClick={() => {
                           setThemeFilter(theme.id);
-                          localStorage.setItem(
-                            "selectedThemeFilter",
-                            String(theme.id),
-                          );
                         }}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                           isActive
@@ -1050,30 +943,7 @@ export default function HomeClientPage() {
                         statusConfigLocal[
                           status as keyof typeof statusConfigLocal
                         ];
-                      const count = tasks.filter((t) => {
-                        if (t.parentId) return false;
-                        if (status !== "all" && t.status !== status)
-                          return false;
-                        if (themeFilter !== null && t.themeId !== themeFilter)
-                          return false;
-                        if (themeFilter === null && categoryThemeIds !== null) {
-                          if (!t.themeId || !categoryThemeIds.has(t.themeId))
-                            return false;
-                        }
-                        if (
-                          priorityFilter !== null &&
-                          t.priority !== priorityFilter
-                        )
-                          return false;
-                        if (
-                          searchQuery &&
-                          !t.title
-                            .toLowerCase()
-                            .includes(searchQuery.toLowerCase())
-                        )
-                          return false;
-                        return true;
-                      }).length;
+                      const count = statusCounts[status] || 0;
 
                       return (
                         <button
