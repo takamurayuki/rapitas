@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type CSSProperties } from "react";
 import {
   Menu,
   Home,
@@ -65,6 +65,27 @@ type NavItem = {
   children?: NavItem[];
   mode?: "development" | "learning";
 };
+
+type LineStyleVars = {
+  "--line-duration": string;
+  "--line-stagger": string;
+  "--line-delay"?: string;
+};
+
+type LineStyle = CSSProperties & LineStyleVars;
+
+const LINE_ANIMATION_DURATION = 0.22;
+const LINE_STAGGER = 0.12;
+const LINE_DELAY_STEP = 0.08;
+const baseLineAnimationStyle: LineStyle = {
+  "--line-duration": `${LINE_ANIMATION_DURATION}s`,
+  "--line-stagger": `${LINE_STAGGER}s`,
+};
+
+const lineStyle = (delay: string): LineStyle => ({
+  ...baseLineAnimationStyle,
+  "--line-delay": delay,
+});
 
 // パスがタスク詳細ページかどうかを判定するヘルパー関数
 const checkIsTaskDetailPage = (path: string | null): boolean => {
@@ -501,8 +522,16 @@ export default function Header() {
     }
   };
 
+  // 線を描くアニメーション用の遅延時間（深さと並び順で少しずらす）
+  const getLineDelay = (depth: number, order: number) =>
+    `${((depth + order) * LINE_DELAY_STEP).toFixed(3)}s`;
+
   // 再帰的にナビゲーション項目をレンダリング
-  const renderNavItem = (item: NavItem, depth: number): React.ReactNode => {
+  const renderNavItem = (
+    item: NavItem,
+    depth: number,
+    parentExpanded = true,
+  ): React.ReactNode => {
     const Icon = item.icon;
     const active = isActive(item.href);
     const hasChildren = item.children && item.children.length > 0;
@@ -585,9 +614,12 @@ export default function Header() {
                     <div key={child.label} className="relative">
                       {/* 縦線 */}
                       <div
-                        className={`absolute left-0 top-0 w-px bg-zinc-300 dark:bg-zinc-600 ${isLastChild ? "h-5" : "h-full"}`}
+                        className={`absolute left-0 top-0 w-px bg-zinc-300 dark:bg-zinc-600 ${isLastChild ? "h-5" : "h-full"} ${
+                          isExpanded ? "line-animate-vertical" : ""
+                        }`}
+                        style={lineStyle(getLineDelay(depth, index))}
                       />
-                      {renderNavItem(child, depth + 1)}
+                      {renderNavItem(child, depth + 1, isExpanded)}
                     </div>
                   );
                 })}
@@ -630,7 +662,12 @@ export default function Header() {
         <div key={item.label}>
           {/* アイテム本体（固定高さ） */}
           <div className="relative h-10 flex items-center">
-            <div className="absolute left-0 top-1/2 w-4 h-px bg-zinc-300 dark:bg-zinc-600" />
+            <div
+              className={`absolute left-0 top-1/2 w-4 h-px bg-zinc-300 dark:bg-zinc-600 ${
+                parentExpanded ? "line-animate-horizontal" : ""
+              }`}
+              style={lineStyle(getLineDelay(depth, 0))}
+            />
             <div className="ml-5 flex-1">
               {hasValidLink ? (
                 <div
@@ -698,9 +735,16 @@ export default function Header() {
                   <div key={child.label} className="relative">
                     {/* 縦線 */}
                     <div
-                      className={`absolute left-0 top-0 w-px bg-zinc-300 dark:bg-zinc-600 ${isLastChild ? "h-5" : "h-full"}`}
+                      className={`absolute left-0 top-0 w-px bg-zinc-300 dark:bg-zinc-600 ${isLastChild ? "h-5" : "h-full"} ${
+                        parentExpanded ? "line-animate-vertical" : ""
+                      }`}
+                      style={lineStyle(getLineDelay(depth, index))}
                     />
-                    {renderNavItem(child, depth + 1)}
+                    {renderNavItem(
+                      child,
+                      depth + 1,
+                      isExpanded && parentExpanded,
+                    )}
                   </div>
                 );
               })}
@@ -713,7 +757,12 @@ export default function Header() {
     // ネストされたリンク項目（子要素なし）
     return (
       <div key={item.href} className="relative h-10 flex items-center">
-        <div className="absolute left-0 top-1/2 w-4 h-px bg-zinc-300 dark:bg-zinc-600" />
+        <div
+          className={`absolute left-0 top-1/2 w-4 h-px bg-zinc-300 dark:bg-zinc-600 ${
+            parentExpanded ? "line-animate-horizontal" : ""
+          }`}
+          style={lineStyle(getLineDelay(depth, 0))}
+        />
         <Link
           href={item.href}
           onClick={() => !isMenuPinned && setIsMenuOpen(false)}
@@ -1052,6 +1101,45 @@ export default function Header() {
           </div>
         </div>
       )}
+
+      <style jsx global>{`
+        .line-animate-vertical {
+          transform-origin: top;
+          transform: scaleY(0);
+          animation: draw-vertical var(--line-duration, 0.22s) ease-out forwards;
+          animation-delay: var(--line-delay, 0s);
+          will-change: transform;
+        }
+
+        .line-animate-horizontal {
+          transform-origin: left;
+          transform: scaleX(0);
+          animation: draw-horizontal var(--line-duration, 0.22s) ease-out
+            forwards;
+          animation-delay: calc(
+            var(--line-delay, 0s) + var(--line-stagger, 0.12s)
+          );
+          will-change: transform;
+        }
+
+        @keyframes draw-vertical {
+          from {
+            transform: scaleY(0);
+          }
+          to {
+            transform: scaleY(1);
+          }
+        }
+
+        @keyframes draw-horizontal {
+          from {
+            transform: scaleX(0);
+          }
+          to {
+            transform: scaleX(1);
+          }
+        }
+      `}</style>
     </>
   );
 }
