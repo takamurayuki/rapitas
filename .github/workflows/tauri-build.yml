@@ -147,8 +147,8 @@ jobs:
           ./rapitas-backend.exe --version || echo "Binary test completed"
 
           # Create binaries directory and copy
-          mkdir -p ../rapitas-desktop/src-tauri/binaries
-          cp rapitas-backend.exe ../rapitas-desktop/src-tauri/binaries/rapitas-backend-${{ matrix.target }}.exe
+          New-Item -ItemType Directory -Force -Path ../rapitas-desktop/src-tauri/binaries
+          Copy-Item rapitas-backend.exe ../rapitas-desktop/src-tauri/binaries/rapitas-backend-${{ matrix.target }}.exe
 
           echo "Backend binary copied to Tauri binaries directory"
           dir ../rapitas-desktop/src-tauri/binaries/
@@ -196,7 +196,7 @@ jobs:
           echo "TAURI_BUILD=$TAURI_BUILD"
 
           # Run Next.js build directly
-          npx next build
+          pnpm run build:tauri:ci
 
           # Run restore script
           node scripts/prepare-tauri-build.js restore
@@ -242,6 +242,17 @@ jobs:
           DATABASE_URL: "postgresql://user:password@localhost:5432/rapitas?schema=public"  # Valid dummy URL for CI
           TARGET: ${{ matrix.target }}  # Pass target to build scripts
 
+      - name: List build artifacts
+        working-directory: rapitas-desktop
+        run: |
+          echo "Listing generated artifacts..."
+          if [ "${{ matrix.platform }}" == "windows-latest" ]; then
+            dir src-tauri\target\${{ matrix.target }}\release\bundle\ /s /b
+          else
+            find src-tauri/target/${{ matrix.target }}/release/bundle -type f -name "*" 2>/dev/null || echo "No bundle files found"
+          fi
+        shell: bash
+
       - name: Upload artifacts (Windows)
         if: matrix.platform == 'windows-latest'
         uses: actions/upload-artifact@v4
@@ -258,7 +269,7 @@ jobs:
           name: rapitas-macos-${{ matrix.target }}
           path: |
             rapitas-desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-            rapitas-desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app
+            rapitas-desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/
 
       - name: Upload artifacts (Linux)
         if: matrix.platform == 'ubuntu-latest'

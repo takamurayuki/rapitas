@@ -6,6 +6,8 @@
     "frontendDist": "../public"
   },
   "bundle": {
+    "active": true,
+    "targets": "all",
     "resources": [
       "../../rapitas-backend/prisma/migrations/**/*",
       "../../rapitas-backend/prisma/schema.prisma"
