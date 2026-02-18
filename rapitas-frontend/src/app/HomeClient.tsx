@@ -425,8 +425,13 @@ export default function HomeClientPage() {
     return null;
   };
 
+  // 初回読み込みフラグを追加
+  const [hasInitialized, setHasInitialized] = useState(false);
+
   useEffect(() => {
-    // 初回読み込み時はすべてのデータを取得してからinitialDataLoadingを解除
+    // 初回読み込み時のみ実行
+    if (hasInitialized) return;
+
     const initialLoad = async () => {
       setInitialDataLoading(true);
       // If cache is already initialized, use incremental fetch; otherwise full fetch
@@ -449,24 +454,22 @@ export default function HomeClientPage() {
         }
       }
       setInitialDataLoading(false);
+      setHasInitialized(true);
     };
     initialLoad();
+  }, []); // 依存配列を空にして初回のみ実行
 
-    // ページがフォーカスを取得したときに差分のみ取得（ローディング表示なし）
+  // ページがフォーカスを取得したときに差分のみ取得（ローディング表示なし）
+  useEffect(() => {
     const handleFocus = () => {
-      fetchTaskUpdates();
+      if (hasInitialized && taskCacheInitialized) {
+        fetchTaskUpdates();
+      }
     };
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [
-    categoryFilter,
-    fetchAllTasks,
-    fetchTaskUpdates,
-    fetchThemes,
-    setCategoryFilter,
-    taskCacheInitialized,
-  ]);
+  }, [fetchTaskUpdates, hasInitialized, taskCacheInitialized]);
 
   // activeModeが変わったとき、現在のカテゴリフィルタが非表示になったら最初の表示カテゴリに切り替え
   useEffect(() => {
@@ -807,8 +810,8 @@ export default function HomeClientPage() {
           </div>
         )}
 
-        {/* 統合フィルターバー（アコーディオン） */}
-        {!initialDataLoading && !isSelectionMode && !isQuickAdding && (
+        {/* 統合フィルターバー（アコーディオン） - カテゴリとテーマが読み込まれたら常に表示 */}
+        {categories.length > 0 && !isSelectionMode && !isQuickAdding && (
           <div className="mb-4 bg-white dark:bg-indigo-dark-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
             {/* カテゴリタブ */}
             {categories.length > 0 && (
