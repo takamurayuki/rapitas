@@ -509,7 +509,7 @@ export default function NewTaskClient() {
                         })
                         .map((cat) => cat.id),
                     );
-                    let displayThemes = themeIdParam
+                    const displayThemes = themeIdParam
                       ? themes.filter((t) => t.id === Number(themeIdParam))
                       : themes.filter((t) => {
                           // appModeフィルタ: カテゴリがないテーマは常に表示

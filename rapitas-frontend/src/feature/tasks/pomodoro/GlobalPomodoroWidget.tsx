@@ -23,7 +23,7 @@ export default function GlobalPomodoroWidget() {
 
   // クライアントサイドでのみ状態を監視
   useEffect(() => {
-    setMounted(true);
+    const timer = setTimeout(() => setMounted(true), 0);
 
     const updateState = (store: PomodoroState) => {
       setState({
@@ -45,7 +45,10 @@ export default function GlobalPomodoroWidget() {
     // 変更を監視
     const unsubscribe = usePomodoroStore.subscribe(updateState);
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
   }, []);
 
   // タスクが削除されていないか定期的に確認（全てのhookは条件付きreturnの前に配置）

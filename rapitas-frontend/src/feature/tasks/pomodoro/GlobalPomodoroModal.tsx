@@ -29,8 +29,11 @@ export default function GlobalPomodoroModal({
 
   // クライアントサイドでのみportalをマウント
   useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
+    const timer = setTimeout(() => setMounted(true), 0);
+    return () => {
+      clearTimeout(timer);
+      setMounted(false);
+    };
   }, []);
 
   // タスクのtime entriesとタスクデータを取得

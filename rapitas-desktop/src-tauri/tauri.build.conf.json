@@ -11,23 +11,12 @@
     "resources": [
       "../../rapitas-backend/prisma/migrations/**/*",
       "../../rapitas-backend/prisma/schema.prisma",
-      {
-        "path": "binaries/rapitas-backend*",
-        "target": "rapitas-backend"
-      }
+      "binaries/rapitas-backend*"
     ]
   },
   "plugins": {
     "shell": {
-      "open": true,
-      "sidecar": true,
-      "scope": [
-        {
-          "name": "binaries/rapitas-backend",
-          "sidecar": true,
-          "args": true
-        }
-      ]
+      "open": true
     }
   }
 }

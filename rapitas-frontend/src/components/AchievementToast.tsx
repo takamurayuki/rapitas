@@ -132,7 +132,9 @@ export default function AchievementNotifications() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    // クライアントサイドで初回マウントを確認
+    const timer = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(timer);
   }, []);
 
   // ポーリングで新しい実績を確認

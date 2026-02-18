@@ -105,38 +105,41 @@ export default function FileViewer({
     const fileType = getFileType(resource);
     if (!isOpen || (fileType !== "text" && fileType !== "markdown")) return;
 
-    setIsLoading(true);
-    setError(null);
-    setTextContent("");
+    const loadFile = async () => {
+      setIsLoading(true);
+      setError(null);
+      setTextContent("");
 
-    const url = getFileUrl(resource);
+      const url = getFileUrl(resource);
 
-    fetchWithRetry(url, {
-      method: "GET",
-      headers: {
-        Accept:
-          "text/plain, text/markdown, text/html, application/json, text/*",
-      },
-      mode: "cors",
-      credentials: "omit", // 認証情報を送信しない
-    })
-      .then((res) => {
+      try {
+        const res = await fetch(url, {
+          method: "GET",
+          headers: {
+            Accept:
+              "text/plain, text/markdown, text/html, application/json, text/*",
+          },
+          mode: "cors",
+          credentials: "omit", // 認証情報を送信しない
+        });
+
         if (!res.ok) {
           throw new Error(
             `ファイルの読み込みに失敗しました: ${res.status} ${res.statusText}`,
           );
         }
-        return res.text();
-      })
-      .then((text) => {
+
+        const text = await res.text();
         setTextContent(text);
-        setIsLoading(false);
-      })
-      .catch((err) => {
+      } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
         setError(`ファイルの読み込みに失敗しました: ${message}`);
+      } finally {
         setIsLoading(false);
-      });
+      }
+    };
+
+    loadFile();
   }, [isOpen, resource]);
 
   // 画像の読み込み完了時

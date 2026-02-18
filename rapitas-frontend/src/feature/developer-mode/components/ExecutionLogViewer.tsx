@@ -139,8 +139,10 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setSearchMatches([]);
-      setCurrentMatchIndex(0);
+      if (searchMatches.length > 0 || currentMatchIndex !== 0) {
+        setSearchMatches([]);
+        setCurrentMatchIndex(0);
+      }
       return;
     }
 

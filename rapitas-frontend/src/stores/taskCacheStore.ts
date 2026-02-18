@@ -78,7 +78,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
           taskMap.set(updated.id, updated);
         }
 
-        let merged = Array.from(taskMap.values());
+        const merged = Array.from(taskMap.values());
 
         // If our local count exceeds server count, some tasks were deleted elsewhere.
         // Remove stale entries by refetching fully.

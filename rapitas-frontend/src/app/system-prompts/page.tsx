@@ -323,9 +323,9 @@ function PromptCard({
   onDelete: () => void;
   onToggleActive: () => void;
 }) {
-  const [editContent, setEditContent] = useState(isEditing ? prompt.content : "");
-  const [editName, setEditName] = useState(isEditing ? prompt.name : "");
-  const [editDescription, setEditDescription] = useState(isEditing ? (prompt.description || "") : "");
+  const [editContent, setEditContent] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
 
   useEffect(() => {
     if (isEditing) {

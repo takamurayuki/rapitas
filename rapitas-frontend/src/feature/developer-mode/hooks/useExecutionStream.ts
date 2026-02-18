@@ -268,9 +268,13 @@ export function useExecutionStream(sessionId: number | null) {
   // sessionIdが変わったら再接続
   useEffect(() => {
     if (sessionId) {
-      connect();
+      // 非同期で接続を開始
+      const timer = setTimeout(() => connect(), 0);
+      return () => {
+        clearTimeout(timer);
+        disconnect();
+      };
     }
-
     return () => {
       disconnect();
     };
@@ -315,6 +319,14 @@ export function useExecutionPolling(taskId: number | null) {
   const responseGraceUntilRef = useRef<number>(0);
   // 回答送信時にクリアされた質問テキスト（同じ質問の再検出防止）
   const clearedQuestionRef = useRef<string | null>(null);
+
+  const stopPolling = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setState((prev) => ({ ...prev, isConnected: false }));
+  }, []);
 
   /**
    * ポーリングを開始する
@@ -752,16 +764,8 @@ export function useExecutionPolling(taskId: number | null) {
       // 300msごとにポーリング（より高頻度でリアルタイム感を向上）
       intervalRef.current = setInterval(poll, 300);
     },
-    [taskId],
+    [taskId, stopPolling],
   );
-
-  const stopPolling = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    setState((prev) => ({ ...prev, isConnected: false }));
-  }, []);
 
   /**
    * 実行をキャンセル状態に設定する（停止ボタン押下時に即座にUIを更新するため）

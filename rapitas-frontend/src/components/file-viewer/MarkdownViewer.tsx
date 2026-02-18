@@ -220,7 +220,7 @@ export default function MarkdownViewer({ content, className = "", showToc = true
             );
           },
           pre: ({ children, ...props }) => {
-            const codeElement = (children as any)?.props;
+            const codeElement = (children as React.ReactElement)?.props;
             const codeContent = codeElement?.children?.toString() || '';
             const codeId = `code-${Math.random().toString(36).substr(2, 9)}`;
 

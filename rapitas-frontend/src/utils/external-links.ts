@@ -97,10 +97,10 @@ export function setupExternalLinkHandlers(): void {
 
     if (isExternalLink(href)) {
       // 古いイベントリスナーを削除（存在する場合）
-      const existingHandler = (link as any).__externalLinkHandler;
+      const existingHandler = (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }).__externalLinkHandler;
       if (existingHandler) {
         link.removeEventListener('click', existingHandler, true);
-        delete (link as any).__externalLinkHandler;
+        delete (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }).__externalLinkHandler;
       }
 
       // 新しいイベントリスナーを作成（captureフェーズで実行して他のハンドラーより先に処理）
@@ -112,7 +112,7 @@ export function setupExternalLinkHandlers(): void {
       link.addEventListener('click', newHandler, true);
 
       // ハンドラーへの参照を保存（後で削除できるように）
-      (link as any).__externalLinkHandler = newHandler;
+      (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }).__externalLinkHandler = newHandler;
 
       // ハンドラー設定済みのマークを追加
       link.setAttribute('data-external-handler-set', 'true');

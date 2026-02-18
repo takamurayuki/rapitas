@@ -27,30 +27,40 @@ export default function TaskSlidePanel({
   // 開く時: isVisibleをtrueに & スクロール位置をリセット
   useEffect(() => {
     if (isOpen && taskId) {
-      setIsAnimatingOut(false);
-      setIsVisible(true);
+      // 次のレンダリングサイクルで設定
+      const timer = setTimeout(() => {
+        setIsAnimatingOut(false);
+        setIsVisible(true);
+      }, 0);
+
       if (closingTimerRef.current) {
         clearTimeout(closingTimerRef.current);
         closingTimerRef.current = null;
       }
+
       // パネルが開いた時にスクロール位置を先頭にリセット
       requestAnimationFrame(() => {
         if (contentRef.current) {
           contentRef.current.scrollTop = 0;
         }
       });
+
+      return () => clearTimeout(timer);
     }
   }, [isOpen, taskId]);
 
   // 閉じる時: アニメーション再生後にisVisibleをfalseに
   useEffect(() => {
     if (!isOpen && isVisible && !isAnimatingOut) {
-      setIsAnimatingOut(true);
+      // 次のレンダリングサイクルで設定
+      const timer = setTimeout(() => setIsAnimatingOut(true), 0);
       closingTimerRef.current = setTimeout(() => {
         setIsVisible(false);
         setIsAnimatingOut(false);
         closingTimerRef.current = null;
       }, ANIMATION_DURATION);
+
+      return () => clearTimeout(timer);
     }
   }, [isOpen, isVisible, isAnimatingOut]);
 

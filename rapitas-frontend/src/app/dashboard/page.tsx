@@ -86,7 +86,7 @@ export default function DashboardPage() {
       fetchDailyStudy(),
       fetchStreakInfo(),
     ]).finally(() => setLoading(false));
-  }, []);
+  }, [fetchOverview, fetchDailyStudy, fetchStreakInfo]);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);

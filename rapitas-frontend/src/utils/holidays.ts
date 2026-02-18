@@ -158,7 +158,7 @@ export function getHolidaysForYear(year: number): Holiday[] {
     const d = new Date(holiday.date + "T00:00:00");
     if (d.getDay() === 0) {
       // 日曜日の場合、翌日以降で祝日でない日を振替休日にする
-      let substitute = new Date(d);
+      const substitute = new Date(d);
       substitute.setDate(substitute.getDate() + 1);
       while (holidayDates.has(formatDateFromDate(substitute))) {
         substitute.setDate(substitute.getDate() + 1);

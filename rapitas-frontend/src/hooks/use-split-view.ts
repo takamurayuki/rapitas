@@ -32,12 +32,16 @@ export function useSplitView(): UseSplitViewReturn {
 
   // コンポーネントマウント時と定期的に状態を確認
   useEffect(() => {
-    checkSplitViewStatus();
+    // 初回チェックを非同期で実行
+    const timer = setTimeout(() => checkSplitViewStatus(), 0);
 
     // 定期的に状態を確認（ユーザーが手動でウィンドウサイズを変更した場合などを検知）
     const interval = setInterval(checkSplitViewStatus, 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, [checkSplitViewStatus]);
 
   // 外部URLを分割表示で開く

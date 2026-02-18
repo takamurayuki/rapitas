@@ -66,10 +66,10 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
         }
         setStatus("disconnected");
       }
-    } catch (error: any) {
+    } catch (error) {
       // タイムアウトエラーかどうかを判定
-      const isTimeout = error?.name === 'AbortError';
-      const errorMessage = isTimeout ? 'Request timeout' : error?.message || 'Unknown error';
+      const isTimeout = error instanceof Error && error.name === 'AbortError';
+      const errorMessage = isTimeout ? 'Request timeout' : (error instanceof Error ? error.message : 'Unknown error');
 
       if (!wasDisconnectedRef.current) {
         wasDisconnectedRef.current = true;
@@ -82,13 +82,17 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
 
   // status に応じて間隔を切り替える単一のインターバル
   useEffect(() => {
-    checkHealth();
+    // 初回チェックを非同期で実行
+    const initialCheck = setTimeout(() => checkHealth(), 0);
 
     const currentInterval =
       status === "disconnected" ? retryIntervalMs : intervalMs;
     const timer = setInterval(checkHealth, currentInterval);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearTimeout(initialCheck);
+      clearInterval(timer);
+    };
   }, [checkHealth, status, intervalMs, retryIntervalMs]);
 
   return { status, isConnected: status === "connected" };

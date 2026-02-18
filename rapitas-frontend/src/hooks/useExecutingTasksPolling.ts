@@ -18,9 +18,12 @@ export function useExecutingTasksPolling(options?: {
   const { setExecutingTask, removeExecutingTask } = useExecutionStateStore();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onExecutingTaskFoundRef = useRef(onExecutingTaskFound);
-  onExecutingTaskFoundRef.current = onExecutingTaskFound;
   // 前回検出済みのタスクIDセット（新規検出判定用）
   const knownTaskIdsRef = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    onExecutingTaskFoundRef.current = onExecutingTaskFound;
+  }, [onExecutingTaskFound]);
 
   const checkExecutingTasks = useCallback(async () => {
     try {

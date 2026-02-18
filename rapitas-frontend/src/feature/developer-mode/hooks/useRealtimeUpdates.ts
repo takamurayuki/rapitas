@@ -48,9 +48,12 @@ export function useRealtimeUpdates(
   const onConnectRef = useRef(onConnect);
   const onDisconnectRef = useRef(onDisconnect);
   const onErrorRef = useRef(onError);
-  onConnectRef.current = onConnect;
-  onDisconnectRef.current = onDisconnect;
-  onErrorRef.current = onError;
+
+  useEffect(() => {
+    onConnectRef.current = onConnect;
+    onDisconnectRef.current = onDisconnect;
+    onErrorRef.current = onError;
+  }, [onConnect, onDisconnect, onError]);
 
   const connect = useCallback(() => {
     if (eventSourceRef.current) {

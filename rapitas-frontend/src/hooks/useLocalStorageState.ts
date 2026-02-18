@@ -25,14 +25,18 @@ export function useLocalStorageState<T>(
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    try {
-      const item = localStorage.getItem(key);
-      if (item !== null && item !== 'null') {
-        setState(JSON.parse(item));
+    const timer = setTimeout(() => {
+      try {
+        const item = localStorage.getItem(key);
+        if (item !== null && item !== 'null') {
+          setState(JSON.parse(item));
+        }
+      } catch (error) {
+        console.error(`Error reading localStorage key "${key}" on mount:`, error);
       }
-    } catch (error) {
-      console.error(`Error reading localStorage key "${key}" on mount:`, error);
-    }
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [key]);
 
   // LocalStorageへの書き込みを最適化（デバウンスなし、即時書き込み）

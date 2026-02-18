@@ -210,9 +210,13 @@ export function ProgressRing({
 
   useEffect(() => {
     if (colors.isComplete && prevCompleted.current < total) {
-      setShowCelebration(true);
-      const timer = setTimeout(() => setShowCelebration(false), 1200);
-      return () => clearTimeout(timer);
+      const showTimer = setTimeout(() => setShowCelebration(true), 0);
+      const hideTimer = setTimeout(() => setShowCelebration(false), 1200);
+      prevCompleted.current = completed;
+      return () => {
+        clearTimeout(showTimer);
+        clearTimeout(hideTimer);
+      };
     }
     prevCompleted.current = completed;
   }, [completed, colors.isComplete, total]);

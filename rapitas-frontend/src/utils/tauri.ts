@@ -140,8 +140,8 @@ export async function openExternalUrlInSplitView(
 
     // 分割表示状態を記録
     const splitViewData: SplitViewData = {
-      originalSize: null as any,
-      originalPosition: null as any,
+      originalSize: null as unknown as PhysicalSize,
+      originalPosition: null as unknown as PhysicalPosition,
       wasMaximized: false,
       wasFullscreen: false,
       timeout: null,
@@ -180,7 +180,7 @@ export async function openExternalUrlInNewWindow(
   }
 
   try {
-    const tauri = (window as any).__TAURI__;
+    const tauri = (window as ExtendedWindow).__TAURI__;
     const webviewWindow = tauri?.webviewWindow?.WebviewWindow;
 
     if (webviewWindow) {
@@ -210,7 +210,7 @@ export async function openExternalUrlInNewWindow(
       });
 
       // エラーハンドリング
-      newWindow.once("tauri://error", (error: any) => {
+      newWindow.once("tauri://error", (error: unknown) => {
         console.error("Failed to create external window:", error);
         // フォールバック: システムのデフォルトブラウザで開く
         openUrlInDefaultBrowser(url);
@@ -242,7 +242,7 @@ export async function restoreFromSplitView(): Promise<void> {
 
   try {
     const windowModule = await import("@tauri-apps/api/window");
-    const win = windowModule.getCurrentWindow() as any;
+    const win = windowModule.getCurrentWindow() as ReturnType<typeof windowModule.getCurrentWindow>;
 
     // リスナーを解除
     if (splitViewData.unlisten) {

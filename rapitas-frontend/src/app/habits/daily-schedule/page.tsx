@@ -89,7 +89,7 @@ function describeArc(
 }
 
 function formatDuration(startTime: string, endTime: string): string {
-  let start = timeToMinutes(startTime);
+  const start = timeToMinutes(startTime);
   let end = timeToMinutes(endTime);
   if (end <= start) end += 1440;
   const diff = end - start;
@@ -391,7 +391,7 @@ export default function DailySchedulePage() {
 
   // Calculate total scheduled time
   const totalMinutes = blocks.reduce((sum, block) => {
-    let start = timeToMinutes(block.startTime);
+    const start = timeToMinutes(block.startTime);
     let end = timeToMinutes(block.endTime);
     if (end <= start) end += 1440;
     return sum + (end - start);
@@ -647,7 +647,7 @@ export default function DailySchedulePage() {
                 if (catBlocks.length === 0) return null;
 
                 const totalCatMin = catBlocks.reduce((sum, block) => {
-                  let s = timeToMinutes(block.startTime);
+                  const s = timeToMinutes(block.startTime);
                   let e = timeToMinutes(block.endTime);
                   if (e <= s) e += 1440;
                   return sum + (e - s);

@@ -29,6 +29,7 @@ import {
   FileText,
   MessageSquarePlus,
 } from "lucide-react";
+import Link from "next/link";
 import type {
   DeveloperModeConfig,
   TaskAnalysisResult,
@@ -1315,14 +1316,14 @@ export function AIAccordionPanel({
                     <RefreshCw className="w-2.5 h-2.5" />
                     リセット
                   </button>
-                  <a
+                  <Link
                     href="/approvals"
                     onClick={(e) => e.stopPropagation()}
                     className="flex items-center gap-1 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-medium rounded transition-colors"
                   >
                     <ExternalLink className="w-2.5 h-2.5" />
                     承認
-                  </a>
+                  </Link>
                 </>
               )}
               {/* キャンセル: 再実行 */}

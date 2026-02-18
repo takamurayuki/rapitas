@@ -27,7 +27,7 @@ export default function TaskTimeTracking({
   onStopTimer,
   getElapsedTime,
   formatDuration,
-  getAccumulatedBreakTime,
+  getAccumulatedBreakTime: getAccumulatedBreakTimeRef,
 }: TaskTimeTrackingProps) {
   const [pomodoroSeconds, setPomodoroSeconds] = useState(0);
   const [isBreakTime, setIsBreakTime] = useState(false);
@@ -38,12 +38,12 @@ export default function TaskTimeTracking({
 
   // 親コンポーネントが休憩時間を取得できるようにする
   useEffect(() => {
-    if (getAccumulatedBreakTime) {
+    if (getAccumulatedBreakTimeRef) {
       // この関数が呼ばれたときに現在の累積休憩時間（時間単位）を返す
-      getAccumulatedBreakTime.current = () =>
+      getAccumulatedBreakTimeRef.current = () =>
         accumulatedBreakSeconds / 3600;
     }
-  }, [accumulatedBreakSeconds, getAccumulatedBreakTime]);
+  }, [accumulatedBreakSeconds, getAccumulatedBreakTimeRef]);
 
   // ポモドーロタイマー（25分作業→5分休憩）
   useEffect(() => {

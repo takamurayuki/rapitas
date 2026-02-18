@@ -29,6 +29,7 @@ import {
   Clock,
   MessageSquarePlus,
 } from "lucide-react";
+import Link from "next/link";
 import type {
   ExecutionStatus,
   ExecutionResult,
@@ -733,13 +734,13 @@ export function AgentExecutionPanel({
                   <RefreshCw className="w-4 h-4" />
                   リセット
                 </button>
-                <a
+                <Link
                   href="/approvals"
                   className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors"
                 >
                   <ExternalLink className="w-4 h-4" />
                   承認ページへ
-                </a>
+                </Link>
               </div>
             </div>
           </div>

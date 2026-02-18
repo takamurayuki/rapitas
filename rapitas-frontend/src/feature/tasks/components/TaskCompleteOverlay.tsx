@@ -15,12 +15,16 @@ export default function TaskCompleteOverlay({
 
   useEffect(() => {
     if (show) {
-      setVisible(true);
-      const timer = setTimeout(() => {
+      // 次のレンダリングサイクルで設定
+      const showTimer = setTimeout(() => setVisible(true), 0);
+      const hideTimer = setTimeout(() => {
         setVisible(false);
         onComplete?.();
       }, 1500);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(showTimer);
+        clearTimeout(hideTimer);
+      };
     }
   }, [show, onComplete]);
 

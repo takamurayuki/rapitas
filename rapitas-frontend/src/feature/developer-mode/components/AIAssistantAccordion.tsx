@@ -195,10 +195,10 @@ export function AIAssistantAccordion({
 
   // 親からのoptimizedPromptの変更を反映
   useEffect(() => {
-    if (optimizedPrompt) {
+    if (optimizedPrompt && optimizedPrompt !== localOptimizedPrompt) {
       setLocalOptimizedPrompt(optimizedPrompt);
     }
-  }, [optimizedPrompt]);
+  }, [optimizedPrompt]); // localOptimizedPromptは依存配列に含めない
 
   const handlePromptGenerated = useCallback(
     (prompt: string) => {

@@ -179,7 +179,7 @@ export default function FocusClient() {
     if (taskId) {
       fetchTask(parseInt(taskId));
     }
-  }, [taskId]);
+  }, [taskId, fetchTask]);
 
   useEffect(() => {
     if (isRunning && timeLeft > 0) {
