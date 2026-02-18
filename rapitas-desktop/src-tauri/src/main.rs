@@ -290,8 +290,8 @@ async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), Strin
             main_window
                 .set_size(tauri::Size::Physical(
                     tauri::PhysicalSize {
-                        width: screen_width / 2,
-                        height: screen_height,
+                        width: (screen_width / 2) as u32,
+                        height: screen_height as u32,
                     }
                 ))
                 .ok();
