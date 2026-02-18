@@ -19,7 +19,6 @@ import {
   statusConfig,
   renderStatusIcon,
 } from "@/feature/tasks/config/StatusConfig";
-// import TaskCompleteOverlay from "@/feature/tasks/components/TaskCompleteOverlay";
 import {
   SwatchBook,
   Star,

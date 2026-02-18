@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Ignore scripts directory
     "scripts/**",
+    // Ignore Tauri build directory
+    ".next-tauri/**",
   ]),
 ]);
 

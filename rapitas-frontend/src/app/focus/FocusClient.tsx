@@ -36,7 +36,6 @@ export default function FocusClient() {
   const [startTime, setStartTime] = useState<Date | null>(null);
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const fetchTask = useCallback(async (id: number) => {
     try {
@@ -68,9 +67,7 @@ export default function FocusClient() {
         });
 
         if (res.ok) {
-          const newEntry = await res.json();
-          setTimeEntries((prev) => [...prev, newEntry]);
-          setSessionsCompleted((prev) => prev + 1);
+          setSessions((prev) => prev + 1);
           showToast(`${customWorkTime}分の作業時間を記録しました`, "success");
         }
       }
@@ -87,7 +84,25 @@ export default function FocusClient() {
     } catch (e) {
       console.error("Failed to save time entry:", e);
     }
-  }, [customWorkTime, taskId, startTime, sessionsCompleted]);
+  }, [customWorkTime, taskId, startTime, sessionsCompleted, showToast]);
+
+  const playNotificationSound = useCallback(() => {
+    // シンプルなビープ音を生成
+    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const audioContext = new AudioContextClass();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.frequency.value = 800;
+    oscillator.type = "sine";
+    gainNode.gain.value = 0.3;
+
+    oscillator.start();
+    setTimeout(() => oscillator.stop(), 200);
+  }, []);
 
   const handleTimerComplete = useCallback(() => {
     setIsRunning(false);
@@ -119,26 +134,7 @@ export default function FocusClient() {
       setMode("work");
       setTimeLeft(customWorkTime * 60);
     }
-  }, [soundEnabled, mode, saveTimeEntry, customBreakTime, customWorkTime]);
-
-
-  const playNotificationSound = useCallback(() => {
-    // シンプルなビープ音を生成
-    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const audioContext = new AudioContextClass();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-
-    oscillator.frequency.value = 800;
-    oscillator.type = "sine";
-    gainNode.gain.value = 0.3;
-
-    oscillator.start();
-    setTimeout(() => oscillator.stop(), 200);
-  }, []);
+  }, [soundEnabled, mode, saveTimeEntry, customBreakTime, customWorkTime, playNotificationSound]);
 
   const startTimer = () => {
     if (!isRunning && mode === "work") {
