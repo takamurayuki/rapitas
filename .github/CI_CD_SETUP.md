@@ -139,6 +139,11 @@ If you encounter `pnpm-lock.yaml is not up to date` errors:
 4. **Backend Build Path**: The backend entry point is `rapitas-backend/index.ts`, not `src/index.ts`
    - If you see `FileNotFound opening root directory "src"`, update build commands to use `index.ts`
    - Example: `bun build index.ts --compile --outfile rapitas-backend`
+5. **Turbopack Import Issues**: If you encounter "Module not found" errors during CI builds:
+   - **Symptom**: Error like `Module not found: Can't resolve './Toast'`
+   - **Cause**: Turbopack sometimes has issues with relative imports in CI environments
+   - **Solution**: Turbopack is disabled in CI builds (`--no-turbopack` flag and `NEXT_TURBO=0`)
+   - **Note**: Local development still uses Turbopack for faster builds
 
 ### Security Scan Issues
 

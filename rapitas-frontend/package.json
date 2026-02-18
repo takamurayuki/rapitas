@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:tauri": "node scripts/prepare-tauri-build.js backup && cross-env TAURI_BUILD=true next build && node scripts/prepare-tauri-build.js restore",
+    "build:tauri": "node scripts/prepare-tauri-build.js backup && cross-env TAURI_BUILD=true next build --no-turbopack && node scripts/prepare-tauri-build.js restore",
     "build:tauri:no-restore": "node scripts/prepare-tauri-build.js backup && cross-env TAURI_BUILD=true next build",
     "start": "next start",
     "lint": "eslint"

@@ -131,6 +131,9 @@ jobs:
       - name: Build frontend
         working-directory: rapitas-frontend
         run: pnpm run build:tauri
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          NEXT_TURBO: 0
 
       - name: Quick Rust check
         working-directory: rapitas-desktop/src-tauri
