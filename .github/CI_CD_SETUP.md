@@ -98,6 +98,34 @@ To enable auto-updates in your application:
 2. Configure the updater endpoint in your Tauri configuration
 3. Implement update checking in your application code
 
+## CI Build Configuration
+
+The CI/CD pipeline uses a special configuration to avoid database dependencies and development server requirements:
+
+### CI-Specific Configuration Files
+
+1. **tauri.ci.conf.json**: A CI-specific Tauri configuration that:
+   - Skips `beforeDevCommand` and `beforeBuildCommand`
+   - Uses pre-built frontend from `public` directory
+   - Disables database operations
+   - No development servers are started
+
+2. **ci-build.js**: A CI-specific build preparation script that:
+   - Copies frontend build output to the desktop public directory
+   - Prepares the environment for Tauri build without starting servers
+   - Skips database synchronization and Prisma generation
+
+### Database Dependencies in CI
+
+The CI/CD pipeline does NOT require PostgreSQL to be running because:
+- The Tauri CI configuration (`tauri.ci.conf.json`) bypasses the dev.js script
+- Frontend and backend are built independently
+- No database operations are performed during the build process
+
+If you see PostgreSQL connection errors in CI, ensure:
+1. The build is using `--config src-tauri/tauri.ci.conf.json`
+2. The `ci:prepare` script is run instead of the regular dev script
+
 ## Troubleshooting
 
 ### Bun Lockfile Issues

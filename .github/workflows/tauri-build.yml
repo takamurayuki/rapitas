@@ -48,6 +48,7 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
 
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -143,9 +144,13 @@ jobs:
           # Disable Turbopack for CI builds to avoid import resolution issues
           NEXT_TURBO: 0
 
+      - name: Prepare desktop build
+        working-directory: rapitas-desktop
+        run: pnpm run ci:prepare
+
       - name: Build Tauri application
         working-directory: rapitas-desktop
-        run: pnpm tauri build --target ${{ matrix.target }}
+        run: pnpm tauri build --target ${{ matrix.target }} --config src-tauri/tauri.ci.conf.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
