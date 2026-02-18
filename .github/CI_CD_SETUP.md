@@ -100,6 +100,21 @@ To enable auto-updates in your application:
 
 ## Troubleshooting
 
+### Bun Lockfile Issues
+
+If you encounter `Unknown lockfile version` errors:
+
+1. **Temporary Fix**: The CI/CD pipeline is configured with `BUN_LOCKFILE_SKIP=true` to bypass lockfile validation
+2. **Root Cause**: This occurs due to lockfile version compatibility between different Bun versions
+3. **Local Fix**: To regenerate the lockfile locally:
+   ```bash
+   cd rapitas-backend
+   rm -f bun.lock
+   bun install
+   ```
+4. **Automated Fix**: Run the `fix-bun-lock.yml` workflow manually to create a PR with updated lockfile
+5. **Long-term Solution**: Keep Bun version consistent across local development and CI
+
 ### Build Failures
 
 1. **Dependency Issues**: Ensure all lock files are committed

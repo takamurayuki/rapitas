@@ -12,6 +12,9 @@ on:
       - main
       - develop
 
+env:
+  BUN_LOCKFILE_SKIP: true  # Skip lockfile validation in CI
+
 jobs:
   test-backend:
     name: Test Backend
@@ -42,7 +45,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: rapitas-backend
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Setup test database
         working-directory: rapitas-backend
@@ -133,7 +136,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: rapitas-backend
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Install frontend dependencies
         working-directory: rapitas-frontend

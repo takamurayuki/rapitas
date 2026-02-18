@@ -1,0 +1,61 @@
+name: Fix Bun Lock
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'rapitas-backend/package.json'
+      - 'rapitas-backend/bun.lock'
+      - '.github/workflows/fix-bun-lock.yml'
+
+jobs:
+  fix-lock:
+    name: Fix Bun Lock File
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 'latest'
+
+      - name: Fix lockfile
+        working-directory: rapitas-backend
+        run: |
+          # Remove old lockfile
+          rm -f bun.lock
+          rm -f bun.lockb
+
+          # Generate new lockfile
+          bun install
+
+          # Check if lockfile was created
+          if [ -f "bun.lock" ]; then
+            echo "New bun.lock created"
+            ls -la bun.lock
+          elif [ -f "bun.lockb" ]; then
+            echo "New bun.lockb created"
+            ls -la bun.lockb
+          fi
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'fix: update bun lockfile to latest format'
+          title: 'Fix Bun Lockfile Format'
+          body: |
+            This PR updates the bun lockfile to the latest format.
+
+            The old lockfile was using version 1 which is incompatible with the current version of Bun.
+            This has been regenerated with the latest Bun version.
+          branch: fix/bun-lockfile
+          delete-branch: true

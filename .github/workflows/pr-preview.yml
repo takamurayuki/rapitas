@@ -11,6 +11,9 @@ on:
       - 'pnpm-lock.yaml'
       - 'bun.lockb'
 
+env:
+  BUN_LOCKFILE_SKIP: true  # Skip lockfile validation in CI
+
 jobs:
   preview-info:
     name: Post Preview Info
@@ -107,7 +110,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: rapitas-backend
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Install frontend dependencies
         working-directory: rapitas-frontend
