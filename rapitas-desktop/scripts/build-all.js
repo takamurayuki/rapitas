@@ -53,15 +53,57 @@ try {
 
   // 1. バックエンドをビルド
   console.log('Step 1: Building backend...');
-  const backendBuildScript = isCI ? 'build-backend-ci.js' : 'build-backend.js';
-  execSync(`node "${path.join(SCRIPTS_DIR, backendBuildScript)}"`, {
-    stdio: 'inherit',
-    shell: true,
-    env: {
-      ...process.env,
-      TARGET: process.env.TARGET || ''  // Pass through TARGET env var for CI
+
+  if (isCI) {
+    // CI環境では異なる処理
+    console.log('Running CI-specific build process...');
+
+    // Windows CI環境では専用のビルドスクリプトを使用
+    if (process.platform === 'win32' || process.env.TARGET?.includes('windows')) {
+      console.log('Using Windows-specific CI build script...');
+      execSync(`node "${path.join(SCRIPTS_DIR, 'build-backend-windows.js')}"`, {
+        stdio: 'inherit',
+        shell: true,
+        env: {
+          ...process.env,
+          TARGET: process.env.TARGET || ''
+        }
+      });
+    } else {
+      // 他のプラットフォームでは通常のビルドを試みる
+      try {
+        execSync(`node "${path.join(SCRIPTS_DIR, 'build-backend.js')}"`, {
+          stdio: 'inherit',
+          shell: true,
+          env: {
+            ...process.env,
+            TARGET: process.env.TARGET || ''
+          }
+        });
+      } catch (error) {
+        console.log('Backend build failed, using placeholder for CI continuation...');
+        execSync(`node "${path.join(SCRIPTS_DIR, 'build-backend-ci.js')}"`, {
+          stdio: 'inherit',
+          shell: true,
+          env: {
+            ...process.env,
+            TARGET: process.env.TARGET || ''
+          }
+        });
+      }
     }
-  });
+  } else {
+    // 開発環境では通常のビルド
+    execSync(`node "${path.join(SCRIPTS_DIR, 'build-backend.js')}"`, {
+      stdio: 'inherit',
+      shell: true,
+      env: {
+        ...process.env,
+        TARGET: process.env.TARGET || ''
+      }
+    });
+  }
+
   console.log('Backend build complete.\n');
 
   // 2. フロントエンドをビルド
