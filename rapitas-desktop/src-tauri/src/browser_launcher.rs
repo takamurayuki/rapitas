@@ -1,5 +1,4 @@
 use std::process::Command;
-use std::env;
 
 #[cfg(target_os = "windows")]
 pub fn launch_browser_with_size(url: &str, x: i32, y: i32, width: i32, height: i32) -> Result<(), String> {

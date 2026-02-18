@@ -1,24 +1,19 @@
 #[cfg(target_os = "windows")]
 use winapi::{
-    shared::{
-        minwindef::{BOOL, LPARAM, TRUE},
-        windef::HWND,
-    },
     um::{
         winuser::{
-            EnumWindows, SetWindowPos, ShowWindow, SetForegroundWindow, GetForegroundWindow,
+            SetWindowPos, ShowWindow, GetForegroundWindow,
             SWP_FRAMECHANGED, SWP_NOZORDER, SW_NORMAL, SW_RESTORE, SW_SHOWMINIMIZED,
             SW_SHOWMAXIMIZED, GetWindowPlacement, WINDOWPLACEMENT,
         },
     },
 };
 
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
 #[cfg(target_os = "windows")]
-pub fn split_screen_with_browser(url: &str, screen_width: i32, screen_height: i32) -> Result<(), String> {
+pub fn split_screen_with_browser(url: &str, _screen_width: i32, _screen_height: i32) -> Result<(), String> {
     use crate::window_manager::*;
     use crate::browser_launcher;
 

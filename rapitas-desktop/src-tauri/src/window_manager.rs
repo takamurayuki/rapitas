@@ -7,8 +7,8 @@ use winapi::{
         windef::{HWND, RECT},
     },
     um::winuser::{
-        EnumWindows, GetForegroundWindow, GetWindowRect, GetWindowTextW, IsWindowVisible,
-        SetForegroundWindow, SetWindowPos, ShowWindow, SWP_FRAMECHANGED, SWP_NOZORDER, SWP_NOACTIVATE,
+        EnumWindows, GetWindowTextW, IsWindowVisible,
+        SetForegroundWindow, SetWindowPos, ShowWindow, SWP_FRAMECHANGED, SWP_NOZORDER,
         SW_NORMAL, SW_RESTORE,
     },
 };
@@ -17,7 +17,6 @@ use winapi::{
 pub struct WindowInfo {
     pub hwnd: HWND,
     pub title: String,
-    pub rect: RECT,
 }
 
 #[cfg(target_os = "windows")]
@@ -38,14 +37,9 @@ unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> B
             .to_string_lossy()
             .to_string();
 
-        // ウィンドウの位置とサイズを取得
-        let mut rect: RECT = std::mem::zeroed();
-        GetWindowRect(hwnd, &mut rect);
-
         windows.push(WindowInfo {
             hwnd,
             title: title_string,
-            rect,
         });
     }
 
@@ -65,6 +59,7 @@ pub fn get_all_windows() -> Vec<WindowInfo> {
 }
 
 #[cfg(target_os = "windows")]
+#[allow(dead_code)]
 pub fn find_browser_window() -> Option<HWND> {
     let browser_keywords = vec!["Chrome", "Edge", "Firefox", "Opera", "Brave", "Vivaldi"];
     let windows = get_all_windows();
@@ -81,6 +76,7 @@ pub fn find_browser_window() -> Option<HWND> {
 }
 
 #[cfg(target_os = "windows")]
+#[allow(dead_code)]
 pub fn set_window_split_left(hwnd: HWND, screen_width: i32, screen_height: i32) {
     unsafe {
         // ウィンドウを通常表示に戻す
@@ -101,6 +97,7 @@ pub fn set_window_split_left(hwnd: HWND, screen_width: i32, screen_height: i32) 
 }
 
 #[cfg(target_os = "windows")]
+#[allow(dead_code)]
 pub fn set_window_split_right(hwnd: HWND, screen_width: i32, screen_height: i32) {
     unsafe {
         // ウィンドウを通常表示に戻す
@@ -141,6 +138,7 @@ pub fn focus_window(hwnd: HWND) {
 }
 
 #[cfg(target_os = "windows")]
+#[allow(dead_code)]
 pub fn get_work_area_height() -> i32 {
     use winapi::um::winuser::{SystemParametersInfoW, SPI_GETWORKAREA};
 
@@ -168,7 +166,7 @@ pub fn get_work_area() -> (i32, i32, i32, i32) {
 }
 
 #[cfg(target_os = "windows")]
-pub fn set_window_split_left_with_height(hwnd: HWND, screen_width: i32, height: i32) {
+pub fn set_window_split_left_with_height(hwnd: HWND, _screen_width: i32, _height: i32) {
     unsafe {
         // ウィンドウを通常表示に戻す
         ShowWindow(hwnd, SW_RESTORE);
@@ -190,7 +188,7 @@ pub fn set_window_split_left_with_height(hwnd: HWND, screen_width: i32, height: 
 }
 
 #[cfg(target_os = "windows")]
-pub fn set_window_split_right_with_height(hwnd: HWND, screen_width: i32, height: i32) {
+pub fn set_window_split_right_with_height(hwnd: HWND, _screen_width: i32, _height: i32) {
     unsafe {
         // ウィンドウを通常表示に戻す
         ShowWindow(hwnd, SW_RESTORE);
