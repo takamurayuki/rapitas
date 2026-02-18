@@ -59,7 +59,7 @@ jobs:
           node-version: '20'
 
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@v1
         with:
           bun-version: ${{ matrix.bunjs_version }}
 
