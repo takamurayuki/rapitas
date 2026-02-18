@@ -28,17 +28,34 @@ if (!fs.existsSync(binariesDir)) {
 const frontendBuildDir = path.join(FRONTEND_DIR, 'out');
 const desktopPublicDir = path.join(DESKTOP_DIR, 'public');
 
-if (fs.existsSync(frontendBuildDir)) {
+// Check both possible output directories
+const possibleDirs = [
+  path.join(FRONTEND_DIR, 'out'),
+  path.join(FRONTEND_DIR, '.next-tauri', 'out'),
+  path.join(FRONTEND_DIR, '.next', 'out')
+];
+
+let foundBuildDir = null;
+for (const dir of possibleDirs) {
+  if (fs.existsSync(dir)) {
+    foundBuildDir = dir;
+    console.log('Found frontend build output at:', dir);
+    break;
+  }
+}
+
+if (foundBuildDir) {
   console.log('Copying frontend build output...');
   // Remove existing public directory
   if (fs.existsSync(desktopPublicDir)) {
     fs.rmSync(desktopPublicDir, { recursive: true, force: true });
   }
   // Copy frontend build to public
-  fs.cpSync(frontendBuildDir, desktopPublicDir, { recursive: true });
+  fs.cpSync(foundBuildDir, desktopPublicDir, { recursive: true });
   console.log('Frontend build copied to public directory');
 } else {
-  console.error('Frontend build output not found at:', frontendBuildDir);
+  console.error('Frontend build output not found. Checked directories:');
+  possibleDirs.forEach(dir => console.error(' - ' + dir));
   process.exit(1);
 }
 

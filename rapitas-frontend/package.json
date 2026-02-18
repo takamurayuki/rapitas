@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "build:tauri": "node scripts/prepare-tauri-build.js backup && cross-env TAURI_BUILD=true next build && node scripts/prepare-tauri-build.js restore",
+    "build:tauri:ci": "cross-env TAURI_BUILD=true next build",
     "build:tauri:no-restore": "node scripts/prepare-tauri-build.js backup && cross-env TAURI_BUILD=true next build",
     "start": "next start",
     "lint": "eslint"

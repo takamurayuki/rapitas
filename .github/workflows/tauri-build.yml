@@ -138,11 +138,13 @@ jobs:
 
       - name: Build frontend
         working-directory: rapitas-frontend
-        run: pnpm run build:tauri
+        run: pnpm run build:tauri:ci
         env:
           NEXT_TELEMETRY_DISABLED: 1
           # Disable Turbopack for CI builds to avoid import resolution issues
           NEXT_TURBO: 0
+          # Enable Tauri build mode for static export
+          TAURI_BUILD: 'true'
 
       - name: Prepare desktop build
         working-directory: rapitas-desktop
