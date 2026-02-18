@@ -106,12 +106,10 @@ console.log(`⚠️  Database functionality is not available.`);
 // グレースフルシャットダウン
 process.on("SIGTERM", () => {
   console.log("Received SIGTERM, shutting down...");
-  app.stop();
   process.exit(0);
 });
 
 process.on("SIGINT", () => {
   console.log("Received SIGINT, shutting down...");
-  app.stop();
   process.exit(0);
 });

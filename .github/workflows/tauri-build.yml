@@ -134,12 +134,13 @@ jobs:
           echo 'import "./stub-index.ts";' > tauri-entry.ts
 
           # Build standalone executable with embedded runtime
-          bun build tauri-entry.ts --compile --target=bun-windows-x64 --outfile rapitas-backend.exe
+          bun build tauri-entry.ts --compile --target bun-windows-x64 --outfile rapitas-backend.exe
 
           # Verify the build
           echo "Backend build complete. File details:"
-          ls -la rapitas-backend.exe
-          echo "File size: $(stat -c%s rapitas-backend.exe 2>/dev/null || stat -f%z rapitas-backend.exe) bytes"
+          dir rapitas-backend.exe
+          echo "Testing file existence..."
+          if (Test-Path rapitas-backend.exe) { echo "✓ Backend binary exists" } else { echo "✗ Backend binary not found!" }
 
           # Test if the binary runs
           echo "Testing backend binary..."
@@ -150,7 +151,7 @@ jobs:
           cp rapitas-backend.exe ../rapitas-desktop/src-tauri/binaries/rapitas-backend-${{ matrix.target }}.exe
 
           echo "Backend binary copied to Tauri binaries directory"
-          ls -la ../rapitas-desktop/src-tauri/binaries/
+          dir ../rapitas-desktop/src-tauri/binaries/
 
       - name: Build backend binary (Unix)
         if: matrix.platform != 'windows-latest'
