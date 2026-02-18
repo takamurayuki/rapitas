@@ -249,7 +249,8 @@ jobs:
         run: |
           echo "Listing generated artifacts..."
           if [ "${{ matrix.platform }}" == "windows-latest" ]; then
-            dir src-tauri\target\${{ matrix.target }}\release\bundle\ /s /b
+            # Use Windows cmd for dir command
+            cmd /c "dir src-tauri\target\${{ matrix.target }}\release\bundle /s /b" || echo "No bundle files found"
           else
             find src-tauri/target/${{ matrix.target }}/release/bundle -type f -name "*" 2>/dev/null || echo "No bundle files found"
           fi
