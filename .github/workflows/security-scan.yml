@@ -53,6 +53,10 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit
 
+      - name: Update Rust dependencies
+        working-directory: rapitas-desktop/src-tauri
+        run: cargo update
+
       - name: Run cargo audit
         working-directory: rapitas-desktop/src-tauri
         run: cargo audit
