@@ -37,8 +37,8 @@ interface OpenAISubscriptionResponse {
   po_number: string | null;
   billing_email: string | null;
   tax_ids: string | null;
-  billing_address: any;
-  business_address: any;
+  billing_address: Record<string, unknown> | null;
+  business_address: Record<string, unknown> | null;
 }
 
 interface OpenAIUsageResponse {

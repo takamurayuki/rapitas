@@ -2,20 +2,67 @@
  * Tauri環境の検出とナビゲーションユーティリティ
  */
 
+// Tauriの型定義（実際のAPIに合わせて簡略化）
+interface TauriSize {
+  width: number;
+  height: number;
+}
+
+interface TauriPosition {
+  x: number;
+  y: number;
+}
+
+interface TauriWindow {
+  setSize(size: TauriSize): Promise<void>;
+  setPosition(position: TauriPosition): Promise<void>;
+  maximize(): Promise<void>;
+  setFullscreen(fullscreen: boolean): Promise<void>;
+}
+
+interface WebviewWindowConstructor {
+  new (label: string, options?: WebviewWindowOptions): WebviewWindow;
+}
+
+interface WebviewWindow {
+  once(event: string, callback: (error?: unknown) => void): void;
+  setFocus(): void;
+}
+
+interface WebviewWindowOptions {
+  url: string;
+  title: string;
+  width: number;
+  height: number;
+  resizable: boolean;
+  center: boolean;
+  minimizable: boolean;
+  maximizable: boolean;
+  closable: boolean;
+  decorations: boolean;
+  alwaysOnTop: boolean;
+  skipTaskbar: boolean;
+}
+
+interface TauriAPI {
+  webviewWindow?: {
+    WebviewWindow: WebviewWindowConstructor;
+    getCurrent(): TauriWindow;
+    getCurrentWebviewWindow(): {
+      close(): Promise<void>;
+    };
+  };
+  window?: {
+    getCurrent(): TauriWindow;
+  };
+}
+
 /**
  * 分割表示の状態を保存するインターフェース
  */
 interface SplitViewData {
-  originalSize: {
-    type: string;
-    width: number;
-    height: number;
-  };
-  originalPosition: {
-    type: string;
-    x: number;
-    y: number;
-  };
+  originalSize: TauriSize;
+  originalPosition: TauriPosition;
   wasMaximized: boolean;
   wasFullscreen: boolean;
   timeout: NodeJS.Timeout | null;
@@ -26,6 +73,7 @@ interface SplitViewData {
  * グローバルWindowオブジェクトの拡張型定義
  */
 interface ExtendedWindow extends Window {
+  __TAURI__?: TauriAPI;
   __RAPITAS_SPLIT_VIEW__?: SplitViewData;
   __RAPITAS_OPENING_EXTERNAL__?: boolean;
   __RAPITAS_EXTERNAL_URL_QUEUE__?: Set<string>;
@@ -38,8 +86,7 @@ interface ExtendedWindow extends Window {
  */
 export function isTauri(): boolean {
   if (typeof window === "undefined") return false;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return !!(window as any).__TAURI__;
+  return !!(window as ExtendedWindow).__TAURI__;
 }
 
 /**
@@ -98,8 +145,7 @@ export function getQueryParam(param: string): string | null {
 export async function hideToTray(): Promise<void> {
   if (!isTauri()) return;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tauri = (window as any).__TAURI__;
+    const tauri = (window as ExtendedWindow).__TAURI__;
     const webviewWindow = tauri?.webviewWindow;
     if (webviewWindow) {
       const current = webviewWindow.getCurrentWebviewWindow();
@@ -140,8 +186,8 @@ export async function openExternalUrlInSplitView(
 
     // 分割表示状態を記録
     const splitViewData: SplitViewData = {
-      originalSize: null as unknown as PhysicalSize,
-      originalPosition: null as unknown as PhysicalPosition,
+      originalSize: { width: 0, height: 0 },
+      originalPosition: { x: 0, y: 0 },
       wasMaximized: false,
       wasFullscreen: false,
       timeout: null,
@@ -242,6 +288,7 @@ export async function restoreFromSplitView(): Promise<void> {
 
   try {
     const windowModule = await import("@tauri-apps/api/window");
+    const { LogicalSize, LogicalPosition } = await import("@tauri-apps/api/dpi");
     const win = windowModule.getCurrentWindow() as ReturnType<typeof windowModule.getCurrentWindow>;
 
     // リスナーを解除
@@ -251,8 +298,8 @@ export async function restoreFromSplitView(): Promise<void> {
 
     // 元のサイズと位置に戻す
     if (splitViewData.originalSize && splitViewData.originalPosition) {
-      await win.setSize(splitViewData.originalSize);
-      await win.setPosition(splitViewData.originalPosition);
+      await win.setSize(new LogicalSize(splitViewData.originalSize.width, splitViewData.originalSize.height));
+      await win.setPosition(new LogicalPosition(splitViewData.originalPosition.x, splitViewData.originalPosition.y));
     }
 
     // 元の最大化/全画面状態を復元

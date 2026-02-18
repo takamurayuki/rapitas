@@ -48,7 +48,7 @@ async function getClaudeCodeModels(): Promise<ModelInfo[]> {
     const { stdout } = await execAsync("claude model list --json", { timeout: 5000 });
     const models = JSON.parse(stdout);
 
-    return models.map((m: any) => ({
+    return models.map((m: { id?: string; name?: string; description?: string }) => ({
       value: m.id || m.name,
       label: m.name || m.id,
       description: m.description,
@@ -150,7 +150,7 @@ async function getCodexModels(): Promise<ModelInfo[]> {
     const { stdout } = await execAsync("codex models --json", { timeout: 5000 });
     const models = JSON.parse(stdout);
 
-    return models.map((m: any) => ({
+    return models.map((m: { id?: string; name?: string; description?: string }) => ({
       value: m.id || m.name,
       label: m.name || m.id,
       description: m.description,

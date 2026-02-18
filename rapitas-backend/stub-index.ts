@@ -60,7 +60,7 @@ app.get("/settings", () => ({
 }));
 
 // SSEスタブエンドポイント
-app.get("/sse", ({ set }: { set: any }) => {
+app.get("/sse", ({ set }: { set: { headers: Record<string, string> } }) => {
   set.headers["Content-Type"] = "text/event-stream";
   set.headers["Cache-Control"] = "no-cache";
   set.headers["Connection"] = "keep-alive";

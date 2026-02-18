@@ -67,7 +67,7 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
           color: body.color || "#6366F1",
           reminderMinutes: body.reminderMinutes ?? null,
           taskId: body.taskId ?? null,
-          type: body.type as any || "GENERAL",
+          type: (body.type as "GENERAL" | "MEETING" | "TASK" | "REMINDER" | "OTHER") || "GENERAL",
           userId: body.userId || "default",
         },
       });
