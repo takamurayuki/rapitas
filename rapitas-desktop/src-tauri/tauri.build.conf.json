@@ -8,16 +8,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "resources": [
-      {
-        "path": "../../rapitas-backend/prisma/migrations",
-        "target": "migrations"
-      },
-      {
-        "path": "../../rapitas-backend/prisma/schema.prisma",
-        "target": "schema.prisma"
-      }
-    ],
+    "resources": [],
     "externalBin": [
       "binaries/rapitas-backend"
     ]
