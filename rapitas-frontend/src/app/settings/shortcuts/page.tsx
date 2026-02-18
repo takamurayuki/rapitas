@@ -106,8 +106,9 @@ export default function ShortcutSettingsPage() {
       const tauri = (window as ExtendedWindow).__TAURI__;
       if (tauri?.core?.invoke) {
         const result = await tauri.core.invoke("get_global_shortcut");
-        setCurrentGlobalShortcut(result);
-        const { modifiers, key } = parseGlobalShortcut(result);
+        const shortcut = String(result);
+        setCurrentGlobalShortcut(shortcut);
+        const { modifiers, key } = parseGlobalShortcut(shortcut);
         setGlobalModifiers(modifiers);
         setGlobalKey(key);
       }
