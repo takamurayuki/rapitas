@@ -391,14 +391,22 @@ jobs:
           grep -A2 -B2 "externalBin" src-tauri/tauri.build.conf.json || echo "No externalBin found in config"
         shell: bash
 
+      - name: Ensure binaries directory exists
+        working-directory: rapitas-desktop
+        shell: bash
+        run: |
+          # Ensure binaries directory exists before build
+          if [ ! -d "src-tauri/binaries" ]; then
+            mkdir -p src-tauri/binaries
+            echo "Created binaries directory"
+          else
+            echo "Binaries directory already exists"
+          fi
+
       - name: Build Tauri application
         working-directory: rapitas-desktop
         run: |
-          # Ensure binaries directory exists before build
-          mkdir -p src-tauri/binaries
-
-          # Use the build script with tauri.build.conf.json
-          # This includes the --features custom-protocol flag and the correct config file
+          # Build Tauri application with the correct target
           pnpm run build --target ${{ matrix.target }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
