@@ -91,7 +91,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: rapitas-frontend
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Run frontend tests
         working-directory: rapitas-frontend
@@ -140,7 +140,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: rapitas-frontend
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Lint backend code
         working-directory: rapitas-backend

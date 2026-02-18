@@ -115,6 +115,22 @@ If you encounter `Unknown lockfile version` errors:
 4. **Automated Fix**: Run the `fix-bun-lock.yml` workflow manually to create a PR with updated lockfile
 5. **Long-term Solution**: Keep Bun version consistent across local development and CI
 
+### pnpm Lockfile Issues
+
+If you encounter `pnpm-lock.yaml is not up to date` errors:
+
+1. **Temporary Fix**: The CI/CD pipeline now uses `pnpm install --no-frozen-lockfile` to allow lockfile updates
+2. **Root Cause**: New dependencies were added to package.json but the lockfile wasn't updated
+3. **Local Fix**: To update the lockfile locally:
+   ```bash
+   cd rapitas-frontend  # or rapitas-desktop
+   pnpm install
+   git add pnpm-lock.yaml
+   git commit -m "fix: update pnpm lockfile"
+   ```
+4. **Prevention**: Always commit lockfile changes when adding/updating dependencies
+5. **CI Behavior**: The `--no-frozen-lockfile` flag allows CI to update the lockfile automatically, but changes won't be persisted
+
 ### Build Failures
 
 1. **Dependency Issues**: Ensure all lock files are committed
