@@ -1,8 +1,17 @@
 {
+  "$schema": "https://schema.tauri.app/config/2",
+  "build": {
+    "beforeBuildCommand": "",
+    "beforeDevCommand": "",
+    "frontendDist": "../public"
+  },
   "bundle": {
     "resources": [
       "../../rapitas-backend/prisma/migrations/**/*",
       "../../rapitas-backend/prisma/schema.prisma"
+    ],
+    "externalBin": [
+      "binaries/rapitas-backend"
     ]
   }
 }
