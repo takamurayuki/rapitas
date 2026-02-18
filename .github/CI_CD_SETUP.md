@@ -136,6 +136,9 @@ If you encounter `pnpm-lock.yaml is not up to date` errors:
 1. **Dependency Issues**: Ensure all lock files are committed
 2. **Rust Compilation**: Check target compatibility
 3. **System Dependencies**: Review platform-specific requirements
+4. **Backend Build Path**: The backend entry point is `rapitas-backend/index.ts`, not `src/index.ts`
+   - If you see `FileNotFound opening root directory "src"`, update build commands to use `index.ts`
+   - Example: `bun build index.ts --compile --outfile rapitas-backend`
 
 ### Security Scan Issues
 

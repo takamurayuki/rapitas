@@ -121,7 +121,7 @@ jobs:
         if: matrix.platform == 'windows-latest'
         working-directory: rapitas-backend
         run: |
-          bun build src/index.ts --compile --outfile rapitas-backend.exe
+          bun build index.ts --compile --outfile rapitas-backend.exe
           mkdir -p ../rapitas-desktop/src-tauri/binaries
           cp rapitas-backend.exe ../rapitas-desktop/src-tauri/binaries/rapitas-backend-${{ matrix.target }}.exe
 
@@ -129,7 +129,7 @@ jobs:
         if: matrix.platform != 'windows-latest'
         working-directory: rapitas-backend
         run: |
-          bun build src/index.ts --compile --outfile rapitas-backend
+          bun build index.ts --compile --outfile rapitas-backend
           mkdir -p ../rapitas-desktop/src-tauri/binaries
           cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend-${{ matrix.target }}
           chmod +x ../rapitas-desktop/src-tauri/binaries/rapitas-backend-${{ matrix.target }}
