@@ -36,9 +36,11 @@ export function openExternalLinkInSplitView(href: string): void {
   if (isTauri()) {
     // 分割表示が開始されることを事前に通知
     // これにより、UIコンポーネントが即座に位置調整を開始できる
-    window.dispatchEvent(new CustomEvent('rapitas:split-view-preparing', {
-      detail: { url: href }
-    }));
+    window.dispatchEvent(
+      new CustomEvent('rapitas:split-view-preparing', {
+        detail: { url: href },
+      }),
+    );
 
     // UIコンポーネントの位置調整のための短い遅延を入れる
     requestAnimationFrame(() => {
@@ -56,7 +58,7 @@ export function openExternalLinkInSplitView(href: string): void {
  */
 export function handleExternalLinkClick(
   event: React.MouseEvent<HTMLAnchorElement> | MouseEvent,
-  href: string
+  href: string,
 ): void {
   // Ctrl/Cmd + クリックやミドルクリックの場合は通常の動作を維持
   if (event.ctrlKey || event.metaKey || event.button === 1) {
@@ -70,7 +72,10 @@ export function handleExternalLinkClick(
     event.stopPropagation();
 
     // ネイティブイベントの場合のみstopImmediatePropagationを呼び出す
-    if ('stopImmediatePropagation' in event && typeof event.stopImmediatePropagation === 'function') {
+    if (
+      'stopImmediatePropagation' in event &&
+      typeof event.stopImmediatePropagation === 'function'
+    ) {
       event.stopImmediatePropagation();
     }
 
@@ -97,10 +102,14 @@ export function setupExternalLinkHandlers(): void {
 
     if (isExternalLink(href)) {
       // 古いイベントリスナーを削除（存在する場合）
-      const existingHandler = (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }).__externalLinkHandler;
+      const existingHandler = (
+        link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }
+      ).__externalLinkHandler;
       if (existingHandler) {
         link.removeEventListener('click', existingHandler, true);
-        delete (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }).__externalLinkHandler;
+        delete (
+          link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }
+        ).__externalLinkHandler;
       }
 
       // 新しいイベントリスナーを作成（captureフェーズで実行して他のハンドラーより先に処理）
@@ -112,7 +121,9 @@ export function setupExternalLinkHandlers(): void {
       link.addEventListener('click', newHandler, true);
 
       // ハンドラーへの参照を保存（後で削除できるように）
-      (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }).__externalLinkHandler = newHandler;
+      (
+        link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }
+      ).__externalLinkHandler = newHandler;
 
       // ハンドラー設定済みのマークを追加
       link.setAttribute('data-external-handler-set', 'true');

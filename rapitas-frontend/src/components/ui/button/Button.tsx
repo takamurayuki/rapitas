@@ -1,6 +1,6 @@
-"use client";
-import React from "react";
-import { Loader2 } from "lucide-react";
+'use client';
+import React from 'react';
+import { Loader2 } from 'lucide-react';
 import {
   ButtonVariant,
   ButtonSize,
@@ -8,7 +8,7 @@ import {
   buttonSizeStyles,
   buttonIconSizeStyles,
   disabledStyles,
-} from "./buttonStyles";
+} from './buttonStyles';
 
 export type { ButtonVariant, ButtonSize };
 
@@ -17,43 +17,44 @@ type Props = {
   children?: React.ReactNode;
   className?: string;
   title?: string;
-  type?: "button" | "submit" | "reset";
+  type?: 'button' | 'submit' | 'reset';
   variant?: ButtonVariant;
   size?: ButtonSize;
   disabled?: boolean;
   loading?: boolean;
   icon?: React.ReactNode;
-  iconPosition?: "left" | "right";
+  iconPosition?: 'left' | 'right';
   fullWidth?: boolean;
 };
 
 export default function Button({
   onClick,
   children,
-  className = "",
+  className = '',
   title,
-  type = "button",
-  variant = "secondary",
-  size = "md",
+  type = 'button',
+  variant = 'secondary',
+  size = 'md',
   disabled = false,
   loading = false,
   icon,
-  iconPosition = "left",
+  iconPosition = 'left',
   fullWidth = false,
 }: Props) {
   const base =
-    "inline-flex items-center justify-center font-medium rounded-lg border";
+    'inline-flex items-center justify-center font-medium rounded-lg border';
 
-  const widthStyle = fullWidth ? "w-full" : "";
+  const widthStyle = fullWidth ? 'w-full' : '';
 
   const renderIcon = (iconElement: React.ReactNode) => {
     if (React.isValidElement(iconElement)) {
       const existingClassName =
-        (iconElement.props as { className?: string }).className || "";
+        (iconElement.props as { className?: string }).className || '';
       return React.cloneElement(
         iconElement as React.ReactElement<{ className?: string }>,
         {
-          className: `${buttonIconSizeStyles[size]} ${existingClassName}`.trim(),
+          className:
+            `${buttonIconSizeStyles[size]} ${existingClassName}`.trim(),
         },
       );
     }
@@ -71,9 +72,9 @@ export default function Button({
       {loading && (
         <Loader2 className={`${buttonIconSizeStyles[size]} animate-spin`} />
       )}
-      {!loading && icon && iconPosition === "left" && renderIcon(icon)}
+      {!loading && icon && iconPosition === 'left' && renderIcon(icon)}
       {children}
-      {!loading && icon && iconPosition === "right" && renderIcon(icon)}
+      {!loading && icon && iconPosition === 'right' && renderIcon(icon)}
     </button>
   );
 }

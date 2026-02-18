@@ -1,6 +1,6 @@
-"use client";
-import { useEffect, useState } from "react";
-import type { Achievement } from "@/types";
+'use client';
+import { useEffect, useState } from 'react';
+import type { Achievement } from '@/types';
 import {
   Trophy,
   Star,
@@ -15,8 +15,8 @@ import {
   Brain,
   Lock,
   type LucideIcon,
-} from "lucide-react";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import { API_BASE_URL } from '@/utils/api';
 
 const ICON_MAP: Record<string, LucideIcon> = {
   Star,
@@ -37,38 +37,38 @@ const RARITY_STYLES: Record<
   { bg: string; border: string; text: string }
 > = {
   common: {
-    bg: "bg-zinc-100 dark:bg-zinc-800",
-    border: "border-zinc-300 dark:border-zinc-600",
-    text: "text-zinc-600 dark:text-zinc-400",
+    bg: 'bg-zinc-100 dark:bg-zinc-800',
+    border: 'border-zinc-300 dark:border-zinc-600',
+    text: 'text-zinc-600 dark:text-zinc-400',
   },
   rare: {
-    bg: "bg-blue-50 dark:bg-blue-900/20",
-    border: "border-blue-300 dark:border-blue-700",
-    text: "text-blue-600 dark:text-blue-400",
+    bg: 'bg-blue-50 dark:bg-blue-900/20',
+    border: 'border-blue-300 dark:border-blue-700',
+    text: 'text-blue-600 dark:text-blue-400',
   },
   epic: {
-    bg: "bg-purple-50 dark:bg-purple-900/20",
-    border: "border-purple-300 dark:border-purple-700",
-    text: "text-purple-600 dark:text-purple-400",
+    bg: 'bg-purple-50 dark:bg-purple-900/20',
+    border: 'border-purple-300 dark:border-purple-700',
+    text: 'text-purple-600 dark:text-purple-400',
   },
   legendary: {
-    bg: "bg-amber-50 dark:bg-amber-900/20",
-    border: "border-amber-300 dark:border-amber-700",
-    text: "text-amber-600 dark:text-amber-400",
+    bg: 'bg-amber-50 dark:bg-amber-900/20',
+    border: 'border-amber-300 dark:border-amber-700',
+    text: 'text-amber-600 dark:text-amber-400',
   },
 };
 
 const RARITY_LABELS: Record<string, string> = {
-  common: "コモン",
-  rare: "レア",
-  epic: "エピック",
-  legendary: "レジェンダリー",
+  common: 'コモン',
+  rare: 'レア',
+  epic: 'エピック',
+  legendary: 'レジェンダリー',
 };
 
 export default function AchievementsPage() {
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>("all");
+  const [filter, setFilter] = useState<string>('all');
 
   useEffect(() => {
     fetchAchievements();
@@ -81,7 +81,7 @@ export default function AchievementsPage() {
         setAchievements(await res.json());
       }
     } catch (e) {
-      console.error("Failed to fetch achievements:", e);
+      console.error('Failed to fetch achievements:', e);
     } finally {
       setLoading(false);
     }
@@ -93,22 +93,22 @@ export default function AchievementsPage() {
   };
 
   const unlockedCount = achievements.filter((a) => a.isUnlocked).length;
-  const categories = ["all", ...new Set(achievements.map((a) => a.category))];
+  const categories = ['all', ...new Set(achievements.map((a) => a.category))];
 
   const filteredAchievements =
-    filter === "all"
+    filter === 'all'
       ? achievements
       : achievements.filter((a) => a.category === filter);
 
   const getCategoryLabel = (cat: string) => {
     const labels: Record<string, string> = {
-      all: "すべて",
-      tasks: "タスク",
-      streak: "ストリーク",
-      study: "学習",
-      exam: "試験",
-      special: "スペシャル",
-      flashcard: "フラッシュカード",
+      all: 'すべて',
+      tasks: 'タスク',
+      streak: 'ストリーク',
+      study: '学習',
+      exam: '試験',
+      special: 'スペシャル',
+      flashcard: 'フラッシュカード',
     };
     return labels[cat] || cat;
   };
@@ -170,8 +170,8 @@ export default function AchievementsPage() {
             onClick={() => setFilter(cat)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filter === cat
-                ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-                : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
             }`}
           >
             {getCategoryLabel(cat)}
@@ -191,7 +191,7 @@ export default function AchievementsPage() {
               className={`relative rounded-xl border-2 p-4 transition-all ${
                 achievement.isUnlocked
                   ? `${rarityStyle.bg} ${rarityStyle.border}`
-                  : "bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 opacity-50"
+                  : 'bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 opacity-50'
               }`}
             >
               {/* レアリティバッジ */}
@@ -205,7 +205,7 @@ export default function AchievementsPage() {
                 {/* アイコン */}
                 <div
                   className={`w-16 h-16 rounded-full flex items-center justify-center mb-3 ${
-                    achievement.isUnlocked ? "" : "bg-zinc-200 dark:bg-zinc-700"
+                    achievement.isUnlocked ? '' : 'bg-zinc-200 dark:bg-zinc-700'
                   }`}
                   style={
                     achievement.isUnlocked
@@ -227,8 +227,8 @@ export default function AchievementsPage() {
                 <h3
                   className={`font-semibold mb-1 ${
                     achievement.isUnlocked
-                      ? "text-zinc-900 dark:text-zinc-50"
-                      : "text-zinc-500 dark:text-zinc-400"
+                      ? 'text-zinc-900 dark:text-zinc-50'
+                      : 'text-zinc-500 dark:text-zinc-400'
                   }`}
                 >
                   {achievement.name}
@@ -243,8 +243,8 @@ export default function AchievementsPage() {
                 {achievement.isUnlocked && achievement.unlockedAt && (
                   <p className="text-xs text-emerald-600 dark:text-emerald-400">
                     {new Date(achievement.unlockedAt).toLocaleDateString(
-                      "ja-JP",
-                    )}{" "}
+                      'ja-JP',
+                    )}{' '}
                     解除
                   </p>
                 )}

@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from 'react';
 import {
   Bot,
   Sparkles,
@@ -32,10 +32,10 @@ import {
   FileText,
   Zap,
   GitBranch,
-} from "lucide-react";
-import type { DeveloperModeConfig, TaskAnalysisResult } from "@/types";
-import { DependencyTree } from "./DependencyTree";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import type { DeveloperModeConfig, TaskAnalysisResult } from '@/types';
+import { DependencyTree } from './DependencyTree';
+import { API_BASE_URL } from '@/utils/api';
 
 // TaskAnalysisResult is imported from @/types
 
@@ -44,7 +44,7 @@ type PromptClarificationQuestion = {
   question: string;
   options?: string[];
   isRequired: boolean;
-  category: "scope" | "technical" | "requirements" | "constraints";
+  category: 'scope' | 'technical' | 'requirements' | 'constraints';
 };
 
 type StructuredSections = {
@@ -124,7 +124,7 @@ type Props = {
   onSubtasksCreated?: () => void;
 };
 
-type TabType = "analysis" | "prompt" | "prompts" | "dependency" | "settings";
+type TabType = 'analysis' | 'prompt' | 'prompts' | 'dependency' | 'settings';
 
 export function AIAnalysisPanel({
   taskId,
@@ -142,7 +142,7 @@ export function AIAnalysisPanel({
   onPromptGenerated,
   onSubtasksCreated,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<TabType>("analysis");
+  const [activeTab, setActiveTab] = useState<TabType>('analysis');
   const [isExpanded, setIsExpanded] = useState(false);
 
   // サブタスク作成の状態
@@ -162,7 +162,7 @@ export function AIAnalysisPanel({
   const [isSubmittingAnswers, setIsSubmittingAnswers] = useState(false);
 
   // APIキー設定の状態
-  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [apiKeyInput, setApiKeyInput] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [maskedApiKey, setMaskedApiKey] = useState<string | null>(null);
   const [isApiKeyConfigured, setIsApiKeyConfigured] = useState(false);
@@ -176,7 +176,7 @@ export function AIAnalysisPanel({
   const [isLoadingPrompts, setIsLoadingPrompts] = useState(false);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [editingPromptId, setEditingPromptId] = useState<number | null>(null);
-  const [editingPromptText, setEditingPromptText] = useState("");
+  const [editingPromptText, setEditingPromptText] = useState('');
   const [promptsError, setPromptsError] = useState<string | null>(null);
 
   // マウント時にAPIキー情報を取得
@@ -186,7 +186,7 @@ export function AIAnalysisPanel({
 
   // タブ切り替え時にプロンプト一覧を取得
   useEffect(() => {
-    if (activeTab === "prompts" && isApiKeyConfigured) {
+    if (activeTab === 'prompts' && isApiKeyConfigured) {
       fetchPrompts();
     }
   }, [activeTab, isApiKeyConfigured]);
@@ -205,7 +205,7 @@ export function AIAnalysisPanel({
         }
       }
     } catch (err) {
-      console.error("APIキー情報の取得に失敗:", err);
+      console.error('APIキー情報の取得に失敗:', err);
     }
   };
 
@@ -216,26 +216,26 @@ export function AIAnalysisPanel({
     setApiKeyError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/settings/api-key`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey: apiKeyInput }),
       });
 
       if (res.ok) {
         const data = await res.json();
         setMaskedApiKey(data.maskedKey);
-        setApiKeyInput("");
+        setApiKeyInput('');
         setIsEditingApiKey(false);
         setShowApiKey(false);
         setIsApiKeyConfigured(true);
-        setApiKeySuccess("APIキーを保存しました");
+        setApiKeySuccess('APIキーを保存しました');
         setTimeout(() => setApiKeySuccess(null), 3000);
       } else {
-        throw new Error("保存に失敗しました");
+        throw new Error('保存に失敗しました');
       }
     } catch (err) {
       setApiKeyError(
-        err instanceof Error ? err.message : "エラーが発生しました",
+        err instanceof Error ? err.message : 'エラーが発生しました',
       );
     } finally {
       setIsSavingApiKey(false);
@@ -243,28 +243,28 @@ export function AIAnalysisPanel({
   };
 
   const deleteApiKey = async () => {
-    if (!confirm("APIキーを削除してもよろしいですか？")) return;
+    if (!confirm('APIキーを削除してもよろしいですか？')) return;
 
     setIsSavingApiKey(true);
     setApiKeyError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/settings/api-key`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
 
       if (res.ok) {
         setMaskedApiKey(null);
-        setApiKeyInput("");
+        setApiKeyInput('');
         setIsEditingApiKey(false);
         setIsApiKeyConfigured(false);
-        setApiKeySuccess("APIキーを削除しました");
+        setApiKeySuccess('APIキーを削除しました');
         setTimeout(() => setApiKeySuccess(null), 3000);
       } else {
-        throw new Error("削除に失敗しました");
+        throw new Error('削除に失敗しました');
       }
     } catch (err) {
       setApiKeyError(
-        err instanceof Error ? err.message : "エラーが発生しました",
+        err instanceof Error ? err.message : 'エラーが発生しました',
       );
     } finally {
       setIsSavingApiKey(false);
@@ -281,11 +281,11 @@ export function AIAnalysisPanel({
         const data = await res.json();
         setPromptsData(data);
       } else {
-        throw new Error("プロンプト一覧の取得に失敗しました");
+        throw new Error('プロンプト一覧の取得に失敗しました');
       }
     } catch (err) {
       setPromptsError(
-        err instanceof Error ? err.message : "エラーが発生しました",
+        err instanceof Error ? err.message : 'エラーが発生しました',
       );
     } finally {
       setIsLoadingPrompts(false);
@@ -295,7 +295,7 @@ export function AIAnalysisPanel({
   // 全サブタスクのプロンプト一括生成
   const generateAllPrompts = async () => {
     if (
-      !confirm("すべてのサブタスク（またはタスク）のプロンプトを生成しますか？")
+      !confirm('すべてのサブタスク（またはタスク）のプロンプトを生成しますか？')
     )
       return;
 
@@ -305,18 +305,18 @@ export function AIAnalysisPanel({
       const res = await fetch(
         `${API_BASE_URL}/tasks/${taskId}/prompts/generate-all`,
         {
-          method: "POST",
+          method: 'POST',
         },
       );
       if (res.ok) {
         await fetchPrompts(); // 再取得
       } else {
         const errData = await res.json();
-        throw new Error(errData.error || "一括生成に失敗しました");
+        throw new Error(errData.error || '一括生成に失敗しました');
       }
     } catch (err) {
       setPromptsError(
-        err instanceof Error ? err.message : "エラーが発生しました",
+        err instanceof Error ? err.message : 'エラーが発生しました',
       );
     } finally {
       setIsGeneratingAll(false);
@@ -327,40 +327,40 @@ export function AIAnalysisPanel({
   const updatePrompt = async (promptId: number, newText: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/prompts/${promptId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ optimizedPrompt: newText }),
       });
       if (res.ok) {
         setEditingPromptId(null);
-        setEditingPromptText("");
+        setEditingPromptText('');
         await fetchPrompts();
       } else {
-        throw new Error("更新に失敗しました");
+        throw new Error('更新に失敗しました');
       }
     } catch (err) {
       setPromptsError(
-        err instanceof Error ? err.message : "エラーが発生しました",
+        err instanceof Error ? err.message : 'エラーが発生しました',
       );
     }
   };
 
   // プロンプト削除
   const deletePrompt = async (promptId: number) => {
-    if (!confirm("このプロンプトを削除しますか？")) return;
+    if (!confirm('このプロンプトを削除しますか？')) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/prompts/${promptId}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       if (res.ok) {
         await fetchPrompts();
       } else {
-        throw new Error("削除に失敗しました");
+        throw new Error('削除に失敗しました');
       }
     } catch (err) {
       setPromptsError(
-        err instanceof Error ? err.message : "エラーが発生しました",
+        err instanceof Error ? err.message : 'エラーが発生しました',
       );
     }
   };
@@ -375,8 +375,8 @@ export function AIAnalysisPanel({
         const response = await fetch(
           `${API_BASE_URL}/developer-mode/optimize-prompt/${taskId}`,
           {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(
               clarificationAnswers ? { clarificationAnswers } : {},
             ),
@@ -387,7 +387,7 @@ export function AIAnalysisPanel({
           const errData = await response.json();
           const errorMsg = errData.details
             ? `${errData.error}: ${errData.details}`
-            : errData.error || "プロンプト生成に失敗しました";
+            : errData.error || 'プロンプト生成に失敗しました';
           throw new Error(errorMsg);
         }
 
@@ -399,7 +399,7 @@ export function AIAnalysisPanel({
         }
       } catch (err) {
         setPromptError(
-          err instanceof Error ? err.message : "エラーが発生しました",
+          err instanceof Error ? err.message : 'エラーが発生しました',
         );
       } finally {
         setIsGeneratingPrompt(false);
@@ -418,7 +418,7 @@ export function AIAnalysisPanel({
       (q) => !promptAnswers[q.id]?.trim(),
     );
     if (unansweredRequired.length > 0) {
-      setPromptError("必須の質問に回答してください");
+      setPromptError('必須の質問に回答してください');
       return;
     }
 
@@ -456,34 +456,34 @@ export function AIAnalysisPanel({
 
   const getCategoryLabel = (category: string) => {
     const labels: Record<string, string> = {
-      scope: "スコープ",
-      technical: "技術的",
-      requirements: "要件",
-      constraints: "制約",
+      scope: 'スコープ',
+      technical: '技術的',
+      requirements: '要件',
+      constraints: '制約',
     };
     return labels[category] || category;
   };
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
-      scope: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+      scope: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
       technical:
-        "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+        'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
       requirements:
-        "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+        'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
       constraints:
-        "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+        'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
     };
     return (
       colors[category] ||
-      "bg-zinc-100 text-zinc-700 dark:bg-indigo-dark-800 dark:text-zinc-400"
+      'bg-zinc-100 text-zinc-700 dark:bg-indigo-dark-800 dark:text-zinc-400'
     );
   };
 
   const getQualityColor = (score: number) => {
-    if (score >= 80) return "text-green-600 dark:text-green-400";
-    if (score >= 60) return "text-yellow-600 dark:text-yellow-400";
-    return "text-red-600 dark:text-red-400";
+    if (score >= 80) return 'text-green-600 dark:text-green-400';
+    if (score >= 60) return 'text-yellow-600 dark:text-yellow-400';
+    return 'text-red-600 dark:text-red-400';
   };
 
   // APIキーが未設定の場合は設定を促す
@@ -505,7 +505,7 @@ export function AIAnalysisPanel({
           <div className="space-y-2">
             <div className="relative">
               <input
-                type={showApiKey ? "text" : "password"}
+                type={showApiKey ? 'text' : 'password'}
                 value={apiKeyInput}
                 onChange={(e) => setApiKeyInput(e.target.value)}
                 placeholder="sk-ant-api..."
@@ -591,55 +591,55 @@ export function AIAnalysisPanel({
           {/* タブ */}
           <div className="flex border-b border-zinc-200 dark:border-zinc-700">
             <button
-              onClick={() => setActiveTab("analysis")}
+              onClick={() => setActiveTab('analysis')}
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
-                activeTab === "analysis"
-                  ? "text-violet-600 dark:text-violet-400 border-b-2 border-violet-600 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/10"
-                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+                activeTab === 'analysis'
+                  ? 'text-violet-600 dark:text-violet-400 border-b-2 border-violet-600 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/10'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
               }`}
             >
               <Bot className="w-4 h-4" />
               分析
             </button>
             <button
-              onClick={() => setActiveTab("prompt")}
+              onClick={() => setActiveTab('prompt')}
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
-                activeTab === "prompt"
-                  ? "text-violet-600 dark:text-violet-400 border-b-2 border-violet-600 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/10"
-                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+                activeTab === 'prompt'
+                  ? 'text-violet-600 dark:text-violet-400 border-b-2 border-violet-600 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/10'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
               }`}
             >
               <Wand2 className="w-4 h-4" />
               最適化
             </button>
             <button
-              onClick={() => setActiveTab("prompts")}
+              onClick={() => setActiveTab('prompts')}
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
-                activeTab === "prompts"
-                  ? "text-violet-600 dark:text-violet-400 border-b-2 border-violet-600 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/10"
-                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+                activeTab === 'prompts'
+                  ? 'text-violet-600 dark:text-violet-400 border-b-2 border-violet-600 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/10'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
               }`}
             >
               <List className="w-4 h-4" />
               管理
             </button>
             <button
-              onClick={() => setActiveTab("dependency")}
+              onClick={() => setActiveTab('dependency')}
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
-                activeTab === "dependency"
-                  ? "text-violet-600 dark:text-violet-400 border-b-2 border-violet-600 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/10"
-                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+                activeTab === 'dependency'
+                  ? 'text-violet-600 dark:text-violet-400 border-b-2 border-violet-600 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/10'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
               }`}
             >
               <GitBranch className="w-4 h-4" />
               依存度
             </button>
             <button
-              onClick={() => setActiveTab("settings")}
+              onClick={() => setActiveTab('settings')}
               className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium transition-colors ${
-                activeTab === "settings"
-                  ? "text-violet-600 dark:text-violet-400 border-b-2 border-violet-600 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/10"
-                  : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+                activeTab === 'settings'
+                  ? 'text-violet-600 dark:text-violet-400 border-b-2 border-violet-600 dark:border-violet-400 bg-violet-50 dark:bg-violet-900/10'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
               }`}
             >
               <Settings className="w-4 h-4" />
@@ -649,7 +649,7 @@ export function AIAnalysisPanel({
           {/* タブコンテンツ */}
           <div className="p-4">
             {/* タスク分析タブ */}
-            {activeTab === "analysis" && (
+            {activeTab === 'analysis' && (
               <div className="space-y-4">
                 {isAnalyzing ? (
                   <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
@@ -703,8 +703,8 @@ export function AIAnalysisPanel({
                               >
                                 {selectedSubtasks.length ===
                                 analysisResult.suggestedSubtasks.length
-                                  ? "すべて解除"
-                                  : "すべて選択"}
+                                  ? 'すべて解除'
+                                  : 'すべて選択'}
                               </button>
                             )}
                           </div>
@@ -714,8 +714,8 @@ export function AIAnalysisPanel({
                                 key={i}
                                 className={`p-2 rounded-lg text-sm flex items-start gap-2 ${
                                   analysisApprovalId && !subtaskCreationSuccess
-                                    ? "bg-violet-50 dark:bg-violet-900/20 cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-900/30"
-                                    : "bg-violet-50 dark:bg-violet-900/20"
+                                    ? 'bg-violet-50 dark:bg-violet-900/20 cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-900/30'
+                                    : 'bg-violet-50 dark:bg-violet-900/20'
                                 }`}
                                 onClick={() => {
                                   if (
@@ -753,24 +753,25 @@ export function AIAnalysisPanel({
                                   <div className="flex items-center gap-2 mt-1">
                                     <span
                                       className={`px-1.5 py-0.5 text-xs rounded ${
-                                        st.priority === "high"
-                                          ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                                          : st.priority === "medium"
-                                            ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                                            : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                        st.priority === 'high'
+                                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                          : st.priority === 'medium'
+                                            ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                       }`}
                                     >
-                                      {st.priority === "high"
-                                        ? "高"
-                                        : st.priority === "medium"
-                                          ? "中"
-                                          : "低"}
+                                      {st.priority === 'high'
+                                        ? '高'
+                                        : st.priority === 'medium'
+                                          ? '中'
+                                          : '低'}
                                     </span>
-                                    {st.estimatedHours != null && st.estimatedHours > 0 && (
-                                      <span className="text-xs text-zinc-500">
-                                        {st.estimatedHours}時間
-                                      </span>
-                                    )}
+                                    {st.estimatedHours != null &&
+                                      st.estimatedHours > 0 && (
+                                        <span className="text-xs text-zinc-500">
+                                          {st.estimatedHours}時間
+                                        </span>
+                                      )}
                                   </div>
                                 </div>
                               </div>
@@ -870,7 +871,7 @@ export function AIAnalysisPanel({
             )}
 
             {/* プロンプト最適化タブ */}
-            {activeTab === "prompt" && (
+            {activeTab === 'prompt' && (
               <div className="space-y-4">
                 {isGeneratingPrompt ? (
                   <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
@@ -937,8 +938,8 @@ export function AIAnalysisPanel({
                                 }
                                 className={`px-2 py-1 text-xs rounded border transition-colors ${
                                   promptAnswers[q.id] === opt
-                                    ? "border-amber-500 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
-                                    : "border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
+                                    ? 'border-amber-500 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                                    : 'border-zinc-200 dark:border-zinc-700 hover:border-amber-300'
                                 }`}
                               >
                                 {opt}
@@ -948,7 +949,7 @@ export function AIAnalysisPanel({
                         ) : (
                           <input
                             type="text"
-                            value={promptAnswers[q.id] || ""}
+                            value={promptAnswers[q.id] || ''}
                             onChange={(e) =>
                               setPromptAnswers((prev) => ({
                                 ...prev,
@@ -1052,7 +1053,7 @@ export function AIAnalysisPanel({
             )}
 
             {/* プロンプト管理タブ */}
-            {activeTab === "prompts" && (
+            {activeTab === 'prompts' && (
               <div className="space-y-4">
                 {/* ヘッダー */}
                 <div className="flex items-center justify-between">
@@ -1075,7 +1076,7 @@ export function AIAnalysisPanel({
                       title="更新"
                     >
                       <RefreshCw
-                        className={`w-4 h-4 ${isLoadingPrompts ? "animate-spin" : ""}`}
+                        className={`w-4 h-4 ${isLoadingPrompts ? 'animate-spin' : ''}`}
                       />
                     </button>
                     <button
@@ -1154,7 +1155,7 @@ export function AIAnalysisPanel({
                                     <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
                                       {isParentTask
                                         ? promptsData.task.title
-                                        : subtask?.title || "不明"}
+                                        : subtask?.title || '不明'}
                                     </span>
                                     {isParentTask ? (
                                       <span className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-xs rounded">
@@ -1167,7 +1168,7 @@ export function AIAnalysisPanel({
                                     )}
                                     {prompt.qualityScore && (
                                       <span
-                                        className={`text-xs ${prompt.qualityScore >= 80 ? "text-green-600" : prompt.qualityScore >= 60 ? "text-yellow-600" : "text-red-600"}`}
+                                        className={`text-xs ${prompt.qualityScore >= 80 ? 'text-green-600' : prompt.qualityScore >= 60 ? 'text-yellow-600' : 'text-red-600'}`}
                                       >
                                         スコア: {prompt.qualityScore}
                                       </span>
@@ -1191,7 +1192,7 @@ export function AIAnalysisPanel({
                                       <button
                                         onClick={() => {
                                           setEditingPromptId(null);
-                                          setEditingPromptText("");
+                                          setEditingPromptText('');
                                         }}
                                         className="p-1 text-zinc-400 hover:text-zinc-600"
                                       >
@@ -1268,12 +1269,10 @@ export function AIAnalysisPanel({
             )}
 
             {/* 依存度分析タブ */}
-            {activeTab === "dependency" && (
-              <DependencyTree taskId={taskId} />
-            )}
+            {activeTab === 'dependency' && <DependencyTree taskId={taskId} />}
 
             {/* 設定タブ */}
-            {activeTab === "settings" && (
+            {activeTab === 'settings' && (
               <div className="space-y-4">
                 {/* APIキー設定 */}
                 <div className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
@@ -1330,7 +1329,7 @@ export function AIAnalysisPanel({
                     <div className="space-y-2">
                       <div className="relative">
                         <input
-                          type={showApiKey ? "text" : "password"}
+                          type={showApiKey ? 'text' : 'password'}
                           value={apiKeyInput}
                           onChange={(e) => setApiKeyInput(e.target.value)}
                           placeholder="sk-ant-api..."
@@ -1362,7 +1361,7 @@ export function AIAnalysisPanel({
                             <button
                               onClick={() => {
                                 setIsEditingApiKey(false);
-                                setApiKeyInput("");
+                                setApiKeyInput('');
                               }}
                               className="text-xs text-zinc-500"
                             >

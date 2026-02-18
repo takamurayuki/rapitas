@@ -1,18 +1,18 @@
-"use client";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { X, Keyboard } from "lucide-react";
-import { useShortcutStore, type ShortcutId } from "@/stores/shortcutStore";
-import { useNoteStore } from "@/stores/noteStore";
+'use client';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { X, Keyboard } from 'lucide-react';
+import { useShortcutStore, type ShortcutId } from '@/stores/shortcutStore';
+import { useNoteStore } from '@/stores/noteStore';
 
 // OS検出用のユーティリティ
 const getIsMac = () => {
-  if (typeof window === "undefined") return false;
-  return navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+  if (typeof window === 'undefined') return false;
+  return navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 };
 
 // カスタムイベント名
-export const OPEN_SHORTCUTS_EVENT = "openKeyboardShortcuts";
+export const OPEN_SHORTCUTS_EVENT = 'openKeyboardShortcuts';
 
 export default function KeyboardShortcuts() {
   const router = useRouter();
@@ -24,26 +24,29 @@ export default function KeyboardShortcuts() {
   useEffect(() => {
     const handleOpenShortcuts = () => setShowHelp(true);
     window.addEventListener(OPEN_SHORTCUTS_EVENT, handleOpenShortcuts);
-    return () => window.removeEventListener(OPEN_SHORTCUTS_EVENT, handleOpenShortcuts);
+    return () =>
+      window.removeEventListener(OPEN_SHORTCUTS_EVENT, handleOpenShortcuts);
   }, []);
 
   // ショートカットIDからアクションへのマッピング
   const actionMap: Record<ShortcutId, () => void> = {
-    newTask: () => router.push("/tasks/new"),
-    dashboard: () => router.push("/dashboard"),
-    home: () => router.push("/"),
-    kanban: () => router.push("/kanban"),
-    calendar: () => router.push("/calendar"),
-    focusMode: () => router.push("/focus"),
+    newTask: () => router.push('/tasks/new'),
+    dashboard: () => router.push('/dashboard'),
+    home: () => router.push('/'),
+    kanban: () => router.push('/kanban'),
+    calendar: () => router.push('/calendar'),
+    focusMode: () => router.push('/focus'),
     shortcutHelp: () => setShowHelp(true),
     toggleAI: () => {
       const noteStore = useNoteStore.getState();
       if (noteStore.modalState.isOpen) {
         // 既に開いている場合は、タブを切り替える
-        noteStore.setModalTab(noteStore.modalState.activeTab === "ai" ? "note" : "ai");
+        noteStore.setModalTab(
+          noteStore.modalState.activeTab === 'ai' ? 'note' : 'ai',
+        );
       } else {
         // 閉じている場合は、AIタブで開く
-        noteStore.openModal("ai");
+        noteStore.openModal('ai');
       }
     },
   };
@@ -60,7 +63,7 @@ export default function KeyboardShortcuts() {
       }
 
       // Escape で閉じる
-      if (e.key === "Escape" && showHelp) {
+      if (e.key === 'Escape' && showHelp) {
         setShowHelp(false);
         return;
       }
@@ -85,17 +88,22 @@ export default function KeyboardShortcuts() {
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [router, shortcuts, showHelp]);
 
-  const formatShortcut = (binding: { key: string; meta: boolean; shift: boolean; ctrl: boolean }) => {
+  const formatShortcut = (binding: {
+    key: string;
+    meta: boolean;
+    shift: boolean;
+    ctrl: boolean;
+  }) => {
     const parts = [];
-    if (binding.ctrl) parts.push("Ctrl");
-    if (binding.meta) parts.push(isMac ? "\u2318" : "Ctrl");
-    if (binding.shift) parts.push(isMac ? "\u21E7" : "Shift");
-    parts.push(binding.key === "Escape" ? "Esc" : binding.key.toUpperCase());
-    return parts.join(" + ");
+    if (binding.ctrl) parts.push('Ctrl');
+    if (binding.meta) parts.push(isMac ? '\u2318' : 'Ctrl');
+    if (binding.shift) parts.push(isMac ? '\u21E7' : 'Shift');
+    parts.push(binding.key === 'Escape' ? 'Esc' : binding.key.toUpperCase());
+    return parts.join(' + ');
   };
 
   if (!showHelp) return null;
@@ -143,8 +151,8 @@ export default function KeyboardShortcuts() {
         <div className="p-4 border-t border-zinc-200 dark:border-zinc-700 text-center">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             {isMac
-              ? "\u2318 は Command キー、\u21E7 は Shift キー"
-              : "Ctrl は Control キー"}
+              ? '\u2318 は Command キー、\u21E7 は Shift キー'
+              : 'Ctrl は Control キー'}
           </p>
         </div>
       </div>

@@ -1,34 +1,34 @@
-"use client";
-import { useState, useRef, useEffect } from "react";
-import { X, Clock, Bell, ChevronDown, CalendarDays } from "lucide-react";
-import type { ScheduleEventInput } from "@/types";
+'use client';
+import { useState, useRef, useEffect } from 'react';
+import { X, Clock, Bell, ChevronDown, CalendarDays } from 'lucide-react';
+import type { ScheduleEventInput } from '@/types';
 
 const REMINDER_OPTIONS = [
-  { value: null, label: "なし" },
-  { value: 5, label: "5分前" },
-  { value: 10, label: "10分前" },
-  { value: 15, label: "15分前" },
-  { value: 30, label: "30分前" },
-  { value: 60, label: "1時間前" },
-  { value: 1440, label: "1日前" },
+  { value: null, label: 'なし' },
+  { value: 5, label: '5分前' },
+  { value: 10, label: '10分前' },
+  { value: 15, label: '15分前' },
+  { value: 30, label: '30分前' },
+  { value: 60, label: '1時間前' },
+  { value: 1440, label: '1日前' },
 ];
 
 const COLOR_OPTIONS = [
-  { value: "#6366F1", label: "Indigo" },
-  { value: "#3B82F6", label: "Blue" },
-  { value: "#10B981", label: "Green" },
-  { value: "#F59E0B", label: "Amber" },
-  { value: "#EF4444", label: "Red" },
-  { value: "#EC4899", label: "Pink" },
-  { value: "#8B5CF6", label: "Violet" },
-  { value: "#06B6D4", label: "Cyan" },
+  { value: '#6366F1', label: 'Indigo' },
+  { value: '#3B82F6', label: 'Blue' },
+  { value: '#10B981', label: 'Green' },
+  { value: '#F59E0B', label: 'Amber' },
+  { value: '#EF4444', label: 'Red' },
+  { value: '#EC4899', label: 'Pink' },
+  { value: '#8B5CF6', label: 'Violet' },
+  { value: '#06B6D4', label: 'Cyan' },
 ];
 
 const QUICK_TIMES = [
-  { start: "09:00", end: "10:00", label: "午前" },
-  { start: "12:00", end: "13:00", label: "昼" },
-  { start: "15:00", end: "16:00", label: "午後" },
-  { start: "19:00", end: "20:00", label: "夜" },
+  { start: '09:00', end: '10:00', label: '午前' },
+  { start: '12:00', end: '13:00', label: '昼' },
+  { start: '15:00', end: '16:00', label: '午後' },
+  { start: '19:00', end: '20:00', label: '夜' },
 ];
 
 type Props = {
@@ -56,7 +56,7 @@ function getDefaultTimes(): { start: string; end: string } {
 
   const endHour = (startHour + 1) % 24; // 24時間制をサポート
 
-  const pad = (n: number) => String(n).padStart(2, "0");
+  const pad = (n: number) => String(n).padStart(2, '0');
   return {
     start: `${pad(startHour)}:${pad(startMin)}`,
     end: `${pad(endHour)}:${pad(startMin)}`,
@@ -69,15 +69,15 @@ export default function ScheduleEventDialog({
   onSubmit,
 }: Props) {
   const defaults = getDefaultTimes();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState(selectedDate);
   const [endDate, setEndDate] = useState(selectedDate);
   const [startTime, setStartTime] = useState(defaults.start);
   const [endTime, setEndTime] = useState(defaults.end);
   const [isAllDay, setIsAllDay] = useState(false);
   const [isMultiDay, setIsMultiDay] = useState(false);
-  const [color, setColor] = useState("#6366F1");
+  const [color, setColor] = useState('#6366F1');
   const [reminderMinutes, setReminderMinutes] = useState<number | null>(15);
   const [submitting, setSubmitting] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
@@ -90,10 +90,10 @@ export default function ScheduleEventDialog({
   // Escape key to close
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === 'Escape') onClose();
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -104,10 +104,12 @@ export default function ScheduleEventDialog({
     try {
       // 日付・時刻文字列からUTCのISO文字列を生成するヘルパー
       // ローカルタイムゾーンの影響を受けないよう Date.UTC を使用
-      const toUTCISO = (dateStr: string, timeStr: string = "00:00") => {
-        const [year, month, day] = dateStr.split("-").map(Number);
-        const [hour, min] = timeStr.split(":").map(Number);
-        return new Date(Date.UTC(year, month - 1, day, hour, min, 0)).toISOString();
+      const toUTCISO = (dateStr: string, timeStr: string = '00:00') => {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const [hour, min] = timeStr.split(':').map(Number);
+        return new Date(
+          Date.UTC(year, month - 1, day, hour, min, 0),
+        ).toISOString();
       };
 
       let startAt: string;
@@ -119,8 +121,14 @@ export default function ScheduleEventDialog({
           // 終日イベントは翌日の00:00で終了
           const nextDay = new Date(endDate);
           nextDay.setDate(nextDay.getDate() + 1);
-          const [year, month, day] = nextDay.toISOString().split('T')[0].split('-').map(Number);
-          endAt = new Date(Date.UTC(year, month - 1, day, 0, 0, 0)).toISOString();
+          const [year, month, day] = nextDay
+            .toISOString()
+            .split('T')[0]
+            .split('-')
+            .map(Number);
+          endAt = new Date(
+            Date.UTC(year, month - 1, day, 0, 0, 0),
+          ).toISOString();
         }
       } else {
         startAt = toUTCISO(startDate, startTime);
@@ -128,15 +136,21 @@ export default function ScheduleEventDialog({
           endAt = toUTCISO(endDate, endTime);
         } else {
           // 同日で終了時刻が開始時刻より早い場合（例：23:00開始→02:00終了）、翌日とみなす
-          const [startH] = startTime.split(":").map(Number);
-          const [endH] = endTime.split(":").map(Number);
+          const [startH] = startTime.split(':').map(Number);
+          const [endH] = endTime.split(':').map(Number);
           if (endH < startH) {
             // 翌日の終了時刻として設定
             const nextDay = new Date(startDate);
             nextDay.setDate(nextDay.getDate() + 1);
-            const [year, month, day] = nextDay.toISOString().split('T')[0].split('-').map(Number);
-            const [hour, min] = endTime.split(":").map(Number);
-            endAt = new Date(Date.UTC(year, month - 1, day, hour, min, 0)).toISOString();
+            const [year, month, day] = nextDay
+              .toISOString()
+              .split('T')[0]
+              .split('-')
+              .map(Number);
+            const [hour, min] = endTime.split(':').map(Number);
+            endAt = new Date(
+              Date.UTC(year, month - 1, day, hour, min, 0),
+            ).toISOString();
           } else {
             endAt = toUTCISO(startDate, endTime);
           }
@@ -157,27 +171,32 @@ export default function ScheduleEventDialog({
     }
   };
 
-  const formattedStartDate = new Date(startDate).toLocaleDateString("ja-JP", {
-    month: "long",
-    day: "numeric",
-    weekday: "short",
+  const formattedStartDate = new Date(startDate).toLocaleDateString('ja-JP', {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
   });
 
-  const formattedEndDate = isMultiDay && endDate > startDate
-    ? new Date(endDate).toLocaleDateString("ja-JP", {
-        month: "long",
-        day: "numeric",
-        weekday: "short",
-      })
-    : null;
+  const formattedEndDate =
+    isMultiDay && endDate > startDate
+      ? new Date(endDate).toLocaleDateString('ja-JP', {
+          month: 'long',
+          day: 'numeric',
+          weekday: 'short',
+        })
+      : null;
 
   const dayOfWeek = new Date(startDate).getDay();
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
   // 複数日の日数計算
-  const dayCount = isMultiDay && endDate > startDate
-    ? Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
-    : 1;
+  const dayCount =
+    isMultiDay && endDate > startDate
+      ? Math.ceil(
+          (new Date(endDate).getTime() - new Date(startDate).getTime()) /
+            (1000 * 60 * 60 * 24),
+        ) + 1
+      : 1;
 
   return (
     <div
@@ -203,20 +222,26 @@ export default function ScheduleEventDialog({
                 style={{ backgroundColor: color }}
               >
                 <span className="text-[10px] leading-none opacity-80 uppercase">
-                  {new Date(startDate).toLocaleDateString("ja-JP", { month: "short" })}
+                  {new Date(startDate).toLocaleDateString('ja-JP', {
+                    month: 'short',
+                  })}
                 </span>
                 <span className="text-lg leading-none font-bold">
                   {new Date(startDate).getDate()}
                 </span>
               </div>
               <div>
-                <p className={`text-sm font-semibold ${isWeekend ? "text-red-500 dark:text-red-400" : "text-zinc-800 dark:text-zinc-100"}`}>
+                <p
+                  className={`text-sm font-semibold ${isWeekend ? 'text-red-500 dark:text-red-400' : 'text-zinc-800 dark:text-zinc-100'}`}
+                >
                   {formattedStartDate}
                 </p>
                 {formattedEndDate ? (
                   <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
                     〜 {formattedEndDate}
-                    <span className="ml-1 text-indigo-500 dark:text-indigo-400 font-medium">({dayCount}日間)</span>
+                    <span className="ml-1 text-indigo-500 dark:text-indigo-400 font-medium">
+                      ({dayCount}日間)
+                    </span>
                   </p>
                 ) : (
                   <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
@@ -257,8 +282,8 @@ export default function ScheduleEventDialog({
                 onClick={() => setIsAllDay(true)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
                   isAllDay
-                    ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
-                    : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+                    ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900'
+                    : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                 }`}
               >
                 終日
@@ -268,8 +293,8 @@ export default function ScheduleEventDialog({
                 onClick={() => setIsAllDay(false)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
                   !isAllDay
-                    ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
-                    : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+                    ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900'
+                    : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                 }`}
               >
                 <Clock className="w-3.5 h-3.5" />
@@ -286,8 +311,8 @@ export default function ScheduleEventDialog({
                 }}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
                   isMultiDay
-                    ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-300 dark:ring-indigo-700"
-                    : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+                    ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-300 dark:ring-indigo-700'
+                    : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                 }`}
               >
                 <CalendarDays className="w-3.5 h-3.5" />
@@ -299,7 +324,9 @@ export default function ScheduleEventDialog({
             {isMultiDay && (
               <div className="flex items-center gap-2">
                 <div className="flex-1">
-                  <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">開始日</label>
+                  <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">
+                    開始日
+                  </label>
                   <input
                     type="date"
                     value={startDate}
@@ -314,7 +341,9 @@ export default function ScheduleEventDialog({
                 </div>
                 <div className="w-5 h-px bg-zinc-300 dark:bg-zinc-600 shrink-0 mt-5" />
                 <div className="flex-1">
-                  <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">終了日</label>
+                  <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">
+                    終了日
+                  </label>
                   <input
                     type="date"
                     value={endDate}
@@ -341,8 +370,8 @@ export default function ScheduleEventDialog({
                       }}
                       className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${
                         startTime === qt.start && endTime === qt.end
-                          ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-300 dark:ring-indigo-700"
-                          : "bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                          ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-300 dark:ring-indigo-700'
+                          : 'bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                       }`}
                     >
                       {qt.label}
@@ -358,9 +387,11 @@ export default function ScheduleEventDialog({
                     onChange={(e) => {
                       setStartTime(e.target.value);
                       // Auto-adjust end time to 1 hour after start (支援24時間制)
-                      const [h, m] = e.target.value.split(":").map(Number);
+                      const [h, m] = e.target.value.split(':').map(Number);
                       const endH = (h + 1) % 24; // 24時間制をサポート（23:00→00:00）
-                      setEndTime(`${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+                      setEndTime(
+                        `${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+                      );
                     }}
                     className="flex-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
                   />
@@ -383,9 +414,9 @@ export default function ScheduleEventDialog({
             className="mt-3 flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
           >
             <ChevronDown
-              className={`w-3.5 h-3.5 transition-transform duration-200 ${showOptions ? "rotate-180" : ""}`}
+              className={`w-3.5 h-3.5 transition-transform duration-200 ${showOptions ? 'rotate-180' : ''}`}
             />
-            {showOptions ? "オプションを閉じる" : "カラー・リマインド・メモ"}
+            {showOptions ? 'オプションを閉じる' : 'カラー・リマインド・メモ'}
           </button>
 
           {showOptions && (
@@ -404,13 +435,13 @@ export default function ScheduleEventDialog({
                       title={c.label}
                       className={`w-6 h-6 rounded-full transition-all ${
                         color === c.value
-                          ? "ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-800 scale-110"
-                          : "hover:scale-110"
+                          ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-800 scale-110'
+                          : 'hover:scale-110'
                       }`}
                       style={{
                         backgroundColor: c.value,
                         ...(color === c.value
-                          ? { ["--tw-ring-color" as string]: c.value }
+                          ? { ['--tw-ring-color' as string]: c.value }
                           : {}),
                       }}
                     />
@@ -424,13 +455,13 @@ export default function ScheduleEventDialog({
                 <div className="flex gap-1.5 flex-wrap">
                   {REMINDER_OPTIONS.map((opt) => (
                     <button
-                      key={opt.value === null ? "null" : opt.value}
+                      key={opt.value === null ? 'null' : opt.value}
                       type="button"
                       onClick={() => setReminderMinutes(opt.value)}
                       className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
                         reminderMinutes === opt.value
-                          ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 ring-1 ring-amber-300 dark:ring-amber-700"
-                          : "bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                          ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 ring-1 ring-amber-300 dark:ring-amber-700'
+                          : 'bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                       }`}
                     >
                       {opt.label}
@@ -455,7 +486,7 @@ export default function ScheduleEventDialog({
             type="submit"
             disabled={!title.trim() || submitting}
             className={`mt-4 w-full py-3 rounded-xl font-medium text-white transition-all disabled:cursor-not-allowed active:scale-[0.98] ${
-              !title.trim() ? "bg-zinc-300 dark:bg-zinc-600 opacity-40" : ""
+              !title.trim() ? 'bg-zinc-300 dark:bg-zinc-600 opacity-40' : ''
             }`}
             style={title.trim() ? { backgroundColor: color } : undefined}
           >
@@ -465,7 +496,7 @@ export default function ScheduleEventDialog({
                 作成中...
               </span>
             ) : (
-              "追加する"
+              '追加する'
             )}
           </button>
         </form>

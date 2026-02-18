@@ -1,34 +1,41 @@
-"use client";
-import { useState, useRef, useEffect } from "react";
-import { X, Clock, Bell, ChevronDown, CalendarDays, Coffee } from "lucide-react";
-import type { ScheduleEventInput } from "@/types";
+'use client';
+import { useState, useRef, useEffect } from 'react';
+import {
+  X,
+  Clock,
+  Bell,
+  ChevronDown,
+  CalendarDays,
+  Coffee,
+} from 'lucide-react';
+import type { ScheduleEventInput } from '@/types';
 
 const REMINDER_OPTIONS = [
-  { value: null, label: "なし" },
-  { value: 5, label: "5分前" },
-  { value: 10, label: "10分前" },
-  { value: 15, label: "15分前" },
-  { value: 30, label: "30分前" },
-  { value: 60, label: "1時間前" },
-  { value: 1440, label: "1日前" },
+  { value: null, label: 'なし' },
+  { value: 5, label: '5分前' },
+  { value: 10, label: '10分前' },
+  { value: 15, label: '15分前' },
+  { value: 30, label: '30分前' },
+  { value: 60, label: '1時間前' },
+  { value: 1440, label: '1日前' },
 ];
 
 const COLOR_OPTIONS = [
-  { value: "#FF6B6B", label: "Pink Red" },
-  { value: "#4ECDC4", label: "Teal" },
-  { value: "#45B7D1", label: "Sky Blue" },
-  { value: "#96CEB4", label: "Mint Green" },
-  { value: "#FFEAA7", label: "Light Yellow" },
-  { value: "#DDA0DD", label: "Plum" },
-  { value: "#98D8C8", label: "Seafoam" },
-  { value: "#F7DC6F", label: "Light Gold" },
+  { value: '#FF6B6B', label: 'Pink Red' },
+  { value: '#4ECDC4', label: 'Teal' },
+  { value: '#45B7D1', label: 'Sky Blue' },
+  { value: '#96CEB4', label: 'Mint Green' },
+  { value: '#FFEAA7', label: 'Light Yellow' },
+  { value: '#DDA0DD', label: 'Plum' },
+  { value: '#98D8C8', label: 'Seafoam' },
+  { value: '#F7DC6F', label: 'Light Gold' },
 ];
 
 const PAID_LEAVE_TYPES = [
-  { value: "annual_leave", label: "年次有給休暇" },
-  { value: "special_leave", label: "特別休暇" },
-  { value: "sick_leave", label: "病気休暇" },
-  { value: "personal_leave", label: "私用休暇" },
+  { value: 'annual_leave', label: '年次有給休暇' },
+  { value: 'special_leave', label: '特別休暇' },
+  { value: 'sick_leave', label: '病気休暇' },
+  { value: 'personal_leave', label: '私用休暇' },
 ];
 
 type Props = {
@@ -41,8 +48,8 @@ type Props = {
 // Get smart default times for half-day leave
 function getDefaultTimes(): { start: string; end: string } {
   return {
-    start: "09:00",
-    end: "13:00", // Morning half day
+    start: '09:00',
+    end: '13:00', // Morning half day
   };
 }
 
@@ -53,9 +60,9 @@ export default function PaidLeaveDialog({
   remainingDays = 20,
 }: Props) {
   const defaults = getDefaultTimes();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [leaveType, setLeaveType] = useState("annual_leave");
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [leaveType, setLeaveType] = useState('annual_leave');
   const [startDate, setStartDate] = useState(selectedDate);
   const [endDate, setEndDate] = useState(selectedDate);
   const [startTime, setStartTime] = useState(defaults.start);
@@ -63,7 +70,7 @@ export default function PaidLeaveDialog({
   const [isAllDay, setIsAllDay] = useState(true);
   const [isMultiDay, setIsMultiDay] = useState(false);
   const [isHalfDay, setIsHalfDay] = useState(false);
-  const [color, setColor] = useState("#FF6B6B");
+  const [color, setColor] = useState('#FF6B6B');
   const [reminderMinutes, setReminderMinutes] = useState<number | null>(1440); // Default 1 day before
   const [submitting, setSubmitting] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
@@ -72,7 +79,7 @@ export default function PaidLeaveDialog({
   useEffect(() => {
     titleRef.current?.focus();
     // Auto-generate title based on leave type
-    const selectedType = PAID_LEAVE_TYPES.find(t => t.value === leaveType);
+    const selectedType = PAID_LEAVE_TYPES.find((t) => t.value === leaveType);
     if (selectedType) {
       setTitle(selectedType.label);
     }
@@ -81,10 +88,10 @@ export default function PaidLeaveDialog({
   // Escape key to close
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === 'Escape') onClose();
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
   // Calculate used days based on selection
@@ -110,10 +117,12 @@ export default function PaidLeaveDialog({
     setSubmitting(true);
     try {
       // Create UTC ISO strings similar to ScheduleEventDialog
-      const toUTCISO = (dateStr: string, timeStr: string = "00:00") => {
-        const [year, month, day] = dateStr.split("-").map(Number);
-        const [hour, min] = timeStr.split(":").map(Number);
-        return new Date(Date.UTC(year, month - 1, day, hour, min, 0)).toISOString();
+      const toUTCISO = (dateStr: string, timeStr: string = '00:00') => {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const [hour, min] = timeStr.split(':').map(Number);
+        return new Date(
+          Date.UTC(year, month - 1, day, hour, min, 0),
+        ).toISOString();
       };
 
       let startAt: string;
@@ -125,8 +134,14 @@ export default function PaidLeaveDialog({
           // 終日イベントは翌日の00:00で終了
           const nextDay = new Date(endDate);
           nextDay.setDate(nextDay.getDate() + 1);
-          const [year, month, day] = nextDay.toISOString().split('T')[0].split('-').map(Number);
-          endAt = new Date(Date.UTC(year, month - 1, day, 0, 0, 0)).toISOString();
+          const [year, month, day] = nextDay
+            .toISOString()
+            .split('T')[0]
+            .split('-')
+            .map(Number);
+          endAt = new Date(
+            Date.UTC(year, month - 1, day, 0, 0, 0),
+          ).toISOString();
         }
       } else {
         startAt = toUTCISO(startDate, startTime);
@@ -145,34 +160,39 @@ export default function PaidLeaveDialog({
         isAllDay: isAllDay && !isHalfDay,
         color,
         reminderMinutes,
-        type: "PAID_LEAVE",
-        userId: "default",
+        type: 'PAID_LEAVE',
+        userId: 'default',
       });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const formattedStartDate = new Date(startDate).toLocaleDateString("ja-JP", {
-    month: "long",
-    day: "numeric",
-    weekday: "short",
+  const formattedStartDate = new Date(startDate).toLocaleDateString('ja-JP', {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
   });
 
-  const formattedEndDate = isMultiDay && endDate > startDate
-    ? new Date(endDate).toLocaleDateString("ja-JP", {
-        month: "long",
-        day: "numeric",
-        weekday: "short",
-      })
-    : null;
+  const formattedEndDate =
+    isMultiDay && endDate > startDate
+      ? new Date(endDate).toLocaleDateString('ja-JP', {
+          month: 'long',
+          day: 'numeric',
+          weekday: 'short',
+        })
+      : null;
 
   const dayOfWeek = new Date(startDate).getDay();
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-  const dayCount = isMultiDay && endDate > startDate
-    ? Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
-    : 1;
+  const dayCount =
+    isMultiDay && endDate > startDate
+      ? Math.ceil(
+          (new Date(endDate).getTime() - new Date(startDate).getTime()) /
+            (1000 * 60 * 60 * 24),
+        ) + 1
+      : 1;
 
   return (
     <div
@@ -200,13 +220,17 @@ export default function PaidLeaveDialog({
                 <Coffee className="w-6 h-6" />
               </div>
               <div>
-                <p className={`text-sm font-semibold ${isWeekend ? "text-red-500 dark:text-red-400" : "text-zinc-800 dark:text-zinc-100"}`}>
+                <p
+                  className={`text-sm font-semibold ${isWeekend ? 'text-red-500 dark:text-red-400' : 'text-zinc-800 dark:text-zinc-100'}`}
+                >
                   {formattedStartDate}
                 </p>
                 {formattedEndDate ? (
                   <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
                     〜 {formattedEndDate}
-                    <span className="ml-1 text-red-500 dark:text-red-400 font-medium">({dayCount}日間)</span>
+                    <span className="ml-1 text-red-500 dark:text-red-400 font-medium">
+                      ({dayCount}日間)
+                    </span>
                   </p>
                 ) : (
                   <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
@@ -225,20 +249,24 @@ export default function PaidLeaveDialog({
 
           {/* Paid leave balance warning */}
           <div className="mb-3">
-            <div className={`text-xs p-2 rounded-lg ${
-              afterUsage < 0
-                ? "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400"
-                : afterUsage < 5
-                  ? "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400"
-                  : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-            }`}>
+            <div
+              className={`text-xs p-2 rounded-lg ${
+                afterUsage < 0
+                  ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                  : afterUsage < 5
+                    ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
+                    : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+              }`}
+            >
               <div className="flex justify-between items-center">
                 <span>有給残日数: {remainingDays}日</span>
                 <span>使用: {usedDays}日</span>
               </div>
               <div className="flex justify-between items-center mt-1">
                 <span className="font-medium">申請後: {afterUsage}日</span>
-                {afterUsage < 0 && <span className="text-xs">⚠️ 残日数不足</span>}
+                {afterUsage < 0 && (
+                  <span className="text-xs">⚠️ 残日数不足</span>
+                )}
               </div>
             </div>
           </div>
@@ -262,8 +290,8 @@ export default function PaidLeaveDialog({
                   onClick={() => setLeaveType(type.value)}
                   className={`p-2 rounded-lg text-xs font-medium transition-all ${
                     leaveType === type.value
-                      ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
-                      : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+                      ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900'
+                      : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                   }`}
                 >
                   {type.label}
@@ -294,8 +322,8 @@ export default function PaidLeaveDialog({
                 }}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
                   isAllDay && !isHalfDay
-                    ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
-                    : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+                    ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900'
+                    : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                 }`}
               >
                 終日
@@ -308,8 +336,8 @@ export default function PaidLeaveDialog({
                 }}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
                   isHalfDay
-                    ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-300 dark:ring-indigo-700"
-                    : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+                    ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-300 dark:ring-indigo-700'
+                    : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                 }`}
               >
                 <Clock className="w-3.5 h-3.5" />
@@ -326,8 +354,8 @@ export default function PaidLeaveDialog({
                 }}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
                   isMultiDay
-                    ? "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 ring-1 ring-purple-300 dark:ring-purple-700"
-                    : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+                    ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 ring-1 ring-purple-300 dark:ring-purple-700'
+                    : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                 }`}
               >
                 <CalendarDays className="w-3.5 h-3.5" />
@@ -339,7 +367,9 @@ export default function PaidLeaveDialog({
             {isMultiDay && (
               <div className="flex items-center gap-2">
                 <div className="flex-1">
-                  <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">開始日</label>
+                  <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">
+                    開始日
+                  </label>
                   <input
                     type="date"
                     value={startDate}
@@ -354,7 +384,9 @@ export default function PaidLeaveDialog({
                 </div>
                 <div className="w-5 h-px bg-zinc-300 dark:bg-zinc-600 shrink-0 mt-5" />
                 <div className="flex-1">
-                  <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">終了日</label>
+                  <label className="block text-xs text-zinc-400 dark:text-zinc-500 mb-1">
+                    終了日
+                  </label>
                   <input
                     type="date"
                     value={endDate}
@@ -369,18 +401,20 @@ export default function PaidLeaveDialog({
             {/* Half day time selection */}
             {isHalfDay && !isMultiDay && (
               <div className="space-y-2">
-                <p className="text-xs text-zinc-400 dark:text-zinc-500">半日休暇の時間</p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                  半日休暇の時間
+                </p>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => {
-                      setStartTime("09:00");
-                      setEndTime("13:00");
+                      setStartTime('09:00');
+                      setEndTime('13:00');
                     }}
                     className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                      startTime === "09:00" && endTime === "13:00"
-                        ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 ring-1 ring-red-300 dark:ring-red-700"
-                        : "bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                      startTime === '09:00' && endTime === '13:00'
+                        ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 ring-1 ring-red-300 dark:ring-red-700'
+                        : 'bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                     }`}
                   >
                     午前 (9:00-13:00)
@@ -388,13 +422,13 @@ export default function PaidLeaveDialog({
                   <button
                     type="button"
                     onClick={() => {
-                      setStartTime("13:00");
-                      setEndTime("17:00");
+                      setStartTime('13:00');
+                      setEndTime('17:00');
                     }}
                     className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                      startTime === "13:00" && endTime === "17:00"
-                        ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 ring-1 ring-red-300 dark:ring-red-700"
-                        : "bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                      startTime === '13:00' && endTime === '17:00'
+                        ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 ring-1 ring-red-300 dark:ring-red-700'
+                        : 'bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                     }`}
                   >
                     午後 (13:00-17:00)
@@ -411,9 +445,9 @@ export default function PaidLeaveDialog({
             className="mt-3 flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
           >
             <ChevronDown
-              className={`w-3.5 h-3.5 transition-transform duration-200 ${showOptions ? "rotate-180" : ""}`}
+              className={`w-3.5 h-3.5 transition-transform duration-200 ${showOptions ? 'rotate-180' : ''}`}
             />
-            {showOptions ? "オプションを閉じる" : "カラー・リマインド・メモ"}
+            {showOptions ? 'オプションを閉じる' : 'カラー・リマインド・メモ'}
           </button>
 
           {showOptions && (
@@ -432,13 +466,13 @@ export default function PaidLeaveDialog({
                       title={c.label}
                       className={`w-6 h-6 rounded-full transition-all ${
                         color === c.value
-                          ? "ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-800 scale-110"
-                          : "hover:scale-110"
+                          ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-800 scale-110'
+                          : 'hover:scale-110'
                       }`}
                       style={{
                         backgroundColor: c.value,
                         ...(color === c.value
-                          ? { ["--tw-ring-color" as string]: c.value }
+                          ? { ['--tw-ring-color' as string]: c.value }
                           : {}),
                       }}
                     />
@@ -452,13 +486,13 @@ export default function PaidLeaveDialog({
                 <div className="flex gap-1.5 flex-wrap">
                   {REMINDER_OPTIONS.map((opt) => (
                     <button
-                      key={opt.value === null ? "null" : opt.value}
+                      key={opt.value === null ? 'null' : opt.value}
                       type="button"
                       onClick={() => setReminderMinutes(opt.value)}
                       className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
                         reminderMinutes === opt.value
-                          ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 ring-1 ring-amber-300 dark:ring-amber-700"
-                          : "bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                          ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 ring-1 ring-amber-300 dark:ring-amber-700'
+                          : 'bg-zinc-50 dark:bg-zinc-700/50 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                       }`}
                     >
                       {opt.label}
@@ -484,10 +518,14 @@ export default function PaidLeaveDialog({
             disabled={!title.trim() || submitting || afterUsage < 0}
             className={`mt-4 w-full py-3 rounded-xl font-medium text-white transition-all disabled:cursor-not-allowed active:scale-[0.98] ${
               !title.trim() || afterUsage < 0
-                ? "bg-zinc-300 dark:bg-zinc-600 opacity-40"
-                : ""
+                ? 'bg-zinc-300 dark:bg-zinc-600 opacity-40'
+                : ''
             }`}
-            style={title.trim() && afterUsage >= 0 ? { backgroundColor: color } : undefined}
+            style={
+              title.trim() && afterUsage >= 0
+                ? { backgroundColor: color }
+                : undefined
+            }
           >
             {submitting ? (
               <span className="flex items-center justify-center gap-2">
@@ -495,7 +533,7 @@ export default function PaidLeaveDialog({
                 申請中...
               </span>
             ) : afterUsage < 0 ? (
-              "残日数不足"
+              '残日数不足'
             ) : (
               `有給申請 (${usedDays}日)`
             )}

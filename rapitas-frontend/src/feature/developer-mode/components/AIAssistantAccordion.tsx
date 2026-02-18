@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   BrainCircuit,
   Bot,
@@ -11,14 +11,14 @@ import {
   CheckCircle2,
   Play,
   Loader2,
-} from "lucide-react";
-import type { DeveloperModeConfig, TaskAnalysisResult } from "@/types";
+} from 'lucide-react';
+import type { DeveloperModeConfig, TaskAnalysisResult } from '@/types';
 import type {
   ExecutionStatus,
   ExecutionResult,
-} from "../hooks/useDeveloperMode";
-import { AIAnalysisPanel } from "./AIAnalysisPanel";
-import { AgentExecutionPanel } from "./AgentExecutionPanel";
+} from '../hooks/useDeveloperMode';
+import { AIAnalysisPanel } from './AIAnalysisPanel';
+import { AgentExecutionPanel } from './AgentExecutionPanel';
 
 // TaskAnalysisResult is imported from @/types
 
@@ -69,7 +69,7 @@ type Props = {
   onStopExecution?: () => void;
 };
 
-const STORAGE_KEY = "ai-assistant-accordion-height";
+const STORAGE_KEY = 'ai-assistant-accordion-height';
 const DEFAULT_HEIGHT = 400;
 const MIN_HEIGHT = 150;
 const MAX_HEIGHT = 1200;
@@ -115,7 +115,7 @@ export function AIAssistantAccordion({
 
   // リサイズ関連の状態
   const [contentHeight, setContentHeight] = useState<number>(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(STORAGE_KEY);
       return saved ? parseInt(saved, 10) : DEFAULT_HEIGHT;
     }
@@ -139,8 +139,8 @@ export function AIAssistantAccordion({
       startHeightRef.current = contentHeight;
 
       // 即座にカーソルとユーザー選択を設定
-      document.body.style.cursor = "ns-resize";
-      document.body.style.userSelect = "none";
+      document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
     },
     [contentHeight],
   );
@@ -168,8 +168,8 @@ export function AIAssistantAccordion({
     const handleMouseUp = (e: MouseEvent) => {
       e.preventDefault();
       setIsResizing(false);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
 
       // リサイズ完了時にローカルストレージに保存
       const finalHeight = Math.min(
@@ -182,14 +182,14 @@ export function AIAssistantAccordion({
       localStorage.setItem(STORAGE_KEY, String(finalHeight));
     };
 
-    document.addEventListener("mousemove", handleMouseMove, { passive: false });
-    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener('mousemove', handleMouseMove, { passive: false });
+    document.addEventListener('mouseup', handleMouseUp);
 
     return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
     };
   }, [isResizing]);
 
@@ -338,13 +338,13 @@ export function AIAssistantAccordion({
           {/* リサイズハンドル - コンテンツの直下に配置 */}
           <div
             onMouseDown={handleResizeStart}
-            className={`shrink-0 h-5 flex items-center justify-center bg-zinc-100 dark:bg-indigo-dark-800 border-t border-zinc-200 dark:border-zinc-700 hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors group select-none touch-none ${isResizing ? "bg-violet-200 dark:bg-violet-900/50" : ""}`}
-            style={{ cursor: "ns-resize" }}
+            className={`shrink-0 h-5 flex items-center justify-center bg-zinc-100 dark:bg-indigo-dark-800 border-t border-zinc-200 dark:border-zinc-700 hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors group select-none touch-none ${isResizing ? 'bg-violet-200 dark:bg-violet-900/50' : ''}`}
+            style={{ cursor: 'ns-resize' }}
             title="ドラッグしてサイズを変更"
           >
             <div className="flex items-center gap-0.5">
               <div
-                className={`w-8 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600 group-hover:bg-violet-400 dark:group-hover:bg-violet-500 transition-colors ${isResizing ? "bg-violet-500 dark:bg-violet-400" : ""}`}
+                className={`w-8 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600 group-hover:bg-violet-400 dark:group-hover:bg-violet-500 transition-colors ${isResizing ? 'bg-violet-500 dark:bg-violet-400' : ''}`}
               />
             </div>
           </div>

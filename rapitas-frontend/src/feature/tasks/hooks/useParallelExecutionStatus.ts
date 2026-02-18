@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { API_BASE_URL } from "@/utils/api";
-import type { ParallelExecutionStatus } from "../components/SubtaskExecutionStatus";
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { API_BASE_URL } from '@/utils/api';
+import type { ParallelExecutionStatus } from '../components/SubtaskExecutionStatus';
 
 /**
  * サブタスクの実行ステータス
@@ -40,15 +40,15 @@ export interface ParallelSessionState {
  */
 interface ParallelExecutionEvent {
   type:
-    | "session_started"
-    | "session_completed"
-    | "session_failed"
-    | "task_started"
-    | "task_completed"
-    | "task_failed"
-    | "level_started"
-    | "level_completed"
-    | "progress_updated";
+    | 'session_started'
+    | 'session_completed'
+    | 'session_failed'
+    | 'task_started'
+    | 'task_completed'
+    | 'task_failed'
+    | 'level_started'
+    | 'level_completed'
+    | 'progress_updated';
   sessionId: string;
   taskId?: number;
   level?: number;
@@ -89,7 +89,9 @@ interface UseParallelExecutionStatusReturn {
   /** サブタスクの実行ステータスを取得 */
   getSubtaskStatus: (subtaskId: number) => ParallelExecutionStatus | undefined;
   /** セッションを開始 */
-  startSession: (config?: { maxConcurrentAgents?: number }) => Promise<string | null>;
+  startSession: (config?: {
+    maxConcurrentAgents?: number;
+  }) => Promise<string | null>;
   /** セッションを停止 */
   stopSession: () => Promise<void>;
   /** ステータスを更新（手動） */
@@ -107,7 +109,9 @@ export function useParallelExecutionStatus({
   pollingInterval = 3000,
 }: UseParallelExecutionStatusOptions): UseParallelExecutionStatusReturn {
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [sessionState, setSessionState] = useState<ParallelSessionState | null>(null);
+  const [sessionState, setSessionState] = useState<ParallelSessionState | null>(
+    null,
+  );
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -119,12 +123,12 @@ export function useParallelExecutionStatus({
     (subtaskId: number): ParallelExecutionStatus | undefined => {
       return sessionState?.subtaskStates.get(subtaskId)?.status;
     },
-    [sessionState]
+    [sessionState],
   );
 
   // 実行中かどうか
   const isRunning =
-    sessionState?.status === "running" || sessionState?.status === "scheduled";
+    sessionState?.status === 'running' || sessionState?.status === 'scheduled';
 
   // SSEイベントを処理
   const handleSSEEvent = useCallback((event: ParallelExecutionEvent) => {
@@ -133,7 +137,7 @@ export function useParallelExecutionStatus({
         // 初期状態を作成
         prev = {
           sessionId: event.sessionId,
-          status: "running",
+          status: 'running',
           progress: 0,
           currentLevel: 0,
           completedTasks: [],
@@ -150,12 +154,12 @@ export function useParallelExecutionStatus({
       const newState = { ...prev, subtaskStates: new Map(prev.subtaskStates) };
 
       switch (event.type) {
-        case "session_started":
-          newState.status = "running";
+        case 'session_started':
+          newState.status = 'running';
           break;
 
-        case "session_completed":
-          newState.status = "completed";
+        case 'session_completed':
+          newState.status = 'completed';
           if (event.data?.tokensUsed) {
             newState.totalTokensUsed = event.data.tokensUsed;
           }
@@ -164,15 +168,15 @@ export function useParallelExecutionStatus({
           }
           break;
 
-        case "session_failed":
-          newState.status = "failed";
+        case 'session_failed':
+          newState.status = 'failed';
           break;
 
-        case "task_started":
+        case 'task_started':
           if (event.taskId) {
             newState.subtaskStates.set(event.taskId, {
               taskId: event.taskId,
-              status: "running",
+              status: 'running',
               startedAt: new Date(event.timestamp),
             });
             // runningTasksに追加
@@ -181,40 +185,43 @@ export function useParallelExecutionStatus({
             }
             // pendingTasksから削除
             newState.pendingTasks = newState.pendingTasks.filter(
-              (id) => id !== event.taskId
+              (id) => id !== event.taskId,
             );
           }
           break;
 
-        case "task_completed":
+        case 'task_completed':
           if (event.taskId) {
             const existingState = newState.subtaskStates.get(event.taskId);
             newState.subtaskStates.set(event.taskId, {
               ...existingState,
               taskId: event.taskId,
-              status: "completed",
+              status: 'completed',
               completedAt: new Date(event.timestamp),
               executionTimeMs: event.data?.executionTimeMs,
               tokensUsed: event.data?.tokensUsed,
             });
             // completedTasksに追加
             if (!newState.completedTasks.includes(event.taskId)) {
-              newState.completedTasks = [...newState.completedTasks, event.taskId];
+              newState.completedTasks = [
+                ...newState.completedTasks,
+                event.taskId,
+              ];
             }
             // runningTasksから削除
             newState.runningTasks = newState.runningTasks.filter(
-              (id) => id !== event.taskId
+              (id) => id !== event.taskId,
             );
           }
           break;
 
-        case "task_failed":
+        case 'task_failed':
           if (event.taskId) {
             const existingState = newState.subtaskStates.get(event.taskId);
             newState.subtaskStates.set(event.taskId, {
               ...existingState,
               taskId: event.taskId,
-              status: "failed",
+              status: 'failed',
               completedAt: new Date(event.timestamp),
               error: event.data?.errorMessage,
             });
@@ -224,22 +231,22 @@ export function useParallelExecutionStatus({
             }
             // runningTasksから削除
             newState.runningTasks = newState.runningTasks.filter(
-              (id) => id !== event.taskId
+              (id) => id !== event.taskId,
             );
           }
           break;
 
-        case "level_started":
+        case 'level_started':
           if (event.level !== undefined) {
             newState.currentLevel = event.level;
           }
           break;
 
-        case "level_completed":
+        case 'level_completed':
           // レベル完了時の処理（必要に応じて）
           break;
 
-        case "progress_updated":
+        case 'progress_updated':
           if (event.data) {
             if (event.data.progress !== undefined) {
               newState.progress = event.data.progress;
@@ -265,23 +272,29 @@ export function useParallelExecutionStatus({
               if (!newState.subtaskStates.has(id)) {
                 newState.subtaskStates.set(id, {
                   taskId: id,
-                  status: "completed",
+                  status: 'completed',
                 });
               } else {
                 const existing = newState.subtaskStates.get(id)!;
-                newState.subtaskStates.set(id, { ...existing, status: "completed" });
+                newState.subtaskStates.set(id, {
+                  ...existing,
+                  status: 'completed',
+                });
               }
             });
             event.data.running?.forEach((id) => {
               if (!newState.subtaskStates.has(id)) {
                 newState.subtaskStates.set(id, {
                   taskId: id,
-                  status: "running",
+                  status: 'running',
                 });
               } else {
                 const existing = newState.subtaskStates.get(id)!;
-                if (existing.status !== "completed") {
-                  newState.subtaskStates.set(id, { ...existing, status: "running" });
+                if (existing.status !== 'completed') {
+                  newState.subtaskStates.set(id, {
+                    ...existing,
+                    status: 'running',
+                  });
                 }
               }
             });
@@ -289,26 +302,32 @@ export function useParallelExecutionStatus({
               if (!newState.subtaskStates.has(id)) {
                 newState.subtaskStates.set(id, {
                   taskId: id,
-                  status: "failed",
+                  status: 'failed',
                 });
               } else {
                 const existing = newState.subtaskStates.get(id)!;
-                newState.subtaskStates.set(id, { ...existing, status: "failed" });
+                newState.subtaskStates.set(id, {
+                  ...existing,
+                  status: 'failed',
+                });
               }
             });
             event.data.blocked?.forEach((id) => {
               if (!newState.subtaskStates.has(id)) {
                 newState.subtaskStates.set(id, {
                   taskId: id,
-                  status: "blocked",
+                  status: 'blocked',
                 });
               } else {
                 const existing = newState.subtaskStates.get(id)!;
                 if (
-                  existing.status !== "completed" &&
-                  existing.status !== "running"
+                  existing.status !== 'completed' &&
+                  existing.status !== 'running'
                 ) {
-                  newState.subtaskStates.set(id, { ...existing, status: "blocked" });
+                  newState.subtaskStates.set(id, {
+                    ...existing,
+                    status: 'blocked',
+                  });
                 }
               }
             });
@@ -331,7 +350,7 @@ export function useParallelExecutionStatus({
       }
 
       const eventSource = new EventSource(
-        `${API_BASE_URL}/parallel/sessions/${sId}/logs/stream`
+        `${API_BASE_URL}/parallel/sessions/${sId}/logs/stream`,
       );
 
       eventSource.onopen = () => {
@@ -346,7 +365,7 @@ export function useParallelExecutionStatus({
             handleSSEEvent(data as ParallelExecutionEvent);
           }
         } catch (err) {
-          console.error("[SSE] Failed to parse event:", err);
+          console.error('[SSE] Failed to parse event:', err);
         }
       };
 
@@ -357,7 +376,7 @@ export function useParallelExecutionStatus({
 
       eventSourceRef.current = eventSource;
     },
-    [enableSSE, handleSSEEvent]
+    [enableSSE, handleSSEEvent],
   );
 
   // ステータスをポーリングで取得
@@ -366,10 +385,10 @@ export function useParallelExecutionStatus({
 
     try {
       const res = await fetch(
-        `${API_BASE_URL}/parallel/sessions/${sessionId}/status`
+        `${API_BASE_URL}/parallel/sessions/${sessionId}/status`,
       );
       if (!res.ok) {
-        throw new Error("ステータスの取得に失敗しました");
+        throw new Error('ステータスの取得に失敗しました');
       }
       const result = await res.json();
       if (result.success && result.data) {
@@ -382,17 +401,17 @@ export function useParallelExecutionStatus({
             newSubtaskStates.set(id, {
               ...newSubtaskStates.get(id),
               taskId: id,
-              status: "completed",
+              status: 'completed',
             });
           });
 
           // runningTasks
           data.running?.forEach((id: number) => {
-            if (newSubtaskStates.get(id)?.status !== "completed") {
+            if (newSubtaskStates.get(id)?.status !== 'completed') {
               newSubtaskStates.set(id, {
                 ...newSubtaskStates.get(id),
                 taskId: id,
-                status: "running",
+                status: 'running',
               });
             }
           });
@@ -402,7 +421,7 @@ export function useParallelExecutionStatus({
             newSubtaskStates.set(id, {
               ...newSubtaskStates.get(id),
               taskId: id,
-              status: "failed",
+              status: 'failed',
             });
           });
 
@@ -411,14 +430,14 @@ export function useParallelExecutionStatus({
             const existing = newSubtaskStates.get(id);
             if (
               !existing ||
-              (existing.status !== "completed" &&
-                existing.status !== "running" &&
-                existing.status !== "failed")
+              (existing.status !== 'completed' &&
+                existing.status !== 'running' &&
+                existing.status !== 'failed')
             ) {
               newSubtaskStates.set(id, {
                 ...newSubtaskStates.get(id),
                 taskId: id,
-                status: "blocked",
+                status: 'blocked',
               });
             }
           });
@@ -440,7 +459,7 @@ export function useParallelExecutionStatus({
         });
       }
     } catch (err) {
-      console.error("[Polling] Failed to fetch status:", err);
+      console.error('[Polling] Failed to fetch status:', err);
     }
   }, [sessionId]);
 
@@ -451,21 +470,23 @@ export function useParallelExecutionStatus({
 
   // セッションを開始
   const startSession = useCallback(
-    async (config?: { maxConcurrentAgents?: number }): Promise<string | null> => {
+    async (config?: {
+      maxConcurrentAgents?: number;
+    }): Promise<string | null> => {
       try {
         setError(null);
         const res = await fetch(
           `${API_BASE_URL}/parallel/tasks/${taskId}/execute`,
           {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ config }),
-          }
+          },
         );
 
         if (!res.ok) {
           const errorData = await res.json();
-          throw new Error(errorData.error || "セッションの開始に失敗しました");
+          throw new Error(errorData.error || 'セッションの開始に失敗しました');
         }
 
         const result = await res.json();
@@ -476,7 +497,7 @@ export function useParallelExecutionStatus({
           // 初期状態を設定
           setSessionState({
             sessionId: newSessionId,
-            status: "running",
+            status: 'running',
             progress: 0,
             currentLevel: 0,
             completedTasks: [],
@@ -497,12 +518,12 @@ export function useParallelExecutionStatus({
         return null;
       } catch (err) {
         const errorMessage =
-          err instanceof Error ? err.message : "セッションの開始に失敗しました";
+          err instanceof Error ? err.message : 'セッションの開始に失敗しました';
         setError(errorMessage);
         return null;
       }
     },
-    [taskId, connectSSE]
+    [taskId, connectSSE],
   );
 
   // セッションを停止
@@ -513,12 +534,12 @@ export function useParallelExecutionStatus({
       const res = await fetch(
         `${API_BASE_URL}/parallel/sessions/${sessionId}/stop`,
         {
-          method: "POST",
-        }
+          method: 'POST',
+        },
       );
 
       if (!res.ok) {
-        throw new Error("セッションの停止に失敗しました");
+        throw new Error('セッションの停止に失敗しました');
       }
 
       // SSE接続をクローズ
@@ -531,12 +552,12 @@ export function useParallelExecutionStatus({
         prev
           ? {
               ...prev,
-              status: "cancelled",
+              status: 'cancelled',
             }
-          : null
+          : null,
       );
     } catch (err) {
-      console.error("[StopSession] Error:", err);
+      console.error('[StopSession] Error:', err);
     }
   }, [sessionId]);
 

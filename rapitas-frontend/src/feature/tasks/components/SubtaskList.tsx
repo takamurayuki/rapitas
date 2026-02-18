@@ -1,15 +1,15 @@
-import { useState } from "react";
-import { Task } from "@/types";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
-import { getLabelsArray, hasLabels } from "@/utils/labels";
-import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
-import PriorityIcon from "@/feature/tasks/components/PriorityIcon";
+import { useState } from 'react';
+import { Task } from '@/types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
+import { getLabelsArray, hasLabels } from '@/utils/labels';
+import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
+import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import {
   statusConfig,
   renderStatusIcon,
-} from "@/feature/tasks/config/StatusConfig";
+} from '@/feature/tasks/config/StatusConfig';
 import {
   Pencil,
   Check,
@@ -19,11 +19,11 @@ import {
   Trash2,
   CheckSquare,
   Square,
-} from "lucide-react";
+} from 'lucide-react';
 import {
   SubtaskTitleIndicator,
   type ParallelExecutionStatus,
-} from "./SubtaskExecutionStatus";
+} from './SubtaskExecutionStatus';
 
 interface SubtaskListProps {
   subtasks?: Task[];
@@ -80,18 +80,18 @@ export default function SubtaskList({
   onDeleteSelectedSubtasks,
 }: SubtaskListProps) {
   const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
-  const [editingTitle, setEditingTitle] = useState("");
-  const [editingDescription, setEditingDescription] = useState("");
+  const [editingTitle, setEditingTitle] = useState('');
+  const [editingDescription, setEditingDescription] = useState('');
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<Set<number>>(
     new Set(),
   );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<
-    "all" | "selected" | null
+    'all' | 'selected' | null
   >(null);
 
-  const completedSubtasks = subtasks.filter((s) => s.status === "done") || [];
-  const activeSubtasks = subtasks.filter((s) => s.status !== "done") || [];
+  const completedSubtasks = subtasks.filter((s) => s.status === 'done') || [];
+  const activeSubtasks = subtasks.filter((s) => s.status !== 'done') || [];
   const totalSubtasks = subtasks.length || 0;
   const progressPercentage =
     totalSubtasks > 0
@@ -101,13 +101,13 @@ export default function SubtaskList({
   const startEditingSubtask = (subtask: Task) => {
     setEditingSubtaskId(subtask.id);
     setEditingTitle(subtask.title);
-    setEditingDescription(subtask.description || "");
+    setEditingDescription(subtask.description || '');
   };
 
   const cancelEditingSubtask = () => {
     setEditingSubtaskId(null);
-    setEditingTitle("");
-    setEditingDescription("");
+    setEditingTitle('');
+    setEditingDescription('');
   };
 
   const saveSubtaskEdit = () => {
@@ -185,8 +185,8 @@ export default function SubtaskList({
                     onClick={toggleSelectionMode}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                       isSelectionMode
-                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                        : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                        : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                     }`}
                   >
                     {isSelectionMode ? (
@@ -214,12 +214,12 @@ export default function SubtaskList({
                       className="px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                     >
                       {selectedSubtaskIds.size === totalSubtasks
-                        ? "全解除"
-                        : "全選択"}
+                        ? '全解除'
+                        : '全選択'}
                     </button>
                     {selectedSubtaskIds.size > 0 && (
                       <button
-                        onClick={() => setShowDeleteConfirm("selected")}
+                        onClick={() => setShowDeleteConfirm('selected')}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -231,7 +231,7 @@ export default function SubtaskList({
                 {/* 一括削除ボタン */}
                 {!isSelectionMode && onDeleteAllSubtasks && (
                   <button
-                    onClick={() => setShowDeleteConfirm("all")}
+                    onClick={() => setShowDeleteConfirm('all')}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -246,14 +246,14 @@ export default function SubtaskList({
         {showDeleteConfirm && (
           <div className="mb-4 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
             <p className="text-sm text-red-700 dark:text-red-300 mb-3">
-              {showDeleteConfirm === "all"
+              {showDeleteConfirm === 'all'
                 ? `すべてのサブタスク（${totalSubtasks}件）を削除しますか？この操作は取り消せません。`
                 : `選択した${selectedSubtaskIds.size}件のサブタスクを削除しますか？この操作は取り消せません。`}
             </p>
             <div className="flex gap-2">
               <button
                 onClick={
-                  showDeleteConfirm === "all"
+                  showDeleteConfirm === 'all'
                     ? handleDeleteAll
                     : handleDeleteSelected
                 }
@@ -300,8 +300,8 @@ export default function SubtaskList({
                 key={subtask.id}
                 className={`rounded-lg border bg-zinc-50 dark:bg-indigo-dark-800 p-4 ${
                   isSelectionMode && selectedSubtaskIds.has(subtask.id)
-                    ? "border-blue-500 dark:border-blue-400 ring-1 ring-blue-500 dark:ring-blue-400"
-                    : "border-zinc-200 dark:border-zinc-700"
+                    ? 'border-blue-500 dark:border-blue-400 ring-1 ring-blue-500 dark:ring-blue-400'
+                    : 'border-zinc-200 dark:border-zinc-700'
                 }`}
               >
                 {/* 選択モード時のチェックボックス */}
@@ -382,7 +382,9 @@ export default function SubtaskList({
                         </div>
                         {subtask.description && (
                           <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none mt-2">
-                            <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm, remarkBreaks]}
+                            >
                               {subtask.description}
                             </ReactMarkdown>
                           </div>
@@ -390,7 +392,7 @@ export default function SubtaskList({
                       </div>
                       <div className="flex items-center gap-1 ml-4 shrink-0">
                         {/* ステータス変更ボタン（コンパクト版） */}
-                        {(["todo", "in-progress", "done"] as const).map(
+                        {(['todo', 'in-progress', 'done'] as const).map(
                           (status) => {
                             const config = statusConfig[status];
                             return (
@@ -491,8 +493,8 @@ export default function SubtaskList({
                 key={subtask.id}
                 className={`rounded-lg border bg-zinc-50 dark:bg-indigo-dark-800 p-3 opacity-60 ${
                   isSelectionMode && selectedSubtaskIds.has(subtask.id)
-                    ? "border-blue-500 dark:border-blue-400 ring-1 ring-blue-500 dark:ring-blue-400 opacity-100"
-                    : "border-zinc-200 dark:border-zinc-700"
+                    ? 'border-blue-500 dark:border-blue-400 ring-1 ring-blue-500 dark:ring-blue-400 opacity-100'
+                    : 'border-zinc-200 dark:border-zinc-700'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -530,7 +532,7 @@ export default function SubtaskList({
                   </div>
                   <div className="flex items-center gap-1 ml-4">
                     {/* ステータス変更ボタン（コンパクト版） */}
-                    {(["todo", "in-progress", "done"] as const).map(
+                    {(['todo', 'in-progress', 'done'] as const).map(
                       (status) => {
                         const config = statusConfig[status];
                         return (
@@ -587,7 +589,7 @@ export default function SubtaskList({
       )}
 
       {/* サブタスク追加フォーム */}
-      <div className={totalSubtasks > 0 ? "mt-6" : ""}>
+      <div className={totalSubtasks > 0 ? 'mt-6' : ''}>
         {isAddingSubtask ? (
           <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-4 bg-white dark:bg-indigo-dark-900 mb-4">
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-3">

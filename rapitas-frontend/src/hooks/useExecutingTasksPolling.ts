@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useCallback } from "react";
-import { API_BASE_URL } from "@/utils/api";
-import { useExecutionStateStore } from "@/stores/executionStateStore";
+import { useEffect, useRef, useCallback } from 'react';
+import { API_BASE_URL } from '@/utils/api';
+import { useExecutionStateStore } from '@/stores/executionStateStore';
 
 /**
  * 実行中のタスクをポーリングで検出し、グローバルストアに反映するフック
@@ -40,14 +40,14 @@ export function useExecutingTasksPolling(options?: {
 
       for (const item of data) {
         if (
-          item.executionStatus === "running" ||
-          item.executionStatus === "waiting_for_input"
+          item.executionStatus === 'running' ||
+          item.executionStatus === 'waiting_for_input'
         ) {
           currentExecutingIds.add(item.taskId);
           setExecutingTask({
             taskId: item.taskId,
             sessionId: item.sessionId,
-            status: item.executionStatus as "running" | "waiting_for_input",
+            status: item.executionStatus as 'running' | 'waiting_for_input',
           });
 
           // 新しく検出されたタスクの場合のみコールバック

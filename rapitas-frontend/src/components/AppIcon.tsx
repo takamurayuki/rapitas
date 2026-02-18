@@ -3,7 +3,7 @@ interface AppIconProps {
   className?: string;
 }
 
-export default function AppIcon({ size = 20, className = "" }: AppIconProps) {
+export default function AppIcon({ size = 20, className = '' }: AppIconProps) {
   return (
     <svg
       className={className}

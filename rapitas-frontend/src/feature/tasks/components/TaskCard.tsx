@@ -1,26 +1,30 @@
-"use client";
-import React, { useState, useRef, useEffect, memo } from "react";
-import type { Task, Status } from "@/types";
-import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
-import SubtaskStatusButtons from "@/feature/tasks/components/SubtaskStatusButtons";
-import PriorityIcon from "@/feature/tasks/components/PriorityIcon";
+'use client';
+import React, { useState, useRef, useEffect, memo } from 'react';
+import type { Task, Status } from '@/types';
+import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
+import SubtaskStatusButtons from '@/feature/tasks/components/SubtaskStatusButtons';
+import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import {
   statusConfig,
   renderStatusIcon,
-} from "@/feature/tasks/config/StatusConfig";
-import { ExternalLink, Tag, Copy, Trash2, Edit } from "lucide-react";
-import { getLabelsArray, hasLabels } from "@/utils/labels";
-import { getIconComponent } from "@/components/category/IconData";
-import { useToast } from "@/components/ui/toast/ToastContainer";
-import { API_BASE_URL } from "@/utils/api";
-import { CardLightSweep, useProgressColors } from "./TaskCompletionAnimation";
+} from '@/feature/tasks/config/StatusConfig';
+import { ExternalLink, Tag, Copy, Trash2, Edit } from 'lucide-react';
+import { getLabelsArray, hasLabels } from '@/utils/labels';
+import { getIconComponent } from '@/components/category/IconData';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import { API_BASE_URL } from '@/utils/api';
+import { CardLightSweep, useProgressColors } from './TaskCompletionAnimation';
 
 interface TaskCardProps {
   task: Task;
   isSelected?: boolean;
   isSelectionMode?: boolean;
   onTaskClick: (taskId: number) => void;
-  onStatusChange: (taskId: number, status: Status, cardElement?: HTMLElement) => void;
+  onStatusChange: (
+    taskId: number,
+    status: Status,
+    cardElement?: HTMLElement,
+  ) => void;
   onToggleSelect?: (taskId: number) => void;
   onTaskUpdated?: () => void;
   onOpenInPage?: (taskId: number) => void;
@@ -41,7 +45,10 @@ const TaskCard = memo(function TaskCard({
   const cardRef = useRef<HTMLDivElement>(null);
   const [expandedSubtasks, setExpandedSubtasks] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
-  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  const [contextMenuPosition, setContextMenuPosition] = useState({
+    x: 0,
+    y: 0,
+  });
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
 
@@ -49,33 +56,36 @@ const TaskCard = memo(function TaskCard({
     statusConfig[task.status as keyof typeof statusConfig] || statusConfig.todo;
   const completionRate = task.subtasks?.length
     ? Math.round(
-        (task.subtasks.filter((s) => s.status === "done").length /
+        (task.subtasks.filter((s) => s.status === 'done').length /
           task.subtasks.length) *
           100,
       )
     : null;
 
   const getProgressBarColor = (rate: number) => {
-    if (rate === 100) return "bg-green-500";
-    if (rate >= 80) return "bg-gradient-to-r from-blue-500 to-green-500";
-    if (rate >= 50) return "bg-blue-500";
-    return "bg-gradient-to-r from-blue-500 to-orange-500";
+    if (rate === 100) return 'bg-green-500';
+    if (rate >= 80) return 'bg-gradient-to-r from-blue-500 to-green-500';
+    if (rate >= 50) return 'bg-blue-500';
+    return 'bg-gradient-to-r from-blue-500 to-orange-500';
   };
 
   // コンテキストメニューを閉じる
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+      if (
+        contextMenuRef.current &&
+        !contextMenuRef.current.contains(e.target as Node)
+      ) {
         setShowContextMenu(false);
       }
     };
 
     if (showContextMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showContextMenu]);
 
@@ -83,8 +93,8 @@ const TaskCard = memo(function TaskCard({
   const duplicateTask = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/tasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: `${task.title} (コピー)`,
           status: task.status,
@@ -95,32 +105,32 @@ const TaskCard = memo(function TaskCard({
         }),
       });
 
-      if (!res.ok) throw new Error("複製に失敗しました");
-      showToast("タスクを複製しました", "success");
+      if (!res.ok) throw new Error('複製に失敗しました');
+      showToast('タスクを複製しました', 'success');
       onTaskUpdated?.();
       setShowContextMenu(false);
     } catch (e) {
       console.error(e);
-      showToast("タスクの複製に失敗しました", "error");
+      showToast('タスクの複製に失敗しました', 'error');
     }
   };
 
   // タスクを削除
   const deleteTask = async () => {
-    if (!confirm("このタスクを削除しますか？")) return;
+    if (!confirm('このタスクを削除しますか？')) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${task.id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
 
-      if (!res.ok) throw new Error("削除に失敗しました");
-      showToast("タスクを削除しました", "success");
+      if (!res.ok) throw new Error('削除に失敗しました');
+      showToast('タスクを削除しました', 'success');
       onTaskUpdated?.();
       setShowContextMenu(false);
     } catch (e) {
       console.error(e);
-      showToast("タスクの削除に失敗しました", "error");
+      showToast('タスクの削除に失敗しました', 'error');
     }
   };
 
@@ -135,7 +145,10 @@ const TaskCard = memo(function TaskCard({
       } ${`border-zinc-200 dark:border-zinc-800 ${currentStatus.bgColor} dark:bg-indigo-dark-900 hover:shadow-lg hover:scale-[1.02] hover:border-opacity-80`}`}
     >
       {/* カードライトスイープエフェクト */}
-      <CardLightSweep active={sweepingTaskId === task.id} colors={sweepColors} />
+      <CardLightSweep
+        active={sweepingTaskId === task.id}
+        colors={sweepColors}
+      />
       <div
         className="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all duration-200 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 rounded-t-lg"
         onClick={() => {
@@ -169,8 +182,8 @@ const TaskCard = memo(function TaskCard({
             } ${
               currentStatus.bgColor
             } border-2 ${currentStatus.borderColor.replace(
-              "border-l-",
-              "border-",
+              'border-l-',
+              'border-',
             )} shrink-0`}
             title={currentStatus.label}
           >
@@ -193,9 +206,9 @@ const TaskCard = memo(function TaskCard({
           <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
             {/* 作成日 */}
             <span className="shrink-0">
-              {new Date(task.createdAt).toLocaleDateString("ja-JP", {
-                month: "numeric",
-                day: "numeric",
+              {new Date(task.createdAt).toLocaleDateString('ja-JP', {
+                month: 'numeric',
+                day: 'numeric',
               })}
             </span>
 
@@ -211,7 +224,7 @@ const TaskCard = memo(function TaskCard({
                 >
                   <svg
                     className={`w-3 h-3 transition-transform ${
-                      expandedSubtasks ? "rotate-90" : ""
+                      expandedSubtasks ? 'rotate-90' : ''
                     }`}
                     fill="none"
                     stroke="currentColor"
@@ -224,7 +237,7 @@ const TaskCard = memo(function TaskCard({
                       d="M9 5l7 7-7 7"
                     />
                   </svg>
-                  {task.subtasks.filter((s) => s.status === "done").length}/
+                  {task.subtasks.filter((s) => s.status === 'done').length}/
                   {task.subtasks.length}
                 </button>
               </>
@@ -243,7 +256,8 @@ const TaskCard = memo(function TaskCard({
                 <span className="flex items-center gap-1 shrink-0 flex-wrap">
                   {task.taskLabels.slice(0, 3).map((tl) => {
                     if (!tl.label) return null;
-                    const IconComponent = getIconComponent(tl.label.icon || "") || Tag;
+                    const IconComponent =
+                      getIconComponent(tl.label.icon || '') || Tag;
                     return (
                       <span
                         key={tl.id}
@@ -302,9 +316,8 @@ const TaskCard = memo(function TaskCard({
             onTouchStart={(e) => e.stopPropagation()}
           >
             {/* ステータス変更ボタン */}
-            {["todo", "in-progress", "done"].map((status) => {
-              const config =
-                statusConfig[status as keyof typeof statusConfig];
+            {['todo', 'in-progress', 'done'].map((status) => {
+              const config = statusConfig[status as keyof typeof statusConfig];
               return (
                 <TaskStatusChange
                   key={status}
@@ -313,7 +326,11 @@ const TaskCard = memo(function TaskCard({
                   config={config}
                   renderIcon={renderStatusIcon}
                   onClick={(status: string) =>
-                    onStatusChange(task.id, status as Status, cardRef.current || undefined)
+                    onStatusChange(
+                      task.id,
+                      status as Status,
+                      cardRef.current || undefined,
+                    )
                   }
                   size="md"
                 />
@@ -388,12 +405,12 @@ const TaskCard = memo(function TaskCard({
             const isLast = index === task.subtasks!.length - 1;
             const roundedClass =
               isFirst && isLast
-                ? "rounded-md"
+                ? 'rounded-md'
                 : isFirst
-                  ? "rounded-t-md"
+                  ? 'rounded-t-md'
                   : isLast
-                    ? "rounded-b-md"
-                    : "";
+                    ? 'rounded-b-md'
+                    : '';
             return (
               <div
                 key={subtask.id}
@@ -405,8 +422,8 @@ const TaskCard = memo(function TaskCard({
                   } ${
                     subtaskStatus.bgColor
                   } border ${subtaskStatus.borderColor.replace(
-                    "border-l-",
-                    "border-",
+                    'border-l-',
+                    'border-',
                   )} shrink-0`}
                   title={subtaskStatus.label}
                 >
@@ -414,9 +431,9 @@ const TaskCard = memo(function TaskCard({
                 </div>
                 <span
                   className={`flex-1 text-sm ${
-                    subtask.status === "done"
-                      ? "line-through text-zinc-500 dark:text-zinc-500"
-                      : "text-zinc-700 dark:text-zinc-300"
+                    subtask.status === 'done'
+                      ? 'line-through text-zinc-500 dark:text-zinc-500'
+                      : 'text-zinc-700 dark:text-zinc-300'
                   }`}
                 >
                   {subtask.title}

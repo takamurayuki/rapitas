@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-function SkeletonBlock({ className = "" }: { className?: string }) {
+function SkeletonBlock({ className = '' }: { className?: string }) {
   return (
     <div
       className={`bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse ${className}`}
@@ -100,7 +100,9 @@ export default function TaskDetailSkeleton() {
             {[1, 2, 3].map((i) => (
               <div key={i} className="px-4 py-3 flex items-center gap-3">
                 <SkeletonBlock className="w-5 h-5 rounded-full shrink-0" />
-                <SkeletonBlock className={`h-4 ${i === 1 ? "w-3/4" : i === 2 ? "w-1/2" : "w-2/3"}`} />
+                <SkeletonBlock
+                  className={`h-4 ${i === 1 ? 'w-3/4' : i === 2 ? 'w-1/2' : 'w-2/3'}`}
+                />
               </div>
             ))}
           </div>

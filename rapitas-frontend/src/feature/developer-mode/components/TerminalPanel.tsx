@@ -1,13 +1,6 @@
-"use client";
+'use client';
 
-import {
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  memo,
-  useMemo,
-} from "react";
+import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import {
   Play,
   Square,
@@ -19,10 +12,10 @@ import {
   AlertCircle,
   CheckCircle2,
   HelpCircle,
-} from "lucide-react";
-import type { AIAgentConfig, ExecutionStatus, ExecutionResult } from "@/types";
-import { ModelSelector } from "./ModelSelector";
-import { useExecutionPolling } from "../hooks/useExecutionStream";
+} from 'lucide-react';
+import type { AIAgentConfig, ExecutionStatus, ExecutionResult } from '@/types';
+import { ModelSelector } from './ModelSelector';
+import { useExecutionPolling } from '../hooks/useExecutionStream';
 
 type Props = {
   taskId: number;
@@ -49,7 +42,7 @@ type Props = {
 
 type LogLine = {
   id: string;
-  type: "user" | "agent" | "system" | "error" | "question" | "tool";
+  type: 'user' | 'agent' | 'system' | 'error' | 'question' | 'tool';
   text: string;
   ts: number;
 };
@@ -57,45 +50,48 @@ type LogLine = {
 // ターミナルの最大行数（メモリリーク防止）
 const MAX_TERMINAL_LINES = 1000;
 
-function classifyLine(line: string): LogLine["type"] {
-  if (line.startsWith("[Tool:") || line.startsWith("[ツール:")) return "tool";
+function classifyLine(line: string): LogLine['type'] {
+  if (line.startsWith('[Tool:') || line.startsWith('[ツール:')) return 'tool';
   if (
-    line.startsWith("[エラー]") ||
-    line.startsWith("[Error]") ||
-    line.startsWith("[失敗]")
+    line.startsWith('[エラー]') ||
+    line.startsWith('[Error]') ||
+    line.startsWith('[失敗]')
   )
-    return "error";
+    return 'error';
   if (
-    line.startsWith("[Question]") ||
-    line.startsWith("[質問]") ||
-    line.includes("waitingForInput")
+    line.startsWith('[Question]') ||
+    line.startsWith('[質問]') ||
+    line.includes('waitingForInput')
   )
-    return "question";
-  if (line.startsWith("[System") || line.startsWith("[システム")) return "system";
-  return "agent";
+    return 'question';
+  if (line.startsWith('[System') || line.startsWith('[システム'))
+    return 'system';
+  return 'agent';
 }
 
-function lineColor(type: LogLine["type"]): string {
+function lineColor(type: LogLine['type']): string {
   switch (type) {
-    case "user":
-      return "text-violet-400";
-    case "tool":
-      return "text-cyan-400";
-    case "error":
-      return "text-red-400";
-    case "question":
-      return "text-amber-400";
-    case "system":
-      return "text-zinc-500";
+    case 'user':
+      return 'text-violet-400';
+    case 'tool':
+      return 'text-cyan-400';
+    case 'error':
+      return 'text-red-400';
+    case 'question':
+      return 'text-amber-400';
+    case 'system':
+      return 'text-zinc-500';
     default:
-      return "text-zinc-300";
+      return 'text-zinc-300';
   }
 }
 
 const TerminalLine = memo(function TerminalLine({ line }: { line: LogLine }) {
   return (
-    <div className={`px-3 py-0.5 text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-all ${lineColor(line.type)}`}>
-      {line.type === "user" && (
+    <div
+      className={`px-3 py-0.5 text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-all ${lineColor(line.type)}`}
+    >
+      {line.type === 'user' && (
         <span className="text-green-400 select-none">❯ </span>
       )}
       {line.text}
@@ -113,13 +109,13 @@ const StatusDot = memo(function StatusDot({
   if (waitingForInput)
     return <HelpCircle className="w-3 h-3 text-amber-400 animate-pulse" />;
   switch (status) {
-    case "running":
+    case 'running':
       return <Loader2 className="w-3 h-3 text-green-400 animate-spin" />;
-    case "completed":
+    case 'completed':
       return <CheckCircle2 className="w-3 h-3 text-green-400" />;
-    case "failed":
+    case 'failed':
       return <AlertCircle className="w-3 h-3 text-red-400" />;
-    case "cancelled":
+    case 'cancelled':
       return <Circle className="w-3 h-3 text-yellow-400" />;
     default:
       return <Terminal className="w-3 h-3 text-zinc-500" />;
@@ -141,7 +137,7 @@ export const TerminalPanel = memo(function TerminalPanel({
   optimizedPrompt,
   useTaskAnalysis,
 }: Props) {
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState('');
   const [lines, setLines] = useState<LogLine[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
@@ -152,7 +148,7 @@ export const TerminalPanel = memo(function TerminalPanel({
   // Polling
   const polling = useExecutionPolling(taskId);
   const isRunning =
-    polling.isRunning || executionStatus === "running" || isExecuting;
+    polling.isRunning || executionStatus === 'running' || isExecuting;
   const isWaiting = polling.waitingForInput;
   const question = polling.question;
 
@@ -165,7 +161,9 @@ export const TerminalPanel = memo(function TerminalPanel({
     prevLogsRef.current = currentLogs;
 
     const newLines: LogLine[] = newLogs
-      .filter((l) => l.trim() && l.trim() !== "null" && l.trim() !== "undefined")
+      .filter(
+        (l) => l.trim() && l.trim() !== 'null' && l.trim() !== 'undefined',
+      )
       .map((text) => ({
         id: `log-${lineIdCounter.current++}`,
         type: classifyLine(text),
@@ -188,12 +186,12 @@ export const TerminalPanel = memo(function TerminalPanel({
     if (isWaiting && question) {
       setLines((prev) => {
         const last = prev[prev.length - 1];
-        if (last?.type === "question" && last.text === question) return prev;
+        if (last?.type === 'question' && last.text === question) return prev;
         const combined = [
           ...prev,
           {
             id: `q-${lineIdCounter.current++}`,
-            type: "question" as const,
+            type: 'question' as const,
             text: question,
             ts: Date.now(),
           },
@@ -218,19 +216,22 @@ export const TerminalPanel = memo(function TerminalPanel({
       onRestoreExecutionState().then((state) => {
         if (state?.output) {
           const restoredLines = state.output
-            .split("\n")
-            .filter((l) => l.trim() && l.trim() !== "null" && l.trim() !== "undefined")
+            .split('\n')
+            .filter(
+              (l) =>
+                l.trim() && l.trim() !== 'null' && l.trim() !== 'undefined',
+            )
             .map((text) => ({
               id: `r-${lineIdCounter.current++}`,
-              type: classifyLine(text) as LogLine["type"],
+              type: classifyLine(text) as LogLine['type'],
               text,
               ts: Date.now(),
             }));
           setLines(restoredLines);
         }
         if (
-          state?.status === "running" ||
-          state?.status === "waiting_for_input"
+          state?.status === 'running' ||
+          state?.status === 'waiting_for_input'
         ) {
           polling.startPolling();
         }
@@ -248,7 +249,7 @@ export const TerminalPanel = memo(function TerminalPanel({
         ...prev,
         {
           id: `u-${lineIdCounter.current++}`,
-          type: "user" as const,
+          type: 'user' as const,
           text,
           ts: Date.now(),
         },
@@ -257,18 +258,21 @@ export const TerminalPanel = memo(function TerminalPanel({
         ? combined.slice(-MAX_TERMINAL_LINES)
         : combined;
     });
-    setInput("");
+    setInput('');
 
     if (isWaiting) {
       // Respond to question
       setSubmitting(true);
       try {
-        const { API_BASE_URL } = await import("@/utils/api");
-        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/agent-respond`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ response: text }),
-        });
+        const { API_BASE_URL } = await import('@/utils/api');
+        const res = await fetch(
+          `${API_BASE_URL}/tasks/${taskId}/agent-respond`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ response: text }),
+          },
+        );
         if (res.ok) {
           polling.clearQuestion();
         } else {
@@ -280,7 +284,7 @@ export const TerminalPanel = memo(function TerminalPanel({
             ...prev,
             {
               id: `e-${lineIdCounter.current++}`,
-              type: "error" as const,
+              type: 'error' as const,
               text: `[エラー] 回答の送信に失敗しました`,
               ts: Date.now(),
             },
@@ -306,7 +310,7 @@ export const TerminalPanel = memo(function TerminalPanel({
               ...prev,
               {
                 id: `s-${lineIdCounter.current++}`,
-                type: "system" as const,
+                type: 'system' as const,
                 text: `[System] 実行開始 (session: ${result.sessionId})`,
                 ts: Date.now(),
               },
@@ -323,7 +327,7 @@ export const TerminalPanel = memo(function TerminalPanel({
             ...prev,
             {
               id: `e-${lineIdCounter.current++}`,
-              type: "error" as const,
+              type: 'error' as const,
               text: `[エラー] 実行の開始に失敗しました`,
               ts: Date.now(),
             },
@@ -348,7 +352,7 @@ export const TerminalPanel = memo(function TerminalPanel({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSubmit();
       }
@@ -365,8 +369,8 @@ export const TerminalPanel = memo(function TerminalPanel({
         ...prev,
         {
           id: `s-${lineIdCounter.current++}`,
-          type: "system" as const,
-          text: "[System] 実行を停止しました",
+          type: 'system' as const,
+          text: '[System] 実行を停止しました',
           ts: Date.now(),
         },
       ];
@@ -382,38 +386,35 @@ export const TerminalPanel = memo(function TerminalPanel({
     polling.clearLogs();
     setLines([]);
     prevLogsRef.current = [];
-    setInput("");
+    setInput('');
   }, [onReset, polling]);
 
   const statusLabel = useMemo(() => {
-    if (isWaiting) return "入力待ち";
-    if (isRunning) return "実行中";
+    if (isWaiting) return '入力待ち';
+    if (isRunning) return '実行中';
     switch (polling.status) {
-      case "completed":
-        return "完了";
-      case "failed":
-        return "失敗";
-      case "cancelled":
-        return "中断";
+      case 'completed':
+        return '完了';
+      case 'failed':
+        return '失敗';
+      case 'cancelled':
+        return '中断';
       default:
-        return "待機";
+        return '待機';
     }
   }, [isWaiting, isRunning, polling.status]);
 
   const placeholder = isWaiting
-    ? "回答を入力..."
+    ? '回答を入力...'
     : isRunning
-      ? "実行中..."
-      : "指示を入力... (Enter で送信)";
+      ? '実行中...'
+      : '指示を入力... (Enter で送信)';
 
   return (
     <div className="flex flex-col h-full bg-zinc-900 rounded-lg overflow-hidden border border-zinc-700">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 bg-zinc-800 border-b border-zinc-700">
-        <StatusDot
-          status={polling.status}
-          waitingForInput={isWaiting}
-        />
+        <StatusDot status={polling.status} waitingForInput={isWaiting} />
         <span className="text-[10px] text-zinc-400 font-mono">
           {statusLabel}
         </span>
@@ -486,13 +487,13 @@ export const TerminalPanel = memo(function TerminalPanel({
           disabled={submitting || (isRunning && !isWaiting)}
           rows={1}
           className="flex-1 bg-transparent text-[11px] text-zinc-200 font-mono placeholder:text-zinc-600 outline-none resize-none disabled:opacity-40"
-          style={{ minHeight: "24px", maxHeight: "96px" }}
+          style={{ minHeight: '24px', maxHeight: '96px' }}
         />
         <button
           onClick={handleSubmit}
           disabled={!input.trim() || submitting || (isRunning && !isWaiting)}
           className="p-1.5 text-zinc-400 hover:text-violet-400 disabled:opacity-30 disabled:hover:text-zinc-400 transition-colors"
-          title={isWaiting ? "回答を送信" : "実行"}
+          title={isWaiting ? '回答を送信' : '実行'}
         >
           {submitting ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />

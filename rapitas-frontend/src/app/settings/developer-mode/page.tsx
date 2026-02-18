@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useRef, useCallback } from "react";
-import { Bot, AlertCircle, Loader2, RotateCcw, Zap } from "lucide-react";
-import type { UserSettings } from "@/types";
-import { useToast } from "@/components/ui/toast/ToastContainer";
-import { API_BASE_URL } from "@/utils/api";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { Bot, AlertCircle, Loader2, RotateCcw, Zap } from 'lucide-react';
+import type { UserSettings } from '@/types';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import { API_BASE_URL } from '@/utils/api';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 export default function DeveloperModeSettingsPage() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
@@ -15,7 +15,7 @@ export default function DeveloperModeSettingsPage() {
   const { showToast } = useToast();
 
   // 自動生成待機時間のローカル状態（即座に反映し、デバウンスで保存）
-  const [localDelay, setLocalDelay] = useState<number | "">(3);
+  const [localDelay, setLocalDelay] = useState<number | ''>(3);
   const delayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 自動再開設定
@@ -34,7 +34,7 @@ export default function DeveloperModeSettingsPage() {
         setLocalDelay(data.autoGenerateTitleDelay ?? 3);
       }
     } catch {
-      setError("設定の取得に失敗しました");
+      setError('設定の取得に失敗しました');
     } finally {
       setIsLoading(false);
     }
@@ -45,8 +45,8 @@ export default function DeveloperModeSettingsPage() {
     setError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/settings`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
       if (res.ok) {
@@ -54,12 +54,16 @@ export default function DeveloperModeSettingsPage() {
         setSettings((prev) => (prev ? { ...prev, ...data } : data));
       } else {
         const errorData = await res.json().catch(() => null);
-        const errorMsg = errorData?.message || errorData?.error || "更新に失敗しました";
+        const errorMsg =
+          errorData?.message || errorData?.error || '更新に失敗しました';
         throw new Error(errorMsg);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
-      showToast(err instanceof Error ? err.message : "設定の保存に失敗しました", "error");
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
+      showToast(
+        err instanceof Error ? err.message : '設定の保存に失敗しました',
+        'error',
+      );
     } finally {
       setIsSaving(false);
     }
@@ -86,8 +90,8 @@ export default function DeveloperModeSettingsPage() {
 
   const handleDelayChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
-    if (raw === "") {
-      setLocalDelay("");
+    if (raw === '') {
+      setLocalDelay('');
       return;
     }
     const num = Number(raw);
@@ -99,7 +103,7 @@ export default function DeveloperModeSettingsPage() {
 
   const handleDelayBlur = () => {
     // 空欄のままフォーカスを外したらデフォルト値に戻す
-    if (localDelay === "" || localDelay < 1) {
+    if (localDelay === '' || localDelay < 1) {
       setLocalDelay(3);
       saveDelayDebounced(3);
     }
@@ -112,8 +116,8 @@ export default function DeveloperModeSettingsPage() {
     setError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/settings`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ autoResumeInterruptedTasks: newValue }),
       });
       if (res.ok) {
@@ -122,11 +126,12 @@ export default function DeveloperModeSettingsPage() {
         );
       } else {
         const errorData = await res.json().catch(() => null);
-        const errorMsg = errorData?.message || errorData?.error || "設定の保存に失敗しました";
+        const errorMsg =
+          errorData?.message || errorData?.error || '設定の保存に失敗しました';
         setError(errorMsg);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "設定の保存に失敗しました");
+      setError(err instanceof Error ? err.message : '設定の保存に失敗しました');
     } finally {
       setIsSavingAutoResume(false);
     }
@@ -194,13 +199,13 @@ export default function DeveloperModeSettingsPage() {
                 disabled={isSaving}
                 className={`relative w-11 h-6 rounded-full transition-colors ${
                   settings?.aiTaskAnalysisDefault
-                    ? "bg-violet-500"
-                    : "bg-zinc-300 dark:bg-zinc-600"
+                    ? 'bg-violet-500'
+                    : 'bg-zinc-300 dark:bg-zinc-600'
                 }`}
               >
                 <span
                   className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                    settings?.aiTaskAnalysisDefault ? "translate-x-5" : ""
+                    settings?.aiTaskAnalysisDefault ? 'translate-x-5' : ''
                   }`}
                 />
               </button>
@@ -239,8 +244,8 @@ export default function DeveloperModeSettingsPage() {
                 disabled={isSaving}
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                   settings?.autoExecuteAfterCreate
-                    ? "bg-violet-500"
-                    : "bg-zinc-300 dark:bg-zinc-600"
+                    ? 'bg-violet-500'
+                    : 'bg-zinc-300 dark:bg-zinc-600'
                 }`}
                 role="switch"
                 aria-checked={settings?.autoExecuteAfterCreate ?? false}
@@ -248,8 +253,8 @@ export default function DeveloperModeSettingsPage() {
                 <span
                   className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
                     settings?.autoExecuteAfterCreate
-                      ? "translate-x-5"
-                      : "translate-x-0"
+                      ? 'translate-x-5'
+                      : 'translate-x-0'
                   }`}
                 />
               </button>
@@ -274,8 +279,8 @@ export default function DeveloperModeSettingsPage() {
                 disabled={isSaving}
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                   settings?.autoGenerateTitle
-                    ? "bg-violet-500"
-                    : "bg-zinc-300 dark:bg-zinc-600"
+                    ? 'bg-violet-500'
+                    : 'bg-zinc-300 dark:bg-zinc-600'
                 }`}
                 role="switch"
                 aria-checked={settings?.autoGenerateTitle ?? false}
@@ -283,8 +288,8 @@ export default function DeveloperModeSettingsPage() {
                 <span
                   className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
                     settings?.autoGenerateTitle
-                      ? "translate-x-5"
-                      : "translate-x-0"
+                      ? 'translate-x-5'
+                      : 'translate-x-0'
                   }`}
                 />
               </button>
@@ -311,7 +316,9 @@ export default function DeveloperModeSettingsPage() {
                     onBlur={handleDelayBlur}
                     className="w-16 px-2 py-1 text-sm text-center rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-violet-500"
                   />
-                  <span className="text-sm text-zinc-500 dark:text-zinc-400">秒</span>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                    秒
+                  </span>
                 </div>
               </div>
               <div className="flex items-center justify-between mt-3 ml-4 pl-4 border-l-2 border-violet-200 dark:border-violet-800">
@@ -326,23 +333,26 @@ export default function DeveloperModeSettingsPage() {
                 <button
                   onClick={() =>
                     updateSettings({
-                      autoCreateAfterTitleGeneration: !settings?.autoCreateAfterTitleGeneration,
+                      autoCreateAfterTitleGeneration:
+                        !settings?.autoCreateAfterTitleGeneration,
                     })
                   }
                   disabled={isSaving}
                   className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                     settings?.autoCreateAfterTitleGeneration
-                      ? "bg-violet-500"
-                      : "bg-zinc-300 dark:bg-zinc-600"
+                      ? 'bg-violet-500'
+                      : 'bg-zinc-300 dark:bg-zinc-600'
                   }`}
                   role="switch"
-                  aria-checked={settings?.autoCreateAfterTitleGeneration ?? false}
+                  aria-checked={
+                    settings?.autoCreateAfterTitleGeneration ?? false
+                  }
                 >
                   <span
                     className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
                       settings?.autoCreateAfterTitleGeneration
-                        ? "translate-x-5"
-                        : "translate-x-0"
+                        ? 'translate-x-5'
+                        : 'translate-x-0'
                     }`}
                   />
                 </button>
@@ -381,8 +391,8 @@ export default function DeveloperModeSettingsPage() {
                 disabled={isSavingAutoResume}
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                   settings?.autoResumeInterruptedTasks
-                    ? "bg-violet-600"
-                    : "bg-zinc-300 dark:bg-zinc-600"
+                    ? 'bg-violet-600'
+                    : 'bg-zinc-300 dark:bg-zinc-600'
                 }`}
                 role="switch"
                 aria-checked={settings?.autoResumeInterruptedTasks ?? false}
@@ -390,8 +400,8 @@ export default function DeveloperModeSettingsPage() {
                 <span
                   className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
                     settings?.autoResumeInterruptedTasks
-                      ? "translate-x-5"
-                      : "translate-x-0"
+                      ? 'translate-x-5'
+                      : 'translate-x-0'
                   }`}
                 />
               </button>

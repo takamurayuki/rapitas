@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { FileStack, X, FolderPlus, Check } from "lucide-react";
-import type { Task, TaskTemplate } from "@/types";
-import { API_BASE_URL } from "@/utils/api";
+import { useState, useEffect } from 'react';
+import { FileStack, X, FolderPlus, Check } from 'lucide-react';
+import type { Task, TaskTemplate } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
 
 // デフォルトカテゴリ
 const DEFAULT_CATEGORIES = [
-  "開発",
-  "デザイン",
-  "ドキュメント",
-  "ミーティング",
-  "レビュー",
-  "調査",
-  "その他",
+  '開発',
+  'デザイン',
+  'ドキュメント',
+  'ミーティング',
+  'レビュー',
+  '調査',
+  'その他',
 ];
 
 type Props = {
@@ -29,10 +29,10 @@ export default function SaveAsTemplateDialog({
   onClose,
   onSuccess,
 }: Props) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
-  const [customCategory, setCustomCategory] = useState("");
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
+  const [customCategory, setCustomCategory] = useState('');
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,7 +42,7 @@ export default function SaveAsTemplateDialog({
   useEffect(() => {
     if (isOpen && task) {
       setName(task.title);
-      setDescription(task.description || "");
+      setDescription(task.description || '');
       setError(null);
     }
   }, [isOpen, task]);
@@ -59,7 +59,7 @@ export default function SaveAsTemplateDialog({
           setCategories(merged);
         }
       } catch (err) {
-        console.error("Failed to fetch categories:", err);
+        console.error('Failed to fetch categories:', err);
       }
     };
     if (isOpen) {
@@ -71,11 +71,11 @@ export default function SaveAsTemplateDialog({
     const finalCategory = isCustomCategory ? customCategory : category;
 
     if (!name.trim()) {
-      setError("テンプレート名を入力してください");
+      setError('テンプレート名を入力してください');
       return;
     }
     if (!finalCategory.trim()) {
-      setError("カテゴリを選択または入力してください");
+      setError('カテゴリを選択または入力してください');
       return;
     }
 
@@ -83,19 +83,22 @@ export default function SaveAsTemplateDialog({
     setError(null);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/templates/from-task/${task.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          description: description.trim() || undefined,
-          category: finalCategory.trim(),
-        }),
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/templates/from-task/${task.id}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name.trim(),
+            description: description.trim() || undefined,
+            category: finalCategory.trim(),
+          }),
+        },
+      );
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "テンプレートの作成に失敗しました");
+        throw new Error(data.error || 'テンプレートの作成に失敗しました');
       }
 
       const template = await res.json();
@@ -103,13 +106,13 @@ export default function SaveAsTemplateDialog({
       onClose();
 
       // フォームをリセット
-      setName("");
-      setDescription("");
-      setCategory("");
-      setCustomCategory("");
+      setName('');
+      setDescription('');
+      setCategory('');
+      setCustomCategory('');
       setIsCustomCategory(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
     } finally {
       setIsSubmitting(false);
     }
@@ -197,8 +200,8 @@ export default function SaveAsTemplateDialog({
                       onClick={() => setCategory(cat)}
                       className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
                         category === cat
-                          ? "bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700"
-                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+                          ? 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
                       }`}
                     >
                       {category === cat && (
@@ -212,7 +215,7 @@ export default function SaveAsTemplateDialog({
                   type="button"
                   onClick={() => {
                     setIsCustomCategory(true);
-                    setCategory("");
+                    setCategory('');
                   }}
                   className="flex items-center gap-1.5 text-sm text-violet-600 dark:text-violet-400 hover:underline"
                 >
@@ -234,7 +237,7 @@ export default function SaveAsTemplateDialog({
                   type="button"
                   onClick={() => {
                     setIsCustomCategory(false);
-                    setCustomCategory("");
+                    setCustomCategory('');
                   }}
                   className="text-sm text-zinc-500 hover:underline"
                 >
@@ -280,7 +283,7 @@ export default function SaveAsTemplateDialog({
             disabled={isSubmitting}
             className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-violet-600 rounded-xl hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? "保存中..." : "テンプレートとして保存"}
+            {isSubmitting ? '保存中...' : 'テンプレートとして保存'}
           </button>
         </div>
       </div>

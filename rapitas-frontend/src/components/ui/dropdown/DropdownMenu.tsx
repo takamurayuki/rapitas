@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import React, { useState, useRef, useEffect } from "react";
-import { MoreVertical } from "lucide-react";
+import React, { useState, useRef, useEffect } from 'react';
+import { MoreVertical } from 'lucide-react';
 
 export interface DropdownMenuItem {
   label: string;
   icon?: React.ReactNode;
   onClick: () => void;
-  variant?: "default" | "danger";
+  variant?: 'default' | 'danger';
   disabled?: boolean;
 }
 
@@ -19,8 +19,8 @@ interface DropdownMenuProps {
 
 export default function DropdownMenu({
   items,
-  triggerClassName = "",
-  menuClassName = "",
+  triggerClassName = '',
+  menuClassName = '',
 }: DropdownMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -39,19 +39,19 @@ export default function DropdownMenu({
     };
 
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === 'Escape') {
         setIsOpen(false);
       }
     };
 
     if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      document.addEventListener("keydown", handleEscape);
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscape);
     }
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
     };
   }, [isOpen]);
 
@@ -69,8 +69,8 @@ export default function DropdownMenu({
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all ${
           isOpen
-            ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
-            : "bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-700 dark:hover:text-zinc-300"
+            ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300'
+            : 'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-700 dark:hover:text-zinc-300'
         } border border-zinc-200 dark:border-zinc-700 ${triggerClassName}`}
         aria-haspopup="true"
         aria-expanded={isOpen}
@@ -89,12 +89,14 @@ export default function DropdownMenu({
               onClick={() => handleItemClick(item)}
               disabled={item.disabled}
               className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-colors text-left ${
-                item.variant === "danger"
-                  ? "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                  : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              } ${item.disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                item.variant === 'danger'
+                  ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
+                  : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              } ${item.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              {item.icon && <span className="w-4 h-4 shrink-0">{item.icon}</span>}
+              {item.icon && (
+                <span className="w-4 h-4 shrink-0">{item.icon}</span>
+              )}
               {item.label}
             </button>
           ))}

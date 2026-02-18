@@ -32,7 +32,8 @@
 
 /* ハイライトマーカーのアニメーション */
 @keyframes highlightPulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.8;
   }
   50% {
@@ -85,7 +86,9 @@
 }
 
 .note-card-hover {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .note-card-hover:hover {
@@ -171,7 +174,7 @@
 }
 
 .ripple-effect::after {
-  content: "";
+  content: '';
   position: absolute;
   top: 50%;
   left: 50%;

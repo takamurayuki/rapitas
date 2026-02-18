@@ -1,37 +1,37 @@
-"use client";
-import TaskStatusChange from "./TaskStatusChange";
-import { statusConfig, renderStatusIcon } from "../config/StatusConfig";
-import { API_BASE_URL } from "@/utils/api";
-import type { Status } from "@/types";
+'use client';
+import TaskStatusChange from './TaskStatusChange';
+import { statusConfig, renderStatusIcon } from '../config/StatusConfig';
+import { API_BASE_URL } from '@/utils/api';
+import type { Status } from '@/types';
 
 // ステータスの配列を共通で定義
-export const STATUS_OPTIONS: Status[] = ["todo", "in-progress", "done"];
+export const STATUS_OPTIONS: Status[] = ['todo', 'in-progress', 'done'];
 
 interface SubtaskStatusButtonsProps {
   taskId: number;
   currentStatus: string;
   onTaskUpdated?: () => void;
-  size?: "sm" | "md";
+  size?: 'sm' | 'md';
 }
 
 export default function SubtaskStatusButtons({
   taskId,
   currentStatus,
   onTaskUpdated,
-  size = "sm",
+  size = 'sm',
 }: SubtaskStatusButtonsProps) {
   const handleStatusChange = async (newStatus: string) => {
     try {
       const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
       if (response.ok && onTaskUpdated) {
         onTaskUpdated();
       }
     } catch (error) {
-      console.error("Failed to update subtask status:", error);
+      console.error('Failed to update subtask status:', error);
     }
   };
 
@@ -50,7 +50,7 @@ export default function SubtaskStatusButtons({
 interface StatusButtonGroupProps {
   currentStatus: string;
   onStatusChange: (newStatus: string) => void;
-  size?: "sm" | "md" | "lg";
+  size?: 'sm' | 'md' | 'lg';
   showLabel?: boolean;
   className?: string;
 }
@@ -58,11 +58,11 @@ interface StatusButtonGroupProps {
 export function StatusButtonGroup({
   currentStatus,
   onStatusChange,
-  size = "md",
+  size = 'md',
   showLabel = false,
-  className = "",
+  className = '',
 }: StatusButtonGroupProps) {
-  const gapClass = showLabel ? "gap-2" : "gap-1";
+  const gapClass = showLabel ? 'gap-2' : 'gap-1';
 
   return (
     <div className={`flex items-center ${gapClass} shrink-0 ${className}`}>

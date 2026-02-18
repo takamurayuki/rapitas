@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useMemo, useRef, useState, memo, useCallback, useEffect } from "react";
+import { useMemo, useRef, useState, memo, useCallback, useEffect } from 'react';
 import {
   Plus,
   Trash2,
@@ -15,17 +15,17 @@ import {
   Loader2,
   ArrowRight,
   ArrowLeft,
-} from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
-import type { Comment, CommentSearchResult } from "@/types";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
+import type { Comment, CommentSearchResult } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
 
 // Types
 type CommentLink = {
   id: number;
-  direction: "outgoing" | "incoming";
+  direction: 'outgoing' | 'incoming';
   label?: string | null;
   linkedComment: { id: number; content: string; taskId: number };
 };
@@ -53,7 +53,7 @@ type Props = {
 
 const timeAgo = (d: Date) => {
   const m = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (m < 1) return "今";
+  if (m < 1) return '今';
   if (m < 60) return `${m}分前`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}時間前`;
@@ -67,26 +67,26 @@ const LABEL_COLORS: Record<
   { bg: string; text: string; border: string }
 > = {
   関連: {
-    bg: "bg-blue-50 dark:bg-blue-900/20",
-    text: "text-blue-600 dark:text-blue-400",
-    border: "border-blue-200 dark:border-blue-800",
+    bg: 'bg-blue-50 dark:bg-blue-900/20',
+    text: 'text-blue-600 dark:text-blue-400',
+    border: 'border-blue-200 dark:border-blue-800',
   },
   発展: {
-    bg: "bg-emerald-50 dark:bg-emerald-900/20",
-    text: "text-emerald-600 dark:text-emerald-400",
-    border: "border-emerald-200 dark:border-emerald-800",
+    bg: 'bg-emerald-50 dark:bg-emerald-900/20',
+    text: 'text-emerald-600 dark:text-emerald-400',
+    border: 'border-emerald-200 dark:border-emerald-800',
   },
   補足: {
-    bg: "bg-amber-50 dark:bg-amber-900/20",
-    text: "text-amber-600 dark:text-amber-400",
-    border: "border-amber-200 dark:border-amber-800",
+    bg: 'bg-amber-50 dark:bg-amber-900/20',
+    text: 'text-amber-600 dark:text-amber-400',
+    border: 'border-amber-200 dark:border-amber-800',
   },
 };
 
 const DEFAULT_LINK_STYLE = {
-  bg: "bg-blue-50 dark:bg-blue-900/20",
-  text: "text-blue-600 dark:text-blue-400",
-  border: "border-blue-200 dark:border-blue-800",
+  bg: 'bg-blue-50 dark:bg-blue-900/20',
+  text: 'text-blue-600 dark:text-blue-400',
+  border: 'border-blue-200 dark:border-blue-800',
 };
 
 // Note Component
@@ -141,8 +141,8 @@ const Note = memo(function Note({
       style={{ marginLeft: indent > 0 ? `${indent * 12}px` : 0 }}
       className={
         indent > 0
-          ? "border-l-2 border-zinc-200 dark:border-zinc-700 pl-2.5 mt-1"
-          : ""
+          ? 'border-l-2 border-zinc-200 dark:border-zinc-700 pl-2.5 mt-1'
+          : ''
       }
     >
       <div className="group rounded-lg bg-zinc-50/50 dark:bg-zinc-800/30 border border-transparent hover:border-zinc-200 dark:hover:border-zinc-700 px-2.5 py-2 transition-colors">
@@ -214,7 +214,7 @@ const Note = memo(function Note({
                           onClick={() => onScrollToNote(l.linkedComment.id)}
                           className={`group/l inline-flex items-center gap-1 pl-1.5 pr-1 py-0.5 ${style.bg} border ${style.border} rounded-md text-[10px] ${style.text} hover:opacity-80 transition-opacity cursor-pointer`}
                         >
-                          {l.direction === "outgoing" ? (
+                          {l.direction === 'outgoing' ? (
                             <ArrowRight className="w-2.5 h-2.5 shrink-0" />
                           ) : (
                             <ArrowLeft className="w-2.5 h-2.5 shrink-0" />
@@ -299,7 +299,7 @@ const Note = memo(function Note({
                       className="flex-1 px-2 py-1 text-xs bg-transparent outline-none placeholder:text-zinc-400"
                       autoFocus
                       onKeyDown={(e) =>
-                        e.key === "Enter" &&
+                        e.key === 'Enter' &&
                         (e.preventDefault(), onReplySubmit())
                       }
                     />
@@ -366,10 +366,10 @@ const LinkModal = memo(function LinkModal({
   onSelect: (id: number, label?: string) => void;
   onClose: () => void;
 }) {
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState('');
   const [results, setResults] = useState<CommentSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [label, setLabel] = useState("");
+  const [label, setLabel] = useState('');
 
   useEffect(() => {
     const search = async () => {
@@ -378,9 +378,9 @@ const LinkModal = memo(function LinkModal({
         const p = new URLSearchParams({
           excludeId: String(source.id),
           taskId: String(taskId),
-          limit: "10",
+          limit: '10',
         });
-        if (q.trim()) p.set("q", q.trim());
+        if (q.trim()) p.set('q', q.trim());
         const res = await fetch(`${API_BASE_URL}/comments/search?${p}`);
         if (res.ok) setResults(await res.json());
       } catch {
@@ -442,17 +442,17 @@ const LinkModal = memo(function LinkModal({
 
           {/* Label buttons */}
           <div className="flex gap-1.5 mt-2">
-            {(["関連", "発展", "補足"] as const).map((l) => {
+            {(['関連', '発展', '補足'] as const).map((l) => {
               const style = LABEL_COLORS[l];
               const isActive = label === l;
               return (
                 <button
                   key={l}
-                  onClick={() => setLabel(isActive ? "" : l)}
+                  onClick={() => setLabel(isActive ? '' : l)}
                   className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
                     isActive
                       ? `${style.bg} ${style.text} ${style.border} font-medium`
-                      : "border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-600"
+                      : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-600'
                   }`}
                 >
                   {l}
@@ -494,7 +494,7 @@ const LinkModal = memo(function LinkModal({
             <div className="p-6 text-center">
               <Search className="w-5 h-5 text-zinc-300 dark:text-zinc-600 mx-auto mb-1.5" />
               <p className="text-xs text-zinc-400">
-                {q ? "一致するメモがありません" : "リンク先のメモを検索"}
+                {q ? '一致するメモがありません' : 'リンク先のメモを検索'}
               </p>
             </div>
           )}
@@ -520,9 +520,9 @@ export default function CommentsSection({
   onDeleteLink,
 }: Props) {
   const [editId, setEditId] = useState<number | null>(null);
-  const [editText, setEditText] = useState("");
+  const [editText, setEditText] = useState('');
   const [replyId, setReplyId] = useState<number | null>(null);
-  const [replyText, setReplyText] = useState("");
+  const [replyText, setReplyText] = useState('');
   const [linkNote, setLinkNote] = useState<NoteData | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -534,7 +534,7 @@ export default function CommentsSection({
           l.toComment &&
           links.push({
             id: l.id,
-            direction: "outgoing",
+            direction: 'outgoing',
             label: l.label,
             linkedComment: l.toComment,
           }),
@@ -544,7 +544,7 @@ export default function CommentsSection({
           l.fromComment &&
           links.push({
             id: l.id,
-            direction: "incoming",
+            direction: 'incoming',
             label: l.label,
             linkedComment: l.fromComment,
           }),
@@ -578,11 +578,11 @@ export default function CommentsSection({
   }, [editId, editText, onUpdateComment]);
   const handleCancel = useCallback(() => {
     setEditId(null);
-    setEditText("");
+    setEditText('');
   }, []);
   const handleReply = useCallback((n: NoteData) => {
     setReplyId(n.id);
-    setReplyText("");
+    setReplyText('');
   }, []);
   const handleReplySubmit = useCallback(() => {
     if (replyId && replyText.trim()) {
@@ -592,7 +592,7 @@ export default function CommentsSection({
   }, [replyId, replyText, onAddComment]);
   const handleReplyCancel = useCallback(() => {
     setReplyId(null);
-    setReplyText("");
+    setReplyText('');
   }, []);
   const handleLink = useCallback((n: NoteData) => setLinkNote(n), []);
   const handleLinkSelect = useCallback(
@@ -614,17 +614,17 @@ export default function CommentsSection({
     if (!containerRef.current) return;
     const el = containerRef.current.querySelector(`[data-note-id="${id}"]`);
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.querySelector<HTMLDivElement>(".group")?.classList.add(
-        "ring-2",
-        "ring-blue-400",
-        "ring-offset-1",
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.querySelector<HTMLDivElement>('.group')?.classList.add(
+        'ring-2',
+        'ring-blue-400',
+        'ring-offset-1',
       );
       setTimeout(() => {
-        el.querySelector<HTMLDivElement>(".group")?.classList.remove(
-          "ring-2",
-          "ring-blue-400",
-          "ring-offset-1",
+        el.querySelector<HTMLDivElement>('.group')?.classList.remove(
+          'ring-2',
+          'ring-blue-400',
+          'ring-offset-1',
         );
       }, 2000);
     }
@@ -687,7 +687,7 @@ export default function CommentsSection({
               value={newComment}
               onChange={(e) => onNewCommentChange(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
                   handleSubmit();
                 }

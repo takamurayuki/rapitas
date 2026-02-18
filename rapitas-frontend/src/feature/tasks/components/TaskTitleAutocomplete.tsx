@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import {
   useState,
   useEffect,
@@ -8,9 +8,9 @@ import {
   forwardRef,
   useImperativeHandle,
   useMemo,
-} from "react";
-import { API_BASE_URL } from "@/utils/api";
-import type { Priority } from "@/types";
+} from 'react';
+import { API_BASE_URL } from '@/utils/api';
+import type { Priority } from '@/types';
 
 const API_BASE = API_BASE_URL;
 
@@ -47,13 +47,13 @@ const TaskTitleAutocomplete = forwardRef<
   {
     value,
     onChange,
-    placeholder = "タスクのタイトル",
-    className = "",
+    placeholder = 'タスクのタイトル',
+    className = '',
     autoFocus = false,
     themeId,
     projectId,
   },
-  ref
+  ref,
 ) {
   const [suggestions, setSuggestions] = useState<TaskSuggestion[]>([]);
   const [isFocused, setIsFocused] = useState(false);
@@ -71,7 +71,7 @@ const TaskTitleAutocomplete = forwardRef<
 
     const lowerValue = value.toLowerCase();
     const match = suggestions.find((s) =>
-      s.title.toLowerCase().startsWith(lowerValue)
+      s.title.toLowerCase().startsWith(lowerValue),
     );
 
     return match ? match.title : null;
@@ -92,9 +92,9 @@ const TaskTitleAutocomplete = forwardRef<
       }
 
       try {
-        const params = new URLSearchParams({ q: query, limit: "10" });
-        if (themeId) params.append("themeId", themeId.toString());
-        if (projectId) params.append("projectId", projectId.toString());
+        const params = new URLSearchParams({ q: query, limit: '10' });
+        if (themeId) params.append('themeId', themeId.toString());
+        if (projectId) params.append('projectId', projectId.toString());
 
         const url = `${API_BASE}/tasks/search?${params}`;
         const res = await fetch(url);
@@ -110,11 +110,14 @@ const TaskTitleAutocomplete = forwardRef<
         setSuggestions(data);
       } catch (e) {
         // Network error - backend might not be running
-        console.debug("Autocomplete fetch failed (backend might not be running):", e);
+        console.debug(
+          'Autocomplete fetch failed (backend might not be running):',
+          e,
+        );
         setSuggestions([]);
       }
     },
-    [themeId, projectId]
+    [themeId, projectId],
   );
 
   // Debounced search effect
@@ -137,13 +140,13 @@ const TaskTitleAutocomplete = forwardRef<
   // Handle keyboard events
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     // Tab to accept inline completion
-    if (e.key === "Tab" && ghostText && inlineSuggestion) {
+    if (e.key === 'Tab' && ghostText && inlineSuggestion) {
       e.preventDefault();
       onChange(inlineSuggestion);
     }
     // Right arrow at end of input to accept completion
     if (
-      e.key === "ArrowRight" &&
+      e.key === 'ArrowRight' &&
       ghostText &&
       inlineSuggestion &&
       inputRef.current
@@ -187,7 +190,7 @@ const TaskTitleAutocomplete = forwardRef<
         autoFocus={autoFocus}
         autoComplete="off"
         aria-autocomplete="inline"
-        style={{ caretColor: "currentColor" }}
+        style={{ caretColor: 'currentColor' }}
       />
 
       {/* Tab hint */}

@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
+import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import {
   Cpu,
   Settings,
@@ -17,11 +17,11 @@ import {
   Search,
   Trash2,
   Save,
-} from "lucide-react";
-import type { AIAgentConfig } from "@/types";
-import { API_BASE_URL } from "@/utils/api";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { UsageRateLimitGraph } from "@/components/UsageRateLimitGraph";
+} from 'lucide-react';
+import type { AIAgentConfig } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { UsageRateLimitGraph } from '@/components/UsageRateLimitGraph';
 
 type RegisteredAgentType = {
   type: string;
@@ -70,10 +70,13 @@ function getCachedData<T>(key: string): T | null {
 
 function setCachedData<T>(key: string, data: T): void {
   try {
-    localStorage.setItem(key, JSON.stringify({
-      data,
-      timestamp: Date.now(),
-    }));
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        data,
+        timestamp: Date.now(),
+      }),
+    );
   } catch (error) {
     console.error('Failed to cache data:', error);
   }
@@ -107,8 +110,12 @@ export default function AgentsPage() {
     try {
       // Check cache first
       const cachedAgents = getCachedData<AIAgentConfig[]>(CACHE_KEYS.agents);
-      const cachedTypes = getCachedData<typeof agentTypes>(CACHE_KEYS.agentTypes);
-      const cachedModels = getCachedData<Record<string, ModelOption[]>>(CACHE_KEYS.models);
+      const cachedTypes = getCachedData<typeof agentTypes>(
+        CACHE_KEYS.agentTypes,
+      );
+      const cachedModels = getCachedData<Record<string, ModelOption[]>>(
+        CACHE_KEYS.models,
+      );
 
       if (cachedAgents && cachedTypes && cachedModels) {
         setAgents(cachedAgents);
@@ -163,7 +170,7 @@ export default function AgentsPage() {
         setCachedData(CACHE_KEYS.models, modelsData);
       }
     } catch (err) {
-      console.error("Failed to fetch agents:", err);
+      console.error('Failed to fetch agents:', err);
     } finally {
       setLoading(false);
     }
@@ -175,8 +182,12 @@ export default function AgentsPage() {
 
   useEffect(() => {
     // Set default agent selections based on current agents
-    const developmentAgentConfig = agents.find(a => a.isActive && a.agentType === 'claude-code');
-    const reviewAgentConfig = agents.find(a => a.isActive && a.capabilities?.codeReview);
+    const developmentAgentConfig = agents.find(
+      (a) => a.isActive && a.agentType === 'claude-code',
+    );
+    const reviewAgentConfig = agents.find(
+      (a) => a.isActive && a.capabilities?.codeReview,
+    );
 
     if (developmentAgentConfig) {
       setDevelopmentAgent({
@@ -193,65 +204,63 @@ export default function AgentsPage() {
     }
   }, [agents]);
 
-
   const getAgentTypeInfo = (type: string) => {
     const typeInfo: Record<
       string,
       { name: string; icon: React.ReactNode; color: string; bgColor: string }
     > = {
-      "claude-code": {
-        name: "Claude Code",
+      'claude-code': {
+        name: 'Claude Code',
         icon: <Terminal className="w-5 h-5" />,
-        color: "text-orange-500",
-        bgColor: "bg-orange-100 dark:bg-orange-900/30",
+        color: 'text-orange-500',
+        bgColor: 'bg-orange-100 dark:bg-orange-900/30',
       },
-      "anthropic-api": {
-        name: "Anthropic API",
+      'anthropic-api': {
+        name: 'Anthropic API',
         icon: <Terminal className="w-5 h-5" />,
-        color: "text-orange-500",
-        bgColor: "bg-orange-100 dark:bg-orange-900/30",
+        color: 'text-orange-500',
+        bgColor: 'bg-orange-100 dark:bg-orange-900/30',
       },
       codex: {
-        name: "OpenAI Codex",
+        name: 'OpenAI Codex',
         icon: <Zap className="w-5 h-5" />,
-        color: "text-green-500",
-        bgColor: "bg-green-100 dark:bg-green-900/30",
+        color: 'text-green-500',
+        bgColor: 'bg-green-100 dark:bg-green-900/30',
       },
       openai: {
-        name: "OpenAI",
+        name: 'OpenAI',
         icon: <Zap className="w-5 h-5" />,
-        color: "text-green-500",
-        bgColor: "bg-green-100 dark:bg-green-900/30",
+        color: 'text-green-500',
+        bgColor: 'bg-green-100 dark:bg-green-900/30',
       },
-      "azure-openai": {
-        name: "Azure OpenAI",
+      'azure-openai': {
+        name: 'Azure OpenAI',
         icon: <Globe className="w-5 h-5" />,
-        color: "text-blue-500",
-        bgColor: "bg-blue-100 dark:bg-blue-900/30",
+        color: 'text-blue-500',
+        bgColor: 'bg-blue-100 dark:bg-blue-900/30',
       },
       gemini: {
-        name: "Google Gemini",
+        name: 'Google Gemini',
         icon: <Activity className="w-5 h-5" />,
-        color: "text-blue-500",
-        bgColor: "bg-blue-100 dark:bg-blue-900/30",
+        color: 'text-blue-500',
+        bgColor: 'bg-blue-100 dark:bg-blue-900/30',
       },
       custom: {
-        name: "カスタム",
+        name: 'カスタム',
         icon: <Cpu className="w-5 h-5" />,
-        color: "text-zinc-500",
-        bgColor: "bg-zinc-100 dark:bg-zinc-700",
+        color: 'text-zinc-500',
+        bgColor: 'bg-zinc-100 dark:bg-zinc-700',
       },
     };
     return (
       typeInfo[type] || {
         name: type,
         icon: <Cpu className="w-5 h-5" />,
-        color: "text-zinc-500",
-        bgColor: "bg-zinc-100 dark:bg-zinc-700",
+        color: 'text-zinc-500',
+        bgColor: 'bg-zinc-100 dark:bg-zinc-700',
       }
     );
   };
-
 
   const handleSaveDevelopmentAgent = async () => {
     if (!developmentAgent.type) return;
@@ -261,21 +270,21 @@ export default function AgentsPage() {
     setSuccessMessage(null);
     try {
       const res = await fetch(`${API_BASE_URL}/agents/development`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(developmentAgent),
       });
       if (!res.ok) {
-        throw new Error("開発エージェントの設定に失敗しました");
+        throw new Error('開発エージェントの設定に失敗しました');
       }
-      setSuccessMessage("開発エージェントの設定を保存しました");
+      setSuccessMessage('開発エージェントの設定を保存しました');
       // Clear cache to ensure fresh data
       localStorage.removeItem(CACHE_KEYS.agents);
       await fetchData();
       // Clear success message after 3 seconds
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
     } finally {
       setSavingDevelopmentAgent(false);
     }
@@ -289,28 +298,28 @@ export default function AgentsPage() {
     setSuccessMessage(null);
     try {
       const res = await fetch(`${API_BASE_URL}/agents/review`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reviewAgent),
       });
       if (!res.ok) {
-        throw new Error("レビューエージェントの設定に失敗しました");
+        throw new Error('レビューエージェントの設定に失敗しました');
       }
-      setSuccessMessage("レビューエージェントの設定を保存しました");
+      setSuccessMessage('レビューエージェントの設定を保存しました');
       // Clear cache to ensure fresh data
       localStorage.removeItem(CACHE_KEYS.agents);
       await fetchData();
       // Clear success message after 3 seconds
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
     } finally {
       setSavingReviewAgent(false);
     }
   };
 
   const handleDeleteAgent = async (agentId: number) => {
-    const agent = agents.find(a => a.id === agentId);
+    const agent = agents.find((a) => a.id === agentId);
     if (!agent) return;
 
     if (!confirm(`エージェント「${agent.name}」を削除しますか？`)) return;
@@ -320,10 +329,10 @@ export default function AgentsPage() {
     setSuccessMessage(null);
     try {
       const res = await fetch(`${API_BASE_URL}/agents/${agentId}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       if (!res.ok) {
-        throw new Error("エージェントの削除に失敗しました");
+        throw new Error('エージェントの削除に失敗しました');
       }
       setSuccessMessage(`エージェント「${agent.name}」を削除しました`);
       // Clear cache to ensure fresh data
@@ -332,7 +341,7 @@ export default function AgentsPage() {
       // Clear success message after 3 seconds
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
     } finally {
       setDeletingId(null);
     }
@@ -372,7 +381,9 @@ export default function AgentsPage() {
         {successMessage && (
           <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-3">
             <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0" />
-            <p className="text-green-600 dark:text-green-400 text-sm">{successMessage}</p>
+            <p className="text-green-600 dark:text-green-400 text-sm">
+              {successMessage}
+            </p>
             <button
               onClick={() => setSuccessMessage(null)}
               className="ml-auto text-green-400 hover:text-green-600 dark:hover:text-green-300"
@@ -412,7 +423,12 @@ export default function AgentsPage() {
                 </label>
                 <select
                   value={developmentAgent.type}
-                  onChange={(e) => setDevelopmentAgent({ ...developmentAgent, type: e.target.value })}
+                  onChange={(e) =>
+                    setDevelopmentAgent({
+                      ...developmentAgent,
+                      type: e.target.value,
+                    })
+                  }
                   className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 >
                   <option value="">選択してください</option>
@@ -424,34 +440,47 @@ export default function AgentsPage() {
                 </select>
               </div>
 
-              {developmentAgent.type && availableModels[developmentAgent.type] && (
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    モデル
-                  </label>
-                  <select
-                    value={developmentAgent.model}
-                    onChange={(e) => setDevelopmentAgent({ ...developmentAgent, model: e.target.value })}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    <option value="">選択してください</option>
-                    {availableModels[developmentAgent.type].map((model) => (
-                      <option key={model.value} value={model.value}>
-                        {model.label} {model.description && `- ${model.description}`}
-                      </option>
-                    ))}
-                  </select>
-                  {developmentAgent.type === "codex" && developmentAgent.model === "gpt-4o" && (
-                    <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
-                      注意: ChatGPTアカウントではgpt-4oは使用できません。gpt-4-turboまたはgpt-3.5-turboを推奨します。
-                    </p>
-                  )}
-                </div>
-              )}
+              {developmentAgent.type &&
+                availableModels[developmentAgent.type] && (
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                      モデル
+                    </label>
+                    <select
+                      value={developmentAgent.model}
+                      onChange={(e) =>
+                        setDevelopmentAgent({
+                          ...developmentAgent,
+                          model: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="">選択してください</option>
+                      {availableModels[developmentAgent.type].map((model) => (
+                        <option key={model.value} value={model.value}>
+                          {model.label}{' '}
+                          {model.description && `- ${model.description}`}
+                        </option>
+                      ))}
+                    </select>
+                    {developmentAgent.type === 'codex' &&
+                      developmentAgent.model === 'gpt-4o' && (
+                        <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                          注意:
+                          ChatGPTアカウントではgpt-4oは使用できません。gpt-4-turboまたはgpt-3.5-turboを推奨します。
+                        </p>
+                      )}
+                  </div>
+                )}
 
               <button
                 onClick={handleSaveDevelopmentAgent}
-                disabled={!developmentAgent.type || !developmentAgent.model || savingDevelopmentAgent}
+                disabled={
+                  !developmentAgent.type ||
+                  !developmentAgent.model ||
+                  savingDevelopmentAgent
+                }
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
                 {savingDevelopmentAgent ? (
@@ -492,7 +521,9 @@ export default function AgentsPage() {
                 </label>
                 <select
                   value={reviewAgent.type}
-                  onChange={(e) => setReviewAgent({ ...reviewAgent, type: e.target.value })}
+                  onChange={(e) =>
+                    setReviewAgent({ ...reviewAgent, type: e.target.value })
+                  }
                   className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 >
                   <option value="">選択してください</option>
@@ -511,27 +542,34 @@ export default function AgentsPage() {
                   </label>
                   <select
                     value={reviewAgent.model}
-                    onChange={(e) => setReviewAgent({ ...reviewAgent, model: e.target.value })}
+                    onChange={(e) =>
+                      setReviewAgent({ ...reviewAgent, model: e.target.value })
+                    }
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   >
                     <option value="">選択してください</option>
                     {availableModels[reviewAgent.type].map((model) => (
                       <option key={model.value} value={model.value}>
-                        {model.label} {model.description && `- ${model.description}`}
+                        {model.label}{' '}
+                        {model.description && `- ${model.description}`}
                       </option>
                     ))}
                   </select>
-                  {reviewAgent.type === "codex" && reviewAgent.model === "gpt-4o" && (
-                    <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
-                      注意: ChatGPTアカウントではgpt-4oは使用できません。gpt-4-turboまたはgpt-3.5-turboを推奨します。
-                    </p>
-                  )}
+                  {reviewAgent.type === 'codex' &&
+                    reviewAgent.model === 'gpt-4o' && (
+                      <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                        注意:
+                        ChatGPTアカウントではgpt-4oは使用できません。gpt-4-turboまたはgpt-3.5-turboを推奨します。
+                      </p>
+                    )}
                 </div>
               )}
 
               <button
                 onClick={handleSaveReviewAgent}
-                disabled={!reviewAgent.type || !reviewAgent.model || savingReviewAgent}
+                disabled={
+                  !reviewAgent.type || !reviewAgent.model || savingReviewAgent
+                }
                 className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
                 {savingReviewAgent ? (
@@ -580,10 +618,15 @@ export default function AgentsPage() {
                     .map((agent) => {
                       const info = getAgentTypeInfo(agent.agentType);
                       return (
-                        <tr key={agent.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors">
+                        <tr
+                          key={agent.id}
+                          className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors"
+                        >
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
-                              <div className={`p-2 rounded-lg bg-zinc-100 dark:bg-zinc-700 ${info.color}`}>
+                              <div
+                                className={`p-2 rounded-lg bg-zinc-100 dark:bg-zinc-700 ${info.color}`}
+                              >
                                 {info.icon}
                               </div>
                               <div>

@@ -33,7 +33,10 @@ export function formatDistanceToNow(date: Date): string {
 /**
  * 日付を指定フォーマットで表示
  */
-export function formatDate(date: Date | string, format: 'short' | 'medium' | 'long' = 'medium'): string {
+export function formatDate(
+  date: Date | string,
+  format: 'short' | 'medium' | 'long' = 'medium',
+): string {
   const d = typeof date === 'string' ? new Date(date) : date;
 
   if (format === 'short') {

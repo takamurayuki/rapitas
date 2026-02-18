@@ -1,16 +1,16 @@
-"use client";
+'use client';
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 // SSEイベントの型定義
 export type SSEEventType =
-  | "start"
-  | "progress"
-  | "data"
-  | "error"
-  | "retry"
-  | "rollback"
-  | "complete";
+  | 'start'
+  | 'progress'
+  | 'data'
+  | 'error'
+  | 'retry'
+  | 'rollback'
+  | 'complete';
 
 export interface SSEEvent<T = unknown> {
   type: SSEEventType;
@@ -74,16 +74,18 @@ export interface UseSSEReturn<T> {
 }
 
 export function useSSE<T = unknown>(
-  options: UseSSEOptions<T> = {}
+  options: UseSSEOptions<T> = {},
 ): UseSSEReturn<T> {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [progressMessage, setProgressMessage] = useState("");
+  const [progressMessage, setProgressMessage] = useState('');
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<SSEErrorData | null>(null);
   const [retryInfo, setRetryInfo] = useState<SSERetryData | null>(null);
-  const [rollbackInfo, setRollbackInfo] = useState<SSERollbackData | null>(null);
+  const [rollbackInfo, setRollbackInfo] = useState<SSERollbackData | null>(
+    null,
+  );
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const optionsRef = useRef(options);
@@ -107,7 +109,7 @@ export function useSSE<T = unknown>(
   const reset = useCallback(() => {
     disconnect();
     setProgress(0);
-    setProgressMessage("");
+    setProgressMessage('');
     setData(null);
     setError(null);
     setRetryInfo(null);
@@ -122,7 +124,7 @@ export function useSSE<T = unknown>(
 
       // 状態をリセット
       setProgress(0);
-      setProgressMessage("");
+      setProgressMessage('');
       setData(null);
       setError(null);
       setRetryInfo(null);
@@ -138,47 +140,48 @@ export function useSSE<T = unknown>(
         };
 
         eventSource.onerror = (event) => {
-          console.error("SSE connection error:", event);
-          const connectionError = new Error("SSE接続でエラーが発生しました");
+          console.error('SSE connection error:', event);
+          const connectionError = new Error('SSE接続でエラーが発生しました');
           optionsRef.current.onConnectionError?.(connectionError);
           setError({
-            error: "接続エラーが発生しました。ネットワーク接続を確認してください。",
+            error:
+              '接続エラーが発生しました。ネットワーク接続を確認してください。',
           });
           disconnect();
         };
 
         // イベントハンドラを設定
-        eventSource.addEventListener("start", (event) => {
+        eventSource.addEventListener('start', (event) => {
           try {
             const parsed: SSEEvent = JSON.parse(event.data);
             optionsRef.current.onStart?.();
           } catch (e) {
-            console.error("Failed to parse start event:", e);
+            console.error('Failed to parse start event:', e);
           }
         });
 
-        eventSource.addEventListener("progress", (event) => {
+        eventSource.addEventListener('progress', (event) => {
           try {
             const parsed: SSEEvent<SSEProgressData> = JSON.parse(event.data);
             setProgress(parsed.data.progress);
             setProgressMessage(parsed.data.message);
             optionsRef.current.onProgress?.(parsed.data);
           } catch (e) {
-            console.error("Failed to parse progress event:", e);
+            console.error('Failed to parse progress event:', e);
           }
         });
 
-        eventSource.addEventListener("data", (event) => {
+        eventSource.addEventListener('data', (event) => {
           try {
             const parsed: SSEEvent<T> = JSON.parse(event.data);
             setData(parsed.data);
             optionsRef.current.onData?.(parsed.data);
           } catch (e) {
-            console.error("Failed to parse data event:", e);
+            console.error('Failed to parse data event:', e);
           }
         });
 
-        eventSource.addEventListener("error", (event) => {
+        eventSource.addEventListener('error', (event) => {
           try {
             // MessageEventの場合のみパース
             if (event instanceof MessageEvent) {
@@ -187,31 +190,31 @@ export function useSSE<T = unknown>(
               optionsRef.current.onError?.(parsed.data);
             }
           } catch (e) {
-            console.error("Failed to parse error event:", e);
+            console.error('Failed to parse error event:', e);
           }
         });
 
-        eventSource.addEventListener("retry", (event) => {
+        eventSource.addEventListener('retry', (event) => {
           try {
             const parsed: SSEEvent<SSERetryData> = JSON.parse(event.data);
             setRetryInfo(parsed.data);
             optionsRef.current.onRetry?.(parsed.data);
           } catch (e) {
-            console.error("Failed to parse retry event:", e);
+            console.error('Failed to parse retry event:', e);
           }
         });
 
-        eventSource.addEventListener("rollback", (event) => {
+        eventSource.addEventListener('rollback', (event) => {
           try {
             const parsed: SSEEvent<SSERollbackData> = JSON.parse(event.data);
             setRollbackInfo(parsed.data);
             optionsRef.current.onRollback?.(parsed.data);
           } catch (e) {
-            console.error("Failed to parse rollback event:", e);
+            console.error('Failed to parse rollback event:', e);
           }
         });
 
-        eventSource.addEventListener("complete", (event) => {
+        eventSource.addEventListener('complete', (event) => {
           try {
             const parsed: SSEEvent = JSON.parse(event.data);
             setIsLoading(false);
@@ -219,21 +222,21 @@ export function useSSE<T = unknown>(
             optionsRef.current.onComplete?.(parsed.data);
             disconnect();
           } catch (e) {
-            console.error("Failed to parse complete event:", e);
+            console.error('Failed to parse complete event:', e);
           }
         });
       } catch (err) {
-        console.error("Failed to create EventSource:", err);
+        console.error('Failed to create EventSource:', err);
         const connectionError =
-          err instanceof Error ? err : new Error("SSE接続の作成に失敗しました");
+          err instanceof Error ? err : new Error('SSE接続の作成に失敗しました');
         optionsRef.current.onConnectionError?.(connectionError);
         setError({
-          error: "接続の作成に失敗しました。",
+          error: '接続の作成に失敗しました。',
         });
         setIsLoading(false);
       }
     },
-    [disconnect]
+    [disconnect],
   );
 
   // コンポーネントのアンマウント時にクリーンアップ

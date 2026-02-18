@@ -9,7 +9,7 @@ interface TaskStatusChangeProps {
   };
   renderIcon: (status: string) => React.ReactNode;
   onClick: (status: string) => void;
-  size?: "sm" | "md" | "lg";
+  size?: 'sm' | 'md' | 'lg';
   showLabel?: boolean;
 }
 
@@ -19,7 +19,7 @@ export default function TaskStatusChange({
   config,
   renderIcon,
   onClick,
-  size = "md",
+  size = 'md',
   showLabel = false,
 }: TaskStatusChangeProps) {
   const isCurrent = currentStatus === status;
@@ -27,11 +27,11 @@ export default function TaskStatusChange({
   // ラベル付きの大きなボタン（編集モード用）
   if (showLabel) {
     const ringColor =
-      status === "todo"
-        ? "ring-zinc-400"
-        : status === "in-progress"
-          ? "ring-blue-500"
-          : "ring-green-500";
+      status === 'todo'
+        ? 'ring-zinc-400'
+        : status === 'in-progress'
+          ? 'ring-blue-500'
+          : 'ring-green-500';
 
     return (
       <button
@@ -42,12 +42,12 @@ export default function TaskStatusChange({
         }}
         className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all ${
           isCurrent
-            ? `${config.bgColor} ${config.color} ${config.borderColor.replace("border-l-", "border-")} ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 ${ringColor}`
-            : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 bg-white dark:bg-indigo-dark-900 text-zinc-500 dark:text-zinc-400"
+            ? `${config.bgColor} ${config.color} ${config.borderColor.replace('border-l-', 'border-')} ring-2 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 ${ringColor}`
+            : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 bg-white dark:bg-indigo-dark-900 text-zinc-500 dark:text-zinc-400'
         }`}
         title={config.label}
       >
-        <span className={isCurrent ? config.color : ""}>
+        <span className={isCurrent ? config.color : ''}>
           {renderIcon(status)}
         </span>
         <span className="text-sm font-medium">{config.label}</span>
@@ -56,10 +56,10 @@ export default function TaskStatusChange({
   }
 
   // アイコンのみのコンパクトなボタン（一覧・表示モード用）
-  const sizeClass = size === "sm" ? "w-6 h-6" : "w-7 h-7";
+  const sizeClass = size === 'sm' ? 'w-6 h-6' : 'w-7 h-7';
 
   // ボーダー色の設定
-  const borderColor = config.borderColor.replace("border-l-", "border-");
+  const borderColor = config.borderColor.replace('border-l-', 'border-');
 
   return (
     <button

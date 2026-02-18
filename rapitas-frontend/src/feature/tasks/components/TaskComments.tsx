@@ -1,7 +1,7 @@
-import { Comment } from "@/types";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
+import { Comment } from '@/types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 
 interface TaskCommentsProps {
   comments: Comment[];
@@ -54,7 +54,7 @@ export default function TaskComments({
             disabled={!newComment.trim() || isAddingComment}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isAddingComment ? "追加中..." : "コメント追加"}
+            {isAddingComment ? '追加中...' : 'コメント追加'}
           </button>
         </div>
       </div>
@@ -69,7 +69,7 @@ export default function TaskComments({
             >
               <div className="flex justify-between items-start mb-2">
                 <span className="text-xs text-zinc-500">
-                  {new Date(comment.createdAt).toLocaleString("ja-JP")}
+                  {new Date(comment.createdAt).toLocaleString('ja-JP')}
                 </span>
                 <button
                   onClick={() => onDeleteComment(comment.id)}

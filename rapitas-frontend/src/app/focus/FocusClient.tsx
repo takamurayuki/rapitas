@@ -1,7 +1,7 @@
-"use client";
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import type { Task } from "@/types";
+'use client';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import type { Task } from '@/types';
 import {
   Play,
   Pause,
@@ -13,20 +13,20 @@ import {
   Clock,
   Volume2,
   VolumeX,
-} from "lucide-react";
-import { useToast } from "@/components/ui/toast/ToastContainer";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import { API_BASE_URL } from '@/utils/api';
 
-type FocusMode = "work" | "break";
+type FocusMode = 'work' | 'break';
 
 export default function FocusClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
-  const taskId = searchParams.get("taskId");
+  const taskId = searchParams.get('taskId');
 
   const [task, setTask] = useState<Task | null>(null);
-  const [mode, setMode] = useState<FocusMode>("work");
+  const [mode, setMode] = useState<FocusMode>('work');
   const [timeLeft, setTimeLeft] = useState(25 * 60); // 25分
   const [isRunning, setIsRunning] = useState(false);
   const [sessionsCompleted, setSessions] = useState(0);
@@ -44,51 +44,57 @@ export default function FocusClient() {
         setTask(await res.json());
       }
     } catch (e) {
-      console.error("Failed to fetch task:", e);
+      console.error('Failed to fetch task:', e);
     }
   }, []);
 
   const saveTimeEntry = useCallback(async () => {
     const endTime = new Date();
-    const duration = (customWorkTime / 60); // 時間単位
+    const duration = customWorkTime / 60; // 時間単位
 
     try {
       // タスクに紐づいている場合は時間を記録
       if (taskId && startTime) {
-        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/time-entries`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            duration,
-            startedAt: startTime.toISOString(),
-            endedAt: endTime.toISOString(),
-            note: `フォーカスセッション ${sessionsCompleted + 1}`,
-          }),
-        });
+        const res = await fetch(
+          `${API_BASE_URL}/tasks/${taskId}/time-entries`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              duration,
+              startedAt: startTime.toISOString(),
+              endedAt: endTime.toISOString(),
+              note: `フォーカスセッション ${sessionsCompleted + 1}`,
+            }),
+          },
+        );
 
         if (res.ok) {
           setSessions((prev) => prev + 1);
-          showToast(`${customWorkTime}分の作業時間を記録しました`, "success");
+          showToast(`${customWorkTime}分の作業時間を記録しました`, 'success');
         }
       }
 
       // 学習統計を更新
       await fetch(`${API_BASE_URL}/statistics/daily-study`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           hours: duration,
-          date: new Date().toISOString().split("T")[0],
+          date: new Date().toISOString().split('T')[0],
         }),
       });
     } catch (e) {
-      console.error("Failed to save time entry:", e);
+      console.error('Failed to save time entry:', e);
     }
   }, [customWorkTime, taskId, startTime, sessionsCompleted, showToast]);
 
   const playNotificationSound = useCallback(() => {
     // シンプルなビープ音を生成
-    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext;
     const audioContext = new AudioContextClass();
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
@@ -97,7 +103,7 @@ export default function FocusClient() {
     gainNode.connect(audioContext.destination);
 
     oscillator.frequency.value = 800;
-    oscillator.type = "sine";
+    oscillator.type = 'sine';
     gainNode.gain.value = 0.3;
 
     oscillator.start();
@@ -113,37 +119,44 @@ export default function FocusClient() {
     }
 
     // ブラウザ通知
-    if (Notification.permission === "granted") {
-      new Notification(
-        mode === "work" ? "作業時間終了！" : "休憩終了！",
-        {
-          body: mode === "work" ? "お疲れ様でした。休憩しましょう。" : "作業を再開しましょう。",
-          icon: "/favicon.ico",
-        }
-      );
+    if (Notification.permission === 'granted') {
+      new Notification(mode === 'work' ? '作業時間終了！' : '休憩終了！', {
+        body:
+          mode === 'work'
+            ? 'お疲れ様でした。休憩しましょう。'
+            : '作業を再開しましょう。',
+        icon: '/favicon.ico',
+      });
     }
 
-    if (mode === "work") {
+    if (mode === 'work') {
       // 作業完了、記録を保存
       saveTimeEntry();
       setSessions((prev) => prev + 1);
-      setMode("break");
+      setMode('break');
       setTimeLeft(customBreakTime * 60);
     } else {
       // 休憩完了
-      setMode("work");
+      setMode('work');
       setTimeLeft(customWorkTime * 60);
     }
-  }, [soundEnabled, mode, saveTimeEntry, customBreakTime, customWorkTime, playNotificationSound]);
+  }, [
+    soundEnabled,
+    mode,
+    saveTimeEntry,
+    customBreakTime,
+    customWorkTime,
+    playNotificationSound,
+  ]);
 
   const startTimer = () => {
-    if (!isRunning && mode === "work") {
+    if (!isRunning && mode === 'work') {
       setStartTime(new Date());
     }
     setIsRunning(true);
 
     // 通知許可をリクエスト
-    if (Notification.permission === "default") {
+    if (Notification.permission === 'default') {
       Notification.requestPermission();
     }
   };
@@ -154,14 +167,14 @@ export default function FocusClient() {
 
   const resetTimer = () => {
     setIsRunning(false);
-    setTimeLeft(mode === "work" ? customWorkTime * 60 : customBreakTime * 60);
+    setTimeLeft(mode === 'work' ? customWorkTime * 60 : customBreakTime * 60);
     setStartTime(null);
   };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
   useEffect(() => {
@@ -194,36 +207,39 @@ export default function FocusClient() {
     };
   }, [isRunning, timeLeft, handleTimerComplete]);
 
-  const progress = mode === "work"
-    ? ((customWorkTime * 60 - timeLeft) / (customWorkTime * 60)) * 100
-    : ((customBreakTime * 60 - timeLeft) / (customBreakTime * 60)) * 100;
+  const progress =
+    mode === 'work'
+      ? ((customWorkTime * 60 - timeLeft) / (customWorkTime * 60)) * 100
+      : ((customBreakTime * 60 - timeLeft) / (customBreakTime * 60)) * 100;
 
   const completeTask = async () => {
     if (!taskId) return;
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "done" }),
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'done' }),
       });
       if (res.ok) {
-        showToast("タスクを完了しました！", "success");
-        router.push("/");
+        showToast('タスクを完了しました！', 'success');
+        router.push('/');
       } else {
-        showToast("タスクの完了に失敗しました", "error");
+        showToast('タスクの完了に失敗しました', 'error');
       }
     } catch (e) {
-      console.error("Failed to complete task:", e);
-      showToast("エラーが発生しました", "error");
+      console.error('Failed to complete task:', e);
+      showToast('エラーが発生しました', 'error');
     }
   };
 
   return (
-    <div className={`min-h-screen transition-colors duration-500 ${
-      mode === "work"
-        ? "bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950"
-        : "bg-gradient-to-br from-emerald-950 via-slate-900 to-teal-950"
-    }`}>
+    <div
+      className={`min-h-screen transition-colors duration-500 ${
+        mode === 'work'
+          ? 'bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950'
+          : 'bg-gradient-to-br from-emerald-950 via-slate-900 to-teal-950'
+      }`}
+    >
       {/* ヘッダー */}
       <div className="flex items-center justify-between p-4">
         <button
@@ -238,12 +254,19 @@ export default function FocusClient() {
             onClick={() => setSoundEnabled(!soundEnabled)}
             className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
           >
-            {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+            {soundEnabled ? (
+              <Volume2 className="w-5 h-5" />
+            ) : (
+              <VolumeX className="w-5 h-5" />
+            )}
           </button>
         </div>
       </div>
 
-      <div className="flex flex-col items-center justify-center px-4 pb-8" style={{ minHeight: "calc(100vh - 80px)" }}>
+      <div
+        className="flex flex-col items-center justify-center px-4 pb-8"
+        style={{ minHeight: 'calc(100vh - 80px)' }}
+      >
         {/* タスク情報 */}
         {task && (
           <div className="mb-8 text-center">
@@ -253,12 +276,14 @@ export default function FocusClient() {
         )}
 
         {/* モード表示 */}
-        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8 ${
-          mode === "work"
-            ? "bg-indigo-500/20 text-indigo-300"
-            : "bg-emerald-500/20 text-emerald-300"
-        }`}>
-          {mode === "work" ? (
+        <div
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8 ${
+            mode === 'work'
+              ? 'bg-indigo-500/20 text-indigo-300'
+              : 'bg-emerald-500/20 text-emerald-300'
+          }`}
+        >
+          {mode === 'work' ? (
             <>
               <Target className="w-4 h-4" />
               <span className="text-sm font-medium">集中タイム</span>
@@ -295,7 +320,7 @@ export default function FocusClient() {
               strokeDashoffset={2 * Math.PI * 136 * (1 - progress / 100)}
               strokeLinecap="round"
               className={`transition-all duration-1000 ${
-                mode === "work" ? "text-indigo-400" : "text-emerald-400"
+                mode === 'work' ? 'text-indigo-400' : 'text-emerald-400'
               }`}
             />
           </svg>
@@ -323,9 +348,9 @@ export default function FocusClient() {
           <button
             onClick={isRunning ? pauseTimer : startTimer}
             className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
-              mode === "work"
-                ? "bg-indigo-500 hover:bg-indigo-400"
-                : "bg-emerald-500 hover:bg-emerald-400"
+              mode === 'work'
+                ? 'bg-indigo-500 hover:bg-indigo-400'
+                : 'bg-emerald-500 hover:bg-emerald-400'
             }`}
           >
             {isRunning ? (
@@ -357,7 +382,7 @@ export default function FocusClient() {
                 onChange={(e) => {
                   const val = parseInt(e.target.value);
                   setCustomWorkTime(val);
-                  if (mode === "work") setTimeLeft(val * 60);
+                  if (mode === 'work') setTimeLeft(val * 60);
                 }}
                 className="bg-white/10 border-none rounded px-2 py-1 text-sm text-white"
               >
@@ -376,7 +401,7 @@ export default function FocusClient() {
                 onChange={(e) => {
                   const val = parseInt(e.target.value);
                   setCustomBreakTime(val);
-                  if (mode === "break") setTimeLeft(val * 60);
+                  if (mode === 'break') setTimeLeft(val * 60);
                 }}
                 className="bg-white/10 border-none rounded px-2 py-1 text-sm text-white"
               >
@@ -395,7 +420,7 @@ export default function FocusClient() {
               <div
                 key={i}
                 className={`w-3 h-3 rounded-full ${
-                  mode === "work" ? "bg-indigo-400" : "bg-emerald-400"
+                  mode === 'work' ? 'bg-indigo-400' : 'bg-emerald-400'
                 }`}
               />
             ))}

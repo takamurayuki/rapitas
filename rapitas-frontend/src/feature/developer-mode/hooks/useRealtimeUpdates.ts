@@ -1,6 +1,11 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import type { SSEEvent, ExecutionOutputEvent, ExecutionStatusEvent, GitHubEventData } from "@/types";
-import { API_BASE_URL } from "@/utils/api";
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import type {
+  SSEEvent,
+  ExecutionOutputEvent,
+  ExecutionStatusEvent,
+  GitHubEventData,
+} from '@/types';
+import { API_BASE_URL } from '@/utils/api';
 
 export type EventHandler<T = unknown> = (data: T) => void;
 
@@ -19,17 +24,21 @@ export type UseRealtimeUpdatesReturn = {
   disconnect: () => void;
   subscribe: (channel: string) => void;
   unsubscribe: (channel: string) => void;
-  onExecutionOutput: (handler: EventHandler<ExecutionOutputEvent>) => () => void;
-  onExecutionStatus: (handler: EventHandler<ExecutionStatusEvent>) => () => void;
+  onExecutionOutput: (
+    handler: EventHandler<ExecutionOutputEvent>,
+  ) => () => void;
+  onExecutionStatus: (
+    handler: EventHandler<ExecutionStatusEvent>,
+  ) => () => void;
   onGitHubEvent: (handler: EventHandler<GitHubEventData>) => () => void;
   onNotification: (handler: EventHandler<unknown>) => () => void;
 };
 
 export function useRealtimeUpdates(
-  options: UseRealtimeUpdatesOptions = {}
+  options: UseRealtimeUpdatesOptions = {},
 ): UseRealtimeUpdatesReturn {
   const {
-    channels = ["*"],
+    channels = ['*'],
     autoConnect = true,
     onConnect,
     onDisconnect,
@@ -37,7 +46,7 @@ export function useRealtimeUpdates(
   } = options;
 
   // channels配列を安定化（参照の変化による無限ループを防止）
-  const channelsKey = channels.join(",");
+  const channelsKey = channels.join(',');
   const stableChannels = useMemo(() => channels, [channelsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [isConnected, setIsConnected] = useState(false);
@@ -60,7 +69,7 @@ export function useRealtimeUpdates(
       return;
     }
 
-    const channelParam = stableChannels.join(",");
+    const channelParam = stableChannels.join(',');
     const url = `${API_BASE_URL}/events/subscribe/${channelParam}`;
 
     const eventSource = new EventSource(url);
@@ -73,7 +82,7 @@ export function useRealtimeUpdates(
 
     eventSource.onerror = () => {
       setIsConnected(false);
-      onErrorRef.current?.(new Error("SSE connection error"));
+      onErrorRef.current?.(new Error('SSE connection error'));
       onDisconnectRef.current?.();
     };
 
@@ -81,7 +90,7 @@ export function useRealtimeUpdates(
       try {
         const data = JSON.parse(event.data);
         const sseEvent: SSEEvent = {
-          type: event.type || "message",
+          type: event.type || 'message',
           data,
           id: event.lastEventId || undefined,
           timestamp: new Date().toISOString(),
@@ -95,27 +104,27 @@ export function useRealtimeUpdates(
         }
 
         // ワイルドカードハンドラ
-        const wildcardHandlers = handlersRef.current.get("*");
+        const wildcardHandlers = handlersRef.current.get('*');
         if (wildcardHandlers) {
           wildcardHandlers.forEach((handler) => handler(sseEvent));
         }
       } catch (err) {
-        console.error("Failed to parse SSE event:", err);
+        console.error('Failed to parse SSE event:', err);
       }
     };
 
     // 特定のイベントタイプをリッスン
     const eventTypes = [
-      "execution_output",
-      "execution_status",
-      "execution_started",
-      "execution_completed",
-      "execution_failed",
-      "pull_request",
-      "issue",
-      "new_notification",
-      "connected",
-      "ping",
+      'execution_output',
+      'execution_status',
+      'execution_started',
+      'execution_completed',
+      'execution_failed',
+      'pull_request',
+      'issue',
+      'new_notification',
+      'connected',
+      'ping',
     ];
 
     eventTypes.forEach((type) => {
@@ -173,35 +182,35 @@ export function useRealtimeUpdates(
 
   const onExecutionOutput = useCallback(
     (handler: EventHandler<ExecutionOutputEvent>) => {
-      return addHandler("execution_output", handler as EventHandler);
+      return addHandler('execution_output', handler as EventHandler);
     },
-    [addHandler]
+    [addHandler],
   );
 
   const onExecutionStatus = useCallback(
     (handler: EventHandler<ExecutionStatusEvent>) => {
-      return addHandler("execution_status", handler as EventHandler);
+      return addHandler('execution_status', handler as EventHandler);
     },
-    [addHandler]
+    [addHandler],
   );
 
   const onGitHubEvent = useCallback(
     (handler: EventHandler<GitHubEventData>) => {
-      const unsubPR = addHandler("pull_request", handler as EventHandler);
-      const unsubIssue = addHandler("issue", handler as EventHandler);
+      const unsubPR = addHandler('pull_request', handler as EventHandler);
+      const unsubIssue = addHandler('issue', handler as EventHandler);
       return () => {
         unsubPR();
         unsubIssue();
       };
     },
-    [addHandler]
+    [addHandler],
   );
 
   const onNotification = useCallback(
     (handler: EventHandler<unknown>) => {
-      return addHandler("new_notification", handler as EventHandler);
+      return addHandler('new_notification', handler as EventHandler);
     },
-    [addHandler]
+    [addHandler],
   );
 
   useEffect(() => {

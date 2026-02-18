@@ -1,21 +1,21 @@
-"use client";
-import { useEffect, useState } from "react";
-import type { Habit } from "@/types";
-import Link from "next/link";
-import { Plus, Edit2, Trash2, Check, Target, Flame, Clock } from "lucide-react";
-import { getIconComponent } from "@/components/category/IconData";
-import { API_BASE_URL } from "@/utils/api";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+'use client';
+import { useEffect, useState } from 'react';
+import type { Habit } from '@/types';
+import Link from 'next/link';
+import { Plus, Edit2, Trash2, Check, Target, Flame, Clock } from 'lucide-react';
+import { getIconComponent } from '@/components/category/IconData';
+import { API_BASE_URL } from '@/utils/api';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 const PRESET_COLORS = [
-  "#10B981",
-  "#3B82F6",
-  "#8B5CF6",
-  "#EC4899",
-  "#F59E0B",
-  "#EF4444",
-  "#06B6D4",
-  "#84CC16",
+  '#10B981',
+  '#3B82F6',
+  '#8B5CF6',
+  '#EC4899',
+  '#F59E0B',
+  '#EF4444',
+  '#06B6D4',
+  '#84CC16',
 ];
 
 export default function HabitsPage() {
@@ -24,10 +24,10 @@ export default function HabitsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    icon: "",
-    color: "#10B981",
+    name: '',
+    description: '',
+    icon: '',
+    color: '#10B981',
     targetCount: 1,
   });
 
@@ -42,7 +42,7 @@ export default function HabitsPage() {
         setHabits(await res.json());
       }
     } catch (e) {
-      console.error("Failed to fetch habits:", e);
+      console.error('Failed to fetch habits:', e);
     } finally {
       setLoading(false);
     }
@@ -51,10 +51,10 @@ export default function HabitsPage() {
   const openCreateModal = () => {
     setEditingHabit(null);
     setFormData({
-      name: "",
-      description: "",
-      icon: "",
-      color: "#10B981",
+      name: '',
+      description: '',
+      icon: '',
+      color: '#10B981',
       targetCount: 1,
     });
     setIsModalOpen(true);
@@ -64,8 +64,8 @@ export default function HabitsPage() {
     setEditingHabit(habit);
     setFormData({
       name: habit.name,
-      description: habit.description || "",
-      icon: habit.icon || "",
+      description: habit.description || '',
+      icon: habit.icon || '',
       color: habit.color,
       targetCount: habit.targetCount,
     });
@@ -80,11 +80,11 @@ export default function HabitsPage() {
       const url = editingHabit
         ? `${API_BASE_URL}/habits/${editingHabit.id}`
         : `${API_BASE_URL}/habits`;
-      const method = editingHabit ? "PATCH" : "POST";
+      const method = editingHabit ? 'PATCH' : 'POST';
 
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.name.trim(),
           description: formData.description.trim() || null,
@@ -99,41 +99,41 @@ export default function HabitsPage() {
         setIsModalOpen(false);
       }
     } catch (e) {
-      console.error("Failed to save habit:", e);
+      console.error('Failed to save habit:', e);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("この習慣を削除しますか？")) return;
+    if (!confirm('この習慣を削除しますか？')) return;
     try {
       const res = await fetch(`${API_BASE_URL}/habits/${id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       if (res.ok) {
         fetchHabits();
       }
     } catch (e) {
-      console.error("Failed to delete habit:", e);
+      console.error('Failed to delete habit:', e);
     }
   };
 
   const handleLog = async (habitId: number) => {
     try {
       const res = await fetch(`${API_BASE_URL}/habits/${habitId}/log`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
       if (res.ok) {
         fetchHabits();
       }
     } catch (e) {
-      console.error("Failed to log habit:", e);
+      console.error('Failed to log habit:', e);
     }
   };
 
   const renderIcon = (iconName: string | null | undefined, size = 20) => {
-    const IconComponent = getIconComponent(iconName || "");
+    const IconComponent = getIconComponent(iconName || '');
     if (!IconComponent) {
       return <Target size={size} />;
     }
@@ -191,8 +191,8 @@ export default function HabitsPage() {
               key={habit.id}
               className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
                 isCompleted
-                  ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800"
-                  : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700"
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
+                  : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700'
               }`}
             >
               {/* チェックボタン */}
@@ -200,8 +200,8 @@ export default function HabitsPage() {
                 onClick={() => handleLog(habit.id)}
                 className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
                   isCompleted
-                    ? "bg-emerald-500 text-white"
-                    : "border-2 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                    ? 'bg-emerald-500 text-white'
+                    : 'border-2 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                 }`}
                 style={
                   !isCompleted
@@ -221,8 +221,8 @@ export default function HabitsPage() {
                 <h3
                   className={`font-semibold ${
                     isCompleted
-                      ? "text-emerald-700 dark:text-emerald-300"
-                      : "text-zinc-900 dark:text-zinc-50"
+                      ? 'text-emerald-700 dark:text-emerald-300'
+                      : 'text-zinc-900 dark:text-zinc-50'
                   }`}
                 >
                   {habit.name}
@@ -251,7 +251,7 @@ export default function HabitsPage() {
                     className="h-full transition-all"
                     style={{
                       width: `${Math.min((todayCount / habit.targetCount) * 100, 100)}%`,
-                      backgroundColor: isCompleted ? "#10B981" : habit.color,
+                      backgroundColor: isCompleted ? '#10B981' : habit.color,
                     }}
                   />
                 </div>
@@ -292,7 +292,7 @@ export default function HabitsPage() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md">
             <div className="p-6">
               <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">
-                {editingHabit ? "習慣を編集" : "新しい習慣"}
+                {editingHabit ? '習慣を編集' : '新しい習慣'}
               </h2>
 
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -358,8 +358,8 @@ export default function HabitsPage() {
                         onClick={() => setFormData({ ...formData, color })}
                         className={`w-8 h-8 rounded-full border-2 transition-all ${
                           formData.color === color
-                            ? "border-zinc-900 dark:border-white scale-110"
-                            : "border-transparent hover:scale-105"
+                            ? 'border-zinc-900 dark:border-white scale-110'
+                            : 'border-transparent hover:scale-105'
                         }`}
                         style={{ backgroundColor: color }}
                       />
@@ -379,7 +379,7 @@ export default function HabitsPage() {
                     type="submit"
                     className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
                   >
-                    {editingHabit ? "更新" : "作成"}
+                    {editingHabit ? '更新' : '作成'}
                   </button>
                 </div>
               </form>

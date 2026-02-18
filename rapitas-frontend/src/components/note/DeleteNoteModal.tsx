@@ -1,5 +1,5 @@
-"use client";
-import { AlertCircle } from "lucide-react";
+'use client';
+import { AlertCircle } from 'lucide-react';
 
 interface DeleteNoteModalProps {
   isOpen: boolean;
@@ -19,10 +19,7 @@ export default function DeleteNoteModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* オーバーレイ */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onCancel}
-      />
+      <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
 
       {/* モーダルコンテンツ */}
       <div className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">

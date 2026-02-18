@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useCallback } from "react";
-import type { ApprovalRequest, FileDiff } from "@/types";
-import { API_BASE_URL } from "@/utils/api";
+import { useState, useCallback } from 'react';
+import type { ApprovalRequest, FileDiff } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
 
 export function useApprovals() {
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
@@ -23,10 +23,10 @@ export function useApprovals() {
         setApprovals(data);
         return data;
       } else {
-        throw new Error("承認リクエストの取得に失敗しました");
+        throw new Error('承認リクエストの取得に失敗しました');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
       return [];
     } finally {
       setIsLoading(false);
@@ -51,8 +51,8 @@ export function useApprovals() {
       setError(null);
       try {
         const res = await fetch(`${API_BASE_URL}/approvals/${id}/approve`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ selectedSubtasks }),
         });
         if (res.ok) {
@@ -60,16 +60,16 @@ export function useApprovals() {
           setApprovals((prev) => prev.filter((a) => a.id !== id));
           return data;
         } else {
-          throw new Error("承認に失敗しました");
+          throw new Error('承認に失敗しました');
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "エラーが発生しました");
+        setError(err instanceof Error ? err.message : 'エラーが発生しました');
         return null;
       } finally {
         setIsLoading(false);
       }
     },
-    []
+    [],
   );
 
   const reject = useCallback(async (id: number, reason?: string) => {
@@ -77,18 +77,18 @@ export function useApprovals() {
     setError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/approvals/${id}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason }),
       });
       if (res.ok) {
         setApprovals((prev) => prev.filter((a) => a.id !== id));
         return true;
       } else {
-        throw new Error("却下に失敗しました");
+        throw new Error('却下に失敗しました');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
       return false;
     } finally {
       setIsLoading(false);
@@ -100,8 +100,8 @@ export function useApprovals() {
     setError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/approvals/bulk-approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids }),
       });
       if (res.ok) {
@@ -112,10 +112,10 @@ export function useApprovals() {
         setApprovals((prev) => prev.filter((a) => !approvedIds.includes(a.id)));
         return data;
       } else {
-        throw new Error("一括承認に失敗しました");
+        throw new Error('一括承認に失敗しました');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
       return null;
     } finally {
       setIsLoading(false);
@@ -135,10 +135,10 @@ export function useApprovals() {
         }
         return [];
       } else {
-        throw new Error("差分の取得に失敗しました");
+        throw new Error('差分の取得に失敗しました');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
       return [];
     } finally {
       setIsLoading(false);
@@ -146,17 +146,17 @@ export function useApprovals() {
   }, []);
 
   const approveCodeReview = useCallback(
-    async (id: number, commitMessage: string, baseBranch: string = "main") => {
+    async (id: number, commitMessage: string, baseBranch: string = 'main') => {
       setIsLoading(true);
       setError(null);
       try {
         const res = await fetch(
           `${API_BASE_URL}/approvals/${id}/approve-code-review`,
           {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ commitMessage, baseBranch }),
-          }
+          },
         );
         if (res.ok) {
           const data = await res.json();
@@ -166,16 +166,16 @@ export function useApprovals() {
           setApprovals((prev) => prev.filter((a) => a.id !== id));
           return data;
         } else {
-          throw new Error("コードレビュー承認に失敗しました");
+          throw new Error('コードレビュー承認に失敗しました');
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "エラーが発生しました");
+        setError(err instanceof Error ? err.message : 'エラーが発生しました');
         return null;
       } finally {
         setIsLoading(false);
       }
     },
-    []
+    [],
   );
 
   const rejectCodeReview = useCallback(async (id: number, reason?: string) => {
@@ -185,10 +185,10 @@ export function useApprovals() {
       const res = await fetch(
         `${API_BASE_URL}/approvals/${id}/reject-code-review`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ reason }),
-        }
+        },
       );
       if (res.ok) {
         const data = await res.json();
@@ -198,10 +198,10 @@ export function useApprovals() {
         setApprovals((prev) => prev.filter((a) => a.id !== id));
         return true;
       } else {
-        throw new Error("コードレビュー却下に失敗しました");
+        throw new Error('コードレビュー却下に失敗しました');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
       return false;
     } finally {
       setIsLoading(false);

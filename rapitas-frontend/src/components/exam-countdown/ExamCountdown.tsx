@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useMemo } from "react";
+import { useMemo } from 'react';
 
 type ExamCountdownProps = {
   examDate: string;
@@ -34,19 +34,19 @@ export function ExamCountdown({
 
   const month = examDateObj.getMonth() + 1;
   const day = examDateObj.getDate();
-  const weekday = examDateObj.toLocaleDateString("ja-JP", {
-    weekday: "short",
+  const weekday = examDateObj.toLocaleDateString('ja-JP', {
+    weekday: 'short',
   });
   const year = examDateObj.getFullYear();
 
   const statusColor = isToday
-    ? "#F59E0B"
+    ? '#F59E0B'
     : isPast
-      ? "#9CA3AF"
+      ? '#9CA3AF'
       : isUrgent
-        ? "#EF4444"
+        ? '#EF4444'
         : isNear
-          ? "#F59E0B"
+          ? '#F59E0B'
           : color;
 
   if (compact) {
@@ -76,12 +76,9 @@ export function ExamCountdown({
         </div>
         {/* 残り日数 */}
         <div>
-          <span
-            className="text-lg font-bold"
-            style={{ color: statusColor }}
-          >
+          <span className="text-lg font-bold" style={{ color: statusColor }}>
             {isToday
-              ? "今日!"
+              ? '今日!'
               : isPast
                 ? `${Math.abs(daysRemaining)}日経過`
                 : `あと${daysRemaining}日`}
@@ -163,7 +160,7 @@ export function ExamCountdown({
             {daysRemaining > 7 && (
               <div className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">
                 ({Math.floor(daysRemaining / 7)}週
-                {daysRemaining % 7 > 0 ? `${daysRemaining % 7}日` : ""})
+                {daysRemaining % 7 > 0 ? `${daysRemaining % 7}日` : ''})
               </div>
             )}
           </>

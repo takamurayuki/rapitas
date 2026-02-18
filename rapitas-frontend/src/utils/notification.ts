@@ -8,20 +8,20 @@
  * @returns 許可されたかどうか
  */
 export async function requestNotificationPermission(): Promise<boolean> {
-  if (typeof window === "undefined" || !("Notification" in window)) {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
     return false;
   }
 
-  if (Notification.permission === "granted") {
+  if (Notification.permission === 'granted') {
     return true;
   }
 
-  if (Notification.permission === "denied") {
+  if (Notification.permission === 'denied') {
     return false;
   }
 
   const permission = await Notification.requestPermission();
-  return permission === "granted";
+  return permission === 'granted';
 }
 
 /**
@@ -38,17 +38,17 @@ export function showDesktopNotification(
     onClick?: () => void;
   },
 ): Notification | null {
-  if (typeof window === "undefined" || !("Notification" in window)) {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
     return null;
   }
 
-  if (Notification.permission !== "granted") {
+  if (Notification.permission !== 'granted') {
     return null;
   }
 
   const notification = new Notification(title, {
     body: options?.body,
-    icon: options?.icon || "/icons/icon.ico",
+    icon: options?.icon || '/icons/icon.ico',
     tag: options?.tag,
   });
 

@@ -1,6 +1,6 @@
-"use client";
-import { useCallback, useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+'use client';
+import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   DragDropContext,
   Droppable,
@@ -10,13 +10,13 @@ import {
   type DroppableStateSnapshot,
   type DraggableProvided,
   type DraggableStateSnapshot,
-} from "@hello-pangea/dnd";
-import TaskSlidePanel from "@/feature/tasks/components/TaskSlidePanel";
-import { getLabelsArray, hasLabels } from "@/utils/labels";
-import { useTaskDetailVisibilityStore } from "@/stores/taskDetailVisibilityStore";
-import { API_BASE_URL } from "@/utils/api";
-import { useExecutingTasksPolling } from "@/hooks/useExecutingTasksPolling";
-import { useTaskCacheStore } from "@/stores/taskCacheStore";
+} from '@hello-pangea/dnd';
+import TaskSlidePanel from '@/feature/tasks/components/TaskSlidePanel';
+import { getLabelsArray, hasLabels } from '@/utils/labels';
+import { useTaskDetailVisibilityStore } from '@/stores/taskDetailVisibilityStore';
+import { API_BASE_URL } from '@/utils/api';
+import { useExecutingTasksPolling } from '@/hooks/useExecutingTasksPolling';
+import { useTaskCacheStore } from '@/stores/taskCacheStore';
 import {
   ExternalLink,
   Flag,
@@ -24,43 +24,43 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar,
-} from "lucide-react";
-import type { Label } from "@/types";
+} from 'lucide-react';
+import type { Label } from '@/types';
 
-type Priority = "low" | "medium" | "high" | "urgent";
+type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
 const priorityConfig: Record<
   Priority,
   { label: string; color: string; bg: string }
 > = {
   low: {
-    label: "低",
-    color: "text-slate-600",
-    bg: "bg-slate-100 dark:bg-slate-800",
+    label: '低',
+    color: 'text-slate-600',
+    bg: 'bg-slate-100 dark:bg-slate-800',
   },
   medium: {
-    label: "中",
-    color: "text-blue-600",
-    bg: "bg-blue-100 dark:bg-blue-900",
+    label: '中',
+    color: 'text-blue-600',
+    bg: 'bg-blue-100 dark:bg-blue-900',
   },
   high: {
-    label: "高",
-    color: "text-amber-600",
-    bg: "bg-amber-100 dark:bg-amber-900",
+    label: '高',
+    color: 'text-amber-600',
+    bg: 'bg-amber-100 dark:bg-amber-900',
   },
   urgent: {
-    label: "緊急",
-    color: "text-rose-600",
-    bg: "bg-rose-100 dark:bg-rose-900",
+    label: '緊急',
+    color: 'text-rose-600',
+    bg: 'bg-rose-100 dark:bg-rose-900',
   },
 };
 
 const API_BASE = API_BASE_URL;
 
 const columns = [
-  { id: "todo", label: "未着手", color: "bg-gray-100 dark:bg-gray-800" },
-  { id: "in-progress", label: "進行中", color: "bg-blue-100 dark:bg-blue-900" },
-  { id: "done", label: "完了", color: "bg-green-100 dark:bg-green-900" },
+  { id: 'todo', label: '未着手', color: 'bg-gray-100 dark:bg-gray-800' },
+  { id: 'in-progress', label: '進行中', color: 'bg-blue-100 dark:bg-blue-900' },
+  { id: 'done', label: '完了', color: 'bg-green-100 dark:bg-green-900' },
 ];
 
 export default function KanbanPage() {
@@ -77,7 +77,7 @@ export default function KanbanPage() {
   const { showTaskDetail, hideTaskDetail } = useTaskDetailVisibilityStore();
 
   // フィルター状態
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedPriorities, setSelectedPriorities] = useState<Priority[]>([]);
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
   const [showFilters] = useState(false);
@@ -118,7 +118,7 @@ export default function KanbanPage() {
       const taskCreatedAt = new Date(task.createdAt);
       const taskDueDate = task.dueDate ? new Date(task.dueDate) : null;
 
-      const isInProgress = task.status === "in-progress";
+      const isInProgress = task.status === 'in-progress';
       const isCreatedInWeek =
         taskCreatedAt >= currentWeekRange.start &&
         taskCreatedAt <= currentWeekRange.end;
@@ -173,7 +173,7 @@ export default function KanbanPage() {
     searchQuery || selectedPriorities.length > 0 || selectedLabelIds.length > 0;
 
   const clearFilters = () => {
-    setSearchQuery("");
+    setSearchQuery('');
     setSelectedPriorities([]);
     setSelectedLabelIds([]);
   };
@@ -199,7 +199,7 @@ export default function KanbanPage() {
       const res = await fetch(`${API_BASE}/labels`);
       if (res.ok) setLabels(await res.json());
     } catch (e) {
-      console.error("Failed to fetch labels:", e);
+      console.error('Failed to fetch labels:', e);
     }
   };
 
@@ -215,15 +215,15 @@ export default function KanbanPage() {
 
   const updateStatus = async (id: number, status: string) => {
     const oldTask = tasks.find((t) => t.id === id);
-    updateTaskLocally(id, { status: status as import("@/types").Status });
+    updateTaskLocally(id, { status: status as import('@/types').Status });
 
     try {
       const res = await fetch(`${API_BASE}/tasks/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-      if (!res.ok) throw new Error("更新に失敗しました");
+      if (!res.ok) throw new Error('更新に失敗しました');
     } catch (e) {
       console.error(e);
       if (oldTask) {
@@ -291,8 +291,8 @@ export default function KanbanPage() {
     const handleFocus = () => {
       fetchTaskUpdates();
     };
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   const getTasksByStatus = (status: string) =>
@@ -300,13 +300,13 @@ export default function KanbanPage() {
 
   // 週の表示文字列を生成
   const getWeekDisplayText = () => {
-    const start = currentWeekRange.start.toLocaleDateString("ja-JP", {
-      month: "numeric",
-      day: "numeric",
+    const start = currentWeekRange.start.toLocaleDateString('ja-JP', {
+      month: 'numeric',
+      day: 'numeric',
     });
-    const end = currentWeekRange.end.toLocaleDateString("ja-JP", {
-      month: "numeric",
-      day: "numeric",
+    const end = currentWeekRange.end.toLocaleDateString('ja-JP', {
+      month: 'numeric',
+      day: 'numeric',
     });
 
     if (currentWeek === 0) {
@@ -386,7 +386,7 @@ export default function KanbanPage() {
                           className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                             isSelected
                               ? `${config.bg} ${config.color} ring-1 ring-current`
-                              : "bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+                              : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                           }`}
                         >
                           {config.label}
@@ -413,15 +413,15 @@ export default function KanbanPage() {
                           onClick={() => toggleLabel(label.id)}
                           className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                             isSelected
-                              ? "ring-1 ring-offset-1"
-                              : "opacity-70 hover:opacity-100"
+                              ? 'ring-1 ring-offset-1'
+                              : 'opacity-70 hover:opacity-100'
                           }`}
                           style={{
                             backgroundColor: isSelected
                               ? label.color
                               : `${label.color}20`,
-                            color: isSelected ? "#fff" : label.color,
-                            ["--tw-ring-color" as string]: label.color,
+                            color: isSelected ? '#fff' : label.color,
+                            ['--tw-ring-color' as string]: label.color,
                           }}
                         >
                           {label.name}
@@ -481,8 +481,8 @@ export default function KanbanPage() {
                         {...provided.droppableProps}
                         className={`flex-1 rounded-lg p-3 transition-colors ${
                           snapshot.isDraggingOver
-                            ? "bg-blue-50 dark:bg-blue-950"
-                            : "bg-zinc-50 dark:bg-indigo-dark-900"
+                            ? 'bg-blue-50 dark:bg-blue-950'
+                            : 'bg-zinc-50 dark:bg-indigo-dark-900'
                         } min-h-[200px]`}
                       >
                         <div className="space-y-2">
@@ -503,8 +503,8 @@ export default function KanbanPage() {
                                   onClick={() => openTaskPanel(task.id)}
                                   className={`rounded-lg border bg-white dark:bg-zinc-800 p-3 shadow-sm transition-all cursor-pointer ${
                                     snapshot.isDragging
-                                      ? "shadow-lg border-blue-500"
-                                      : "border-zinc-200 dark:border-zinc-700 hover:shadow-md hover:border-blue-400 dark:hover:border-blue-600"
+                                      ? 'shadow-lg border-blue-500'
+                                      : 'border-zinc-200 dark:border-zinc-700 hover:shadow-md hover:border-blue-400 dark:hover:border-blue-600'
                                   }`}
                                 >
                                   <div className="flex items-start justify-between gap-2 mb-2">
@@ -542,7 +542,7 @@ export default function KanbanPage() {
                                       </svg>
                                       {new Date(
                                         task.createdAt,
-                                      ).toLocaleDateString("ja-JP")}
+                                      ).toLocaleDateString('ja-JP')}
                                     </span>
 
                                     {/* サブタスク */}
@@ -564,7 +564,7 @@ export default function KanbanPage() {
                                           </svg>
                                           {
                                             task.subtasks.filter(
-                                              (st) => st.status === "done",
+                                              (st) => st.status === 'done',
                                             ).length
                                           }
                                           /{task.subtasks.length}

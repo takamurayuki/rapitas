@@ -3,7 +3,7 @@
 /* Markdown Viewer Styles */
 .markdown-viewer {
   @apply w-full;
-  font-feature-settings: "kern" 1;
+  font-feature-settings: 'kern' 1;
   text-rendering: optimizeLegibility;
 }
 
@@ -30,11 +30,11 @@
 }
 
 /* タスクリストのスタイル */
-.markdown-viewer input[type="checkbox"] {
+.markdown-viewer input[type='checkbox'] {
   @apply mr-2 rounded border-zinc-300 dark:border-zinc-600;
 }
 
-.markdown-viewer input[type="checkbox"]:checked {
+.markdown-viewer input[type='checkbox']:checked {
   @apply bg-blue-500 border-blue-500;
 }
 
@@ -98,7 +98,7 @@
 }
 
 /* コードブロックの言語表示 */
-.markdown-viewer pre[class*="language-"]::before {
+.markdown-viewer pre[class*='language-']::before {
   content: attr(data-language);
   @apply absolute top-0 right-0 px-2 py-1 text-xs text-zinc-400 bg-zinc-800 dark:bg-zinc-900 rounded-bl-md;
 }
@@ -143,7 +143,7 @@
   }
 
   .markdown-viewer a::after {
-    content: " (" attr(href) ")";
+    content: ' (' attr(href) ')';
     @apply text-xs;
   }
 }

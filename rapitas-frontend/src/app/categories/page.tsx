@@ -1,5 +1,5 @@
-"use client";
-import { useCallback, useEffect, useState, useMemo } from "react";
+'use client';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   Plus,
   Edit2,
@@ -14,21 +14,23 @@ import {
   BookOpen,
   Layers,
   GripVertical,
-} from "lucide-react";
-import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { useToast } from "@/components/ui/toast/ToastContainer";
-import { ListSkeleton } from "@/components/ui/LoadingSpinner";
+} from 'lucide-react';
 import {
-  searchIcons,
-  getIconComponent,
-} from "@/components/category/IconData";
-import type { Category, CategoryMode, Theme } from "@/types";
-import { API_BASE_URL } from "@/utils/api";
-import { useDebounce } from "@/hooks/useDebounce";
-import { IconGrid } from "@/components/category/IconGrid";
+  DragDropContext,
+  Droppable,
+  Draggable,
+  type DropResult,
+} from '@hello-pangea/dnd';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import { ListSkeleton } from '@/components/ui/LoadingSpinner';
+import { searchIcons, getIconComponent } from '@/components/category/IconData';
+import type { Category, CategoryMode, Theme } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
+import { useDebounce } from '@/hooks/useDebounce';
+import { IconGrid } from '@/components/category/IconGrid';
 
 type CategoryWithThemes = Category & {
-  themes: (Pick<Theme, "id" | "name" | "color" | "icon" | "isDefault"> & {
+  themes: (Pick<Theme, 'id' | 'name' | 'color' | 'icon' | 'isDefault'> & {
     _count?: { tasks: number };
   })[];
 };
@@ -42,17 +44,22 @@ type FormData = {
 };
 
 const defaultFormData: FormData = {
-  name: "",
-  description: "",
-  color: "#6366F1",
-  icon: "",
-  mode: "both",
+  name: '',
+  description: '',
+  color: '#6366F1',
+  icon: '',
+  mode: 'both',
 };
 
-const MODE_OPTIONS: { value: CategoryMode; label: string; icon: typeof Code; color: string }[] = [
-  { value: "development", label: "開発", icon: Code, color: "#3B82F6" },
-  { value: "learning", label: "学習", icon: BookOpen, color: "#10B981" },
-  { value: "both", label: "両方", icon: Layers, color: "#8B5CF6" },
+const MODE_OPTIONS: {
+  value: CategoryMode;
+  label: string;
+  icon: typeof Code;
+  color: string;
+}[] = [
+  { value: 'development', label: '開発', icon: Code, color: '#3B82F6' },
+  { value: 'learning', label: '学習', icon: BookOpen, color: '#10B981' },
+  { value: 'both', label: '両方', icon: Layers, color: '#8B5CF6' },
 ];
 
 export default function CategoriesPage() {
@@ -61,17 +68,19 @@ export default function CategoriesPage() {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isAdding, setIsAdding] = useState(false);
-  const [iconSearchQuery, setIconSearchQuery] = useState("");
+  const [iconSearchQuery, setIconSearchQuery] = useState('');
   const [formData, setFormData] = useState<FormData>(defaultFormData);
-  const [defaultCategoryId, setDefaultCategoryId] = useState<number | null>(null);
+  const [defaultCategoryId, setDefaultCategoryId] = useState<number | null>(
+    null,
+  );
 
   const seedDefaults = async () => {
     try {
       await fetch(`${API_BASE_URL}/categories/seed-defaults`, {
-        method: "POST",
+        method: 'POST',
       });
     } catch (e) {
-      console.error("Failed to seed default categories:", e);
+      console.error('Failed to seed default categories:', e);
     }
   };
 
@@ -83,25 +92,25 @@ export default function CategoriesPage() {
         setDefaultCategoryId(data.defaultCategoryId ?? null);
       }
     } catch (e) {
-      console.error("Failed to fetch default category:", e);
+      console.error('Failed to fetch default category:', e);
     }
   };
 
   const setDefaultCategory = async (id: number) => {
     try {
       const res = await fetch(`${API_BASE_URL}/categories/${id}/set-default`, {
-        method: "PATCH",
+        method: 'PATCH',
       });
 
-      if (!res.ok) throw new Error("デフォルト設定に失敗しました");
+      if (!res.ok) throw new Error('デフォルト設定に失敗しました');
 
       setDefaultCategoryId(id);
       // タスク一覧画面で新しいデフォルトが反映されるようlocalStorageを更新
-      localStorage.setItem("selectedCategoryFilter", String(id));
-      showToast("デフォルトカテゴリを設定しました", "success");
+      localStorage.setItem('selectedCategoryFilter', String(id));
+      showToast('デフォルトカテゴリを設定しました', 'success');
     } catch (e) {
       console.error(e);
-      showToast("デフォルトカテゴリの設定に失敗しました", "error");
+      showToast('デフォルトカテゴリの設定に失敗しました', 'error');
     }
   };
 
@@ -109,11 +118,11 @@ export default function CategoriesPage() {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/categories`);
-      if (!res.ok) throw new Error("取得に失敗しました");
+      if (!res.ok) throw new Error('取得に失敗しました');
       setItems(await res.json());
     } catch (e) {
       console.error(e);
-      showToast("カテゴリの取得に失敗しました", "error");
+      showToast('カテゴリの取得に失敗しました', 'error');
     } finally {
       setLoading(false);
     }
@@ -128,69 +137,74 @@ export default function CategoriesPage() {
 
   const handleAdd = async () => {
     if (!formData.name.trim()) {
-      showToast("カテゴリ名を入力してください", "error");
+      showToast('カテゴリ名を入力してください', 'error');
       return;
     }
 
     try {
       const res = await fetch(`${API_BASE_URL}/categories`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
-      if (!res.ok) throw new Error("作成に失敗しました");
+      if (!res.ok) throw new Error('作成に失敗しました');
 
-      showToast("カテゴリを作成しました", "success");
+      showToast('カテゴリを作成しました', 'success');
       setIsAdding(false);
       resetForm();
       fetchItems();
     } catch (e) {
       console.error(e);
-      showToast("カテゴリの作成に失敗しました", "error");
+      showToast('カテゴリの作成に失敗しました', 'error');
     }
   };
 
   const handleUpdate = async (id: number) => {
     if (!formData.name.trim()) {
-      showToast("カテゴリ名を入力してください", "error");
+      showToast('カテゴリ名を入力してください', 'error');
       return;
     }
 
     try {
       const res = await fetch(`${API_BASE_URL}/categories/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
-      if (!res.ok) throw new Error("更新に失敗しました");
+      if (!res.ok) throw new Error('更新に失敗しました');
 
-      showToast("カテゴリを更新しました", "success");
+      showToast('カテゴリを更新しました', 'success');
       setEditingId(null);
-      setIconSearchQuery("");
+      setIconSearchQuery('');
       fetchItems();
     } catch (e) {
       console.error(e);
-      showToast("カテゴリの更新に失敗しました", "error");
+      showToast('カテゴリの更新に失敗しました', 'error');
     }
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`「${name}」を削除しますか？所属するテーマは別のカテゴリに移動してください。`)) return;
+    if (
+      !confirm(
+        `「${name}」を削除しますか？所属するテーマは別のカテゴリに移動してください。`,
+      )
+    )
+      return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/categories/${id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
 
-      if (!res.ok) throw new Error("削除に失敗しました");
+      if (!res.ok) throw new Error('削除に失敗しました');
 
-      showToast("カテゴリを削除しました", "success");
+      showToast('カテゴリを削除しました', 'success');
       fetchItems();
     } catch (e) {
       console.error(e);
-      showToast("カテゴリの削除に失敗しました", "error");
+      showToast('カテゴリの削除に失敗しました', 'error');
     }
   };
 
@@ -198,17 +212,17 @@ export default function CategoriesPage() {
     setEditingId(item.id);
     setFormData({
       name: item.name,
-      description: item.description || "",
+      description: item.description || '',
       color: item.color,
-      icon: item.icon || "",
-      mode: item.mode || "both",
+      icon: item.icon || '',
+      mode: item.mode || 'both',
     });
-    setIconSearchQuery("");
+    setIconSearchQuery('');
   };
 
   const resetForm = () => {
     setFormData(defaultFormData);
-    setIconSearchQuery("");
+    setIconSearchQuery('');
   };
 
   const cancelEdit = () => {
@@ -218,7 +232,8 @@ export default function CategoriesPage() {
   };
 
   const handleDragEnd = async (result: DropResult) => {
-    if (!result.destination || result.source.index === result.destination.index) return;
+    if (!result.destination || result.source.index === result.destination.index)
+      return;
 
     const reordered = Array.from(items);
     const [moved] = reordered.splice(result.source.index, 1);
@@ -233,14 +248,14 @@ export default function CategoriesPage() {
 
     try {
       const res = await fetch(`${API_BASE_URL}/categories/reorder`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orders }),
       });
-      if (!res.ok) throw new Error("並び替えに失敗しました");
+      if (!res.ok) throw new Error('並び替えに失敗しました');
     } catch (e) {
       console.error(e);
-      showToast("並び替えに失敗しました", "error");
+      showToast('並び替えに失敗しました', 'error');
       fetchItems();
     }
   };
@@ -255,7 +270,7 @@ export default function CategoriesPage() {
   }, [debouncedIconSearchQuery]);
 
   const renderIcon = (iconName: string | null | undefined, size = 20) => {
-    const IconComponent = getIconComponent(iconName || "");
+    const IconComponent = getIconComponent(iconName || '');
     if (IconComponent) {
       return <IconComponent size={size} />;
     }
@@ -326,7 +341,7 @@ export default function CategoriesPage() {
             className="h-11 rounded-lg border-2 flex items-center justify-center"
             style={{
               borderColor: formData.color,
-              backgroundColor: formData.color + "15",
+              backgroundColor: formData.color + '15',
             }}
           >
             <div style={{ color: formData.color }}>
@@ -338,7 +353,7 @@ export default function CategoriesPage() {
 
       <div>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-          アイコンを選択 {!formData.icon && "(未選択時: FolderKanban)"}
+          アイコンを選択 {!formData.icon && '(未選択時: FolderKanban)'}
         </label>
 
         <div className="relative mb-3">
@@ -362,7 +377,9 @@ export default function CategoriesPage() {
             <IconGrid
               icons={filteredIcons}
               selectedIcon={formData.icon}
-              onIconSelect={(iconName) => setFormData({ ...formData, icon: iconName })}
+              onIconSelect={(iconName) =>
+                setFormData({ ...formData, icon: iconName })
+              }
               renderIcon={renderIcon}
               accentClass="bg-indigo-500"
             />
@@ -389,8 +406,8 @@ export default function CategoriesPage() {
                 onClick={() => setFormData({ ...formData, mode: opt.value })}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   isSelected
-                    ? "text-white shadow-md"
-                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700"
+                    ? 'text-white shadow-md'
+                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700'
                 }`}
                 style={isSelected ? { backgroundColor: opt.color } : undefined}
               >
@@ -417,7 +434,7 @@ export default function CategoriesPage() {
           className="flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 text-white transition-all shadow-lg hover:shadow-xl font-medium"
         >
           <Save className="w-4 h-4" />
-          {isEdit ? "保存" : "作成"}
+          {isEdit ? '保存' : '作成'}
         </button>
       </div>
     </div>
@@ -466,17 +483,24 @@ export default function CategoriesPage() {
           <div className="text-center py-16 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
             <FolderKanban className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
             <p className="text-lg font-medium mb-2">カテゴリがありません</p>
-            <p className="text-sm mb-4">最初のカテゴリを作成してみましょう（例: 仕事、学習、生活）</p>
+            <p className="text-sm mb-4">
+              最初のカテゴリを作成してみましょう（例: 仕事、学習、生活）
+            </p>
           </div>
         ) : (
           <DragDropContext onDragEnd={handleDragEnd}>
             <Droppable droppableId="categories">
               {(provided) => (
-                <div className="grid gap-4" ref={provided.innerRef} {...provided.droppableProps}>
+                <div
+                  className="grid gap-4"
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                >
                   {items
                     .filter(
                       (item) =>
-                        !isAdding && (editingId === null || editingId === item.id),
+                        !isAdding &&
+                        (editingId === null || editingId === item.id),
                     )
                     .map((item, index) => (
                       <Draggable
@@ -490,7 +514,9 @@ export default function CategoriesPage() {
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             className={`rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900 hover:shadow-lg transition-all overflow-hidden ${
-                              snapshot.isDragging ? "shadow-2xl ring-2 ring-indigo-500/50" : ""
+                              snapshot.isDragging
+                                ? 'shadow-2xl ring-2 ring-indigo-500/50'
+                                : ''
                             }`}
                           >
                             {editingId === item.id ? (
@@ -515,7 +541,7 @@ export default function CategoriesPage() {
                                     <div
                                       className="flex items-center justify-center w-14 h-14 rounded-xl shrink-0 shadow-sm"
                                       style={{
-                                        backgroundColor: item.color + "20",
+                                        backgroundColor: item.color + '20',
                                         color: item.color,
                                       }}
                                     >
@@ -533,14 +559,17 @@ export default function CategoriesPage() {
                                           </span>
                                         )}
                                         {(() => {
-                                          const modeOpt = MODE_OPTIONS.find((m) => m.value === item.mode);
+                                          const modeOpt = MODE_OPTIONS.find(
+                                            (m) => m.value === item.mode,
+                                          );
                                           if (!modeOpt) return null;
                                           const ModeIcon = modeOpt.icon;
                                           return (
                                             <span
                                               className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full"
                                               style={{
-                                                backgroundColor: modeOpt.color + "20",
+                                                backgroundColor:
+                                                  modeOpt.color + '20',
                                                 color: modeOpt.color,
                                               }}
                                             >
@@ -559,20 +588,24 @@ export default function CategoriesPage() {
                                         <span
                                           className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md"
                                           style={{
-                                            backgroundColor: item.color + "15",
+                                            backgroundColor: item.color + '15',
                                             color: item.color,
                                           }}
                                         >
                                           <div
                                             className="w-2 h-2 rounded-full"
-                                            style={{ backgroundColor: item.color }}
+                                            style={{
+                                              backgroundColor: item.color,
+                                            }}
                                           />
                                           {item.color}
                                         </span>
                                         <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
                                           <SwatchBook className="w-3 h-3" />
                                           <span className="font-semibold">
-                                            {item._count?.themes ?? item.themes?.length ?? 0}
+                                            {item._count?.themes ??
+                                              item.themes?.length ??
+                                              0}
                                           </span>
                                           テーマ
                                         </span>
@@ -581,20 +614,26 @@ export default function CategoriesPage() {
                                   </div>
                                   <div className="flex items-center gap-2 shrink-0">
                                     <button
-                                      onClick={() => setDefaultCategory(item.id)}
+                                      onClick={() =>
+                                        setDefaultCategory(item.id)
+                                      }
                                       className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-all font-medium ${
                                         defaultCategoryId === item.id
-                                          ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-2 border-indigo-500"
-                                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                                          ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-2 border-indigo-500'
+                                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                                       }`}
-                                      title={defaultCategoryId === item.id
-                                        ? "タスク一覧のデフォルトカテゴリ"
-                                        : "タスク一覧のデフォルトカテゴリに設定"}
+                                      title={
+                                        defaultCategoryId === item.id
+                                          ? 'タスク一覧のデフォルトカテゴリ'
+                                          : 'タスク一覧のデフォルトカテゴリに設定'
+                                      }
                                     >
                                       <Star
-                                        className={`w-4 h-4 ${defaultCategoryId === item.id ? "fill-current" : ""}`}
+                                        className={`w-4 h-4 ${defaultCategoryId === item.id ? 'fill-current' : ''}`}
                                       />
-                                      {defaultCategoryId === item.id ? "デフォルト" : "デフォルト設定"}
+                                      {defaultCategoryId === item.id
+                                        ? 'デフォルト'
+                                        : 'デフォルト設定'}
                                     </button>
                                     <button
                                       onClick={() => startEdit(item)}
@@ -605,7 +644,9 @@ export default function CategoriesPage() {
                                     </button>
                                     {!item.isDefault && (
                                       <button
-                                        onClick={() => handleDelete(item.id, item.name)}
+                                        onClick={() =>
+                                          handleDelete(item.id, item.name)
+                                        }
                                         className="flex items-center gap-2 rounded-lg bg-red-100 dark:bg-red-900/30 px-3 py-2 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
                                       >
                                         <Trash2 className="w-4 h-4" />
@@ -620,13 +661,16 @@ export default function CategoriesPage() {
                                   <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                                     <div className="flex items-center gap-2 flex-wrap">
                                       {item.themes.map((theme) => {
-                                        const ThemeIcon = getIconComponent(theme.icon || "") || SwatchBook;
+                                        const ThemeIcon =
+                                          getIconComponent(theme.icon || '') ||
+                                          SwatchBook;
                                         return (
                                           <span
                                             key={theme.id}
                                             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium"
                                             style={{
-                                              backgroundColor: theme.color + "15",
+                                              backgroundColor:
+                                                theme.color + '15',
                                               color: theme.color,
                                             }}
                                           >

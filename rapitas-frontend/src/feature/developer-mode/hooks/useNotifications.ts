@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useCallback, useEffect } from "react";
-import type { Notification } from "@/types";
-import { API_BASE_URL } from "@/utils/api";
+import { useState, useCallback, useEffect } from 'react';
+import type { Notification } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
 
 export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -14,11 +14,11 @@ export function useNotifications() {
       setIsLoading(true);
       try {
         const params = new URLSearchParams();
-        if (unreadOnly) params.append("unreadOnly", "true");
-        if (limit) params.append("limit", limit.toString());
+        if (unreadOnly) params.append('unreadOnly', 'true');
+        if (limit) params.append('limit', limit.toString());
 
         const res = await fetch(
-          `${API_BASE_URL}/notifications?${params.toString()}`
+          `${API_BASE_URL}/notifications?${params.toString()}`,
         );
         if (res.ok) {
           const data = await res.json();
@@ -26,13 +26,13 @@ export function useNotifications() {
           return data;
         }
       } catch (err) {
-        console.error("Failed to fetch notifications:", err);
+        console.error('Failed to fetch notifications:', err);
       } finally {
         setIsLoading(false);
       }
       return [];
     },
-    []
+    [],
   );
 
   const fetchUnreadCount = useCallback(async () => {
@@ -44,7 +44,7 @@ export function useNotifications() {
         return data.count;
       }
     } catch (err) {
-      console.error("Failed to fetch unread count:", err);
+      console.error('Failed to fetch unread count:', err);
     }
     return 0;
   }, []);
@@ -52,19 +52,21 @@ export function useNotifications() {
   const markAsRead = useCallback(async (id: number) => {
     try {
       const res = await fetch(`${API_BASE_URL}/notifications/${id}/read`, {
-        method: "PATCH",
+        method: 'PATCH',
       });
       if (res.ok) {
         setNotifications((prev) =>
           prev.map((n) =>
-            n.id === id ? { ...n, isRead: true, readAt: new Date().toISOString() } : n
-          )
+            n.id === id
+              ? { ...n, isRead: true, readAt: new Date().toISOString() }
+              : n,
+          ),
         );
         setUnreadCount((prev) => Math.max(0, prev - 1));
         return true;
       }
     } catch (err) {
-      console.error("Failed to mark as read:", err);
+      console.error('Failed to mark as read:', err);
     }
     return false;
   }, []);
@@ -72,17 +74,21 @@ export function useNotifications() {
   const markAllAsRead = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/notifications/mark-all-read`, {
-        method: "POST",
+        method: 'POST',
       });
       if (res.ok) {
         setNotifications((prev) =>
-          prev.map((n) => ({ ...n, isRead: true, readAt: new Date().toISOString() }))
+          prev.map((n) => ({
+            ...n,
+            isRead: true,
+            readAt: new Date().toISOString(),
+          })),
         );
         setUnreadCount(0);
         return true;
       }
     } catch (err) {
-      console.error("Failed to mark all as read:", err);
+      console.error('Failed to mark all as read:', err);
     }
     return false;
   }, []);
@@ -90,7 +96,7 @@ export function useNotifications() {
   const deleteNotification = useCallback(async (id: number) => {
     try {
       const res = await fetch(`${API_BASE_URL}/notifications/${id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       if (res.ok) {
         setNotifications((prev) => {
@@ -103,10 +109,10 @@ export function useNotifications() {
         return true;
       } else {
         const errorData = await res.json().catch(() => ({}));
-        console.error("Failed to delete notification:", res.status, errorData);
+        console.error('Failed to delete notification:', res.status, errorData);
       }
     } catch (err) {
-      console.error("Failed to delete notification:", err);
+      console.error('Failed to delete notification:', err);
     }
     return false;
   }, []);
@@ -114,7 +120,7 @@ export function useNotifications() {
   const deleteAllNotifications = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/notifications`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       if (res.ok) {
         setNotifications([]);
@@ -122,10 +128,14 @@ export function useNotifications() {
         return true;
       } else {
         const errorData = await res.json().catch(() => ({}));
-        console.error("Failed to delete all notifications:", res.status, errorData);
+        console.error(
+          'Failed to delete all notifications:',
+          res.status,
+          errorData,
+        );
       }
     } catch (err) {
-      console.error("Failed to delete all notifications:", err);
+      console.error('Failed to delete all notifications:', err);
     }
     return false;
   }, []);

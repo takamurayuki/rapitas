@@ -1,8 +1,8 @@
-import AgentSettingsClient from "./AgentSettingsClient";
+import AgentSettingsClient from './AgentSettingsClient';
 
 // 静的エクスポート用 - プレースホルダーIDを生成
 export async function generateStaticParams() {
-  return [{ id: "_placeholder" }];
+  return [{ id: '_placeholder' }];
 }
 
 export default function AgentSettingsPage({

@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Bot,
   ChevronDown,
@@ -12,9 +12,9 @@ import {
   Star,
   CheckCircle2,
   Loader2,
-} from "lucide-react";
-import type { AIAgentConfig } from "@/types";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import type { AIAgentConfig } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
 
 type AgentSwitcherProps = {
   /** 現在選択中のエージェントID（nullの場合はデフォルト） */
@@ -22,7 +22,7 @@ type AgentSwitcherProps = {
   /** エージェント選択時のコールバック */
   onSelect: (agentId: number | null) => void;
   /** サイズバリエーション */
-  size?: "sm" | "md";
+  size?: 'sm' | 'md';
   /** ラベルを表示するか */
   showLabel?: boolean;
 };
@@ -31,40 +31,40 @@ const AGENT_TYPE_INFO: Record<
   string,
   { name: string; icon: React.ReactNode; color: string }
 > = {
-  "claude-code": {
-    name: "Claude Code",
+  'claude-code': {
+    name: 'Claude Code',
     icon: <Terminal className="w-4 h-4" />,
-    color: "text-orange-500",
+    color: 'text-orange-500',
   },
-  "anthropic-api": {
-    name: "Anthropic API",
+  'anthropic-api': {
+    name: 'Anthropic API',
     icon: <Terminal className="w-4 h-4" />,
-    color: "text-orange-500",
+    color: 'text-orange-500',
   },
   codex: {
-    name: "OpenAI Codex",
+    name: 'OpenAI Codex',
     icon: <Zap className="w-4 h-4" />,
-    color: "text-green-500",
+    color: 'text-green-500',
   },
   openai: {
-    name: "OpenAI",
+    name: 'OpenAI',
     icon: <Zap className="w-4 h-4" />,
-    color: "text-green-500",
+    color: 'text-green-500',
   },
-  "azure-openai": {
-    name: "Azure OpenAI",
+  'azure-openai': {
+    name: 'Azure OpenAI',
     icon: <Globe className="w-4 h-4" />,
-    color: "text-blue-500",
+    color: 'text-blue-500',
   },
   gemini: {
-    name: "Google Gemini",
+    name: 'Google Gemini',
     icon: <Activity className="w-4 h-4" />,
-    color: "text-blue-500",
+    color: 'text-blue-500',
   },
   custom: {
-    name: "カスタム",
+    name: 'カスタム',
     icon: <Cpu className="w-4 h-4" />,
-    color: "text-zinc-500",
+    color: 'text-zinc-500',
   },
 };
 
@@ -73,7 +73,7 @@ function getTypeInfo(type: string) {
     AGENT_TYPE_INFO[type] || {
       name: type,
       icon: <Cpu className="w-4 h-4" />,
-      color: "text-zinc-500",
+      color: 'text-zinc-500',
     }
   );
 }
@@ -81,7 +81,7 @@ function getTypeInfo(type: string) {
 export function AgentSwitcher({
   selectedAgentId,
   onSelect,
-  size = "md",
+  size = 'md',
   showLabel = true,
 }: AgentSwitcherProps) {
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
@@ -96,7 +96,7 @@ export function AgentSwitcher({
         setAgents(await res.json());
       }
     } catch {
-      console.error("Failed to fetch agents");
+      console.error('Failed to fetch agents');
     } finally {
       setLoading(false);
     }
@@ -116,20 +116,20 @@ export function AgentSwitcher({
         setIsOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId);
   const defaultAgent = agents.find((a) => a.isDefault);
   const displayAgent = selectedAgent || defaultAgent;
 
-  const isSm = size === "sm";
+  const isSm = size === 'sm';
 
   if (loading) {
     return (
       <div
-        className={`flex items-center gap-2 px-3 ${isSm ? "py-1.5" : "py-2"} bg-zinc-100 dark:bg-zinc-800 rounded-lg`}
+        className={`flex items-center gap-2 px-3 ${isSm ? 'py-1.5' : 'py-2'} bg-zinc-100 dark:bg-zinc-800 rounded-lg`}
       >
         <Loader2 className="w-4 h-4 text-zinc-400 animate-spin" />
         <span className="text-xs text-zinc-400">読込中...</span>
@@ -140,12 +140,10 @@ export function AgentSwitcher({
   if (agents.length === 0) {
     return (
       <div
-        className={`flex items-center gap-2 px-3 ${isSm ? "py-1.5" : "py-2"} bg-zinc-100 dark:bg-zinc-800 rounded-lg`}
+        className={`flex items-center gap-2 px-3 ${isSm ? 'py-1.5' : 'py-2'} bg-zinc-100 dark:bg-zinc-800 rounded-lg`}
       >
         <Bot className="w-4 h-4 text-zinc-400" />
-        <span className="text-xs text-zinc-400">
-          Claude Code（ビルトイン）
-        </span>
+        <span className="text-xs text-zinc-400">Claude Code（ビルトイン）</span>
       </div>
     );
   }
@@ -159,7 +157,7 @@ export function AgentSwitcher({
       )}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center justify-between gap-2 w-full ${isSm ? "px-2.5 py-1.5" : "px-3 py-2"} bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors text-left`}
+        className={`flex items-center justify-between gap-2 w-full ${isSm ? 'px-2.5 py-1.5' : 'px-3 py-2'} bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors text-left`}
       >
         <div className="flex items-center gap-2 min-w-0">
           {displayAgent ? (
@@ -168,7 +166,7 @@ export function AgentSwitcher({
                 {getTypeInfo(displayAgent.agentType).icon}
               </span>
               <span
-                className={`${isSm ? "text-xs" : "text-sm"} font-medium text-zinc-900 dark:text-zinc-100 truncate`}
+                className={`${isSm ? 'text-xs' : 'text-sm'} font-medium text-zinc-900 dark:text-zinc-100 truncate`}
               >
                 {displayAgent.name}
               </span>
@@ -182,7 +180,7 @@ export function AgentSwitcher({
             <>
               <Bot className="w-4 h-4 text-zinc-400" />
               <span
-                className={`${isSm ? "text-xs" : "text-sm"} text-zinc-500 dark:text-zinc-400`}
+                className={`${isSm ? 'text-xs' : 'text-sm'} text-zinc-500 dark:text-zinc-400`}
               >
                 エージェントを選択
               </span>
@@ -190,7 +188,7 @@ export function AgentSwitcher({
           )}
         </div>
         <ChevronDown
-          className={`w-4 h-4 text-zinc-400 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
+          className={`w-4 h-4 text-zinc-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
 
@@ -235,8 +233,8 @@ export function AgentSwitcher({
                   }}
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 transition-colors ${
                     isSelected
-                      ? "bg-indigo-50 dark:bg-indigo-900/20"
-                      : "hover:bg-zinc-50 dark:hover:bg-zinc-700/50"
+                      ? 'bg-indigo-50 dark:bg-indigo-900/20'
+                      : 'hover:bg-zinc-50 dark:hover:bg-zinc-700/50'
                   }`}
                 >
                   <span className={info.color}>{info.icon}</span>

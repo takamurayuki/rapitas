@@ -1,7 +1,7 @@
-"use client";
-import { useEffect } from "react";
+'use client';
+import { useEffect } from 'react';
 
-export type ToastType = "success" | "error" | "info" | "warning";
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 interface ToastProps {
   message: string;
@@ -12,7 +12,7 @@ interface ToastProps {
 
 export default function Toast({
   message,
-  type = "info",
+  type = 'info',
   duration = 3000,
   onClose,
 }: ToastProps) {
@@ -25,10 +25,10 @@ export default function Toast({
   }, [duration, onClose]);
 
   const bgColors = {
-    success: "bg-green-500",
-    error: "bg-red-500",
-    info: "bg-blue-500",
-    warning: "bg-yellow-500",
+    success: 'bg-green-500',
+    error: 'bg-red-500',
+    info: 'bg-blue-500',
+    warning: 'bg-yellow-500',
   };
 
   const icons = {

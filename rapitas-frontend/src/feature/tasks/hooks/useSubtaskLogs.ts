@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { API_BASE_URL } from "@/utils/api";
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { API_BASE_URL } from '@/utils/api';
 
 /**
  * サブタスクのログエントリ
@@ -9,7 +9,7 @@ import { API_BASE_URL } from "@/utils/api";
 export interface SubtaskLogEntry {
   timestamp: string;
   message: string;
-  level: "info" | "warn" | "error" | "debug";
+  level: 'info' | 'warn' | 'error' | 'debug';
   taskId?: number;
 }
 
@@ -58,7 +58,7 @@ export function useSubtaskLogs({
   autoRefresh = true,
 }: UseSubtaskLogsOptions): UseSubtaskLogsReturn {
   const [subtaskLogs, setSubtaskLogs] = useState<Map<number, SubtaskLogState>>(
-    new Map()
+    new Map(),
   );
   const [isLoading, setIsLoading] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -93,11 +93,11 @@ export function useSubtaskLogs({
 
       try {
         const res = await fetch(
-          `${API_BASE_URL}/parallel/sessions/${sessionId}/logs?taskId=${taskId}&limit=200`
+          `${API_BASE_URL}/parallel/sessions/${sessionId}/logs?taskId=${taskId}&limit=200`,
         );
 
         if (!res.ok) {
-          throw new Error("ログの取得に失敗しました");
+          throw new Error('ログの取得に失敗しました');
         }
 
         const result = await res.json();
@@ -106,15 +106,18 @@ export function useSubtaskLogs({
             timestamp: string;
             message?: string;
             data?: { message?: string };
-            level?: "info" | "warn" | "error" | "debug";
+            level?: 'info' | 'warn' | 'error' | 'debug';
             taskId?: number;
           }
-          const logs: SubtaskLogEntry[] = result.data.map((log: RawLogEntry) => ({
-            timestamp: log.timestamp,
-            message: log.message || log.data?.message || JSON.stringify(log.data),
-            level: log.level || "info",
-            taskId: log.taskId,
-          }));
+          const logs: SubtaskLogEntry[] = result.data.map(
+            (log: RawLogEntry) => ({
+              timestamp: log.timestamp,
+              message:
+                log.message || log.data?.message || JSON.stringify(log.data),
+              level: log.level || 'info',
+              taskId: log.taskId,
+            }),
+          );
 
           setSubtaskLogs((prev) => {
             const current = prev.get(taskId);
@@ -126,17 +129,21 @@ export function useSubtaskLogs({
         }
       } catch (err) {
         const errorMessage =
-          err instanceof Error ? err.message : "ログの取得に失敗しました";
+          err instanceof Error ? err.message : 'ログの取得に失敗しました';
         setSubtaskLogs((prev) => {
           const current = prev.get(taskId);
           if (!current) return prev;
           const newMap = new Map(prev);
-          newMap.set(taskId, { ...current, isLoading: false, error: errorMessage });
+          newMap.set(taskId, {
+            ...current,
+            isLoading: false,
+            error: errorMessage,
+          });
           return newMap;
         });
       }
     },
-    [sessionId]
+    [sessionId],
   );
 
   // 全てのサブタスクのログを取得
@@ -157,7 +164,7 @@ export function useSubtaskLogs({
         await fetchAllLogs();
       }
     },
-    [fetchSubtaskLogs, fetchAllLogs]
+    [fetchSubtaskLogs, fetchAllLogs],
   );
 
   // 特定のサブタスクのログを取得
@@ -165,7 +172,7 @@ export function useSubtaskLogs({
     (taskId: number): SubtaskLogState | undefined => {
       return subtaskLogs.get(taskId);
     },
-    [subtaskLogs]
+    [subtaskLogs],
   );
 
   // 全ログをクリア

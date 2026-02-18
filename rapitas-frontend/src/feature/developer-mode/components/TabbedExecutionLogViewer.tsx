@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Terminal,
   Loader2,
@@ -9,10 +9,13 @@ import {
   Square,
   Clock,
   Layers,
-} from "lucide-react";
-import { ExecutionLogViewer, type ExecutionLogStatus } from "./ExecutionLogViewer";
-import { API_BASE_URL } from "@/utils/api";
-import type { ParallelExecutionStatus } from "@/feature/tasks/components/SubtaskExecutionStatus";
+} from 'lucide-react';
+import {
+  ExecutionLogViewer,
+  type ExecutionLogStatus,
+} from './ExecutionLogViewer';
+import { API_BASE_URL } from '@/utils/api';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 
 /**
  * サブタスク情報
@@ -50,18 +53,18 @@ export interface TabbedExecutionLogViewerProps {
  */
 function getStatusIcon(status: ParallelExecutionStatus | ExecutionLogStatus) {
   switch (status) {
-    case "running":
+    case 'running':
       return <Loader2 className="w-3 h-3 animate-spin text-blue-400" />;
-    case "completed":
+    case 'completed':
       return <CheckCircle2 className="w-3 h-3 text-green-400" />;
-    case "failed":
+    case 'failed':
       return <AlertCircle className="w-3 h-3 text-red-400" />;
-    case "cancelled":
+    case 'cancelled':
       return <Square className="w-3 h-3 text-yellow-400" />;
-    case "blocked":
+    case 'blocked':
       return <Clock className="w-3 h-3 text-orange-400" />;
-    case "pending":
-    case "scheduled":
+    case 'pending':
+    case 'scheduled':
       return <Clock className="w-3 h-3 text-zinc-400" />;
     default:
       return null;
@@ -73,17 +76,17 @@ function getStatusIcon(status: ParallelExecutionStatus | ExecutionLogStatus) {
  */
 function toLogStatus(status: ParallelExecutionStatus): ExecutionLogStatus {
   switch (status) {
-    case "running":
-    case "scheduled":
-      return "running";
-    case "completed":
-      return "completed";
-    case "failed":
-      return "failed";
-    case "cancelled":
-      return "cancelled";
+    case 'running':
+    case 'scheduled':
+      return 'running';
+    case 'completed':
+      return 'completed';
+    case 'failed':
+      return 'failed';
+    case 'cancelled':
+      return 'cancelled';
     default:
-      return "idle";
+      return 'idle';
   }
 }
 
@@ -92,7 +95,9 @@ function toLogStatus(status: ParallelExecutionStatus): ExecutionLogStatus {
  *
  * 並列実行時に各サブタスクのログをタブで切り替えて表示します。
  */
-export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> = ({
+export const TabbedExecutionLogViewer: React.FC<
+  TabbedExecutionLogViewerProps
+> = ({
   sessionId,
   subtasks,
   overallLogs,
@@ -100,7 +105,7 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
   isConnected = false,
   isRunning = false,
   maxHeight = 200,
-  className = "",
+  className = '',
 }) => {
   // 選択中のタブ（null = 全体、数値 = サブタスクID）
   const [selectedTab, setSelectedTab] = useState<number | null>(null);
@@ -117,16 +122,16 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
       setLoadingSubtaskId(taskId);
       try {
         const res = await fetch(
-          `${API_BASE_URL}/parallel/sessions/${sessionId}/logs?taskId=${taskId}&limit=500`
+          `${API_BASE_URL}/parallel/sessions/${sessionId}/logs?taskId=${taskId}&limit=500`,
         );
         if (!res.ok) {
-          throw new Error("ログの取得に失敗しました");
+          throw new Error('ログの取得に失敗しました');
         }
         const result = await res.json();
         if (result.success && result.data) {
           const logs = result.data.map(
             (entry: { message: string; timestamp: string; level: string }) =>
-              `[${entry.level.toUpperCase()}] ${entry.message}\n`
+              `[${entry.level.toUpperCase()}] ${entry.message}\n`,
           );
           setSubtaskLogs((prev) => ({
             ...prev,
@@ -134,12 +139,15 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
           }));
         }
       } catch (err) {
-        console.error(`[TabbedLogViewer] Failed to fetch logs for task ${taskId}:`, err);
+        console.error(
+          `[TabbedLogViewer] Failed to fetch logs for task ${taskId}:`,
+          err,
+        );
       } finally {
         setLoadingSubtaskId(null);
       }
     },
-    [sessionId, subtaskLogs]
+    [sessionId, subtaskLogs],
   );
 
   // タブ選択時にログを取得
@@ -162,7 +170,7 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
       return overallStatus;
     }
     const subtask = subtasks.find((s) => s.id === selectedTab);
-    return subtask ? toLogStatus(subtask.status) : "idle";
+    return subtask ? toLogStatus(subtask.status) : 'idle';
   }, [selectedTab, overallStatus, subtasks]);
 
   const currentIsRunning = useMemo(() => {
@@ -170,7 +178,7 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
       return isRunning;
     }
     const subtask = subtasks.find((s) => s.id === selectedTab);
-    return subtask?.status === "running";
+    return subtask?.status === 'running';
   }, [selectedTab, isRunning, subtasks]);
 
   // タブがない場合は通常のログビューアーを表示
@@ -197,8 +205,8 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
           onClick={() => setSelectedTab(null)}
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors ${
             selectedTab === null
-              ? "bg-violet-600 text-white"
-              : "bg-zinc-700/50 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"
+              ? 'bg-violet-600 text-white'
+              : 'bg-zinc-700/50 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100'
           }`}
         >
           <Layers className="w-3 h-3" />
@@ -213,8 +221,8 @@ export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> =
             onClick={() => setSelectedTab(subtask.id)}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors ${
               selectedTab === subtask.id
-                ? "bg-indigo-600 text-white"
-                : "bg-zinc-700/50 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"
+                ? 'bg-indigo-600 text-white'
+                : 'bg-zinc-700/50 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100'
             }`}
             title={subtask.title}
           >

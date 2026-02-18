@@ -2,20 +2,20 @@
  * AIエージェントのステータス種別
  */
 export type AgentStatusType =
-  | "processing"
-  | "waiting_for_input"
-  | "error"
-  | "completed";
+  | 'processing'
+  | 'waiting_for_input'
+  | 'error'
+  | 'completed';
 
 /**
  * ステータスカードのサイズ
  */
-export type StatusCardSize = "sm" | "md" | "lg";
+export type StatusCardSize = 'sm' | 'md' | 'lg';
 
 /**
  * ステータスカードのテーマ
  */
-export type StatusCardTheme = "light" | "dark" | "auto";
+export type StatusCardTheme = 'light' | 'dark' | 'auto';
 
 /**
  * ステータスの設定情報

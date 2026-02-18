@@ -1,5 +1,5 @@
-"use client";
-import { ReactNode } from "react";
+'use client';
+import { ReactNode } from 'react';
 import {
   usePomodoroStore,
   formatTime,
@@ -9,7 +9,7 @@ import {
   DEFAULT_LONG_BREAK,
   PomodoroState,
   PomodoroStatus,
-} from "./pomodoroStore";
+} from './pomodoroStore';
 
 export type { PomodoroStatus };
 

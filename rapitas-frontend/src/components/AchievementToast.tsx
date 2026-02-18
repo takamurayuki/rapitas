@@ -1,6 +1,6 @@
-"use client";
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+'use client';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Trophy,
   X,
@@ -14,8 +14,8 @@ import {
   Moon,
   Brain,
   BookOpen,
-} from "lucide-react";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import { API_BASE_URL } from '@/utils/api';
 
 type Achievement = {
   id: number;
@@ -54,24 +54,24 @@ const rarityStyles: Record<
   { bg: string; border: string; glow: string }
 > = {
   common: {
-    bg: "bg-zinc-100 dark:bg-zinc-800",
-    border: "border-zinc-300 dark:border-zinc-600",
-    glow: "",
+    bg: 'bg-zinc-100 dark:bg-zinc-800',
+    border: 'border-zinc-300 dark:border-zinc-600',
+    glow: '',
   },
   rare: {
-    bg: "bg-blue-50 dark:bg-blue-950",
-    border: "border-blue-400 dark:border-blue-600",
-    glow: "shadow-blue-500/20",
+    bg: 'bg-blue-50 dark:bg-blue-950',
+    border: 'border-blue-400 dark:border-blue-600',
+    glow: 'shadow-blue-500/20',
   },
   epic: {
-    bg: "bg-violet-50 dark:bg-violet-950",
-    border: "border-violet-400 dark:border-violet-600",
-    glow: "shadow-violet-500/30",
+    bg: 'bg-violet-50 dark:bg-violet-950',
+    border: 'border-violet-400 dark:border-violet-600',
+    glow: 'shadow-violet-500/30',
   },
   legendary: {
-    bg: "bg-amber-50 dark:bg-amber-950",
-    border: "border-amber-400 dark:border-amber-600",
-    glow: "shadow-amber-500/40 animate-pulse",
+    bg: 'bg-amber-50 dark:bg-amber-950',
+    border: 'border-amber-400 dark:border-amber-600',
+    glow: 'shadow-amber-500/40 animate-pulse',
   },
 };
 
@@ -101,13 +101,13 @@ function AchievementToast({ achievement, onClose }: AchievementToastProps) {
           </span>
           <span
             className={`px-1.5 py-0.5 text-[10px] font-medium rounded-full ${
-              achievement.rarity === "legendary"
-                ? "bg-amber-500 text-white"
-                : achievement.rarity === "epic"
-                  ? "bg-violet-500 text-white"
-                  : achievement.rarity === "rare"
-                    ? "bg-blue-500 text-white"
-                    : "bg-zinc-500 text-white"
+              achievement.rarity === 'legendary'
+                ? 'bg-amber-500 text-white'
+                : achievement.rarity === 'epic'
+                  ? 'bg-violet-500 text-white'
+                  : achievement.rarity === 'rare'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-zinc-500 text-white'
             }`}
           >
             {achievement.rarity}
@@ -139,7 +139,6 @@ export default function AchievementNotifications() {
 
   // ポーリングで新しい実績を確認
   useEffect(() => {
-
     let lastCheckedIds: number[] = [];
 
     const checkAchievements = async () => {

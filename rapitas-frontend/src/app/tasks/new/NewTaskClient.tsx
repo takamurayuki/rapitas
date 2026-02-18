@@ -1,6 +1,6 @@
-"use client";
-import { useState, useEffect, useMemo, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+'use client';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   Clock,
@@ -21,22 +21,28 @@ import {
   ChevronUp,
   ChevronsUpDown,
   ChevronDown,
-} from "lucide-react";
-import type { Priority, Theme, TaskTemplate, UserSettings, Category } from "@/types";
-import LabelSelector from "@/feature/tasks/components/LabelSelector";
-import TaskTitleAutocomplete from "@/feature/tasks/components/TaskTitleAutocomplete";
-import { getIconComponent } from "@/components/category/IconData";
+} from 'lucide-react';
+import type {
+  Priority,
+  Theme,
+  TaskTemplate,
+  UserSettings,
+  Category,
+} from '@/types';
+import LabelSelector from '@/feature/tasks/components/LabelSelector';
+import TaskTitleAutocomplete from '@/feature/tasks/components/TaskTitleAutocomplete';
+import { getIconComponent } from '@/components/category/IconData';
 import {
   CompactAccordionGroup,
   InlineFieldGroup,
   FieldItem,
-} from "@/components/ui/accordion";
-import ApplyTemplateDialog from "@/feature/tasks/components/dialog/ApplyTemplateDialog";
-import TaskSuggestions from "@/feature/tasks/components/TaskSuggestions";
-import { useToast } from "@/components/ui/toast/ToastContainer";
-import { API_BASE_URL } from "@/utils/api";
-import { getTaskDetailPath } from "@/utils/tauri";
-import { useAppModeStore } from "@/stores/appModeStore";
+} from '@/components/ui/accordion';
+import ApplyTemplateDialog from '@/feature/tasks/components/dialog/ApplyTemplateDialog';
+import TaskSuggestions from '@/feature/tasks/components/TaskSuggestions';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import { API_BASE_URL } from '@/utils/api';
+import { getTaskDetailPath } from '@/utils/tauri';
+import { useAppModeStore } from '@/stores/appModeStore';
 
 const API_BASE = API_BASE_URL;
 
@@ -47,16 +53,16 @@ export default function NewTaskClient() {
   const appMode = useAppModeStore((state) => state.mode);
 
   // 基本フィールド
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<Priority>("medium");
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<Priority>('medium');
   const [themeId, setThemeId] = useState<number | null>(null);
 
   // オプションフィールド
-  const [labels] = useState("");
+  const [labels] = useState('');
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
-  const [estimatedHours, setEstimatedHours] = useState("");
-  const [dueDate, setDueDate] = useState("");
+  const [estimatedHours, setEstimatedHours] = useState('');
+  const [dueDate, setDueDate] = useState('');
 
   // データ
   const [themes, setThemes] = useState<Theme[]>([]);
@@ -70,7 +76,9 @@ export default function NewTaskClient() {
     null,
   );
   // グローバル設定
-  const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(null);
+  const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(
+    null,
+  );
 
   // サブタスク
   const [subtasks, setSubtasks] = useState<
@@ -81,7 +89,7 @@ export default function NewTaskClient() {
       estimatedHours?: number;
     }[]
   >([]);
-  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
 
   const fetchCategories = async () => {
     try {
@@ -90,12 +98,12 @@ export default function NewTaskClient() {
         setCategories(await res.json());
       }
     } catch (e) {
-      console.error("Failed to fetch categories:", e);
+      console.error('Failed to fetch categories:', e);
     }
   };
 
   useEffect(() => {
-    const themeIdParam = searchParams.get("themeId");
+    const themeIdParam = searchParams.get('themeId');
     if (themeIdParam) {
       setThemeId(Number(themeIdParam));
     }
@@ -112,7 +120,7 @@ export default function NewTaskClient() {
           setGlobalSettings(await res.json());
         }
       } catch (e) {
-        console.error("Failed to fetch global settings:", e);
+        console.error('Failed to fetch global settings:', e);
       }
     };
     fetchGlobalSettings();
@@ -123,7 +131,7 @@ export default function NewTaskClient() {
       const res = await fetch(`${API_BASE}/themes`);
       const data = await res.json();
       setThemes(data);
-      const themeIdParam = searchParams.get("themeId");
+      const themeIdParam = searchParams.get('themeId');
       if (!themeIdParam) {
         const defaultTheme = data.find((t: Theme) => t.isDefault);
         if (defaultTheme) {
@@ -184,7 +192,7 @@ export default function NewTaskClient() {
       ...subtasks,
       { id: Date.now().toString(), title: newSubtaskTitle },
     ]);
-    setNewSubtaskTitle("");
+    setNewSubtaskTitle('');
   };
 
   const removeSubtask = (id: string) => {
@@ -197,24 +205,27 @@ export default function NewTaskClient() {
     setIsGeneratingTitle(true);
     try {
       const res = await fetch(`${API_BASE}/developer-mode/generate-title`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ description: description.trim() }),
       });
 
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.error || "タイトル生成に失敗しました");
+        throw new Error(error.error || 'タイトル生成に失敗しました');
       }
 
       const data = await res.json();
       if (data.title) {
         setTitle(data.title);
-        showToast("タイトルを自動生成しました", "success");
+        showToast('タイトルを自動生成しました', 'success');
 
         // タイトル生成後の自動作成が有効な場合（自動生成から呼ばれた場合のみ）
-        if (fromAutoGenerate && globalSettings?.autoCreateAfterTitleGeneration) {
-          showToast("タスクを自動作成します...", "info");
+        if (
+          fromAutoGenerate &&
+          globalSettings?.autoCreateAfterTitleGeneration
+        ) {
+          showToast('タスクを自動作成します...', 'info');
           // 少し遅延を入れてタイトルがセットされたことを確認
           setTimeout(() => {
             handleSubmit();
@@ -224,8 +235,8 @@ export default function NewTaskClient() {
     } catch (e) {
       console.error(e);
       showToast(
-        e instanceof Error ? e.message : "タイトル生成に失敗しました",
-        "error",
+        e instanceof Error ? e.message : 'タイトル生成に失敗しました',
+        'error',
       );
     } finally {
       setIsGeneratingTitle(false);
@@ -233,7 +244,9 @@ export default function NewTaskClient() {
   };
 
   // タイトル自動生成のデバウンスタイマー
-  const autoGenerateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoGenerateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   useEffect(() => {
     // クリーンアップ
@@ -264,7 +277,11 @@ export default function NewTaskClient() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [description, globalSettings?.autoGenerateTitle, globalSettings?.autoGenerateTitleDelay]);
+  }, [
+    description,
+    globalSettings?.autoGenerateTitle,
+    globalSettings?.autoGenerateTitleDelay,
+  ]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -275,17 +292,17 @@ export default function NewTaskClient() {
     setIsSubmitting(true);
     try {
       const labelArray = labels
-        .split(",")
+        .split(',')
         .map((l) => l.trim())
         .filter(Boolean);
 
       const res = await fetch(`${API_BASE}/tasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title,
           description: description || undefined,
-          status: "todo",
+          status: 'todo',
           priority,
           themeId: themeId || undefined,
           labels: labelArray.length > 0 ? labelArray : undefined,
@@ -297,7 +314,7 @@ export default function NewTaskClient() {
         }),
       });
 
-      if (!res.ok) throw new Error("作成に失敗しました");
+      if (!res.ok) throw new Error('作成に失敗しました');
       const createdTask = await res.json();
 
       // サブタスク作成
@@ -307,40 +324,49 @@ export default function NewTaskClient() {
             .filter((st) => st.title.trim())
             .map(async (st) => {
               const subtaskRes = await fetch(`${API_BASE}/tasks`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   title: st.title,
-                  status: "todo",
+                  status: 'todo',
                   parentId: createdTask.id,
                 }),
               });
               if (!subtaskRes.ok) {
                 const errorText = await subtaskRes.text();
-                console.error(`[NewTaskClient] Failed to create subtask "${st.title}":`, errorText);
+                console.error(
+                  `[NewTaskClient] Failed to create subtask "${st.title}":`,
+                  errorText,
+                );
               }
               return subtaskRes;
             }),
         );
 
-        const failedCount = subtaskResults.filter((r) => r.status === "rejected").length;
+        const failedCount = subtaskResults.filter(
+          (r) => r.status === 'rejected',
+        ).length;
         if (failedCount > 0) {
-          console.warn(`[NewTaskClient] ${failedCount} subtask(s) failed to create`);
+          console.warn(
+            `[NewTaskClient] ${failedCount} subtask(s) failed to create`,
+          );
         }
       }
 
       if (executeAfterCreate) {
-        showToast("タスクを作成しました。実行を開始します...", "success");
+        showToast('タスクを作成しました。実行を開始します...', 'success');
         const detailPath = getTaskDetailPath(createdTask.id);
-        const separator = detailPath.includes("?") ? "&" : "?";
-        router.push(`${detailPath}${separator}autoExecute=true&showHeader=true`);
+        const separator = detailPath.includes('?') ? '&' : '?';
+        router.push(
+          `${detailPath}${separator}autoExecute=true&showHeader=true`,
+        );
       } else {
-        showToast("タスクを作成しました", "success");
-        router.push("/");
+        showToast('タスクを作成しました', 'success');
+        router.push('/');
       }
     } catch (e) {
       console.error(e);
-      showToast("タスクの作成に失敗しました", "error");
+      showToast('タスクの作成に失敗しました', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -365,37 +391,37 @@ export default function NewTaskClient() {
     if (suggestion.labelIds.length > 0) {
       setSelectedLabelIds(suggestion.labelIds);
     }
-    showToast("提案を適用しました", "success");
+    showToast('提案を適用しました', 'success');
   };
 
   const priorityOptions = [
     {
-      value: "urgent" as Priority,
-      label: "緊急",
+      value: 'urgent' as Priority,
+      label: '緊急',
       icon: <ChevronsUp className="w-3.5 h-3.5" />,
-      iconColor: "text-red-500",
-      bgColor: "bg-red-500",
+      iconColor: 'text-red-500',
+      bgColor: 'bg-red-500',
     },
     {
-      value: "high" as Priority,
-      label: "高",
+      value: 'high' as Priority,
+      label: '高',
       icon: <ChevronUp className="w-3.5 h-3.5" />,
-      iconColor: "text-orange-500",
-      bgColor: "bg-orange-500",
+      iconColor: 'text-orange-500',
+      bgColor: 'bg-orange-500',
     },
     {
-      value: "medium" as Priority,
-      label: "中",
+      value: 'medium' as Priority,
+      label: '中',
       icon: <ChevronsUpDown className="w-3.5 h-3.5" />,
-      iconColor: "text-blue-500",
-      bgColor: "bg-blue-500",
+      iconColor: 'text-blue-500',
+      bgColor: 'bg-blue-500',
     },
     {
-      value: "low" as Priority,
-      label: "低",
+      value: 'low' as Priority,
+      label: '低',
       icon: <ChevronDown className="w-3.5 h-3.5" />,
-      iconColor: "text-zinc-400",
-      bgColor: "bg-zinc-500",
+      iconColor: 'text-zinc-400',
+      bgColor: 'bg-zinc-500',
     },
   ];
 
@@ -417,12 +443,12 @@ export default function NewTaskClient() {
               onClick={() => setShowTemplateDialog(true)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                 appliedTemplate
-                  ? "bg-blue-100 dark:bg-blue-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700"
-                  : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-violet-400 dark:hover:border-violet-600 hover:text-violet-600 dark:hover:text-violet-400"
+                  ? 'bg-blue-100 dark:bg-blue-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700'
+                  : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-violet-400 dark:hover:border-violet-600 hover:text-violet-600 dark:hover:text-violet-400'
               }`}
             >
               <FileStack className="w-4 h-4" />
-              {appliedTemplate ? appliedTemplate.name : "テンプレート"}
+              {appliedTemplate ? appliedTemplate.name : 'テンプレート'}
             </button>
             <button
               onClick={(e) => handleSubmit(e)}
@@ -440,7 +466,10 @@ export default function NewTaskClient() {
         </div>
       </div>
 
-      <form onSubmit={(e) => handleSubmit(e)} className="max-w-2xl mx-auto px-4 pb-8">
+      <form
+        onSubmit={(e) => handleSubmit(e)}
+        className="max-w-2xl mx-auto px-4 pb-8"
+      >
         {/* Main Card */}
         <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
           {/* Title Section */}
@@ -472,14 +501,12 @@ export default function NewTaskClient() {
                       className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
                         priority === opt.value
                           ? `${opt.bgColor} text-white shadow-md`
-                          : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700"
+                          : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700'
                       }`}
                     >
                       <span
                         className={
-                          priority === opt.value
-                            ? "text-white"
-                            : opt.iconColor
+                          priority === opt.value ? 'text-white' : opt.iconColor
                         }
                       >
                         {opt.icon}
@@ -498,13 +525,13 @@ export default function NewTaskClient() {
               >
                 <div className="flex flex-wrap gap-1.5">
                   {(() => {
-                    const themeIdParam = searchParams.get("themeId");
+                    const themeIdParam = searchParams.get('themeId');
                     // appModeに基づいてカテゴリIDセットを構築
                     const visibleCategoryIds = new Set(
                       categories
                         .filter((cat) => {
-                          if (appMode === "all") return true;
-                          if (cat.mode === "both") return true;
+                          if (appMode === 'all') return true;
+                          if (cat.mode === 'both') return true;
                           return cat.mode === appMode;
                         })
                         .map((cat) => cat.id),
@@ -518,7 +545,7 @@ export default function NewTaskClient() {
                         });
                     return displayThemes.map((theme) => {
                       const ThemeIcon =
-                        getIconComponent(theme.icon || "") || SwatchBook;
+                        getIconComponent(theme.icon || '') || SwatchBook;
                       return (
                         <button
                           key={theme.id}
@@ -526,8 +553,8 @@ export default function NewTaskClient() {
                           onClick={() => handleThemeSelect(theme)}
                           className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
                             themeId === theme.id
-                              ? "ring-1 ring-offset-1 ring-offset-white dark:ring-offset-zinc-900"
-                              : "opacity-60 hover:opacity-100"
+                              ? 'ring-1 ring-offset-1 ring-offset-white dark:ring-offset-zinc-900'
+                              : 'opacity-60 hover:opacity-100'
                           }`}
                           style={
                             {
@@ -536,8 +563,8 @@ export default function NewTaskClient() {
                                   ? theme.color
                                   : `${theme.color}20`,
                               color:
-                                themeId === theme.id ? "#fff" : theme.color,
-                              ["--tw-ring-color" as keyof React.CSSProperties]:
+                                themeId === theme.id ? '#fff' : theme.color,
+                              ['--tw-ring-color' as keyof React.CSSProperties]:
                                 theme.color,
                             } as React.CSSProperties
                           }
@@ -554,10 +581,7 @@ export default function NewTaskClient() {
           </div>
 
           {/* Task Suggestions */}
-          <TaskSuggestions
-            themeId={themeId}
-            onApply={handleApplySuggestion}
-          />
+          <TaskSuggestions themeId={themeId} onApply={handleApplySuggestion} />
 
           {/* Description - Collapsible */}
           <CompactAccordionGroup
@@ -613,7 +637,11 @@ export default function NewTaskClient() {
                     />
                     {dueDate && (
                       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 shrink-0">
-                        ({new Date(dueDate).toLocaleDateString("ja-JP", { weekday: "short" })})
+                        (
+                        {new Date(dueDate).toLocaleDateString('ja-JP', {
+                          weekday: 'short',
+                        })}
+                        )
                       </span>
                     )}
                   </div>
@@ -696,7 +724,7 @@ export default function NewTaskClient() {
                   value={newSubtaskTitle}
                   onChange={(e) => setNewSubtaskTitle(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") {
+                    if (e.key === 'Enter') {
                       e.preventDefault();
                       addSubtask();
                     }

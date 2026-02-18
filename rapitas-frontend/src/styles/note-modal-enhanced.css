@@ -30,7 +30,11 @@
 
 /* スムーズな移動とリサイズのためのトランジション（ドラッグ中は無効） */
 .note-modal-smooth {
-  transition: left 0.1s ease-out, top 0.1s ease-out, width 0.1s ease-out, height 0.1s ease-out;
+  transition:
+    left 0.1s ease-out,
+    top 0.1s ease-out,
+    width 0.1s ease-out,
+    height 0.1s ease-out;
 }
 
 /* ドラッグ・リサイズ中のポインターイベント最適化 */
@@ -63,7 +67,7 @@
 }
 
 .ripple-effect::before {
-  content: "";
+  content: '';
   position: absolute;
   top: 50%;
   left: 50%;
@@ -72,7 +76,9 @@
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.5);
   transform: translate(-50%, -50%);
-  transition: width 0.3s, height 0.3s;
+  transition:
+    width 0.3s,
+    height 0.3s;
 }
 
 .ripple-effect:active::before {

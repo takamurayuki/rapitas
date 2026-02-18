@@ -5,45 +5,45 @@
  * Storybookをインストールするには: npx storybook@latest init
  */
 
-import type { Meta, StoryObj } from "@storybook/react";
-import { StatusCard } from "./StatusCard";
-import { Bot, Zap, Sparkles, Clock } from "lucide-react";
+import type { Meta, StoryObj } from '@storybook/react';
+import { StatusCard } from './StatusCard';
+import { Bot, Zap, Sparkles, Clock } from 'lucide-react';
 
 const meta: Meta<typeof StatusCard> = {
-  title: "UI/StatusCard",
+  title: 'UI/StatusCard',
   component: StatusCard,
   parameters: {
-    layout: "centered",
+    layout: 'centered',
     docs: {
       description: {
         component:
-          "AIエージェントのステータスを表示するコンパクトなカードコンポーネント。4つのステータス状態（実行中、入力待ち、エラー、完了）に対応し、適切な色、アイコン、アニメーションを提供します。",
+          'AIエージェントのステータスを表示するコンパクトなカードコンポーネント。4つのステータス状態（実行中、入力待ち、エラー、完了）に対応し、適切な色、アイコン、アニメーションを提供します。',
       },
     },
   },
-  tags: ["autodocs"],
+  tags: ['autodocs'],
   argTypes: {
     status: {
-      control: "select",
-      options: ["processing", "waiting_for_input", "error", "completed"],
-      description: "ステータス種別",
+      control: 'select',
+      options: ['processing', 'waiting_for_input', 'error', 'completed'],
+      description: 'ステータス種別',
     },
     message: {
-      control: "text",
-      description: "表示メッセージ",
+      control: 'text',
+      description: '表示メッセージ',
     },
     size: {
-      control: "select",
-      options: ["sm", "md", "lg"],
-      description: "カードサイズ",
+      control: 'select',
+      options: ['sm', 'md', 'lg'],
+      description: 'カードサイズ',
     },
     animated: {
-      control: "boolean",
-      description: "アニメーション有効化",
+      control: 'boolean',
+      description: 'アニメーション有効化',
     },
     className: {
-      control: "text",
-      description: "追加のCSSクラス",
+      control: 'text',
+      description: '追加のCSSクラス',
     },
   },
 };
@@ -56,7 +56,7 @@ type Story = StoryObj<typeof StatusCard>;
  */
 export const Default: Story = {
   args: {
-    status: "processing",
+    status: 'processing',
   },
 };
 
@@ -65,8 +65,8 @@ export const Default: Story = {
  */
 export const Processing: Story = {
   args: {
-    status: "processing",
-    message: "ファイルを分析しています...",
+    status: 'processing',
+    message: 'ファイルを分析しています...',
   },
 };
 
@@ -75,8 +75,8 @@ export const Processing: Story = {
  */
 export const WaitingForInput: Story = {
   args: {
-    status: "waiting_for_input",
-    message: "続行するには承認が必要です",
+    status: 'waiting_for_input',
+    message: '続行するには承認が必要です',
   },
 };
 
@@ -85,8 +85,8 @@ export const WaitingForInput: Story = {
  */
 export const Error: Story = {
   args: {
-    status: "error",
-    message: "API接続に失敗しました",
+    status: 'error',
+    message: 'API接続に失敗しました',
   },
 };
 
@@ -95,8 +95,8 @@ export const Error: Story = {
  */
 export const Completed: Story = {
   args: {
-    status: "completed",
-    message: "タスクが正常に完了しました",
+    status: 'completed',
+    message: 'タスクが正常に完了しました',
   },
 };
 
@@ -105,9 +105,9 @@ export const Completed: Story = {
  */
 export const SizeSmall: Story = {
   args: {
-    status: "processing",
-    size: "sm",
-    message: "処理中...",
+    status: 'processing',
+    size: 'sm',
+    message: '処理中...',
   },
 };
 
@@ -116,9 +116,9 @@ export const SizeSmall: Story = {
  */
 export const SizeMedium: Story = {
   args: {
-    status: "processing",
-    size: "md",
-    message: "処理中...",
+    status: 'processing',
+    size: 'md',
+    message: '処理中...',
   },
 };
 
@@ -127,9 +127,9 @@ export const SizeMedium: Story = {
  */
 export const SizeLarge: Story = {
   args: {
-    status: "processing",
-    size: "lg",
-    message: "処理中...",
+    status: 'processing',
+    size: 'lg',
+    message: '処理中...',
   },
 };
 
@@ -138,8 +138,8 @@ export const SizeLarge: Story = {
  */
 export const CustomIconBot: Story = {
   args: {
-    status: "processing",
-    message: "AIエージェント実行中",
+    status: 'processing',
+    message: 'AIエージェント実行中',
     icon: <Bot className="w-full h-full animate-bounce" />,
   },
 };
@@ -149,8 +149,8 @@ export const CustomIconBot: Story = {
  */
 export const CustomIconZap: Story = {
   args: {
-    status: "completed",
-    message: "高速処理完了",
+    status: 'completed',
+    message: '高速処理完了',
     icon: <Zap className="w-full h-full" />,
   },
 };
@@ -160,8 +160,8 @@ export const CustomIconZap: Story = {
  */
 export const CustomIconSparkles: Story = {
   args: {
-    status: "waiting_for_input",
-    message: "魔法をかけています",
+    status: 'waiting_for_input',
+    message: '魔法をかけています',
     icon: <Sparkles className="w-full h-full" />,
   },
 };
@@ -171,8 +171,8 @@ export const CustomIconSparkles: Story = {
  */
 export const CustomIconClock: Story = {
   args: {
-    status: "processing",
-    message: "スケジュール処理中",
+    status: 'processing',
+    message: 'スケジュール処理中',
     icon: <Clock className="w-full h-full" />,
   },
 };
@@ -182,8 +182,8 @@ export const CustomIconClock: Story = {
  */
 export const NoAnimation: Story = {
   args: {
-    status: "processing",
-    message: "アニメーションなし",
+    status: 'processing',
+    message: 'アニメーションなし',
     animated: false,
   },
 };
@@ -193,9 +193,9 @@ export const NoAnimation: Story = {
  */
 export const WithCustomClass: Story = {
   args: {
-    status: "completed",
-    message: "カスタムスタイル適用",
-    className: "shadow-lg",
+    status: 'completed',
+    message: 'カスタムスタイル適用',
+    className: 'shadow-lg',
   },
 };
 
@@ -204,10 +204,10 @@ export const WithCustomClass: Story = {
  */
 export const WithAriaLabel: Story = {
   args: {
-    status: "processing",
-    message: "ファイルアップロード中",
+    status: 'processing',
+    message: 'ファイルアップロード中',
     ariaLabel:
-      "AIエージェントがファイルをアップロードしています。しばらくお待ちください。",
+      'AIエージェントがファイルをアップロードしています。しばらくお待ちください。',
   },
 };
 
@@ -252,7 +252,7 @@ export const AllSizes: Story = {
  */
 export const DarkMode: Story = {
   parameters: {
-    backgrounds: { default: "dark" },
+    backgrounds: { default: 'dark' },
   },
   render: () => (
     <div className="dark p-6 bg-zinc-900 rounded-lg">

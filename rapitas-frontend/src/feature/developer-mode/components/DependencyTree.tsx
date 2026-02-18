@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from 'react';
 import {
   GitBranch,
   FileCode,
@@ -17,14 +17,14 @@ import {
   Info,
   RotateCcw,
   XCircle,
-} from "lucide-react";
+} from 'lucide-react';
 import {
   useSSE,
   type SSEErrorData,
   type SSERollbackData,
   type SSERetryData,
-} from "@/hooks/use-sse";
-import { API_BASE_URL } from "@/utils/api";
+} from '@/hooks/use-sse';
+import { API_BASE_URL } from '@/utils/api';
 
 // Types
 type DependencyInfo = {
@@ -95,15 +95,15 @@ function TreeNodeItem({
   const hasDependencies = node.dependsOn.length > 0;
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-green-600 dark:text-green-400";
-    if (score >= 50) return "text-yellow-600 dark:text-yellow-400";
-    return "text-red-600 dark:text-red-400";
+    if (score >= 80) return 'text-green-600 dark:text-green-400';
+    if (score >= 50) return 'text-yellow-600 dark:text-yellow-400';
+    return 'text-red-600 dark:text-red-400';
   };
 
   const getScoreBgColor = (score: number) => {
-    if (score >= 80) return "bg-green-100 dark:bg-green-900/30";
-    if (score >= 50) return "bg-yellow-100 dark:bg-yellow-900/30";
-    return "bg-red-100 dark:bg-red-900/30";
+    if (score >= 80) return 'bg-green-100 dark:bg-green-900/30';
+    if (score >= 50) return 'bg-yellow-100 dark:bg-yellow-900/30';
+    return 'bg-red-100 dark:bg-red-900/30';
   };
 
   return (
@@ -111,15 +111,15 @@ function TreeNodeItem({
       <div
         className={`flex items-center gap-2 py-2 px-3 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors ${
           depth > 0
-            ? "ml-6 border-l-2 border-zinc-200 dark:border-zinc-700"
-            : ""
+            ? 'ml-6 border-l-2 border-zinc-200 dark:border-zinc-700'
+            : ''
         }`}
       >
         {/* 展開ボタン */}
         <button
           onClick={onToggle}
           className={`p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 ${
-            !hasChildren && !hasDependencies ? "invisible" : ""
+            !hasChildren && !hasDependencies ? 'invisible' : ''
           }`}
         >
           {isExpanded ? (
@@ -175,7 +175,7 @@ function TreeNodeItem({
                   >
                     <span className="font-medium">{dep.title}</span>
                     <span className="text-amber-500 dark:text-amber-500 ml-2">
-                      ({dep.sharedFiles.join(", ")})
+                      ({dep.sharedFiles.join(', ')})
                     </span>
                   </div>
                 ))}
@@ -196,7 +196,7 @@ function TreeNodeItem({
                     key={i}
                     className="px-1.5 py-0.5 text-xs bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded font-mono"
                   >
-                    {file.split("/").pop()}
+                    {file.split('/').pop()}
                   </span>
                 ))}
                 {node.files.length > 10 && (
@@ -226,7 +226,7 @@ function TreeNodeItem({
 
 export function DependencyTree({ taskId }: Props) {
   const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set());
-  const [viewMode, setViewMode] = useState<"tree" | "list" | "groups">("tree");
+  const [viewMode, setViewMode] = useState<'tree' | 'list' | 'groups'>('tree');
   const [useSSEMode, setUseSSEMode] = useState(true);
 
   // SSE フックを使用
@@ -242,16 +242,16 @@ export function DependencyTree({ taskId }: Props) {
     reset,
   } = useSSE<AnalysisResult>({
     onComplete: () => {
-      console.log("SSE analysis completed");
+      console.log('SSE analysis completed');
     },
     onError: (error) => {
-      console.error("SSE error:", error);
+      console.error('SSE error:', error);
     },
     onRetry: (info) => {
-      console.log("Retrying:", info);
+      console.log('Retrying:', info);
     },
     onRollback: (info) => {
-      console.log("Rollback:", info);
+      console.log('Rollback:', info);
     },
   });
 
@@ -279,11 +279,11 @@ export function DependencyTree({ taskId }: Props) {
         setAnalysis(data);
       } else {
         const errData = await res.json();
-        throw new Error(errData.error || "分析に失敗しました");
+        throw new Error(errData.error || '分析に失敗しました');
       }
     } catch (err) {
       setErrorFallback(
-        err instanceof Error ? err.message : "エラーが発生しました",
+        err instanceof Error ? err.message : 'エラーが発生しました',
       );
     } finally {
       setIsLoadingFallback(false);
@@ -405,7 +405,7 @@ export function DependencyTree({ taskId }: Props) {
         <div className="flex items-center gap-3">
           <Loader2 className="w-5 h-5 text-violet-500 animate-spin" />
           <span className="text-sm text-zinc-600 dark:text-zinc-400">
-            {progressMessage || "依存関係を分析中..."}
+            {progressMessage || '依存関係を分析中...'}
           </span>
         </div>
         {useSSEMode && progress > 0 && (
@@ -482,7 +482,7 @@ export function DependencyTree({ taskId }: Props) {
             title="更新"
           >
             <RefreshCw
-              className={`w-4 h-4 ${currentIsLoading ? "animate-spin" : ""}`}
+              className={`w-4 h-4 ${currentIsLoading ? 'animate-spin' : ''}`}
             />
           </button>
         </div>
@@ -531,31 +531,31 @@ export function DependencyTree({ taskId }: Props) {
       {/* ビューモード切り替え */}
       <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-700">
         <button
-          onClick={() => setViewMode("tree")}
+          onClick={() => setViewMode('tree')}
           className={`px-3 py-2 text-sm font-medium transition-colors ${
-            viewMode === "tree"
-              ? "text-violet-600 dark:text-violet-400 border-b-2 border-violet-600"
-              : "text-zinc-500 hover:text-zinc-700"
+            viewMode === 'tree'
+              ? 'text-violet-600 dark:text-violet-400 border-b-2 border-violet-600'
+              : 'text-zinc-500 hover:text-zinc-700'
           }`}
         >
           ツリー表示
         </button>
         <button
-          onClick={() => setViewMode("list")}
+          onClick={() => setViewMode('list')}
           className={`px-3 py-2 text-sm font-medium transition-colors ${
-            viewMode === "list"
-              ? "text-violet-600 dark:text-violet-400 border-b-2 border-violet-600"
-              : "text-zinc-500 hover:text-zinc-700"
+            viewMode === 'list'
+              ? 'text-violet-600 dark:text-violet-400 border-b-2 border-violet-600'
+              : 'text-zinc-500 hover:text-zinc-700'
           }`}
         >
           リスト表示
         </button>
         <button
-          onClick={() => setViewMode("groups")}
+          onClick={() => setViewMode('groups')}
           className={`px-3 py-2 text-sm font-medium transition-colors ${
-            viewMode === "groups"
-              ? "text-violet-600 dark:text-violet-400 border-b-2 border-violet-600"
-              : "text-zinc-500 hover:text-zinc-700"
+            viewMode === 'groups'
+              ? 'text-violet-600 dark:text-violet-400 border-b-2 border-violet-600'
+              : 'text-zinc-500 hover:text-zinc-700'
           }`}
         >
           グループ表示
@@ -577,7 +577,7 @@ export function DependencyTree({ taskId }: Props) {
 
       {/* コンテンツ */}
       <div className="max-h-96 overflow-y-auto">
-        {viewMode === "tree" && (
+        {viewMode === 'tree' && (
           <div className="space-y-1">
             {currentAnalysis.tree.map((node) => (
               <TreeNodeItem
@@ -598,7 +598,7 @@ export function DependencyTree({ taskId }: Props) {
           </div>
         )}
 
-        {viewMode === "list" && (
+        {viewMode === 'list' && (
           <div className="space-y-2">
             {currentAnalysis.analysis
               .sort((a, b) => b.independenceScore - a.independenceScore)
@@ -621,10 +621,10 @@ export function DependencyTree({ taskId }: Props) {
                     <span
                       className={`px-2 py-0.5 text-xs rounded ${
                         item.independenceScore >= 80
-                          ? "bg-green-100 dark:bg-green-900/30 text-green-600"
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
                           : item.independenceScore >= 50
-                            ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600"
-                            : "bg-red-100 dark:bg-red-900/30 text-red-600"
+                            ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600'
+                            : 'bg-red-100 dark:bg-red-900/30 text-red-600'
                       }`}
                     >
                       独立性: {item.independenceScore}%
@@ -632,13 +632,13 @@ export function DependencyTree({ taskId }: Props) {
                   </div>
                   {item.dependencies.length > 0 && (
                     <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                      <span className="font-medium">依存先:</span>{" "}
-                      {item.dependencies.map((d) => d.title).join(", ")}
+                      <span className="font-medium">依存先:</span>{' '}
+                      {item.dependencies.map((d) => d.title).join(', ')}
                     </div>
                   )}
                   {item.files.length > 0 && (
                     <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                      <span className="font-medium">ファイル:</span>{" "}
+                      <span className="font-medium">ファイル:</span>{' '}
                       {item.files.length}件
                     </div>
                   )}
@@ -647,15 +647,15 @@ export function DependencyTree({ taskId }: Props) {
           </div>
         )}
 
-        {viewMode === "groups" && (
+        {viewMode === 'groups' && (
           <div className="space-y-4">
             {currentAnalysis.parallelGroups.map((group) => (
               <div
                 key={group.groupId}
                 className={`p-4 rounded-lg border ${
                   group.canRunTogether
-                    ? "bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800"
-                    : "bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800"
+                    ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800'
+                    : 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800'
                 }`}
               >
                 <div className="flex items-center gap-2 mb-3">
@@ -681,8 +681,8 @@ export function DependencyTree({ taskId }: Props) {
                       key={task.id}
                       className={`px-2 py-1 text-xs rounded ${
                         group.canRunTogether
-                          ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                          : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                          : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
                       }`}
                     >
                       {task.title}

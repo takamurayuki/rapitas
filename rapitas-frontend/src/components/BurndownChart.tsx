@@ -1,8 +1,8 @@
-"use client";
-import { useEffect, useState, useMemo } from "react";
-import { TrendingDown, Calendar, Target, Zap } from "lucide-react";
-import { API_BASE_URL } from "@/utils/api";
-import type { Theme } from "@/types";
+'use client';
+import { useEffect, useState, useMemo } from 'react';
+import { TrendingDown, Calendar, Target, Zap } from 'lucide-react';
+import { API_BASE_URL } from '@/utils/api';
+import type { Theme } from '@/types';
 
 type BurndownData = {
   period: {
@@ -37,12 +37,14 @@ export default function BurndownChart({
   themeId,
   projectId,
   days = 14,
-  className = "",
+  className = '',
 }: BurndownChartProps) {
   const [data, setData] = useState<BurndownData | null>(null);
   const [loading, setLoading] = useState(true);
   const [themes, setThemes] = useState<Theme[]>([]);
-  const [selectedThemeId, setSelectedThemeId] = useState<number | undefined>(themeId);
+  const [selectedThemeId, setSelectedThemeId] = useState<number | undefined>(
+    themeId,
+  );
   const [selectedDays, setSelectedDays] = useState(days);
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export default function BurndownChart({
         const res = await fetch(`${API_BASE_URL}/themes`);
         if (res.ok) setThemes(await res.json());
       } catch (e) {
-        console.error("Failed to fetch themes:", e);
+        console.error('Failed to fetch themes:', e);
       }
     };
     fetchThemes();
@@ -62,15 +64,18 @@ export default function BurndownChart({
       setLoading(true);
       try {
         const params = new URLSearchParams({ days: selectedDays.toString() });
-        if (selectedThemeId) params.append("themeId", selectedThemeId.toString());
-        if (projectId) params.append("projectId", projectId.toString());
+        if (selectedThemeId)
+          params.append('themeId', selectedThemeId.toString());
+        if (projectId) params.append('projectId', projectId.toString());
 
-        const res = await fetch(`${API_BASE_URL}/statistics/burndown?${params}`);
+        const res = await fetch(
+          `${API_BASE_URL}/statistics/burndown?${params}`,
+        );
         if (res.ok) {
           setData(await res.json());
         }
       } catch (e) {
-        console.error("Failed to fetch burndown data:", e);
+        console.error('Failed to fetch burndown data:', e);
       } finally {
         setLoading(false);
       }
@@ -90,7 +95,7 @@ export default function BurndownChart({
 
     const maxValue = Math.max(
       ...data.dailyData.map((d) => Math.max(d.remaining, d.ideal)),
-      1
+      1,
     );
 
     const xScale = (index: number) =>
@@ -100,12 +105,14 @@ export default function BurndownChart({
 
     // パスを生成
     const idealPath = data.dailyData
-      .map((d, i) => `${i === 0 ? "M" : "L"} ${xScale(i)} ${yScale(d.ideal)}`)
-      .join(" ");
+      .map((d, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(d.ideal)}`)
+      .join(' ');
 
     const actualPath = data.dailyData
-      .map((d, i) => `${i === 0 ? "M" : "L"} ${xScale(i)} ${yScale(d.remaining)}`)
-      .join(" ");
+      .map(
+        (d, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(d.remaining)}`,
+      )
+      .join(' ');
 
     // 実績線の下を塗りつぶすためのエリアパス
     const areaPath = `${actualPath} L ${xScale(data.dailyData.length - 1)} ${padding.top + chartHeight} L ${padding.left} ${padding.top + chartHeight} Z`;
@@ -149,7 +156,9 @@ export default function BurndownChart({
   if (!data || !chartConfig) {
     return (
       <div className={`bg-white dark:bg-zinc-900 rounded-xl p-4 ${className}`}>
-        <p className="text-zinc-500 dark:text-zinc-400 text-center text-sm">データがありません</p>
+        <p className="text-zinc-500 dark:text-zinc-400 text-center text-sm">
+          データがありません
+        </p>
       </div>
     );
   }
@@ -157,24 +166,31 @@ export default function BurndownChart({
   const { summary, dailyData } = data;
 
   return (
-    <div className={`bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200/50 dark:border-zinc-800 overflow-hidden ${className}`}>
+    <div
+      className={`bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200/50 dark:border-zinc-800 overflow-hidden ${className}`}
+    >
       {/* ヘッダー: タイトル + サマリー + フィルター */}
       <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5">
               <TrendingDown className="w-4 h-4 text-blue-500" />
-              <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-50">バーンダウン</h2>
+              <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-50">
+                バーンダウン
+              </h2>
             </div>
             {/* インラインサマリー */}
             <div className="hidden sm:flex items-center gap-3 text-xs">
               <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
-                <Target className="w-3 h-3" />
-                残<span className="font-semibold text-zinc-900 dark:text-zinc-100">{summary.currentRemaining}</span>
+                <Target className="w-3 h-3" />残
+                <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                  {summary.currentRemaining}
+                </span>
               </span>
               <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                 <Zap className="w-3 h-3" />
-                完了<span className="font-semibold">{summary.totalCompleted}</span>
+                完了
+                <span className="font-semibold">{summary.totalCompleted}</span>
               </span>
               <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
                 <Calendar className="w-3 h-3" />
@@ -190,8 +206,12 @@ export default function BurndownChart({
           {/* フィルター */}
           <div className="flex items-center gap-1.5">
             <select
-              value={selectedThemeId || ""}
-              onChange={(e) => setSelectedThemeId(e.target.value ? parseInt(e.target.value) : undefined)}
+              value={selectedThemeId || ''}
+              onChange={(e) =>
+                setSelectedThemeId(
+                  e.target.value ? parseInt(e.target.value) : undefined,
+                )
+              }
               className="px-2 py-1 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md"
             >
               <option value="">全テーマ</option>
@@ -208,8 +228,8 @@ export default function BurndownChart({
                   onClick={() => setSelectedDays(d)}
                   className={`px-2 py-1 text-xs transition-colors ${
                     selectedDays === d
-                      ? "bg-blue-500 text-white"
-                      : "bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                   }`}
                 >
                   {d}日
@@ -221,7 +241,10 @@ export default function BurndownChart({
         {/* モバイル用サマリー */}
         <div className="flex sm:hidden items-center gap-3 mt-2 text-xs">
           <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
-            残<span className="font-semibold text-zinc-900 dark:text-zinc-100">{summary.currentRemaining}</span>
+            残
+            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+              {summary.currentRemaining}
+            </span>
           </span>
           <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
             完了<span className="font-semibold">{summary.totalCompleted}</span>
@@ -267,7 +290,11 @@ export default function BurndownChart({
 
           {/* X軸ラベル */}
           {dailyData
-            .filter((_, i) => i % Math.ceil(dailyData.length / 6) === 0 || i === dailyData.length - 1)
+            .filter(
+              (_, i) =>
+                i % Math.ceil(dailyData.length / 6) === 0 ||
+                i === dailyData.length - 1,
+            )
             .map((d) => {
               const originalIndex = dailyData.indexOf(d);
               return (
@@ -278,17 +305,16 @@ export default function BurndownChart({
                   textAnchor="middle"
                   className="text-[9px] fill-zinc-400"
                 >
-                  {new Date(d.date).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}
+                  {new Date(d.date).toLocaleDateString('ja-JP', {
+                    month: 'numeric',
+                    day: 'numeric',
+                  })}
                 </text>
               );
             })}
 
           {/* 実績エリア（塗りつぶし） */}
-          <path
-            d={chartConfig.areaPath}
-            fill="#3b82f6"
-            fillOpacity={0.06}
-          />
+          <path d={chartConfig.areaPath} fill="#3b82f6" fillOpacity={0.06} />
 
           {/* 理想線 */}
           <path
@@ -311,7 +337,10 @@ export default function BurndownChart({
 
           {/* データポイント（間引き表示） */}
           {dailyData.map((d, i) => {
-            const showDot = i === 0 || i === dailyData.length - 1 || i % Math.ceil(dailyData.length / 8) === 0;
+            const showDot =
+              i === 0 ||
+              i === dailyData.length - 1 ||
+              i % Math.ceil(dailyData.length / 8) === 0;
             if (!showDot) return null;
             return (
               <circle
@@ -325,7 +354,8 @@ export default function BurndownChart({
                 className="cursor-pointer"
               >
                 <title>
-                  {new Date(d.date).toLocaleDateString("ja-JP")}: 残り{d.remaining}件
+                  {new Date(d.date).toLocaleDateString('ja-JP')}: 残り
+                  {d.remaining}件
                 </title>
               </circle>
             );
@@ -336,11 +366,15 @@ export default function BurndownChart({
         <div className="flex items-center justify-center gap-4 mt-1">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 bg-blue-500 rounded" />
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">実績</span>
+            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+              実績
+            </span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 bg-zinc-400 rounded border-dashed" />
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">理想</span>
+            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+              理想
+            </span>
           </div>
         </div>
       </div>

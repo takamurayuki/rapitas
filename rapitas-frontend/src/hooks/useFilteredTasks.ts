@@ -30,7 +30,7 @@ export function useFilteredTasks({
   const categoryThemeIds = useMemo(() => {
     if (categoryFilter === null) return null;
     return new Set(
-      themes.filter((t) => t.categoryId === categoryFilter).map((t) => t.id)
+      themes.filter((t) => t.categoryId === categoryFilter).map((t) => t.id),
     );
   }, [categoryFilter, themes]);
 
@@ -53,7 +53,8 @@ export function useFilteredTasks({
         themeFilter !== null || // テーマが選択されている場合はカテゴリフィルタをスキップ
         categoryThemeIds === null ||
         (t.themeId && categoryThemeIds.has(t.themeId));
-      const priorityMatch = priorityFilter === null || t.priority === priorityFilter;
+      const priorityMatch =
+        priorityFilter === null || t.priority === priorityFilter;
       const searchMatch =
         !searchQuery ||
         t.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -78,7 +79,15 @@ export function useFilteredTasks({
     });
 
     return { filteredTasks: filtered, statusCounts: counts };
-  }, [tasks, filter, categoryFilter, themeFilter, priorityFilter, searchQuery, categoryThemeIds]);
+  }, [
+    tasks,
+    filter,
+    categoryFilter,
+    themeFilter,
+    priorityFilter,
+    searchQuery,
+    categoryThemeIds,
+  ]);
 
   // 今日のタスクのカウント（選択されたテーマでフィルタリング）
   const todayTasksCounts = useMemo(() => {

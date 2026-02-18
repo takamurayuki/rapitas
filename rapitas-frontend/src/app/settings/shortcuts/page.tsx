@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useCallback } from "react";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { useEffect, useState, useCallback } from 'react';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import {
   Keyboard,
   Save,
@@ -11,16 +11,16 @@ import {
   AlertCircle,
   Info,
   AlertTriangle,
-} from "lucide-react";
-import { isTauri } from "@/utils/tauri";
+} from 'lucide-react';
+import { isTauri } from '@/utils/tauri';
 import {
   useShortcutStore,
   formatBindingKey,
   type ShortcutId,
   type ShortcutBinding,
-} from "@/stores/shortcutStore";
+} from '@/stores/shortcutStore';
 
-type ModifierKey = "Ctrl" | "Alt" | "Shift";
+type ModifierKey = 'Ctrl' | 'Alt' | 'Shift';
 
 interface ExtendedWindow extends Window {
   __TAURI__?: {
@@ -30,58 +30,126 @@ interface ExtendedWindow extends Window {
   };
 }
 
-const MODIFIER_KEYS: ModifierKey[] = ["Ctrl", "Alt", "Shift"];
+const MODIFIER_KEYS: ModifierKey[] = ['Ctrl', 'Alt', 'Shift'];
 
 const AVAILABLE_KEYS = [
-  "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
-  "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
-  "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-  "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
-  "/",
+  'A',
+  'B',
+  'C',
+  'D',
+  'E',
+  'F',
+  'G',
+  'H',
+  'I',
+  'J',
+  'K',
+  'L',
+  'M',
+  'N',
+  'O',
+  'P',
+  'Q',
+  'R',
+  'S',
+  'T',
+  'U',
+  'V',
+  'W',
+  'X',
+  'Y',
+  'Z',
+  '0',
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  'F1',
+  'F2',
+  'F3',
+  'F4',
+  'F5',
+  'F6',
+  'F7',
+  'F8',
+  'F9',
+  'F10',
+  'F11',
+  'F12',
+  '/',
 ];
 
-const DEFAULT_GLOBAL_SHORTCUT = "Ctrl+Alt+R";
+const DEFAULT_GLOBAL_SHORTCUT = 'Ctrl+Alt+R';
 
-function parseGlobalShortcut(shortcut: string): { modifiers: ModifierKey[]; key: string } {
-  const parts = shortcut.split("+").map((s) => s.trim());
+function parseGlobalShortcut(shortcut: string): {
+  modifiers: ModifierKey[];
+  key: string;
+} {
+  const parts = shortcut.split('+').map((s) => s.trim());
   const key = parts[parts.length - 1];
-  const modifiers = parts.slice(0, -1).filter((m): m is ModifierKey =>
-    MODIFIER_KEYS.includes(m as ModifierKey)
-  );
+  const modifiers = parts
+    .slice(0, -1)
+    .filter((m): m is ModifierKey => MODIFIER_KEYS.includes(m as ModifierKey));
   return { modifiers, key };
 }
 
 function buildGlobalShortcut(modifiers: ModifierKey[], key: string): string {
-  return [...modifiers, key].join("+");
+  return [...modifiers, key].join('+');
 }
 
 function formatShortcutDisplay(binding: ShortcutBinding): string {
   const parts: string[] = [];
-  if (binding.ctrl) parts.push("Ctrl");
-  if (binding.meta) parts.push("Ctrl");
-  if (binding.shift) parts.push("Shift");
+  if (binding.ctrl) parts.push('Ctrl');
+  if (binding.meta) parts.push('Ctrl');
+  if (binding.shift) parts.push('Shift');
   parts.push(binding.key.toUpperCase());
-  return parts.join(" + ");
+  return parts.join(' + ');
 }
 
 export default function ShortcutSettingsPage() {
   const [isTauriEnv, setIsTauriEnv] = useState(false);
 
   // --- グローバルショートカット (Tauri) ---
-  const [currentGlobalShortcut, setCurrentGlobalShortcut] = useState(DEFAULT_GLOBAL_SHORTCUT);
-  const [globalModifiers, setGlobalModifiers] = useState<ModifierKey[]>(["Ctrl", "Alt"]);
-  const [globalKey, setGlobalKey] = useState("R");
+  const [currentGlobalShortcut, setCurrentGlobalShortcut] = useState(
+    DEFAULT_GLOBAL_SHORTCUT,
+  );
+  const [globalModifiers, setGlobalModifiers] = useState<ModifierKey[]>([
+    'Ctrl',
+    'Alt',
+  ]);
+  const [globalKey, setGlobalKey] = useState('R');
   const [isLoadingGlobal, setIsLoadingGlobal] = useState(true);
   const [isSavingGlobal, setIsSavingGlobal] = useState(false);
-  const [globalMessage, setGlobalMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [globalMessage, setGlobalMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const [isRecordingGlobal, setIsRecordingGlobal] = useState(false);
 
   // --- アプリ内ショートカット ---
-  const { shortcuts, updateShortcut, resetShortcut, resetAll, findDuplicate, getDefault } = useShortcutStore();
+  const {
+    shortcuts,
+    updateShortcut,
+    resetShortcut,
+    resetAll,
+    findDuplicate,
+    getDefault,
+  } = useShortcutStore();
   const [editingId, setEditingId] = useState<ShortcutId | null>(null);
-  const [editBinding, setEditBinding] = useState<Pick<ShortcutBinding, "key" | "meta" | "shift" | "ctrl"> | null>(null);
+  const [editBinding, setEditBinding] = useState<Pick<
+    ShortcutBinding,
+    'key' | 'meta' | 'shift' | 'ctrl'
+  > | null>(null);
   const [isRecordingInApp, setIsRecordingInApp] = useState(false);
-  const [inAppMessage, setInAppMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [inAppMessage, setInAppMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
   useEffect(() => {
@@ -91,7 +159,7 @@ export default function ShortcutSettingsPage() {
   // --- グローバルショートカットの読み込み ---
   const loadGlobalShortcut = useCallback(async () => {
     if (!isTauriEnv) {
-      const saved = localStorage.getItem("globalShortcut");
+      const saved = localStorage.getItem('globalShortcut');
       if (saved) {
         setCurrentGlobalShortcut(saved);
         const { modifiers, key } = parseGlobalShortcut(saved);
@@ -105,7 +173,7 @@ export default function ShortcutSettingsPage() {
     try {
       const tauri = (window as ExtendedWindow).__TAURI__;
       if (tauri?.core?.invoke) {
-        const result = await tauri.core.invoke("get_global_shortcut");
+        const result = await tauri.core.invoke('get_global_shortcut');
         const shortcut = String(result);
         setCurrentGlobalShortcut(shortcut);
         const { modifiers, key } = parseGlobalShortcut(shortcut);
@@ -113,7 +181,7 @@ export default function ShortcutSettingsPage() {
         setGlobalKey(key);
       }
     } catch (e) {
-      console.error("Failed to load shortcut:", e);
+      console.error('Failed to load shortcut:', e);
     } finally {
       setIsLoadingGlobal(false);
     }
@@ -131,21 +199,21 @@ export default function ShortcutSettingsPage() {
       e.preventDefault();
       e.stopPropagation();
 
-      if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return;
+      if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
 
       const modifiers: ModifierKey[] = [];
-      if (e.ctrlKey) modifiers.push("Ctrl");
-      if (e.altKey) modifiers.push("Alt");
-      if (e.shiftKey) modifiers.push("Shift");
+      if (e.ctrlKey) modifiers.push('Ctrl');
+      if (e.altKey) modifiers.push('Alt');
+      if (e.shiftKey) modifiers.push('Shift');
 
       let key = e.key.toUpperCase();
       if (key.length === 1 && /[A-Z0-9]/.test(key)) {
         // OK
-      } else if (e.code.startsWith("Key")) {
-        key = e.code.replace("Key", "");
-      } else if (e.code.startsWith("Digit")) {
-        key = e.code.replace("Digit", "");
-      } else if (e.code.startsWith("F") && /^F\d+$/.test(e.code)) {
+      } else if (e.code.startsWith('Key')) {
+        key = e.code.replace('Key', '');
+      } else if (e.code.startsWith('Digit')) {
+        key = e.code.replace('Digit', '');
+      } else if (e.code.startsWith('F') && /^F\d+$/.test(e.code)) {
         key = e.code;
       } else {
         return;
@@ -159,8 +227,8 @@ export default function ShortcutSettingsPage() {
       setIsRecordingGlobal(false);
     };
 
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isRecordingGlobal]);
 
   // --- アプリ内ショートカットのキーボード入力 ---
@@ -171,29 +239,30 @@ export default function ShortcutSettingsPage() {
       e.preventDefault();
       e.stopPropagation();
 
-      if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return;
+      if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
 
       let key = e.key.toUpperCase();
-      if (key === "/") {
-        key = "/";
+      if (key === '/') {
+        key = '/';
       } else if (key.length === 1 && /[A-Z0-9]/.test(key)) {
         // OK
-      } else if (e.code.startsWith("Key")) {
-        key = e.code.replace("Key", "");
-      } else if (e.code.startsWith("Digit")) {
-        key = e.code.replace("Digit", "");
-      } else if (e.code.startsWith("F") && /^F\d+$/.test(e.code)) {
+      } else if (e.code.startsWith('Key')) {
+        key = e.code.replace('Key', '');
+      } else if (e.code.startsWith('Digit')) {
+        key = e.code.replace('Digit', '');
+      } else if (e.code.startsWith('F') && /^F\d+$/.test(e.code)) {
         key = e.code;
       } else {
         return;
       }
 
-      const binding: Pick<ShortcutBinding, "key" | "meta" | "shift" | "ctrl"> = {
-        key,
-        meta: e.ctrlKey || e.metaKey,
-        shift: e.shiftKey,
-        ctrl: false,
-      };
+      const binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'> =
+        {
+          key,
+          meta: e.ctrlKey || e.metaKey,
+          shift: e.shiftKey,
+          ctrl: false,
+        };
 
       setEditBinding(binding);
       setIsRecordingInApp(false);
@@ -207,20 +276,23 @@ export default function ShortcutSettingsPage() {
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isRecordingInApp, editingId, findDuplicate]);
 
   const toggleGlobalModifier = (mod: ModifierKey) => {
     setGlobalModifiers((prev) =>
-      prev.includes(mod) ? prev.filter((m) => m !== mod) : [...prev, mod]
+      prev.includes(mod) ? prev.filter((m) => m !== mod) : [...prev, mod],
     );
     setGlobalMessage(null);
   };
 
   const handleSaveGlobal = async () => {
     if (globalModifiers.length === 0) {
-      setGlobalMessage({ type: "error", text: "修飾キーを1つ以上選択してください" });
+      setGlobalMessage({
+        type: 'error',
+        text: '修飾キーを1つ以上選択してください',
+      });
       return;
     }
 
@@ -229,9 +301,12 @@ export default function ShortcutSettingsPage() {
     setGlobalMessage(null);
 
     if (!isTauriEnv) {
-      localStorage.setItem("globalShortcut", newShortcut);
+      localStorage.setItem('globalShortcut', newShortcut);
       setCurrentGlobalShortcut(newShortcut);
-      setGlobalMessage({ type: "success", text: `ショートカットを ${newShortcut} に変更しました` });
+      setGlobalMessage({
+        type: 'success',
+        text: `ショートカットを ${newShortcut} に変更しました`,
+      });
       setIsSavingGlobal(false);
       return;
     }
@@ -239,13 +314,21 @@ export default function ShortcutSettingsPage() {
     try {
       const tauri = (window as ExtendedWindow).__TAURI__;
       if (tauri?.core?.invoke) {
-        await tauri.core.invoke("set_global_shortcut", { shortcut: newShortcut });
+        await tauri.core.invoke('set_global_shortcut', {
+          shortcut: newShortcut,
+        });
         setCurrentGlobalShortcut(newShortcut);
-        setGlobalMessage({ type: "success", text: `ショートカットを ${newShortcut} に変更しました` });
+        setGlobalMessage({
+          type: 'success',
+          text: `ショートカットを ${newShortcut} に変更しました`,
+        });
       }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
-      setGlobalMessage({ type: "error", text: `変更に失敗しました: ${errorMsg}` });
+      setGlobalMessage({
+        type: 'error',
+        text: `変更に失敗しました: ${errorMsg}`,
+      });
     } finally {
       setIsSavingGlobal(false);
     }
@@ -262,7 +345,12 @@ export default function ShortcutSettingsPage() {
     const current = shortcuts.find((s) => s.id === id);
     if (!current) return;
     setEditingId(id);
-    setEditBinding({ key: current.key, meta: current.meta, shift: current.shift, ctrl: current.ctrl });
+    setEditBinding({
+      key: current.key,
+      meta: current.meta,
+      shift: current.shift,
+      ctrl: current.ctrl,
+    });
     setDuplicateWarning(null);
     setInAppMessage(null);
   };
@@ -280,12 +368,15 @@ export default function ShortcutSettingsPage() {
     // 重複チェック
     const dup = findDuplicate(editingId, editBinding);
     if (dup) {
-      setInAppMessage({ type: "error", text: `「${dup.label}」と重複しているため保存できません` });
+      setInAppMessage({
+        type: 'error',
+        text: `「${dup.label}」と重複しているため保存できません`,
+      });
       return;
     }
 
     updateShortcut(editingId, editBinding);
-    setInAppMessage({ type: "success", text: "ショートカットを変更しました" });
+    setInAppMessage({ type: 'success', text: 'ショートカットを変更しました' });
     setTimeout(() => setInAppMessage(null), 3000);
     setEditingId(null);
     setEditBinding(null);
@@ -298,7 +389,10 @@ export default function ShortcutSettingsPage() {
     if (def) {
       const dup = findDuplicate(id, def);
       if (dup) {
-        setInAppMessage({ type: "error", text: `デフォルト値が「${dup.label}」と重複しています` });
+        setInAppMessage({
+          type: 'error',
+          text: `デフォルト値が「${dup.label}」と重複しています`,
+        });
         return;
       }
     }
@@ -306,14 +400,17 @@ export default function ShortcutSettingsPage() {
     if (editingId === id) {
       cancelEditing();
     }
-    setInAppMessage({ type: "success", text: "デフォルトに戻しました" });
+    setInAppMessage({ type: 'success', text: 'デフォルトに戻しました' });
     setTimeout(() => setInAppMessage(null), 3000);
   };
 
   const handleResetAll = () => {
     resetAll();
     cancelEditing();
-    setInAppMessage({ type: "success", text: "すべてのショートカットをデフォルトに戻しました" });
+    setInAppMessage({
+      type: 'success',
+      text: 'すべてのショートカットをデフォルトに戻しました',
+    });
     setTimeout(() => setInAppMessage(null), 3000);
   };
 
@@ -353,7 +450,9 @@ export default function ShortcutSettingsPage() {
         {/* 現在の設定 */}
         <div className="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-4 mb-4">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-500 dark:text-zinc-400">現在の設定</span>
+            <span className="text-sm text-zinc-500 dark:text-zinc-400">
+              現在の設定
+            </span>
             <kbd className="px-4 py-2 bg-zinc-100 dark:bg-zinc-700 rounded-lg text-lg font-mono font-semibold text-zinc-800 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-600 shadow-sm">
               {currentGlobalShortcut}
             </kbd>
@@ -366,20 +465,24 @@ export default function ShortcutSettingsPage() {
             onClick={() => setIsRecordingGlobal(!isRecordingGlobal)}
             className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed transition-all ${
               isRecordingGlobal
-                ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300"
-                : "border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                : 'border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400'
             }`}
           >
             <Keyboard className="w-5 h-5" />
             <span className="text-sm font-medium">
-              {isRecordingGlobal ? "キーを押してください..." : "クリックしてキーボードで入力"}
+              {isRecordingGlobal
+                ? 'キーを押してください...'
+                : 'クリックしてキーボードで入力'}
             </span>
           </button>
         </div>
 
         <div className="flex items-center gap-4 mb-4">
           <div className="flex-1 border-t border-zinc-200 dark:border-zinc-700" />
-          <span className="text-xs text-zinc-400 dark:text-zinc-500">または手動で選択</span>
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">
+            または手動で選択
+          </span>
           <div className="flex-1 border-t border-zinc-200 dark:border-zinc-700" />
         </div>
 
@@ -395,8 +498,8 @@ export default function ShortcutSettingsPage() {
                 onClick={() => toggleGlobalModifier(mod)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
                   globalModifiers.includes(mod)
-                    ? "bg-indigo-500 text-white border-indigo-500 shadow-sm"
-                    : "bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-600 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+                    ? 'bg-indigo-500 text-white border-indigo-500 shadow-sm'
+                    : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-600 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                 }`}
               >
                 {mod}
@@ -418,7 +521,7 @@ export default function ShortcutSettingsPage() {
             }}
             className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none"
           >
-            {AVAILABLE_KEYS.filter((k) => k !== "/").map((key) => (
+            {AVAILABLE_KEYS.filter((k) => k !== '/').map((key) => (
               <option key={key} value={key}>
                 {key}
               </option>
@@ -430,7 +533,9 @@ export default function ShortcutSettingsPage() {
         {hasGlobalChanges && (
           <div className="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-zinc-600 dark:text-zinc-400">新しいショートカット:</span>
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                新しいショートカット:
+              </span>
               <kbd className="px-4 py-2 rounded-lg text-lg font-mono font-semibold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700">
                 {newGlobalShortcut}
               </kbd>
@@ -442,12 +547,12 @@ export default function ShortcutSettingsPage() {
         {globalMessage && (
           <div
             className={`flex items-center gap-2 p-3 rounded-lg mb-4 ${
-              globalMessage.type === "success"
-                ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400"
-                : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"
+              globalMessage.type === 'success'
+                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
             }`}
           >
-            {globalMessage.type === "success" ? (
+            {globalMessage.type === 'success' ? (
               <CheckCircle className="w-4 h-4 shrink-0" />
             ) : (
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -460,7 +565,11 @@ export default function ShortcutSettingsPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={handleSaveGlobal}
-            disabled={!hasGlobalChanges || isSavingGlobal || globalModifiers.length === 0}
+            disabled={
+              !hasGlobalChanges ||
+              isSavingGlobal ||
+              globalModifiers.length === 0
+            }
             className="flex items-center gap-2 px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white disabled:text-zinc-500 dark:disabled:text-zinc-400 rounded-lg text-sm font-medium transition-colors"
           >
             {isSavingGlobal ? (
@@ -504,12 +613,12 @@ export default function ShortcutSettingsPage() {
         {inAppMessage && (
           <div
             className={`flex items-center gap-2 p-3 rounded-lg mb-4 ${
-              inAppMessage.type === "success"
-                ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400"
-                : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"
+              inAppMessage.type === 'success'
+                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
             }`}
           >
-            {inAppMessage.type === "success" ? (
+            {inAppMessage.type === 'success' ? (
               <CheckCircle className="w-4 h-4 shrink-0" />
             ) : (
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -523,7 +632,8 @@ export default function ShortcutSettingsPage() {
           {shortcuts.map((shortcut) => {
             const isEditing = editingId === shortcut.id;
             const def = getDefault(shortcut.id);
-            const isModified = def && formatBindingKey(shortcut) !== formatBindingKey(def);
+            const isModified =
+              def && formatBindingKey(shortcut) !== formatBindingKey(def);
 
             return (
               <div key={shortcut.id} className="py-3">
@@ -572,19 +682,23 @@ export default function ShortcutSettingsPage() {
                       onClick={() => setIsRecordingInApp(!isRecordingInApp)}
                       className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed transition-all mb-3 ${
                         isRecordingInApp
-                          ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300"
-                          : "border-zinc-300 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:border-indigo-400"
+                          ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                          : 'border-zinc-300 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:border-indigo-400'
                       }`}
                     >
                       <Keyboard className="w-4 h-4" />
                       <span className="text-sm">
-                        {isRecordingInApp ? "キーを押してください..." : "クリックしてキーボードで入力"}
+                        {isRecordingInApp
+                          ? 'キーを押してください...'
+                          : 'クリックしてキーボードで入力'}
                       </span>
                     </button>
 
                     {/* プレビュー */}
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm text-zinc-500 dark:text-zinc-400">新しいキー:</span>
+                      <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                        新しいキー:
+                      </span>
                       <kbd className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-sm font-mono font-semibold text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700">
                         {formatShortcutDisplay({ ...shortcut, ...editBinding })}
                       </kbd>

@@ -1,7 +1,7 @@
-"use client";
-import { useCallback, useEffect, useRef, useState } from "react";
-import TaskDetailClient from "@/app/tasks/[id]/TaskDetailClient";
-import TaskDetailSkeleton from "@/components/ui/skeleton/TaskDetailSkeleton";
+'use client';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import TaskDetailClient from '@/app/tasks/[id]/TaskDetailClient';
+import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
 
 interface TaskSlidePanelProps {
   taskId: number | null;
@@ -82,23 +82,23 @@ export default function TaskSlidePanel({
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isVisible) {
+      if (e.key === 'Escape' && isVisible) {
         handleClose();
       }
     };
-    window.addEventListener("keydown", handleEsc);
-    return () => window.removeEventListener("keydown", handleEsc);
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
   }, [isVisible, handleClose]);
 
   // パネルが表示されている間スクロールを無効化
   useEffect(() => {
     if (isVisible) {
-      document.body.style.overflow = "hidden";
+      document.body.style.overflow = 'hidden';
     } else {
-      document.body.style.overflow = "unset";
+      document.body.style.overflow = 'unset';
     }
     return () => {
-      document.body.style.overflow = "unset";
+      document.body.style.overflow = 'unset';
     };
   }, [isVisible]);
 

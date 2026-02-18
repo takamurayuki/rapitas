@@ -1,4 +1,4 @@
-export type CategoryMode = "development" | "learning" | "both";
+export type CategoryMode = 'development' | 'learning' | 'both';
 
 export type Category = {
   id: number;
@@ -67,9 +67,9 @@ export type Milestone = {
   };
 };
 
-export type Priority = "low" | "medium" | "high" | "urgent";
+export type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
-export type Status = "todo" | "in-progress" | "done";
+export type Status = 'todo' | 'in-progress' | 'done';
 
 export type Label = {
   id: number;
@@ -162,7 +162,7 @@ export type LearningGoal = {
   dailyHours: number;
   categoryId?: number | null;
   themeId?: number | null;
-  status: "active" | "completed" | "archived";
+  status: 'active' | 'completed' | 'archived';
   generatedPlan?: string | null;
   isApplied: boolean;
   createdAt: string;
@@ -243,7 +243,7 @@ export type CommentLink = {
 // Combined link for UI display
 export type CommentLinkDisplay = {
   id: number;
-  direction: "outgoing" | "incoming";
+  direction: 'outgoing' | 'incoming';
   label?: string | null;
   linkedComment: LinkedCommentSummary;
   createdAt: string;
@@ -288,17 +288,17 @@ export type ActivityLog = {
 };
 
 export const priorityColors = {
-  low: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-  medium: "bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-300",
-  high: "bg-orange-100 text-orange-700 dark:bg-orange-800 dark:text-orange-300",
-  urgent: "bg-red-100 text-red-700 dark:bg-red-800 dark:text-red-300",
+  low: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  medium: 'bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-300',
+  high: 'bg-orange-100 text-orange-700 dark:bg-orange-800 dark:text-orange-300',
+  urgent: 'bg-red-100 text-red-700 dark:bg-red-800 dark:text-red-300',
 };
 
 export const priorityLabels = {
-  low: "低",
-  medium: "中",
-  high: "高",
-  urgent: "緊急",
+  low: '低',
+  medium: '中',
+  high: '高',
+  urgent: '緊急',
 };
 
 // 実績/バッジ
@@ -319,7 +319,7 @@ export type Achievement = {
   color: string;
   category: string;
   condition: AchievementCondition;
-  rarity: "common" | "rare" | "epic" | "legendary";
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
   isUnlocked: boolean;
   unlockedAt: string | null;
   createdAt: string;
@@ -454,7 +454,7 @@ export type WeeklyReport = {
 // ==================== 開発者モード関連 ====================
 
 // 実行ステータス（共通）
-export type ExecutionStatus = "idle" | "running" | "completed" | "failed";
+export type ExecutionStatus = 'idle' | 'running' | 'completed' | 'failed';
 
 // 実行結果（共通）
 export type ExecutionResult = {
@@ -477,7 +477,7 @@ export type DeveloperModeConfig = {
   autoApprove: boolean;
   notifyInApp: boolean;
   maxSubtasks: number;
-  priority: "aggressive" | "balanced" | "conservative";
+  priority: 'aggressive' | 'balanced' | 'conservative';
   createdAt: string;
   updatedAt: string;
   agentSessions?: AgentSession[];
@@ -494,7 +494,7 @@ export type AgentSessionMetadata = {
 export type AgentSession = {
   id: number;
   configId: number;
-  status: "pending" | "running" | "paused" | "completed" | "failed";
+  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed';
   startedAt?: string | null;
   completedAt?: string | null;
   lastActivityAt: string;
@@ -545,7 +545,7 @@ export type SubtaskProposal = {
 
 export type TaskAnalysisResult = {
   summary: string;
-  complexity: "simple" | "medium" | "complex";
+  complexity: 'simple' | 'medium' | 'complex';
   estimatedTotalHours: number;
   suggestedSubtasks: SubtaskProposal[];
   reasoning: string;
@@ -557,10 +557,10 @@ export type ApprovalRequest = {
   configId: number;
   config?: DeveloperModeConfig & { task?: Task };
   requestType:
-    | "subtask_creation"
-    | "task_execution"
-    | "task_completion"
-    | "code_review";
+    | 'subtask_creation'
+    | 'task_execution'
+    | 'task_completion'
+    | 'code_review';
   title: string;
   description?: string | null;
   proposedChanges: {
@@ -583,7 +583,7 @@ export type ApprovalRequest = {
     filesChanged?: number;
     summary?: string;
   } | null;
-  status: "pending" | "approved" | "rejected" | "expired";
+  status: 'pending' | 'approved' | 'rejected' | 'expired';
   expiresAt?: string | null;
   approvedAt?: string | null;
   rejectedAt?: string | null;
@@ -603,12 +603,12 @@ export type NotificationMetadata = {
 export type Notification = {
   id: number;
   type:
-    | "approval_request"
-    | "task_completed"
-    | "agent_error"
-    | "daily_summary"
-    | "pr_review_requested"
-    | "agent_execution_started";
+    | 'approval_request'
+    | 'task_completed'
+    | 'agent_error'
+    | 'daily_summary'
+    | 'pr_review_requested'
+    | 'agent_execution_started';
   title: string;
   message: string;
   link?: string | null;
@@ -618,14 +618,14 @@ export type Notification = {
   createdAt: string;
 };
 
-export type ApiProvider = "claude" | "chatgpt" | "gemini";
+export type ApiProvider = 'claude' | 'chatgpt' | 'gemini';
 
 export type ApiKeyStatus = {
   configured: boolean;
   maskedKey: string | null;
 };
 
-export type ActiveMode = "development" | "learning" | "both";
+export type ActiveMode = 'development' | 'learning' | 'both';
 
 export type UserSettings = {
   id: number;
@@ -681,18 +681,18 @@ export type AgentCapability = {
 };
 
 export type AgentType =
-  | "claude-code"
-  | "codex"
-  | "gemini"
-  | "custom"
-  | "openai"
-  | "azure-openai";
+  | 'claude-code'
+  | 'codex'
+  | 'gemini'
+  | 'custom'
+  | 'openai'
+  | 'azure-openai';
 
 // エージェント設定フィールドのスキーマ
 export type ConfigFieldSchema = {
   name: string;
   label: string;
-  type: "text" | "password" | "url" | "select" | "number" | "boolean";
+  type: 'text' | 'password' | 'url' | 'select' | 'number' | 'boolean';
   description?: string;
   required?: boolean;
   placeholder?: string;
@@ -744,14 +744,14 @@ export type AgentExecution = {
 };
 
 export type AgentExecutionStatus =
-  | "pending"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
 
 export type AgentArtifact = {
-  type: "file" | "code" | "diff" | "log";
+  type: 'file' | 'code' | 'diff' | 'log';
   name: string;
   content: string;
   path?: string;
@@ -796,7 +796,7 @@ export type GitHubPullRequest = {
   prNumber: number;
   title: string;
   body?: string | null;
-  state: "open" | "closed" | "merged";
+  state: 'open' | 'closed' | 'merged';
   headBranch: string;
   baseBranch: string;
   authorLogin: string;
@@ -817,7 +817,7 @@ export type GitHubPRReview = {
   id: number;
   pullRequestId: number;
   reviewId: number;
-  state: "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "PENDING";
+  state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'PENDING';
   body?: string | null;
   authorLogin: string;
   submittedAt: string;
@@ -844,7 +844,7 @@ export type GitHubIssue = {
   issueNumber: number;
   title: string;
   body?: string | null;
-  state: "open" | "closed";
+  state: 'open' | 'closed';
   labels: string[];
   authorLogin: string;
   url: string;
@@ -905,16 +905,16 @@ export type GitHubEventData = {
 // ==================== 拡張された通知タイプ ====================
 
 export type NotificationType =
-  | "approval_request"
-  | "task_completed"
-  | "agent_error"
-  | "daily_summary"
-  | "pr_review_requested"
-  | "pr_approved"
-  | "pr_changes_requested"
-  | "agent_execution_started"
-  | "agent_execution_complete"
-  | "github_sync_complete";
+  | 'approval_request'
+  | 'task_completed'
+  | 'agent_error'
+  | 'daily_summary'
+  | 'pr_review_requested'
+  | 'pr_approved'
+  | 'pr_changes_requested'
+  | 'agent_execution_started'
+  | 'agent_execution_complete'
+  | 'github_sync_complete';
 
 // ==================== 拡張されたTask型 ====================
 
@@ -922,7 +922,7 @@ export type TaskWithGitHub = Task & {
   githubIssueId?: number | null;
   githubPrId?: number | null;
   autoExecutable?: boolean;
-  requireApproval?: "always" | "major_only" | "never";
+  requireApproval?: 'always' | 'major_only' | 'never';
   githubIssue?: GitHubIssue;
   githubPr?: GitHubPullRequest;
 };
@@ -930,7 +930,7 @@ export type TaskWithGitHub = Task & {
 // ==================== 拡張された承認リクエスト型 ====================
 
 export type ApprovalRequestExtended = ApprovalRequest & {
-  executionType?: "code_execution" | "pr_merge" | "deployment" | null;
+  executionType?: 'code_execution' | 'pr_merge' | 'deployment' | null;
   estimatedChanges?: {
     files?: string[];
     additions?: number;
@@ -941,7 +941,7 @@ export type ApprovalRequestExtended = ApprovalRequest & {
 // ==================== 拡張されたDeveloperModeConfig型 ====================
 
 export type DeveloperModeConfigExtended = DeveloperModeConfig & {
-  requireApproval?: "always" | "major_only" | "never";
+  requireApproval?: 'always' | 'major_only' | 'never';
   autoExecuteOn?: string[];
 };
 
@@ -952,14 +952,14 @@ export type ReviewComment = {
   file?: string;
   line?: number;
   content: string;
-  type: "comment" | "change_request" | "question";
+  type: 'comment' | 'change_request' | 'question';
 };
 
 // ==================== Floating AI Menu ====================
 
 export type AIChatMessage = {
   id: string;
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
 };
@@ -972,11 +972,11 @@ export type AIChatState = {
 };
 
 export type AIChatAction =
-  | { type: "ADD_MESSAGE"; payload: AIChatMessage }
-  | { type: "SET_LOADING"; payload: boolean }
-  | { type: "SET_ERROR"; payload: string | null }
-  | { type: "SET_EXPANDED"; payload: boolean }
-  | { type: "CLEAR_MESSAGES" };
+  | { type: 'ADD_MESSAGE'; payload: AIChatMessage }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_EXPANDED'; payload: boolean }
+  | { type: 'CLEAR_MESSAGES' };
 
 export type AIServiceConfig = {
   apiKey: string;
@@ -992,9 +992,9 @@ export type AIServiceResponse = {
 
 // ==================== タスク分析設定 ====================
 
-export type AnalysisDepth = "quick" | "standard" | "deep";
-export type PriorityStrategy = "aggressive" | "balanced" | "conservative";
-export type PromptStrategy = "auto" | "detailed" | "concise" | "custom";
+export type AnalysisDepth = 'quick' | 'standard' | 'deep';
+export type PriorityStrategy = 'aggressive' | 'balanced' | 'conservative';
+export type PromptStrategy = 'auto' | 'detailed' | 'concise' | 'custom';
 
 export type TaskAnalysisConfig = {
   id: number;
@@ -1012,7 +1012,7 @@ export type TaskAnalysisConfig = {
   agentConfigId?: number | null;
   agentConfig?: Pick<
     AIAgentConfig,
-    "id" | "agentType" | "name" | "modelId" | "isActive"
+    'id' | 'agentType' | 'name' | 'modelId' | 'isActive'
   > | null;
   modelOverride?: string | null;
   maxTokens?: number | null;
@@ -1035,15 +1035,15 @@ export type TaskAnalysisConfig = {
 export type TaskAnalysisConfigInput = Partial<
   Omit<
     TaskAnalysisConfig,
-    "id" | "taskId" | "agentConfig" | "createdAt" | "updatedAt"
+    'id' | 'taskId' | 'agentConfig' | 'createdAt' | 'updatedAt'
   >
 >;
 
 // ==================== エージェント実行設定 ====================
 
-export type BranchStrategy = "auto" | "manual" | "none";
-export type ApprovalMode = "always" | "major_only" | "never";
-export type ReviewScope = "changes" | "full" | "none";
+export type BranchStrategy = 'auto' | 'manual' | 'none';
+export type ApprovalMode = 'always' | 'major_only' | 'never';
+export type ReviewScope = 'changes' | 'full' | 'none';
 
 export type AgentExecutionConfig = {
   id: number;
@@ -1053,7 +1053,7 @@ export type AgentExecutionConfig = {
   agentConfigId?: number | null;
   agentConfig?: Pick<
     AIAgentConfig,
-    "id" | "agentType" | "name" | "modelId" | "isActive"
+    'id' | 'agentType' | 'name' | 'modelId' | 'isActive'
   > | null;
 
   // 実行環境設定
@@ -1094,13 +1094,13 @@ export type AgentExecutionConfig = {
 export type AgentExecutionConfigInput = Partial<
   Omit<
     AgentExecutionConfig,
-    "id" | "taskId" | "agentConfig" | "createdAt" | "updatedAt"
+    'id' | 'taskId' | 'agentConfig' | 'createdAt' | 'updatedAt'
   >
 >;
 
 // ==================== スケジュールイベント ====================
 
-export type ScheduleEventType = "GENERAL" | "PAID_LEAVE";
+export type ScheduleEventType = 'GENERAL' | 'PAID_LEAVE';
 
 export type ScheduleEvent = {
   id: number;

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, {
   useState,
@@ -6,7 +6,7 @@ import React, {
   useRef,
   useCallback,
   useMemo,
-} from "react";
+} from 'react';
 import {
   Play,
   Loader2,
@@ -28,22 +28,22 @@ import {
   Settings,
   Clock,
   MessageSquarePlus,
-} from "lucide-react";
-import Link from "next/link";
+} from 'lucide-react';
+import Link from 'next/link';
 import type {
   ExecutionStatus,
   ExecutionResult,
-} from "../hooks/useDeveloperMode";
+} from '../hooks/useDeveloperMode';
 import {
   useExecutionPolling,
   useExecutionStream,
-} from "../hooks/useExecutionStream";
+} from '../hooks/useExecutionStream';
 import {
   ExecutionLogViewer,
   type ExecutionLogStatus,
-} from "./ExecutionLogViewer";
-import { AgentSwitcher } from "@/components/ui/AgentSwitcher";
-import { API_BASE_URL } from "@/utils/api";
+} from './ExecutionLogViewer';
+import { AgentSwitcher } from '@/components/ui/AgentSwitcher';
+import { API_BASE_URL } from '@/utils/api';
 
 type Props = {
   taskId: number;
@@ -102,11 +102,11 @@ export function AgentExecutionPanel({
   const [selectedAgentId, setSelectedAgentId] = useState<number | null>(
     agentConfigId ?? null,
   );
-  const [instruction, setInstruction] = useState("");
-  const [branchName, setBranchName] = useState("");
-  const [userResponse, setUserResponse] = useState("");
+  const [instruction, setInstruction] = useState('');
+  const [branchName, setBranchName] = useState('');
+  const [userResponse, setUserResponse] = useState('');
   const [isSendingResponse, setIsSendingResponse] = useState(false);
-  const [followUpInstruction, setFollowUpInstruction] = useState("");
+  const [followUpInstruction, setFollowUpInstruction] = useState('');
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
   const hasRestoredRef = useRef(false);
@@ -152,7 +152,7 @@ export function AgentExecutionPanel({
   }, [clearSseLogs, clearPollingLogs]);
 
   // 質問の検出方法タイプ。pattern_matchは廃止、AIエージェントからの明確なステータスのみを信頼
-  type QuestionType = "tool_call" | "none";
+  type QuestionType = 'tool_call' | 'none';
 
   // 質問検出: APIからの状態のみを使用、パターンマッチングは廃止
   // AIエージェントがAskUserQuestionツールを呼び出した場合のみ質問として認識
@@ -170,16 +170,16 @@ export function AgentExecutionPanel({
         question: pollingQuestion,
         // tool_callの場合のみ質問として認識、それ以外はnone
         questionType:
-          pollingQuestionType === "tool_call" ? "tool_call" : "none",
+          pollingQuestionType === 'tool_call' ? 'tool_call' : 'none',
       };
     }
 
     // APIから質問状態が返されていない場合は質問なし
     // パターンマッチングによるフォールバックは削除
-    return { hasQuestion: false, question: "", questionType: "none" };
+    return { hasQuestion: false, question: '', questionType: 'none' };
   };
 
-  const currentLogText = useMemo(() => logs.join(""), [logs]);
+  const currentLogText = useMemo(() => logs.join(''), [logs]);
 
   // 質問検出の結果をメモ化。APIからのステータスのみを使用
   const { hasQuestion, question, questionType } = useMemo(() => {
@@ -187,24 +187,24 @@ export function AgentExecutionPanel({
   }, [pollingWaitingForInput, pollingQuestion, pollingQuestionType]);
 
   // questionTypeがtool_callの場合はより確実に質問があることを示す
-  const isConfirmedQuestion = questionType === "tool_call";
+  const isConfirmedQuestion = questionType === 'tool_call';
 
   // waiting_for_input状態の判定
   // APIからのステータスのみを信頼、パターンマッチングは廃止
   // pollingStatus === "waiting_for_input" はDBのstatusを反映
   // pollingWaitingForInput はAPI応答のwaitingForInputフラグを反映
   const isTerminalStatus =
-    pollingStatus === "completed" ||
-    pollingStatus === "failed" ||
-    pollingStatus === "cancelled" ||
-    sseStatus === "completed" ||
-    sseStatus === "failed" ||
-    sseStatus === "cancelled";
+    pollingStatus === 'completed' ||
+    pollingStatus === 'failed' ||
+    pollingStatus === 'cancelled' ||
+    sseStatus === 'completed' ||
+    sseStatus === 'failed' ||
+    sseStatus === 'cancelled';
   // AIエージェントからの明確なステータス（DBのstatus、APIのwaitingForInput）のみを使用
   // hasQuestion（旧パターンマッチング結果）は判定に使用しない
   const isWaitingForInput =
     !isTerminalStatus &&
-    (pollingStatus === "waiting_for_input" || pollingWaitingForInput);
+    (pollingStatus === 'waiting_for_input' || pollingWaitingForInput);
 
   // 質問タイムアウトのカウントダウン処理
   useEffect(() => {
@@ -234,7 +234,7 @@ export function AgentExecutionPanel({
   const formatCountdown = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   // マウント時に実行状態を復元
@@ -257,7 +257,7 @@ export function AgentExecutionPanel({
         if (restoredState) {
           setSessionId(restoredState.sessionId);
           // 中断された実行の場合はポーリング不要（実行は既に停止済み）
-          if (restoredState.status === "interrupted") {
+          if (restoredState.status === 'interrupted') {
             // ログだけ表示する
           } else {
             // 復元時は既存の出力を初期値として渡す
@@ -309,9 +309,9 @@ export function AgentExecutionPanel({
   // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新
   useEffect(() => {
     if (
-      pollingStatus === "completed" ||
-      pollingStatus === "failed" ||
-      pollingStatus === "cancelled"
+      pollingStatus === 'completed' ||
+      pollingStatus === 'failed' ||
+      pollingStatus === 'cancelled'
     ) {
       // 親コンポーネントの状態を更新して実行完了を通知
       if (onExecutionComplete) {
@@ -339,15 +339,15 @@ export function AgentExecutionPanel({
     const trimmedInstruction = followUpInstruction.trim();
     if (!trimmedInstruction) return;
 
-    setFollowUpInstruction("");
+    setFollowUpInstruction('');
 
     try {
       // 新しい継続実行エンドポイントを呼び出す
       const response = await fetch(
         `${API_BASE_URL}/tasks/${taskId}/continue-execution`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             instruction: trimmedInstruction,
             sessionId: sessionId || executionResult?.sessionId,
@@ -383,11 +383,11 @@ export function AgentExecutionPanel({
         // ログや状態が上書きされるため呼ばない
       } else {
         const errorData = await response.json();
-        console.error("Failed to continue execution:", errorData);
+        console.error('Failed to continue execution:', errorData);
         // エラーメッセージを表示するなどの処理
       }
     } catch (error) {
-      console.error("Error continuing execution:", error);
+      console.error('Error continuing execution:', error);
       // エラーハンドリング
     }
   };
@@ -405,12 +405,12 @@ export function AgentExecutionPanel({
     setIsSendingResponse(true);
 
     const savedResponse = trimmedResponse;
-    setUserResponse("");
+    setUserResponse('');
 
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/agent-respond`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ response: savedResponse }),
       });
 
@@ -419,11 +419,11 @@ export function AgentExecutionPanel({
         clearPollingQuestion();
       } else {
         // エラー時は質問を復元（ユーザーが再試行できるように）
-        console.error("Failed to send response:", res.status);
+        console.error('Failed to send response:', res.status);
         setUserResponse(savedResponse);
       }
     } catch (error) {
-      console.error("Error sending response:", error);
+      console.error('Error sending response:', error);
       // エラー時は回答を復元
       setUserResponse(savedResponse);
     } finally {
@@ -450,7 +450,7 @@ export function AgentExecutionPanel({
       const res = await fetch(
         `${API_BASE_URL}/tasks/${taskId}/stop-execution`,
         {
-          method: "POST",
+          method: 'POST',
         },
       );
 
@@ -460,16 +460,16 @@ export function AgentExecutionPanel({
           const fallbackRes = await fetch(
             `${API_BASE_URL}/agents/sessions/${sessionId}/stop`,
             {
-              method: "POST",
+              method: 'POST',
             },
           );
           if (!fallbackRes.ok) {
-            console.error("Failed to stop execution");
+            console.error('Failed to stop execution');
           }
         }
       }
     } catch (error) {
-      console.error("Error stopping execution:", error);
+      console.error('Error stopping execution:', error);
     }
   }, [taskId, sessionId, setPollingCancelled, clearLogs, onStopExecution]);
 
@@ -484,44 +484,44 @@ export function AgentExecutionPanel({
   // 実行中または完了時（ログあり）
   const showLogPanel =
     (isExecuting || isPollingRunning || isSseRunning || logs.length > 0) &&
-    (executionStatus === "completed" ||
+    (executionStatus === 'completed' ||
       isExecuting ||
-      pollingStatus === "running" ||
-      sseStatus === "running" ||
+      pollingStatus === 'running' ||
+      sseStatus === 'running' ||
       isWaitingForInput);
 
   // 実行完了時のステータス判定。SSEの状態も考慮する
   const finalStatus =
-    sseStatus !== "idle"
+    sseStatus !== 'idle'
       ? sseStatus
-      : pollingStatus !== "idle"
+      : pollingStatus !== 'idle'
         ? pollingStatus
         : executionStatus;
   // waiting_for_inputの場合は完了とは見なさない
   const isCompleted =
-    finalStatus === "completed" &&
+    finalStatus === 'completed' &&
     !isPollingRunning &&
     !isSseRunning &&
     !isWaitingForInput;
-  const isCancelled = finalStatus === "cancelled";
+  const isCancelled = finalStatus === 'cancelled';
   const isFailed =
-    finalStatus === "failed" || error || pollingError || sseError;
+    finalStatus === 'failed' || error || pollingError || sseError;
   // waiting_for_inputの場合も実行中として扱う（応答の入力を待っている）
   const isRunning =
     isExecuting ||
     isPollingRunning ||
     isSseRunning ||
-    pollingStatus === "running" ||
-    sseStatus === "running" ||
+    pollingStatus === 'running' ||
+    sseStatus === 'running' ||
     isWaitingForInput;
 
   // ExecutionLogViewer用のステータスを計算
   const logViewerStatus: ExecutionLogStatus = useMemo(() => {
-    if (isRunning) return "running";
-    if (isCancelled) return "cancelled";
-    if (isCompleted) return "completed";
-    if (isFailed) return "failed";
-    return "idle";
+    if (isRunning) return 'running';
+    if (isCancelled) return 'cancelled';
+    if (isCompleted) return 'completed';
+    if (isFailed) return 'failed';
+    return 'idle';
   }, [isRunning, isCancelled, isCompleted, isFailed]);
 
   // 実行中の表示
@@ -533,8 +533,8 @@ export function AgentExecutionPanel({
         <div
           className={`rounded-xl border overflow-hidden ${
             showWaitingUI
-              ? "bg-linear-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border-amber-200 dark:border-amber-800"
-              : "bg-linear-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800"
+              ? 'bg-linear-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border-amber-200 dark:border-amber-800'
+              : 'bg-linear-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800'
           }`}
         >
           <div className="p-6">
@@ -543,8 +543,8 @@ export function AgentExecutionPanel({
                 <div
                   className={`w-16 h-16 rounded-2xl flex items-center justify-center ${
                     showWaitingUI
-                      ? "bg-amber-100 dark:bg-amber-900/40"
-                      : "bg-blue-100 dark:bg-blue-900/40"
+                      ? 'bg-amber-100 dark:bg-amber-900/40'
+                      : 'bg-blue-100 dark:bg-blue-900/40'
                   }`}
                 >
                   {showWaitingUI ? (
@@ -563,8 +563,8 @@ export function AgentExecutionPanel({
                 <div className="flex items-center gap-2">
                   <h3 className="font-bold text-lg text-zinc-900 dark:text-zinc-50">
                     {showWaitingUI
-                      ? "Claude Codeからの質問"
-                      : "AI エージェント実行中"}
+                      ? 'Claude Codeからの質問'
+                      : 'AI エージェント実行中'}
                   </h3>
                   {/* 質問検出の信頼性バッジ */}
                   {showWaitingUI && isConfirmedQuestion && (
@@ -580,8 +580,8 @@ export function AgentExecutionPanel({
                 </div>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
                   {showWaitingUI
-                    ? "以下の質問に回答してください。回答後、実行が継続されます。"
-                    : "Claude Codeがタスクの実行を進めています..."}
+                    ? '以下の質問に回答してください。回答後、実行が継続されます。'
+                    : 'Claude Codeがタスクの実行を進めています...'}
                 </p>
               </div>
             </div>
@@ -602,8 +602,8 @@ export function AgentExecutionPanel({
             <div
               className={`mx-6 mb-4 p-4 rounded-lg ${
                 showWaitingUI
-                  ? "bg-white/60 dark:bg-indigo-dark-900/40 border border-amber-200 dark:border-amber-700"
-                  : "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
+                  ? 'bg-white/60 dark:bg-indigo-dark-900/40 border border-amber-200 dark:border-amber-700'
+                  : 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'
               }`}
             >
               {!showWaitingUI && (
@@ -627,8 +627,8 @@ export function AgentExecutionPanel({
               <div
                 className={`mb-3 p-3 rounded-lg ${
                   showWaitingUI
-                    ? "bg-amber-50 dark:bg-amber-900/30"
-                    : "bg-white/60 dark:bg-zinc-800/60"
+                    ? 'bg-amber-50 dark:bg-amber-900/30'
+                    : 'bg-white/60 dark:bg-zinc-800/60'
                 }`}
               >
                 <p className="text-sm text-amber-800 dark:text-amber-200 font-mono whitespace-pre-wrap">
@@ -643,7 +643,7 @@ export function AgentExecutionPanel({
                     回答がない場合、
                     <span className="font-mono font-medium">
                       {formatCountdown(timeoutCountdown)}
-                    </span>{" "}
+                    </span>{' '}
                     後に自動的に続行します。
                   </span>
                 </div>
@@ -664,7 +664,7 @@ export function AgentExecutionPanel({
                   type="text"
                   value={userResponse}
                   onChange={(e) => setUserResponse(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendResponse()}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendResponse()}
                   placeholder="回答を入力してEnterで送信..."
                   className="flex-1 px-3 py-2 bg-white dark:bg-zinc-800 border border-amber-300 dark:border-amber-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                   autoFocus={showWaitingUI}
@@ -758,7 +758,7 @@ export function AgentExecutionPanel({
                 value={followUpInstruction}
                 onChange={(e) => setFollowUpInstruction(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                     handleFollowUpExecute();
                   }
                 }}
@@ -862,7 +862,7 @@ export function AgentExecutionPanel({
                   {error ||
                     pollingError ||
                     executionResult?.error ||
-                    "不明なエラーが発生しました"}
+                    '不明なエラーが発生しました'}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -983,7 +983,7 @@ export function AgentExecutionPanel({
                 </div>
                 <ChevronDown
                   className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${
-                    showOptions ? "rotate-180" : ""
+                    showOptions ? 'rotate-180' : ''
                   }`}
                 />
               </button>

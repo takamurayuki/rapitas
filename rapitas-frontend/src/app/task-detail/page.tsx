@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import TaskDetailClient from "@/app/tasks/[id]/TaskDetailClient";
-import TaskDetailSkeleton from "@/components/ui/skeleton/TaskDetailSkeleton";
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import TaskDetailClient from '@/app/tasks/[id]/TaskDetailClient';
+import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
 
 /**
  * Tauri用の静的タスク詳細ページ
@@ -12,7 +12,7 @@ import TaskDetailSkeleton from "@/components/ui/skeleton/TaskDetailSkeleton";
  */
 function TaskDetailContent() {
   const searchParams = useSearchParams();
-  const taskIdParam = searchParams.get("id");
+  const taskIdParam = searchParams.get('id');
   const taskId = taskIdParam ? parseInt(taskIdParam, 10) : null;
 
   if (!taskId || isNaN(taskId)) {

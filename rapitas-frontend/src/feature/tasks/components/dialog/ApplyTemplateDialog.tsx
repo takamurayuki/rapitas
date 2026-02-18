@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from 'react';
 import {
   FileStack,
   X,
@@ -11,10 +11,10 @@ import {
   CheckCircle2,
   Tag,
   SwatchBook,
-} from "lucide-react";
-import type { TaskTemplate, Theme } from "@/types";
-import { getIconComponent } from "@/components/category/IconData";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import type { TaskTemplate, Theme } from '@/types';
+import { getIconComponent } from '@/components/category/IconData';
+import { API_BASE_URL } from '@/utils/api';
 
 type Props = {
   isOpen: boolean;
@@ -32,11 +32,11 @@ export default function ApplyTemplateDialog({
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<TaskTemplate | null>(
-    null
+    null,
   );
 
   // テンプレート取得
@@ -50,12 +50,14 @@ export default function ApplyTemplateDialog({
       try {
         const params = new URLSearchParams();
         if (selectedTheme) {
-          params.append("themeId", selectedTheme.id.toString());
+          params.append('themeId', selectedTheme.id.toString());
         }
 
-        const res = await fetch(`${API_BASE_URL}/templates?${params.toString()}`);
+        const res = await fetch(
+          `${API_BASE_URL}/templates?${params.toString()}`,
+        );
         if (!res.ok) {
-          throw new Error("テンプレートの取得に失敗しました");
+          throw new Error('テンプレートの取得に失敗しました');
         }
         const data = await res.json();
         setTemplates(data);
@@ -66,7 +68,7 @@ export default function ApplyTemplateDialog({
         ] as string[];
         setCategories(uniqueCategories);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "エラーが発生しました");
+        setError(err instanceof Error ? err.message : 'エラーが発生しました');
       } finally {
         setIsLoading(false);
       }
@@ -79,7 +81,7 @@ export default function ApplyTemplateDialog({
   useEffect(() => {
     if (!isOpen) {
       setSelectedCategory(null);
-      setSearchQuery("");
+      setSearchQuery('');
       setSelectedTemplate(null);
       setError(null);
     }
@@ -132,7 +134,7 @@ export default function ApplyTemplateDialog({
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 flex items-center gap-1.5">
                 {(() => {
                   const ThemeIcon =
-                    getIconComponent(selectedTheme.icon || "") || SwatchBook;
+                    getIconComponent(selectedTheme.icon || '') || SwatchBook;
                   return (
                     <>
                       <span
@@ -180,8 +182,8 @@ export default function ApplyTemplateDialog({
                 onClick={() => setSelectedCategory(null)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                   selectedCategory === null
-                    ? "bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700"
-                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+                    ? 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700'
+                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
                 }`}
               >
                 すべて
@@ -193,8 +195,8 @@ export default function ApplyTemplateDialog({
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                     selectedCategory === cat
-                      ? "bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700"
-                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+                      ? 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700'
+                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
                   }`}
                 >
                   {cat}
@@ -223,8 +225,8 @@ export default function ApplyTemplateDialog({
                 {templates.length === 0
                   ? selectedTheme
                     ? `${selectedTheme.name}のテンプレートはまだありません`
-                    : "テンプレートがありません"
-                  : "条件に一致するテンプレートがありません"}
+                    : 'テンプレートがありません'
+                  : '条件に一致するテンプレートがありません'}
               </p>
               <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
                 タスク詳細画面から「テンプレートとして保存」で作成できます
@@ -239,8 +241,8 @@ export default function ApplyTemplateDialog({
                   onClick={() => setSelectedTemplate(template)}
                   className={`w-full text-left p-4 rounded-xl border transition-all ${
                     selectedTemplate?.id === template.id
-                      ? "bg-violet-50 dark:bg-violet-900/30 border-violet-300 dark:border-violet-700 ring-2 ring-violet-500/20"
-                      : "bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      ? 'bg-violet-50 dark:bg-violet-900/30 border-violet-300 dark:border-violet-700 ring-2 ring-violet-500/20'
+                      : 'bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -318,7 +320,7 @@ export default function ApplyTemplateDialog({
               {selectedTemplate.templateData.subtasks &&
                 selectedTemplate.templateData.subtasks.length > 0 && (
                   <li>
-                    • サブタスク:{" "}
+                    • サブタスク:{' '}
                     {selectedTemplate.templateData.subtasks.length}件
                     <ul className="ml-4 mt-1 space-y-0.5 text-xs text-zinc-400 dark:text-zinc-500">
                       {selectedTemplate.templateData.subtasks
@@ -328,7 +330,7 @@ export default function ApplyTemplateDialog({
                         ))}
                       {selectedTemplate.templateData.subtasks.length > 3 && (
                         <li>
-                          ...他{" "}
+                          ...他{' '}
                           {selectedTemplate.templateData.subtasks.length - 3}件
                         </li>
                       )}
@@ -338,7 +340,7 @@ export default function ApplyTemplateDialog({
               {selectedTemplate.templateData.labels &&
                 selectedTemplate.templateData.labels.length > 0 && (
                   <li>
-                    • ラベル: {selectedTemplate.templateData.labels.join(", ")}
+                    • ラベル: {selectedTemplate.templateData.labels.join(', ')}
                   </li>
                 )}
             </ul>

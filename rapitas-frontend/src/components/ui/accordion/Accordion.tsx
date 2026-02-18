@@ -1,7 +1,13 @@
-"use client";
+'use client';
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  type ReactNode,
+} from 'react';
+import { ChevronDown } from 'lucide-react';
 
 type AccordionContextType = {
   expandedItems: string[];
@@ -15,7 +21,7 @@ const AccordionContext = createContext<AccordionContextType | null>(null);
 function useAccordionContext() {
   const context = useContext(AccordionContext);
   if (!context) {
-    throw new Error("Accordion components must be used within an Accordion");
+    throw new Error('Accordion components must be used within an Accordion');
   }
   return context;
 }
@@ -31,7 +37,7 @@ export function Accordion({
   children,
   defaultExpanded = [],
   allowMultiple = false,
-  className = "",
+  className = '',
 }: AccordionProps) {
   const [expandedItems, setExpandedItems] = useState<string[]>(defaultExpanded);
 
@@ -44,12 +50,12 @@ export function Accordion({
         return allowMultiple ? [...prev, id] : [id];
       });
     },
-    [allowMultiple]
+    [allowMultiple],
   );
 
   const isExpanded = useCallback(
     (id: string) => expandedItems.includes(id),
-    [expandedItems]
+    [expandedItems],
   );
 
   return (
@@ -67,9 +73,15 @@ type AccordionItemProps = {
   className?: string;
 };
 
-export function AccordionItem({ id, children, className = "" }: AccordionItemProps) {
+export function AccordionItem({
+  id,
+  children,
+  className = '',
+}: AccordionItemProps) {
   return (
-    <div className={`border-b border-zinc-100 dark:border-zinc-800 last:border-b-0 ${className}`}>
+    <div
+      className={`border-b border-zinc-100 dark:border-zinc-800 last:border-b-0 ${className}`}
+    >
       {children}
     </div>
   );
@@ -88,7 +100,7 @@ export function AccordionTrigger({
   children,
   icon,
   badge,
-  className = "",
+  className = '',
 }: AccordionTriggerProps) {
   const { toggleItem, isExpanded } = useAccordionContext();
   const expanded = isExpanded(id);
@@ -110,7 +122,7 @@ export function AccordionTrigger({
       </div>
       <ChevronDown
         className={`w-4 h-4 text-zinc-400 shrink-0 transition-transform duration-200 ${
-          expanded ? "rotate-180" : ""
+          expanded ? 'rotate-180' : ''
         }`}
       />
     </button>
@@ -123,7 +135,11 @@ type AccordionContentProps = {
   className?: string;
 };
 
-export function AccordionContent({ id, children, className = "" }: AccordionContentProps) {
+export function AccordionContent({
+  id,
+  children,
+  className = '',
+}: AccordionContentProps) {
   const { isExpanded } = useAccordionContext();
   const expanded = isExpanded(id);
 
@@ -156,18 +172,20 @@ export function CompactAccordionGroup({
   headerExtra,
   children,
   defaultExpanded = false,
-  className = "",
+  className = '',
 }: CompactAccordionGroupProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   return (
-    <div className={`border-b border-zinc-100 dark:border-zinc-800 ${className}`}>
+    <div
+      className={`border-b border-zinc-100 dark:border-zinc-800 ${className}`}
+    >
       <div
         role="button"
         tabIndex={0}
         onClick={() => setExpanded(!expanded)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
+          if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             setExpanded(!expanded);
           }
@@ -188,7 +206,7 @@ export function CompactAccordionGroup({
           )}
           <ChevronDown
             className={`w-4 h-4 text-zinc-400 shrink-0 transition-transform duration-200 ${
-              expanded ? "rotate-180" : ""
+              expanded ? 'rotate-180' : ''
             }`}
           />
         </div>
@@ -207,7 +225,10 @@ type InlineFieldGroupProps = {
   className?: string;
 };
 
-export function InlineFieldGroup({ children, className = "" }: InlineFieldGroupProps) {
+export function InlineFieldGroup({
+  children,
+  className = '',
+}: InlineFieldGroupProps) {
   return (
     <div className={`flex flex-wrap items-start gap-4 ${className}`}>
       {children}
@@ -227,11 +248,13 @@ export function FieldItem({
   label,
   icon,
   children,
-  className = "",
+  className = '',
   fullWidth = false,
 }: FieldItemProps) {
   return (
-    <div className={`${fullWidth ? "w-full" : "flex-1 min-w-[140px]"} ${className}`}>
+    <div
+      className={`${fullWidth ? 'w-full' : 'flex-1 min-w-[140px]'} ${className}`}
+    >
       <div className="flex items-center gap-1.5 mb-2">
         {icon && <span className="text-zinc-400 dark:text-white">{icon}</span>}
         <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">

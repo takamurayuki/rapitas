@@ -1,12 +1,12 @@
-"use client";
+'use client';
 import {
   createContext,
   useContext,
   useState,
   useCallback,
   ReactNode,
-} from "react";
-import Toast, { type ToastType } from "./toast";
+} from 'react';
+import Toast, { type ToastType } from './toast';
 
 interface ToastMessage {
   id: string;
@@ -23,7 +23,7 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined);
 export function useToast() {
   const context = useContext(ToastContext);
   if (!context) {
-    throw new Error("useToast must be used within ToastProvider");
+    throw new Error('useToast must be used within ToastProvider');
   }
   return context;
 }
@@ -31,7 +31,7 @@ export function useToast() {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const showToast = useCallback((message: string, type: ToastType = "info") => {
+  const showToast = useCallback((message: string, type: ToastType = 'info') => {
     const id = Math.random().toString(36).substr(2, 9);
     setToasts((prev) => [...prev, { id, message, type }]);
   }, []);

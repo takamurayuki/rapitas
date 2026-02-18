@@ -1,7 +1,7 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
-export type UIMode = "task" | "ai" | "note";
+export type UIMode = 'task' | 'ai' | 'note';
 
 interface UIModeState {
   /** 現在のUIモード */
@@ -16,12 +16,12 @@ interface UIModeState {
 export const useUIModeStore = create<UIModeState>()(
   persist(
     (set) => ({
-      currentMode: "task",
+      currentMode: 'task',
 
       setMode: (mode) => set({ currentMode: mode }),
     }),
     {
-      name: "ui-mode-storage",
-    }
-  )
+      name: 'ui-mode-storage',
+    },
+  ),
 );

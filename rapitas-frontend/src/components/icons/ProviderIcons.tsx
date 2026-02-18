@@ -5,7 +5,7 @@ interface IconProps {
 }
 
 // Simple geometric icon for Claude - hexagon with circuit pattern
-export const ClaudeIcon: React.FC<IconProps> = ({ className = "w-6 h-6" }) => (
+export const ClaudeIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
   <svg
     className={className}
     viewBox="0 0 24 24"
@@ -20,12 +20,17 @@ export const ClaudeIcon: React.FC<IconProps> = ({ className = "w-6 h-6" }) => (
       strokeLinejoin="round"
     />
     <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
-    <path d="M12 9V6M12 18V15M9 12H6M18 12H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <path
+      d="M12 9V6M12 18V15M9 12H6M18 12H15"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
   </svg>
 );
 
 // Simple geometric icon for ChatGPT - rounded square with chat bubble
-export const ChatGPTIcon: React.FC<IconProps> = ({ className = "w-6 h-6" }) => (
+export const ChatGPTIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
   <svg
     className={className}
     viewBox="0 0 24 24"
@@ -51,7 +56,7 @@ export const ChatGPTIcon: React.FC<IconProps> = ({ className = "w-6 h-6" }) => (
 );
 
 // Simple geometric icon for Gemini - two connected diamonds
-export const GeminiIcon: React.FC<IconProps> = ({ className = "w-6 h-6" }) => (
+export const GeminiIcon: React.FC<IconProps> = ({ className = 'w-6 h-6' }) => (
   <svg
     className={className}
     viewBox="0 0 24 24"
@@ -80,7 +85,9 @@ export const GeminiIcon: React.FC<IconProps> = ({ className = "w-6 h-6" }) => (
 );
 
 // Generic AI icon for fallback
-export const GenericAIIcon: React.FC<IconProps> = ({ className = "w-6 h-6" }) => (
+export const GenericAIIcon: React.FC<IconProps> = ({
+  className = 'w-6 h-6',
+}) => (
   <svg
     className={className}
     viewBox="0 0 24 24"

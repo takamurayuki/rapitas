@@ -1,7 +1,7 @@
-@import "tailwindcss";
-@import "../styles/note-animations.css";
-@import "../styles/note-modal-enhanced.css";
-@import "../styles/note-editor-enhanced.css";
+@import 'tailwindcss';
+@import '../styles/note-animations.css';
+@import '../styles/note-modal-enhanced.css';
+@import '../styles/note-editor-enhanced.css';
 @plugin "@tailwindcss/typography";
 
 /* ノートホバーサイドバー用のアニメーション */
@@ -101,8 +101,8 @@ html.dark textarea::placeholder {
 }
 
 /* ダークモード: date/datetime-local inputのカレンダーアイコンを白色化 */
-html.dark input[type="date"]::-webkit-calendar-picker-indicator,
-html.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+html.dark input[type='date']::-webkit-calendar-picker-indicator,
+html.dark input[type='datetime-local']::-webkit-calendar-picker-indicator {
   filter: invert(1);
 }
 
@@ -114,7 +114,9 @@ html.dark a {
 /* ダークモード: 背景のスムーズな切り替え */
 body,
 html {
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 /* カスタムスクロールバースタイル - あふれる場合のみ表示 */
@@ -122,7 +124,6 @@ html {
   scrollbar-width: none; /* Firefox: デフォルトで非表示 */
   -ms-overflow-style: none; /* IE/Edge: デフォルトで非表示 */
 }
-
 
 /* スクロール可能な場合のみスクロールバーを表示 */
 .scrollbar-thin:hover {
@@ -412,7 +413,7 @@ html {
   transition: opacity 0.3s ease;
 }
 
-iframe:not([src=""]) + .iframe-loading {
+iframe:not([src='']) + .iframe-loading {
   opacity: 0;
   pointer-events: none;
 }
@@ -509,7 +510,7 @@ iframe:not([src=""]) + .iframe-loading {
 }
 
 /* contentEditableの基本スタイル */
-[contenteditable="true"] {
+[contenteditable='true'] {
   -webkit-user-modify: read-write;
   word-wrap: break-word;
   line-break: after-white-space;
@@ -517,7 +518,7 @@ iframe:not([src=""]) + .iframe-loading {
 }
 
 /* ノートエディタのスタイル修正 */
-.note-editor[contenteditable="true"] {
+.note-editor[contenteditable='true'] {
   cursor: text;
   caret-color: currentColor;
   -webkit-user-select: text;
@@ -525,14 +526,14 @@ iframe:not([src=""]) + .iframe-loading {
 }
 
 /* contentEditable内での選択スタイル */
-.note-editor[contenteditable="true"]::selection,
-.note-editor[contenteditable="true"] *::selection {
+.note-editor[contenteditable='true']::selection,
+.note-editor[contenteditable='true'] *::selection {
   background-color: #b3d4fc;
   color: #000;
 }
 
-.dark .note-editor[contenteditable="true"]::selection,
-.dark .note-editor[contenteditable="true"] *::selection {
+.dark .note-editor[contenteditable='true']::selection,
+.dark .note-editor[contenteditable='true'] *::selection {
   background-color: #4f46e5;
   color: #fff;
 }
@@ -579,26 +580,26 @@ iframe:not([src=""]) + .iframe-loading {
 }
 
 /* ノートエディタのテーブル操作 */
-.note-table th[contenteditable="true"],
-.note-table td[contenteditable="true"] {
+.note-table th[contenteditable='true'],
+.note-table td[contenteditable='true'] {
   cursor: text;
 }
 
-.note-table th[contenteditable="true"]:hover,
-.note-table td[contenteditable="true"]:hover {
+.note-table th[contenteditable='true']:hover,
+.note-table td[contenteditable='true']:hover {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
-.note-table th[contenteditable="true"]:focus,
-.note-table td[contenteditable="true"]:focus {
+.note-table th[contenteditable='true']:focus,
+.note-table td[contenteditable='true']:focus {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
   background-color: rgba(79, 70, 229, 0.05);
 }
 
-.dark .note-table th[contenteditable="true"]:focus,
-.dark .note-table td[contenteditable="true"]:focus {
+.dark .note-table th[contenteditable='true']:focus,
+.dark .note-table td[contenteditable='true']:focus {
   background-color: rgba(129, 140, 248, 0.1);
 }
 

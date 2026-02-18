@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { createPortal } from "react-dom";
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 
 const PARTICLE_DURATION = 900;
 const RING_SIZE = 56;
@@ -90,8 +90,8 @@ export function FlyingParticle({
       ],
       {
         duration: PARTICLE_DURATION,
-        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-        fill: "forwards",
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        fill: 'forwards',
       },
     ).onfinish = onArrive;
   }, [startX, startY, targetX, targetY, onArrive]);
@@ -155,11 +155,11 @@ function RingBurst({ color, onDone }: RingBurstProps) {
         marginTop: -(RING_SIZE + 24) / 2,
         marginLeft: -(RING_SIZE + 24) / 2,
         border: `2px solid ${color}`,
-        borderRadius: "50%",
+        borderRadius: '50%',
         zIndex: 9999,
       }}
     />,
-    document.body
+    document.body,
   );
 }
 
@@ -172,8 +172,8 @@ function CompleteCelebration() {
           key={i}
           className="absolute w-1 h-1 rounded-full opacity-0"
           style={{
-            top: "50%",
-            left: "50%",
+            top: '50%',
+            left: '50%',
             background: `hsl(220, 95%, ${60 + i * 4}%)`,
             animation: `task-celebrate-burst 0.8s ease-out ${i * 0.04}s forwards`,
             transform: `rotate(${i * 45}deg) translateY(-${RING_SIZE / 2 + 8}px)`,
@@ -226,7 +226,12 @@ export function ProgressRing({
       ref={ringRef}
       data-progress-ring
       className="relative shrink-0"
-      style={{ width: RING_SIZE, height: RING_SIZE, zIndex: 10, overflow: 'visible' }}
+      style={{
+        width: RING_SIZE,
+        height: RING_SIZE,
+        zIndex: 10,
+        overflow: 'visible',
+      }}
     >
       <svg
         width={RING_SIZE}
@@ -237,8 +242,8 @@ export function ProgressRing({
           filter: colors.isComplete
             ? `drop-shadow(0 0 12px hsla(220, 95%, 55%, 0.6))`
             : colors.progress > 0.5
-              ? `drop-shadow(${colors.glow.replace(/,/g, "")})`
-              : "none",
+              ? `drop-shadow(${colors.glow.replace(/,/g, '')})`
+              : 'none',
         }}
       >
         {/* トラック */}
@@ -291,7 +296,7 @@ export function ProgressRing({
           <span
             className="text-sm font-bold"
             style={{
-              color: colors.progress > 0 ? colors.primary : "#94a3b8",
+              color: colors.progress > 0 ? colors.primary : '#94a3b8',
             }}
           >
             {completed}

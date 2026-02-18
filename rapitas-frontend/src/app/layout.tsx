@@ -1,31 +1,30 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import Header from "@/components/Header";
-import KeyboardShortcuts from "@/components/KeyboardShortcuts";
-import AchievementNotifications from "@/components/AchievementToast";
-import { ResumableExecutionsBanner } from "@/components/ResumableExecutionsBanner";
-import ScheduleReminderProvider from "@/components/ScheduleReminderProvider";
-import { Suspense } from "react";
-import { ToastProvider } from "@/components/ui/toast/ToastContainer";
-import { PomodoroProvider } from "@/feature/tasks/pomodoro/PomodoroProvider";
-import ExternalLinksProvider from "@/components/ExternalLinksProvider";
-import NoteProvider from "@/components/note/NoteProvider";
-
+import type { Metadata } from 'next';
+import { Geist, Geist_Mono } from 'next/font/google';
+import './globals.css';
+import Header from '@/components/Header';
+import KeyboardShortcuts from '@/components/KeyboardShortcuts';
+import AchievementNotifications from '@/components/AchievementToast';
+import { ResumableExecutionsBanner } from '@/components/ResumableExecutionsBanner';
+import ScheduleReminderProvider from '@/components/ScheduleReminderProvider';
+import { Suspense } from 'react';
+import { ToastProvider } from '@/components/ui/toast/ToastContainer';
+import { PomodoroProvider } from '@/feature/tasks/pomodoro/PomodoroProvider';
+import ExternalLinksProvider from '@/components/ExternalLinksProvider';
+import NoteProvider from '@/components/note/NoteProvider';
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
 });
 
 export const metadata: Metadata = {
-  title: "Rapi+",
-  description: "高パフォーマンスで直感的なUIのタスク管理アプリケーション",
+  title: 'Rapi+',
+  description: '高パフォーマンスで直感的なUIのタスク管理アプリケーション',
 };
 
 export default function RootLayout({
@@ -37,8 +36,15 @@ export default function RootLayout({
     <html lang="ja" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `

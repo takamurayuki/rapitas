@@ -6,4 +6,4 @@ export {
   CompactAccordionGroup,
   InlineFieldGroup,
   FieldItem,
-} from "./Accordion";
+} from './Accordion';

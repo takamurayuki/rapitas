@@ -1,8 +1,8 @@
-"use client";
-import { useEffect, useState } from "react";
-import type { Label } from "@/types";
-import { getIconComponent, ICON_DATA } from "@/components/category/IconData";
-import { API_BASE_URL } from "@/utils/api";
+'use client';
+import { useEffect, useState } from 'react';
+import type { Label } from '@/types';
+import { getIconComponent, ICON_DATA } from '@/components/category/IconData';
+import { API_BASE_URL } from '@/utils/api';
 
 type LabelSelectorProps = {
   selectedLabelIds: number[];
@@ -13,7 +13,7 @@ type LabelSelectorProps = {
 export default function LabelSelector({
   selectedLabelIds,
   onChange,
-  className = "",
+  className = '',
 }: LabelSelectorProps) {
   const [labels, setLabels] = useState<Label[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +27,7 @@ export default function LabelSelector({
           setLabels(data);
         }
       } catch (e) {
-        console.error("Failed to fetch labels:", e);
+        console.error('Failed to fetch labels:', e);
       } finally {
         setLoading(false);
       }
@@ -44,9 +44,9 @@ export default function LabelSelector({
   };
 
   const renderIcon = (iconName: string | null | undefined, size = 16) => {
-    const IconComponent = getIconComponent(iconName || "");
+    const IconComponent = getIconComponent(iconName || '');
     if (!IconComponent) {
-      const DefaultIcon = ICON_DATA["Tag"].component;
+      const DefaultIcon = ICON_DATA['Tag'].component;
       return <DefaultIcon size={size} />;
     }
     return <IconComponent size={size} />;
@@ -93,16 +93,16 @@ export default function LabelSelector({
               onClick={() => toggleLabel(label.id)}
               className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
                 isSelected
-                  ? "ring-1 ring-offset-1 ring-offset-white dark:ring-offset-zinc-900"
-                  : "opacity-60 hover:opacity-100"
+                  ? 'ring-1 ring-offset-1 ring-offset-white dark:ring-offset-zinc-900'
+                  : 'opacity-60 hover:opacity-100'
               }`}
               style={
                 {
                   backgroundColor: isSelected
                     ? label.color
                     : `${label.color}20`,
-                  color: isSelected ? "#fff" : label.color,
-                  ["--tw-ring-color" as keyof React.CSSProperties]: label.color,
+                  color: isSelected ? '#fff' : label.color,
+                  ['--tw-ring-color' as keyof React.CSSProperties]: label.color,
                 } as React.CSSProperties
               }
             >
@@ -124,12 +124,12 @@ type SelectedLabelsDisplayProps = {
 
 export function SelectedLabelsDisplay({
   labels,
-  className = "",
+  className = '',
 }: SelectedLabelsDisplayProps) {
   const renderIcon = (iconName: string | null | undefined, size = 14) => {
-    const IconComponent = getIconComponent(iconName || "");
+    const IconComponent = getIconComponent(iconName || '');
     if (!IconComponent) {
-      const DefaultIcon = ICON_DATA["Tag"].component;
+      const DefaultIcon = ICON_DATA['Tag'].component;
       return <DefaultIcon size={size} />;
     }
     return <IconComponent size={size} />;

@@ -1,24 +1,24 @@
-"use client";
+'use client';
 
-import { Task, Label, Resource, Comment } from "@/types";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
-import { createMarkdownComponents } from "@/feature/tasks/components/MarkdownComponents";
-import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
+import { Task, Label, Resource, Comment } from '@/types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
+import { createMarkdownComponents } from '@/feature/tasks/components/MarkdownComponents';
+import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
 import {
   statusConfig,
   renderStatusIcon,
-} from "@/feature/tasks/config/StatusConfig";
+} from '@/feature/tasks/config/StatusConfig';
 import {
   Accordion,
   AccordionItem,
   AccordionTrigger,
   AccordionContent,
-} from "@/components/ui/accordion/Accordion";
-import { SelectedLabelsDisplay } from "@/feature/tasks/components/LabelSelector";
-import FileUploader from "@/feature/tasks/components/FileUploader";
-import MemoSection from "@/feature/tasks/components/MemoSection";
+} from '@/components/ui/accordion/Accordion';
+import { SelectedLabelsDisplay } from '@/feature/tasks/components/LabelSelector';
+import FileUploader from '@/feature/tasks/components/FileUploader';
+import MemoSection from '@/feature/tasks/components/MemoSection';
 import {
   Clock,
   Calendar,
@@ -27,8 +27,8 @@ import {
   Info,
   Paperclip,
   StickyNote,
-} from "lucide-react";
-import PriorityIcon from "@/feature/tasks/components/PriorityIcon";
+} from 'lucide-react';
+import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 
 interface CompactTaskDetailCardProps {
   task: Task;
@@ -53,7 +53,7 @@ export default function CompactTaskDetailCard({
   resources = [],
   onResourcesChange,
   comments = [],
-  newComment = "",
+  newComment = '',
   isAddingComment = false,
   onNewCommentChange,
   onAddComment,
@@ -63,7 +63,8 @@ export default function CompactTaskDetailCard({
   onDeleteLink,
 }: CompactTaskDetailCardProps) {
   const fileResources = resources.filter(
-    (r) => r.filePath || r.type === "file" || r.type === "image" || r.type === "pdf"
+    (r) =>
+      r.filePath || r.type === 'file' || r.type === 'image' || r.type === 'pdf',
   );
   const hasMetaInfo =
     (task.taskLabels && task.taskLabels.length > 0) || task.estimatedHours;
@@ -83,7 +84,7 @@ export default function CompactTaskDetailCard({
 
           {/* Status Buttons - Compact inline with title */}
           <div className="flex items-center gap-1 shrink-0">
-            {(["todo", "in-progress", "done"] as const).map((status) => {
+            {(['todo', 'in-progress', 'done'] as const).map((status) => {
               const config = statusConfig[status];
               return (
                 <TaskStatusChange
@@ -104,7 +105,7 @@ export default function CompactTaskDetailCard({
 
       {/* Accordion sections */}
       <Accordion
-        defaultExpanded={["description"]}
+        defaultExpanded={['description']}
         allowMultiple={true}
         className="border-t border-zinc-100 dark:border-zinc-800"
       >
@@ -163,7 +164,7 @@ export default function CompactTaskDetailCard({
               badge={
                 <span className="text-xs text-zinc-400 dark:text-zinc-500">
                   {task.taskLabels?.length || 0} labels
-                  {task.estimatedHours ? ` / ${task.estimatedHours}h` : ""}
+                  {task.estimatedHours ? ` / ${task.estimatedHours}h` : ''}
                 </span>
               }
             >
@@ -196,7 +197,7 @@ export default function CompactTaskDetailCard({
             icon={<Info className="w-4 h-4" />}
             badge={
               <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                更新: {new Date(task.updatedAt).toLocaleDateString("ja-JP")}
+                更新: {new Date(task.updatedAt).toLocaleDateString('ja-JP')}
               </span>
             }
           >
@@ -208,13 +209,13 @@ export default function CompactTaskDetailCard({
               <div className="flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5" />
                 <span>
-                  作成: {new Date(task.createdAt).toLocaleString("ja-JP")}
+                  作成: {new Date(task.createdAt).toLocaleString('ja-JP')}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
                 <span>
-                  更新: {new Date(task.updatedAt).toLocaleString("ja-JP")}
+                  更新: {new Date(task.updatedAt).toLocaleString('ja-JP')}
                 </span>
               </div>
             </div>
@@ -257,9 +258,9 @@ export default function CompactTaskDetailCard({
             id="memos"
             icon={<StickyNote className="w-4 h-4" />}
             badge={
-              comments.filter(c => !c.parentId).length > 0 ? (
+              comments.filter((c) => !c.parentId).length > 0 ? (
                 <span className="px-1.5 py-0.5 text-xs font-medium bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 rounded-full">
-                  {comments.filter(c => !c.parentId).length}
+                  {comments.filter((c) => !c.parentId).length}
                 </span>
               ) : undefined
             }

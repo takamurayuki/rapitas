@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Play,
   X,
@@ -12,13 +12,13 @@ import {
   Zap,
   RotateCcw,
   Bot,
-} from "lucide-react";
-import { API_BASE_URL, fetchWithRetry } from "@/utils/api";
-import { useBackendHealth } from "@/hooks/use-backend-health";
-import { useExecutionStateStore } from "@/stores/executionStateStore";
+} from 'lucide-react';
+import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
+import { useBackendHealth } from '@/hooks/use-backend-health';
+import { useExecutionStateStore } from '@/stores/executionStateStore';
 
 // セッション中に自動再開が実行済みかどうかを追跡するグローバルフラグ
-const AUTO_RESUME_SESSION_KEY = "rapitas_auto_resume_triggered";
+const AUTO_RESUME_SESSION_KEY = 'rapitas_auto_resume_triggered';
 
 type ResumableExecution = {
   id: number;
@@ -57,15 +57,22 @@ export function ResumableExecutionsBanner() {
   // バックエンドから自動再開設定を取得
   const fetchAutoResumeSetting = useCallback(async () => {
     try {
-      const res = await fetchWithRetry(`${API_BASE_URL}/settings`, undefined, 2, 500);
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/settings`,
+        undefined,
+        2,
+        500,
+      );
       if (res.ok) {
         const data = await res.json();
         setAutoResume(data.autoResumeInterruptedTasks ?? false);
       } else {
-        console.warn(`Failed to fetch auto-resume setting: ${res.status} ${res.statusText}`);
+        console.warn(
+          `Failed to fetch auto-resume setting: ${res.status} ${res.statusText}`,
+        );
       }
     } catch (error) {
-      console.error("Failed to fetch auto-resume setting:", error);
+      console.error('Failed to fetch auto-resume setting:', error);
       // バックエンドが利用できない場合はデフォルト値を使用
       setAutoResume(false);
     }
@@ -75,7 +82,12 @@ export function ResumableExecutionsBanner() {
   const fetchResumableExecutions = useCallback(async () => {
     try {
       setConnectionError(null);
-      const res = await fetchWithRetry(`${API_BASE_URL}/agents/resumable-executions`, undefined, 2, 500);
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/agents/resumable-executions`,
+        undefined,
+        2,
+        500,
+      );
       if (res.ok) {
         const data: ResumableExecution[] = await res.json();
         setExecutions((prev) => {
@@ -89,14 +101,18 @@ export function ResumableExecutionsBanner() {
         });
         return data;
       } else {
-        console.warn(`Failed to fetch resumable executions: ${res.status} ${res.statusText}`);
+        console.warn(
+          `Failed to fetch resumable executions: ${res.status} ${res.statusText}`,
+        );
         // エラーレスポンスの場合は空配列を設定
         setExecutions([]);
       }
     } catch (error) {
-      console.error("Failed to fetch resumable executions:", error);
+      console.error('Failed to fetch resumable executions:', error);
       // ネットワークエラーの場合は接続エラーとして記録
-      setConnectionError(error instanceof Error ? error : new Error(String(error)));
+      setConnectionError(
+        error instanceof Error ? error : new Error(String(error)),
+      );
       setExecutions([]);
     } finally {
       setIsLoading(false);
@@ -107,19 +123,25 @@ export function ResumableExecutionsBanner() {
   // バックエンド復帰時に再フェッチする
   const { isConnected } = useBackendHealth({
     onReconnect: () => {
-      console.log("[ResumableExecutionsBanner] Backend reconnected, re-fetching executions");
+      console.log(
+        '[ResumableExecutionsBanner] Backend reconnected, re-fetching executions',
+      );
       setIsLoading(true);
       setConnectionError(null);
       fetchResumableExecutions();
     },
     onDisconnect: () => {
-      console.log("[ResumableExecutionsBanner] Backend disconnected");
-      setConnectionError(new Error("バックエンドサーバーとの接続が切断されました"));
+      console.log('[ResumableExecutionsBanner] Backend disconnected');
+      setConnectionError(
+        new Error('バックエンドサーバーとの接続が切断されました'),
+      );
     },
   });
 
   useEffect(() => {
-    console.log("[ResumableExecutionsBanner] Component mounted, fetching initial data");
+    console.log(
+      '[ResumableExecutionsBanner] Component mounted, fetching initial data',
+    );
     fetchAutoResumeSetting();
     fetchResumableExecutions();
   }, [fetchAutoResumeSetting, fetchResumableExecutions]);
@@ -138,7 +160,7 @@ export function ResumableExecutionsBanner() {
     if (isDismissed || !isConnected) return;
 
     const hasRunningExecutions = executions.some(
-      (e) => e.status === "running" || e.status === "waiting_for_input",
+      (e) => e.status === 'running' || e.status === 'waiting_for_input',
     );
     // 実行中タスクがある場合は10秒間隔、ない場合は15秒間隔
     const pollInterval = hasRunningExecutions ? 10000 : 15000;
@@ -176,14 +198,16 @@ export function ResumableExecutionsBanner() {
 
     // sessionStorageでセッション中に既に実行済みかチェック
     const alreadyTriggered = sessionStorage.getItem(AUTO_RESUME_SESSION_KEY);
-    if (alreadyTriggered === "true") {
-      console.log("[AutoResume] Already triggered in this session, skipping");
+    if (alreadyTriggered === 'true') {
+      console.log('[AutoResume] Already triggered in this session, skipping');
       return;
     }
 
     // 自動再開を実行
-    console.log(`[AutoResume] Starting auto-resume for ${resumableExecutions.length} executions`);
-    sessionStorage.setItem(AUTO_RESUME_SESSION_KEY, "true");
+    console.log(
+      `[AutoResume] Starting auto-resume for ${resumableExecutions.length} executions`,
+    );
+    sessionStorage.setItem(AUTO_RESUME_SESSION_KEY, 'true');
 
     const resumeAll = async () => {
       for (const exec of resumableExecutions) {
@@ -201,8 +225,8 @@ export function ResumableExecutionsBanner() {
       const res = await fetchWithRetry(
         `${API_BASE_URL}/agents/executions/${executionId}/resume`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
         },
       );
 
@@ -217,14 +241,18 @@ export function ResumableExecutionsBanner() {
           window.location.href = `/tasks/${data.taskId}?showHeader=true`;
         }
       } else {
-        console.error(`Failed to resume execution: ${res.status} ${res.statusText}`);
+        console.error(
+          `Failed to resume execution: ${res.status} ${res.statusText}`,
+        );
         if (!isAutoResume) {
           // Show user-friendly error for manual resume attempts
-          alert(`実行の再開に失敗しました。${res.status} エラーが発生しました。`);
+          alert(
+            `実行の再開に失敗しました。${res.status} エラーが発生しました。`,
+          );
         }
       }
     } catch (error) {
-      console.error("Error resuming execution:", error);
+      console.error('Error resuming execution:', error);
     } finally {
       setResumingIds((prev) => {
         const newSet = new Set(prev);
@@ -239,7 +267,10 @@ export function ResumableExecutionsBanner() {
     const exec = executions.find((e) => e.id === executionId);
 
     // 実行中の場合はローカルでのみ非表示にする（APIは呼ばない）
-    if (exec && (exec.status === "running" || exec.status === "waiting_for_input")) {
+    if (
+      exec &&
+      (exec.status === 'running' || exec.status === 'waiting_for_input')
+    ) {
       setExecutions((prev) => prev.filter((e) => e.id !== executionId));
       return;
     }
@@ -250,7 +281,7 @@ export function ResumableExecutionsBanner() {
       const res = await fetchWithRetry(
         `${API_BASE_URL}/agents/executions/${executionId}/acknowledge`,
         {
-          method: "POST",
+          method: 'POST',
         },
       );
 
@@ -258,10 +289,12 @@ export function ResumableExecutionsBanner() {
         // Remove from list
         setExecutions((prev) => prev.filter((e) => e.id !== executionId));
       } else {
-        console.error(`Failed to dismiss execution: ${res.status} ${res.statusText}`);
+        console.error(
+          `Failed to dismiss execution: ${res.status} ${res.statusText}`,
+        );
       }
     } catch (error) {
-      console.error("Error dismissing execution:", error);
+      console.error('Error dismissing execution:', error);
     } finally {
       setDismissingIds((prev) => {
         const newSet = new Set(prev);
@@ -300,19 +333,23 @@ export function ResumableExecutionsBanner() {
     if (diffDays > 0) return `${diffDays}日前`;
     if (diffHours > 0) return `${diffHours}時間前`;
     if (diffMins > 0) return `${diffMins}分前`;
-    return "たった今";
+    return 'たった今';
   };
 
   // 実行中と中断の件数を集計
   const runningCount = executions.filter(
-    (e) => e.status === "running" || e.status === "waiting_for_input",
+    (e) => e.status === 'running' || e.status === 'waiting_for_input',
   ).length;
   const interruptedCount = executions.filter(
-    (e) => e.status === "interrupted",
+    (e) => e.status === 'interrupted',
   ).length;
 
   // Don't show if loading, dismissed, or (no executions and no error)
-  if (isLoading || isDismissed || (executions.length === 0 && !connectionError)) {
+  if (
+    isLoading ||
+    isDismissed ||
+    (executions.length === 0 && !connectionError)
+  ) {
     return null;
   }
 
@@ -355,27 +392,31 @@ export function ResumableExecutionsBanner() {
 
   return (
     <div className="fixed bottom-20 right-6 z-50 max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
-      <div className={`border rounded-2xl shadow-xl overflow-hidden backdrop-blur-sm ${
-        hasRunning
-          ? "bg-linear-to-br from-blue-50 to-indigo-50 dark:from-blue-950/95 dark:to-indigo-950/95 border-blue-200/80 dark:border-blue-700/60 shadow-blue-500/10 dark:shadow-blue-900/20"
-          : "bg-linear-to-br from-amber-50 to-orange-50 dark:from-amber-950/95 dark:to-orange-950/95 border-amber-200/80 dark:border-amber-700/60 shadow-amber-500/10 dark:shadow-amber-900/20"
-      }`}>
+      <div
+        className={`border rounded-2xl shadow-xl overflow-hidden backdrop-blur-sm ${
+          hasRunning
+            ? 'bg-linear-to-br from-blue-50 to-indigo-50 dark:from-blue-950/95 dark:to-indigo-950/95 border-blue-200/80 dark:border-blue-700/60 shadow-blue-500/10 dark:shadow-blue-900/20'
+            : 'bg-linear-to-br from-amber-50 to-orange-50 dark:from-amber-950/95 dark:to-orange-950/95 border-amber-200/80 dark:border-amber-700/60 shadow-amber-500/10 dark:shadow-amber-900/20'
+        }`}
+      >
         {/* Header */}
         <div
           className={`px-4 py-3.5 flex items-center justify-between cursor-pointer transition-colors ${
             hasRunning
-              ? "hover:bg-blue-100/50 dark:hover:bg-blue-900/30"
-              : "hover:bg-amber-100/50 dark:hover:bg-amber-900/30"
+              ? 'hover:bg-blue-100/50 dark:hover:bg-blue-900/30'
+              : 'hover:bg-amber-100/50 dark:hover:bg-amber-900/30'
           }`}
           onClick={() => setIsExpanded(!isExpanded)}
         >
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className={`p-2 rounded-xl shadow-lg ${
-                hasRunning
-                  ? "bg-linear-to-br from-blue-400 to-indigo-500 shadow-blue-500/30"
-                  : "bg-linear-to-br from-amber-400 to-orange-500 shadow-amber-500/30"
-              }`}>
+              <div
+                className={`p-2 rounded-xl shadow-lg ${
+                  hasRunning
+                    ? 'bg-linear-to-br from-blue-400 to-indigo-500 shadow-blue-500/30'
+                    : 'bg-linear-to-br from-amber-400 to-orange-500 shadow-amber-500/30'
+                }`}
+              >
                 {hasRunning ? (
                   <Bot className="w-4 h-4 text-white" />
                 ) : (
@@ -383,31 +424,39 @@ export function ResumableExecutionsBanner() {
                 )}
               </div>
               <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                  hasRunning ? "bg-blue-400" : "bg-amber-400"
-                }`}></span>
-                <span className={`relative inline-flex rounded-full h-4 w-4 text-[10px] font-bold text-white items-center justify-center ${
-                  hasRunning ? "bg-blue-500" : "bg-amber-500"
-                }`}>
+                <span
+                  className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                    hasRunning ? 'bg-blue-400' : 'bg-amber-400'
+                  }`}
+                ></span>
+                <span
+                  className={`relative inline-flex rounded-full h-4 w-4 text-[10px] font-bold text-white items-center justify-center ${
+                    hasRunning ? 'bg-blue-500' : 'bg-amber-500'
+                  }`}
+                >
                   {executions.length}
                 </span>
               </span>
             </div>
             <div>
-              <h3 className={`font-semibold text-sm ${
-                hasRunning
-                  ? "text-blue-900 dark:text-blue-100"
-                  : "text-amber-900 dark:text-amber-100"
-              }`}>
-                {hasRunning ? "進行中の作業" : "中断された作業"}
+              <h3
+                className={`font-semibold text-sm ${
+                  hasRunning
+                    ? 'text-blue-900 dark:text-blue-100'
+                    : 'text-amber-900 dark:text-amber-100'
+                }`}
+              >
+                {hasRunning ? '進行中の作業' : '中断された作業'}
               </h3>
-              <p className={`text-xs ${
-                hasRunning
-                  ? "text-blue-600 dark:text-blue-400/80"
-                  : "text-amber-600 dark:text-amber-400/80"
-              }`}>
+              <p
+                className={`text-xs ${
+                  hasRunning
+                    ? 'text-blue-600 dark:text-blue-400/80'
+                    : 'text-amber-600 dark:text-amber-400/80'
+                }`}
+              >
                 {runningCount > 0 && `${runningCount}件実行中`}
-                {runningCount > 0 && interruptedCount > 0 && " / "}
+                {runningCount > 0 && interruptedCount > 0 && ' / '}
                 {interruptedCount > 0 && `${interruptedCount}件再開可能`}
               </p>
             </div>
@@ -420,30 +469,36 @@ export function ResumableExecutionsBanner() {
               }}
               className={`p-1.5 rounded-lg transition-colors ${
                 hasRunning
-                  ? "hover:bg-blue-200/60 dark:hover:bg-blue-800/40"
-                  : "hover:bg-amber-200/60 dark:hover:bg-amber-800/40"
+                  ? 'hover:bg-blue-200/60 dark:hover:bg-blue-800/40'
+                  : 'hover:bg-amber-200/60 dark:hover:bg-amber-800/40'
               }`}
               title="すべて閉じる"
             >
-              <X className={`w-4 h-4 ${
-                hasRunning
-                  ? "text-blue-600 dark:text-blue-400"
-                  : "text-amber-600 dark:text-amber-400"
-              }`} />
+              <X
+                className={`w-4 h-4 ${
+                  hasRunning
+                    ? 'text-blue-600 dark:text-blue-400'
+                    : 'text-amber-600 dark:text-amber-400'
+                }`}
+              />
             </button>
             <div className="p-1.5">
               {isExpanded ? (
-                <ChevronDown className={`w-4 h-4 ${
-                  hasRunning
-                    ? "text-blue-600 dark:text-blue-400"
-                    : "text-amber-600 dark:text-amber-400"
-                }`} />
+                <ChevronDown
+                  className={`w-4 h-4 ${
+                    hasRunning
+                      ? 'text-blue-600 dark:text-blue-400'
+                      : 'text-amber-600 dark:text-amber-400'
+                  }`}
+                />
               ) : (
-                <ChevronUp className={`w-4 h-4 ${
-                  hasRunning
-                    ? "text-blue-600 dark:text-blue-400"
-                    : "text-amber-600 dark:text-amber-400"
-                }`} />
+                <ChevronUp
+                  className={`w-4 h-4 ${
+                    hasRunning
+                      ? 'text-blue-600 dark:text-blue-400'
+                      : 'text-amber-600 dark:text-amber-400'
+                  }`}
+                />
               )}
             </div>
           </div>
@@ -466,13 +521,14 @@ export function ResumableExecutionsBanner() {
                       >
                         {exec.taskTitle || `タスク #${exec.taskId}`}
                       </a>
-                      {(exec.status === "running" || exec.status === "waiting_for_input") && (
+                      {(exec.status === 'running' ||
+                        exec.status === 'waiting_for_input') && (
                         <span className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[9px] font-medium rounded-full">
                           <Loader2 className="w-2.5 h-2.5 animate-spin" />
                           実行中
                         </span>
                       )}
-                      {exec.status === "interrupted" && (
+                      {exec.status === 'interrupted' && (
                         <span className="shrink-0 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[9px] font-medium rounded-full">
                           中断
                         </span>
@@ -481,10 +537,9 @@ export function ResumableExecutionsBanner() {
                     <div className="flex items-center gap-1.5 mt-1">
                       <Clock className="w-3 h-3 text-zinc-400" />
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {exec.status === "interrupted"
+                        {exec.status === 'interrupted'
                           ? `${formatTimeAgo(exec.startedAt || exec.createdAt)}に中断`
-                          : `${formatTimeAgo(exec.startedAt || exec.createdAt)}に開始`
-                        }
+                          : `${formatTimeAgo(exec.startedAt || exec.createdAt)}に開始`}
                       </p>
                     </div>
                   </div>
@@ -517,8 +572,8 @@ export function ResumableExecutionsBanner() {
                     href={`/tasks/${exec.taskId}?showHeader=true`}
                     className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                       !exec.canResume
-                        ? "flex-1 bg-linear-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-sm hover:shadow-md"
-                        : "bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
+                        ? 'flex-1 bg-linear-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-sm hover:shadow-md'
+                        : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300'
                     }`}
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
@@ -572,8 +627,8 @@ export function ResumableExecutionsBanner() {
                 onClick={handleResumeAll}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                   hasRunning
-                    ? "bg-blue-100 dark:bg-blue-900/50 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300"
-                    : "bg-amber-100 dark:bg-amber-900/50 hover:bg-amber-200 dark:hover:bg-amber-800 text-amber-700 dark:text-amber-300"
+                    ? 'bg-blue-100 dark:bg-blue-900/50 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300'
+                    : 'bg-amber-100 dark:bg-amber-900/50 hover:bg-amber-200 dark:hover:bg-amber-800 text-amber-700 dark:text-amber-300'
                 }`}
               >
                 <Play className="w-3.5 h-3.5" />
@@ -584,8 +639,8 @@ export function ResumableExecutionsBanner() {
               onClick={() => setIsExpanded(true)}
               className={`px-3 py-2 bg-white/60 dark:bg-zinc-800/60 hover:bg-white dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded-lg text-xs font-medium transition-colors border ${
                 hasRunning
-                  ? "border-blue-200/50 dark:border-blue-700/30"
-                  : "border-amber-200/50 dark:border-amber-700/30"
+                  ? 'border-blue-200/50 dark:border-blue-700/30'
+                  : 'border-amber-200/50 dark:border-amber-700/30'
               }`}
             >
               詳細

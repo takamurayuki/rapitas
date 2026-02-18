@@ -1,6 +1,6 @@
-"use client";
-import { useCallback, useEffect, useState } from "react";
-import type { ExamGoal, StudyStreak } from "@/types";
+'use client';
+import { useCallback, useEffect, useState } from 'react';
+import type { ExamGoal, StudyStreak } from '@/types';
 import {
   BarChart3,
   CheckCircle2,
@@ -9,10 +9,10 @@ import {
   Target,
   TrendingUp,
   Award,
-} from "lucide-react";
-import { API_BASE_URL } from "@/utils/api";
-import BurndownChart from "@/components/BurndownChart";
-import { ExamCountdown } from "@/components/exam-countdown/ExamCountdown";
+} from 'lucide-react';
+import { API_BASE_URL } from '@/utils/api';
+import BurndownChart from '@/components/BurndownChart';
+import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
 
 type OverviewStats = {
   tasks: {
@@ -54,7 +54,7 @@ export default function DashboardPage() {
         setOverview(await res.json());
       }
     } catch (e) {
-      console.error("Failed to fetch overview:", e);
+      console.error('Failed to fetch overview:', e);
     }
   }, []);
 
@@ -65,7 +65,7 @@ export default function DashboardPage() {
         setDailyStudy(await res.json());
       }
     } catch (e) {
-      console.error("Failed to fetch daily study:", e);
+      console.error('Failed to fetch daily study:', e);
     }
   }, []);
 
@@ -76,7 +76,7 @@ export default function DashboardPage() {
         setStreakInfo(await res.json());
       }
     } catch (e) {
-      console.error("Failed to fetch streak info:", e);
+      console.error('Failed to fetch streak info:', e);
     }
   }, []);
 
@@ -95,7 +95,7 @@ export default function DashboardPage() {
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString("ja-JP", { month: "short", day: "numeric" });
+    return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
   };
 
   const maxHours = Math.max(...dailyStudy.map((d) => d.hours), 1);
@@ -212,10 +212,10 @@ export default function DashboardPage() {
                       <div
                         className={`w-full rounded-t-md transition-all ${
                           isToday
-                            ? "bg-indigo-500"
+                            ? 'bg-indigo-500'
                             : day.hours > 0
-                              ? "bg-indigo-300 dark:bg-indigo-600"
-                              : "bg-zinc-200 dark:bg-zinc-700"
+                              ? 'bg-indigo-300 dark:bg-indigo-600'
+                              : 'bg-zinc-200 dark:bg-zinc-700'
                         }`}
                         style={{ height: `${height}%` }}
                         title={`${day.hours}時間`}
@@ -236,12 +236,12 @@ export default function DashboardPage() {
 
               <div className="flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400 mt-2">
                 <span>
-                  合計:{" "}
+                  合計:{' '}
                   {dailyStudy.reduce((sum, d) => sum + d.hours, 0).toFixed(1)}
                   時間
                 </span>
                 <span>
-                  平均:{" "}
+                  平均:{' '}
                   {(
                     dailyStudy.reduce((sum, d) => sum + d.hours, 0) /
                     dailyStudy.length
@@ -267,26 +267,26 @@ export default function DashboardPage() {
           {overview?.upcomingExams && overview.upcomingExams.length > 0 ? (
             <div className="space-y-3">
               {overview.upcomingExams.slice(0, 3).map((exam) => (
-                  <div
-                    key={exam.id}
-                    className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50"
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">
-                        {exam.name}
+                <div
+                  key={exam.id}
+                  className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">
+                      {exam.name}
+                    </span>
+                    {exam.targetScore && (
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                        目標: {exam.targetScore}
                       </span>
-                      {exam.targetScore && (
-                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                          目標: {exam.targetScore}
-                        </span>
-                      )}
-                    </div>
-                    <ExamCountdown
-                      examDate={exam.examDate}
-                      color={exam.color}
-                      compact
-                    />
+                    )}
                   </div>
+                  <ExamCountdown
+                    examDate={exam.examDate}
+                    color={exam.color}
+                    compact
+                  />
+                </div>
               ))}
 
               {overview.upcomingExams.length > 3 && (

@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { Activity, AlertCircle, TrendingUp } from "lucide-react";
-import { API_BASE_URL } from "@/utils/api";
+import { useEffect, useState } from 'react';
+import { Activity, AlertCircle, TrendingUp } from 'lucide-react';
+import { API_BASE_URL } from '@/utils/api';
 
 type RateLimitInfo = {
   provider: string;
@@ -19,26 +19,26 @@ type RateLimitData = {
 
 const PROVIDER_COLORS = {
   claude: {
-    bg: "bg-orange-500",
-    bgLight: "bg-orange-100 dark:bg-orange-900/30",
-    text: "text-orange-600 dark:text-orange-400",
+    bg: 'bg-orange-500',
+    bgLight: 'bg-orange-100 dark:bg-orange-900/30',
+    text: 'text-orange-600 dark:text-orange-400',
   },
   chatgpt: {
-    bg: "bg-green-500",
-    bgLight: "bg-green-100 dark:bg-green-900/30",
-    text: "text-green-600 dark:text-green-400",
+    bg: 'bg-green-500',
+    bgLight: 'bg-green-100 dark:bg-green-900/30',
+    text: 'text-green-600 dark:text-green-400',
   },
   gemini: {
-    bg: "bg-blue-500",
-    bgLight: "bg-blue-100 dark:bg-blue-900/30",
-    text: "text-blue-600 dark:text-blue-400",
+    bg: 'bg-blue-500',
+    bgLight: 'bg-blue-100 dark:bg-blue-900/30',
+    text: 'text-blue-600 dark:text-blue-400',
   },
 };
 
 const PROVIDER_LABELS = {
-  claude: "Claude",
-  chatgpt: "ChatGPT",
-  gemini: "Gemini",
+  claude: 'Claude',
+  chatgpt: 'ChatGPT',
+  gemini: 'Gemini',
 };
 
 export function UsageRateLimitGraph() {
@@ -59,10 +59,10 @@ export function UsageRateLimitGraph() {
         const data: RateLimitData = await res.json();
         setRateLimits(data.rateLimits);
       } else {
-        setError("使用制限情報の取得に失敗しました");
+        setError('使用制限情報の取得に失敗しました');
       }
     } catch (err) {
-      setError("使用制限情報の取得に失敗しました");
+      setError('使用制限情報の取得に失敗しました');
     } finally {
       setIsLoading(false);
     }
@@ -78,12 +78,12 @@ export function UsageRateLimitGraph() {
   };
 
   const formatResetTime = (resetAt: string | undefined): string => {
-    if (!resetAt) return "不明";
+    if (!resetAt) return '不明';
     const resetDate = new Date(resetAt);
     const now = new Date();
     const diff = resetDate.getTime() - now.getTime();
 
-    if (diff < 0) return "リセット済み";
+    if (diff < 0) return 'リセット済み';
 
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const days = Math.floor(hours / 24);
@@ -101,9 +101,9 @@ export function UsageRateLimitGraph() {
   };
 
   const getUsageColor = (percentage: number): string => {
-    if (percentage >= 90) return "text-red-600 dark:text-red-400";
-    if (percentage >= 75) return "text-amber-600 dark:text-amber-400";
-    return "text-zinc-600 dark:text-zinc-400";
+    if (percentage >= 90) return 'text-red-600 dark:text-red-400';
+    if (percentage >= 75) return 'text-amber-600 dark:text-amber-400';
+    return 'text-zinc-600 dark:text-zinc-400';
   };
 
   if (rateLimits.length === 0 && !isLoading) {
@@ -148,7 +148,9 @@ export function UsageRateLimitGraph() {
         <div className="p-6 space-y-6">
           {rateLimits.map((limit) => {
             const percentage = getUsagePercentage(limit.used, limit.limit);
-            const colors = PROVIDER_COLORS[limit.provider as keyof typeof PROVIDER_COLORS] || PROVIDER_COLORS.claude;
+            const colors =
+              PROVIDER_COLORS[limit.provider as keyof typeof PROVIDER_COLORS] ||
+              PROVIDER_COLORS.claude;
             const usageColor = getUsageColor(percentage);
 
             return (
@@ -156,9 +158,13 @@ export function UsageRateLimitGraph() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                      {PROVIDER_LABELS[limit.provider as keyof typeof PROVIDER_LABELS] || limit.provider}
+                      {PROVIDER_LABELS[
+                        limit.provider as keyof typeof PROVIDER_LABELS
+                      ] || limit.provider}
                     </h3>
-                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${colors.bgLight} ${colors.text}`}>
+                    <span
+                      className={`px-2 py-0.5 text-xs font-medium rounded-full ${colors.bgLight} ${colors.text}`}
+                    >
                       {limit.plan}
                     </span>
                   </div>
@@ -175,7 +181,9 @@ export function UsageRateLimitGraph() {
                     />
                   </div>
                   <div className="absolute inset-0 flex items-center justify-between px-3">
-                    <span className={`text-sm font-medium ${percentage > 50 ? 'text-white' : usageColor}`}>
+                    <span
+                      className={`text-sm font-medium ${percentage > 50 ? 'text-white' : usageColor}`}
+                    >
                       {formatNumber(limit.used)} / {formatNumber(limit.limit)}
                     </span>
                     <span className={`text-sm font-medium ${usageColor}`}>
@@ -185,12 +193,14 @@ export function UsageRateLimitGraph() {
                 </div>
 
                 {percentage >= 75 && (
-                  <div className={`flex items-center gap-1.5 mt-2 text-xs ${percentage >= 90 ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                  <div
+                    className={`flex items-center gap-1.5 mt-2 text-xs ${percentage >= 90 ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}
+                  >
                     <TrendingUp className="w-3.5 h-3.5" />
                     <span>
                       {percentage >= 90
-                        ? "使用制限に近づいています"
-                        : "使用量が増加しています"}
+                        ? '使用制限に近づいています'
+                        : '使用量が増加しています'}
                     </span>
                   </div>
                 )}

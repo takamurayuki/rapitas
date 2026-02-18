@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useState, useRef, useEffect, memo } from "react";
-import { ChevronDown, Terminal, Zap, Globe, Check } from "lucide-react";
-import type { AIAgentConfig } from "@/types";
+import { useState, useRef, useEffect, memo } from 'react';
+import { ChevronDown, Terminal, Zap, Globe, Check } from 'lucide-react';
+import type { AIAgentConfig } from '@/types';
 import {
   PROVIDER_CONFIGS,
   getModelName,
   getProviderLabel,
-} from "../constants/provider-configs";
+} from '../constants/provider-configs';
 
 type Props = {
   agents: AIAgentConfig[];
@@ -17,11 +17,11 @@ type Props = {
 };
 
 const PROVIDER_ICONS: Record<string, React.ReactNode> = {
-  "claude-code": <Terminal className="w-3 h-3" />,
-  "anthropic-api": <Terminal className="w-3 h-3" />,
+  'claude-code': <Terminal className="w-3 h-3" />,
+  'anthropic-api': <Terminal className="w-3 h-3" />,
   codex: <Zap className="w-3 h-3" />,
   openai: <Zap className="w-3 h-3" />,
-  "azure-openai": <Globe className="w-3 h-3" />,
+  'azure-openai': <Globe className="w-3 h-3" />,
   gemini: <Globe className="w-3 h-3" />,
 };
 
@@ -36,16 +36,17 @@ export const ModelSelector = memo(function ModelSelector({
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   const selected = agents.find((a) => a.id === selectedAgentId);
   const label = selected
-    ? `${getProviderLabel(selected.agentType)} / ${getModelName(selected.agentType, selected.modelId || "")}`
-    : "エージェント未選択";
+    ? `${getProviderLabel(selected.agentType)} / ${getModelName(selected.agentType, selected.modelId || '')}`
+    : 'エージェント未選択';
 
   const grouped = agents.reduce(
     (acc, a) => {
@@ -81,7 +82,7 @@ export const ModelSelector = memo(function ModelSelector({
                 const isSelected = agent.id === selectedAgentId;
                 const modelName = getModelName(
                   agent.agentType,
-                  agent.modelId || "",
+                  agent.modelId || '',
                 );
                 return (
                   <button
@@ -92,8 +93,8 @@ export const ModelSelector = memo(function ModelSelector({
                     }}
                     className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-zinc-700 transition-colors ${
                       isSelected
-                        ? "text-violet-400 bg-violet-900/20"
-                        : "text-zinc-300"
+                        ? 'text-violet-400 bg-violet-900/20'
+                        : 'text-zinc-300'
                     }`}
                   >
                     <span className="flex-1 truncate">

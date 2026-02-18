@@ -1,5 +1,5 @@
-import type { AIChatMessage, AIServiceResponse, ApiProvider } from "@/types";
-import { API_BASE_URL as API_BASE } from "@/utils/api";
+import type { AIChatMessage, AIServiceResponse, ApiProvider } from '@/types';
+import { API_BASE_URL as API_BASE } from '@/utils/api';
 
 export type SendMessageOptions = {
   message: string;
@@ -13,15 +13,21 @@ export type SendMessageOptions = {
  * AIにメッセージを送信し、応答を取得する（マルチプロバイダー対応）
  */
 export async function sendMessageToAI(
-  options: SendMessageOptions
+  options: SendMessageOptions,
 ): Promise<AIServiceResponse> {
-  const { message, conversationHistory = [], systemPrompt, provider, model } = options;
+  const {
+    message,
+    conversationHistory = [],
+    systemPrompt,
+    provider,
+    model,
+  } = options;
 
   try {
     const response = await fetch(`${API_BASE}/ai/chat`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         message,
@@ -38,7 +44,8 @@ export async function sendMessageToAI(
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(
-        errorData.error || `APIエラー: ${response.status} ${response.statusText}`
+        errorData.error ||
+          `APIエラー: ${response.status} ${response.statusText}`,
       );
     }
 
@@ -48,13 +55,13 @@ export async function sendMessageToAI(
       message: data.message || data.content,
     };
   } catch (error) {
-    console.error("AI API Error:", error);
+    console.error('AI API Error:', error);
     return {
       success: false,
       error:
         error instanceof Error
           ? error.message
-          : "AIとの通信中にエラーが発生しました",
+          : 'AIとの通信中にエラーが発生しました',
     };
   }
 }
@@ -66,15 +73,21 @@ export async function sendMessageToAIStream(
   options: SendMessageOptions,
   onChunk: (chunk: string) => void,
   onComplete: () => void,
-  onError: (error: string) => void
+  onError: (error: string) => void,
 ): Promise<void> {
-  const { message, conversationHistory = [], systemPrompt, provider, model } = options;
+  const {
+    message,
+    conversationHistory = [],
+    systemPrompt,
+    provider,
+    model,
+  } = options;
 
   try {
     const response = await fetch(`${API_BASE}/ai/chat/stream`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         message,
@@ -91,13 +104,14 @@ export async function sendMessageToAIStream(
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(
-        errorData.error || `APIエラー: ${response.status} ${response.statusText}`
+        errorData.error ||
+          `APIエラー: ${response.status} ${response.statusText}`,
       );
     }
 
     const reader = response.body?.getReader();
     if (!reader) {
-      throw new Error("レスポンスストリームを取得できませんでした");
+      throw new Error('レスポンスストリームを取得できませんでした');
     }
 
     const decoder = new TextDecoder();
@@ -107,12 +121,12 @@ export async function sendMessageToAIStream(
       if (done) break;
 
       const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split("\n");
+      const lines = chunk.split('\n');
 
       for (const line of lines) {
-        if (line.startsWith("data: ")) {
+        if (line.startsWith('data: ')) {
           const data = line.slice(6);
-          if (data === "[DONE]") {
+          if (data === '[DONE]') {
             onComplete();
             return;
           }
@@ -136,11 +150,11 @@ export async function sendMessageToAIStream(
 
     onComplete();
   } catch (error) {
-    console.error("AI Stream Error:", error);
+    console.error('AI Stream Error:', error);
     onError(
       error instanceof Error
         ? error.message
-        : "AIとの通信中にエラーが発生しました"
+        : 'AIとの通信中にエラーが発生しました',
     );
   }
 }

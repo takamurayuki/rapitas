@@ -1,7 +1,7 @@
-"use client";
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import type { ExamGoal, ScheduleEvent, ScheduleEventInput } from "@/types";
+'use client';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import type { ExamGoal, ScheduleEvent, ScheduleEventInput } from '@/types';
 import {
   ChevronLeft,
   ChevronRight,
@@ -15,15 +15,15 @@ import {
   Bell,
   Trash2,
   Coffee,
-} from "lucide-react";
-import { useToast } from "@/components/ui/toast/ToastContainer";
-import { getTaskDetailPath } from "@/utils/tauri";
-import { API_BASE_URL } from "@/utils/api";
-import { useTaskCacheStore } from "@/stores/taskCacheStore";
-import ScheduleEventDialog from "@/feature/calendar/components/ScheduleEventDialog";
-import PaidLeaveDialog from "@/feature/calendar/components/PaidLeaveDialog";
-import { getHolidaysForMonth } from "@/utils/holidays";
-import type { PaidLeaveBalance } from "@/types";
+} from 'lucide-react';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import { getTaskDetailPath } from '@/utils/tauri';
+import { API_BASE_URL } from '@/utils/api';
+import { useTaskCacheStore } from '@/stores/taskCacheStore';
+import ScheduleEventDialog from '@/feature/calendar/components/ScheduleEventDialog';
+import PaidLeaveDialog from '@/feature/calendar/components/PaidLeaveDialog';
+import { getHolidaysForMonth } from '@/utils/holidays';
+import type { PaidLeaveBalance } from '@/types';
 
 const API_BASE = API_BASE_URL;
 
@@ -32,7 +32,7 @@ type CalendarEvent = {
   title: string;
   date: string;
   endDate?: string;
-  type: "task" | "exam" | "schedule";
+  type: 'task' | 'exam' | 'schedule';
   status?: string;
   color?: string;
   time?: string;
@@ -55,11 +55,12 @@ export default function CalendarPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showPaidLeaveModal, setShowPaidLeaveModal] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskTitle, setNewTaskTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const [exams, setExams] = useState<ExamGoal[]>([]);
   const [schedules, setSchedules] = useState<ScheduleEvent[]>([]);
-  const [paidLeaveBalance, setPaidLeaveBalance] = useState<PaidLeaveBalance | null>(null);
+  const [paidLeaveBalance, setPaidLeaveBalance] =
+    useState<PaidLeaveBalance | null>(null);
 
   const fetchPaidLeaveBalance = useCallback(async () => {
     try {
@@ -69,7 +70,7 @@ export default function CalendarPage() {
         setPaidLeaveBalance(balance.data || balance);
       }
     } catch (e) {
-      console.error("Failed to fetch paid leave balance:", e);
+      console.error('Failed to fetch paid leave balance:', e);
     }
   }, []);
 
@@ -95,11 +96,16 @@ export default function CalendarPage() {
       setExams(examsData);
       setSchedules(schedulesData);
     } catch (e) {
-      console.error("Failed to fetch events:", e);
+      console.error('Failed to fetch events:', e);
     } finally {
       setLoading(false);
     }
-  }, [taskCacheInitialized, fetchTaskUpdates, fetchAllTasks, fetchPaidLeaveBalance]);
+  }, [
+    taskCacheInitialized,
+    fetchTaskUpdates,
+    fetchAllTasks,
+    fetchPaidLeaveBalance,
+  ]);
 
   // Build events from cached tasks + local exams/schedules
   useEffect(() => {
@@ -108,8 +114,8 @@ export default function CalendarPage() {
       .map((t) => ({
         id: t.id,
         title: t.title,
-        date: t.dueDate!.split("T")[0],
-        type: "task" as const,
+        date: t.dueDate!.split('T')[0],
+        type: 'task' as const,
         status: t.status,
         color: t.theme?.color,
       }));
@@ -117,28 +123,30 @@ export default function CalendarPage() {
     const examEvents: CalendarEvent[] = exams.map((e) => ({
       id: e.id,
       title: e.name,
-      date: e.examDate.split("T")[0],
-      type: "exam" as const,
+      date: e.examDate.split('T')[0],
+      type: 'exam' as const,
       color: e.color,
     }));
 
     const scheduleEvents: CalendarEvent[] = schedules.map((s) => {
       // UTC ISO文字列から時刻部分を直接抽出（タイムゾーン変換を避ける）
       const extractUTCTime = (isoStr: string) => {
-        const timePart = isoStr.split("T")[1]; // "HH:MM:SS.000Z"
+        const timePart = isoStr.split('T')[1]; // "HH:MM:SS.000Z"
         if (!timePart) return undefined;
         return timePart.slice(0, 5); // "HH:MM"
       };
       const timeStr = s.isAllDay ? undefined : extractUTCTime(s.startAt);
-      const endTimeStr = s.endAt && !s.isAllDay ? extractUTCTime(s.endAt) : undefined;
-      const startDateStr = s.startAt.split("T")[0];
-      const endDateStr = s.endAt ? s.endAt.split("T")[0] : undefined;
+      const endTimeStr =
+        s.endAt && !s.isAllDay ? extractUTCTime(s.endAt) : undefined;
+      const startDateStr = s.startAt.split('T')[0];
+      const endDateStr = s.endAt ? s.endAt.split('T')[0] : undefined;
       return {
         id: s.id,
         title: s.title,
         date: startDateStr,
-        endDate: endDateStr && endDateStr > startDateStr ? endDateStr : undefined,
-        type: "schedule" as const,
+        endDate:
+          endDateStr && endDateStr > startDateStr ? endDateStr : undefined,
+        type: 'schedule' as const,
         color: s.color,
         time: timeStr,
         endTime: endTimeStr,
@@ -156,8 +164,8 @@ export default function CalendarPage() {
     const handleFocus = () => {
       fetchTaskUpdates();
     };
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, [fetchEvents, fetchTaskUpdates]);
 
   const getDaysInMonth = (date: Date) => {
@@ -183,8 +191,8 @@ export default function CalendarPage() {
 
   const getEventsForDate = (day: number) => {
     const year = currentDate.getFullYear();
-    const month = String(currentDate.getMonth() + 1).padStart(2, "0");
-    const dayStr = String(day).padStart(2, "0");
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
     const dateStr = `${year}-${month}-${dayStr}`;
     return events.filter((e) => {
       if (e.date === dateStr) return true;
@@ -196,8 +204,8 @@ export default function CalendarPage() {
 
   const formatDateStr = (day: number) => {
     const year = currentDate.getFullYear();
-    const month = String(currentDate.getMonth() + 1).padStart(2, "0");
-    const dayStr = String(day).padStart(2, "0");
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
     return `${year}-${month}-${dayStr}`;
   };
 
@@ -217,8 +225,8 @@ export default function CalendarPage() {
     const today = new Date();
     setCurrentDate(today);
     const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, "0");
-    const day = String(today.getDate()).padStart(2, "0");
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
     setSelectedDate(`${year}-${month}-${day}`);
   };
 
@@ -244,27 +252,27 @@ export default function CalendarPage() {
     setCreating(true);
     try {
       const res = await fetch(`${API_BASE}/tasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: newTaskTitle,
           dueDate: `${selectedDate}T00:00:00.000Z`,
-          status: "todo",
+          status: 'todo',
         }),
       });
 
       if (res.ok) {
-        showToast("タスクを作成しました", "success");
-        setNewTaskTitle("");
+        showToast('タスクを作成しました', 'success');
+        setNewTaskTitle('');
         setShowCreateModal(false);
         // Refresh task cache so new task appears on calendar
         await fetchTaskUpdates();
       } else {
-        showToast("タスクの作成に失敗しました", "error");
+        showToast('タスクの作成に失敗しました', 'error');
       }
     } catch (e) {
-      console.error("Failed to create task:", e);
-      showToast("エラーが発生しました", "error");
+      console.error('Failed to create task:', e);
+      showToast('エラーが発生しました', 'error');
     } finally {
       setCreating(false);
     }
@@ -273,60 +281,60 @@ export default function CalendarPage() {
   const createScheduleEvent = async (data: ScheduleEventInput) => {
     try {
       const res = await fetch(`${API_BASE}/schedules`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
 
       if (res.ok) {
-        showToast("スケジュールを追加しました", "success");
+        showToast('スケジュールを追加しました', 'success');
         setShowScheduleModal(false);
         fetchEvents();
       } else {
-        showToast("スケジュールの追加に失敗しました", "error");
+        showToast('スケジュールの追加に失敗しました', 'error');
       }
     } catch (e) {
-      console.error("Failed to create schedule:", e);
-      showToast("エラーが発生しました", "error");
+      console.error('Failed to create schedule:', e);
+      showToast('エラーが発生しました', 'error');
     }
   };
 
   const createPaidLeave = async (data: ScheduleEventInput) => {
     try {
       const res = await fetch(`${API_BASE}/schedules`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, type: "PAID_LEAVE" }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, type: 'PAID_LEAVE' }),
       });
 
       if (res.ok) {
-        showToast("有給申請を登録しました", "success");
+        showToast('有給申請を登録しました', 'success');
         setShowPaidLeaveModal(false);
         fetchEvents(); // Will refresh paid leave balance too
       } else {
-        showToast("有給申請の登録に失敗しました", "error");
+        showToast('有給申請の登録に失敗しました', 'error');
       }
     } catch (e) {
-      console.error("Failed to create paid leave:", e);
-      showToast("エラーが発生しました", "error");
+      console.error('Failed to create paid leave:', e);
+      showToast('エラーが発生しました', 'error');
     }
   };
 
   const deleteScheduleEvent = async (eventId: number) => {
     try {
       const res = await fetch(`${API_BASE}/schedules/${eventId}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
 
       if (res.ok) {
-        showToast("スケジュールを削除しました", "success");
+        showToast('スケジュールを削除しました', 'success');
         fetchEvents();
       } else {
-        showToast("スケジュールの削除に失敗しました", "error");
+        showToast('スケジュールの削除に失敗しました', 'error');
       }
     } catch (e) {
-      console.error("Failed to delete schedule:", e);
-      showToast("エラーが発生しました", "error");
+      console.error('Failed to delete schedule:', e);
+      showToast('エラーが発生しました', 'error');
     }
   };
 
@@ -337,11 +345,14 @@ export default function CalendarPage() {
   };
 
   const days = getDaysInMonth(currentDate);
-  const weekDays = ["日", "月", "火", "水", "木", "金", "土"];
+  const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
 
   // 祝日データ（月ごとにメモ化）
   const holidays = useMemo(() => {
-    return getHolidaysForMonth(currentDate.getFullYear(), currentDate.getMonth());
+    return getHolidaysForMonth(
+      currentDate.getFullYear(),
+      currentDate.getMonth(),
+    );
   }, [currentDate]);
 
   const holidayMap = useMemo(() => {
@@ -354,7 +365,9 @@ export default function CalendarPage() {
 
   // 複数日イベントのバー表示用データを計算
   const getMultiDayBars = () => {
-    const multiDayEvents = events.filter((e) => e.endDate && e.type === "schedule");
+    const multiDayEvents = events.filter(
+      (e) => e.endDate && e.type === 'schedule',
+    );
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const firstDayOfMonth = new Date(year, month, 1);
@@ -381,14 +394,16 @@ export default function CalendarPage() {
     };
 
     for (const event of multiDayEvents) {
-      const eventStart = new Date(event.date + "T00:00:00");
-      const eventEnd = new Date(event.endDate! + "T00:00:00");
+      const eventStart = new Date(event.date + 'T00:00:00');
+      const eventEnd = new Date(event.endDate! + 'T00:00:00');
 
       // 表示月の範囲にクリップ
-      const visibleStart = eventStart < firstDayOfMonth ? firstDayOfMonth : eventStart;
+      const visibleStart =
+        eventStart < firstDayOfMonth ? firstDayOfMonth : eventStart;
       const visibleEnd = eventEnd > lastDayOfMonth ? lastDayOfMonth : eventEnd;
 
-      if (visibleStart > lastDayOfMonth || visibleEnd < firstDayOfMonth) continue;
+      if (visibleStart > lastDayOfMonth || visibleEnd < firstDayOfMonth)
+        continue;
 
       const startDay = visibleStart.getDate();
       const endDay = visibleEnd.getDate();
@@ -424,8 +439,12 @@ export default function CalendarPage() {
           cellLanes.get(key)!.add(lane);
         }
 
-        const isEventStart = eventStart.getMonth() === month && currentDay === eventStart.getDate();
-        const isEventEnd = eventEnd.getMonth() === month && currentDay + span - 1 === eventEnd.getDate();
+        const isEventStart =
+          eventStart.getMonth() === month &&
+          currentDay === eventStart.getDate();
+        const isEventEnd =
+          eventEnd.getMonth() === month &&
+          currentDay + span - 1 === eventEnd.getDate();
 
         bars.push({
           event,
@@ -448,7 +467,8 @@ export default function CalendarPage() {
   const selectedDateEvents = selectedDate
     ? events.filter((e) => {
         if (e.date === selectedDate) return true;
-        if (e.endDate && e.date <= selectedDate && e.endDate >= selectedDate) return true;
+        if (e.endDate && e.date <= selectedDate && e.endDate >= selectedDate)
+          return true;
         return false;
       })
     : [];
@@ -498,7 +518,7 @@ export default function CalendarPage() {
                 if (selectedDate) {
                   setShowPaidLeaveModal(true);
                 } else {
-                  showToast("日付を選択してから有給申請してください", "info");
+                  showToast('日付を選択してから有給申請してください', 'info');
                 }
               }}
               className="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors text-sm font-medium flex items-center gap-2"
@@ -547,10 +567,10 @@ export default function CalendarPage() {
                 key={day}
                 className={`text-center text-sm font-medium py-2 ${
                   index === 0
-                    ? "text-red-500"
+                    ? 'text-red-500'
                     : index === 6
-                      ? "text-blue-500"
-                      : "text-zinc-500 dark:text-zinc-400"
+                      ? 'text-blue-500'
+                      : 'text-zinc-500 dark:text-zinc-400'
                 }`}
               >
                 {day}
@@ -575,9 +595,14 @@ export default function CalendarPage() {
 
             return weeks.map((week, weekIndex) => {
               // この週のバー
-              const weekBars = multiDayBars.filter((b) => b.gridRow === weekIndex);
+              const weekBars = multiDayBars.filter(
+                (b) => b.gridRow === weekIndex,
+              );
               // この週の最大レーン数
-              const maxLaneInWeek = weekBars.length > 0 ? Math.max(...weekBars.map((b) => b.lane)) + 1 : 0;
+              const maxLaneInWeek =
+                weekBars.length > 0
+                  ? Math.max(...weekBars.map((b) => b.lane)) + 1
+                  : 0;
               const barAreaHeight = maxLaneInWeek * 18;
 
               return (
@@ -602,7 +627,7 @@ export default function CalendarPage() {
 
                       const dayEvents = getEventsForDate(day);
                       const singleDayEvents = dayEvents.filter(
-                        (e) => !(e.endDate && e.type === "schedule")
+                        (e) => !(e.endDate && e.type === 'schedule'),
                       );
                       const dateStr = formatDateStr(day);
                       const isSelected = selectedDate === dateStr;
@@ -610,7 +635,8 @@ export default function CalendarPage() {
                       const dayOfWeek = colIndex;
                       const holidayName = holidayMap.get(dateStr);
                       const isHoliday = !!holidayName;
-                      const hiddenCount = singleDayEvents.length - MAX_VISIBLE_EVENTS;
+                      const hiddenCount =
+                        singleDayEvents.length - MAX_VISIBLE_EVENTS;
 
                       return (
                         <button
@@ -622,30 +648,34 @@ export default function CalendarPage() {
                           }}
                           className={`p-0 transition-all border border-zinc-200 dark:border-zinc-700/50 text-left flex flex-col relative ${
                             isSelected
-                              ? "outline-2 outline-indigo-500 -outline-offset-2 z-10"
-                              : "hover:bg-zinc-50 dark:hover:bg-zinc-700/30"
+                              ? 'outline-2 outline-indigo-500 -outline-offset-2 z-10'
+                              : 'hover:bg-zinc-50 dark:hover:bg-zinc-700/30'
                           }`}
                         >
                           {/* 日付ヘッダー（背景色付き・左寄せ） */}
-                          <div className={`w-full flex items-center px-1 py-0.5 gap-0.5 min-w-0 ${
-                            isSelected
-                              ? "bg-indigo-50 dark:bg-indigo-900/30"
-                              : isHoliday
-                                ? "bg-red-50 dark:bg-red-900/15"
-                                : "bg-zinc-50 dark:bg-zinc-800/80"
-                          }`}>
-                            <div className={`flex items-center justify-center w-[20px] h-[20px] rounded-sm shrink-0 ${
-                              today ? "bg-indigo-500" : ""
-                            }`}>
+                          <div
+                            className={`w-full flex items-center px-1 py-0.5 gap-0.5 min-w-0 ${
+                              isSelected
+                                ? 'bg-indigo-50 dark:bg-indigo-900/30'
+                                : isHoliday
+                                  ? 'bg-red-50 dark:bg-red-900/15'
+                                  : 'bg-zinc-50 dark:bg-zinc-800/80'
+                            }`}
+                          >
+                            <div
+                              className={`flex items-center justify-center w-[20px] h-[20px] rounded-sm shrink-0 ${
+                                today ? 'bg-indigo-500' : ''
+                              }`}
+                            >
                               <span
                                 className={`text-xs font-semibold leading-none ${
                                   today
-                                    ? "text-white"
+                                    ? 'text-white'
                                     : dayOfWeek === 0 || isHoliday
-                                      ? "text-red-500"
+                                      ? 'text-red-500'
                                       : dayOfWeek === 6
-                                        ? "text-blue-500"
-                                        : "text-zinc-700 dark:text-zinc-300"
+                                        ? 'text-blue-500'
+                                        : 'text-zinc-700 dark:text-zinc-300'
                                 }`}
                               >
                                 {day}
@@ -662,40 +692,50 @@ export default function CalendarPage() {
                             )}
                             {/* イベント内容表示エリア */}
                             <div className="px-0.5 py-0.5 space-y-0.5 overflow-hidden">
-                              {singleDayEvents.slice(0, MAX_VISIBLE_EVENTS).map((event) => {
-                                let bgColor = event.color || "#3B82F6";
-                                let eventIcon = null;
+                              {singleDayEvents
+                                .slice(0, MAX_VISIBLE_EVENTS)
+                                .map((event) => {
+                                  let bgColor = event.color || '#3B82F6';
+                                  let eventIcon = null;
 
-                                if (event.type === "exam") {
-                                  bgColor = event.color || "#10B981";
-                                } else if (event.type === "schedule") {
-                                  const scheduleEvent = schedules.find(s => s.id === event.id);
-                                  if (scheduleEvent?.type === "PAID_LEAVE") {
-                                    bgColor = event.color || "#FF6B6B";
-                                    eventIcon = <Coffee className="w-2.5 h-2.5 shrink-0 opacity-80" />;
-                                  } else {
-                                    bgColor = event.color || "#6366F1";
+                                  if (event.type === 'exam') {
+                                    bgColor = event.color || '#10B981';
+                                  } else if (event.type === 'schedule') {
+                                    const scheduleEvent = schedules.find(
+                                      (s) => s.id === event.id,
+                                    );
+                                    if (scheduleEvent?.type === 'PAID_LEAVE') {
+                                      bgColor = event.color || '#FF6B6B';
+                                      eventIcon = (
+                                        <Coffee className="w-2.5 h-2.5 shrink-0 opacity-80" />
+                                      );
+                                    } else {
+                                      bgColor = event.color || '#6366F1';
+                                    }
                                   }
-                                }
 
-                                return (
-                                  <div
-                                    key={`${event.type}-${event.id}`}
-                                    className="flex items-center gap-0.5 rounded px-1 py-px text-[10px] leading-tight font-medium truncate"
-                                    style={{
-                                      backgroundColor: `${bgColor}18`,
-                                      color: bgColor,
-                                      borderLeft: `2px solid ${bgColor}`,
-                                    }}
-                                  >
-                                    {eventIcon}
-                                    {event.time && (
-                                      <span className="shrink-0 opacity-70">{event.time}</span>
-                                    )}
-                                    <span className="truncate">{event.title}</span>
-                                  </div>
-                                );
-                              })}
+                                  return (
+                                    <div
+                                      key={`${event.type}-${event.id}`}
+                                      className="flex items-center gap-0.5 rounded px-1 py-px text-[10px] leading-tight font-medium truncate"
+                                      style={{
+                                        backgroundColor: `${bgColor}18`,
+                                        color: bgColor,
+                                        borderLeft: `2px solid ${bgColor}`,
+                                      }}
+                                    >
+                                      {eventIcon}
+                                      {event.time && (
+                                        <span className="shrink-0 opacity-70">
+                                          {event.time}
+                                        </span>
+                                      )}
+                                      <span className="truncate">
+                                        {event.title}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
                               {hiddenCount > 0 && (
                                 <div className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-1 leading-tight">
                                   +{hiddenCount}件
@@ -710,7 +750,7 @@ export default function CalendarPage() {
 
                   {/* この週の複数日バー（オーバーレイ） */}
                   {weekBars.map((bar, i) => {
-                    const color = bar.event.color || "#6366F1";
+                    const color = bar.event.color || '#6366F1';
                     const leftPercent = (bar.gridCol / 7) * 100;
                     const widthPercent = (bar.span / 7) * 100;
 
@@ -722,9 +762,9 @@ export default function CalendarPage() {
                           left: `${leftPercent}%`,
                           width: `${widthPercent}%`,
                           top: `${25 + bar.lane * 18}px`,
-                          height: "16px",
-                          paddingLeft: "1px",
-                          paddingRight: "1px",
+                          height: '16px',
+                          paddingLeft: '1px',
+                          paddingRight: '1px',
                         }}
                       >
                         <div
@@ -732,7 +772,7 @@ export default function CalendarPage() {
                           style={{
                             backgroundColor: color,
                             opacity: 0.9,
-                            borderRadius: `${bar.isStart ? "3px" : "0"} ${bar.isEnd ? "3px" : "0"} ${bar.isEnd ? "3px" : "0"} ${bar.isStart ? "3px" : "0"}`,
+                            borderRadius: `${bar.isStart ? '3px' : '0'} ${bar.isEnd ? '3px' : '0'} ${bar.isEnd ? '3px' : '0'} ${bar.isStart ? '3px' : '0'}`,
                           }}
                         >
                           {bar.isStart && (
@@ -783,13 +823,13 @@ export default function CalendarPage() {
             <div>
               <h3 className="font-semibold text-zinc-800 dark:text-zinc-200">
                 {selectedDate
-                  ? new Date(selectedDate).toLocaleDateString("ja-JP", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                      weekday: "short",
+                  ? new Date(selectedDate).toLocaleDateString('ja-JP', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      weekday: 'short',
                     })
-                  : "日付を選択"}
+                  : '日付を選択'}
               </h3>
               {selectedDate && holidayMap.get(selectedDate) && (
                 <p className="text-xs font-medium text-red-500 dark:text-red-400 mt-0.5">
@@ -834,9 +874,9 @@ export default function CalendarPage() {
                   >
                     <button
                       onClick={() => {
-                        if (event.type === "task") {
+                        if (event.type === 'task') {
                           const path = getTaskDetailPath(event.id);
-                          const separator = path.includes("?") ? "&" : "?";
+                          const separator = path.includes('?') ? '&' : '?';
                           router.push(`${path}${separator}showHeader=true`);
                         }
                       }}
@@ -845,19 +885,20 @@ export default function CalendarPage() {
                       <div
                         className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
                         style={{
-                          backgroundColor: `${event.color || "#3B82F6"}20`,
-                          color: event.color || "#3B82F6",
+                          backgroundColor: `${event.color || '#3B82F6'}20`,
+                          color: event.color || '#3B82F6',
                         }}
                       >
-                        {event.type === "exam" ? (
+                        {event.type === 'exam' ? (
                           <Target className="w-4 h-4" />
-                        ) : event.type === "schedule" ? (
-                          schedules.find(s => s.id === event.id)?.type === "PAID_LEAVE" ? (
+                        ) : event.type === 'schedule' ? (
+                          schedules.find((s) => s.id === event.id)?.type ===
+                          'PAID_LEAVE' ? (
                             <Coffee className="w-4 h-4" />
                           ) : (
                             <CalendarIcon className="w-4 h-4" />
                           )
-                        ) : event.status === "done" ? (
+                        ) : event.status === 'done' ? (
                           <CheckCircle2 className="w-4 h-4" />
                         ) : (
                           <Circle className="w-4 h-4" />
@@ -869,21 +910,28 @@ export default function CalendarPage() {
                         </p>
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                            {event.type === "exam"
-                              ? "試験"
-                              : event.type === "schedule"
-                                ? schedules.find(s => s.id === event.id)?.type === "PAID_LEAVE"
-                                  ? "有給休暇"
-                                  : "スケジュール"
-                                : "タスク"}
-                            {event.status === "done" && " ・ 完了"}
+                            {event.type === 'exam'
+                              ? '試験'
+                              : event.type === 'schedule'
+                                ? schedules.find((s) => s.id === event.id)
+                                    ?.type === 'PAID_LEAVE'
+                                  ? '有給休暇'
+                                  : 'スケジュール'
+                                : 'タスク'}
+                            {event.status === 'done' && ' ・ 完了'}
                           </p>
                           {event.endDate && (
                             <span className="flex items-center gap-1 text-xs text-indigo-500 dark:text-indigo-400">
                               <CalendarIcon className="w-3 h-3" />
-                              {new Date(event.date).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })}
-                              {" 〜 "}
-                              {new Date(event.endDate).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })}
+                              {new Date(event.date).toLocaleDateString(
+                                'ja-JP',
+                                { month: 'short', day: 'numeric' },
+                              )}
+                              {' 〜 '}
+                              {new Date(event.endDate).toLocaleDateString(
+                                'ja-JP',
+                                { month: 'short', day: 'numeric' },
+                              )}
                             </span>
                           )}
                           {event.time && (
@@ -907,7 +955,7 @@ export default function CalendarPage() {
                         )}
                       </div>
                     </button>
-                    {event.type === "schedule" && (
+                    {event.type === 'schedule' && (
                       <button
                         onClick={() => deleteScheduleEvent(event.id)}
                         className="p-1 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
@@ -983,11 +1031,11 @@ export default function CalendarPage() {
             </div>
 
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-              締め切り:{" "}
-              {new Date(selectedDate).toLocaleDateString("ja-JP", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
+              締め切り:{' '}
+              {new Date(selectedDate).toLocaleDateString('ja-JP', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
               })}
             </p>
 
@@ -1014,7 +1062,7 @@ export default function CalendarPage() {
                   disabled={!newTaskTitle.trim() || creating}
                   className="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {creating ? "作成中..." : "作成"}
+                  {creating ? '作成中...' : '作成'}
                 </button>
               </div>
             </form>

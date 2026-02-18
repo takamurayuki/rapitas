@@ -13,7 +13,7 @@ export type ValidationResult = {
  */
 export function validateRequired(
   value: string,
-  fieldName: string
+  fieldName: string,
 ): ValidationResult {
   if (!value.trim()) {
     return { valid: false, error: `${fieldName}を入力してください` };
@@ -26,9 +26,9 @@ export function validateRequired(
  */
 export function validateName(
   value: string,
-  fieldName: string = "名前",
+  fieldName: string = '名前',
   minLength: number = 1,
-  maxLength: number = 100
+  maxLength: number = 100,
 ): ValidationResult {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -54,8 +54,8 @@ export function validateName(
  */
 export function validateUrl(
   value: string,
-  fieldName: string = "URL",
-  required: boolean = false
+  fieldName: string = 'URL',
+  required: boolean = false,
 ): ValidationResult {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -67,7 +67,7 @@ export function validateUrl(
 
   try {
     const parsed = new URL(trimmed);
-    if (!["http:", "https:"].includes(parsed.protocol)) {
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
       return {
         valid: false,
         error: `${fieldName}はHTTPまたはHTTPSプロトコルを使用してください`,
@@ -83,28 +83,28 @@ export function validateUrl(
  * APIキーのバリデーション（エージェントタイプ別）
  */
 const API_KEY_PREFIXES: Record<string, { prefix: string; label: string }> = {
-  "anthropic-api": { prefix: "sk-ant-api", label: "Anthropic APIキー" },
-  openai: { prefix: "sk-", label: "OpenAI APIキー" },
-  "azure-openai": { prefix: "", label: "Azure APIキー" },
-  gemini: { prefix: "AIza", label: "Google AI APIキー" },
-  codex: { prefix: "sk-", label: "OpenAI APIキー" },
+  'anthropic-api': { prefix: 'sk-ant-api', label: 'Anthropic APIキー' },
+  openai: { prefix: 'sk-', label: 'OpenAI APIキー' },
+  'azure-openai': { prefix: '', label: 'Azure APIキー' },
+  gemini: { prefix: 'AIza', label: 'Google AI APIキー' },
+  codex: { prefix: 'sk-', label: 'OpenAI APIキー' },
 };
 
 export function validateApiKey(
   value: string,
   agentType?: string,
-  required: boolean = false
+  required: boolean = false,
 ): ValidationResult {
   const trimmed = value.trim();
   if (!trimmed) {
     if (required) {
-      return { valid: false, error: "APIキーを入力してください" };
+      return { valid: false, error: 'APIキーを入力してください' };
     }
     return { valid: true };
   }
 
   if (trimmed.length < 10) {
-    return { valid: false, error: "APIキーが短すぎます（10文字以上）" };
+    return { valid: false, error: 'APIキーが短すぎます（10文字以上）' };
   }
 
   if (agentType && API_KEY_PREFIXES[agentType]) {
@@ -126,15 +126,15 @@ export function validateApiKey(
 export function validateClaudeApiKey(value: string): ValidationResult {
   const trimmed = value.trim();
   if (!trimmed) {
-    return { valid: false, error: "APIキーを入力してください" };
+    return { valid: false, error: 'APIキーを入力してください' };
   }
   if (trimmed.length < 10) {
-    return { valid: false, error: "APIキーが短すぎます（10文字以上）" };
+    return { valid: false, error: 'APIキーが短すぎます（10文字以上）' };
   }
-  if (!trimmed.startsWith("sk-ant-api")) {
+  if (!trimmed.startsWith('sk-ant-api')) {
     return {
       valid: false,
-      error: "Claude APIキーは「sk-ant-api」で始まる必要があります",
+      error: 'Claude APIキーは「sk-ant-api」で始まる必要があります',
     };
   }
   return { valid: true };
@@ -147,7 +147,7 @@ export function validateNumber(
   value: number,
   fieldName: string,
   min?: number,
-  max?: number
+  max?: number,
 ): ValidationResult {
   if (isNaN(value)) {
     return { valid: false, error: `${fieldName}は数値で入力してください` };
@@ -170,9 +170,10 @@ export function validateNumber(
 /**
  * 複数バリデーション結果の集約
  */
-export function collectErrors(
-  ...results: ValidationResult[]
-): { valid: boolean; errors: string[] } {
+export function collectErrors(...results: ValidationResult[]): {
+  valid: boolean;
+  errors: string[];
+} {
   const errors = results
     .filter((r) => !r.valid && r.error)
     .map((r) => r.error!);
@@ -190,12 +191,12 @@ export async function validateConfigOnServer(
     endpoint?: string;
     modelId?: string;
     additionalConfig?: Record<string, unknown>;
-  }
+  },
 ): Promise<{ valid: boolean; errors: string[] }> {
   try {
     const res = await fetch(`${apiBaseUrl}/agents/validate-config`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config),
     });
 
@@ -207,7 +208,7 @@ export async function validateConfigOnServer(
   } catch {
     return {
       valid: false,
-      errors: ["サーバーとの通信に失敗しました"],
+      errors: ['サーバーとの通信に失敗しました'],
     };
   }
 }

@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from 'react';
 import {
   Folder,
   FolderOpen,
@@ -19,8 +19,8 @@ import {
   StarOff,
   Trash2,
   ChevronDown,
-} from "lucide-react";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import { API_BASE_URL } from '@/utils/api';
 
 type DirectoryEntry = {
   name: string;
@@ -55,27 +55,27 @@ type DirectoryPickerProps = {
 export function DirectoryPicker({
   value,
   onChange,
-  placeholder = "ディレクトリパスを入力または選択",
-  className = "",
+  placeholder = 'ディレクトリパスを入力または選択',
+  className = '',
 }: DirectoryPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [currentPath, setCurrentPath] = useState<string>("");
+  const [currentPath, setCurrentPath] = useState<string>('');
   const [directories, setDirectories] = useState<DirectoryEntry[]>([]);
   const [parentPath, setParentPath] = useState<string | null>(null);
   const [isGitRepo, setIsGitRepo] = useState(false);
   const [isDriveList, setIsDriveList] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [manualPath, setManualPath] = useState("");
+  const [manualPath, setManualPath] = useState('');
   const [favorites, setFavorites] = useState<FavoriteDirectory[]>([]);
   const [showFavorites, setShowFavorites] = useState(true);
   const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
   const [favoritesOnlyMode, setFavoritesOnlyMode] = useState(false); // お気に入りのみ表示モード
   const [showFavoritesDropdown, setShowFavoritesDropdown] = useState(false);
   const [isEditing, setIsEditing] = useState(false); // インライン編集モード
-  const [editValue, setEditValue] = useState(""); // 編集中の値
+  const [editValue, setEditValue] = useState(''); // 編集中の値
   const [isCreatingFolder, setIsCreatingFolder] = useState(false); // 新規フォルダ作成モード
-  const [newFolderName, setNewFolderName] = useState(""); // 新規フォルダ名
+  const [newFolderName, setNewFolderName] = useState(''); // 新規フォルダ名
   const [isCreating, setIsCreating] = useState(false); // 作成中フラグ
   const [createError, setCreateError] = useState<string | null>(null); // 作成エラー
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -105,8 +105,8 @@ export function DirectoryPicker({
         handleEditComplete();
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isEditing, editValue]);
 
   // インライン編集開始
@@ -144,7 +144,7 @@ export function DirectoryPicker({
         setFavorites(data);
       }
     } catch (err) {
-      console.error("Failed to fetch favorites:", err);
+      console.error('Failed to fetch favorites:', err);
     } finally {
       setIsLoadingFavorites(false);
     }
@@ -154,8 +154,8 @@ export function DirectoryPicker({
   const addToFavorites = async (dirPath: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/directories/favorites`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: dirPath }),
       });
       const data = await res.json();
@@ -163,7 +163,7 @@ export function DirectoryPicker({
         setFavorites((prev) => [data, ...prev]);
       }
     } catch (err) {
-      console.error("Failed to add favorite:", err);
+      console.error('Failed to add favorite:', err);
     }
   };
 
@@ -171,14 +171,14 @@ export function DirectoryPicker({
   const removeFromFavorites = async (id: number) => {
     try {
       const res = await fetch(`${API_BASE_URL}/directories/favorites/${id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       const data = await res.json();
       if (data.success) {
         setFavorites((prev) => prev.filter((f) => f.id !== id));
       }
     } catch (err) {
-      console.error("Failed to remove favorite:", err);
+      console.error('Failed to remove favorite:', err);
     }
   };
 
@@ -217,7 +217,7 @@ export function DirectoryPicker({
       setIsDriveList(data.isDriveList || false);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "ディレクトリの取得に失敗しました",
+        err instanceof Error ? err.message : 'ディレクトリの取得に失敗しました',
       );
     } finally {
       setIsLoading(false);
@@ -226,7 +226,7 @@ export function DirectoryPicker({
 
   const handleOpen = async () => {
     setIsOpen(true);
-    setManualPath("");
+    setManualPath('');
     setShowFavorites(true);
 
     // まずお気に入りを取得
@@ -239,7 +239,7 @@ export function DirectoryPicker({
         // お気に入りがある場合は、お気に入りのみ表示モードで開始
         setFavoritesOnlyMode(true);
         // ディレクトリブラウズは開始しない（お気に入りから選択を促す）
-        setCurrentPath("");
+        setCurrentPath('');
         setDirectories([]);
         setParentPath(null);
         setIsGitRepo(false);
@@ -255,7 +255,7 @@ export function DirectoryPicker({
         }
       }
     } catch (err) {
-      console.error("Failed to fetch favorites:", err);
+      console.error('Failed to fetch favorites:', err);
       setFavorites([]);
       setFavoritesOnlyMode(false);
       // エラー時も通常のブラウズを開始
@@ -282,7 +282,7 @@ export function DirectoryPicker({
   // 新規フォルダ作成を開始
   const handleStartCreateFolder = () => {
     setIsCreatingFolder(true);
-    setNewFolderName("");
+    setNewFolderName('');
     setCreateError(null);
     setTimeout(() => {
       newFolderInputRef.current?.focus();
@@ -292,27 +292,27 @@ export function DirectoryPicker({
   // 新規フォルダ作成をキャンセル
   const handleCancelCreateFolder = () => {
     setIsCreatingFolder(false);
-    setNewFolderName("");
+    setNewFolderName('');
     setCreateError(null);
   };
 
   // 新規フォルダを作成
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) {
-      setCreateError("フォルダ名を入力してください");
+      setCreateError('フォルダ名を入力してください');
       return;
     }
 
     // フォルダ名のバリデーション
     const invalidChars = /[<>:"/\\|?*]/;
     if (invalidChars.test(newFolderName)) {
-      setCreateError("フォルダ名に使用できない文字が含まれています");
+      setCreateError('フォルダ名に使用できない文字が含まれています');
       return;
     }
 
-    const separator = currentPath.includes("\\") ? "\\" : "/";
+    const separator = currentPath.includes('\\') ? '\\' : '/';
     const newPath = currentPath
-      ? `${currentPath}${currentPath.endsWith("\\") || currentPath.endsWith("/") ? "" : separator}${newFolderName.trim()}`
+      ? `${currentPath}${currentPath.endsWith('\\') || currentPath.endsWith('/') ? '' : separator}${newFolderName.trim()}`
       : newFolderName.trim();
 
     setIsCreating(true);
@@ -320,28 +320,28 @@ export function DirectoryPicker({
 
     try {
       const res = await fetch(`${API_BASE_URL}/directories/create`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: newPath }),
       });
 
       const data = await res.json();
 
       if (!data.success) {
-        setCreateError(data.error || "フォルダの作成に失敗しました");
+        setCreateError(data.error || 'フォルダの作成に失敗しました');
         return;
       }
 
       // 作成成功 → フォルダ一覧を更新して新しいフォルダに移動
       setIsCreatingFolder(false);
-      setNewFolderName("");
+      setNewFolderName('');
       setCreateError(null);
 
       // 新しく作成されたフォルダに移動
       browseDirectory(data.path);
     } catch (err) {
       setCreateError(
-        err instanceof Error ? err.message : "フォルダの作成に失敗しました"
+        err instanceof Error ? err.message : 'フォルダの作成に失敗しました',
       );
     } finally {
       setIsCreating(false);
@@ -351,9 +351,9 @@ export function DirectoryPicker({
   const handleClose = () => {
     setIsOpen(false);
     setError(null);
-    setManualPath("");
+    setManualPath('');
     setIsCreatingFolder(false);
-    setNewFolderName("");
+    setNewFolderName('');
     setCreateError(null);
   };
 
@@ -405,9 +405,9 @@ export function DirectoryPicker({
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if (e.key === 'Enter') {
                     handleEditComplete();
-                  } else if (e.key === "Escape") {
+                  } else if (e.key === 'Escape') {
                     handleEditCancel();
                   }
                 }}
@@ -457,8 +457,18 @@ export function DirectoryPicker({
                 className="px-3 py-2.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border-l border-zinc-300 dark:border-zinc-700 transition-colors"
                 title="パスを直接入力"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                  />
                 </svg>
               </button>
             </div>
@@ -524,7 +534,7 @@ export function DirectoryPicker({
                 <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg overflow-x-auto min-w-0">
                   <HardDrive className="w-4 h-4 text-zinc-400 shrink-0" />
                   <span className="text-sm font-mono text-zinc-700 dark:text-zinc-300 truncate">
-                    {currentPath || "ドライブ一覧"}
+                    {currentPath || 'ドライブ一覧'}
                   </span>
                   {isGitRepo && (
                     <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs font-medium shrink-0">
@@ -554,12 +564,16 @@ export function DirectoryPicker({
                     onClick={() => setShowFavorites(!showFavorites)}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                       showFavorites
-                        ? "text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-400"
-                        : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        ? 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-400'
+                        : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                     }`}
-                    title={showFavorites ? "お気に入りを非表示" : "お気に入りを表示"}
+                    title={
+                      showFavorites ? 'お気に入りを非表示' : 'お気に入りを表示'
+                    }
                   >
-                    <Star className={`w-3.5 h-3.5 ${showFavorites ? "fill-current" : ""}`} />
+                    <Star
+                      className={`w-3.5 h-3.5 ${showFavorites ? 'fill-current' : ''}`}
+                    />
                     <span className="hidden sm:inline">{favorites.length}</span>
                   </button>
 
@@ -576,10 +590,14 @@ export function DirectoryPicker({
                       }}
                       className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                         isFavorite(currentPath)
-                          ? "text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400"
-                          : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          ? 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400'
+                          : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                       }`}
-                      title={isFavorite(currentPath) ? "お気に入りから削除" : "お気に入りに追加"}
+                      title={
+                        isFavorite(currentPath)
+                          ? 'お気に入りから削除'
+                          : 'お気に入りに追加'
+                      }
                     >
                       {isFavorite(currentPath) ? (
                         <>
@@ -606,7 +624,7 @@ export function DirectoryPicker({
                   value={manualPath}
                   onChange={(e) => setManualPath(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") {
+                    if (e.key === 'Enter') {
                       handleGoToPath();
                     }
                   }}
@@ -654,8 +672,8 @@ export function DirectoryPicker({
                         key={fav.id}
                         className={`flex items-center gap-2 px-4 py-3 transition-colors group ${
                           isCurrentValue
-                            ? "bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-500"
-                            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                            ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-500'
+                            : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
                         }`}
                       >
                         <button
@@ -666,11 +684,11 @@ export function DirectoryPicker({
                           className="flex-1 flex items-center gap-3 text-left min-w-0"
                         >
                           <Folder
-                            className={`w-5 h-5 shrink-0 ${isCurrentValue ? "text-purple-500" : "text-yellow-500"}`}
+                            className={`w-5 h-5 shrink-0 ${isCurrentValue ? 'text-purple-500' : 'text-yellow-500'}`}
                           />
                           <div className="flex-1 min-w-0">
                             <div
-                              className={`text-sm font-medium truncate ${isCurrentValue ? "text-purple-700 dark:text-purple-300" : "text-zinc-700 dark:text-zinc-300"}`}
+                              className={`text-sm font-medium truncate ${isCurrentValue ? 'text-purple-700 dark:text-purple-300' : 'text-zinc-700 dark:text-zinc-300'}`}
                             >
                               {fav.name || fav.path.split(/[\\/]/).pop()}
                               {isCurrentValue && (
@@ -728,9 +746,9 @@ export function DirectoryPicker({
                           setCreateError(null);
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") {
+                          if (e.key === 'Enter') {
                             handleCreateFolder();
-                          } else if (e.key === "Escape") {
+                          } else if (e.key === 'Escape') {
                             handleCancelCreateFolder();
                           }
                         }}
@@ -791,8 +809,8 @@ export function DirectoryPicker({
                             key={fav.id}
                             className={`flex items-center gap-2 px-4 py-2 transition-colors group ${
                               isCurrentValue
-                                ? "bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-500"
-                                : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                                ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-500'
+                                : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
                             }`}
                           >
                             <button
@@ -800,11 +818,11 @@ export function DirectoryPicker({
                               className="flex-1 flex items-center gap-3 text-left min-w-0"
                             >
                               <Folder
-                                className={`w-4 h-4 shrink-0 ${isCurrentValue ? "text-purple-500" : "text-yellow-500"}`}
+                                className={`w-4 h-4 shrink-0 ${isCurrentValue ? 'text-purple-500' : 'text-yellow-500'}`}
                               />
                               <div className="flex-1 min-w-0">
                                 <div
-                                  className={`text-sm font-medium truncate ${isCurrentValue ? "text-purple-700 dark:text-purple-300" : "text-zinc-700 dark:text-zinc-300"}`}
+                                  className={`text-sm font-medium truncate ${isCurrentValue ? 'text-purple-700 dark:text-purple-300' : 'text-zinc-700 dark:text-zinc-300'}`}
                                 >
                                   {fav.name || fav.path.split(/[\\/]/).pop()}
                                   {isCurrentValue && (
@@ -842,7 +860,7 @@ export function DirectoryPicker({
 
                 {/* Directory List - 通常モード時のディレクトリ一覧 */}
                 <div
-                  className={`overflow-y-auto ${showFavorites && favorites.length > 0 ? "h-40" : "h-72"}`}
+                  className={`overflow-y-auto ${showFavorites && favorites.length > 0 ? 'h-40' : 'h-72'}`}
                 >
                   {isLoading ? (
                     <div className="flex items-center justify-center h-full">
@@ -909,9 +927,9 @@ export function DirectoryPicker({
               ) : (
                 <>
                   <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                    選択中:{" "}
+                    選択中:{' '}
                     <span className="font-mono text-zinc-700 dark:text-zinc-300">
-                      {currentPath || "なし"}
+                      {currentPath || 'なし'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">

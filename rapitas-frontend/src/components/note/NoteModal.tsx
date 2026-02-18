@@ -1,5 +1,5 @@
-"use client";
-import { useEffect, useRef, useState, useCallback } from "react";
+'use client';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   X,
   Plus,
@@ -18,43 +18,43 @@ import {
   Minimize2,
   Copy,
   Check,
-} from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { useNoteStore, type ModalTab } from "@/stores/noteStore";
-import NoteEditor from "./NoteEditor";
-import NoteSidebar from "./NoteSidebar";
-import { useAIChat } from "./useAIChat";
-import { fetchConfiguredProviders, fetchAvailableModels } from "./aiService";
-import Link from "next/link";
-import type { AIChatMessage, ApiProvider } from "@/types";
+} from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useNoteStore, type ModalTab } from '@/stores/noteStore';
+import NoteEditor from './NoteEditor';
+import NoteSidebar from './NoteSidebar';
+import { useAIChat } from './useAIChat';
+import { fetchConfiguredProviders, fetchAvailableModels } from './aiService';
+import Link from 'next/link';
+import type { AIChatMessage, ApiProvider } from '@/types';
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
-  claude: "Claude",
-  chatgpt: "ChatGPT",
-  gemini: "Gemini",
+  claude: 'Claude',
+  chatgpt: 'ChatGPT',
+  gemini: 'Gemini',
 };
 
 const PROVIDER_COLORS: Record<ApiProvider, string> = {
-  claude: "bg-orange-500",
-  chatgpt: "bg-green-500",
-  gemini: "bg-blue-500",
+  claude: 'bg-orange-500',
+  chatgpt: 'bg-green-500',
+  gemini: 'bg-blue-500',
 };
 
 function ChatMessage({ message }: { message: AIChatMessage }) {
-  const isUser = message.role === "user";
+  const isUser = message.role === 'user';
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-3`}>
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`}>
       <div
         className={`max-w-[80%] rounded-2xl px-4 py-3 ${
           isUser
-            ? "bg-linear-to-r from-blue-500 to-indigo-600 text-white rounded-br-md"
-            : "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-bl-md"
+            ? 'bg-linear-to-r from-blue-500 to-indigo-600 text-white rounded-br-md'
+            : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-bl-md'
         }`}
       >
         {isUser ? (
@@ -121,11 +121,11 @@ function ChatMessage({ message }: { message: AIChatMessage }) {
                       </code>
                     );
                   }
-                  const lang = className?.replace("language-", "") || "text";
-                  const codeString = String(children).replace(/\n$/, "");
+                  const lang = className?.replace('language-', '') || 'text';
+                  const codeString = String(children).replace(/\n$/, '');
                   return (
                     <div className="relative group mb-3">
-                      {lang !== "text" && (
+                      {lang !== 'text' && (
                         <div className="absolute top-0 right-0 px-2 py-1 text-xs text-zinc-400 bg-zinc-800 rounded-tr-md rounded-bl-md z-10">
                           {lang}
                         </div>
@@ -137,14 +137,14 @@ function ChatMessage({ message }: { message: AIChatMessage }) {
                           PreTag="div"
                           customStyle={{
                             margin: 0,
-                            padding: "1rem",
-                            fontSize: "0.875rem",
-                            lineHeight: "1.5",
-                            backgroundColor: "#1e1e1e",
+                            padding: '1rem',
+                            fontSize: '0.875rem',
+                            lineHeight: '1.5',
+                            backgroundColor: '#1e1e1e',
                           }}
                           codeTagProps={{
                             style: {
-                              fontSize: "inherit",
+                              fontSize: 'inherit',
                               fontFamily:
                                 "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace",
                             },
@@ -244,12 +244,12 @@ function ChatMessage({ message }: { message: AIChatMessage }) {
         )}
         <span
           className={`text-xs mt-2 block ${
-            isUser ? "text-blue-100" : "text-zinc-400 dark:text-zinc-500"
+            isUser ? 'text-blue-100' : 'text-zinc-400 dark:text-zinc-500'
           }`}
         >
-          {message.timestamp.toLocaleTimeString("ja-JP", {
-            hour: "2-digit",
-            minute: "2-digit",
+          {message.timestamp.toLocaleTimeString('ja-JP', {
+            hour: '2-digit',
+            minute: '2-digit',
           })}
         </span>
       </div>
@@ -258,14 +258,14 @@ function ChatMessage({ message }: { message: AIChatMessage }) {
 }
 
 function AITabContent() {
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const [selectedProvider, setSelectedProvider] =
-    useState<ApiProvider>("claude");
-  const [selectedModel, setSelectedModel] = useState<string>("");
+    useState<ApiProvider>('claude');
+  const [selectedModel, setSelectedModel] = useState<string>('');
   const [configuredProviders, setConfiguredProviders] = useState<ApiProvider[]>(
     [],
   );
@@ -275,7 +275,7 @@ function AITabContent() {
 
   const { messages, isLoading, error, sendMessage, clearMessages } = useAIChat({
     systemPrompt:
-      "あなたはRapi+アプリケーションのAIアシスタントです。ユーザーのタスク管理、学習、開発作業に関する質問に日本語で丁寧に回答してください。\n\n回答は適切にマークダウン形式でフォーマットしてください：\n- 見出しには # ## ### を使用\n- コードブロックには ```言語名 を使用\n- リストには - または 1. 2. 3. を使用\n- 重要な部分は **太字** で強調\n- インラインコードは `バッククォート` で囲む",
+      'あなたはRapi+アプリケーションのAIアシスタントです。ユーザーのタスク管理、学習、開発作業に関する質問に日本語で丁寧に回答してください。\n\n回答は適切にマークダウン形式でフォーマットしてください：\n- 見出しには # ## ### を使用\n- コードブロックには ```言語名 を使用\n- リストには - または 1. 2. 3. を使用\n- 重要な部分は **太字** で強調\n- インラインコードは `バッククォート` で囲む',
     provider: selectedProvider,
     model: selectedModel || undefined,
   });
@@ -292,7 +292,7 @@ function AITabContent() {
 
   useEffect(() => {
     if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
 
@@ -303,13 +303,13 @@ function AITabContent() {
   const handleSendMessage = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
     const message = inputValue;
-    setInputValue("");
+    setInputValue('');
     await sendMessage(message);
   }, [inputValue, isLoading, sendMessage]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSendMessage();
       }
@@ -320,7 +320,7 @@ function AITabContent() {
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       setInputValue(e.target.value);
-      e.target.style.height = "auto";
+      e.target.style.height = 'auto';
       e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
     },
     [],
@@ -344,8 +344,8 @@ function AITabContent() {
             onClick={() => setShowSettings(!showSettings)}
             className={`p-1.5 rounded-lg transition-colors ${
               showSettings
-                ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
-                : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100'
+                : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700'
             }`}
             title="AI設定"
           >
@@ -371,7 +371,7 @@ function AITabContent() {
               AIプロバイダー
             </label>
             <div className="flex gap-1.5">
-              {(["claude", "chatgpt", "gemini"] as ApiProvider[]).map((p) => {
+              {(['claude', 'chatgpt', 'gemini'] as ApiProvider[]).map((p) => {
                 const isConfigured = configuredProviders.includes(p);
                 const isSelected = selectedProvider === p;
                 return (
@@ -380,23 +380,23 @@ function AITabContent() {
                     onClick={() => {
                       if (isConfigured) {
                         setSelectedProvider(p);
-                        setSelectedModel("");
+                        setSelectedModel('');
                       }
                     }}
                     disabled={!isConfigured}
                     className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       isSelected
-                        ? "bg-linear-to-r from-blue-500 to-indigo-600 text-white"
+                        ? 'bg-linear-to-r from-blue-500 to-indigo-600 text-white'
                         : isConfigured
-                          ? "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-600"
-                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed"
+                          ? 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-600'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed'
                     }`}
                   >
                     <span
                       className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${
                         isConfigured
                           ? PROVIDER_COLORS[p]
-                          : "bg-zinc-300 dark:bg-zinc-600"
+                          : 'bg-zinc-300 dark:bg-zinc-600'
                       }`}
                     />
                     {PROVIDER_LABELS[p]}
@@ -525,8 +525,8 @@ function DragOverlay({ cursor }: { cursor: string }) {
       style={{
         zIndex: 99999,
         cursor,
-        userSelect: "none",
-        WebkitUserSelect: "none",
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
       }}
     />
   );
@@ -578,7 +578,7 @@ export default function NoteModal() {
 
   const handleDragStart = (e: React.MouseEvent) => {
     // input, select, textareaなどのフォーム要素は除外（ヘッダー内の検索バー用）
-    if ((e.target as HTMLElement).closest("input, select, textarea")) return;
+    if ((e.target as HTMLElement).closest('input, select, textarea')) return;
 
     // マウスダウンイベントをマーク（クリック判定用）
     e.preventDefault();
@@ -607,7 +607,7 @@ export default function NoteModal() {
           setIsDragging(true);
           // モーダルにwill-changeを適用
           if (modalRef.current) {
-            modalRef.current.style.willChange = "transform";
+            modalRef.current.style.willChange = 'transform';
           }
         }
         return;
@@ -642,7 +642,7 @@ export default function NoteModal() {
 
       // will-changeをリセット
       if (modalRef.current) {
-        modalRef.current.style.willChange = "auto";
+        modalRef.current.style.willChange = 'auto';
       }
 
       // rafをキャンセル
@@ -656,11 +656,11 @@ export default function NoteModal() {
         setModalPosition(tempPositionRef.current.x, tempPositionRef.current.y);
       }
     };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
     return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
@@ -687,7 +687,7 @@ export default function NoteModal() {
 
     // リサイズ中もwill-changeを適用
     if (modalRef.current) {
-      modalRef.current.style.willChange = "width, height";
+      modalRef.current.style.willChange = 'width, height';
     }
   };
 
@@ -719,7 +719,7 @@ export default function NoteModal() {
 
       // will-changeをリセット
       if (modalRef.current) {
-        modalRef.current.style.willChange = "auto";
+        modalRef.current.style.willChange = 'auto';
       }
 
       // rafをキャンセル
@@ -733,11 +733,11 @@ export default function NoteModal() {
         setModalSize(tempSizeRef.current.width, tempSizeRef.current.height);
       }
     };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
     return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
       if (resizeRafRef.current !== null) {
         cancelAnimationFrame(resizeRafRef.current);
         resizeRafRef.current = null;
@@ -748,12 +748,12 @@ export default function NoteModal() {
   // ショートカットキー
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         closeModal();
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [closeModal]);
 
   // モーダルが開かれたときに位置をセット
@@ -766,7 +766,7 @@ export default function NoteModal() {
 
   const handleTabChange = (tab: ModalTab) => {
     setModalTab(tab);
-    if (tab === "note" && notes.length === 0) {
+    if (tab === 'note' && notes.length === 0) {
       createNote();
     }
   };
@@ -777,22 +777,22 @@ export default function NoteModal() {
   return (
     <>
       {(isDragging || isResizing) && (
-        <DragOverlay cursor={isDragging ? "move" : "se-resize"} />
+        <DragOverlay cursor={isDragging ? 'move' : 'se-resize'} />
       )}
       <div
         ref={modalRef}
         className={`fixed bg-white dark:bg-zinc-900 overflow-hidden note-modal-enter ${
-          modalState.isMaximized ? "rounded-none" : "rounded-xl shadow-2xl"
+          modalState.isMaximized ? 'rounded-none' : 'rounded-xl shadow-2xl'
         } ${
-          isDragging || isResizing ? "note-modal-dragging" : "note-modal-smooth"
+          isDragging || isResizing ? 'note-modal-dragging' : 'note-modal-smooth'
         }`}
         style={
           modalState.isMaximized
             ? {
                 left: 0,
                 top: 64,
-                width: "100vw",
-                height: "calc(100vh - 64px)",
+                width: '100vw',
+                height: 'calc(100vh - 64px)',
                 zIndex: modalState.zIndex,
               }
             : {
@@ -802,18 +802,17 @@ export default function NoteModal() {
                 height: `${modalState.size.height}px`,
                 zIndex: modalState.zIndex,
                 boxShadow:
-                  "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+                  '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
               }
         }
       >
         {/* ヘッダー */}
         <div
           className={`relative h-12 bg-linear-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 flex items-center justify-between px-3 select-none ${
-            modalState.isMaximized ? "cursor-default" : "cursor-move"
+            modalState.isMaximized ? 'cursor-default' : 'cursor-move'
           }`}
           onMouseDown={modalState.isMaximized ? undefined : handleDragStart}
         >
-
           <div className="relative flex items-center bg-white/15 rounded-md p-0.5">
             <button
               onMouseDown={modalState.isMaximized ? undefined : handleDragStart}
@@ -823,12 +822,12 @@ export default function NoteModal() {
                   e.preventDefault();
                   return;
                 }
-                handleTabChange("note");
+                handleTabChange('note');
               }}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all select-none ${
-                activeTab === "note"
-                  ? "bg-white/25 text-white shadow-sm"
-                  : "text-white/60 hover:text-white"
+                activeTab === 'note'
+                  ? 'bg-white/25 text-white shadow-sm'
+                  : 'text-white/60 hover:text-white'
               }`}
             >
               <NotebookTabs className="w-3.5 h-3.5" />
@@ -842,12 +841,12 @@ export default function NoteModal() {
                   e.preventDefault();
                   return;
                 }
-                handleTabChange("ai");
+                handleTabChange('ai');
               }}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all select-none ${
-                activeTab === "ai"
-                  ? "bg-white/25 text-white shadow-sm"
-                  : "text-white/60 hover:text-white"
+                activeTab === 'ai'
+                  ? 'bg-white/25 text-white shadow-sm'
+                  : 'text-white/60 hover:text-white'
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
@@ -856,7 +855,7 @@ export default function NoteModal() {
           </div>
 
           {/* 中央検索バー（ノートタブ時のみ） */}
-          {activeTab === "note" && (
+          {activeTab === 'note' && (
             <div className="relative flex-1 flex items-center justify-center px-4">
               <div className="relative w-full max-w-xs">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/50" />
@@ -872,7 +871,7 @@ export default function NoteModal() {
           )}
 
           {/* AIタブ時は右側に余白を確保 */}
-          {activeTab === "ai" && <div className="relative flex-1" />}
+          {activeTab === 'ai' && <div className="relative flex-1" />}
 
           <div className="relative flex items-center gap-1">
             <button
@@ -886,7 +885,7 @@ export default function NoteModal() {
                 toggleMaximize();
               }}
               className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-              title={modalState.isMaximized ? "元のサイズに戻す" : "全画面表示"}
+              title={modalState.isMaximized ? '元のサイズに戻す' : '全画面表示'}
             >
               {modalState.isMaximized ? (
                 <Minimize2 className="w-4 h-4" />
@@ -916,11 +915,11 @@ export default function NoteModal() {
         <div
           className={`h-[calc(100%-48px)] ${
             isDragging || isResizing
-              ? "note-modal-non-interactive"
-              : "note-modal-interactive"
+              ? 'note-modal-non-interactive'
+              : 'note-modal-interactive'
           }`}
         >
-          {activeTab === "note" ? (
+          {activeTab === 'note' ? (
             <div className="relative flex h-full">
               {/* ホバー展開サイドバー */}
               <div
@@ -931,7 +930,7 @@ export default function NoteModal() {
                 {/* ホバートリガー（常に表示される細い帯） */}
                 <div
                   className={`h-full flex items-center transition-all duration-200 ${
-                    isSidebarHovered ? "w-0 opacity-0" : "w-6 opacity-100"
+                    isSidebarHovered ? 'w-0 opacity-0' : 'w-6 opacity-100'
                   }`}
                 >
                   <div className="w-full h-full flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 border-r border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 cursor-pointer">
@@ -941,7 +940,7 @@ export default function NoteModal() {
                 {/* 展開されるサイドバー */}
                 <div
                   className={`absolute left-0 top-0 h-full bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-700 shadow-xl transition-all duration-200 overflow-hidden ${
-                    isSidebarHovered ? "w-64 opacity-100" : "w-0 opacity-0"
+                    isSidebarHovered ? 'w-64 opacity-100' : 'w-0 opacity-0'
                   }`}
                 >
                   <div className="w-64 h-full">

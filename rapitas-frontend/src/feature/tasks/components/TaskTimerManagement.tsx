@@ -1,6 +1,6 @@
-"use client";
-import { TimeEntry } from "@/types";
-import { useState, useEffect, useRef } from "react";
+'use client';
+import { TimeEntry } from '@/types';
+import { useState, useEffect, useRef } from 'react';
 
 interface TaskTimeTrackingProps {
   estimatedHours?: number;
@@ -40,8 +40,7 @@ export default function TaskTimeTracking({
   useEffect(() => {
     if (getAccumulatedBreakTimeRef) {
       // この関数が呼ばれたときに現在の累積休憩時間（時間単位）を返す
-      getAccumulatedBreakTimeRef.current = () =>
-        accumulatedBreakSeconds / 3600;
+      getAccumulatedBreakTimeRef.current = () => accumulatedBreakSeconds / 3600;
     }
   }, [accumulatedBreakSeconds, getAccumulatedBreakTimeRef]);
 
@@ -94,9 +93,9 @@ export default function TaskTimeTracking({
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs
+    return `${mins.toString().padStart(2, '0')}:${secs
       .toString()
-      .padStart(2, "0")}`;
+      .padStart(2, '0')}`;
   };
 
   const remainingHours =
@@ -163,8 +162,8 @@ export default function TaskTimeTracking({
               <span
                 className={`ml-2 font-semibold ${
                   remainingHours <= 0
-                    ? "text-red-600 dark:text-red-400"
-                    : "text-blue-600 dark:text-blue-400"
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-blue-600 dark:text-blue-400'
                 }`}
               >
                 {remainingHours.toFixed(1)}h
@@ -175,10 +174,10 @@ export default function TaskTimeTracking({
             <div
               className={`h-3 rounded-full transition-all ${
                 progressPercent >= 100
-                  ? "bg-red-500"
+                  ? 'bg-red-500'
                   : progressPercent >= 80
-                  ? "bg-orange-500"
-                  : "bg-blue-500"
+                    ? 'bg-orange-500'
+                    : 'bg-blue-500'
               }`}
               style={{
                 width: `${Math.min(progressPercent, 100)}%`,
@@ -187,12 +186,12 @@ export default function TaskTimeTracking({
           </div>
           <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400">
             <span>
-              作業: {actualHours?.toFixed(1) || 0}h /{" "}
+              作業: {actualHours?.toFixed(1) || 0}h /{' '}
               {estimatedHours.toFixed(1)}h ({progressPercent.toFixed(0)}%)
             </span>
             {totalBreakHours > 0 && (
               <span className="text-zinc-400 dark:text-zinc-500">
-                休憩: {totalBreakHours.toFixed(1)}h | 総時間:{" "}
+                休憩: {totalBreakHours.toFixed(1)}h | 総時間:{' '}
                 {totalElapsedHours.toFixed(1)}h
               </span>
             )}
@@ -207,13 +206,13 @@ export default function TaskTimeTracking({
             <span className="text-2xl">🍅</span>
             <div>
               <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                {isBreakTime ? "休憩時間" : "作業時間"}
+                {isBreakTime ? '休憩時間' : '作業時間'}
               </div>
               <div className="text-xs text-zinc-500 dark:text-zinc-400">
                 {isBreakTime
                   ? pomodoroCount % 4 === 0
-                    ? "長い休憩（15分）"
-                    : "短い休憩（5分）"
+                    ? '長い休憩（15分）'
+                    : '短い休憩（5分）'
                   : `ポモドーロ #${pomodoroCount + 1}`}
               </div>
             </div>
@@ -229,14 +228,14 @@ export default function TaskTimeTracking({
           <div
             className={`text-5xl font-bold font-mono ${
               isBreakTime
-                ? "text-green-600 dark:text-green-400"
-                : "text-blue-600 dark:text-blue-400"
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-blue-600 dark:text-blue-400'
             }`}
           >
             {formatTime(remainingSeconds)}
           </div>
           <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            {isBreakTime ? "休憩終了まで" : "次の休憩まで"}
+            {isBreakTime ? '休憩終了まで' : '次の休憩まで'}
           </div>
         </div>
 
@@ -244,7 +243,7 @@ export default function TaskTimeTracking({
         <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2 mb-4">
           <div
             className={`h-2 rounded-full transition-all ${
-              isBreakTime ? "bg-green-500" : "bg-blue-500"
+              isBreakTime ? 'bg-green-500' : 'bg-blue-500'
             }`}
             style={{
               width: `${
@@ -334,7 +333,7 @@ export default function TaskTimeTracking({
               </h3>
               <p className="text-zinc-600 dark:text-zinc-400">
                 25分間の作業お疲れ様でした。
-                {pomodoroCount % 4 === 0 ? "15分の長い休憩" : "5分の短い休憩"}
+                {pomodoroCount % 4 === 0 ? '15分の長い休憩' : '5分の短い休憩'}
                 を取りましょう。
               </p>
             </div>

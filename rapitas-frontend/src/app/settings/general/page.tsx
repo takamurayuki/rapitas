@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { Settings, Code, GraduationCap, Layers } from "lucide-react";
-import { useAppModeStore, type AppMode } from "@/stores/appModeStore";
+import { Settings, Code, GraduationCap, Layers } from 'lucide-react';
+import { useAppModeStore, type AppMode } from '@/stores/appModeStore';
 
 const MODE_OPTIONS: {
   value: AppMode;
@@ -10,23 +10,23 @@ const MODE_OPTIONS: {
   icon: React.ComponentType<{ className?: string }>;
 }[] = [
   {
-    value: "all",
-    label: "すべて表示",
-    description: "開発・学習の両方のナビゲーションを表示します",
+    value: 'all',
+    label: 'すべて表示',
+    description: '開発・学習の両方のナビゲーションを表示します',
     icon: Layers,
   },
   {
-    value: "development",
-    label: "開発モード",
+    value: 'development',
+    label: '開発モード',
     description:
-      "GitHub連携・エージェント管理など開発関連のナビゲーションのみ表示します",
+      'GitHub連携・エージェント管理など開発関連のナビゲーションのみ表示します',
     icon: Code,
   },
   {
-    value: "learning",
-    label: "学習モード",
+    value: 'learning',
+    label: '学習モード',
     description:
-      "試験目標・学習目標・フラッシュカードなど学習関連のナビゲーションのみ表示します",
+      '試験目標・学習目標・フラッシュカードなど学習関連のナビゲーションのみ表示します',
     icon: GraduationCap,
   },
 ];
@@ -79,8 +79,8 @@ export default function GeneralSettingsPage() {
                     onClick={() => setMode(option.value)}
                     className={`relative p-4 rounded-xl border-2 text-left transition-all ${
                       isSelected
-                        ? "border-violet-500 bg-violet-50 dark:bg-violet-900/20"
-                        : "border-zinc-200 dark:border-zinc-700 hover:border-violet-300 dark:hover:border-violet-700 bg-white dark:bg-zinc-800"
+                        ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
+                        : 'border-zinc-200 dark:border-zinc-700 hover:border-violet-300 dark:hover:border-violet-700 bg-white dark:bg-zinc-800'
                     }`}
                   >
                     {isSelected && (
@@ -91,15 +91,15 @@ export default function GeneralSettingsPage() {
                     <Icon
                       className={`w-6 h-6 mb-2 ${
                         isSelected
-                          ? "text-violet-600 dark:text-violet-400"
-                          : "text-zinc-400 dark:text-zinc-500"
+                          ? 'text-violet-600 dark:text-violet-400'
+                          : 'text-zinc-400 dark:text-zinc-500'
                       }`}
                     />
                     <h3
                       className={`font-medium text-sm ${
                         isSelected
-                          ? "text-violet-700 dark:text-violet-300"
-                          : "text-zinc-900 dark:text-zinc-100"
+                          ? 'text-violet-700 dark:text-violet-300'
+                          : 'text-zinc-900 dark:text-zinc-100'
                       }`}
                     >
                       {option.label}
@@ -107,8 +107,8 @@ export default function GeneralSettingsPage() {
                     <p
                       className={`text-xs mt-1 ${
                         isSelected
-                          ? "text-violet-500 dark:text-violet-400"
-                          : "text-zinc-500 dark:text-zinc-400"
+                          ? 'text-violet-500 dark:text-violet-400'
+                          : 'text-zinc-500 dark:text-zinc-400'
                       }`}
                     >
                       {option.description}

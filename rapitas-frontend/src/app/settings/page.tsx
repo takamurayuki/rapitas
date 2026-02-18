@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useCallback } from "react";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { useEffect, useState, useCallback } from 'react';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import {
   Key,
   CheckCircle,
@@ -14,22 +14,26 @@ import {
   Save,
   Settings,
   ChevronDown,
-} from "lucide-react";
-import type { UserSettings, ApiProvider } from "@/types";
-import { API_BASE_URL } from "@/utils/api";
-import { ClaudeIcon, ChatGPTIcon, GeminiIcon } from "@/components/icons/ProviderIcons";
-import { UsageRateLimitGraph } from "@/components/UsageRateLimitGraph";
+} from 'lucide-react';
+import type { UserSettings, ApiProvider } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
+import {
+  ClaudeIcon,
+  ChatGPTIcon,
+  GeminiIcon,
+} from '@/components/icons/ProviderIcons';
+import { UsageRateLimitGraph } from '@/components/UsageRateLimitGraph';
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
-  claude: "Claude",
-  chatgpt: "ChatGPT",
-  gemini: "Gemini",
+  claude: 'Claude',
+  chatgpt: 'ChatGPT',
+  gemini: 'Gemini',
 };
 
 const PROVIDER_DESCRIPTIONS: Record<ApiProvider, string> = {
-  claude: "Anthropic Claude API",
-  chatgpt: "OpenAI ChatGPT / GPT API",
-  gemini: "Google Gemini API",
+  claude: 'Anthropic Claude API',
+  chatgpt: 'OpenAI ChatGPT / GPT API',
+  gemini: 'Google Gemini API',
 };
 
 type ProviderConfig = {
@@ -47,40 +51,40 @@ type ProviderConfig = {
 
 const PROVIDERS: ProviderConfig[] = [
   {
-    key: "claude",
-    label: "Claude API キー",
-    description: "Anthropic Claude APIを利用するために必要です",
-    placeholder: "sk-ant-api...",
-    consoleUrl: "https://console.anthropic.com/",
-    consoleName: "Anthropic Console",
-    configuredField: "claudeApiKeyConfigured",
-    modelField: "claudeDefaultModel",
+    key: 'claude',
+    label: 'Claude API キー',
+    description: 'Anthropic Claude APIを利用するために必要です',
+    placeholder: 'sk-ant-api...',
+    consoleUrl: 'https://console.anthropic.com/',
+    consoleName: 'Anthropic Console',
+    configuredField: 'claudeApiKeyConfigured',
+    modelField: 'claudeDefaultModel',
     icon: ClaudeIcon,
-    iconColor: "text-orange-500",
+    iconColor: 'text-orange-500',
   },
   {
-    key: "chatgpt",
-    label: "OpenAI API キー",
-    description: "ChatGPT / GPT-4 APIを利用するために必要です",
-    placeholder: "sk-...",
-    consoleUrl: "https://platform.openai.com/api-keys",
-    consoleName: "OpenAI Platform",
-    configuredField: "chatgptApiKeyConfigured",
-    modelField: "chatgptDefaultModel",
+    key: 'chatgpt',
+    label: 'OpenAI API キー',
+    description: 'ChatGPT / GPT-4 APIを利用するために必要です',
+    placeholder: 'sk-...',
+    consoleUrl: 'https://platform.openai.com/api-keys',
+    consoleName: 'OpenAI Platform',
+    configuredField: 'chatgptApiKeyConfigured',
+    modelField: 'chatgptDefaultModel',
     icon: ChatGPTIcon,
-    iconColor: "text-green-500",
+    iconColor: 'text-green-500',
   },
   {
-    key: "gemini",
-    label: "Gemini API キー",
-    description: "Google Gemini APIを利用するために必要です",
-    placeholder: "AIza...",
-    consoleUrl: "https://aistudio.google.com/apikey",
-    consoleName: "Google AI Studio",
-    configuredField: "geminiApiKeyConfigured",
-    modelField: "geminiDefaultModel",
+    key: 'gemini',
+    label: 'Gemini API キー',
+    description: 'Google Gemini APIを利用するために必要です',
+    placeholder: 'AIza...',
+    consoleUrl: 'https://aistudio.google.com/apikey',
+    consoleName: 'Google AI Studio',
+    configuredField: 'geminiApiKeyConfigured',
+    modelField: 'geminiDefaultModel',
     icon: GeminiIcon,
-    iconColor: "text-blue-500",
+    iconColor: 'text-blue-500',
   },
 ];
 
@@ -93,7 +97,7 @@ type ProviderState = {
 };
 
 const initialProviderState: ProviderState = {
-  apiKeyInput: "",
+  apiKeyInput: '',
   showApiKey: false,
   maskedApiKey: null,
   isEditing: false,
@@ -128,10 +132,13 @@ function getCachedData<T>(key: string): T | null {
 
 function setCachedData<T>(key: string, data: T): void {
   try {
-    localStorage.setItem(key, JSON.stringify({
-      data,
-      timestamp: Date.now(),
-    }));
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        data,
+        timestamp: Date.now(),
+      }),
+    );
   } catch (error) {
     console.error('Failed to cache data:', error);
   }
@@ -176,8 +183,8 @@ export default function SettingsPage() {
         setIsLoading(false);
         // Still fetch in background to update cache
         fetch(`${API_BASE_URL}/settings`)
-          .then(res => res.ok ? res.json() : null)
-          .then(data => {
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
             if (data) {
               setSettings(data);
               setCachedData(CACHE_KEYS.settings, data);
@@ -193,7 +200,7 @@ export default function SettingsPage() {
         setCachedData(CACHE_KEYS.settings, data);
       }
     } catch {
-      setError("設定の取得に失敗しました");
+      setError('設定の取得に失敗しました');
     } finally {
       setIsLoading(false);
     }
@@ -202,7 +209,9 @@ export default function SettingsPage() {
   const fetchApiKeys = useCallback(async () => {
     try {
       // Check cache first
-      const cached = getCachedData<Record<string, { configured: boolean; maskedKey: string | null }>>(CACHE_KEYS.apiKeys);
+      const cached = getCachedData<
+        Record<string, { configured: boolean; maskedKey: string | null }>
+      >(CACHE_KEYS.apiKeys);
       if (cached) {
         for (const [provider, info] of Object.entries(cached)) {
           if (info.configured && info.maskedKey) {
@@ -225,20 +234,22 @@ export default function SettingsPage() {
         }
       }
     } catch (err) {
-      console.error("APIキー情報の取得に失敗:", err);
+      console.error('APIキー情報の取得に失敗:', err);
     }
   }, []);
 
   const fetchModels = useCallback(async () => {
     try {
       // Check cache first
-      const cached = getCachedData<Record<string, ModelOption[]>>(CACHE_KEYS.models);
+      const cached = getCachedData<Record<string, ModelOption[]>>(
+        CACHE_KEYS.models,
+      );
       if (cached) {
         setAvailableModels(cached);
         // Still fetch in background to update cache
         fetch(`${API_BASE_URL}/settings/models`)
-          .then(res => res.ok ? res.json() : null)
-          .then(data => {
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
             if (data) {
               setAvailableModels(data);
               setCachedData(CACHE_KEYS.models, data);
@@ -254,7 +265,7 @@ export default function SettingsPage() {
         setCachedData(CACHE_KEYS.models, data);
       }
     } catch (err) {
-      console.error("モデル一覧の取得に失敗:", err);
+      console.error('モデル一覧の取得に失敗:', err);
     }
   }, []);
 
@@ -262,8 +273,8 @@ export default function SettingsPage() {
     setError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/settings/model`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model, provider: providerKey }),
       });
 
@@ -271,19 +282,19 @@ export default function SettingsPage() {
         const provider = PROVIDERS.find((p) => p.key === providerKey);
         setSettings((prev) =>
           prev
-            ? { ...prev, [provider?.modelField ?? ""]: model || null }
+            ? { ...prev, [provider?.modelField ?? '']: model || null }
             : prev,
         );
-        setSuccessMessage("デフォルトモデルを保存しました");
+        setSuccessMessage('デフォルトモデルを保存しました');
         setTimeout(() => setSuccessMessage(null), 3000);
         // Clear cache to ensure fresh data
         localStorage.removeItem(CACHE_KEYS.settings);
       } else {
         const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error ?? "モデルの保存に失敗しました");
+        throw new Error(errData?.error ?? 'モデルの保存に失敗しました');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
     }
   };
 
@@ -291,23 +302,23 @@ export default function SettingsPage() {
     setError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/settings`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ defaultAiProvider: provider }),
       });
       if (res.ok) {
         setSettings((prev) =>
           prev ? { ...prev, defaultAiProvider: provider } : prev,
         );
-        setSuccessMessage("デフォルトAIプロバイダーを保存しました");
+        setSuccessMessage('デフォルトAIプロバイダーを保存しました');
         setTimeout(() => setSuccessMessage(null), 3000);
         // Clear cache to ensure fresh data
         localStorage.removeItem(CACHE_KEYS.settings);
       } else {
-        throw new Error("保存に失敗しました");
+        throw new Error('保存に失敗しました');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
     }
   };
 
@@ -325,8 +336,8 @@ export default function SettingsPage() {
     setError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/settings/api-key`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           apiKey: state.apiKeyInput,
           provider: providerKey,
@@ -337,7 +348,7 @@ export default function SettingsPage() {
         const data = await res.json();
         updateProviderState(providerKey, {
           maskedApiKey: data.maskedKey,
-          apiKeyInput: "",
+          apiKeyInput: '',
           isEditing: false,
           showApiKey: false,
         });
@@ -349,19 +360,17 @@ export default function SettingsPage() {
           );
         }
 
-        setSuccessMessage(
-          `${provider?.label ?? "API"}キーを保存しました`,
-        );
+        setSuccessMessage(`${provider?.label ?? 'API'}キーを保存しました`);
         setTimeout(() => setSuccessMessage(null), 3000);
         // Clear cache to ensure fresh data
         localStorage.removeItem(CACHE_KEYS.apiKeys);
         localStorage.removeItem(CACHE_KEYS.models);
       } else {
         const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error ?? "保存に失敗しました");
+        throw new Error(errData?.error ?? '保存に失敗しました');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
     } finally {
       updateProviderState(providerKey, { isSaving: false });
     }
@@ -369,11 +378,7 @@ export default function SettingsPage() {
 
   const deleteApiKey = async (providerKey: string) => {
     const provider = PROVIDERS.find((p) => p.key === providerKey);
-    if (
-      !confirm(
-        `${provider?.label ?? "API"}キーを削除してもよろしいですか？`,
-      )
-    )
+    if (!confirm(`${provider?.label ?? 'API'}キーを削除してもよろしいですか？`))
       return;
 
     updateProviderState(providerKey, { isSaving: true });
@@ -381,13 +386,13 @@ export default function SettingsPage() {
     try {
       const res = await fetch(
         `${API_BASE_URL}/settings/api-key?provider=${providerKey}`,
-        { method: "DELETE" },
+        { method: 'DELETE' },
       );
 
       if (res.ok) {
         updateProviderState(providerKey, {
           maskedApiKey: null,
-          apiKeyInput: "",
+          apiKeyInput: '',
           isEditing: false,
         });
 
@@ -397,18 +402,16 @@ export default function SettingsPage() {
           );
         }
 
-        setSuccessMessage(
-          `${provider?.label ?? "API"}キーを削除しました`,
-        );
+        setSuccessMessage(`${provider?.label ?? 'API'}キーを削除しました`);
         setTimeout(() => setSuccessMessage(null), 3000);
         // Clear cache to ensure fresh data
         localStorage.removeItem(CACHE_KEYS.apiKeys);
         localStorage.removeItem(CACHE_KEYS.models);
       } else {
-        throw new Error("削除に失敗しました");
+        throw new Error('削除に失敗しました');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
     } finally {
       updateProviderState(providerKey, { isSaving: false });
     }
@@ -471,15 +474,17 @@ export default function SettingsPage() {
           <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {PROVIDERS.map((provider) => {
               const state = providerStates[provider.key];
-              const isConfigured = !!(
-                settings?.[provider.configuredField] as boolean | undefined
-              );
+              const isConfigured = !!(settings?.[provider.configuredField] as
+                | boolean
+                | undefined);
 
               return (
                 <div key={provider.key} className="p-6">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 ${provider.iconColor}`}>
+                      <div
+                        className={`p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 ${provider.iconColor}`}
+                      >
                         <provider.icon className="w-5 h-5" />
                       </div>
                       <div>
@@ -558,7 +563,7 @@ export default function SettingsPage() {
                             (settings?.[provider.modelField] as
                               | string
                               | null
-                              | undefined) ?? ""
+                              | undefined) ?? ''
                           }
                           onChange={(e) =>
                             saveModel(provider.key, e.target.value)
@@ -589,7 +594,7 @@ export default function SettingsPage() {
                         </label>
                         <div className="relative">
                           <input
-                            type={state.showApiKey ? "text" : "password"}
+                            type={state.showApiKey ? 'text' : 'password'}
                             id={`apiKey-${provider.key}`}
                             value={state.apiKeyInput}
                             onChange={(e) =>
@@ -634,7 +639,7 @@ export default function SettingsPage() {
                               onClick={() => {
                                 updateProviderState(provider.key, {
                                   isEditing: false,
-                                  apiKeyInput: "",
+                                  apiKeyInput: '',
                                   showApiKey: false,
                                 });
                               }}
@@ -684,7 +689,7 @@ export default function SettingsPage() {
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {(["claude", "chatgpt", "gemini"] as ApiProvider[]).map((p) => {
+              {(['claude', 'chatgpt', 'gemini'] as ApiProvider[]).map((p) => {
                 const provider = PROVIDERS.find((pr) => pr.key === p);
                 const configField = provider?.configuredField;
                 const isConfigured = !!(
@@ -701,10 +706,10 @@ export default function SettingsPage() {
                     disabled={!isConfigured}
                     className={`relative p-4 rounded-xl border-2 text-left transition-all ${
                       isSelected
-                        ? "border-violet-500 bg-violet-50 dark:bg-violet-900/20"
+                        ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
                         : isConfigured
-                        ? "border-zinc-200 dark:border-zinc-700 hover:border-violet-300 dark:hover:border-violet-700 bg-white dark:bg-zinc-800"
-                        : "border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 opacity-50 cursor-not-allowed"
+                          ? 'border-zinc-200 dark:border-zinc-700 hover:border-violet-300 dark:hover:border-violet-700 bg-white dark:bg-zinc-800'
+                          : 'border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 opacity-50 cursor-not-allowed'
                     }`}
                   >
                     {isSelected && (
@@ -714,7 +719,9 @@ export default function SettingsPage() {
                     )}
                     <div className="flex items-start gap-2">
                       {provider && (
-                        <div className={`p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 ${provider.iconColor}`}>
+                        <div
+                          className={`p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 ${provider.iconColor}`}
+                        >
                           <provider.icon className="w-4 h-4" />
                         </div>
                       )}
@@ -722,10 +729,10 @@ export default function SettingsPage() {
                         <h3
                           className={`font-medium text-sm ${
                             isSelected
-                              ? "text-violet-700 dark:text-violet-300"
+                              ? 'text-violet-700 dark:text-violet-300'
                               : isConfigured
-                              ? "text-zinc-900 dark:text-zinc-100"
-                              : "text-zinc-400 dark:text-zinc-600"
+                                ? 'text-zinc-900 dark:text-zinc-100'
+                                : 'text-zinc-400 dark:text-zinc-600'
                           }`}
                         >
                           {PROVIDER_LABELS[p]}
@@ -733,8 +740,8 @@ export default function SettingsPage() {
                         <p
                           className={`text-xs mt-1 ${
                             isSelected
-                              ? "text-violet-500 dark:text-violet-400"
-                              : "text-zinc-500 dark:text-zinc-400"
+                              ? 'text-violet-500 dark:text-violet-400'
+                              : 'text-zinc-500 dark:text-zinc-400'
                           }`}
                         >
                           {PROVIDER_DESCRIPTIONS[p]}
@@ -752,7 +759,6 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );

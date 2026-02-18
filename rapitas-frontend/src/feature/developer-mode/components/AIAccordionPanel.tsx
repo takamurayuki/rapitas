@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   Bot,
   BrainCircuit,
@@ -28,31 +28,31 @@ import {
   ListTodo,
   FileText,
   MessageSquarePlus,
-} from "lucide-react";
-import Link from "next/link";
+} from 'lucide-react';
+import Link from 'next/link';
 import type {
   DeveloperModeConfig,
   TaskAnalysisResult,
   Resource,
   Task,
   AIAgentConfig,
-} from "@/types";
+} from '@/types';
 import type {
   ExecutionStatus,
   ExecutionResult,
-} from "../hooks/useDeveloperMode";
+} from '../hooks/useDeveloperMode';
 import {
   useExecutionPolling,
   useExecutionStream,
-} from "../hooks/useExecutionStream";
+} from '../hooks/useExecutionStream';
 import {
   ExecutionLogViewer,
   type ExecutionLogStatus,
-} from "./ExecutionLogViewer";
-import { SubtaskLogTabs } from "./SubtaskLogTabs";
-import { API_BASE_URL } from "@/utils/api";
-import type { ParallelExecutionStatus } from "@/feature/tasks/components/SubtaskExecutionStatus";
-import { useExecutionStateStore } from "@/stores/executionStateStore";
+} from './ExecutionLogViewer';
+import { SubtaskLogTabs } from './SubtaskLogTabs';
+import { API_BASE_URL } from '@/utils/api';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import { useExecutionStateStore } from '@/stores/executionStateStore';
 
 // TaskAnalysisResult is imported from @/types
 
@@ -62,13 +62,13 @@ type PromptClarificationQuestion = {
   options?: string[];
   isRequired: boolean;
   category:
-    | "scope"
-    | "technical"
-    | "requirements"
-    | "constraints"
-    | "integration"
-    | "testing"
-    | "deliverables";
+    | 'scope'
+    | 'technical'
+    | 'requirements'
+    | 'constraints'
+    | 'integration'
+    | 'testing'
+    | 'deliverables';
 };
 
 type PromptResult = {
@@ -153,8 +153,8 @@ type Props = {
   onRefreshSubtaskLogs?: (taskId?: number) => void;
 };
 
-type AccordionSection = "analysis" | "execution" | "terminal";
-type AnalysisTabType = "subtasks" | "prompt";
+type AccordionSection = 'analysis' | 'execution' | 'terminal';
+type AnalysisTabType = 'subtasks' | 'prompt';
 
 export function AIAccordionPanel({
   taskId,
@@ -204,7 +204,7 @@ export function AIAccordionPanel({
 
   const [expandedSection, setExpandedSection] =
     useState<AccordionSection | null>(null);
-  const [analysisTab, setAnalysisTab] = useState<AnalysisTabType>("subtasks");
+  const [analysisTab, setAnalysisTab] = useState<AnalysisTabType>('subtasks');
   // 分析パネルの状態
   const [selectedSubtasks, setSelectedSubtasks] = useState<number[]>([]);
   const [isCreatingSubtasks, setIsCreatingSubtasks] = useState(false);
@@ -220,15 +220,15 @@ export function AIAccordionPanel({
 
   // 実行パネルの状態
   const [showLogs, setShowLogs] = useState(true);
-  const [instruction, setInstruction] = useState("");
-  const [branchName, setBranchName] = useState("");
+  const [instruction, setInstruction] = useState('');
+  const [branchName, setBranchName] = useState('');
   const [isGeneratingBranchName, setIsGeneratingBranchName] = useState(false);
-  const [userResponse, setUserResponse] = useState("");
+  const [userResponse, setUserResponse] = useState('');
   const [isSendingResponse, setIsSendingResponse] = useState(false);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
   const hasRestoredRef = useRef(false);
-  const [continueInstruction, setContinueInstruction] = useState("");
+  const [continueInstruction, setContinueInstruction] = useState('');
   const previousLogsLengthRef = useRef(0);
   // 実行履歴とタブ表示機能を削除
 
@@ -281,15 +281,15 @@ export function AIAccordionPanel({
         const response = await fetch(
           `${API_BASE_URL}/developer-mode/optimize-prompt/${taskId}`,
           {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ clarificationAnswers }),
           },
         );
 
         if (!response.ok) {
           const errData = await response.json();
-          throw new Error(errData.error || "プロンプト生成に失敗しました");
+          throw new Error(errData.error || 'プロンプト生成に失敗しました');
         }
 
         const data: PromptResult = await response.json();
@@ -300,7 +300,7 @@ export function AIAccordionPanel({
         }
       } catch (err) {
         setPromptError(
-          err instanceof Error ? err.message : "エラーが発生しました",
+          err instanceof Error ? err.message : 'エラーが発生しました',
         );
       } finally {
         setIsGeneratingPrompt(false);
@@ -321,7 +321,7 @@ export function AIAccordionPanel({
       (q) => !questionAnswers[q.id]?.trim(),
     );
     if (unansweredRequired.length > 0) {
-      setPromptError("必須の質問に回答してください");
+      setPromptError('必須の質問に回答してください');
       return;
     }
 
@@ -347,13 +347,13 @@ export function AIAccordionPanel({
   // カテゴリラベル取得
   const getCategoryLabel = (category: string) => {
     const labels: Record<string, string> = {
-      scope: "スコープ",
-      technical: "技術",
-      requirements: "要件",
-      constraints: "制約",
-      integration: "統合",
-      testing: "テスト",
-      deliverables: "成果物",
+      scope: 'スコープ',
+      technical: '技術',
+      requirements: '要件',
+      constraints: '制約',
+      integration: '統合',
+      testing: 'テスト',
+      deliverables: '成果物',
     };
     return labels[category] || category;
   };
@@ -387,8 +387,8 @@ export function AIAccordionPanel({
           setSessionId(restoredState.sessionId);
 
           if (
-            restoredState.status === "running" ||
-            restoredState.status === "waiting_for_input"
+            restoredState.status === 'running' ||
+            restoredState.status === 'waiting_for_input'
           ) {
             // 実行中の場合：ログを復元してポーリングを開始
             startPolling({
@@ -405,7 +405,7 @@ export function AIAccordionPanel({
           }
 
           setShowLogs(true);
-          setExpandedSection("execution");
+          setExpandedSection('execution');
         }
       } catch (err) {
         // 復元失敗
@@ -437,7 +437,7 @@ export function AIAccordionPanel({
           startPolling();
         }
       }
-      setExpandedSection("execution");
+      setExpandedSection('execution');
     }
   }, [
     executionSessionId,
@@ -456,7 +456,7 @@ export function AIAccordionPanel({
   // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新
   // ただし、キャンセルは handleStopExecution で既に処理されているため、completed と failed のみ処理
   useEffect(() => {
-    if (pollingStatus === "completed" || pollingStatus === "failed") {
+    if (pollingStatus === 'completed' || pollingStatus === 'failed') {
       // 親コンポーネントの状態を更新して実行完了を通知
       if (onStopExecution) {
         onStopExecution();
@@ -477,7 +477,7 @@ export function AIAccordionPanel({
       const parallelSessionId = await onStartParallelExecution();
       if (parallelSessionId) {
         setShowLogs(true);
-        setExpandedSection("execution");
+        setExpandedSection('execution');
       }
       return;
     }
@@ -487,9 +487,9 @@ export function AIAccordionPanel({
     const fileResources = resources?.filter(
       (r) =>
         r.filePath ||
-        r.type === "file" ||
-        r.type === "image" ||
-        r.type === "pdf",
+        r.type === 'file' ||
+        r.type === 'image' ||
+        r.type === 'pdf',
     );
     const attachments = fileResources?.map((r) => ({
       id: r.id,
@@ -523,8 +523,8 @@ export function AIAccordionPanel({
       const res = await fetch(
         `${API_BASE_URL}/developer-mode/generate-branch-name`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title: taskTitle,
             description: taskDescription || undefined,
@@ -539,12 +539,12 @@ export function AIAccordionPanel({
         }
       } else {
         console.error(
-          "Failed to generate branch name:",
-          data.error || data.details || "Unknown error",
+          'Failed to generate branch name:',
+          data.error || data.details || 'Unknown error',
         );
       }
     } catch (error) {
-      console.error("Error generating branch name:", error);
+      console.error('Error generating branch name:', error);
     } finally {
       setIsGeneratingBranchName(false);
     }
@@ -563,12 +563,12 @@ export function AIAccordionPanel({
     setIsSendingResponse(true);
 
     const savedResponse = trimmedResponse;
-    setUserResponse("");
+    setUserResponse('');
 
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/agent-respond`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ response: savedResponse }),
       });
 
@@ -577,11 +577,11 @@ export function AIAccordionPanel({
         clearPollingQuestion();
       } else {
         // エラー時は質問を復元（ユーザーが再試行できるように）
-        console.error("Failed to send response:", res.status);
+        console.error('Failed to send response:', res.status);
         setUserResponse(savedResponse);
       }
     } catch (error) {
-      console.error("Error sending response:", error);
+      console.error('Error sending response:', error);
       // エラー時は回答を復元
       setUserResponse(savedResponse);
     } finally {
@@ -597,16 +597,16 @@ export function AIAccordionPanel({
     try {
       const res = await fetch(
         `${API_BASE_URL}/tasks/${taskId}/stop-execution`,
-        { method: "POST" },
+        { method: 'POST' },
       );
 
       if (!res.ok && sessionId) {
         await fetch(`${API_BASE_URL}/agents/sessions/${sessionId}/stop`, {
-          method: "POST",
+          method: 'POST',
         });
       }
     } catch (error) {
-      console.error("Error stopping execution:", error);
+      console.error('Error stopping execution:', error);
     }
   }, [taskId, sessionId, setPollingCancelled, onStopExecution]);
 
@@ -615,7 +615,7 @@ export function AIAccordionPanel({
     clearLogs();
     setSessionId(null);
     hasRestoredRef.current = false;
-    setContinueInstruction("");
+    setContinueInstruction('');
     onReset();
   };
 
@@ -631,7 +631,7 @@ export function AIAccordionPanel({
     if (!continueInstruction.trim() || !sessionId) return;
 
     // 前回の実行内容をサマリーとして追加
-    const previousSummary = `\n【前回の実施内容】\n${logs.slice(-30).join("")}\n\n【追加指示】\n`;
+    const previousSummary = `\n【前回の実施内容】\n${logs.slice(-30).join('')}\n\n【追加指示】\n`;
     const fullInstruction = previousSummary + continueInstruction.trim();
 
     // 継続実行の開始
@@ -645,10 +645,10 @@ export function AIAccordionPanel({
 
     if (result?.sessionId) {
       // 入力欄をクリア
-      setContinueInstruction("");
+      setContinueInstruction('');
       // ログ表示を継続
       setShowLogs(true);
-      setExpandedSection("execution");
+      setExpandedSection('execution');
       // 既存のセッションIDで実行を再開
       setSessionId(result.sessionId);
       // ポーリングを再開（ログを保持）
@@ -673,39 +673,39 @@ export function AIAccordionPanel({
         question: pollingQuestion,
         // tool_callの場合のみ質問として認識、それ以外はnone
         questionType:
-          pollingQuestionType === "tool_call" ? "tool_call" : "none",
+          pollingQuestionType === 'tool_call' ? 'tool_call' : 'none',
       };
     }
 
     // APIから質問状態が返されていない場合は質問なし
     // パターンマッチングによるフォールバックは削除
-    return { hasQuestion: false, question: "", questionType: "none" as const };
+    return { hasQuestion: false, question: '', questionType: 'none' as const };
   }, [pollingWaitingForInput, pollingQuestion, pollingQuestionType]);
 
   const isTerminalStatus =
-    pollingStatus === "completed" ||
-    pollingStatus === "failed" ||
-    pollingStatus === "cancelled" ||
-    sseStatus === "completed" ||
-    sseStatus === "failed" ||
-    sseStatus === "cancelled";
+    pollingStatus === 'completed' ||
+    pollingStatus === 'failed' ||
+    pollingStatus === 'cancelled' ||
+    sseStatus === 'completed' ||
+    sseStatus === 'failed' ||
+    sseStatus === 'cancelled';
   // AIエージェントからの明確なステータス（DBのstatus、APIのwaitingForInput）のみを使用
   // hasQuestion（旧パターンマッチング結果）は判定に使用しない
   const isWaitingForInput =
     !isTerminalStatus &&
-    (pollingStatus === "waiting_for_input" || pollingWaitingForInput);
+    (pollingStatus === 'waiting_for_input' || pollingWaitingForInput);
 
   const finalStatus =
-    sseStatus !== "idle"
+    sseStatus !== 'idle'
       ? sseStatus
-      : pollingStatus !== "idle"
+      : pollingStatus !== 'idle'
         ? pollingStatus
         : executionStatus;
   // 完了判定: ステータスが完了であれば完了とみなす（ポーリング状態に依存しない）
-  const isCompleted = finalStatus === "completed" && !isWaitingForInput;
-  const isCancelled = finalStatus === "cancelled";
+  const isCompleted = finalStatus === 'completed' && !isWaitingForInput;
+  const isCancelled = finalStatus === 'cancelled';
   const isFailed =
-    finalStatus === "failed" || executionError || pollingError || sseError;
+    finalStatus === 'failed' || executionError || pollingError || sseError;
   // 中断判定: 復元した実行が interrupted だった場合（ログがあり、executionResultがある）
   const isInterrupted =
     !isCompleted &&
@@ -716,7 +716,7 @@ export function AIAccordionPanel({
     !isExecuting &&
     !isPollingRunning &&
     !isSseRunning &&
-    finalStatus === "idle";
+    finalStatus === 'idle';
   // 実行中判定: 終了ステータスの場合は実行中ではない（並列実行も含む）
   const isRunning =
     !isTerminalStatus &&
@@ -724,34 +724,34 @@ export function AIAccordionPanel({
     (isExecuting ||
       isPollingRunning ||
       isSseRunning ||
-      pollingStatus === "running" ||
-      sseStatus === "running" ||
+      pollingStatus === 'running' ||
+      sseStatus === 'running' ||
       isWaitingForInput ||
       isParallelExecutionRunning);
 
   const logViewerStatus: ExecutionLogStatus = useMemo(() => {
-    if (isRunning) return "running";
-    if (isCancelled) return "cancelled";
-    if (isCompleted) return "completed";
-    if (isFailed) return "failed";
-    return "idle";
+    if (isRunning) return 'running';
+    if (isCancelled) return 'cancelled';
+    if (isCompleted) return 'completed';
+    if (isFailed) return 'failed';
+    return 'idle';
   }, [isRunning, isCancelled, isCompleted, isFailed]);
 
   // ステータス計算
   const getAnalysisStatus = () => {
-    if (isAnalyzing || isGeneratingPrompt) return "loading";
-    if (analysisError || promptError) return "error";
-    if (analysisResult || promptResult) return "success";
-    return "idle";
+    if (isAnalyzing || isGeneratingPrompt) return 'loading';
+    if (analysisError || promptError) return 'error';
+    if (analysisResult || promptResult) return 'success';
+    return 'idle';
   };
 
   const getExecutionStatusIcon = () => {
-    if (isRunning) return "loading";
-    if (isFailed) return "error";
-    if (isCompleted) return "success";
-    if (isCancelled) return "cancelled";
-    if (isInterrupted) return "interrupted";
-    return "idle";
+    if (isRunning) return 'loading';
+    if (isFailed) return 'error';
+    if (isCompleted) return 'success';
+    if (isCancelled) return 'cancelled';
+    if (isInterrupted) return 'interrupted';
+    return 'idle';
   };
 
   const analysisStatusIcon = getAnalysisStatus();
@@ -807,9 +807,9 @@ export function AIAccordionPanel({
       {/* タスク分析・プロンプト最適化セクション */}
       <div className="border-b border-zinc-100 dark:border-zinc-800">
         <button
-          onClick={() => toggleSection("analysis")}
+          onClick={() => toggleSection('analysis')}
           className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
-          aria-expanded={expandedSection === "analysis"}
+          aria-expanded={expandedSection === 'analysis'}
           aria-controls="analysis-section-content"
         >
           <div className="flex items-center gap-2">
@@ -817,24 +817,24 @@ export function AIAccordionPanel({
             <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
               タスク分析・最適化
             </span>
-            {analysisStatusIcon === "loading" && (
+            {analysisStatusIcon === 'loading' && (
               <Loader2 className="w-3 h-3 text-violet-500 animate-spin" />
             )}
-            {analysisStatusIcon === "success" && (
+            {analysisStatusIcon === 'success' && (
               <CheckCircle2 className="w-3 h-3 text-green-500" />
             )}
-            {analysisStatusIcon === "error" && (
+            {analysisStatusIcon === 'error' && (
               <AlertCircle className="w-3 h-3 text-red-500" />
             )}
           </div>
-          {expandedSection === "analysis" ? (
+          {expandedSection === 'analysis' ? (
             <ChevronUp className="w-4 h-4 text-zinc-400" />
           ) : (
             <ChevronDown className="w-4 h-4 text-zinc-400" />
           )}
         </button>
 
-        {expandedSection === "analysis" && (
+        {expandedSection === 'analysis' && (
           <div id="analysis-section-content" className="px-4 pb-3 space-y-3">
             {/* タブメニュー */}
             <div
@@ -843,13 +843,13 @@ export function AIAccordionPanel({
             >
               <button
                 role="tab"
-                aria-selected={analysisTab === "subtasks"}
+                aria-selected={analysisTab === 'subtasks'}
                 aria-controls="subtasks-panel"
-                onClick={() => setAnalysisTab("subtasks")}
+                onClick={() => setAnalysisTab('subtasks')}
                 className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium transition-colors ${
-                  analysisTab === "subtasks"
-                    ? "text-violet-600 dark:text-violet-400 border-b-2 border-violet-600 dark:border-violet-400 bg-violet-50/50 dark:bg-violet-900/10"
-                    : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  analysisTab === 'subtasks'
+                    ? 'text-violet-600 dark:text-violet-400 border-b-2 border-violet-600 dark:border-violet-400 bg-violet-50/50 dark:bg-violet-900/10'
+                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
                 }`}
               >
                 <ListTodo className="w-3.5 h-3.5" />
@@ -862,13 +862,13 @@ export function AIAccordionPanel({
               </button>
               <button
                 role="tab"
-                aria-selected={analysisTab === "prompt"}
+                aria-selected={analysisTab === 'prompt'}
                 aria-controls="prompt-panel"
-                onClick={() => setAnalysisTab("prompt")}
+                onClick={() => setAnalysisTab('prompt')}
                 className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium transition-colors ${
-                  analysisTab === "prompt"
-                    ? "text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/10"
-                    : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  analysisTab === 'prompt'
+                    ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/10'
+                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
                 }`}
               >
                 <FileText className="w-3.5 h-3.5" />
@@ -882,7 +882,7 @@ export function AIAccordionPanel({
             </div>
 
             {/* サブタスクパネル */}
-            {analysisTab === "subtasks" && (
+            {analysisTab === 'subtasks' && (
               <div id="subtasks-panel" role="tabpanel" className="space-y-2">
                 {isAnalyzing ? (
                   <div className="flex items-center gap-2 p-2.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
@@ -929,8 +929,8 @@ export function AIAccordionPanel({
                             >
                               {selectedSubtasks.length ===
                               analysisResult.suggestedSubtasks.length
-                                ? "解除"
-                                : "全選択"}
+                                ? '解除'
+                                : '全選択'}
                             </button>
                           )}
                         </div>
@@ -940,8 +940,8 @@ export function AIAccordionPanel({
                               key={i}
                               className={`p-1.5 rounded text-xs flex items-start gap-1.5 ${
                                 analysisApprovalId && !subtaskCreationSuccess
-                                  ? "bg-violet-50 dark:bg-violet-900/20 cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-900/30"
-                                  : "bg-violet-50 dark:bg-violet-900/20"
+                                  ? 'bg-violet-50 dark:bg-violet-900/20 cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-900/30'
+                                  : 'bg-violet-50 dark:bg-violet-900/20'
                               }`}
                               onClick={() => {
                                 if (
@@ -973,25 +973,25 @@ export function AIAccordionPanel({
                                 <div className="flex items-center gap-1 mt-0.5">
                                   <span
                                     className={`flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] ${
-                                      st.priority === "high"
-                                        ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
-                                        : st.priority === "medium"
-                                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                                          : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                                      st.priority === 'high'
+                                        ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                                        : st.priority === 'medium'
+                                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                          : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
                                     }`}
                                   >
-                                    {st.priority === "high" ? (
+                                    {st.priority === 'high' ? (
                                       <ChevronUp className="w-2.5 h-2.5" />
-                                    ) : st.priority === "medium" ? (
+                                    ) : st.priority === 'medium' ? (
                                       <ChevronsUpDown className="w-2.5 h-2.5" />
                                     ) : (
                                       <ChevronDown className="w-2.5 h-2.5" />
                                     )}
-                                    {st.priority === "high"
-                                      ? "高"
-                                      : st.priority === "medium"
-                                        ? "中"
-                                        : "低"}
+                                    {st.priority === 'high'
+                                      ? '高'
+                                      : st.priority === 'medium'
+                                        ? '中'
+                                        : '低'}
                                   </span>
                                 </div>
                               </div>
@@ -1061,7 +1061,7 @@ export function AIAccordionPanel({
             )}
 
             {/* プロンプトパネル */}
-            {analysisTab === "prompt" && (
+            {analysisTab === 'prompt' && (
               <div id="prompt-panel" role="tabpanel" className="space-y-2">
                 {isGeneratingPrompt ? (
                   <div className="flex items-center gap-2 p-2.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
@@ -1130,8 +1130,8 @@ export function AIAccordionPanel({
                                   }
                                   className={`px-2 py-0.5 text-[9px] rounded border transition-colors ${
                                     questionAnswers[q.id] === option
-                                      ? "border-amber-500 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-                                      : "border-zinc-200 dark:border-zinc-700 hover:border-amber-300"
+                                      ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                                      : 'border-zinc-200 dark:border-zinc-700 hover:border-amber-300'
                                   }`}
                                 >
                                   {option}
@@ -1141,7 +1141,7 @@ export function AIAccordionPanel({
                           ) : (
                             <input
                               type="text"
-                              value={questionAnswers[q.id] || ""}
+                              value={questionAnswers[q.id] || ''}
                               onChange={(e) =>
                                 setQuestionAnswers((prev) => ({
                                   ...prev,
@@ -1252,15 +1252,15 @@ export function AIAccordionPanel({
           <div
             role="button"
             tabIndex={0}
-            onClick={() => toggleSection("execution")}
+            onClick={() => toggleSection('execution')}
             onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
+              if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                toggleSection("execution");
+                toggleSection('execution');
               }
             }}
             className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer"
-            aria-expanded={expandedSection === "execution"}
+            aria-expanded={expandedSection === 'execution'}
             aria-controls="execution-section-content"
           >
             <div className="flex items-center gap-2">
@@ -1268,21 +1268,21 @@ export function AIAccordionPanel({
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 エージェント実行
               </span>
-              {execStatusIcon === "loading" && (
+              {execStatusIcon === 'loading' && (
                 <Loader2 className="w-3 h-3 text-indigo-500 animate-spin" />
               )}
-              {execStatusIcon === "success" && (
+              {execStatusIcon === 'success' && (
                 <CheckCircle2 className="w-3 h-3 text-green-500" />
               )}
-              {execStatusIcon === "error" && (
+              {execStatusIcon === 'error' && (
                 <AlertCircle className="w-3 h-3 text-red-500" />
               )}
-              {execStatusIcon === "cancelled" && (
+              {execStatusIcon === 'cancelled' && (
                 <span className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-[10px] rounded">
                   停止
                 </span>
               )}
-              {execStatusIcon === "interrupted" && (
+              {execStatusIcon === 'interrupted' && (
                 <span className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] rounded">
                   中断
                 </span>
@@ -1402,13 +1402,13 @@ export function AIAccordionPanel({
                     }}
                     disabled={isExecuting || isParallelExecutionRunning}
                     className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
-                    aria-label={hasSubtasks ? "サブタスクを実行" : "実行開始"}
+                    aria-label={hasSubtasks ? 'サブタスクを実行' : '実行開始'}
                   >
                     <Play className="w-2.5 h-2.5" />
-                    {hasSubtasks ? "サブタスクを実行" : "実行"}
+                    {hasSubtasks ? 'サブタスクを実行' : '実行'}
                   </button>
                 )}
-              {expandedSection === "execution" ? (
+              {expandedSection === 'execution' ? (
                 <ChevronUp className="w-4 h-4 text-zinc-400" />
               ) : (
                 <ChevronDown className="w-4 h-4 text-zinc-400" />
@@ -1416,7 +1416,7 @@ export function AIAccordionPanel({
             </div>
           </div>
 
-          {expandedSection === "execution" && (
+          {expandedSection === 'execution' && (
             <div id="execution-section-content" className="px-4 pb-3 space-y-3">
               {/* 実行中 */}
               {isRunning ? (
@@ -1435,7 +1435,7 @@ export function AIAccordionPanel({
                           value={userResponse}
                           onChange={(e) => setUserResponse(e.target.value)}
                           onKeyDown={(e) =>
-                            e.key === "Enter" && handleSendResponse()
+                            e.key === 'Enter' && handleSendResponse()
                           }
                           placeholder="回答を入力..."
                           className="flex-1 px-2 py-1 bg-white dark:bg-zinc-800 border border-amber-300 dark:border-amber-700 rounded text-[10px]"
@@ -1591,7 +1591,7 @@ export function AIAccordionPanel({
                   <div className="flex items-center gap-1.5 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
                     <AlertCircle className="w-3.5 h-3.5 text-red-500" />
                     <span className="text-xs text-red-600 dark:text-red-400 line-clamp-2">
-                      {executionError || pollingError || "エラーが発生しました"}
+                      {executionError || pollingError || 'エラーが発生しました'}
                     </span>
                   </div>
                   {logs.length > 0 && showLogs && (

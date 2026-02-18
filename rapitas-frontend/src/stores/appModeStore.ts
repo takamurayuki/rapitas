@@ -1,7 +1,7 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
-export type AppMode = "development" | "learning" | "all";
+export type AppMode = 'development' | 'learning' | 'all';
 
 type AppModeState = {
   mode: AppMode;
@@ -11,11 +11,11 @@ type AppModeState = {
 export const useAppModeStore = create<AppModeState>()(
   persist(
     (set) => ({
-      mode: "all",
+      mode: 'all',
       setMode: (mode) => set({ mode }),
     }),
     {
-      name: "app-mode-storage",
+      name: 'app-mode-storage',
     },
   ),
 );

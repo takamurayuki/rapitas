@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 export default function ApprovalDetailClient() {
   const router = useRouter();

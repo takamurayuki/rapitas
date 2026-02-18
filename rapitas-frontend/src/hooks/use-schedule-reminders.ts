@@ -1,11 +1,11 @@
-"use client";
-import { useEffect, useRef, useCallback } from "react";
-import { API_BASE_URL } from "@/utils/api";
+'use client';
+import { useEffect, useRef, useCallback } from 'react';
+import { API_BASE_URL } from '@/utils/api';
 import {
   requestNotificationPermission,
   showDesktopNotification,
-} from "@/utils/notification";
-import type { ScheduleEvent } from "@/types";
+} from '@/utils/notification';
+import type { ScheduleEvent } from '@/types';
 
 const CHECK_INTERVAL_MS = 30_000; // 30秒ごとにチェック
 
@@ -33,23 +33,23 @@ export function useScheduleReminders() {
       for (const event of pendingEvents) {
         const startDate = new Date(event.startAt);
         const timeStr = event.isAllDay
-          ? "終日"
-          : startDate.toLocaleTimeString("ja-JP", {
-              hour: "2-digit",
-              minute: "2-digit",
+          ? '終日'
+          : startDate.toLocaleTimeString('ja-JP', {
+              hour: '2-digit',
+              minute: '2-digit',
             });
 
         showDesktopNotification(`Rapitas - ${event.title}`, {
           body: `${timeStr} に予定があります`,
           tag: `schedule-reminder-${event.id}`,
           onClick: () => {
-            window.location.href = "/calendar";
+            window.location.href = '/calendar';
           },
         });
 
         // リマインド送信済みとしてマーク
         await fetch(`${API_BASE_URL}/schedules/reminders/${event.id}/sent`, {
-          method: "POST",
+          method: 'POST',
           signal: AbortSignal.timeout(5000),
         }).catch(() => {
           // 失敗しても通知自体は表示済みなので無視

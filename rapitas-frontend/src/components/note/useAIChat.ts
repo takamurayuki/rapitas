@@ -1,8 +1,13 @@
-"use client";
+'use client';
 
-import { useReducer, useCallback, useRef } from "react";
-import type { AIChatMessage, AIChatState, AIChatAction, ApiProvider } from "@/types";
-import { sendMessageToAI, sendMessageToAIStream } from "./aiService";
+import { useReducer, useCallback, useRef } from 'react';
+import type {
+  AIChatMessage,
+  AIChatState,
+  AIChatAction,
+  ApiProvider,
+} from '@/types';
+import { sendMessageToAI, sendMessageToAIStream } from './aiService';
 
 const initialState: AIChatState = {
   messages: [],
@@ -13,29 +18,29 @@ const initialState: AIChatState = {
 
 function chatReducer(state: AIChatState, action: AIChatAction): AIChatState {
   switch (action.type) {
-    case "ADD_MESSAGE":
+    case 'ADD_MESSAGE':
       return {
         ...state,
         messages: [...state.messages, action.payload],
         error: null,
       };
-    case "SET_LOADING":
+    case 'SET_LOADING':
       return {
         ...state,
         isLoading: action.payload,
       };
-    case "SET_ERROR":
+    case 'SET_ERROR':
       return {
         ...state,
         error: action.payload,
         isLoading: false,
       };
-    case "SET_EXPANDED":
+    case 'SET_EXPANDED':
       return {
         ...state,
         isExpanded: action.payload,
       };
-    case "CLEAR_MESSAGES":
+    case 'CLEAR_MESSAGES':
       return {
         ...state,
         messages: [],
@@ -83,7 +88,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
   } = options;
 
   const [state, dispatch] = useReducer(chatReducer, initialState);
-  const streamingMessageRef = useRef<string>("");
+  const streamingMessageRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const sendMessage = useCallback(
@@ -92,26 +97,26 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
 
       const userMessage: AIChatMessage = {
         id: generateMessageId(),
-        role: "user",
+        role: 'user',
         content: content.trim(),
         timestamp: new Date(),
       };
-      dispatch({ type: "ADD_MESSAGE", payload: userMessage });
+      dispatch({ type: 'ADD_MESSAGE', payload: userMessage });
       onMessageSent?.(userMessage);
 
-      dispatch({ type: "SET_LOADING", payload: true });
+      dispatch({ type: 'SET_LOADING', payload: true });
 
       if (useStreaming) {
-        streamingMessageRef.current = "";
+        streamingMessageRef.current = '';
         const assistantMessageId = generateMessageId();
 
         const initialAssistantMessage: AIChatMessage = {
           id: assistantMessageId,
-          role: "assistant",
-          content: "",
+          role: 'assistant',
+          content: '',
           timestamp: new Date(),
         };
-        dispatch({ type: "ADD_MESSAGE", payload: initialAssistantMessage });
+        dispatch({ type: 'ADD_MESSAGE', payload: initialAssistantMessage });
 
         await sendMessageToAIStream(
           {
@@ -127,17 +132,17 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
           () => {
             const finalMessage: AIChatMessage = {
               id: assistantMessageId,
-              role: "assistant",
+              role: 'assistant',
               content: streamingMessageRef.current,
               timestamp: new Date(),
             };
             onResponseReceived?.(finalMessage);
-            dispatch({ type: "SET_LOADING", payload: false });
+            dispatch({ type: 'SET_LOADING', payload: false });
           },
           (error) => {
-            dispatch({ type: "SET_ERROR", payload: error });
+            dispatch({ type: 'SET_ERROR', payload: error });
             onError?.(error);
-          }
+          },
         );
       } else {
         const response = await sendMessageToAI({
@@ -151,19 +156,19 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
         if (response.success && response.message) {
           const assistantMessage: AIChatMessage = {
             id: generateMessageId(),
-            role: "assistant",
+            role: 'assistant',
             content: response.message,
             timestamp: new Date(),
           };
-          dispatch({ type: "ADD_MESSAGE", payload: assistantMessage });
+          dispatch({ type: 'ADD_MESSAGE', payload: assistantMessage });
           onResponseReceived?.(assistantMessage);
         } else {
-          const errorMessage = response.error || "応答の取得に失敗しました";
-          dispatch({ type: "SET_ERROR", payload: errorMessage });
+          const errorMessage = response.error || '応答の取得に失敗しました';
+          dispatch({ type: 'SET_ERROR', payload: errorMessage });
           onError?.(errorMessage);
         }
 
-        dispatch({ type: "SET_LOADING", payload: false });
+        dispatch({ type: 'SET_LOADING', payload: false });
       }
     },
     [
@@ -176,7 +181,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       onMessageSent,
       onResponseReceived,
       onError,
-    ]
+    ],
   );
 
   const clearMessages = useCallback(() => {
@@ -184,15 +189,15 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    dispatch({ type: "CLEAR_MESSAGES" });
+    dispatch({ type: 'CLEAR_MESSAGES' });
   }, []);
 
   const setExpanded = useCallback((expanded: boolean) => {
-    dispatch({ type: "SET_EXPANDED", payload: expanded });
+    dispatch({ type: 'SET_EXPANDED', payload: expanded });
   }, []);
 
   const toggleExpanded = useCallback(() => {
-    dispatch({ type: "SET_EXPANDED", payload: !state.isExpanded });
+    dispatch({ type: 'SET_EXPANDED', payload: !state.isExpanded });
   }, [state.isExpanded]);
 
   return {

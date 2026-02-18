@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export interface Note {
   id: string;
@@ -12,7 +12,7 @@ export interface Note {
   color?: string;
 }
 
-export type ModalTab = "note" | "ai";
+export type ModalTab = 'note' | 'ai';
 
 export interface NoteModalState {
   isOpen: boolean;
@@ -61,13 +61,19 @@ let nextZIndex = 1000;
 const defaultModalState: NoteModalState = {
   isOpen: false,
   position: {
-    x: typeof window !== "undefined" ? Math.max(100, (window.innerWidth - 600) / 2) : 100,
-    y: typeof window !== "undefined" ? Math.max(100, (window.innerHeight - 500) / 2) : 100
+    x:
+      typeof window !== 'undefined'
+        ? Math.max(100, (window.innerWidth - 600) / 2)
+        : 100,
+    y:
+      typeof window !== 'undefined'
+        ? Math.max(100, (window.innerHeight - 500) / 2)
+        : 100,
   },
   size: { width: 600, height: 500 },
   isMaximized: false,
   zIndex: 1000,
-  activeTab: "note",
+  activeTab: 'note',
 };
 
 export const useNoteStore = create<NoteState>()(
@@ -76,14 +82,14 @@ export const useNoteStore = create<NoteState>()(
       notes: [],
       currentNoteId: null,
       modalState: defaultModalState,
-      searchQuery: "",
+      searchQuery: '',
       selectedTags: [],
 
       createNote: () => {
         const newNote: Note = {
           id: Date.now().toString(),
-          title: "新しいノート",
-          content: "",
+          title: '新しいノート',
+          content: '',
           createdAt: new Date(),
           updatedAt: new Date(),
           isPinned: false,
@@ -101,22 +107,29 @@ export const useNoteStore = create<NoteState>()(
             notes: state.notes.map((note) =>
               note.id === id
                 ? { ...note, ...updates, updatedAt: new Date() }
-                : note
+                : note,
             ),
           };
 
           // ノートが保存されて内容が空でない場合、空のノートが存在しなければ新規ノートを自動作成
-          const updatedNote = newState.notes.find(n => n.id === id);
-          if (updatedNote && (updatedNote.content.trim() !== "" || updatedNote.title !== "新しいノート")) {
-            const hasEmptyNote = newState.notes.some(n =>
-              n.content.trim() === "" && n.title === "新しいノート" && n.id !== id
+          const updatedNote = newState.notes.find((n) => n.id === id);
+          if (
+            updatedNote &&
+            (updatedNote.content.trim() !== '' ||
+              updatedNote.title !== '新しいノート')
+          ) {
+            const hasEmptyNote = newState.notes.some(
+              (n) =>
+                n.content.trim() === '' &&
+                n.title === '新しいノート' &&
+                n.id !== id,
             );
 
             if (!hasEmptyNote) {
               const newNote: Note = {
                 id: Date.now().toString(),
-                title: "新しいノート",
-                content: "",
+                title: '新しいノート',
+                content: '',
                 createdAt: new Date(),
                 updatedAt: new Date(),
                 isPinned: false,
@@ -133,18 +146,19 @@ export const useNoteStore = create<NoteState>()(
       deleteNote: (id) => {
         set((state) => {
           const newNotes = state.notes.filter((note) => note.id !== id);
-          const currentNote = state.currentNoteId === id ? null : state.currentNoteId;
+          const currentNote =
+            state.currentNoteId === id ? null : state.currentNoteId;
 
           // 削除後に空のノートが存在しなければ新規作成
-          const hasEmptyNote = newNotes.some(n =>
-            n.content.trim() === "" && n.title === "新しいノート"
+          const hasEmptyNote = newNotes.some(
+            (n) => n.content.trim() === '' && n.title === '新しいノート',
           );
 
           if (!hasEmptyNote && newNotes.length > 0) {
             const newNote: Note = {
-              id: Date.now().toString() + "-delete",
-              title: "新しいノート",
-              content: "",
+              id: Date.now().toString() + '-delete',
+              title: '新しいノート',
+              content: '',
               createdAt: new Date(),
               updatedAt: new Date(),
               isPinned: false,
@@ -163,16 +177,23 @@ export const useNoteStore = create<NoteState>()(
         // 空のノートに切り替えたときに、他に空のノートがなければ新規作成
         if (id) {
           const state = get();
-          const currentNote = state.notes.find(n => n.id === id);
-          if (currentNote && currentNote.content.trim() === "" && currentNote.title === "新しいノート") {
-            const otherEmptyNote = state.notes.find(n =>
-              n.content.trim() === "" && n.title === "新しいノート" && n.id !== id
+          const currentNote = state.notes.find((n) => n.id === id);
+          if (
+            currentNote &&
+            currentNote.content.trim() === '' &&
+            currentNote.title === '新しいノート'
+          ) {
+            const otherEmptyNote = state.notes.find(
+              (n) =>
+                n.content.trim() === '' &&
+                n.title === '新しいノート' &&
+                n.id !== id,
             );
             if (!otherEmptyNote) {
               const newNote: Note = {
-                id: Date.now().toString() + "-auto",
-                title: "新しいノート",
-                content: "",
+                id: Date.now().toString() + '-auto',
+                title: '新しいノート',
+                content: '',
                 createdAt: new Date(),
                 updatedAt: new Date(),
                 isPinned: false,
@@ -215,7 +236,7 @@ export const useNoteStore = create<NoteState>()(
           },
         }));
         const state = get();
-        if ((!tab || tab === "note") && state.notes.length === 0) {
+        if ((!tab || tab === 'note') && state.notes.length === 0) {
           get().createNote();
         }
       },
@@ -273,7 +294,7 @@ export const useNoteStore = create<NoteState>()(
       },
 
       clearFilters: () => {
-        set({ searchQuery: "", selectedTags: [] });
+        set({ searchQuery: '', selectedTags: [] });
       },
 
       getFilteredNotes: () => {
@@ -287,14 +308,14 @@ export const useNoteStore = create<NoteState>()(
             (note) =>
               note.title.toLowerCase().includes(query) ||
               note.content.toLowerCase().includes(query) ||
-              note.tags.some((tag) => tag.toLowerCase().includes(query))
+              note.tags.some((tag) => tag.toLowerCase().includes(query)),
           );
         }
 
         // Tag filter
         if (state.selectedTags.length > 0) {
           filtered = filtered.filter((note) =>
-            state.selectedTags.every((tag) => note.tags.includes(tag))
+            state.selectedTags.every((tag) => note.tags.includes(tag)),
           );
         }
 
@@ -303,7 +324,9 @@ export const useNoteStore = create<NoteState>()(
           if (a.isPinned !== b.isPinned) {
             return a.isPinned ? -1 : 1;
           }
-          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+          return (
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          );
         });
       },
 
@@ -317,11 +340,11 @@ export const useNoteStore = create<NoteState>()(
       },
     }),
     {
-      name: "note-storage",
+      name: 'note-storage',
       partialize: (state) => ({
         notes: state.notes,
         currentNoteId: state.currentNoteId,
       }),
-    }
-  )
+    },
+  ),
 );

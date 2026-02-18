@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 import {
   Sparkles,
   Loader2,
@@ -13,9 +13,9 @@ import {
   X,
   Settings,
   BrainCircuit,
-} from "lucide-react";
-import type { TaskAnalysisResult, SubtaskProposal, Priority } from "@/types";
-import { priorityColors, priorityLabels } from "@/types";
+} from 'lucide-react';
+import type { TaskAnalysisResult, SubtaskProposal, Priority } from '@/types';
+import { priorityColors, priorityLabels } from '@/types';
 
 type TaskAnalysisPanelProps = {
   isAnalyzing: boolean;
@@ -78,16 +78,16 @@ export function TaskAnalysisPanel({
 
   const complexityColors = {
     simple:
-      "text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30",
+      'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30',
     medium:
-      "text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30",
-    complex: "text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30",
+      'text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30',
+    complex: 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30',
   };
 
   const complexityLabels = {
-    simple: "シンプル",
-    medium: "中程度",
-    complex: "複雑",
+    simple: 'シンプル',
+    medium: '中程度',
+    complex: '複雑',
   };
 
   // 分析前の状態
@@ -242,7 +242,7 @@ export function TaskAnalysisPanel({
               onClick={handleToggleAll}
               className="text-sm text-violet-600 dark:text-violet-400 hover:underline"
             >
-              {selectAll ? "全て解除" : "全て選択"}
+              {selectAll ? '全て解除' : '全て選択'}
             </button>
           </div>
 
@@ -265,7 +265,7 @@ export function TaskAnalysisPanel({
             {analysisResult.reasoning && (
               <div className="mb-3">
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                  <span className="font-medium">分解理由:</span>{" "}
+                  <span className="font-medium">分解理由:</span>{' '}
                   {analysisResult.reasoning}
                 </p>
               </div>
@@ -305,7 +305,7 @@ export function TaskAnalysisPanel({
             ) : (
               <Check className="w-4 h-4" />
             )}
-            {selectAll ? "全て承認" : `${selectedSubtasks.size}件を承認`}
+            {selectAll ? '全て承認' : `${selectedSubtasks.size}件を承認`}
           </button>
         </div>
       </div>
@@ -331,15 +331,15 @@ function SubtaskProposalItem({
       onClick={onToggle}
       className={`w-full flex items-start gap-3 p-3 rounded-lg border transition-all text-left ${
         isSelected
-          ? "border-violet-300 dark:border-violet-700 bg-violet-50 dark:bg-violet-900/20"
-          : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+          ? 'border-violet-300 dark:border-violet-700 bg-violet-50 dark:bg-violet-900/20'
+          : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
       }`}
     >
       <div
         className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
           isSelected
-            ? "border-violet-500 bg-violet-500"
-            : "border-zinc-300 dark:border-zinc-600"
+            ? 'border-violet-500 bg-violet-500'
+            : 'border-zinc-300 dark:border-zinc-600'
         }`}
       >
         {isSelected && <Check className="w-3 h-3 text-white" />}

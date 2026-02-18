@@ -1,14 +1,14 @@
-import { useState, useCallback } from "react";
-import type { FileDiff, GitHubPRReview, GitHubPRComment } from "@/types";
-import { API_BASE_URL } from "@/utils/api";
+import { useState, useCallback } from 'react';
+import type { FileDiff, GitHubPRReview, GitHubPRComment } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
 
-export type ReviewAction = "approve" | "request_changes" | "comment";
+export type ReviewAction = 'approve' | 'request_changes' | 'comment';
 
 export type InlineComment = {
   path: string;
   line: number;
   body: string;
-  side?: "LEFT" | "RIGHT";
+  side?: 'LEFT' | 'RIGHT';
 };
 
 export type UseCodeReviewReturn = {
@@ -18,7 +18,11 @@ export type UseCodeReviewReturn = {
   getDiff: (prId: number) => Promise<FileDiff[]>;
   // Review operations
   getReviews: (prId: number) => Promise<GitHubPRReview[]>;
-  submitReview: (prId: number, action: ReviewAction, body?: string) => Promise<void>;
+  submitReview: (
+    prId: number,
+    action: ReviewAction,
+    body?: string,
+  ) => Promise<void>;
   // Comment operations
   getComments: (prId: number) => Promise<GitHubPRComment[]>;
   addComment: (prId: number, body: string) => Promise<void>;
@@ -37,7 +41,7 @@ export type DiffHunk = {
 };
 
 export type DiffLine = {
-  type: "add" | "remove" | "context" | "header";
+  type: 'add' | 'remove' | 'context' | 'header';
   content: string;
   oldLineNumber?: number;
   newLineNumber?: number;
@@ -47,93 +51,106 @@ export function useCodeReview(): UseCodeReviewReturn {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const request = useCallback(async <T>(
-    url: string,
-    options?: RequestInit
-  ): Promise<T> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE_URL}${url}`, {
-        ...options,
-        headers: {
-          "Content-Type": "application/json",
-          ...options?.headers,
-        },
-      });
+  const request = useCallback(
+    async <T>(url: string, options?: RequestInit): Promise<T> => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`${API_BASE_URL}${url}`, {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            ...options?.headers,
+          },
+        });
 
-      const data = await res.json();
+        const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data.error || "Request failed");
+        if (!res.ok) {
+          throw new Error(data.error || 'Request failed');
+        }
+
+        return data;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
       }
+    },
+    [],
+  );
 
-      return data;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      setError(message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const getDiff = useCallback(
+    (prId: number) => {
+      return request<FileDiff[]>(`/github/pull-requests/${prId}/diff`);
+    },
+    [request],
+  );
 
-  const getDiff = useCallback((prId: number) => {
-    return request<FileDiff[]>(`/github/pull-requests/${prId}/diff`);
-  }, [request]);
-
-  const getReviews = useCallback(async (prId: number) => {
-    const pr = await request<{ reviews?: GitHubPRReview[] }>(`/github/pull-requests/${prId}`);
-    return pr.reviews || [];
-  }, [request]);
+  const getReviews = useCallback(
+    async (prId: number) => {
+      const pr = await request<{ reviews?: GitHubPRReview[] }>(
+        `/github/pull-requests/${prId}`,
+      );
+      return pr.reviews || [];
+    },
+    [request],
+  );
 
   const submitReview = useCallback(
     async (prId: number, action: ReviewAction, body?: string) => {
-      const endpoint = action === "approve" ? "approve" : "request-changes";
-      if (action === "comment") {
+      const endpoint = action === 'approve' ? 'approve' : 'request-changes';
+      if (action === 'comment') {
         // コメントのみの場合は別エンドポイント
         await request(`/github/pull-requests/${prId}/comments`, {
-          method: "POST",
+          method: 'POST',
           body: JSON.stringify({ body }),
         });
       } else {
         await request(`/github/pull-requests/${prId}/${endpoint}`, {
-          method: "POST",
+          method: 'POST',
           body: JSON.stringify({ body }),
         });
       }
     },
-    [request]
+    [request],
   );
 
-  const getComments = useCallback(async (prId: number) => {
-    const pr = await request<{ comments?: GitHubPRComment[] }>(`/github/pull-requests/${prId}`);
-    return pr.comments || [];
-  }, [request]);
+  const getComments = useCallback(
+    async (prId: number) => {
+      const pr = await request<{ comments?: GitHubPRComment[] }>(
+        `/github/pull-requests/${prId}`,
+      );
+      return pr.comments || [];
+    },
+    [request],
+  );
 
   const addComment = useCallback(
     async (prId: number, body: string) => {
       await request(`/github/pull-requests/${prId}/comments`, {
-        method: "POST",
+        method: 'POST',
         body: JSON.stringify({ body }),
       });
     },
-    [request]
+    [request],
   );
 
   const addInlineComment = useCallback(
     async (prId: number, comment: InlineComment) => {
       await request(`/github/pull-requests/${prId}/comments`, {
-        method: "POST",
+        method: 'POST',
         body: JSON.stringify(comment),
       });
     },
-    [request]
+    [request],
   );
 
   const parseDiffHunks = useCallback((patch: string): DiffHunk[] => {
     const hunks: DiffHunk[] = [];
-    const lines = patch.split("\n");
+    const lines = patch.split('\n');
 
     let currentHunk: DiffHunk | null = null;
     let oldLine = 0;
@@ -141,7 +158,9 @@ export function useCodeReview(): UseCodeReviewReturn {
 
     for (const line of lines) {
       // ハンクヘッダー（@@ -1,5 +1,6 @@）
-      const hunkMatch = line.match(/^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/);
+      const hunkMatch = line.match(
+        /^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/,
+      );
       if (hunkMatch) {
         if (currentHunk) {
           hunks.push(currentHunk);
@@ -151,12 +170,12 @@ export function useCodeReview(): UseCodeReviewReturn {
         currentHunk = {
           header: line,
           oldStart: oldLine,
-          oldCount: parseInt(hunkMatch[2] || "1", 10),
+          oldCount: parseInt(hunkMatch[2] || '1', 10),
           newStart: newLine,
-          newCount: parseInt(hunkMatch[4] || "1", 10),
+          newCount: parseInt(hunkMatch[4] || '1', 10),
           lines: [
             {
-              type: "header",
+              type: 'header',
               content: line,
             },
           ],
@@ -166,21 +185,21 @@ export function useCodeReview(): UseCodeReviewReturn {
 
       if (!currentHunk) continue;
 
-      if (line.startsWith("+") && !line.startsWith("+++")) {
+      if (line.startsWith('+') && !line.startsWith('+++')) {
         currentHunk.lines.push({
-          type: "add",
+          type: 'add',
           content: line.substring(1),
           newLineNumber: newLine++,
         });
-      } else if (line.startsWith("-") && !line.startsWith("---")) {
+      } else if (line.startsWith('-') && !line.startsWith('---')) {
         currentHunk.lines.push({
-          type: "remove",
+          type: 'remove',
           content: line.substring(1),
           oldLineNumber: oldLine++,
         });
-      } else if (line.startsWith(" ")) {
+      } else if (line.startsWith(' ')) {
         currentHunk.lines.push({
-          type: "context",
+          type: 'context',
           content: line.substring(1),
           oldLineNumber: oldLine++,
           newLineNumber: newLine++,

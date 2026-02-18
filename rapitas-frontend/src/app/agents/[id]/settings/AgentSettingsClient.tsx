@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, use } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useState, useEffect, useCallback, use } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   ArrowLeft,
   Key,
@@ -22,16 +22,16 @@ import {
   Zap,
   Activity,
   Globe,
-} from "lucide-react";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { API_BASE_URL } from '@/utils/api';
 import {
   validateUrl,
   validateApiKey,
   collectErrors,
   validateConfigOnServer,
   type ValidationResult,
-} from "@/utils/validation";
+} from '@/utils/validation';
 
 type AgentConfig = {
   id: number;
@@ -68,83 +68,83 @@ type ProviderConfig = {
 };
 
 const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
-  "claude-code": {
-    name: "Claude Code",
+  'claude-code': {
+    name: 'Claude Code',
     icon: <Terminal className="w-5 h-5" />,
-    color: "text-orange-500",
-    defaultModel: "",
+    color: 'text-orange-500',
+    defaultModel: '',
     models: [],
     requiresApiKey: false,
-    apiKeyPlaceholder: "Claude CodeはローカルCLIを使用（APIキー不要）",
+    apiKeyPlaceholder: 'Claude CodeはローカルCLIを使用（APIキー不要）',
     endpointEditable: false,
   },
-  "anthropic-api": {
-    name: "Anthropic API",
+  'anthropic-api': {
+    name: 'Anthropic API',
     icon: <Terminal className="w-5 h-5" />,
-    color: "text-orange-500",
-    defaultEndpoint: "https://api.anthropic.com",
-    defaultModel: "",
+    color: 'text-orange-500',
+    defaultEndpoint: 'https://api.anthropic.com',
+    defaultModel: '',
     models: [],
     requiresApiKey: true,
-    apiKeyPlaceholder: "sk-ant-api03-...",
-    apiKeyHelpUrl: "https://console.anthropic.com/settings/keys",
+    apiKeyPlaceholder: 'sk-ant-api03-...',
+    apiKeyHelpUrl: 'https://console.anthropic.com/settings/keys',
     endpointEditable: false,
   },
   codex: {
-    name: "Codex CLI",
+    name: 'Codex CLI',
     icon: <Zap className="w-5 h-5" />,
-    color: "text-green-500",
-    defaultModel: "",
+    color: 'text-green-500',
+    defaultModel: '',
     models: [],
     requiresApiKey: false,
     apiKeyPlaceholder:
-      "Codex CLIはローカルCLIを使用（APIキー不要、ChatGPTアカウントで認証）",
+      'Codex CLIはローカルCLIを使用（APIキー不要、ChatGPTアカウントで認証）',
     endpointEditable: false,
   },
   openai: {
-    name: "OpenAI",
+    name: 'OpenAI',
     icon: <Zap className="w-5 h-5" />,
-    color: "text-green-500",
-    defaultEndpoint: "https://api.openai.com/v1",
-    defaultModel: "",
+    color: 'text-green-500',
+    defaultEndpoint: 'https://api.openai.com/v1',
+    defaultModel: '',
     models: [],
     requiresApiKey: true,
-    apiKeyPlaceholder: "sk-...",
-    apiKeyHelpUrl: "https://platform.openai.com/api-keys",
+    apiKeyPlaceholder: 'sk-...',
+    apiKeyHelpUrl: 'https://platform.openai.com/api-keys',
     endpointEditable: true,
   },
-  "azure-openai": {
-    name: "Azure OpenAI",
+  'azure-openai': {
+    name: 'Azure OpenAI',
     icon: <Globe className="w-5 h-5" />,
-    color: "text-blue-500",
-    defaultEndpoint: "",
-    defaultModel: "",
+    color: 'text-blue-500',
+    defaultEndpoint: '',
+    defaultModel: '',
     models: [],
     requiresApiKey: true,
-    apiKeyPlaceholder: "Azure API Key",
-    apiKeyHelpUrl: "https://portal.azure.com",
+    apiKeyPlaceholder: 'Azure API Key',
+    apiKeyHelpUrl: 'https://portal.azure.com',
     endpointEditable: true,
   },
   gemini: {
-    name: "Gemini CLI",
+    name: 'Gemini CLI',
     icon: <Activity className="w-5 h-5" />,
-    color: "text-blue-500",
-    defaultModel: "",
+    color: 'text-blue-500',
+    defaultModel: '',
     models: [],
     requiresApiKey: false,
     apiKeyPlaceholder:
-      "Gemini CLIはローカルCLIを使用（APIキー不要、Googleアカウントで認証）",
+      'Gemini CLIはローカルCLIを使用（APIキー不要、Googleアカウントで認証）',
     endpointEditable: false,
   },
   custom: {
-    name: "カスタム",
+    name: 'カスタム',
     icon: <Cpu className="w-5 h-5" />,
-    color: "text-zinc-500",
-    defaultEndpoint: "",
-    defaultModel: "",
+    color: 'text-zinc-500',
+    defaultEndpoint: '',
+    defaultModel: '',
     models: [],
     requiresApiKey: true,
-    apiKeyPlaceholder: "APIキー",
+    apiKeyPlaceholder: 'APIキー',
     endpointEditable: true,
   },
 };
@@ -165,14 +165,14 @@ export default function AgentSettingsClient({
     message: string;
   } | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
-  const [error, setError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
 
   // Form state
-  const [endpoint, setEndpoint] = useState("");
-  const [modelId, setModelId] = useState("");
-  const [apiKey, setApiKey] = useState("");
+  const [endpoint, setEndpoint] = useState('');
+  const [modelId, setModelId] = useState('');
+  const [apiKey, setApiKey] = useState('');
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
 
   // Field-level validation errors
@@ -186,18 +186,18 @@ export default function AgentSettingsClient({
       if (res.ok) {
         const data = await res.json();
         setAgent(data);
-        setEndpoint(data.endpoint || "");
-        setModelId(data.modelId || "");
+        setEndpoint(data.endpoint || '');
+        setModelId(data.modelId || '');
         setCapabilities(data.capabilities || {});
 
         // Fetch available models for this agent type
         fetchModels(data.agentType);
       } else {
-        setError("エージェントが見つかりません");
+        setError('エージェントが見つかりません');
       }
     } catch (err) {
-      console.error("Failed to fetch agent:", err);
-      setError("エージェントの取得に失敗しました");
+      console.error('Failed to fetch agent:', err);
+      setError('エージェントの取得に失敗しました');
     } finally {
       setLoading(false);
     }
@@ -209,7 +209,9 @@ export default function AgentSettingsClient({
 
   const fetchModels = useCallback(async (agentType: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/agents/models?type=${agentType}`);
+      const res = await fetch(
+        `${API_BASE_URL}/agents/models?type=${agentType}`,
+      );
       if (res.ok) {
         const data = await res.json();
         setAvailableModels(data.models || []);
@@ -220,21 +222,21 @@ export default function AgentSettingsClient({
         }
       }
     } catch (err) {
-      console.error("Failed to fetch models:", err);
+      console.error('Failed to fetch models:', err);
     }
   }, []);
 
   const validateField = (field: string, value: string): string | null => {
     let result: ValidationResult;
     switch (field) {
-      case "endpoint":
+      case 'endpoint':
         result = validateUrl(
           value,
-          "エンドポイント",
-          agent?.agentType === "custom" || agent?.agentType === "azure-openai",
+          'エンドポイント',
+          agent?.agentType === 'custom' || agent?.agentType === 'azure-openai',
         );
         return result.valid ? null : (result.error ?? null);
-      case "apiKey":
+      case 'apiKey':
         if (!value.trim()) return null;
         result = validateApiKey(value, agent?.agentType);
         return result.valid ? null : (result.error ?? null);
@@ -260,29 +262,26 @@ export default function AgentSettingsClient({
   };
 
   const handleSave = async () => {
-    setError("");
-    setSuccessMessage("");
+    setError('');
+    setSuccessMessage('');
 
     // Run all validations
     if (!agent) return;
     const provConfig =
-      PROVIDER_CONFIGS[agent.agentType] || PROVIDER_CONFIGS["custom"];
+      PROVIDER_CONFIGS[agent.agentType] || PROVIDER_CONFIGS['custom'];
 
     const endpointResult = provConfig.endpointEditable
       ? validateUrl(
           endpoint,
-          "エンドポイント",
-          agent.agentType === "custom" || agent.agentType === "azure-openai",
+          'エンドポイント',
+          agent.agentType === 'custom' || agent.agentType === 'azure-openai',
         )
       : ({ valid: true } as ValidationResult);
     const apiKeyResult = apiKey
       ? validateApiKey(apiKey, agent.agentType)
       : ({ valid: true } as ValidationResult);
 
-    const { valid, errors } = collectErrors(
-      endpointResult,
-      apiKeyResult,
-    );
+    const { valid, errors } = collectErrors(endpointResult, apiKeyResult);
 
     // Update field-level errors for visual feedback
     setFieldErrors({
@@ -291,7 +290,7 @@ export default function AgentSettingsClient({
     });
 
     if (!valid) {
-      setError(errors.join("、"));
+      setError(errors.join('、'));
       return;
     }
 
@@ -307,15 +306,15 @@ export default function AgentSettingsClient({
       });
 
       if (!serverResult.valid) {
-        setError(serverResult.errors.join("、"));
+        setError(serverResult.errors.join('、'));
         setSaving(false);
         return;
       }
 
       // Update basic config
       const configRes = await fetch(`${API_BASE_URL}/agents/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           endpoint: endpoint || null,
           modelId: modelId || null,
@@ -324,57 +323,57 @@ export default function AgentSettingsClient({
       });
 
       if (!configRes.ok) {
-        throw new Error("設定の保存に失敗しました");
+        throw new Error('設定の保存に失敗しました');
       }
 
       // Save API key if provided
       if (apiKey) {
         const keyRes = await fetch(`${API_BASE_URL}/agents/${id}/api-key`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ apiKey }),
         });
 
         if (!keyRes.ok) {
-          throw new Error("APIキーの保存に失敗しました");
+          throw new Error('APIキーの保存に失敗しました');
         }
       }
 
       setFieldErrors({});
-      setSuccessMessage("設定を保存しました");
-      setApiKey("");
+      setSuccessMessage('設定を保存しました');
+      setApiKey('');
       await fetchAgent();
 
       // Clear success message after 3 seconds
-      setTimeout(() => setSuccessMessage(""), 3000);
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "保存に失敗しました");
+      setError(err instanceof Error ? err.message : '保存に失敗しました');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteApiKey = async () => {
-    if (!confirm("APIキーを削除しますか？")) return;
+    if (!confirm('APIキーを削除しますか？')) return;
 
-    setError("");
-    setSuccessMessage("");
+    setError('');
+    setSuccessMessage('');
 
     try {
       const res = await fetch(`${API_BASE_URL}/agents/${id}/api-key`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
 
       if (res.ok) {
-        setSuccessMessage("APIキーを削除しました");
+        setSuccessMessage('APIキーを削除しました');
         await fetchAgent();
         // Clear success message after 3 seconds
-        setTimeout(() => setSuccessMessage(""), 3000);
+        setTimeout(() => setSuccessMessage(''), 3000);
       } else {
-        throw new Error("APIキーの削除に失敗しました");
+        throw new Error('APIキーの削除に失敗しました');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "削除に失敗しました");
+      setError(err instanceof Error ? err.message : '削除に失敗しました');
     }
   };
 
@@ -384,19 +383,19 @@ export default function AgentSettingsClient({
 
     try {
       const res = await fetch(`${API_BASE_URL}/agents/${id}/test`, {
-        method: "POST",
+        method: 'POST',
       });
 
       const data = await res.json();
       setTestResult({
         success: data.success,
-        message: data.message || (data.success ? "接続成功" : "接続失敗"),
+        message: data.message || (data.success ? '接続成功' : '接続失敗'),
       });
     } catch (err) {
-      console.error("Failed to test connection:", err);
+      console.error('Failed to test connection:', err);
       setTestResult({
         success: false,
-        message: "接続テストに失敗しました",
+        message: '接続テストに失敗しました',
       });
     } finally {
       setTesting(false);
@@ -404,20 +403,20 @@ export default function AgentSettingsClient({
   };
 
   const handleDelete = async () => {
-    if (!confirm("このエージェント設定を削除しますか？")) return;
+    if (!confirm('このエージェント設定を削除しますか？')) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/agents/${id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
 
       if (res.ok) {
-        router.push("/agents");
+        router.push('/agents');
       } else {
-        throw new Error("削除に失敗しました");
+        throw new Error('削除に失敗しました');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "削除に失敗しました");
+      setError(err instanceof Error ? err.message : '削除に失敗しました');
     }
   };
 
@@ -430,7 +429,7 @@ export default function AgentSettingsClient({
       <div className="flex flex-col items-center justify-center h-[calc(100vh-5rem)] bg-background">
         <XCircle className="w-12 h-12 text-red-500 mb-4" />
         <p className="text-zinc-600 dark:text-zinc-400">
-          {error || "エージェントが見つかりません"}
+          {error || 'エージェントが見つかりません'}
         </p>
         <Link
           href="/agents"
@@ -443,7 +442,7 @@ export default function AgentSettingsClient({
   }
 
   const providerConfig =
-    PROVIDER_CONFIGS[agent.agentType] || PROVIDER_CONFIGS["custom"];
+    PROVIDER_CONFIGS[agent.agentType] || PROVIDER_CONFIGS['custom'];
 
   return (
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
@@ -511,8 +510,8 @@ export default function AgentSettingsClient({
                   <option value="">モデルを選択</option>
                   {availableModels.map((model) => (
                     <option key={model.value} value={model.value}>
-                      {model.label}{" "}
-                      {model.description ? `- ${model.description}` : ""}
+                      {model.label}{' '}
+                      {model.description ? `- ${model.description}` : ''}
                     </option>
                   ))}
                 </select>
@@ -528,16 +527,16 @@ export default function AgentSettingsClient({
                   type="text"
                   value={endpoint}
                   onChange={(e) =>
-                    updateField("endpoint", e.target.value, setEndpoint)
+                    updateField('endpoint', e.target.value, setEndpoint)
                   }
                   className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:border-transparent ${
                     fieldErrors.endpoint
-                      ? "border-red-400 dark:border-red-600 focus:ring-red-500"
-                      : "border-zinc-300 dark:border-zinc-600 focus:ring-indigo-500"
+                      ? 'border-red-400 dark:border-red-600 focus:ring-red-500'
+                      : 'border-zinc-300 dark:border-zinc-600 focus:ring-indigo-500'
                   }`}
                   placeholder={
                     providerConfig.defaultEndpoint ||
-                    "https://api.example.com/v1"
+                    'https://api.example.com/v1'
                   }
                 />
                 {fieldErrors.endpoint && (
@@ -546,7 +545,7 @@ export default function AgentSettingsClient({
                   </p>
                 )}
                 {!fieldErrors.endpoint &&
-                  agent.agentType === "azure-openai" && (
+                  agent.agentType === 'azure-openai' && (
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
                       例:
                       https://your-resource.openai.azure.com/openai/deployments/your-deployment
@@ -605,19 +604,19 @@ export default function AgentSettingsClient({
             {/* New API Key Input */}
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                {agent.hasApiKey ? "新しいAPIキー（変更する場合）" : "APIキー"}
+                {agent.hasApiKey ? '新しいAPIキー（変更する場合）' : 'APIキー'}
               </label>
               <div className="relative">
                 <input
-                  type={showApiKey ? "text" : "password"}
+                  type={showApiKey ? 'text' : 'password'}
                   value={apiKey}
                   onChange={(e) =>
-                    updateField("apiKey", e.target.value, setApiKey)
+                    updateField('apiKey', e.target.value, setApiKey)
                   }
                   className={`w-full px-3 py-2 pr-10 border rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:border-transparent ${
                     fieldErrors.apiKey
-                      ? "border-red-400 dark:border-red-600 focus:ring-red-500"
-                      : "border-zinc-300 dark:border-zinc-600 focus:ring-indigo-500"
+                      ? 'border-red-400 dark:border-red-600 focus:ring-red-500'
+                      : 'border-zinc-300 dark:border-zinc-600 focus:ring-indigo-500'
                   }`}
                   placeholder={providerConfig.apiKeyPlaceholder}
                 />
@@ -666,7 +665,7 @@ export default function AgentSettingsClient({
         )}
 
         {/* Claude Code specific info */}
-        {agent.agentType === "claude-code" && (
+        {agent.agentType === 'claude-code' && (
           <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-6 mb-6">
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4 flex items-center gap-2">
               <Terminal className="w-5 h-5" />
@@ -714,7 +713,7 @@ export default function AgentSettingsClient({
 
             {testResult && (
               <div
-                className={`flex items-center gap-2 ${testResult.success ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
+                className={`flex items-center gap-2 ${testResult.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}
               >
                 {testResult.success ? (
                   <CheckCircle2 className="w-4 h-4" />
@@ -726,7 +725,6 @@ export default function AgentSettingsClient({
             )}
           </div>
         </div>
-
 
         {/* Actions */}
         <div className="flex items-center justify-between">

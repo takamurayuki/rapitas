@@ -1,5 +1,5 @@
-"use client";
-import { useState, useEffect } from "react";
+'use client';
+import { useState, useEffect } from 'react';
 import {
   X,
   Download,
@@ -16,11 +16,11 @@ import {
   Image as ImageIcon,
   File,
   Loader2,
-} from "lucide-react";
-import type { Resource } from "@/types";
-import { API_BASE_URL, fetchWithRetry } from "@/utils/api";
-import MarkdownViewer from "./MarkdownViewer";
-import "./markdown-viewer.css";
+} from 'lucide-react';
+import type { Resource } from '@/types';
+import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
+import MarkdownViewer from './MarkdownViewer';
+import './markdown-viewer.css';
 
 type FileViewerProps = {
   resource: Resource;
@@ -39,7 +39,7 @@ export default function FileViewer({
 }: FileViewerProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [textContent, setTextContent] = useState<string>("");
+  const [textContent, setTextContent] = useState<string>('');
   const [imageScale, setImageScale] = useState(1);
   const [imageRotation, setImageRotation] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -50,7 +50,7 @@ export default function FileViewer({
       return `${API_BASE_URL}/resources/file/${res.filePath}`;
     }
 
-    return res.url || "";
+    return res.url || '';
   };
 
   // ダウンロードURLを取得
@@ -58,69 +58,69 @@ export default function FileViewer({
     if (res.filePath) {
       return `${API_BASE_URL}/resources/download/${res.filePath}`;
     }
-    return res.url || "";
+    return res.url || '';
   };
 
   // ファイルタイプを判定
   const getFileType = (res: Resource): string => {
-    const mimeType = res.mimeType || "";
-    const fileName = res.fileName || res.title || "";
-    const ext = fileName.split(".").pop()?.toLowerCase() || "";
+    const mimeType = res.mimeType || '';
+    const fileName = res.fileName || res.title || '';
+    const ext = fileName.split('.').pop()?.toLowerCase() || '';
 
-    if (mimeType.startsWith("image/") || res.type === "image") {
-      return "image";
+    if (mimeType.startsWith('image/') || res.type === 'image') {
+      return 'image';
     }
-    if (mimeType === "application/pdf" || res.type === "pdf") {
-      return "pdf";
+    if (mimeType === 'application/pdf' || res.type === 'pdf') {
+      return 'pdf';
     }
     // マークダウンファイルを別途判定
-    if (ext === "md" || mimeType === "text/markdown") {
-      return "markdown";
+    if (ext === 'md' || mimeType === 'text/markdown') {
+      return 'markdown';
     }
     if (
-      mimeType.startsWith("text/") ||
+      mimeType.startsWith('text/') ||
       [
-        "txt",
-        "json",
-        "js",
-        "ts",
-        "jsx",
-        "tsx",
-        "css",
-        "html",
-        "xml",
-        "yaml",
-        "yml",
-        "log",
-        "csv",
+        'txt',
+        'json',
+        'js',
+        'ts',
+        'jsx',
+        'tsx',
+        'css',
+        'html',
+        'xml',
+        'yaml',
+        'yml',
+        'log',
+        'csv',
       ].includes(ext)
     ) {
-      return "text";
+      return 'text';
     }
-    return "other";
+    return 'other';
   };
 
   // テキストファイルを読み込み
   useEffect(() => {
     const fileType = getFileType(resource);
-    if (!isOpen || (fileType !== "text" && fileType !== "markdown")) return;
+    if (!isOpen || (fileType !== 'text' && fileType !== 'markdown')) return;
 
     const loadFile = async () => {
       setIsLoading(true);
       setError(null);
-      setTextContent("");
+      setTextContent('');
 
       const url = getFileUrl(resource);
 
       try {
         const res = await fetch(url, {
-          method: "GET",
+          method: 'GET',
           headers: {
             Accept:
-              "text/plain, text/markdown, text/html, application/json, text/*",
+              'text/plain, text/markdown, text/html, application/json, text/*',
           },
-          mode: "cors",
-          credentials: "omit", // 認証情報を送信しない
+          mode: 'cors',
+          credentials: 'omit', // 認証情報を送信しない
         });
 
         if (!res.ok) {
@@ -132,7 +132,7 @@ export default function FileViewer({
         const text = await res.text();
         setTextContent(text);
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
+        const message = err instanceof Error ? err.message : 'Unknown error';
         setError(`ファイルの読み込みに失敗しました: ${message}`);
       } finally {
         setIsLoading(false);
@@ -149,9 +149,9 @@ export default function FileViewer({
 
   // 画像の読み込みエラー時
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    console.error("[FileViewer] Image load error:", e);
+    console.error('[FileViewer] Image load error:', e);
     const url = getFileUrl(resource);
-    console.error("[FileViewer] Failed to load image from:", url);
+    console.error('[FileViewer] Failed to load image from:', url);
     setError(`画像の読み込みに失敗しました: ${url}`);
     setIsLoading(false);
   };
@@ -178,17 +178,17 @@ export default function FileViewer({
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         onClose();
-      } else if (e.key === "ArrowLeft") {
+      } else if (e.key === 'ArrowLeft') {
         handlePrevious();
-      } else if (e.key === "ArrowRight") {
+      } else if (e.key === 'ArrowRight') {
         handleNext();
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, currentIndex]);
 
   if (!isOpen) return null;
@@ -201,21 +201,21 @@ export default function FileViewer({
       <div
         className={`relative bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ${
           isFullscreen
-            ? "w-full h-full m-0 rounded-none"
-            : "w-[95vw] h-[90vh] md:w-[90vw] md:h-[85vh] max-w-6xl"
+            ? 'w-full h-full m-0 rounded-none'
+            : 'w-[95vw] h-[90vh] md:w-[90vw] md:h-[85vh] max-w-6xl'
         }`}
       >
         {/* Header */}
         <div className="absolute top-0 left-0 right-0 z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 sm:p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-              {fileType === "image" ? (
+              {fileType === 'image' ? (
                 <ImageIcon className="w-5 h-5 text-emerald-500" />
-              ) : fileType === "pdf" ? (
+              ) : fileType === 'pdf' ? (
                 <FileText className="w-5 h-5 text-rose-500" />
-              ) : fileType === "markdown" ? (
+              ) : fileType === 'markdown' ? (
                 <FileText className="w-5 h-5 text-purple-500" />
-              ) : fileType === "text" ? (
+              ) : fileType === 'text' ? (
                 <Code className="w-5 h-5 text-blue-500" />
               ) : (
                 <File className="w-5 h-5 text-zinc-500" />
@@ -259,7 +259,7 @@ export default function FileViewer({
             )}
 
             {/* Image controls */}
-            {fileType === "image" && (
+            {fileType === 'image' && (
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setImageScale(Math.min(imageScale + 0.25, 3))}
@@ -291,7 +291,7 @@ export default function FileViewer({
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
               className="p-1.5 sm:p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              title={isFullscreen ? "通常表示" : "全画面表示"}
+              title={isFullscreen ? '通常表示' : '全画面表示'}
             >
               {isFullscreen ? (
                 <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -355,7 +355,7 @@ export default function FileViewer({
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(getFileUrl(resource));
-                    alert("URLをコピーしました");
+                    alert('URLをコピーしました');
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-zinc-500 text-white rounded-lg hover:bg-zinc-600 transition-colors"
                 >
@@ -366,7 +366,7 @@ export default function FileViewer({
           )}
 
           {/* Image Viewer */}
-          {fileType === "image" && !error && (
+          {fileType === 'image' && !error && (
             <div className="flex items-center justify-center h-full p-8">
               <img
                 src={getFileUrl(resource)}
@@ -382,18 +382,18 @@ export default function FileViewer({
           )}
 
           {/* PDF Viewer */}
-          {fileType === "pdf" && !error && (
+          {fileType === 'pdf' && !error && (
             <iframe
               src={getFileUrl(resource)}
               className="w-full h-full"
               onLoad={() => {
-                console.log("[FileViewer] PDF loaded successfully");
+                console.log('[FileViewer] PDF loaded successfully');
                 setIsLoading(false);
               }}
               onError={(e) => {
-                console.error("[FileViewer] PDF load error:", e);
+                console.error('[FileViewer] PDF load error:', e);
                 const url = getFileUrl(resource);
-                console.error("[FileViewer] Failed to load PDF from:", url);
+                console.error('[FileViewer] Failed to load PDF from:', url);
                 setError(`PDFの読み込みに失敗しました: ${url}`);
                 setIsLoading(false);
               }}
@@ -401,14 +401,14 @@ export default function FileViewer({
           )}
 
           {/* Markdown Viewer */}
-          {fileType === "markdown" && !error && !isLoading && (
+          {fileType === 'markdown' && !error && !isLoading && (
             <div className="p-8 max-w-4xl mx-auto">
               <MarkdownViewer content={textContent} />
             </div>
           )}
 
           {/* Text Viewer */}
-          {fileType === "text" && !error && !isLoading && (
+          {fileType === 'text' && !error && !isLoading && (
             <div className="p-8">
               <pre className="font-mono text-sm text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">
                 {textContent}
@@ -417,7 +417,7 @@ export default function FileViewer({
           )}
 
           {/* Other Files */}
-          {fileType === "other" && !error && (
+          {fileType === 'other' && !error && (
             <div className="flex flex-col items-center justify-center h-full gap-4">
               <File className="w-16 h-16 text-zinc-400" />
               <p className="text-zinc-600 dark:text-zinc-400">

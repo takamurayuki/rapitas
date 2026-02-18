@@ -1,6 +1,6 @@
-import { Suspense } from "react";
-import NewTaskClient from "./NewTaskClient";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { Suspense } from 'react';
+import NewTaskClient from './NewTaskClient';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 export default function NewTaskPage() {
   return (

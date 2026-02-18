@@ -1,52 +1,52 @@
-"use client";
+'use client';
 
-import React, { useMemo, useEffect, useRef } from "react";
+import React, { useMemo, useEffect, useRef } from 'react';
 import {
   Loader2,
   MessageCircleQuestion,
   AlertCircle,
   CheckCircle2,
-} from "lucide-react";
+} from 'lucide-react';
 import type {
   StatusCardProps,
   AgentStatusType,
   StatusConfig,
   StatusCardSize,
-} from "./types";
+} from './types';
 
 /**
  * ステータスごとの設定マップ
  */
 const STATUS_CONFIG: Record<AgentStatusType, StatusConfig> = {
   processing: {
-    iconColor: "text-blue-500 dark:text-blue-400",
-    bgColor: "bg-blue-50 dark:bg-blue-950/40",
-    borderColor: "border-blue-200 dark:border-blue-800",
-    textColor: "text-blue-700 dark:text-blue-300",
-    label: "実行中",
-    animation: "animate-spin",
+    iconColor: 'text-blue-500 dark:text-blue-400',
+    bgColor: 'bg-blue-50 dark:bg-blue-950/40',
+    borderColor: 'border-blue-200 dark:border-blue-800',
+    textColor: 'text-blue-700 dark:text-blue-300',
+    label: '実行中',
+    animation: 'animate-spin',
   },
   waiting_for_input: {
-    iconColor: "text-amber-500 dark:text-amber-400",
-    bgColor: "bg-amber-50 dark:bg-amber-950/40",
-    borderColor: "border-amber-200 dark:border-amber-800",
-    textColor: "text-amber-700 dark:text-amber-300",
-    label: "入力待ち",
-    animation: "animate-pulse",
+    iconColor: 'text-amber-500 dark:text-amber-400',
+    bgColor: 'bg-amber-50 dark:bg-amber-950/40',
+    borderColor: 'border-amber-200 dark:border-amber-800',
+    textColor: 'text-amber-700 dark:text-amber-300',
+    label: '入力待ち',
+    animation: 'animate-pulse',
   },
   error: {
-    iconColor: "text-red-500 dark:text-red-400",
-    bgColor: "bg-red-50 dark:bg-red-950/40",
-    borderColor: "border-red-200 dark:border-red-800",
-    textColor: "text-red-700 dark:text-red-300",
-    label: "エラー",
+    iconColor: 'text-red-500 dark:text-red-400',
+    bgColor: 'bg-red-50 dark:bg-red-950/40',
+    borderColor: 'border-red-200 dark:border-red-800',
+    textColor: 'text-red-700 dark:text-red-300',
+    label: 'エラー',
   },
   completed: {
-    iconColor: "text-green-500 dark:text-green-400",
-    bgColor: "bg-green-50 dark:bg-green-950/40",
-    borderColor: "border-green-200 dark:border-green-800",
-    textColor: "text-green-700 dark:text-green-300",
-    label: "完了",
+    iconColor: 'text-green-500 dark:text-green-400',
+    bgColor: 'bg-green-50 dark:bg-green-950/40',
+    borderColor: 'border-green-200 dark:border-green-800',
+    textColor: 'text-green-700 dark:text-green-300',
+    label: '完了',
   },
 };
 
@@ -58,19 +58,19 @@ const SIZE_CONFIG: Record<
   { card: string; icon: string; text: string }
 > = {
   sm: {
-    card: "px-3 py-2 max-h-14",
-    icon: "w-4 h-4",
-    text: "text-xs",
+    card: 'px-3 py-2 max-h-14',
+    icon: 'w-4 h-4',
+    text: 'text-xs',
   },
   md: {
-    card: "px-4 py-3 max-h-16",
-    icon: "w-5 h-5",
-    text: "text-sm",
+    card: 'px-4 py-3 max-h-16',
+    icon: 'w-5 h-5',
+    text: 'text-sm',
   },
   lg: {
-    card: "px-5 py-4 max-h-20",
-    icon: "w-6 h-6",
-    text: "text-base",
+    card: 'px-5 py-4 max-h-20',
+    icon: 'w-6 h-6',
+    text: 'text-base',
   },
 };
 
@@ -83,18 +83,18 @@ const getDefaultIcon = (
   sizeClass: string,
 ): React.ReactNode => {
   const iconProps = {
-    className: `${sizeClass} ${config.iconColor} ${config.animation || ""} flex-shrink-0`,
-    "aria-hidden": true as const,
+    className: `${sizeClass} ${config.iconColor} ${config.animation || ''} flex-shrink-0`,
+    'aria-hidden': true as const,
   };
 
   switch (status) {
-    case "processing":
+    case 'processing':
       return <Loader2 {...iconProps} />;
-    case "waiting_for_input":
+    case 'waiting_for_input':
       return <MessageCircleQuestion {...iconProps} />;
-    case "error":
+    case 'error':
       return <AlertCircle {...iconProps} />;
-    case "completed":
+    case 'completed':
       return <CheckCircle2 {...iconProps} />;
     default:
       return null;
@@ -109,8 +109,8 @@ const getDefaultIcon = (
 export const StatusCard: React.FC<StatusCardProps> = ({
   status,
   message,
-  size = "md",
-  className = "",
+  size = 'md',
+  className = '',
   animated = true,
   icon,
   ariaLabel,
@@ -135,10 +135,10 @@ export const StatusCard: React.FC<StatusCardProps> = ({
     if (!animated || !cardRef.current) return;
 
     const card = cardRef.current;
-    card.classList.add("status-card-enter");
+    card.classList.add('status-card-enter');
 
     const timeout = setTimeout(() => {
-      card.classList.remove("status-card-enter");
+      card.classList.remove('status-card-enter');
     }, 300);
 
     return () => clearTimeout(timeout);
@@ -172,11 +172,11 @@ export const StatusCard: React.FC<StatusCardProps> = ({
         ${config.borderColor}
         border rounded-lg
         transition-all duration-300 ease-in-out
-        ${animated ? "status-card-animated" : ""}
+        ${animated ? 'status-card-animated' : ''}
         ${className}
       `
         .trim()
-        .replace(/\s+/g, " ")}
+        .replace(/\s+/g, ' ')}
     >
       {displayIcon}
       <div className="flex flex-col min-w-0">
@@ -186,7 +186,7 @@ export const StatusCard: React.FC<StatusCardProps> = ({
             truncate
           `
             .trim()
-            .replace(/\s+/g, " ")}
+            .replace(/\s+/g, ' ')}
         >
           {config.label}
         </span>
@@ -197,7 +197,7 @@ export const StatusCard: React.FC<StatusCardProps> = ({
               truncate opacity-80
             `
               .trim()
-              .replace(/\s+/g, " ")}
+              .replace(/\s+/g, ' ')}
             title={message}
           >
             {displayMessage}

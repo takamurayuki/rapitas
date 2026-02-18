@@ -1,19 +1,26 @@
-"use client";
+'use client';
 
-import React from "react";
-import { Loader2, CheckCircle2, Circle, XCircle, Clock, Pause } from "lucide-react";
+import React from 'react';
+import {
+  Loader2,
+  CheckCircle2,
+  Circle,
+  XCircle,
+  Clock,
+  Pause,
+} from 'lucide-react';
 
 /**
  * 並列実行時のサブタスクステータス
  */
 export type ParallelExecutionStatus =
-  | "pending"      // 待機中
-  | "scheduled"    // スケジュール済み
-  | "running"      // 実行中
-  | "completed"    // 完了
-  | "failed"       // 失敗
-  | "cancelled"    // キャンセル
-  | "blocked";     // ブロック（依存タスク未完了）
+  | 'pending' // 待機中
+  | 'scheduled' // スケジュール済み
+  | 'running' // 実行中
+  | 'completed' // 完了
+  | 'failed' // 失敗
+  | 'cancelled' // キャンセル
+  | 'blocked'; // ブロック（依存タスク未完了）
 
 interface SubtaskExecutionStatusProps {
   /** 並列実行のステータス */
@@ -21,7 +28,7 @@ interface SubtaskExecutionStatusProps {
   /** コンパクト表示（アイコンのみ） */
   compact?: boolean;
   /** サイズ */
-  size?: "sm" | "md" | "lg";
+  size?: 'sm' | 'md' | 'lg';
   /** クラス名 */
   className?: string;
 }
@@ -41,8 +48,8 @@ interface SubtaskExecutionStatusProps {
 export function SubtaskExecutionStatus({
   executionStatus,
   compact = false,
-  size = "sm",
-  className = "",
+  size = 'sm',
+  className = '',
 }: SubtaskExecutionStatusProps) {
   // ステータスがない場合は何も表示しない
   if (!executionStatus) {
@@ -50,15 +57,15 @@ export function SubtaskExecutionStatus({
   }
 
   const sizeClasses = {
-    sm: "w-4 h-4",
-    md: "w-5 h-5",
-    lg: "w-6 h-6",
+    sm: 'w-4 h-4',
+    md: 'w-5 h-5',
+    lg: 'w-6 h-6',
   };
 
   const containerSizeClasses = {
-    sm: "w-5 h-5",
-    md: "w-6 h-6",
-    lg: "w-7 h-7",
+    sm: 'w-5 h-5',
+    md: 'w-6 h-6',
+    lg: 'w-7 h-7',
   };
 
   const iconSize = sizeClasses[size];
@@ -76,46 +83,46 @@ export function SubtaskExecutionStatus({
   > = {
     pending: {
       icon: <Circle className={iconSize} />,
-      bgColor: "bg-zinc-100 dark:bg-indigo-dark-800",
-      textColor: "text-zinc-400 dark:text-zinc-500",
-      label: "待機中",
+      bgColor: 'bg-zinc-100 dark:bg-indigo-dark-800',
+      textColor: 'text-zinc-400 dark:text-zinc-500',
+      label: '待機中',
     },
     scheduled: {
       icon: <Clock className={iconSize} />,
-      bgColor: "bg-blue-50 dark:bg-blue-900/30",
-      textColor: "text-blue-500 dark:text-blue-400",
-      label: "スケジュール済み",
+      bgColor: 'bg-blue-50 dark:bg-blue-900/30',
+      textColor: 'text-blue-500 dark:text-blue-400',
+      label: 'スケジュール済み',
     },
     running: {
       icon: <Loader2 className={`${iconSize} animate-spin`} />,
-      bgColor: "bg-blue-100 dark:bg-blue-900/40",
-      textColor: "text-blue-600 dark:text-blue-400",
-      label: "実行中",
+      bgColor: 'bg-blue-100 dark:bg-blue-900/40',
+      textColor: 'text-blue-600 dark:text-blue-400',
+      label: '実行中',
       animate: true,
     },
     completed: {
       icon: <CheckCircle2 className={iconSize} />,
-      bgColor: "bg-green-100 dark:bg-green-900/40",
-      textColor: "text-green-600 dark:text-green-400",
-      label: "完了",
+      bgColor: 'bg-green-100 dark:bg-green-900/40',
+      textColor: 'text-green-600 dark:text-green-400',
+      label: '完了',
     },
     failed: {
       icon: <XCircle className={iconSize} />,
-      bgColor: "bg-red-100 dark:bg-red-900/40",
-      textColor: "text-red-600 dark:text-red-400",
-      label: "失敗",
+      bgColor: 'bg-red-100 dark:bg-red-900/40',
+      textColor: 'text-red-600 dark:text-red-400',
+      label: '失敗',
     },
     cancelled: {
       icon: <Pause className={iconSize} />,
-      bgColor: "bg-yellow-100 dark:bg-yellow-900/40",
-      textColor: "text-yellow-600 dark:text-yellow-400",
-      label: "キャンセル",
+      bgColor: 'bg-yellow-100 dark:bg-yellow-900/40',
+      textColor: 'text-yellow-600 dark:text-yellow-400',
+      label: 'キャンセル',
     },
     blocked: {
       icon: <Pause className={iconSize} />,
-      bgColor: "bg-orange-100 dark:bg-orange-900/40",
-      textColor: "text-orange-600 dark:text-orange-400",
-      label: "ブロック中",
+      bgColor: 'bg-orange-100 dark:bg-orange-900/40',
+      textColor: 'text-orange-600 dark:text-orange-400',
+      label: 'ブロック中',
     },
   };
 
@@ -150,65 +157,65 @@ interface SubtaskTitleIndicatorProps {
   /** 並列実行のステータス */
   executionStatus?: ParallelExecutionStatus;
   /** サイズ */
-  size?: "sm" | "md";
+  size?: 'sm' | 'md';
   /** クラス名 */
   className?: string;
 }
 
 export function SubtaskTitleIndicator({
   executionStatus,
-  size = "sm",
-  className = "",
+  size = 'sm',
+  className = '',
 }: SubtaskTitleIndicatorProps) {
   if (!executionStatus) {
     return null;
   }
 
   const sizeClasses = {
-    sm: "w-3 h-3",
-    md: "w-4 h-4",
+    sm: 'w-3 h-3',
+    md: 'w-4 h-4',
   };
 
   const iconSize = sizeClasses[size];
 
   switch (executionStatus) {
-    case "running":
+    case 'running':
       return (
         <Loader2
           className={`${iconSize} text-blue-500 dark:text-blue-400 animate-spin shrink-0 ${className}`}
         />
       );
-    case "completed":
+    case 'completed':
       return (
         <CheckCircle2
           className={`${iconSize} text-green-500 dark:text-green-400 shrink-0 ${className}`}
         />
       );
-    case "failed":
+    case 'failed':
       return (
         <XCircle
           className={`${iconSize} text-red-500 dark:text-red-400 shrink-0 ${className}`}
         />
       );
-    case "scheduled":
+    case 'scheduled':
       return (
         <Clock
           className={`${iconSize} text-blue-400 dark:text-blue-500 shrink-0 ${className}`}
         />
       );
-    case "blocked":
+    case 'blocked':
       return (
         <Pause
           className={`${iconSize} text-orange-500 dark:text-orange-400 shrink-0 ${className}`}
         />
       );
-    case "cancelled":
+    case 'cancelled':
       return (
         <Pause
           className={`${iconSize} text-yellow-500 dark:text-yellow-400 shrink-0 ${className}`}
         />
       );
-    case "pending":
+    case 'pending':
     default:
       return null;
   }

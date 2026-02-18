@@ -1,13 +1,8 @@
-"use client";
-import {
-  FileText,
-  Pin,
-  Trash2,
-  Calendar,
-} from "lucide-react";
-import { useNoteStore } from "@/stores/noteStore";
-import { useState, useEffect } from "react";
-import DeleteNoteModal from "./DeleteNoteModal";
+'use client';
+import { FileText, Pin, Trash2, Calendar } from 'lucide-react';
+import { useNoteStore } from '@/stores/noteStore';
+import { useState, useEffect } from 'react';
+import DeleteNoteModal from './DeleteNoteModal';
 
 export default function NoteSidebar() {
   const {
@@ -25,7 +20,7 @@ export default function NoteSidebar() {
   }>({
     isOpen: false,
     noteId: null,
-    noteTitle: "",
+    noteTitle: '',
   });
 
   const filteredNotes = getFilteredNotes();
@@ -42,11 +37,11 @@ export default function NoteSidebar() {
     if (deleteModalState.noteId) {
       deleteNote(deleteModalState.noteId);
     }
-    setDeleteModalState({ isOpen: false, noteId: null, noteTitle: "" });
+    setDeleteModalState({ isOpen: false, noteId: null, noteTitle: '' });
   };
 
   const cancelDelete = () => {
-    setDeleteModalState({ isOpen: false, noteId: null, noteTitle: "" });
+    setDeleteModalState({ isOpen: false, noteId: null, noteTitle: '' });
   };
 
   const formatDate = (date: Date) => {
@@ -55,10 +50,10 @@ export default function NoteSidebar() {
     const diffTime = Math.abs(now.getTime() - d.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays === 0) return "今日";
-    if (diffDays === 1) return "昨日";
+    if (diffDays === 0) return '今日';
+    if (diffDays === 1) return '昨日';
     if (diffDays < 7) return `${diffDays}日前`;
-    return d.toLocaleDateString("ja-JP", { month: "short", day: "numeric" });
+    return d.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
   };
 
   // ノートリストが空の場合、初回のみ新規ノートを作成
@@ -88,8 +83,8 @@ export default function NoteSidebar() {
                 onClick={() => setCurrentNote(note.id)}
                 className={`group p-3 rounded-lg cursor-pointer transition-colors note-card-hover ${
                   currentNoteId === note.id
-                    ? "bg-white dark:bg-zinc-900 shadow-sm"
-                    : "hover:bg-white/50 dark:hover:bg-zinc-900/50"
+                    ? 'bg-white dark:bg-zinc-900 shadow-sm'
+                    : 'hover:bg-white/50 dark:hover:bg-zinc-900/50'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -106,7 +101,7 @@ export default function NoteSidebar() {
                       className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2"
                       dangerouslySetInnerHTML={{
                         __html:
-                          note.content.replace(/<[^>]*>/g, "") || "内容なし",
+                          note.content.replace(/<[^>]*>/g, '') || '内容なし',
                       }}
                     />
                     <div className="flex items-center gap-1 mt-1 text-xs text-zinc-400">

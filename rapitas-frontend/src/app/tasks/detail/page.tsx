@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import TaskDetailClient from "../[id]/TaskDetailClient";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import TaskDetailClient from '../[id]/TaskDetailClient';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 /**
  * Tauri用タスク詳細ページ
@@ -12,7 +12,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
  */
 function TaskDetailContent() {
   const searchParams = useSearchParams();
-  const taskId = searchParams.get("id");
+  const taskId = searchParams.get('id');
 
   if (!taskId) {
     return (

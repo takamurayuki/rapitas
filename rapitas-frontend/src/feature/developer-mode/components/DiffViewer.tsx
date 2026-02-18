@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 import {
   FileText,
   FilePlus,
@@ -10,8 +10,8 @@ import {
   ChevronDown,
   Code,
   FileCode,
-} from "lucide-react";
-import type { FileDiff } from "@/types";
+} from 'lucide-react';
+import type { FileDiff } from '@/types';
 
 type DiffViewerProps = {
   files: FileDiff[];
@@ -25,7 +25,7 @@ export function DiffViewer({
   onToggleView,
 }: DiffViewerProps) {
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(
-    new Set(files.map((f) => f.filename))
+    new Set(files.map((f) => f.filename)),
   );
   const [isRawView, setIsRawView] = useState(showRawDiff);
 
@@ -48,13 +48,13 @@ export function DiffViewer({
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "added":
+      case 'added':
         return <FilePlus className="w-4 h-4 text-green-500" />;
-      case "deleted":
-      case "removed":
+      case 'deleted':
+      case 'removed':
         return <FileMinus className="w-4 h-4 text-red-500" />;
-      case "modified":
-      case "changed":
+      case 'modified':
+      case 'changed':
         return <FileEdit className="w-4 h-4 text-amber-500" />;
       default:
         return <FileText className="w-4 h-4 text-zinc-400" />;
@@ -63,16 +63,16 @@ export function DiffViewer({
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case "added":
-        return "追加";
-      case "deleted":
-      case "removed":
-        return "削除";
-      case "modified":
-      case "changed":
-        return "変更";
-      case "renamed":
-        return "名前変更";
+      case 'added':
+        return '追加';
+      case 'deleted':
+      case 'removed':
+        return '削除';
+      case 'modified':
+      case 'changed':
+        return '変更';
+      case 'renamed':
+        return '名前変更';
       default:
         return status;
     }
@@ -80,31 +80,31 @@ export function DiffViewer({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "added":
-        return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300";
-      case "deleted":
-      case "removed":
-        return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300";
-      case "modified":
-      case "changed":
-        return "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300";
+      case 'added':
+        return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300';
+      case 'deleted':
+      case 'removed':
+        return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
+      case 'modified':
+      case 'changed':
+        return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300';
       default:
-        return "bg-zinc-100 dark:bg-indigo-dark-800 text-zinc-600 dark:text-zinc-400";
+        return 'bg-zinc-100 dark:bg-indigo-dark-800 text-zinc-600 dark:text-zinc-400';
     }
   };
 
   const parsePatch = (patch: string) => {
     if (!patch) return [];
 
-    const lines = patch.split("\n");
+    const lines = patch.split('\n');
     return lines.map((line, index) => {
-      let type: "added" | "removed" | "context" | "header" = "context";
-      if (line.startsWith("+") && !line.startsWith("+++")) {
-        type = "added";
-      } else if (line.startsWith("-") && !line.startsWith("---")) {
-        type = "removed";
-      } else if (line.startsWith("@@")) {
-        type = "header";
+      let type: 'added' | 'removed' | 'context' | 'header' = 'context';
+      if (line.startsWith('+') && !line.startsWith('+++')) {
+        type = 'added';
+      } else if (line.startsWith('-') && !line.startsWith('---')) {
+        type = 'removed';
+      } else if (line.startsWith('@@')) {
+        type = 'header';
       }
       return { line, type, index };
     });
@@ -198,38 +198,38 @@ export function DiffViewer({
                       <div
                         key={index}
                         className={`flex text-xs font-mono ${
-                          type === "added"
-                            ? "bg-green-900/30"
-                            : type === "removed"
-                              ? "bg-red-900/30"
-                              : type === "header"
-                                ? "bg-blue-900/20"
-                                : ""
+                          type === 'added'
+                            ? 'bg-green-900/30'
+                            : type === 'removed'
+                              ? 'bg-red-900/30'
+                              : type === 'header'
+                                ? 'bg-blue-900/20'
+                                : ''
                         }`}
                       >
                         <div className="w-10 shrink-0 px-2 py-0.5 text-right text-zinc-500 select-none border-r border-zinc-800">
-                          {type !== "header" ? index + 1 : ""}
+                          {type !== 'header' ? index + 1 : ''}
                         </div>
                         <div className="w-6 shrink-0 px-1 py-0.5 text-center select-none">
-                          {type === "added" && (
+                          {type === 'added' && (
                             <span className="text-green-400">+</span>
                           )}
-                          {type === "removed" && (
+                          {type === 'removed' && (
                             <span className="text-red-400">-</span>
                           )}
-                          {type === "header" && (
+                          {type === 'header' && (
                             <span className="text-blue-400">@</span>
                           )}
                         </div>
                         <pre
                           className={`flex-1 px-2 py-0.5 ${
-                            type === "added"
-                              ? "text-green-300"
-                              : type === "removed"
-                                ? "text-red-300"
-                                : type === "header"
-                                  ? "text-blue-300"
-                                  : "text-zinc-300"
+                            type === 'added'
+                              ? 'text-green-300'
+                              : type === 'removed'
+                                ? 'text-red-300'
+                                : type === 'header'
+                                  ? 'text-blue-300'
+                                  : 'text-zinc-300'
                           }`}
                         >
                           {line.slice(1)}

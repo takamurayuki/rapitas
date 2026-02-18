@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useState, useCallback } from "react";
+import { useState, useCallback } from 'react';
 import type {
   DeveloperModeConfig,
   TaskAnalysisResult,
   AgentSession,
   ExecutionStatus,
   ExecutionResult,
-} from "@/types";
-import { API_BASE_URL } from "@/utils/api";
+} from '@/types';
+import { API_BASE_URL } from '@/utils/api';
 
 export type { ExecutionStatus, ExecutionResult };
 
@@ -18,7 +18,7 @@ export function useDeveloperMode(taskId: number) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionStatus, setExecutionStatus] =
-    useState<ExecutionStatus>("idle");
+    useState<ExecutionStatus>('idle');
   const [executionResult, setExecutionResult] =
     useState<ExecutionResult | null>(null);
   const [analysisResult, setAnalysisResult] =
@@ -41,7 +41,7 @@ export function useDeveloperMode(taskId: number) {
         setConfig(null);
       }
     } catch (err) {
-      setError("設定の取得に失敗しました");
+      setError('設定の取得に失敗しました');
     } finally {
       setIsLoading(false);
     }
@@ -59,8 +59,8 @@ export function useDeveloperMode(taskId: number) {
         const res = await fetch(
           `${API_BASE_URL}/developer-mode/enable/${taskId}`,
           {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(options || {}),
           },
         );
@@ -69,10 +69,10 @@ export function useDeveloperMode(taskId: number) {
           setConfig(data);
           return data;
         } else {
-          throw new Error("有効化に失敗しました");
+          throw new Error('有効化に失敗しました');
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "エラーが発生しました");
+        setError(err instanceof Error ? err.message : 'エラーが発生しました');
         return null;
       } finally {
         setIsLoading(false);
@@ -88,7 +88,7 @@ export function useDeveloperMode(taskId: number) {
       const res = await fetch(
         `${API_BASE_URL}/developer-mode/disable/${taskId}`,
         {
-          method: "DELETE",
+          method: 'DELETE',
         },
       );
       if (res.ok) {
@@ -96,10 +96,10 @@ export function useDeveloperMode(taskId: number) {
         setAnalysisResult(null);
         return true;
       } else {
-        throw new Error("無効化に失敗しました");
+        throw new Error('無効化に失敗しました');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
       return false;
     } finally {
       setIsLoading(false);
@@ -114,8 +114,8 @@ export function useDeveloperMode(taskId: number) {
         const res = await fetch(
           `${API_BASE_URL}/developer-mode/config/${taskId}`,
           {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updates),
           },
         );
@@ -124,10 +124,10 @@ export function useDeveloperMode(taskId: number) {
           setConfig(data);
           return data;
         } else {
-          throw new Error("更新に失敗しました");
+          throw new Error('更新に失敗しました');
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "エラーが発生しました");
+        setError(err instanceof Error ? err.message : 'エラーが発生しました');
         return null;
       } finally {
         setIsLoading(false);
@@ -144,7 +144,7 @@ export function useDeveloperMode(taskId: number) {
       const res = await fetch(
         `${API_BASE_URL}/developer-mode/analyze/${taskId}`,
         {
-          method: "POST",
+          method: 'POST',
         },
       );
       const data = await res.json();
@@ -152,11 +152,11 @@ export function useDeveloperMode(taskId: number) {
         setAnalysisResult(data.analysis);
         return data;
       } else {
-        throw new Error(data.error || "分析に失敗しました");
+        throw new Error(data.error || '分析に失敗しました');
       }
     } catch (err) {
       setAnalysisError(
-        err instanceof Error ? err.message : "エラーが発生しました",
+        err instanceof Error ? err.message : 'エラーが発生しました',
       );
       return null;
     } finally {
@@ -174,7 +174,7 @@ export function useDeveloperMode(taskId: number) {
         setSessions(data);
       }
     } catch (err) {
-      console.error("Failed to fetch sessions:", err);
+      console.error('Failed to fetch sessions:', err);
     }
   }, [taskId]);
 
@@ -188,13 +188,13 @@ export function useDeveloperMode(taskId: number) {
       workingDirectory?: string;
     }) => {
       setIsExecuting(true);
-      setExecutionStatus("running");
+      setExecutionStatus('running');
       setExecutionResult(null);
       setError(null);
       try {
         const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/execute`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(options || {}),
         });
         const data = await res.json();
@@ -202,18 +202,18 @@ export function useDeveloperMode(taskId: number) {
           setExecutionResult({
             success: true,
             sessionId: data.sessionId,
-            message: data.message || "エージェント実行を開始しました",
+            message: data.message || 'エージェント実行を開始しました',
           });
-          setExecutionStatus("completed");
+          setExecutionStatus('completed');
           return data;
         } else {
-          throw new Error(data.error || "エージェントの実行に失敗しました");
+          throw new Error(data.error || 'エージェントの実行に失敗しました');
         }
       } catch (err) {
         const errorMessage =
-          err instanceof Error ? err.message : "エラーが発生しました";
+          err instanceof Error ? err.message : 'エラーが発生しました';
         setError(errorMessage);
-        setExecutionStatus("failed");
+        setExecutionStatus('failed');
         setExecutionResult({
           success: false,
           error: errorMessage,
@@ -230,7 +230,7 @@ export function useDeveloperMode(taskId: number) {
    * 実行状態をリセット
    */
   const resetExecutionState = useCallback(() => {
-    setExecutionStatus("idle");
+    setExecutionStatus('idle');
     setExecutionResult(null);
     setError(null);
   }, []);

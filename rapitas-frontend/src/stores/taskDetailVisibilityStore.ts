@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
 interface TaskDetailVisibilityState {
   /** タスク詳細パネルが表示されているかどうか */
@@ -17,5 +17,5 @@ export const useTaskDetailVisibilityStore = create<TaskDetailVisibilityState>()(
     isTaskDetailVisible: false,
     showTaskDetail: () => set({ isTaskDetailVisible: true }),
     hideTaskDetail: () => set({ isTaskDetailVisible: false }),
-  })
+  }),
 );

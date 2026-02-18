@@ -1,5 +1,5 @@
-"use client";
-import { useState, useRef, useEffect } from "react";
+'use client';
+import { useState, useRef, useEffect } from 'react';
 import {
   NotebookTabs,
   ChevronRight,
@@ -10,11 +10,11 @@ import {
   Trash2,
   Calendar,
   FileText,
-} from "lucide-react";
-import { useNoteStore } from "@/stores/noteStore";
-import { useDarkMode } from "@/hooks/use-dark-mode";
-import { useUIModeStore } from "@/stores/uiModeStore";
-import DeleteNoteModal from "./DeleteNoteModal";
+} from 'lucide-react';
+import { useNoteStore } from '@/stores/noteStore';
+import { useDarkMode } from '@/hooks/use-dark-mode';
+import { useUIModeStore } from '@/stores/uiModeStore';
+import DeleteNoteModal from './DeleteNoteModal';
 
 export default function NoteHoverSidebar() {
   const {
@@ -43,7 +43,7 @@ export default function NoteHoverSidebar() {
   }>({
     isOpen: false,
     noteId: null,
-    noteTitle: "",
+    noteTitle: '',
   });
   const sidebarRef = useRef<HTMLDivElement>(null);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -76,7 +76,7 @@ export default function NoteHoverSidebar() {
   }, []);
 
   // ノートモードでない場合は表示しない
-  if (currentMode !== "note") return null;
+  if (currentMode !== 'note') return null;
 
   const handleDeleteNote = (id: string, title: string) => {
     setDeleteModalState({
@@ -90,11 +90,11 @@ export default function NoteHoverSidebar() {
     if (deleteModalState.noteId) {
       deleteNote(deleteModalState.noteId);
     }
-    setDeleteModalState({ isOpen: false, noteId: null, noteTitle: "" });
+    setDeleteModalState({ isOpen: false, noteId: null, noteTitle: '' });
   };
 
   const cancelDelete = () => {
-    setDeleteModalState({ isOpen: false, noteId: null, noteTitle: "" });
+    setDeleteModalState({ isOpen: false, noteId: null, noteTitle: '' });
   };
 
   const formatDate = (date: Date) => {
@@ -103,17 +103,17 @@ export default function NoteHoverSidebar() {
     const diffTime = Math.abs(now.getTime() - d.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays === 0) return "今日";
-    if (diffDays === 1) return "昨日";
+    if (diffDays === 0) return '今日';
+    if (diffDays === 1) return '昨日';
     if (diffDays < 7) return `${diffDays}日前`;
-    return d.toLocaleDateString("ja-JP", { month: "short", day: "numeric" });
+    return d.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
   };
 
   return (
     <div
       ref={sidebarRef}
       className={`fixed left-0 top-16 h-[calc(100vh-4rem)] z-40 transition-all duration-300 ${
-        isExpanded ? "w-80" : "w-12"
+        isExpanded ? 'w-80' : 'w-12'
       }`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -121,13 +121,13 @@ export default function NoteHoverSidebar() {
       {/* タブ部分 */}
       <div
         className={`absolute top-20 left-0 h-32 w-12 bg-linear-to-b from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 rounded-r-xl flex items-center justify-center cursor-pointer transition-all duration-300 ${
-          isHovered ? "scale-105" : ""
+          isHovered ? 'scale-105' : ''
         } shadow-lg`}
       >
         <div className="flex flex-col items-center gap-2 text-white">
           <NotebookTabs className="w-5 h-5" />
           <ChevronRight
-            className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`}
+            className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
           />
         </div>
       </div>
@@ -136,8 +136,8 @@ export default function NoteHoverSidebar() {
       <div
         className={`h-full bg-white dark:bg-zinc-900 shadow-2xl transition-all duration-300 ${
           isExpanded
-            ? "translate-x-0 opacity-100"
-            : "-translate-x-full opacity-0"
+            ? 'translate-x-0 opacity-100'
+            : '-translate-x-full opacity-0'
         }`}
       >
         <div className="flex flex-col h-full">
@@ -183,8 +183,8 @@ export default function NoteHoverSidebar() {
                     onClick={() => toggleTag(tag)}
                     className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors ${
                       selectedTags.includes(tag)
-                        ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
-                        : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                        ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                        : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                     }`}
                   >
                     <Hash className="w-3 h-3" />
@@ -210,8 +210,8 @@ export default function NoteHoverSidebar() {
                 <FileText className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-2" />
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
                   {searchQuery || selectedTags.length > 0
-                    ? "検索結果がありません"
-                    : "ノートがありません"}
+                    ? '検索結果がありません'
+                    : 'ノートがありません'}
                 </p>
               </div>
             ) : (
@@ -222,8 +222,8 @@ export default function NoteHoverSidebar() {
                     onClick={() => setCurrentNote(note.id)}
                     className={`group p-3 rounded-lg cursor-pointer transition-all duration-200 ${
                       currentNoteId === note.id
-                        ? "bg-indigo-50 dark:bg-indigo-900/20 border-l-2 border-indigo-500"
-                        : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                        ? 'bg-indigo-50 dark:bg-indigo-900/20 border-l-2 border-indigo-500'
+                        : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -240,8 +240,8 @@ export default function NoteHoverSidebar() {
                           className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 mb-1"
                           dangerouslySetInnerHTML={{
                             __html:
-                              note.content.replace(/<[^>]*>/g, "") ||
-                              "内容なし",
+                              note.content.replace(/<[^>]*>/g, '') ||
+                              '内容なし',
                           }}
                         />
                         <div className="flex items-center gap-2">

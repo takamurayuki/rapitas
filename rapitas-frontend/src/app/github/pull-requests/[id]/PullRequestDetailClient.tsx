@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
+import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import {
   ArrowLeft,
   GitPullRequest,
@@ -19,10 +19,10 @@ import {
   ChevronRight,
   Plus,
   Minus,
-} from "lucide-react";
-import type { GitHubPullRequest, FileDiff } from "@/types";
-import { API_BASE_URL } from "@/utils/api";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+} from 'lucide-react';
+import type { GitHubPullRequest, FileDiff } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 export default function PullRequestDetailClient() {
   const params = useParams();
@@ -30,12 +30,16 @@ export default function PullRequestDetailClient() {
 
   const [pr, setPr] = useState<GitHubPullRequest | null>(null);
   const [diff, setDiff] = useState<FileDiff[]>([]);
-  const [activeTab, setActiveTab] = useState<"conversation" | "files">("conversation");
+  const [activeTab, setActiveTab] = useState<'conversation' | 'files'>(
+    'conversation',
+  );
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [commenting, setCommenting] = useState(false);
-  const [commentBody, setCommentBody] = useState("");
-  const [reviewAction, setReviewAction] = useState<"approve" | "request_changes" | null>(null);
+  const [commentBody, setCommentBody] = useState('');
+  const [reviewAction, setReviewAction] = useState<
+    'approve' | 'request_changes' | null
+  >(null);
 
   useEffect(() => {
     fetchPRData();
@@ -56,7 +60,7 @@ export default function PullRequestDetailClient() {
         setDiff(await diffRes.json());
       }
     } catch (error) {
-      console.error("Failed to fetch PR:", error);
+      console.error('Failed to fetch PR:', error);
     } finally {
       setLoading(false);
     }
@@ -68,32 +72,32 @@ export default function PullRequestDetailClient() {
     setCommenting(true);
     try {
       await fetch(`${API_BASE_URL}/github/pull-requests/${id}/comments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ body: commentBody }),
       });
-      setCommentBody("");
+      setCommentBody('');
       await fetchPRData();
     } catch (error) {
-      console.error("Failed to comment:", error);
+      console.error('Failed to comment:', error);
     } finally {
       setCommenting(false);
     }
   };
 
-  const handleReview = async (action: "approve" | "request_changes") => {
+  const handleReview = async (action: 'approve' | 'request_changes') => {
     setReviewAction(action);
     try {
-      const endpoint = action === "approve" ? "approve" : "request-changes";
+      const endpoint = action === 'approve' ? 'approve' : 'request-changes';
       await fetch(`${API_BASE_URL}/github/pull-requests/${id}/${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ body: commentBody || undefined }),
       });
-      setCommentBody("");
+      setCommentBody('');
       await fetchPRData();
     } catch (error) {
-      console.error("Failed to review:", error);
+      console.error('Failed to review:', error);
     } finally {
       setReviewAction(null);
     }
@@ -113,11 +117,11 @@ export default function PullRequestDetailClient() {
 
   const getStatusIcon = (state: string) => {
     switch (state) {
-      case "open":
+      case 'open':
         return <GitPullRequest className="w-6 h-6 text-green-500" />;
-      case "merged":
+      case 'merged':
         return <GitMerge className="w-6 h-6 text-purple-500" />;
-      case "closed":
+      case 'closed':
         return <XCircle className="w-6 h-6 text-red-500" />;
       default:
         return <GitPullRequest className="w-6 h-6" />;
@@ -126,9 +130,9 @@ export default function PullRequestDetailClient() {
 
   const getReviewIcon = (state: string) => {
     switch (state) {
-      case "APPROVED":
+      case 'APPROVED':
         return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-      case "CHANGES_REQUESTED":
+      case 'CHANGES_REQUESTED':
         return <AlertCircle className="w-4 h-4 text-red-500" />;
       default:
         return <MessageSquare className="w-4 h-4 text-zinc-400" />;
@@ -142,7 +146,9 @@ export default function PullRequestDetailClient() {
   if (!pr) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <p className="text-center text-zinc-500 dark:text-zinc-400">PRが見つかりません</p>
+        <p className="text-center text-zinc-500 dark:text-zinc-400">
+          PRが見つかりません
+        </p>
       </div>
     );
   }
@@ -161,7 +167,9 @@ export default function PullRequestDetailClient() {
         <div className="flex-1">
           <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
             {pr.title}
-            <span className="ml-2 text-zinc-400 font-normal">#{pr.prNumber}</span>
+            <span className="ml-2 text-zinc-400 font-normal">
+              #{pr.prNumber}
+            </span>
           </h1>
           <div className="flex items-center gap-3 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
             <span>by {pr.authorLogin}</span>
@@ -184,11 +192,11 @@ export default function PullRequestDetailClient() {
       {/* タブ */}
       <div className="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-700 mb-6">
         <button
-          onClick={() => setActiveTab("conversation")}
+          onClick={() => setActiveTab('conversation')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === "conversation"
-              ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
-              : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+            activeTab === 'conversation'
+              ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+              : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -202,11 +210,11 @@ export default function PullRequestDetailClient() {
           </div>
         </button>
         <button
-          onClick={() => setActiveTab("files")}
+          onClick={() => setActiveTab('files')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === "files"
-              ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
-              : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+            activeTab === 'files'
+              ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+              : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -224,7 +232,7 @@ export default function PullRequestDetailClient() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* メインコンテンツ */}
         <div className="lg:col-span-2">
-          {activeTab === "conversation" ? (
+          {activeTab === 'conversation' ? (
             <div className="space-y-4">
               {/* PR説明 */}
               {pr.body && (
@@ -246,21 +254,29 @@ export default function PullRequestDetailClient() {
                     <span className="font-medium text-zinc-900 dark:text-zinc-100">
                       {review.authorLogin}
                     </span>
-                    <span className={`px-2 py-0.5 text-xs rounded ${
-                      review.state === "APPROVED"
-                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                        : review.state === "CHANGES_REQUESTED"
-                        ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                        : "bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300"
-                    }`}>
-                      {review.state === "APPROVED" ? "Approved" : review.state === "CHANGES_REQUESTED" ? "Changes requested" : "Commented"}
+                    <span
+                      className={`px-2 py-0.5 text-xs rounded ${
+                        review.state === 'APPROVED'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          : review.state === 'CHANGES_REQUESTED'
+                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                            : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300'
+                      }`}
+                    >
+                      {review.state === 'APPROVED'
+                        ? 'Approved'
+                        : review.state === 'CHANGES_REQUESTED'
+                          ? 'Changes requested'
+                          : 'Commented'}
                     </span>
                     <span className="text-xs text-zinc-400">
-                      {new Date(review.submittedAt).toLocaleString("ja-JP")}
+                      {new Date(review.submittedAt).toLocaleString('ja-JP')}
                     </span>
                   </div>
                   {review.body && (
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400">{review.body}</p>
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                      {review.body}
+                    </p>
                   )}
                 </div>
               ))}
@@ -282,10 +298,12 @@ export default function PullRequestDetailClient() {
                       </span>
                     )}
                     <span className="text-xs text-zinc-400">
-                      {new Date(comment.createdAt).toLocaleString("ja-JP")}
+                      {new Date(comment.createdAt).toLocaleString('ja-JP')}
                     </span>
                   </div>
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400">{comment.body}</p>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                    {comment.body}
+                  </p>
                 </div>
               ))}
 
@@ -300,10 +318,10 @@ export default function PullRequestDetailClient() {
                 />
                 <div className="flex items-center justify-between mt-3">
                   <div className="flex items-center gap-2">
-                    {pr.state === "open" && (
+                    {pr.state === 'open' && (
                       <>
                         <button
-                          onClick={() => handleReview("approve")}
+                          onClick={() => handleReview('approve')}
                           disabled={reviewAction !== null}
                           className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
                         >
@@ -311,8 +329,10 @@ export default function PullRequestDetailClient() {
                           承認
                         </button>
                         <button
-                          onClick={() => handleReview("request_changes")}
-                          disabled={reviewAction !== null || !commentBody.trim()}
+                          onClick={() => handleReview('request_changes')}
+                          disabled={
+                            reviewAction !== null || !commentBody.trim()
+                          }
                           className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
                         >
                           <AlertCircle className="w-4 h-4" />
@@ -357,39 +377,44 @@ export default function PullRequestDetailClient() {
                       <span className="font-mono text-sm text-zinc-900 dark:text-zinc-100">
                         {file.filename}
                       </span>
-                      <span className={`px-1.5 py-0.5 text-xs rounded ${
-                        file.status === "added"
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                          : file.status === "removed"
-                          ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                          : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                      }`}>
+                      <span
+                        className={`px-1.5 py-0.5 text-xs rounded ${
+                          file.status === 'added'
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            : file.status === 'removed'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                              : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                        }`}
+                      >
                         {file.status}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <span className="text-green-600 dark:text-green-400 flex items-center gap-0.5">
-                        <Plus className="w-3 h-3" />{file.additions}
+                        <Plus className="w-3 h-3" />
+                        {file.additions}
                       </span>
                       <span className="text-red-600 dark:text-red-400 flex items-center gap-0.5">
-                        <Minus className="w-3 h-3" />{file.deletions}
+                        <Minus className="w-3 h-3" />
+                        {file.deletions}
                       </span>
                     </div>
                   </button>
                   {expandedFiles.has(file.filename) && file.patch && (
                     <div className="border-t border-zinc-200 dark:border-zinc-700">
                       <pre className="p-4 text-xs font-mono overflow-x-auto bg-zinc-50 dark:bg-indigo-dark-900">
-                        {file.patch.split("\n").map((line, i) => (
+                        {file.patch.split('\n').map((line, i) => (
                           <div
                             key={i}
                             className={`${
-                              line.startsWith("+") && !line.startsWith("+++")
-                                ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
-                                : line.startsWith("-") && !line.startsWith("---")
-                                ? "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300"
-                                : line.startsWith("@@")
-                                ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
-                                : "text-zinc-600 dark:text-zinc-400"
+                              line.startsWith('+') && !line.startsWith('+++')
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                                : line.startsWith('-') &&
+                                    !line.startsWith('---')
+                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                                  : line.startsWith('@@')
+                                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
+                                    : 'text-zinc-600 dark:text-zinc-400'
                             }`}
                           >
                             {line}
@@ -408,14 +433,18 @@ export default function PullRequestDetailClient() {
         <div className="space-y-4">
           {/* ステータス */}
           <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-            <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">ステータス</h3>
-            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
-              pr.state === "open"
-                ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400"
-                : pr.state === "merged"
-                ? "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400"
-                : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"
-            }`}>
+            <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">
+              ステータス
+            </h3>
+            <div
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
+                pr.state === 'open'
+                  ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                  : pr.state === 'merged'
+                    ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400'
+                    : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
+              }`}
+            >
               {getStatusIcon(pr.state)}
               <span className="font-medium capitalize">{pr.state}</span>
             </div>
@@ -424,12 +453,19 @@ export default function PullRequestDetailClient() {
           {/* レビュー要約 */}
           {pr.reviews && pr.reviews.length > 0 && (
             <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-              <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">レビュー</h3>
+              <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">
+                レビュー
+              </h3>
               <div className="space-y-2">
                 {pr.reviews.map((review) => (
-                  <div key={review.id} className="flex items-center gap-2 text-sm">
+                  <div
+                    key={review.id}
+                    className="flex items-center gap-2 text-sm"
+                  >
                     {getReviewIcon(review.state)}
-                    <span className="text-zinc-600 dark:text-zinc-400">{review.authorLogin}</span>
+                    <span className="text-zinc-600 dark:text-zinc-400">
+                      {review.authorLogin}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -438,11 +474,17 @@ export default function PullRequestDetailClient() {
 
           {/* 変更統計 */}
           <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-            <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">変更</h3>
+            <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">
+              変更
+            </h3>
             <div className="space-y-2 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-zinc-500 dark:text-zinc-400">ファイル数</span>
-                <span className="font-medium text-zinc-900 dark:text-zinc-100">{diff.length}</span>
+                <span className="text-zinc-500 dark:text-zinc-400">
+                  ファイル数
+                </span>
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {diff.length}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-zinc-500 dark:text-zinc-400">追加</span>

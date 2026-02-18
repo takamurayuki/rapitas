@@ -1,5 +1,5 @@
-"use client";
-import { TimeEntry } from "@/types";
+'use client';
+import { TimeEntry } from '@/types';
 import {
   Icon,
   Circle,
@@ -8,16 +8,16 @@ import {
   Square,
   Coffee,
   Hourglass,
-} from "lucide-react";
-import { fruit } from "@lucide/lab";
+} from 'lucide-react';
+import { fruit } from '@lucide/lab';
 import {
   usePomodoroStore,
   formatTime,
   DEFAULT_POMODORO_DURATION,
   DEFAULT_SHORT_BREAK,
   DEFAULT_LONG_BREAK,
-} from "../pomodoro/pomodoroStore";
-import { API_BASE_URL } from "@/utils/api";
+} from '../pomodoro/pomodoroStore';
+import { API_BASE_URL } from '@/utils/api';
 
 // タイマーステータス（コールバック用）
 export type PomodoroTimerStatus = {
@@ -68,12 +68,12 @@ export default function PomodoroTimer({
   const handleStartTimer = async () => {
     try {
       // タイマー状態を開始
-      store.startTimer(taskId, taskTitle || "タスク");
+      store.startTimer(taskId, taskTitle || 'タスク');
 
       // タスクのstartedAtを更新
       await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           startedAt: new Date().toISOString(),
         }),
@@ -81,7 +81,7 @@ export default function PomodoroTimer({
 
       onUpdate();
     } catch (err) {
-      console.error("Failed to start timer:", err);
+      console.error('Failed to start timer:', err);
     }
   };
 
@@ -106,8 +106,8 @@ export default function PomodoroTimer({
       const startTime = new Date(store.timerStartTime);
 
       await fetch(`${API_BASE_URL}/tasks/${taskId}/time-entries`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           duration: workHours,
           breakDuration: breakHours,
@@ -118,8 +118,8 @@ export default function PomodoroTimer({
       });
 
       await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           actualHours: newActualHours,
           startedAt: null,
@@ -129,7 +129,7 @@ export default function PomodoroTimer({
       store.stopTimer();
       onUpdate();
     } catch (err) {
-      console.error("Failed to stop timer:", err);
+      console.error('Failed to stop timer:', err);
     }
   };
 
@@ -144,23 +144,23 @@ export default function PomodoroTimer({
       const startTime = new Date(store.timerStartTime);
 
       await fetch(`${API_BASE_URL}/tasks/${taskId}/time-entries`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           duration: workHours,
           breakDuration: breakHours,
-          note: "タスク完了",
+          note: 'タスク完了',
           startedAt: startTime.toISOString(),
           endedAt: endTime.toISOString(),
         }),
       });
 
       await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           actualHours: (actualHours || 0) + workHours,
-          status: "done",
+          status: 'done',
           startedAt: null,
         }),
       });
@@ -168,7 +168,7 @@ export default function PomodoroTimer({
       store.stopTimer();
       onUpdate();
     } catch (err) {
-      console.error("Failed to complete task:", err);
+      console.error('Failed to complete task:', err);
     }
   };
 
@@ -201,7 +201,7 @@ export default function PomodoroTimer({
   const strokeDashoffset = circumference - (progress / 100) * circumference;
 
   const breakType =
-    pomodoroCount > 0 && pomodoroCount % 4 === 0 ? "長い休憩" : "短い休憩";
+    pomodoroCount > 0 && pomodoroCount % 4 === 0 ? '長い休憩' : '短い休憩';
 
   // 別のタスクでタイマーが動いている場合
   const isOtherTaskRunning = store.isTimerRunning && !isThisTask;
@@ -211,7 +211,7 @@ export default function PomodoroTimer({
       {/* タスク名表示（グローバル表示時のみ） */}
       {showTaskTitle && store.taskTitle && (
         <div className="mb-4 text-sm text-zinc-600 dark:text-zinc-400 w-full text-center">
-          タスク:{" "}
+          タスク:{' '}
           <span className="font-semibold text-zinc-900 dark:text-zinc-50">
             {store.taskTitle}
           </span>
@@ -262,10 +262,10 @@ export default function PomodoroTimer({
             strokeDashoffset={strokeDashoffset}
             className={`transition-all duration-1000 ${
               isBreakTime
-                ? "text-green-500"
+                ? 'text-green-500'
                 : isPaused
-                  ? "text-orange-500"
-                  : "text-blue-500"
+                  ? 'text-orange-500'
+                  : 'text-blue-500'
             }`}
             strokeLinecap="round"
           />
@@ -289,12 +289,12 @@ export default function PomodoroTimer({
           </div>
           <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
             {isBreakTime
-              ? "休憩中"
+              ? '休憩中'
               : isPaused
-                ? "一時停止"
+                ? '一時停止'
                 : isTimerRunning
-                  ? "作業中"
-                  : "準備完了"}
+                  ? '作業中'
+                  : '準備完了'}
           </div>
         </div>
       </div>
@@ -307,7 +307,7 @@ export default function PomodoroTimer({
               25分完了！{breakType}を取りますか？
             </div>
             <div className="text-sm text-zinc-600 dark:text-zinc-400">
-              ({pomodoroCount % 4 === 0 ? "15" : "5"}分)
+              ({pomodoroCount % 4 === 0 ? '15' : '5'}分)
             </div>
           </div>
           <div className="flex gap-3 justify-center">

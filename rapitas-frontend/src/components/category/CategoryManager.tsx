@@ -1,5 +1,5 @@
-"use client";
-import { useEffect, useState, useMemo } from "react";
+'use client';
+import { useEffect, useState, useMemo } from 'react';
 import {
   Plus,
   Edit2,
@@ -10,19 +10,24 @@ import {
   Star,
   GripVertical,
   type LucideIcon,
-} from "lucide-react";
-import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { useToast } from "@/components/ui/toast/ToastContainer";
-import { ListSkeleton } from "@/components/ui/LoadingSpinner";
+} from 'lucide-react';
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  type DropResult,
+} from '@hello-pangea/dnd';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import { ListSkeleton } from '@/components/ui/LoadingSpinner';
 import {
   ICON_DATA,
   ICON_NAMES,
   searchIcons,
   getIconComponent,
-} from "./IconData";
-import { API_BASE_URL } from "@/utils/api";
-import { useDebounce } from "@/hooks/useDebounce";
-import { IconGrid } from "./IconGrid";
+} from './IconData';
+import { API_BASE_URL } from '@/utils/api';
+import { useDebounce } from '@/hooks/useDebounce';
+import { IconGrid } from './IconGrid';
 
 // 後方互換性のためにICON_MAPをエクスポート
 export const ICON_MAP: Record<string, LucideIcon> = Object.fromEntries(
@@ -66,33 +71,33 @@ export default function CategoryManager({ config }: Props) {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isAdding, setIsAdding] = useState(false);
-  const [iconSearchQuery, setIconSearchQuery] = useState("");
+  const [iconSearchQuery, setIconSearchQuery] = useState('');
 
   const [formData, setFormData] = useState({
-    name: "",
-    description: "",
+    name: '',
+    description: '',
     color: config.defaultColor,
-    icon: "",
+    icon: '',
   });
 
   const accentClasses = {
     purple: {
-      ring: "focus:ring-purple-500",
-      border: "border-purple-500",
-      bg: "bg-purple-600 hover:bg-purple-700",
-      bgLight: "bg-purple-100 dark:bg-purple-900/30",
-      text: "text-purple-600 dark:text-purple-400",
-      iconBg: "bg-purple-500",
-      dragRing: "ring-purple-500/50",
+      ring: 'focus:ring-purple-500',
+      border: 'border-purple-500',
+      bg: 'bg-purple-600 hover:bg-purple-700',
+      bgLight: 'bg-purple-100 dark:bg-purple-900/30',
+      text: 'text-purple-600 dark:text-purple-400',
+      iconBg: 'bg-purple-500',
+      dragRing: 'ring-purple-500/50',
     },
     indigo: {
-      ring: "focus:ring-indigo-500",
-      border: "border-indigo-500",
-      bg: "bg-indigo-600 hover:bg-indigo-700",
-      bgLight: "bg-indigo-100 dark:bg-indigo-900/30",
-      text: "text-indigo-600 dark:text-indigo-400",
-      iconBg: "bg-indigo-500",
-      dragRing: "ring-indigo-500/50",
+      ring: 'focus:ring-indigo-500',
+      border: 'border-indigo-500',
+      bg: 'bg-indigo-600 hover:bg-indigo-700',
+      bgLight: 'bg-indigo-100 dark:bg-indigo-900/30',
+      text: 'text-indigo-600 dark:text-indigo-400',
+      iconBg: 'bg-indigo-500',
+      dragRing: 'ring-indigo-500/50',
     },
   };
 
@@ -104,11 +109,11 @@ export default function CategoryManager({ config }: Props) {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/${config.endpoint}`);
-      if (!res.ok) throw new Error("取得に失敗しました");
+      if (!res.ok) throw new Error('取得に失敗しました');
       setItems(await res.json());
     } catch (e) {
       console.error(e);
-      showToast(`${config.itemName}の取得に失敗しました`, "error");
+      showToast(`${config.itemName}の取得に失敗しました`, 'error');
     } finally {
       setLoading(false);
     }
@@ -120,51 +125,51 @@ export default function CategoryManager({ config }: Props) {
 
   const handleAdd = async () => {
     if (!formData.name.trim()) {
-      showToast(`${config.itemName}名を入力してください`, "error");
+      showToast(`${config.itemName}名を入力してください`, 'error');
       return;
     }
 
     try {
       const res = await fetch(`${API_BASE_URL}/${config.endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
-      if (!res.ok) throw new Error("作成に失敗しました");
+      if (!res.ok) throw new Error('作成に失敗しました');
 
-      showToast(`${config.itemName}を作成しました`, "success");
+      showToast(`${config.itemName}を作成しました`, 'success');
       setIsAdding(false);
       resetForm();
       fetchItems();
     } catch (e) {
       console.error(e);
-      showToast(`${config.itemName}の作成に失敗しました`, "error");
+      showToast(`${config.itemName}の作成に失敗しました`, 'error');
     }
   };
 
   const handleUpdate = async (id: number) => {
     if (!formData.name.trim()) {
-      showToast(`${config.itemName}名を入力してください`, "error");
+      showToast(`${config.itemName}名を入力してください`, 'error');
       return;
     }
 
     try {
       const res = await fetch(`${API_BASE_URL}/${config.endpoint}/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
-      if (!res.ok) throw new Error("更新に失敗しました");
+      if (!res.ok) throw new Error('更新に失敗しました');
 
-      showToast(`${config.itemName}を更新しました`, "success");
+      showToast(`${config.itemName}を更新しました`, 'success');
       setEditingId(null);
-      setIconSearchQuery("");
+      setIconSearchQuery('');
       fetchItems();
     } catch (e) {
       console.error(e);
-      showToast(`${config.itemName}の更新に失敗しました`, "error");
+      showToast(`${config.itemName}の更新に失敗しました`, 'error');
     }
   };
 
@@ -173,16 +178,16 @@ export default function CategoryManager({ config }: Props) {
 
     try {
       const res = await fetch(`${API_BASE_URL}/${config.endpoint}/${id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
 
-      if (!res.ok) throw new Error("削除に失敗しました");
+      if (!res.ok) throw new Error('削除に失敗しました');
 
-      showToast(`${config.itemName}を削除しました`, "success");
+      showToast(`${config.itemName}を削除しました`, 'success');
       fetchItems();
     } catch (e) {
       console.error(e);
-      showToast(`${config.itemName}の削除に失敗しました`, "error");
+      showToast(`${config.itemName}の削除に失敗しました`, 'error');
     }
   };
 
@@ -191,17 +196,17 @@ export default function CategoryManager({ config }: Props) {
       const res = await fetch(
         `${API_BASE_URL}/${config.endpoint}/${id}/set-default`,
         {
-          method: "PATCH",
+          method: 'PATCH',
         },
       );
 
-      if (!res.ok) throw new Error("デフォルト設定に失敗しました");
+      if (!res.ok) throw new Error('デフォルト設定に失敗しました');
 
-      showToast(`デフォルト${config.itemName}を設定しました`, "success");
+      showToast(`デフォルト${config.itemName}を設定しました`, 'success');
       fetchItems();
     } catch (e) {
       console.error(e);
-      showToast(`デフォルト${config.itemName}の設定に失敗しました`, "error");
+      showToast(`デフォルト${config.itemName}の設定に失敗しました`, 'error');
     }
   };
 
@@ -209,21 +214,21 @@ export default function CategoryManager({ config }: Props) {
     setEditingId(item.id);
     setFormData({
       name: item.name,
-      description: item.description || "",
+      description: item.description || '',
       color: item.color,
-      icon: item.icon || "",
+      icon: item.icon || '',
     });
-    setIconSearchQuery("");
+    setIconSearchQuery('');
   };
 
   const resetForm = () => {
     setFormData({
-      name: "",
-      description: "",
+      name: '',
+      description: '',
       color: config.defaultColor,
-      icon: "",
+      icon: '',
     });
-    setIconSearchQuery("");
+    setIconSearchQuery('');
   };
 
   const cancelEdit = () => {
@@ -233,7 +238,8 @@ export default function CategoryManager({ config }: Props) {
   };
 
   const handleDragEnd = async (result: DropResult) => {
-    if (!result.destination || result.source.index === result.destination.index) return;
+    if (!result.destination || result.source.index === result.destination.index)
+      return;
 
     const reordered = Array.from(items);
     const [moved] = reordered.splice(result.source.index, 1);
@@ -248,14 +254,14 @@ export default function CategoryManager({ config }: Props) {
 
     try {
       const res = await fetch(`${API_BASE_URL}/${config.endpoint}/reorder`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orders }),
       });
-      if (!res.ok) throw new Error("並び替えに失敗しました");
+      if (!res.ok) throw new Error('並び替えに失敗しました');
     } catch (e) {
       console.error(e);
-      showToast("並び替えに失敗しました", "error");
+      showToast('並び替えに失敗しました', 'error');
       fetchItems();
     }
   };
@@ -270,10 +276,10 @@ export default function CategoryManager({ config }: Props) {
   }, [debouncedIconSearchQuery]);
 
   const renderIcon = (iconName: string | null | undefined, size = 20) => {
-    const IconComponent = getIconComponent(iconName || "");
+    const IconComponent = getIconComponent(iconName || '');
     if (!IconComponent) {
       const DefaultIcon =
-        getIconComponent(config.defaultIcon) || ICON_DATA["Tag"].component;
+        getIconComponent(config.defaultIcon) || ICON_DATA['Tag'].component;
       return <DefaultIcon size={size} />;
     }
     return <IconComponent size={size} />;
@@ -345,7 +351,7 @@ export default function CategoryManager({ config }: Props) {
             className="h-11 rounded-lg border-2 flex items-center justify-center"
             style={{
               borderColor: formData.color,
-              backgroundColor: formData.color + "15",
+              backgroundColor: formData.color + '15',
             }}
           >
             <div style={{ color: formData.color }}>
@@ -381,7 +387,9 @@ export default function CategoryManager({ config }: Props) {
             <IconGrid
               icons={filteredIcons}
               selectedIcon={formData.icon}
-              onIconSelect={(iconName) => setFormData({ ...formData, icon: iconName })}
+              onIconSelect={(iconName) =>
+                setFormData({ ...formData, icon: iconName })
+              }
               renderIcon={renderIcon}
               accentClass={accent.iconBg}
             />
@@ -404,7 +412,7 @@ export default function CategoryManager({ config }: Props) {
           className={`flex items-center gap-2 rounded-lg ${accent.bg} px-4 py-2.5 text-white transition-all shadow-lg hover:shadow-xl font-medium`}
         >
           <Save className="w-4 h-4" />
-          {isEdit ? "保存" : "作成"}
+          {isEdit ? '保存' : '作成'}
         </button>
       </div>
     </div>
@@ -467,7 +475,11 @@ export default function CategoryManager({ config }: Props) {
           <DragDropContext onDragEnd={handleDragEnd}>
             <Droppable droppableId={config.endpoint}>
               {(provided) => (
-                <div className="grid gap-4" ref={provided.innerRef} {...provided.droppableProps}>
+                <div
+                  className="grid gap-4"
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                >
                   {items
                     .filter((item) => {
                       if (isAdding) return false;
@@ -486,7 +498,9 @@ export default function CategoryManager({ config }: Props) {
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             className={`rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:shadow-lg transition-all overflow-hidden ${
-                              snapshot.isDragging ? `shadow-2xl ring-2 ${accent.dragRing}` : ""
+                              snapshot.isDragging
+                                ? `shadow-2xl ring-2 ${accent.dragRing}`
+                                : ''
                             }`}
                           >
                             {editingId === item.id ? (
@@ -510,7 +524,7 @@ export default function CategoryManager({ config }: Props) {
                                   <div
                                     className="flex items-center justify-center w-14 h-14 rounded-xl shrink-0 shadow-sm"
                                     style={{
-                                      backgroundColor: item.color + "20",
+                                      backgroundColor: item.color + '20',
                                       color: item.color,
                                     }}
                                   >
@@ -529,13 +543,15 @@ export default function CategoryManager({ config }: Props) {
                                       <span
                                         className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md"
                                         style={{
-                                          backgroundColor: item.color + "15",
+                                          backgroundColor: item.color + '15',
                                           color: item.color,
                                         }}
                                       >
                                         <div
                                           className="w-2 h-2 rounded-full"
-                                          style={{ backgroundColor: item.color }}
+                                          style={{
+                                            backgroundColor: item.color,
+                                          }}
                                         />
                                         {item.color}
                                       </span>
@@ -557,13 +573,15 @@ export default function CategoryManager({ config }: Props) {
                                       className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-all font-medium ${
                                         item.isDefault
                                           ? `${accent.bgLight} ${accent.text} border-2 ${accent.border}`
-                                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                                       }`}
                                     >
                                       <Star
-                                        className={`w-4 h-4 ${item.isDefault ? "fill-current" : ""}`}
+                                        className={`w-4 h-4 ${item.isDefault ? 'fill-current' : ''}`}
                                       />
-                                      {item.isDefault ? "デフォルト" : "デフォルト設定"}
+                                      {item.isDefault
+                                        ? 'デフォルト'
+                                        : 'デフォルト設定'}
                                     </button>
                                   )}
                                   <button
@@ -574,7 +592,9 @@ export default function CategoryManager({ config }: Props) {
                                     編集
                                   </button>
                                   <button
-                                    onClick={() => handleDelete(item.id, item.name)}
+                                    onClick={() =>
+                                      handleDelete(item.id, item.name)
+                                    }
                                     className="flex items-center gap-2 rounded-lg bg-red-100 dark:bg-red-900/30 px-3 py-2 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
                                   >
                                     <Trash2 className="w-4 h-4" />

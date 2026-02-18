@@ -1,6 +1,6 @@
-"use client";
-import { useEffect, useState } from "react";
-import type { ExamGoal } from "@/types";
+'use client';
+import { useEffect, useState } from 'react';
+import type { ExamGoal } from '@/types';
 import {
   Plus,
   Edit2,
@@ -10,24 +10,24 @@ import {
   CheckCircle2,
   Clock,
   Trophy,
-} from "lucide-react";
+} from 'lucide-react';
 import {
   getIconComponent,
   ICON_DATA,
   searchIcons,
-} from "@/components/category/IconData";
-import { ExamCountdown } from "@/components/exam-countdown/ExamCountdown";
-import { API_BASE_URL } from "@/utils/api";
+} from '@/components/category/IconData';
+import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
+import { API_BASE_URL } from '@/utils/api';
 
 const PRESET_COLORS = [
-  "#10B981", // emerald
-  "#3B82F6", // blue
-  "#8B5CF6", // violet
-  "#EC4899", // pink
-  "#F59E0B", // amber
-  "#EF4444", // red
-  "#06B6D4", // cyan
-  "#84CC16", // lime
+  '#10B981', // emerald
+  '#3B82F6', // blue
+  '#8B5CF6', // violet
+  '#EC4899', // pink
+  '#F59E0B', // amber
+  '#EF4444', // red
+  '#06B6D4', // cyan
+  '#84CC16', // lime
 ];
 
 export default function ExamGoalsPage() {
@@ -36,14 +36,14 @@ export default function ExamGoalsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<ExamGoal | null>(null);
   const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    examDate: "",
-    targetScore: "",
-    color: "#10B981",
-    icon: "",
+    name: '',
+    description: '',
+    examDate: '',
+    targetScore: '',
+    color: '#10B981',
+    icon: '',
   });
-  const [iconSearch, setIconSearch] = useState("");
+  const [iconSearch, setIconSearch] = useState('');
   const [showIconPicker, setShowIconPicker] = useState(false);
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export default function ExamGoalsPage() {
         setExamGoals(data);
       }
     } catch (e) {
-      console.error("Failed to fetch exam goals:", e);
+      console.error('Failed to fetch exam goals:', e);
     } finally {
       setLoading(false);
     }
@@ -69,12 +69,12 @@ export default function ExamGoalsPage() {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 30);
     setFormData({
-      name: "",
-      description: "",
-      examDate: tomorrow.toISOString().split("T")[0],
-      targetScore: "",
-      color: "#10B981",
-      icon: "",
+      name: '',
+      description: '',
+      examDate: tomorrow.toISOString().split('T')[0],
+      targetScore: '',
+      color: '#10B981',
+      icon: '',
     });
     setIsModalOpen(true);
   };
@@ -83,11 +83,11 @@ export default function ExamGoalsPage() {
     setEditingGoal(goal);
     setFormData({
       name: goal.name,
-      description: goal.description || "",
-      examDate: goal.examDate.split("T")[0],
-      targetScore: goal.targetScore || "",
+      description: goal.description || '',
+      examDate: goal.examDate.split('T')[0],
+      targetScore: goal.targetScore || '',
       color: goal.color,
-      icon: goal.icon || "",
+      icon: goal.icon || '',
     });
     setIsModalOpen(true);
   };
@@ -100,11 +100,11 @@ export default function ExamGoalsPage() {
       const url = editingGoal
         ? `${API_BASE_URL}/exam-goals/${editingGoal.id}`
         : `${API_BASE_URL}/exam-goals`;
-      const method = editingGoal ? "PATCH" : "POST";
+      const method = editingGoal ? 'PATCH' : 'POST';
 
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.name.trim(),
           description: formData.description.trim() || undefined,
@@ -120,30 +120,30 @@ export default function ExamGoalsPage() {
         setIsModalOpen(false);
       }
     } catch (e) {
-      console.error("Failed to save exam goal:", e);
+      console.error('Failed to save exam goal:', e);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("この試験目標を削除しますか？")) return;
+    if (!confirm('この試験目標を削除しますか？')) return;
     try {
       const res = await fetch(`${API_BASE_URL}/exam-goals/${id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       if (res.ok) {
         fetchExamGoals();
       }
     } catch (e) {
-      console.error("Failed to delete exam goal:", e);
+      console.error('Failed to delete exam goal:', e);
     }
   };
 
   const handleComplete = async (goal: ExamGoal) => {
-    const actualScore = prompt("実際のスコア/結果を入力してください（任意）:");
+    const actualScore = prompt('実際のスコア/結果を入力してください（任意）:');
     try {
       const res = await fetch(`${API_BASE_URL}/exam-goals/${goal.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           isCompleted: true,
           actualScore: actualScore || null,
@@ -153,12 +153,12 @@ export default function ExamGoalsPage() {
         fetchExamGoals();
       }
     } catch (e) {
-      console.error("Failed to complete exam goal:", e);
+      console.error('Failed to complete exam goal:', e);
     }
   };
 
   const renderIcon = (iconName: string | null | undefined, size = 20) => {
-    const IconComponent = getIconComponent(iconName || "");
+    const IconComponent = getIconComponent(iconName || '');
     if (!IconComponent) {
       return <Target size={size} />;
     }
@@ -341,7 +341,7 @@ export default function ExamGoalsPage() {
                 <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
                   <Calendar className="w-4 h-4" />
                   <span>
-                    {new Date(goal.examDate).toLocaleDateString("ja-JP")}
+                    {new Date(goal.examDate).toLocaleDateString('ja-JP')}
                   </span>
                 </div>
               </div>
@@ -365,7 +365,7 @@ export default function ExamGoalsPage() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">
-                {editingGoal ? "試験目標を編集" : "新しい試験目標"}
+                {editingGoal ? '試験目標を編集' : '新しい試験目標'}
               </h2>
 
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -442,8 +442,8 @@ export default function ExamGoalsPage() {
                         onClick={() => setFormData({ ...formData, color })}
                         className={`w-8 h-8 rounded-full border-2 transition-all ${
                           formData.color === color
-                            ? "border-zinc-900 dark:border-white scale-110"
-                            : "border-transparent hover:scale-105"
+                            ? 'border-zinc-900 dark:border-white scale-110'
+                            : 'border-transparent hover:scale-105'
                         }`}
                         style={{ backgroundColor: color }}
                       />
@@ -464,7 +464,7 @@ export default function ExamGoalsPage() {
                       {renderIcon(formData.icon, 20)}
                     </span>
                     <span className="text-sm">
-                      {formData.icon || "アイコンを選択"}
+                      {formData.icon || 'アイコンを選択'}
                     </span>
                   </button>
 
@@ -485,12 +485,12 @@ export default function ExamGoalsPage() {
                             onClick={() => {
                               setFormData({ ...formData, icon: iconName });
                               setShowIconPicker(false);
-                              setIconSearch("");
+                              setIconSearch('');
                             }}
                             className={`p-2 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors ${
                               formData.icon === iconName
-                                ? "bg-zinc-200 dark:bg-zinc-600"
-                                : ""
+                                ? 'bg-zinc-200 dark:bg-zinc-600'
+                                : ''
                             }`}
                             title={iconName}
                           >
@@ -514,7 +514,7 @@ export default function ExamGoalsPage() {
                     type="submit"
                     className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
                   >
-                    {editingGoal ? "更新" : "作成"}
+                    {editingGoal ? '更新' : '作成'}
                   </button>
                 </div>
               </form>

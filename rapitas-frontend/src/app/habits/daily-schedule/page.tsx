@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
-import type { DailyScheduleBlock } from "@/types";
+import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
+import type { DailyScheduleBlock } from '@/types';
 import {
   Plus,
   Edit2,
@@ -20,29 +20,46 @@ import {
   Gamepad2,
   HelpCircle,
   Save,
-} from "lucide-react";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import { API_BASE_URL } from '@/utils/api';
 import {
   requestNotificationPermission,
   showDesktopNotification,
-} from "@/utils/notification";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+} from '@/utils/notification';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
 const CATEGORY_OPTIONS = [
-  { value: "sleep", label: "睡眠", icon: Moon, defaultColor: "#6366F1" },
-  { value: "work", label: "仕事", icon: Briefcase, defaultColor: "#3B82F6" },
-  { value: "exercise", label: "運動", icon: Dumbbell, defaultColor: "#10B981" },
-  { value: "meal", label: "食事", icon: UtensilsCrossed, defaultColor: "#F59E0B" },
-  { value: "commute", label: "通勤", icon: Train, defaultColor: "#8B5CF6" },
-  { value: "study", label: "勉強", icon: BookOpen, defaultColor: "#EC4899" },
-  { value: "hobby", label: "趣味", icon: Gamepad2, defaultColor: "#06B6D4" },
-  { value: "other", label: "その他", icon: HelpCircle, defaultColor: "#94A3B8" },
+  { value: 'sleep', label: '睡眠', icon: Moon, defaultColor: '#6366F1' },
+  { value: 'work', label: '仕事', icon: Briefcase, defaultColor: '#3B82F6' },
+  { value: 'exercise', label: '運動', icon: Dumbbell, defaultColor: '#10B981' },
+  {
+    value: 'meal',
+    label: '食事',
+    icon: UtensilsCrossed,
+    defaultColor: '#F59E0B',
+  },
+  { value: 'commute', label: '通勤', icon: Train, defaultColor: '#8B5CF6' },
+  { value: 'study', label: '勉強', icon: BookOpen, defaultColor: '#EC4899' },
+  { value: 'hobby', label: '趣味', icon: Gamepad2, defaultColor: '#06B6D4' },
+  {
+    value: 'other',
+    label: 'その他',
+    icon: HelpCircle,
+    defaultColor: '#94A3B8',
+  },
 ];
 
 const PRESET_COLORS = [
-  "#6366F1", "#3B82F6", "#10B981", "#F59E0B",
-  "#8B5CF6", "#EC4899", "#06B6D4", "#EF4444",
-  "#84CC16", "#94A3B8",
+  '#6366F1',
+  '#3B82F6',
+  '#10B981',
+  '#F59E0B',
+  '#8B5CF6',
+  '#EC4899',
+  '#06B6D4',
+  '#EF4444',
+  '#84CC16',
+  '#94A3B8',
 ];
 
 function getCategoryIcon(category: string) {
@@ -51,7 +68,7 @@ function getCategoryIcon(category: string) {
 }
 
 function timeToMinutes(time: string): number {
-  const [h, m] = time.split(":").map(Number);
+  const [h, m] = time.split(':').map(Number);
   return h * 60 + m;
 }
 
@@ -66,7 +83,6 @@ function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
     y: cy + r * Math.sin(rad),
   };
 }
-
 
 function formatDuration(startTime: string, endTime: string): string {
   const start = timeToMinutes(startTime);
@@ -84,14 +100,16 @@ export default function DailySchedulePage() {
   const [blocks, setBlocks] = useState<DailyScheduleBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingBlock, setEditingBlock] = useState<DailyScheduleBlock | null>(null);
+  const [editingBlock, setEditingBlock] = useState<DailyScheduleBlock | null>(
+    null,
+  );
   const [hoveredBlock, setHoveredBlock] = useState<number | null>(null);
   const [formData, setFormData] = useState({
-    label: "",
-    startTime: "07:00",
-    endTime: "08:00",
-    color: "#3B82F6",
-    category: "other",
+    label: '',
+    startTime: '07:00',
+    endTime: '08:00',
+    color: '#3B82F6',
+    category: 'other',
     isNotify: false,
   });
 
@@ -102,7 +120,7 @@ export default function DailySchedulePage() {
         setBlocks(await res.json());
       }
     } catch (e) {
-      console.error("Failed to fetch schedule blocks:", e);
+      console.error('Failed to fetch schedule blocks:', e);
     } finally {
       setLoading(false);
     }
@@ -120,14 +138,14 @@ export default function DailySchedulePage() {
 
     const checkNotifications = () => {
       const now = new Date();
-      const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
       for (const block of blocks) {
         if (!block.isNotify) continue;
         if (block.startTime === currentTime) {
           const cat = CATEGORY_OPTIONS.find((c) => c.value === block.category);
           showDesktopNotification(`Rapitas - ${block.label}`, {
-            body: `${block.startTime}〜${block.endTime} ${cat?.label || ""}の時間です`,
+            body: `${block.startTime}〜${block.endTime} ${cat?.label || ''}の時間です`,
             tag: `daily-schedule-${block.id}-${currentTime}`,
           });
         }
@@ -144,11 +162,11 @@ export default function DailySchedulePage() {
   const openCreateModal = () => {
     setEditingBlock(null);
     setFormData({
-      label: "",
-      startTime: "07:00",
-      endTime: "08:00",
-      color: "#3B82F6",
-      category: "other",
+      label: '',
+      startTime: '07:00',
+      endTime: '08:00',
+      color: '#3B82F6',
+      category: 'other',
       isNotify: false,
     });
     setIsModalOpen(true);
@@ -175,11 +193,11 @@ export default function DailySchedulePage() {
       const url = editingBlock
         ? `${API_BASE_URL}/daily-schedule/${editingBlock.id}`
         : `${API_BASE_URL}/daily-schedule`;
-      const method = editingBlock ? "PATCH" : "POST";
+      const method = editingBlock ? 'PATCH' : 'POST';
 
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           label: formData.label.trim(),
           startTime: formData.startTime,
@@ -195,21 +213,21 @@ export default function DailySchedulePage() {
         setIsModalOpen(false);
       }
     } catch (e) {
-      console.error("Failed to save schedule block:", e);
+      console.error('Failed to save schedule block:', e);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("このスケジュールブロックを削除しますか？")) return;
+    if (!confirm('このスケジュールブロックを削除しますか？')) return;
     try {
       const res = await fetch(`${API_BASE_URL}/daily-schedule/${id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       if (res.ok) {
         fetchBlocks();
       }
     } catch (e) {
-      console.error("Failed to delete schedule block:", e);
+      console.error('Failed to delete schedule block:', e);
     }
   };
 
@@ -258,7 +276,7 @@ export default function DailySchedulePage() {
         `L ${innerEnd.x} ${innerEnd.y}`,
         `A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${innerStart.x} ${innerStart.y}`,
         `Z`,
-      ].join(" ");
+      ].join(' ');
 
       // Label position (middle of arc, at middle radius)
       const midAngle = startAngle + sweep / 2;
@@ -291,10 +309,10 @@ export default function DailySchedulePage() {
               textAnchor="middle"
               dominantBaseline="central"
               fill="white"
-              fontSize={sweep > 30 ? "11" : "9"}
+              fontSize={sweep > 30 ? '11' : '9'}
               fontWeight="600"
               className="pointer-events-none select-none"
-              style={{ textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}
+              style={{ textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}
             >
               {block.label}
             </text>
@@ -322,7 +340,7 @@ export default function DailySchedulePage() {
             x2={tickEnd.x}
             y2={tickEnd.y}
             stroke="currentColor"
-            strokeWidth={isMajor ? "2" : "1"}
+            strokeWidth={isMajor ? '2' : '1'}
             className="text-zinc-400 dark:text-zinc-500"
           />
           {isMajor && (
@@ -339,7 +357,7 @@ export default function DailySchedulePage() {
               {h}:00
             </text>
           )}
-        </g>
+        </g>,
       );
     }
     return markers;
@@ -423,15 +441,13 @@ export default function DailySchedulePage() {
               24時間チャート
             </h2>
             <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              {coveragePercent}% カバー（{totalHours}時間{totalMins > 0 ? `${totalMins}分` : ""}）
+              {coveragePercent}% カバー（{totalHours}時間
+              {totalMins > 0 ? `${totalMins}分` : ''}）
             </div>
           </div>
 
           <div className="flex justify-center">
-            <svg
-              viewBox="0 0 400 400"
-              className="w-full max-w-[400px]"
-            >
+            <svg viewBox="0 0 400 400" className="w-full max-w-[400px]">
               {/* Background circle */}
               <circle
                 cx={cx}
@@ -529,7 +545,8 @@ export default function DailySchedulePage() {
                       {block.label}
                     </span>
                     <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                      {block.startTime}〜{block.endTime}（{formatDuration(block.startTime, block.endTime)}）
+                      {block.startTime}〜{block.endTime}（
+                      {formatDuration(block.startTime, block.endTime)}）
                     </span>
                   </div>
                 );
@@ -558,7 +575,10 @@ export default function DailySchedulePage() {
             ) : (
               <div className="space-y-2">
                 {blocks
-                  .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
+                  .sort(
+                    (a, b) =>
+                      timeToMinutes(a.startTime) - timeToMinutes(b.startTime),
+                  )
                   .map((block) => {
                     const Icon = getCategoryIcon(block.category);
                     const isHovered = hoveredBlock === block.id;
@@ -568,17 +588,20 @@ export default function DailySchedulePage() {
                         key={block.id}
                         className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
                           isHovered
-                            ? "border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20"
-                            : "border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-750"
+                            ? 'border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20'
+                            : 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-750'
                         }`}
                         onMouseEnter={() => setHoveredBlock(block.id)}
                         onMouseLeave={() => setHoveredBlock(null)}
                       >
                         <div
                           className="w-10 h-10 rounded-lg flex items-center justify-center"
-                          style={{ backgroundColor: block.color + "20" }}
+                          style={{ backgroundColor: block.color + '20' }}
                         >
-                          <Icon className="w-5 h-5" style={{ color: block.color }} />
+                          <Icon
+                            className="w-5 h-5"
+                            style={{ color: block.color }}
+                          />
                         </div>
 
                         <div className="flex-1 min-w-0">
@@ -591,7 +614,8 @@ export default function DailySchedulePage() {
                             )}
                           </div>
                           <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                            {block.startTime}〜{block.endTime}（{formatDuration(block.startTime, block.endTime)}）
+                            {block.startTime}〜{block.endTime}（
+                            {formatDuration(block.startTime, block.endTime)}）
                           </span>
                         </div>
 
@@ -623,7 +647,9 @@ export default function DailySchedulePage() {
             </h3>
             <div className="space-y-2">
               {CATEGORY_OPTIONS.map((cat) => {
-                const catBlocks = blocks.filter((b) => b.category === cat.value);
+                const catBlocks = blocks.filter(
+                  (b) => b.category === cat.value,
+                );
                 if (catBlocks.length === 0) return null;
 
                 const totalCatMin = catBlocks.reduce((sum, block) => {
@@ -654,7 +680,7 @@ export default function DailySchedulePage() {
                       />
                     </div>
                     <span className="text-xs text-zinc-500 dark:text-zinc-400 w-20 text-right">
-                      {h}h{m > 0 ? `${m}m` : ""} ({pct}%)
+                      {h}h{m > 0 ? `${m}m` : ''} ({pct}%)
                     </span>
                   </div>
                 );
@@ -670,7 +696,7 @@ export default function DailySchedulePage() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">
-                {editingBlock ? "ブロックを編集" : "新しいブロック"}
+                {editingBlock ? 'ブロックを編集' : '新しいブロック'}
               </h2>
 
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -705,8 +731,8 @@ export default function DailySchedulePage() {
                           onClick={() => handleCategoryChange(cat.value)}
                           className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-all text-xs ${
                             isSelected
-                              ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
-                              : "border-zinc-200 dark:border-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
+                              ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                              : 'border-zinc-200 dark:border-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
                           }`}
                         >
                           <CatIcon className="w-5 h-5" />
@@ -758,8 +784,8 @@ export default function DailySchedulePage() {
                         onClick={() => setFormData({ ...formData, color })}
                         className={`w-8 h-8 rounded-full border-2 transition-all ${
                           formData.color === color
-                            ? "border-zinc-900 dark:border-white scale-110"
-                            : "border-transparent hover:scale-105"
+                            ? 'border-zinc-900 dark:border-white scale-110'
+                            : 'border-transparent hover:scale-105'
                         }`}
                         style={{ backgroundColor: color }}
                       />
@@ -775,8 +801,8 @@ export default function DailySchedulePage() {
                     }
                     className={`p-2 rounded-lg transition-colors ${
                       formData.isNotify
-                        ? "bg-amber-100 dark:bg-amber-900/30 text-amber-600"
-                        : "bg-zinc-200 dark:bg-zinc-600 text-zinc-400"
+                        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600'
+                        : 'bg-zinc-200 dark:bg-zinc-600 text-zinc-400'
                     }`}
                   >
                     {formData.isNotify ? (
@@ -791,8 +817,8 @@ export default function DailySchedulePage() {
                     </p>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
                       {formData.isNotify
-                        ? "開始時刻にデスクトップ通知を表示します"
-                        : "通知はオフです"}
+                        ? '開始時刻にデスクトップ通知を表示します'
+                        : '通知はオフです'}
                     </p>
                   </div>
                 </div>
@@ -810,7 +836,7 @@ export default function DailySchedulePage() {
                     className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
                   >
                     <Save className="w-4 h-4" />
-                    {editingBlock ? "更新" : "作成"}
+                    {editingBlock ? '更新' : '作成'}
                   </button>
                 </div>
               </form>

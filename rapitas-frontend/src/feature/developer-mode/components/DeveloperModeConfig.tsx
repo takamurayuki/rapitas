@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
 import {
   X,
   Bot,
@@ -24,7 +24,7 @@ import {
   EyeOff,
   Trash2,
   Plus,
-} from "lucide-react";
+} from 'lucide-react';
 import type {
   DeveloperModeConfig,
   AIAgentConfig,
@@ -37,31 +37,40 @@ import type {
   ReviewScope,
   ApiProvider,
   ApiKeyStatus,
-} from "@/types";
-import { API_BASE_URL } from "@/utils/api";
-import { validateName } from "@/utils/validation";
+} from '@/types';
+import { API_BASE_URL } from '@/utils/api';
+import { validateName } from '@/utils/validation';
 
-type TabId = "task-analysis" | "agent-execution";
+type TabId = 'task-analysis' | 'agent-execution';
 
 type Props = {
   config: DeveloperModeConfig | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (updates: Partial<DeveloperModeConfig>) => Promise<DeveloperModeConfig | null>;
+  onSave: (
+    updates: Partial<DeveloperModeConfig>,
+  ) => Promise<DeveloperModeConfig | null>;
   selectedAgentConfigId?: number | null;
   onAgentConfigChange?: (agentConfigId: number | null) => void;
   taskId?: number;
 };
 
-const AGENT_TYPE_INFO: Record<string, { icon: typeof Bot; color: string; label: string }> = {
-  "claude-code": { icon: Terminal, color: "text-orange-500", label: "Claude Code" },
-  "codex": { icon: Zap, color: "text-green-500", label: "Codex CLI" },
-  "gemini": { icon: Activity, color: "text-blue-500", label: "Gemini CLI" },
+const AGENT_TYPE_INFO: Record<
+  string,
+  { icon: typeof Bot; color: string; label: string }
+> = {
+  'claude-code': {
+    icon: Terminal,
+    color: 'text-orange-500',
+    label: 'Claude Code',
+  },
+  codex: { icon: Zap, color: 'text-green-500', label: 'Codex CLI' },
+  gemini: { icon: Activity, color: 'text-blue-500', label: 'Gemini CLI' },
 };
 
 const TABS: { id: TabId; label: string; icon: typeof Search }[] = [
-  { id: "task-analysis", label: "タスク分析", icon: Search },
-  { id: "agent-execution", label: "エージェント実行", icon: Play },
+  { id: 'task-analysis', label: 'タスク分析', icon: Search },
+  { id: 'agent-execution', label: 'エージェント実行', icon: Play },
 ];
 
 export function DeveloperModeConfigModal({
@@ -73,12 +82,12 @@ export function DeveloperModeConfigModal({
   onAgentConfigChange,
   taskId,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<TabId>("task-analysis");
+  const [activeTab, setActiveTab] = useState<TabId>('task-analysis');
   const [autoApprove, setAutoApprove] = useState(config?.autoApprove ?? false);
   const [notifyInApp, setNotifyInApp] = useState(config?.notifyInApp ?? true);
   const [maxSubtasks, setMaxSubtasks] = useState(config?.maxSubtasks ?? 10);
   const [priority, setPriority] = useState<string>(
-    config?.priority ?? "balanced"
+    config?.priority ?? 'balanced',
   );
   const [isSaving, setIsSaving] = useState(false);
 
@@ -88,28 +97,34 @@ export function DeveloperModeConfigModal({
   const [isSettingDefault, setIsSettingDefault] = useState(false);
 
   // タスク分析設定の状態
-  const [analysisAgentConfigId, setAnalysisAgentConfigId] = useState<number | null>(null);
-  const [analysisDepth, setAnalysisDepth] = useState<AnalysisDepth>("standard");
+  const [analysisAgentConfigId, setAnalysisAgentConfigId] = useState<
+    number | null
+  >(null);
+  const [analysisDepth, setAnalysisDepth] = useState<AnalysisDepth>('standard');
   const [analysisMaxSubtasks, setAnalysisMaxSubtasks] = useState(10);
-  const [priorityStrategy, setPriorityStrategy] = useState<PriorityStrategy>("balanced");
+  const [priorityStrategy, setPriorityStrategy] =
+    useState<PriorityStrategy>('balanced');
   const [includeEstimates, setIncludeEstimates] = useState(true);
   const [includeDependencies, setIncludeDependencies] = useState(true);
   const [includeTips, setIncludeTips] = useState(true);
-  const [promptStrategy, setPromptStrategy] = useState<PromptStrategy>("auto");
+  const [promptStrategy, setPromptStrategy] = useState<PromptStrategy>('auto');
   const [autoApproveSubtasks, setAutoApproveSubtasks] = useState(false);
   const [autoOptimizePrompt, setAutoOptimizePrompt] = useState(false);
-  const [analysisNotifyOnComplete, setAnalysisNotifyOnComplete] = useState(true);
+  const [analysisNotifyOnComplete, setAnalysisNotifyOnComplete] =
+    useState(true);
 
   // エージェント実行設定の状態
-  const [executionAgentConfigId, setExecutionAgentConfigId] = useState<number | null>(null);
-  const [branchStrategy, setBranchStrategy] = useState<BranchStrategy>("auto");
-  const [branchPrefix, setBranchPrefix] = useState("feature/");
+  const [executionAgentConfigId, setExecutionAgentConfigId] = useState<
+    number | null
+  >(null);
+  const [branchStrategy, setBranchStrategy] = useState<BranchStrategy>('auto');
+  const [branchPrefix, setBranchPrefix] = useState('feature/');
   const [autoCommit, setAutoCommit] = useState(false);
   const [autoCreatePR, setAutoCreatePR] = useState(false);
   const [autoExecuteOnAnalysis, setAutoExecuteOnAnalysis] = useState(false);
   const [useOptimizedPrompt, setUseOptimizedPrompt] = useState(true);
   const [autoCodeReview, setAutoCodeReview] = useState(true);
-  const [reviewScope, setReviewScope] = useState<ReviewScope>("changes");
+  const [reviewScope, setReviewScope] = useState<ReviewScope>('changes');
   const [execNotifyOnStart, setExecNotifyOnStart] = useState(true);
   const [execNotifyOnComplete, setExecNotifyOnComplete] = useState(true);
   const [execNotifyOnError, setExecNotifyOnError] = useState(true);
@@ -118,7 +133,9 @@ export function DeveloperModeConfigModal({
   const [isLoadingConfigs, setIsLoadingConfigs] = useState(false);
 
   // APIキーステータス（全プロバイダ）
-  const [apiKeyStatuses, setApiKeyStatuses] = useState<Record<ApiProvider, ApiKeyStatus>>({
+  const [apiKeyStatuses, setApiKeyStatuses] = useState<
+    Record<ApiProvider, ApiKeyStatus>
+  >({
     claude: { configured: false, maskedKey: null },
     chatgpt: { configured: false, maskedKey: null },
     gemini: { configured: false, maskedKey: null },
@@ -128,20 +145,26 @@ export function DeveloperModeConfigModal({
 
   // インラインエージェント追加用の状態
   const [showInlineAddAgent, setShowInlineAddAgent] = useState(false);
-  const [inlineAgentName, setInlineAgentName] = useState("");
-  const [inlineAgentType, setInlineAgentType] = useState("claude-code");
+  const [inlineAgentName, setInlineAgentName] = useState('');
+  const [inlineAgentType, setInlineAgentType] = useState('claude-code');
   const [inlineAgentDefault, setInlineAgentDefault] = useState(false);
   const [isSavingAgent, setIsSavingAgent] = useState(false);
   const [inlineAgentError, setInlineAgentError] = useState<string | null>(null);
-  const [inlineAgentNameError, setInlineAgentNameError] = useState<string | null>(null);
+  const [inlineAgentNameError, setInlineAgentNameError] = useState<
+    string | null
+  >(null);
 
   // インラインAPIキー設定用の状態
-  const [apiKeyProvider, setApiKeyProvider] = useState<ApiProvider>("claude");
-  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [apiKeyProvider, setApiKeyProvider] = useState<ApiProvider>('claude');
+  const [apiKeyInput, setApiKeyInput] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [isSavingApiKey, setIsSavingApiKey] = useState(false);
-  const [apiKeyValidationError, setApiKeyValidationError] = useState<string | null>(null);
-  const [apiKeySuccessMessage, setApiKeySuccessMessage] = useState<string | null>(null);
+  const [apiKeyValidationError, setApiKeyValidationError] = useState<
+    string | null
+  >(null);
+  const [apiKeySuccessMessage, setApiKeySuccessMessage] = useState<
+    string | null
+  >(null);
 
   // モーダルが開かれた時にデータを取得
   useEffect(() => {
@@ -158,8 +181,10 @@ export function DeveloperModeConfigModal({
   useEffect(() => {
     if (selectedAgentConfigId !== undefined && selectedAgentConfigId !== null) {
       // 初期値として両方のタブに設定（既存の設定がない場合のフォールバック）
-      if (!analysisAgentConfigId) setAnalysisAgentConfigId(selectedAgentConfigId);
-      if (!executionAgentConfigId) setExecutionAgentConfigId(selectedAgentConfigId);
+      if (!analysisAgentConfigId)
+        setAnalysisAgentConfigId(selectedAgentConfigId);
+      if (!executionAgentConfigId)
+        setExecutionAgentConfigId(selectedAgentConfigId);
     }
   }, [selectedAgentConfigId]);
 
@@ -203,7 +228,7 @@ export function DeveloperModeConfigModal({
         setExecNotifyOnError(data.notifyOnError);
       }
     } catch (err) {
-      console.error("設定の取得に失敗:", err);
+      console.error('設定の取得に失敗:', err);
     } finally {
       setIsLoadingConfigs(false);
     }
@@ -213,17 +238,17 @@ export function DeveloperModeConfigModal({
     setIsSettingDefault(true);
     try {
       const res = await fetch(`${API_BASE_URL}/agents/${agentId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isDefault: true }),
       });
       if (res.ok) {
         await fetchAgents();
       } else {
-        console.error("デフォルトエージェントの設定に失敗:", await res.text());
+        console.error('デフォルトエージェントの設定に失敗:', await res.text());
       }
     } catch (err) {
-      console.error("デフォルトエージェントの設定に失敗:", err);
+      console.error('デフォルトエージェントの設定に失敗:', err);
     } finally {
       setIsSettingDefault(false);
     }
@@ -240,11 +265,12 @@ export function DeveloperModeConfigModal({
         const defaultAgent = data.find((a: AIAgentConfig) => a.isDefault);
         if (defaultAgent) {
           if (!analysisAgentConfigId) setAnalysisAgentConfigId(defaultAgent.id);
-          if (!executionAgentConfigId) setExecutionAgentConfigId(defaultAgent.id);
+          if (!executionAgentConfigId)
+            setExecutionAgentConfigId(defaultAgent.id);
         }
       }
     } catch (err) {
-      console.error("エージェント一覧の取得に失敗:", err);
+      console.error('エージェント一覧の取得に失敗:', err);
     } finally {
       setIsLoadingAgents(false);
     }
@@ -263,34 +289,77 @@ export function DeveloperModeConfigModal({
         });
       }
     } catch (err) {
-      console.error("APIキー情報の取得に失敗:", err);
+      console.error('APIキー情報の取得に失敗:', err);
     } finally {
       setIsLoadingApiKeys(false);
     }
   };
 
   // APIキープロバイダ情報
-  const API_KEY_PROVIDERS: { value: ApiProvider; label: string; placeholder: string; link: string }[] = [
-    { value: "claude", label: "Claude (Anthropic)", placeholder: "sk-ant-api...", link: "https://console.anthropic.com/" },
-    { value: "chatgpt", label: "ChatGPT (OpenAI)", placeholder: "sk-proj-...", link: "https://platform.openai.com/api-keys" },
-    { value: "gemini", label: "Gemini (Google)", placeholder: "AIza...", link: "https://aistudio.google.com/apikey" },
+  const API_KEY_PROVIDERS: {
+    value: ApiProvider;
+    label: string;
+    placeholder: string;
+    link: string;
+  }[] = [
+    {
+      value: 'claude',
+      label: 'Claude (Anthropic)',
+      placeholder: 'sk-ant-api...',
+      link: 'https://console.anthropic.com/',
+    },
+    {
+      value: 'chatgpt',
+      label: 'ChatGPT (OpenAI)',
+      placeholder: 'sk-proj-...',
+      link: 'https://platform.openai.com/api-keys',
+    },
+    {
+      value: 'gemini',
+      label: 'Gemini (Google)',
+      placeholder: 'AIza...',
+      link: 'https://aistudio.google.com/apikey',
+    },
   ];
 
   // クライアントサイドAPIキーバリデーション
-  const validateApiKeyForProvider = (apiKey: string, provider: ApiProvider): { valid: boolean; error?: string } => {
+  const validateApiKeyForProvider = (
+    apiKey: string,
+    provider: ApiProvider,
+  ): { valid: boolean; error?: string } => {
     const trimmed = apiKey.trim();
-    if (!trimmed) return { valid: false, error: "APIキーを入力してください" };
-    if (trimmed.length < 10) return { valid: false, error: "APIキーが短すぎます（10文字以上必要です）" };
+    if (!trimmed) return { valid: false, error: 'APIキーを入力してください' };
+    if (trimmed.length < 10)
+      return {
+        valid: false,
+        error: 'APIキーが短すぎます（10文字以上必要です）',
+      };
     switch (provider) {
-      case "claude":
-        if (!trimmed.startsWith("sk-ant-api")) return { valid: false, error: "Claude APIキーは「sk-ant-api」で始まる必要があります" };
+      case 'claude':
+        if (!trimmed.startsWith('sk-ant-api'))
+          return {
+            valid: false,
+            error: 'Claude APIキーは「sk-ant-api」で始まる必要があります',
+          };
         break;
-      case "chatgpt":
-        if (!trimmed.startsWith("sk-")) return { valid: false, error: "OpenAI APIキーは「sk-」で始まる必要があります" };
-        if (trimmed.startsWith("sk-ant-api")) return { valid: false, error: "これはClaude APIキーです。OpenAI APIキーを入力してください" };
+      case 'chatgpt':
+        if (!trimmed.startsWith('sk-'))
+          return {
+            valid: false,
+            error: 'OpenAI APIキーは「sk-」で始まる必要があります',
+          };
+        if (trimmed.startsWith('sk-ant-api'))
+          return {
+            valid: false,
+            error: 'これはClaude APIキーです。OpenAI APIキーを入力してください',
+          };
         break;
-      case "gemini":
-        if (!trimmed.startsWith("AIza")) return { valid: false, error: "Gemini APIキーは「AIza」で始まる必要があります" };
+      case 'gemini':
+        if (!trimmed.startsWith('AIza'))
+          return {
+            valid: false,
+            error: 'Gemini APIキーは「AIza」で始まる必要があります',
+          };
         break;
     }
     return { valid: true };
@@ -307,8 +376,8 @@ export function DeveloperModeConfigModal({
     setApiKeyValidationError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/settings/api-key`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey: apiKeyInput, provider: apiKeyProvider }),
       });
       if (res.ok) {
@@ -317,16 +386,20 @@ export function DeveloperModeConfigModal({
           ...prev,
           [apiKeyProvider]: { configured: true, maskedKey: data.maskedKey },
         }));
-        setApiKeyInput("");
+        setApiKeyInput('');
         setShowApiKey(false);
-        setApiKeySuccessMessage(`${API_KEY_PROVIDERS.find(p => p.value === apiKeyProvider)?.label} のAPIキーを保存しました`);
+        setApiKeySuccessMessage(
+          `${API_KEY_PROVIDERS.find((p) => p.value === apiKeyProvider)?.label} のAPIキーを保存しました`,
+        );
         setTimeout(() => setApiKeySuccessMessage(null), 3000);
       } else {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error ?? "保存に失敗しました");
+        throw new Error(data?.error ?? '保存に失敗しました');
       }
     } catch (err) {
-      setApiKeyValidationError(err instanceof Error ? err.message : "エラーが発生しました");
+      setApiKeyValidationError(
+        err instanceof Error ? err.message : 'エラーが発生しました',
+      );
     } finally {
       setIsSavingApiKey(false);
     }
@@ -335,7 +408,10 @@ export function DeveloperModeConfigModal({
   const deleteApiKey = async (provider: ApiProvider) => {
     setIsSavingApiKey(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/settings/api-key?provider=${provider}`, { method: "DELETE" });
+      const res = await fetch(
+        `${API_BASE_URL}/settings/api-key?provider=${provider}`,
+        { method: 'DELETE' },
+      );
       if (res.ok) {
         setApiKeyStatuses((prev) => ({
           ...prev,
@@ -345,7 +421,7 @@ export function DeveloperModeConfigModal({
         setTimeout(() => setApiKeySuccessMessage(null), 3000);
       }
     } catch (err) {
-      console.error("APIキー削除に失敗:", err);
+      console.error('APIキー削除に失敗:', err);
     } finally {
       setIsSavingApiKey(false);
     }
@@ -356,7 +432,7 @@ export function DeveloperModeConfigModal({
     setInlineAgentError(null);
     setInlineAgentNameError(null);
 
-    const nameResult = validateName(inlineAgentName, "エージェント名", 1, 50);
+    const nameResult = validateName(inlineAgentName, 'エージェント名', 1, 50);
     if (!nameResult.valid) {
       setInlineAgentNameError(nameResult.error ?? null);
       return;
@@ -365,8 +441,8 @@ export function DeveloperModeConfigModal({
     setIsSavingAgent(true);
     try {
       const res = await fetch(`${API_BASE_URL}/agents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: inlineAgentName,
           agentType: inlineAgentType,
@@ -375,44 +451,44 @@ export function DeveloperModeConfigModal({
       });
 
       if (res.ok) {
-        setInlineAgentName("");
-        setInlineAgentType("claude-code");
+        setInlineAgentName('');
+        setInlineAgentType('claude-code');
         setInlineAgentDefault(false);
         setShowInlineAddAgent(false);
         await fetchAgents();
       } else {
         const data = await res.json().catch(() => null);
-        setInlineAgentError(data?.error ?? "エージェントの追加に失敗しました");
+        setInlineAgentError(data?.error ?? 'エージェントの追加に失敗しました');
       }
     } catch {
-      setInlineAgentError("エージェントの追加に失敗しました");
+      setInlineAgentError('エージェントの追加に失敗しました');
     } finally {
       setIsSavingAgent(false);
     }
   };
 
   // APIキー不要なCLIベースのエージェントタイプ
-  const CLI_AGENT_TYPES = ["claude-code", "codex", "gemini"];
+  const CLI_AGENT_TYPES = ['claude-code', 'codex', 'gemini'];
 
   // APIキーが設定されているプロバイダに対応するエージェントタイプのマッピング
   const PROVIDER_TO_AGENT_TYPES: Record<ApiProvider, string[]> = {
-    claude: ["anthropic-api"],
-    chatgpt: ["openai", "azure-openai"],
-    gemini: ["gemini"],
+    claude: ['anthropic-api'],
+    chatgpt: ['openai', 'azure-openai'],
+    gemini: ['gemini'],
   };
 
   // 利用可能なエージェントのフィルタリング（CLIベースは常に利用可能）
   const getAvailableAgents = () => {
-    const configuredProviders = (Object.keys(apiKeyStatuses) as ApiProvider[]).filter(
-      (provider) => apiKeyStatuses[provider].configured
-    );
+    const configuredProviders = (
+      Object.keys(apiKeyStatuses) as ApiProvider[]
+    ).filter((provider) => apiKeyStatuses[provider].configured);
     const allowedAgentTypes = configuredProviders.flatMap(
-      (provider) => PROVIDER_TO_AGENT_TYPES[provider]
+      (provider) => PROVIDER_TO_AGENT_TYPES[provider],
     );
     return agents.filter(
       (agent) =>
         CLI_AGENT_TYPES.includes(agent.agentType) ||
-        allowedAgentTypes.includes(agent.agentType)
+        allowedAgentTypes.includes(agent.agentType),
     );
   };
 
@@ -431,7 +507,7 @@ export function DeveloperModeConfigModal({
         autoApprove,
         notifyInApp,
         maxSubtasks,
-        priority: priority as DeveloperModeConfig["priority"],
+        priority: priority as DeveloperModeConfig['priority'],
       });
 
       // 2. タスク分析設定を保存（taskIdがある場合）
@@ -453,15 +529,17 @@ export function DeveloperModeConfigModal({
         const analysisRes = await fetch(
           `${API_BASE_URL}/task-analysis-config/${taskId}`,
           {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(analysisBody),
-          }
+          },
         );
 
         if (!analysisRes.ok) {
           const errData = await analysisRes.json().catch(() => ({}));
-          throw new Error(errData.error || "タスク分析設定の保存に失敗しました");
+          throw new Error(
+            errData.error || 'タスク分析設定の保存に失敗しました',
+          );
         }
 
         // 3. エージェント実行設定を保存
@@ -483,21 +561,23 @@ export function DeveloperModeConfigModal({
         const executionRes = await fetch(
           `${API_BASE_URL}/agent-execution-config/${taskId}`,
           {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(executionBody),
-          }
+          },
         );
 
         if (!executionRes.ok) {
           const errData = await executionRes.json().catch(() => ({}));
-          throw new Error(errData.error || "エージェント実行設定の保存に失敗しました");
+          throw new Error(
+            errData.error || 'エージェント実行設定の保存に失敗しました',
+          );
         }
       }
 
       onClose();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "保存に失敗しました");
+      setSaveError(err instanceof Error ? err.message : '保存に失敗しました');
     } finally {
       setIsSaving(false);
     }
@@ -505,27 +585,33 @@ export function DeveloperModeConfigModal({
 
   const priorityOptions = [
     {
-      value: "conservative",
-      label: "慎重",
+      value: 'conservative',
+      label: '慎重',
       icon: Shield,
-      description: "少数の大きなサブタスクに分解",
+      description: '少数の大きなサブタスクに分解',
     },
     {
-      value: "balanced",
-      label: "バランス",
+      value: 'balanced',
+      label: 'バランス',
       icon: Scale,
-      description: "適度な粒度で分解（推奨）",
+      description: '適度な粒度で分解（推奨）',
     },
     {
-      value: "aggressive",
-      label: "詳細",
+      value: 'aggressive',
+      label: '詳細',
       icon: Zap,
-      description: "細かいサブタスクに詳細分解",
+      description: '細かいサブタスクに詳細分解',
     },
   ];
 
   const getAgentTypeInfo = (agentType: string) => {
-    return AGENT_TYPE_INFO[agentType] || { icon: Bot, color: "text-zinc-500", label: agentType };
+    return (
+      AGENT_TYPE_INFO[agentType] || {
+        icon: Bot,
+        color: 'text-zinc-500',
+        label: agentType,
+      }
+    );
   };
 
   // インラインエージェント追加フォーム
@@ -557,8 +643,15 @@ export function DeveloperModeConfigModal({
           onChange={(e) => {
             setInlineAgentName(e.target.value);
             if (e.target.value.trim()) {
-              const result = validateName(e.target.value, "エージェント名", 1, 50);
-              setInlineAgentNameError(result.valid ? null : (result.error ?? null));
+              const result = validateName(
+                e.target.value,
+                'エージェント名',
+                1,
+                50,
+              );
+              setInlineAgentNameError(
+                result.valid ? null : (result.error ?? null),
+              );
             } else {
               setInlineAgentNameError(null);
             }
@@ -566,8 +659,8 @@ export function DeveloperModeConfigModal({
           placeholder="例: メイン開発エージェント"
           className={`w-full px-2.5 py-1.5 bg-white dark:bg-indigo-dark-900 border rounded text-xs focus:outline-none focus:ring-2 transition-all ${
             inlineAgentNameError
-              ? "border-red-400 dark:border-red-600 focus:ring-red-500/20"
-              : "border-zinc-200 dark:border-zinc-700 focus:ring-violet-500/20 focus:border-violet-500"
+              ? 'border-red-400 dark:border-red-600 focus:ring-red-500/20'
+              : 'border-zinc-200 dark:border-zinc-700 focus:ring-violet-500/20 focus:border-violet-500'
           }`}
         />
         {inlineAgentNameError && (
@@ -675,18 +768,20 @@ export function DeveloperModeConfigModal({
     const selectedAgent = displayAgents.find((a) => a.id === selectedId);
 
     // APIキーが設定されていないプロバイダのエージェントがあるかチェック
-    const hasUnconfiguredApiKeyAgents = filterByApiKey && agents.some(
-      (agent) =>
-        !CLI_AGENT_TYPES.includes(agent.agentType) &&
-        !displayAgents.some((da) => da.id === agent.id)
-    );
+    const hasUnconfiguredApiKeyAgents =
+      filterByApiKey &&
+      agents.some(
+        (agent) =>
+          !CLI_AGENT_TYPES.includes(agent.agentType) &&
+          !displayAgents.some((da) => da.id === agent.id),
+      );
 
     return (
       <div className="space-y-2">
         {/* ドロップダウン + 追加ボタン */}
         <div className="flex items-center gap-2">
           <select
-            value={selectedId ?? ""}
+            value={selectedId ?? ''}
             onChange={(e) => {
               const val = e.target.value;
               onSelect(val ? Number(val) : null);
@@ -698,7 +793,9 @@ export function DeveloperModeConfigModal({
               const typeInfo = getAgentTypeInfo(agent.agentType);
               return (
                 <option key={agent.id} value={agent.id}>
-                  {agent.name} ({typeInfo.label}{agent.modelId ? ` · ${agent.modelId}` : ""}){agent.isDefault ? " [デフォルト]" : ""}
+                  {agent.name} ({typeInfo.label}
+                  {agent.modelId ? ` · ${agent.modelId}` : ''})
+                  {agent.isDefault ? ' [デフォルト]' : ''}
                 </option>
               );
             })}
@@ -707,8 +804,8 @@ export function DeveloperModeConfigModal({
             onClick={() => setShowInlineAddAgent(!showInlineAddAgent)}
             className={`flex-shrink-0 p-2 rounded-lg border transition-colors ${
               showInlineAddAgent
-                ? "border-violet-500 bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400"
-                : "border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-violet-600 dark:hover:text-violet-400 hover:border-violet-400 dark:hover:border-violet-500"
+                ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400'
+                : 'border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-violet-600 dark:hover:text-violet-400 hover:border-violet-400 dark:hover:border-violet-500'
             }`}
             title="エージェントを追加"
           >
@@ -727,7 +824,9 @@ export function DeveloperModeConfigModal({
               const TypeIcon = typeInfo.icon;
               return (
                 <>
-                  <TypeIcon className={`w-4 h-4 flex-shrink-0 ${typeInfo.color}`} />
+                  <TypeIcon
+                    className={`w-4 h-4 flex-shrink-0 ${typeInfo.color}`}
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-violet-700 dark:text-violet-300 truncate">
@@ -772,7 +871,9 @@ export function DeveloperModeConfigModal({
 
   // インラインAPIキー設定UI
   const renderInlineApiKeySetup = () => {
-    const currentProvider = API_KEY_PROVIDERS.find((p) => p.value === apiKeyProvider)!;
+    const currentProvider = API_KEY_PROVIDERS.find(
+      (p) => p.value === apiKeyProvider,
+    )!;
     const currentStatus = apiKeyStatuses[apiKeyProvider];
 
     return (
@@ -797,14 +898,14 @@ export function DeveloperModeConfigModal({
                 key={provider.value}
                 onClick={() => {
                   setApiKeyProvider(provider.value);
-                  setApiKeyInput("");
+                  setApiKeyInput('');
                   setShowApiKey(false);
                   setApiKeyValidationError(null);
                 }}
                 className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-all border ${
                   isSelected
-                    ? "border-violet-500 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300"
-                    : "border-zinc-200 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-500"
+                    ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300'
+                    : 'border-zinc-200 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-500'
                 }`}
               >
                 {status.configured ? (
@@ -843,7 +944,7 @@ export function DeveloperModeConfigModal({
           <div className="space-y-2">
             <div className="relative">
               <input
-                type={showApiKey ? "text" : "password"}
+                type={showApiKey ? 'text' : 'password'}
                 value={apiKeyInput}
                 onChange={(e) => {
                   setApiKeyInput(e.target.value);
@@ -852,8 +953,8 @@ export function DeveloperModeConfigModal({
                 placeholder={currentProvider.placeholder}
                 className={`w-full px-2.5 py-1.5 pr-8 bg-white dark:bg-indigo-dark-900 border rounded text-xs focus:outline-none focus:ring-2 transition-all ${
                   apiKeyValidationError
-                    ? "border-red-400 dark:border-red-600 focus:ring-red-500/20"
-                    : "border-zinc-200 dark:border-zinc-700 focus:ring-violet-500/20 focus:border-violet-500"
+                    ? 'border-red-400 dark:border-red-600 focus:ring-red-500/20'
+                    : 'border-zinc-200 dark:border-zinc-700 focus:ring-violet-500/20 focus:border-violet-500'
                 }`}
               />
               <button
@@ -861,7 +962,11 @@ export function DeveloperModeConfigModal({
                 onClick={() => setShowApiKey(!showApiKey)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
               >
-                {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                {showApiKey ? (
+                  <EyeOff className="w-3 h-3" />
+                ) : (
+                  <Eye className="w-3 h-3" />
+                )}
               </button>
             </div>
             {apiKeyValidationError && (
@@ -926,12 +1031,12 @@ export function DeveloperModeConfigModal({
       <button
         onClick={() => onChange(!value)}
         className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-          value ? "bg-violet-500" : "bg-zinc-300 dark:bg-zinc-600"
+          value ? 'bg-violet-500' : 'bg-zinc-300 dark:bg-zinc-600'
         }`}
       >
         <span
           className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-            value ? "translate-x-5" : ""
+            value ? 'translate-x-5' : ''
           }`}
         />
       </button>
@@ -949,7 +1054,12 @@ export function DeveloperModeConfigModal({
             分析用AIエージェント
           </label>
         </div>
-        {renderAgentSelector(analysisAgentConfigId, setAnalysisAgentConfigId, "分析用AIエージェント", true)}
+        {renderAgentSelector(
+          analysisAgentConfigId,
+          setAnalysisAgentConfigId,
+          '分析用AIエージェント',
+          true,
+        )}
       </div>
 
       {/* 分析深度 */}
@@ -958,25 +1068,35 @@ export function DeveloperModeConfigModal({
           分析深度
         </label>
         <div className="grid grid-cols-3 gap-2">
-          {([
-            { value: "quick" as const, label: "クイック", desc: "素早い概要分析" },
-            { value: "standard" as const, label: "標準", desc: "バランスの良い分析" },
-            { value: "deep" as const, label: "詳細", desc: "深い詳細分析" },
-          ]).map((opt) => (
+          {[
+            {
+              value: 'quick' as const,
+              label: 'クイック',
+              desc: '素早い概要分析',
+            },
+            {
+              value: 'standard' as const,
+              label: '標準',
+              desc: 'バランスの良い分析',
+            },
+            { value: 'deep' as const, label: '詳細', desc: '深い詳細分析' },
+          ].map((opt) => (
             <button
               key={opt.value}
               onClick={() => setAnalysisDepth(opt.value)}
               className={`p-2.5 rounded-lg border text-center transition-all ${
                 analysisDepth === opt.value
-                  ? "border-violet-500 bg-violet-50 dark:bg-violet-900/20"
-                  : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+                  ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
+                  : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
               }`}
             >
-              <span className={`text-sm font-medium ${
-                analysisDepth === opt.value
-                  ? "text-violet-700 dark:text-violet-300"
-                  : "text-zinc-600 dark:text-zinc-400"
-              }`}>
+              <span
+                className={`text-sm font-medium ${
+                  analysisDepth === opt.value
+                    ? 'text-violet-700 dark:text-violet-300'
+                    : 'text-zinc-600 dark:text-zinc-400'
+                }`}
+              >
                 {opt.label}
               </span>
             </button>
@@ -993,25 +1113,27 @@ export function DeveloperModeConfigModal({
           {priorityOptions.map((option) => (
             <button
               key={option.value}
-              onClick={() => setPriorityStrategy(option.value as PriorityStrategy)}
+              onClick={() =>
+                setPriorityStrategy(option.value as PriorityStrategy)
+              }
               className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg border transition-all ${
                 priorityStrategy === option.value
-                  ? "border-violet-500 bg-violet-50 dark:bg-violet-900/20"
-                  : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+                  ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
+                  : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
               }`}
             >
               <option.icon
                 className={`w-4 h-4 ${
                   priorityStrategy === option.value
-                    ? "text-violet-600 dark:text-violet-400"
-                    : "text-zinc-400"
+                    ? 'text-violet-600 dark:text-violet-400'
+                    : 'text-zinc-400'
                 }`}
               />
               <span
                 className={`text-xs font-medium ${
                   priorityStrategy === option.value
-                    ? "text-violet-700 dark:text-violet-300"
-                    : "text-zinc-600 dark:text-zinc-400"
+                    ? 'text-violet-700 dark:text-violet-300'
+                    : 'text-zinc-600 dark:text-zinc-400'
                 }`}
               >
                 {option.label}
@@ -1020,7 +1142,10 @@ export function DeveloperModeConfigModal({
           ))}
         </div>
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          {priorityOptions.find((o) => o.value === priorityStrategy)?.description}
+          {
+            priorityOptions.find((o) => o.value === priorityStrategy)
+              ?.description
+          }
         </p>
       </div>
 
@@ -1065,9 +1190,24 @@ export function DeveloperModeConfigModal({
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
           出力オプション
         </label>
-        {renderToggle(includeEstimates, setIncludeEstimates, "工数見積もり", "各サブタスクの見積もり時間を含める")}
-        {renderToggle(includeDependencies, setIncludeDependencies, "依存関係", "サブタスク間の依存関係を含める")}
-        {renderToggle(includeTips, setIncludeTips, "実装ヒント", "実装のヒントやアドバイスを含める")}
+        {renderToggle(
+          includeEstimates,
+          setIncludeEstimates,
+          '工数見積もり',
+          '各サブタスクの見積もり時間を含める',
+        )}
+        {renderToggle(
+          includeDependencies,
+          setIncludeDependencies,
+          '依存関係',
+          'サブタスク間の依存関係を含める',
+        )}
+        {renderToggle(
+          includeTips,
+          setIncludeTips,
+          '実装ヒント',
+          '実装のヒントやアドバイスを含める',
+        )}
       </div>
 
       {/* 自動化設定 */}
@@ -1075,9 +1215,24 @@ export function DeveloperModeConfigModal({
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
           自動化
         </label>
-        {renderToggle(autoApproveSubtasks, setAutoApproveSubtasks, "サブタスク自動承認", "分析結果のサブタスクを自動承認")}
-        {renderToggle(autoOptimizePrompt, setAutoOptimizePrompt, "プロンプト自動最適化", "分析前にプロンプトを自動最適化")}
-        {renderToggle(analysisNotifyOnComplete, setAnalysisNotifyOnComplete, "完了通知", "分析完了時に通知を送信")}
+        {renderToggle(
+          autoApproveSubtasks,
+          setAutoApproveSubtasks,
+          'サブタスク自動承認',
+          '分析結果のサブタスクを自動承認',
+        )}
+        {renderToggle(
+          autoOptimizePrompt,
+          setAutoOptimizePrompt,
+          'プロンプト自動最適化',
+          '分析前にプロンプトを自動最適化',
+        )}
+        {renderToggle(
+          analysisNotifyOnComplete,
+          setAnalysisNotifyOnComplete,
+          '完了通知',
+          '分析完了時に通知を送信',
+        )}
       </div>
     </div>
   );
@@ -1093,7 +1248,12 @@ export function DeveloperModeConfigModal({
             実行用AIエージェント
           </label>
         </div>
-        {renderAgentSelector(executionAgentConfigId, setExecutionAgentConfigId, "実行用AIエージェント", true)}
+        {renderAgentSelector(
+          executionAgentConfigId,
+          setExecutionAgentConfigId,
+          '実行用AIエージェント',
+          true,
+        )}
       </div>
 
       {/* Git設定 */}
@@ -1111,7 +1271,9 @@ export function DeveloperModeConfigModal({
           </label>
           <select
             value={branchStrategy}
-            onChange={(e) => setBranchStrategy(e.target.value as BranchStrategy)}
+            onChange={(e) =>
+              setBranchStrategy(e.target.value as BranchStrategy)
+            }
             className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
           >
             <option value="auto">自動（推奨）</option>
@@ -1133,8 +1295,18 @@ export function DeveloperModeConfigModal({
           />
         </div>
 
-        {renderToggle(autoCommit, setAutoCommit, "自動コミット", "変更を自動的にコミット")}
-        {renderToggle(autoCreatePR, setAutoCreatePR, "自動PR作成", "完了時にPull Requestを自動作成")}
+        {renderToggle(
+          autoCommit,
+          setAutoCommit,
+          '自動コミット',
+          '変更を自動的にコミット',
+        )}
+        {renderToggle(
+          autoCreatePR,
+          setAutoCreatePR,
+          '自動PR作成',
+          '完了時にPull Requestを自動作成',
+        )}
       </div>
 
       {/* コードレビュー設定 */}
@@ -1146,7 +1318,12 @@ export function DeveloperModeConfigModal({
           </label>
         </div>
 
-        {renderToggle(autoCodeReview, setAutoCodeReview, "自動コードレビュー", "実行完了後に自動でコードレビュー")}
+        {renderToggle(
+          autoCodeReview,
+          setAutoCodeReview,
+          '自動コードレビュー',
+          '実行完了後に自動でコードレビュー',
+        )}
 
         {autoCodeReview && (
           <div>
@@ -1174,8 +1351,18 @@ export function DeveloperModeConfigModal({
             実行オプション
           </label>
         </div>
-        {renderToggle(autoExecuteOnAnalysis, setAutoExecuteOnAnalysis, "分析後自動実行", "タスク分析完了後にエージェントを自動実行")}
-        {renderToggle(useOptimizedPrompt, setUseOptimizedPrompt, "最適化プロンプト使用", "タスク分析の最適化プロンプトを使用")}
+        {renderToggle(
+          autoExecuteOnAnalysis,
+          setAutoExecuteOnAnalysis,
+          '分析後自動実行',
+          'タスク分析完了後にエージェントを自動実行',
+        )}
+        {renderToggle(
+          useOptimizedPrompt,
+          setUseOptimizedPrompt,
+          '最適化プロンプト使用',
+          'タスク分析の最適化プロンプトを使用',
+        )}
       </div>
 
       {/* 通知設定 */}
@@ -1186,9 +1373,24 @@ export function DeveloperModeConfigModal({
             通知設定
           </label>
         </div>
-        {renderToggle(execNotifyOnStart, setExecNotifyOnStart, "実行開始通知", "エージェント実行開始時に通知")}
-        {renderToggle(execNotifyOnComplete, setExecNotifyOnComplete, "実行完了通知", "エージェント実行完了時に通知")}
-        {renderToggle(execNotifyOnError, setExecNotifyOnError, "エラー通知", "エラー発生時に通知")}
+        {renderToggle(
+          execNotifyOnStart,
+          setExecNotifyOnStart,
+          '実行開始通知',
+          'エージェント実行開始時に通知',
+        )}
+        {renderToggle(
+          execNotifyOnComplete,
+          setExecNotifyOnComplete,
+          '実行完了通知',
+          'エージェント実行完了時に通知',
+        )}
+        {renderToggle(
+          execNotifyOnError,
+          setExecNotifyOnError,
+          'エラー通知',
+          'エラー発生時に通知',
+        )}
       </div>
     </div>
   );
@@ -1220,7 +1422,10 @@ export function DeveloperModeConfigModal({
 
         {/* タブナビゲーション */}
         <div className="px-6 pt-4">
-          <div className="flex border-b border-zinc-200 dark:border-zinc-700" role="tablist">
+          <div
+            className="flex border-b border-zinc-200 dark:border-zinc-700"
+            role="tablist"
+          >
             {TABS.map((tab) => {
               const TabIcon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1233,8 +1438,8 @@ export function DeveloperModeConfigModal({
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                     isActive
-                      ? "border-violet-500 text-violet-600 dark:text-violet-400"
-                      : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+                      ? 'border-violet-500 text-violet-600 dark:text-violet-400'
+                      : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
                   }`}
                 >
                   <TabIcon className="w-4 h-4" />
@@ -1257,16 +1462,16 @@ export function DeveloperModeConfigModal({
               <div
                 role="tabpanel"
                 id="tabpanel-task-analysis"
-                hidden={activeTab !== "task-analysis"}
+                hidden={activeTab !== 'task-analysis'}
               >
-                {activeTab === "task-analysis" && renderTaskAnalysisTab()}
+                {activeTab === 'task-analysis' && renderTaskAnalysisTab()}
               </div>
               <div
                 role="tabpanel"
                 id="tabpanel-agent-execution"
-                hidden={activeTab !== "agent-execution"}
+                hidden={activeTab !== 'agent-execution'}
               >
-                {activeTab === "agent-execution" && renderAgentExecutionTab()}
+                {activeTab === 'agent-execution' && renderAgentExecutionTab()}
               </div>
             </>
           )}

@@ -85,7 +85,7 @@ interface ExtendedWindow extends Window {
  * window.__TAURI__ が存在するかで判定
  */
 export function isTauri(): boolean {
-  if (typeof window === "undefined") return false;
+  if (typeof window === 'undefined') return false;
   return !!(window as ExtendedWindow).__TAURI__;
 }
 
@@ -133,7 +133,7 @@ export function getGitHubPRDetailPath(prId: number | string): string {
  * @returns パラメータ値（存在しない場合はnull）
  */
 export function getQueryParam(param: string): string | null {
-  if (typeof window === "undefined") return null;
+  if (typeof window === 'undefined') return null;
   const urlParams = new URLSearchParams(window.location.search);
   return urlParams.get(param);
 }
@@ -156,7 +156,7 @@ export async function hideToTray(): Promise<void> {
       }
     }
   } catch (e) {
-    console.error("Failed to hide window to tray:", e);
+    console.error('Failed to hide window to tray:', e);
   }
 }
 
@@ -168,21 +168,21 @@ export async function hideToTray(): Promise<void> {
  */
 export async function openExternalUrlInSplitView(
   url: string,
-  title: string = "External Link",
+  title: string = 'External Link',
 ): Promise<void> {
   if (!isTauri()) {
-    window.open(url, "_blank");
+    window.open(url, '_blank');
     return;
   }
 
-  console.log("Opening external URL in split view:", url);
+  console.log('Opening external URL in split view:', url);
 
   try {
     // Rustのopen_split_viewコマンドを呼び出す
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("open_split_view", { url });
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('open_split_view', { url });
 
-    console.log("Split view opened successfully");
+    console.log('Split view opened successfully');
 
     // 分割表示状態を記録
     const splitViewData: SplitViewData = {
@@ -197,15 +197,15 @@ export async function openExternalUrlInSplitView(
     (window as ExtendedWindow).__RAPITAS_SPLIT_VIEW__ = splitViewData;
 
     window.dispatchEvent(
-      new CustomEvent("rapitas:split-view-activated", {
+      new CustomEvent('rapitas:split-view-activated', {
         detail: { active: true },
       }),
     );
   } catch (error) {
-    console.error("Failed to open URL in split view:", error);
+    console.error('Failed to open URL in split view:', error);
 
     // フォールバック: 通常のブラウザで開く
-    const { open } = await import("@tauri-apps/plugin-shell");
+    const { open } = await import('@tauri-apps/plugin-shell');
     await open(url);
   }
 }
@@ -217,11 +217,11 @@ export async function openExternalUrlInSplitView(
  */
 export async function openExternalUrlInNewWindow(
   url: string,
-  title: string = "External Link",
+  title: string = 'External Link',
 ): Promise<void> {
   if (!isTauri()) {
     // Web環境では通常の新しいタブで開く
-    window.open(url, "_blank");
+    window.open(url, '_blank');
     return;
   }
 
@@ -232,7 +232,7 @@ export async function openExternalUrlInNewWindow(
     if (webviewWindow) {
       // ウィンドウラベルを生成（URLのホスト名を使用）
       const urlObj = new URL(url);
-      const label = `external-${urlObj.hostname.replace(/\./g, "-")}-${Date.now()}`;
+      const label = `external-${urlObj.hostname.replace(/\./g, '-')}-${Date.now()}`;
 
       // 新しいWebViewウィンドウを作成
       const newWindow = new webviewWindow(label, {
@@ -251,19 +251,19 @@ export async function openExternalUrlInNewWindow(
       });
 
       // ウィンドウが作成されたらフォーカス
-      newWindow.once("tauri://created", () => {
+      newWindow.once('tauri://created', () => {
         newWindow.setFocus();
       });
 
       // エラーハンドリング
-      newWindow.once("tauri://error", (error: unknown) => {
-        console.error("Failed to create external window:", error);
+      newWindow.once('tauri://error', (error: unknown) => {
+        console.error('Failed to create external window:', error);
         // フォールバック: システムのデフォルトブラウザで開く
         openUrlInDefaultBrowser(url);
       });
     }
   } catch (e) {
-    console.error("Failed to open external URL in new window:", e);
+    console.error('Failed to open external URL in new window:', e);
     // フォールバック: システムのデフォルトブラウザで開く
     openUrlInDefaultBrowser(url);
   }
@@ -287,9 +287,12 @@ export async function restoreFromSplitView(): Promise<void> {
   if (!splitViewData) return;
 
   try {
-    const windowModule = await import("@tauri-apps/api/window");
-    const { LogicalSize, LogicalPosition } = await import("@tauri-apps/api/dpi");
-    const win = windowModule.getCurrentWindow() as ReturnType<typeof windowModule.getCurrentWindow>;
+    const windowModule = await import('@tauri-apps/api/window');
+    const { LogicalSize, LogicalPosition } =
+      await import('@tauri-apps/api/dpi');
+    const win = windowModule.getCurrentWindow() as ReturnType<
+      typeof windowModule.getCurrentWindow
+    >;
 
     // リスナーを解除
     if (splitViewData.unlisten) {
@@ -298,8 +301,18 @@ export async function restoreFromSplitView(): Promise<void> {
 
     // 元のサイズと位置に戻す
     if (splitViewData.originalSize && splitViewData.originalPosition) {
-      await win.setSize(new LogicalSize(splitViewData.originalSize.width, splitViewData.originalSize.height));
-      await win.setPosition(new LogicalPosition(splitViewData.originalPosition.x, splitViewData.originalPosition.y));
+      await win.setSize(
+        new LogicalSize(
+          splitViewData.originalSize.width,
+          splitViewData.originalSize.height,
+        ),
+      );
+      await win.setPosition(
+        new LogicalPosition(
+          splitViewData.originalPosition.x,
+          splitViewData.originalPosition.y,
+        ),
+      );
     }
 
     // 元の最大化/全画面状態を復元
@@ -314,12 +327,12 @@ export async function restoreFromSplitView(): Promise<void> {
 
     // 分割表示が解除されたことを通知
     window.dispatchEvent(
-      new CustomEvent("rapitas:split-view-deactivated", {
+      new CustomEvent('rapitas:split-view-deactivated', {
         detail: { active: false },
       }),
     );
   } catch (e) {
-    console.error("Failed to restore from split view:", e);
+    console.error('Failed to restore from split view:', e);
   }
 }
 
@@ -329,16 +342,16 @@ export async function restoreFromSplitView(): Promise<void> {
  */
 export async function openUrlInDefaultBrowser(url: string): Promise<void> {
   if (!isTauri()) {
-    window.open(url, "_blank");
+    window.open(url, '_blank');
     return;
   }
 
   try {
-    const { open } = await import("@tauri-apps/plugin-shell");
+    const { open } = await import('@tauri-apps/plugin-shell');
     await open(url);
   } catch (e) {
-    console.error("Failed to open URL in default browser:", e);
+    console.error('Failed to open URL in default browser:', e);
     // 最終フォールバック
-    window.open(url, "_blank");
+    window.open(url, '_blank');
   }
 }

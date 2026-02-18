@@ -1,9 +1,9 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
 interface ExecutingTask {
   taskId: number;
   sessionId?: number;
-  status: "running" | "waiting_for_input" | "completed" | "failed";
+  status: 'running' | 'waiting_for_input' | 'completed' | 'failed';
 }
 
 interface ExecutionStateStore {
@@ -37,7 +37,7 @@ export const useExecutionStateStore = create<ExecutionStateStore>()(
     clearAll: () => set({ executingTasks: new Map() }),
     isTaskExecuting: (taskId) => {
       const task = get().executingTasks.get(taskId);
-      return task?.status === "running" || task?.status === "waiting_for_input";
+      return task?.status === 'running' || task?.status === 'waiting_for_input';
     },
-  })
+  }),
 );

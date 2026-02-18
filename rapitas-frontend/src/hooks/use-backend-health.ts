@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { API_BASE_URL } from "@/utils/api";
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { API_BASE_URL } from '@/utils/api';
 
-type BackendHealthStatus = "connected" | "disconnected" | "checking";
+type BackendHealthStatus = 'connected' | 'disconnected' | 'checking';
 
 type UseBackendHealthOptions = {
   /** ヘルスチェック間隔（ミリ秒）。デフォルト: 5000 */
@@ -28,7 +28,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
     onDisconnect,
   } = options;
 
-  const [status, setStatus] = useState<BackendHealthStatus>("checking");
+  const [status, setStatus] = useState<BackendHealthStatus>('checking');
   const wasDisconnectedRef = useRef(false);
   const onReconnectRef = useRef(onReconnect);
   const onDisconnectRef = useRef(onDisconnect);
@@ -54,29 +54,38 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
       if (res.ok) {
         if (wasDisconnectedRef.current) {
           wasDisconnectedRef.current = false;
-          console.log("[useBackendHealth] Backend reconnected");
+          console.log('[useBackendHealth] Backend reconnected');
           onReconnectRef.current?.();
         }
-        setStatus("connected");
+        setStatus('connected');
       } else {
         if (!wasDisconnectedRef.current) {
           wasDisconnectedRef.current = true;
-          console.warn(`[useBackendHealth] Backend disconnected: ${res.status} ${res.statusText}`);
+          console.warn(
+            `[useBackendHealth] Backend disconnected: ${res.status} ${res.statusText}`,
+          );
           onDisconnectRef.current?.();
         }
-        setStatus("disconnected");
+        setStatus('disconnected');
       }
     } catch (error) {
       // タイムアウトエラーかどうかを判定
       const isTimeout = error instanceof Error && error.name === 'AbortError';
-      const errorMessage = isTimeout ? 'Request timeout' : (error instanceof Error ? error.message : 'Unknown error');
+      const errorMessage = isTimeout
+        ? 'Request timeout'
+        : error instanceof Error
+          ? error.message
+          : 'Unknown error';
 
       if (!wasDisconnectedRef.current) {
         wasDisconnectedRef.current = true;
-        console.error(`[useBackendHealth] Backend health check failed: ${errorMessage}`, error);
+        console.error(
+          `[useBackendHealth] Backend health check failed: ${errorMessage}`,
+          error,
+        );
         onDisconnectRef.current?.();
       }
-      setStatus("disconnected");
+      setStatus('disconnected');
     }
   }, []);
 
@@ -86,7 +95,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
     const initialCheck = setTimeout(() => checkHealth(), 0);
 
     const currentInterval =
-      status === "disconnected" ? retryIntervalMs : intervalMs;
+      status === 'disconnected' ? retryIntervalMs : intervalMs;
     const timer = setInterval(checkHealth, currentInterval);
 
     return () => {
@@ -95,5 +104,5 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
     };
   }, [checkHealth, status, intervalMs, retryIntervalMs]);
 
-  return { status, isConnected: status === "connected" };
+  return { status, isConnected: status === 'connected' };
 }

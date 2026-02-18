@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, {
   useState,
@@ -6,7 +6,7 @@ import React, {
   useRef,
   useCallback,
   useMemo,
-} from "react";
+} from 'react';
 import {
   Terminal,
   ChevronDown,
@@ -23,14 +23,14 @@ import {
   CheckCircle2,
   AlertCircle,
   Square,
-} from "lucide-react";
+} from 'lucide-react';
 
 export type ExecutionLogStatus =
-  | "idle"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  | 'idle'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
 
 export type ExecutionLogViewerProps = {
   /** 実行ログの配列 */
@@ -68,7 +68,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   isRunning = false,
   defaultExpanded = true,
   defaultFullscreen = false,
-  className = "",
+  className = '',
   collapsible = true,
   showHeader = true,
   maxHeight = 256,
@@ -78,7 +78,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   const [copied, setCopied] = useState(false);
 
   // 検索機能の状態
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchMatches, setSearchMatches] = useState<number[]>([]);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -155,7 +155,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       clearTimeout(searchTimerRef.current);
     }
     searchTimerRef.current = setTimeout(() => {
-      const fullText = logs.join("");
+      const fullText = logs.join('');
       const matches: number[] = [];
       const query = searchQuery.toLowerCase();
       let index = 0;
@@ -190,22 +190,22 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
 
       setCurrentMatchIndex(matchIndex);
 
-      const fullText = logs.join("");
+      const fullText = logs.join('');
       const targetPosition = searchMatches[matchIndex];
       const textBefore = fullText.substring(0, targetPosition);
-      const lineNumber = textBefore.split("\n").length;
+      const lineNumber = textBefore.split('\n').length;
 
       if (logContainerRef.current) {
         const estimatedLineHeight = 20;
         const scrollPosition = Math.max(
           0,
-          (lineNumber - 3) * estimatedLineHeight
+          (lineNumber - 3) * estimatedLineHeight,
         );
         logContainerRef.current.scrollTop = scrollPosition;
         setAutoScroll(false);
       }
     },
-    [searchMatches, logs]
+    [searchMatches, logs],
   );
 
   const goToNextMatch = useCallback(() => {
@@ -223,10 +223,10 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
 
   const handleSearchKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setSearchQuery("");
+      if (e.key === 'Escape') {
+        setSearchQuery('');
         searchInputRef.current?.blur();
-      } else if (e.key === "Enter") {
+      } else if (e.key === 'Enter') {
         if (e.shiftKey) {
           goToPreviousMatch();
         } else {
@@ -234,7 +234,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         }
       }
     },
-    [goToNextMatch, goToPreviousMatch]
+    [goToNextMatch, goToPreviousMatch],
   );
 
   const scrollToBottom = useCallback(() => {
@@ -249,7 +249,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   }, []);
 
   const clearSearchQuery = useCallback(() => {
-    setSearchQuery("");
+    setSearchQuery('');
     searchInputRef.current?.focus();
   }, []);
 
@@ -257,11 +257,11 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setSearchQuery(e.target.value);
     },
-    []
+    [],
   );
 
   const handleCopyLogs = useCallback(() => {
-    navigator.clipboard.writeText(logs.join(""));
+    navigator.clipboard.writeText(logs.join(''));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [logs]);
@@ -276,7 +276,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       if (!query.trim()) return text;
 
       const parts = text.split(
-        new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi")
+        new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
       );
 
       return parts.map((part, i) => {
@@ -293,7 +293,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         return part;
       });
     },
-    []
+    [],
   );
 
   // ログテキストをメモ化
@@ -305,17 +305,17 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       <span
         key={i}
         className={
-          log.includes("[エラー]")
-            ? "text-red-400"
-            : log.includes("[エージェント]")
-              ? "text-emerald-400 font-semibold"
-              : log.includes("[実行開始]") ||
-                  log.includes("[継続]") ||
-                  log.includes("[完了]")
-                ? "text-blue-400"
+          log.includes('[エラー]')
+            ? 'text-red-400'
+            : log.includes('[エージェント]')
+              ? 'text-emerald-400 font-semibold'
+              : log.includes('[実行開始]') ||
+                  log.includes('[継続]') ||
+                  log.includes('[完了]')
+                ? 'text-blue-400'
                 : /^\[.+?\]/.test(log.trimStart())
-                  ? "text-cyan-400"
-                  : ""
+                  ? 'text-cyan-400'
+                  : ''
         }
       >
         {searchQuery ? highlightText(log, searchQuery) : log}
@@ -325,7 +325,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
 
   // ステータスバッジの内容をメモ化
   const statusBadge = useMemo(() => {
-    if (isRunning || status === "running") {
+    if (isRunning || status === 'running') {
       return (
         <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">
           <span className="w-1.5 h-1.5 bg-blue-400 rounded-full" />
@@ -333,7 +333,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         </span>
       );
     }
-    if (status === "cancelled") {
+    if (status === 'cancelled') {
       return (
         <span className="flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-xs">
           <Square className="w-3 h-3" />
@@ -341,7 +341,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         </span>
       );
     }
-    if (status === "completed") {
+    if (status === 'completed') {
       return (
         <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-xs">
           <CheckCircle2 className="w-3 h-3" />
@@ -349,7 +349,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         </span>
       );
     }
-    if (status === "failed") {
+    if (status === 'failed') {
       return (
         <span className="flex items-center gap-1 px-2 py-0.5 bg-red-500/20 text-red-400 rounded text-xs">
           <AlertCircle className="w-3 h-3" />
@@ -386,8 +386,8 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     <div
       className={`transition-all duration-300 ${
         isFullscreen
-          ? "fixed inset-4 z-50 bg-zinc-900 rounded-xl shadow-2xl flex flex-col"
-          : ""
+          ? 'fixed inset-4 z-50 bg-zinc-900 rounded-xl shadow-2xl flex flex-col'
+          : ''
       } ${className}`}
     >
       {showHeader && (
@@ -426,7 +426,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
                   <span className="text-xs text-zinc-400 whitespace-nowrap">
                     {searchMatches.length > 0
                       ? `${currentMatchIndex + 1}/${searchMatches.length}`
-                      : "0件"}
+                      : '0件'}
                   </span>
                   <button
                     onClick={goToPreviousMatch}
@@ -460,10 +460,10 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
               onClick={scrollToBottom}
               className={`p-1.5 rounded transition-colors ${
                 autoScroll
-                  ? "text-green-400 bg-zinc-700"
-                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
+                  ? 'text-green-400 bg-zinc-700'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
               }`}
-              title={autoScroll ? "自動スクロール中" : "最下部へスクロール"}
+              title={autoScroll ? '自動スクロール中' : '最下部へスクロール'}
             >
               <ArrowDown className="w-4 h-4" />
             </button>
@@ -481,7 +481,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
             <button
               onClick={toggleFullscreen}
               className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded transition-colors"
-              title={isFullscreen ? "縮小" : "拡大"}
+              title={isFullscreen ? '縮小' : '拡大'}
             >
               {isFullscreen ? (
                 <Minimize2 className="w-4 h-4" />
@@ -510,8 +510,8 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         onTouchStart={handleScrollStart}
         onTouchEnd={handleScrollEnd}
         className={`bg-zinc-900 overflow-auto font-mono text-sm ${
-          isFullscreen ? "flex-1" : ""
-        } ${showHeader ? "rounded-b-lg" : "rounded-lg"}`}
+          isFullscreen ? 'flex-1' : ''
+        } ${showHeader ? 'rounded-b-lg' : 'rounded-lg'}`}
         style={{ height: isFullscreen ? undefined : maxHeight }}
       >
         <pre className="p-4 text-zinc-300 whitespace-pre-wrap wrap-break-words">
@@ -521,7 +521,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
               実行ログを取得中...
             </span>
           )}
-          {(isRunning || status === "running") && logs.length > 0 && (
+          {(isRunning || status === 'running') && logs.length > 0 && (
             <span className="inline-flex w-2 h-4 bg-green-400 ml-1 animate-pulse" />
           )}
         </pre>

@@ -1,7 +1,7 @@
-"use client";
-import Link from "next/link";
-import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { useState, useEffect, useRef, type CSSProperties } from "react";
+'use client';
+import Link from 'next/link';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import {
   Menu,
   Home,
@@ -45,17 +45,17 @@ import {
   Loader2,
   Sparkles,
   NotebookTabs,
-} from "lucide-react";
-import AppIcon from "@/components/AppIcon";
-import GlobalPomodoroWidget from "@/feature/tasks/pomodoro/GlobalPomodoroWidget";
-import { OPEN_SHORTCUTS_EVENT } from "@/components/KeyboardShortcuts";
-import NotificationBell from "@/components/NotificationBell";
-import { useDarkMode } from "@/hooks/use-dark-mode";
-import { isTauri, hideToTray } from "@/utils/tauri";
-import { API_BASE_URL } from "@/utils/api";
-import { useShortcutStore, type ShortcutId } from "@/stores/shortcutStore";
-import { useAppModeStore, type AppMode } from "@/stores/appModeStore";
-import { useNoteStore } from "@/stores/noteStore";
+} from 'lucide-react';
+import AppIcon from '@/components/AppIcon';
+import GlobalPomodoroWidget from '@/feature/tasks/pomodoro/GlobalPomodoroWidget';
+import { OPEN_SHORTCUTS_EVENT } from '@/components/KeyboardShortcuts';
+import NotificationBell from '@/components/NotificationBell';
+import { useDarkMode } from '@/hooks/use-dark-mode';
+import { isTauri, hideToTray } from '@/utils/tauri';
+import { API_BASE_URL } from '@/utils/api';
+import { useShortcutStore, type ShortcutId } from '@/stores/shortcutStore';
+import { useAppModeStore, type AppMode } from '@/stores/appModeStore';
+import { useNoteStore } from '@/stores/noteStore';
 
 type NavItem = {
   href: string;
@@ -63,13 +63,13 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>;
   shortcut?: string;
   children?: NavItem[];
-  mode?: "development" | "learning";
+  mode?: 'development' | 'learning';
 };
 
 type LineStyleVars = {
-  "--line-duration": string;
-  "--line-stagger": string;
-  "--line-delay"?: string;
+  '--line-duration': string;
+  '--line-stagger': string;
+  '--line-delay'?: string;
 };
 
 type LineStyle = CSSProperties & LineStyleVars;
@@ -78,22 +78,22 @@ const LINE_ANIMATION_DURATION = 0.22;
 const LINE_STAGGER = 0.12;
 const LINE_DELAY_STEP = 0.08;
 const baseLineAnimationStyle: LineStyle = {
-  "--line-duration": `${LINE_ANIMATION_DURATION}s`,
-  "--line-stagger": `${LINE_STAGGER}s`,
+  '--line-duration': `${LINE_ANIMATION_DURATION}s`,
+  '--line-stagger': `${LINE_STAGGER}s`,
 };
 
 const lineStyle = (delay: string): LineStyle => ({
   ...baseLineAnimationStyle,
-  "--line-delay": delay,
+  '--line-delay': delay,
 });
 
 // パスがタスク詳細ページかどうかを判定するヘルパー関数
 const checkIsTaskDetailPage = (path: string | null): boolean => {
   if (!path) return false;
   return (
-    (!!path.match(/^\/tasks\/[^/]+$/) && !path.endsWith("/new")) ||
-    path.startsWith("/task-detail") ||
-    path.startsWith("/tasks/detail")
+    (!!path.match(/^\/tasks\/[^/]+$/) && !path.endsWith('/new')) ||
+    path.startsWith('/task-detail') ||
+    path.startsWith('/tasks/detail')
   );
 };
 
@@ -101,8 +101,8 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const hideHeader = searchParams.get("hideHeader") === "true";
-  const showHeader = searchParams.get("showHeader") === "true";
+  const hideHeader = searchParams.get('hideHeader') === 'true';
+  const showHeader = searchParams.get('showHeader') === 'true';
 
   // タスク詳細ページではヘッダーを非表示
   // /tasks/[id], /task-detail, /tasks/detail のパターンに対応
@@ -122,7 +122,7 @@ export default function Header() {
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isMenuPinned, setIsMenuPinned] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [isTauriEnv, setIsTauriEnv] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -144,11 +144,11 @@ export default function Header() {
     const binding = shortcutBindings.find((s) => s.id === id);
     if (!binding) return undefined;
     const parts: string[] = [];
-    if (binding.ctrl) parts.push("Ctrl");
-    if (binding.meta) parts.push("\u2318");
-    if (binding.shift) parts.push("\u21E7");
+    if (binding.ctrl) parts.push('Ctrl');
+    if (binding.meta) parts.push('\u2318');
+    if (binding.shift) parts.push('\u21E7');
     parts.push(binding.key.toUpperCase());
-    return parts.join("");
+    return parts.join('');
   };
 
   // サーバー再起動を実行
@@ -157,7 +157,7 @@ export default function Header() {
     setRestartConfirmDialog({ open: false, activeExecutions: 0 });
     setIsMoreMenuOpen(false);
     try {
-      await fetch(`${API_BASE_URL}/agents/restart`, { method: "POST" });
+      await fetch(`${API_BASE_URL}/agents/restart`, { method: 'POST' });
     } catch {
       // サーバーが停止するため接続エラーは想定内
     }
@@ -179,7 +179,7 @@ export default function Header() {
       // タイムアウトした場合もリロードを試行
       setIsRestarting(false);
       alert(
-        "サーバーの再起動がタイムアウトしました。手動でページをリロードしてください。",
+        'サーバーの再起動がタイムアウトしました。手動でページをリロードしてください。',
       );
     };
     waitForServer();
@@ -189,7 +189,7 @@ export default function Header() {
   const handleRestartClick = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/agents/system-status`);
-      if (!res.ok) throw new Error("Failed to fetch system status");
+      if (!res.ok) throw new Error('Failed to fetch system status');
       const status = await res.json();
       const activeCount =
         (status.activeExecutions || 0) + (status.runningExecutions || 0);
@@ -215,8 +215,8 @@ export default function Header() {
 
   // ピン止め状態をlocalStorageから復元
   useEffect(() => {
-    const savedPinned = localStorage.getItem("menuPinned");
-    if (savedPinned === "true") {
+    const savedPinned = localStorage.getItem('menuPinned');
+    if (savedPinned === 'true') {
       setIsMenuPinned(true);
       setIsMenuOpen(true);
     }
@@ -224,7 +224,7 @@ export default function Header() {
 
   // ピン止め状態をlocalStorageに保存
   useEffect(() => {
-    localStorage.setItem("menuPinned", isMenuPinned.toString());
+    localStorage.setItem('menuPinned', isMenuPinned.toString());
   }, [isMenuPinned]);
 
   // 検索のデバウンス処理
@@ -238,9 +238,9 @@ export default function Header() {
     debounceTimerRef.current = setTimeout(() => {
       if (searchQuery.trim()) {
         router.push(`/?search=${encodeURIComponent(searchQuery.trim())}`);
-      } else if (pathname === "/" || pathname === "/kanban") {
+      } else if (pathname === '/' || pathname === '/kanban') {
         // 検索クエリが空で、タスクページにいる場合のみクリア
-        const currentSearch = searchParams.get("search");
+        const currentSearch = searchParams.get('search');
         if (currentSearch) {
           router.push(pathname);
         }
@@ -257,7 +257,7 @@ export default function Header() {
 
   // URLの検索パラメータから初期値を設定
   useEffect(() => {
-    const search = searchParams.get("search");
+    const search = searchParams.get('search');
     if (search && searchQuery !== search) {
       setSearchQuery(search);
     }
@@ -276,11 +276,11 @@ export default function Header() {
     };
 
     if (isMenuOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isMenuOpen, isMenuPinned]);
 
@@ -296,11 +296,11 @@ export default function Header() {
     };
 
     if (isMoreMenuOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isMoreMenuOpen]);
 
@@ -311,160 +311,160 @@ export default function Header() {
 
   const navItems: NavItem[] = [
     {
-      href: "/",
-      label: "タスク一覧",
+      href: '/',
+      label: 'タスク一覧',
       icon: Home,
-      shortcut: getShortcutLabel("home"),
+      shortcut: getShortcutLabel('home'),
       children: [
         {
-          href: "#",
-          label: "カテゴリ",
+          href: '#',
+          label: 'カテゴリ',
           icon: FolderOpen,
           children: [
             {
-              href: "/categories",
-              label: "カテゴリ一覧",
+              href: '/categories',
+              label: 'カテゴリ一覧',
               icon: FolderKanban,
             },
             {
-              href: "/themes",
-              label: "テーマ一覧",
+              href: '/themes',
+              label: 'テーマ一覧',
               icon: SwatchBook,
             },
             {
-              href: "/labels",
-              label: "ラベル一覧",
+              href: '/labels',
+              label: 'ラベル一覧',
               icon: Tags,
             },
           ],
         },
         {
-          href: "/settings/developer-mode",
-          label: "タスク設定",
+          href: '/settings/developer-mode',
+          label: 'タスク設定',
           icon: Settings,
         },
       ],
     },
     {
-      href: "/dashboard",
-      label: "ダッシュボード",
+      href: '/dashboard',
+      label: 'ダッシュボード',
       icon: BarChart3,
-      shortcut: getShortcutLabel("dashboard"),
+      shortcut: getShortcutLabel('dashboard'),
     },
     {
-      href: "/calendar",
-      label: "カレンダー",
+      href: '/calendar',
+      label: 'カレンダー',
       icon: Calendar,
-      shortcut: getShortcutLabel("calendar"),
+      shortcut: getShortcutLabel('calendar'),
     },
     {
-      href: "#",
-      label: "学習",
+      href: '#',
+      label: '学習',
       icon: GraduationCap,
-      mode: "learning",
+      mode: 'learning',
       children: [
         {
-          href: "/learning-goals",
-          label: "学習目標",
+          href: '/learning-goals',
+          label: '学習目標',
           icon: BookMarked,
         },
         {
-          href: "/exam-goals",
-          label: "試験目標",
+          href: '/exam-goals',
+          label: '試験目標',
           icon: Target,
         },
         {
-          href: "/flashcards",
-          label: "フラッシュカード",
+          href: '/flashcards',
+          label: 'フラッシュカード',
           icon: Brain,
         },
       ],
     },
     {
-      href: "#",
-      label: "習慣・実績",
+      href: '#',
+      label: '習慣・実績',
       icon: Trophy,
       children: [
         {
-          href: "/habits",
-          label: "習慣トラッカー",
+          href: '/habits',
+          label: '習慣トラッカー',
           icon: Flame,
         },
         {
-          href: "/habits/daily-schedule",
-          label: "一日のスケジュール",
+          href: '/habits/daily-schedule',
+          label: '一日のスケジュール',
           icon: Clock,
         },
         {
-          href: "/achievements",
-          label: "実績・バッジ",
+          href: '/achievements',
+          label: '実績・バッジ',
           icon: Trophy,
         },
         {
-          href: "/reports",
-          label: "週次レポート",
+          href: '/reports',
+          label: '週次レポート',
           icon: FileText,
         },
       ],
     },
     {
-      href: "#",
-      label: "開発",
+      href: '#',
+      label: '開発',
       icon: Code,
-      mode: "development",
+      mode: 'development',
       children: [
         {
-          href: "#",
-          label: "GitHub",
+          href: '#',
+          label: 'GitHub',
           icon: Github,
           children: [
             {
-              href: "/github",
-              label: "ダッシュボード",
+              href: '/github',
+              label: 'ダッシュボード',
               icon: BarChart3,
             },
             {
-              href: "/github/pull-requests",
-              label: "Pull Requests",
+              href: '/github/pull-requests',
+              label: 'Pull Requests',
               icon: GitPullRequest,
             },
             {
-              href: "/github/issues",
-              label: "Issues",
+              href: '/github/issues',
+              label: 'Issues',
               icon: CircleDot,
             },
           ],
         },
         {
-          href: "/agents",
-          label: "エージェント管理",
+          href: '/agents',
+          label: 'エージェント管理',
           icon: Bot,
         },
         {
-          href: "/approvals",
-          label: "承認待ち",
+          href: '/approvals',
+          label: '承認待ち',
           icon: CheckCircle,
         },
         {
-          href: "/system-prompts",
-          label: "プロンプト管理",
+          href: '/system-prompts',
+          label: 'プロンプト管理',
           icon: MessageSquare,
         },
       ],
     },
     {
-      href: "/settings/general",
-      label: "全体設定",
+      href: '/settings/general',
+      label: '全体設定',
       icon: Settings,
     },
     {
-      href: "/settings",
-      label: "APIキー設定",
+      href: '/settings',
+      label: 'APIキー設定',
       icon: Key,
     },
     {
-      href: "/settings/shortcuts",
-      label: "ショートカット設定",
+      href: '/settings/shortcuts',
+      label: 'ショートカット設定',
       icon: Keyboard,
     },
   ];
@@ -473,7 +473,7 @@ export default function Header() {
     items: NavItem[],
     currentMode: AppMode,
   ): NavItem[] => {
-    if (currentMode === "all") return items;
+    if (currentMode === 'all') return items;
     return items.filter((item) => {
       if (!item.mode) return true;
       return item.mode === currentMode;
@@ -495,8 +495,8 @@ export default function Header() {
   };
 
   const isActive = (href: string) => {
-    if (href === "/") return pathname === "/" || pathname === "/kanban";
-    if (href === "#") return false;
+    if (href === '/') return pathname === '/' || pathname === '/kanban';
+    if (href === '#') return false;
     // 完全一致のみをアクティブとする
     // 子要素がアクティブな場合は isChildActive で別途ハイライトされるため、
     // ここでは完全一致のみを判定することで、複数項目が同時に選択される問題を防ぐ
@@ -512,13 +512,13 @@ export default function Header() {
     });
   };
 
-  const isListView = pathname === "/" || !pathname?.startsWith("/kanban");
+  const isListView = pathname === '/' || !pathname?.startsWith('/kanban');
 
   const toggleView = () => {
     if (isListView) {
-      router.push("/kanban");
+      router.push('/kanban');
     } else {
-      router.push("/");
+      router.push('/');
     }
   };
 
@@ -537,7 +537,7 @@ export default function Header() {
     const hasChildren = item.children && item.children.length > 0;
     const isExpanded = expandedItems.has(item.label);
     const childActive = isChildActive(item);
-    const hasValidLink = item.href !== "#";
+    const hasValidLink = item.href !== '#';
 
     // トップレベル（depth === 0）
     if (depth === 0) {
@@ -549,8 +549,8 @@ export default function Header() {
               <div
                 className={`flex items-center justify-between gap-1 px-4 py-3 rounded-lg transition-all ${
                   active || childActive
-                    ? "bg-indigo-50 dark:bg-indigo-900/20"
-                    : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    ? 'bg-indigo-50 dark:bg-indigo-900/20'
+                    : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
                 }`}
               >
                 <Link
@@ -558,14 +558,14 @@ export default function Header() {
                   onClick={() => !isMenuPinned && setIsMenuOpen(false)}
                   className={`flex-1 flex items-center gap-3 ${
                     active
-                      ? "text-indigo-700 dark:text-indigo-300 font-semibold"
+                      ? 'text-indigo-700 dark:text-indigo-300 font-semibold'
                       : childActive
-                        ? "text-indigo-700 dark:text-indigo-300"
-                        : "text-zinc-700 dark:text-zinc-300"
+                        ? 'text-indigo-700 dark:text-indigo-300'
+                        : 'text-zinc-700 dark:text-zinc-300'
                   }`}
                 >
                   <Icon
-                    className={`w-5 h-5 shrink-0 ${active ? "text-indigo-600 dark:text-indigo-400" : ""}`}
+                    className={`w-5 h-5 shrink-0 ${active ? 'text-indigo-600 dark:text-indigo-400' : ''}`}
                   />
                   <span className="font-medium">{item.label}</span>
                   {item.shortcut && (
@@ -591,8 +591,8 @@ export default function Header() {
                 onClick={() => toggleExpand(item.label)}
                 className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-all ${
                   childActive
-                    ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300"
-                    : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                    : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -614,8 +614,8 @@ export default function Header() {
                     <div key={child.label} className="relative">
                       {/* 縦線 */}
                       <div
-                        className={`absolute left-0 top-0 w-px bg-zinc-300 dark:bg-zinc-600 ${isLastChild ? "h-5" : "h-full"} ${
-                          isExpanded ? "line-animate-vertical" : ""
+                        className={`absolute left-0 top-0 w-px bg-zinc-300 dark:bg-zinc-600 ${isLastChild ? 'h-5' : 'h-full'} ${
+                          isExpanded ? 'line-animate-vertical' : ''
                         }`}
                         style={lineStyle(getLineDelay(depth, index))}
                       />
@@ -637,13 +637,13 @@ export default function Header() {
           onClick={() => !isMenuPinned && setIsMenuOpen(false)}
           className={`flex items-center justify-between gap-3 px-4 py-3 rounded-md transition-all ${
             active
-              ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-semibold border-l-2 border-indigo-500"
-              : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-semibold border-l-2 border-indigo-500'
+              : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
           }`}
         >
           <div className="flex items-center gap-3">
             <Icon
-              className={`w-5 h-5 shrink-0 ${active ? "text-indigo-600 dark:text-indigo-400" : ""}`}
+              className={`w-5 h-5 shrink-0 ${active ? 'text-indigo-600 dark:text-indigo-400' : ''}`}
             />
             <span className="font-medium">{item.label}</span>
           </div>
@@ -664,7 +664,7 @@ export default function Header() {
           <div className="relative h-10 flex items-center">
             <div
               className={`absolute left-0 top-1/2 w-4 h-px bg-zinc-300 dark:bg-zinc-600 ${
-                parentExpanded ? "line-animate-horizontal" : ""
+                parentExpanded ? 'line-animate-horizontal' : ''
               }`}
               style={lineStyle(getLineDelay(depth, 0))}
             />
@@ -673,8 +673,8 @@ export default function Header() {
                 <div
                   className={`flex items-center justify-between gap-1 px-3 py-1.5 rounded-md transition-all ${
                     active || childActive
-                      ? "bg-indigo-50 dark:bg-indigo-900/20"
-                      : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      ? 'bg-indigo-50 dark:bg-indigo-900/20'
+                      : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
                   }`}
                 >
                   <Link
@@ -682,14 +682,14 @@ export default function Header() {
                     onClick={() => !isMenuPinned && setIsMenuOpen(false)}
                     className={`flex-1 flex items-center gap-2.5 ${
                       active
-                        ? "text-indigo-700 dark:text-indigo-300 font-semibold"
+                        ? 'text-indigo-700 dark:text-indigo-300 font-semibold'
                         : childActive
-                          ? "text-indigo-700 dark:text-indigo-300"
-                          : "text-zinc-600 dark:text-zinc-400"
+                          ? 'text-indigo-700 dark:text-indigo-300'
+                          : 'text-zinc-600 dark:text-zinc-400'
                     }`}
                   >
                     <Icon
-                      className={`w-4 h-4 shrink-0 ${active ? "text-indigo-600 dark:text-indigo-400" : ""}`}
+                      className={`w-4 h-4 shrink-0 ${active ? 'text-indigo-600 dark:text-indigo-400' : ''}`}
                     />
                     <span className="text-sm">{item.label}</span>
                   </Link>
@@ -709,8 +709,8 @@ export default function Header() {
                   onClick={() => toggleExpand(item.label)}
                   className={`w-full flex items-center justify-between gap-2.5 px-3 py-1.5 rounded-md transition-all ${
                     childActive
-                      ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300"
-                      : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -735,8 +735,8 @@ export default function Header() {
                   <div key={child.label} className="relative">
                     {/* 縦線 */}
                     <div
-                      className={`absolute left-0 top-0 w-px bg-zinc-300 dark:bg-zinc-600 ${isLastChild ? "h-5" : "h-full"} ${
-                        parentExpanded ? "line-animate-vertical" : ""
+                      className={`absolute left-0 top-0 w-px bg-zinc-300 dark:bg-zinc-600 ${isLastChild ? 'h-5' : 'h-full'} ${
+                        parentExpanded ? 'line-animate-vertical' : ''
                       }`}
                       style={lineStyle(getLineDelay(depth, index))}
                     />
@@ -759,7 +759,7 @@ export default function Header() {
       <div key={item.href} className="relative h-10 flex items-center">
         <div
           className={`absolute left-0 top-1/2 w-4 h-px bg-zinc-300 dark:bg-zinc-600 ${
-            parentExpanded ? "line-animate-horizontal" : ""
+            parentExpanded ? 'line-animate-horizontal' : ''
           }`}
           style={lineStyle(getLineDelay(depth, 0))}
         />
@@ -768,12 +768,12 @@ export default function Header() {
           onClick={() => !isMenuPinned && setIsMenuOpen(false)}
           className={`ml-5 flex items-center gap-2.5 px-3 py-1.5 rounded-md transition-all ${
             active
-              ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-semibold border-l-2 border-indigo-500"
-              : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-semibold border-l-2 border-indigo-500'
+              : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
           }`}
         >
           <Icon
-            className={`w-4 h-4 shrink-0 ${active ? "text-indigo-600 dark:text-indigo-400" : ""}`}
+            className={`w-4 h-4 shrink-0 ${active ? 'text-indigo-600 dark:text-indigo-400' : ''}`}
           />
           <span className="text-sm">{item.label}</span>
         </Link>
@@ -814,7 +814,7 @@ export default function Header() {
             </div>
 
             {/* 検索バー（タスク一覧ページでのみ表示） */}
-            {(pathname === "/" || pathname === "/kanban") && (
+            {(pathname === '/' || pathname === '/kanban') && (
               <div className="flex-1 max-w-md mx-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
@@ -832,8 +832,8 @@ export default function Header() {
                         if (debounceTimerRef.current) {
                           clearTimeout(debounceTimerRef.current);
                         }
-                        setSearchQuery("");
-                        router.push(pathname === "/kanban" ? "/kanban" : "/");
+                        setSearchQuery('');
+                        router.push(pathname === '/kanban' ? '/kanban' : '/');
                       }}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
                     >
@@ -845,23 +845,23 @@ export default function Header() {
             )}
 
             {/* 検索バーがない場合のスペーサー */}
-            {pathname !== "/" && pathname !== "/kanban" && (
+            {pathname !== '/' && pathname !== '/kanban' && (
               <div className="flex-1" />
             )}
 
             {/* 表示切り替えボタン（タスク一覧/カンバンページのみ表示） */}
             <div className="flex items-center gap-3">
               {/* ポモドーロタイマー表示（タスク詳細ページでは非表示） */}
-              {!pathname?.startsWith("/tasks/") && <GlobalPomodoroWidget />}
+              {!pathname?.startsWith('/tasks/') && <GlobalPomodoroWidget />}
 
-              {(pathname === "/" || pathname === "/kanban") && (
+              {(pathname === '/' || pathname === '/kanban') && (
                 <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
                   <button
                     onClick={() => isListView || toggleView()}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
                       isListView
-                        ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm"
-                        : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50"
+                        ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
+                        : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50'
                     }`}
                   >
                     <List className="w-4 h-4" />
@@ -871,8 +871,8 @@ export default function Header() {
                     onClick={() => !isListView || toggleView()}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
                       !isListView
-                        ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm"
-                        : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50"
+                        ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 shadow-sm'
+                        : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50'
                     }`}
                   >
                     <Columns3 className="w-4 h-4" />
@@ -896,11 +896,11 @@ export default function Header() {
                 className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors relative"
                 title={
                   modalState.isOpen
-                    ? "ノート・AIを閉じる"
-                    : "ノート・AIを開く (Ctrl+E)"
+                    ? 'ノート・AIを閉じる'
+                    : 'ノート・AIを開く (Ctrl+E)'
                 }
               >
-                {modalState.activeTab === "ai" ? (
+                {modalState.activeTab === 'ai' ? (
                   <Sparkles className="w-5 h-5" />
                 ) : (
                   <NotebookTabs className="w-5 h-5" />
@@ -936,8 +936,8 @@ export default function Header() {
                       )}
                       <span>
                         {darkModeMounted && isDarkMode
-                          ? "ライトモードに切替"
-                          : "ダークモードに切替"}
+                          ? 'ライトモードに切替'
+                          : 'ダークモードに切替'}
                       </span>
                     </button>
                     {/* 全体設定 */}
@@ -976,7 +976,7 @@ export default function Header() {
                         <RotateCw className="w-4 h-4" />
                       )}
                       <span>
-                        {isRestarting ? "再起動中..." : "サーバー再起動"}
+                        {isRestarting ? '再起動中...' : 'サーバー再起動'}
                       </span>
                     </button>
                   </div>
@@ -991,7 +991,7 @@ export default function Header() {
       <nav
         ref={menuRef}
         className={`fixed left-0 top-0 h-full w-72 bg-white dark:bg-indigo-dark-900 shadow-2xl z-100 transform transition-transform duration-300 ${
-          isMenuOpen ? "translate-x-0" : "-translate-x-full"
+          isMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* ヘッダー */}
@@ -1008,13 +1008,13 @@ export default function Header() {
             onClick={() => setIsMenuPinned(!isMenuPinned)}
             className={`p-2 rounded-lg transition-colors ${
               isMenuPinned
-                ? "text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30"
-                : "text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30'
+                : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
             aria-label={
-              isMenuPinned ? "メニューの固定を解除" : "メニューを固定"
+              isMenuPinned ? 'メニューの固定を解除' : 'メニューを固定'
             }
-            title={isMenuPinned ? "メニューの固定を解除" : "メニューを固定"}
+            title={isMenuPinned ? 'メニューの固定を解除' : 'メニューを固定'}
           >
             {isMenuPinned ? (
               <PinOff className="w-5 h-5" />
@@ -1046,7 +1046,7 @@ export default function Header() {
                 <span className="text-sm">キーボードショートカット</span>
               </div>
               <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
-                {getShortcutLabel("shortcutHelp") || "⌘/"}
+                {getShortcutLabel('shortcutHelp') || '⌘/'}
               </kbd>
             </button>
           </div>
@@ -1061,10 +1061,10 @@ export default function Header() {
               サーバーを再起動しますか？
             </h3>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-              現在{" "}
+              現在{' '}
               <span className="font-semibold text-amber-600 dark:text-amber-400">
                 {restartConfirmDialog.activeExecutions}件
-              </span>{" "}
+              </span>{' '}
               のタスクが実行中です。再起動すると実行中のタスクは中断されます。
             </p>
             <div className="flex gap-3 justify-end">

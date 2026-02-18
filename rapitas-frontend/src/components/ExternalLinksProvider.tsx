@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import { useEffect } from 'react';
 import { setupExternalLinkHandlers } from '@/utils/external-links';
 import { useSplitViewExit } from '@/hooks/use-split-view-exit';
@@ -12,7 +12,9 @@ interface ExternalLinksProviderProps {
  * ページ読み込み時と動的コンテンツ変更時に外部リンクハンドラーを設定
  * Escキーで分割表示を終了する機能も提供
  */
-export default function ExternalLinksProvider({ children }: ExternalLinksProviderProps) {
+export default function ExternalLinksProvider({
+  children,
+}: ExternalLinksProviderProps) {
   // 分割表示の終了機能を有効化
   useSplitViewExit();
 

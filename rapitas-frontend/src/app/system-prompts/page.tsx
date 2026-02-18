@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { useState, useEffect } from 'react';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import {
   MessageSquare,
   Plus,
@@ -14,8 +14,8 @@ import {
   ChevronRight,
   Shield,
   Search,
-} from "lucide-react";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import { API_BASE_URL } from '@/utils/api';
 
 type SystemPrompt = {
   id: number;
@@ -31,11 +31,29 @@ type SystemPrompt = {
 };
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
-  general: { label: "一般", color: "bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300" },
-  analysis: { label: "分析", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
-  optimization: { label: "最適化", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
-  agent: { label: "エージェント", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
-  chat: { label: "チャット", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  general: {
+    label: '一般',
+    color: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300',
+  },
+  analysis: {
+    label: '分析',
+    color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  },
+  optimization: {
+    label: '最適化',
+    color:
+      'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  },
+  agent: {
+    label: 'エージェント',
+    color:
+      'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  },
+  chat: {
+    label: 'チャット',
+    color:
+      'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  },
 };
 
 export default function SystemPromptsPage() {
@@ -44,8 +62,8 @@ export default function SystemPromptsPage() {
   const [editingPrompt, setEditingPrompt] = useState<SystemPrompt | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
-  const [filterCategory, setFilterCategory] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchPrompts();
@@ -63,7 +81,7 @@ export default function SystemPromptsPage() {
         }
       }
     } catch (error) {
-      console.error("Failed to fetch system prompts:", error);
+      console.error('Failed to fetch system prompts:', error);
     } finally {
       setLoading(false);
     }
@@ -71,21 +89,21 @@ export default function SystemPromptsPage() {
 
   const seedPrompts = async () => {
     try {
-      await fetch(`${API_BASE_URL}/system-prompts/seed`, { method: "POST" });
+      await fetch(`${API_BASE_URL}/system-prompts/seed`, { method: 'POST' });
       const res = await fetch(`${API_BASE_URL}/system-prompts`);
       if (res.ok) {
         setPrompts(await res.json());
       }
     } catch (error) {
-      console.error("Failed to seed system prompts:", error);
+      console.error('Failed to seed system prompts:', error);
     }
   };
 
   const handleSave = async (key: string, updates: Partial<SystemPrompt>) => {
     try {
       const res = await fetch(`${API_BASE_URL}/system-prompts/${key}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
       if (res.ok) {
@@ -93,39 +111,40 @@ export default function SystemPromptsPage() {
         fetchPrompts();
       }
     } catch (error) {
-      console.error("Failed to update system prompt:", error);
+      console.error('Failed to update system prompt:', error);
     }
   };
 
   const handleReset = async (key: string) => {
-    if (!confirm("このプロンプトをデフォルトの内容にリセットしますか？")) return;
+    if (!confirm('このプロンプトをデフォルトの内容にリセットしますか？'))
+      return;
     try {
       const res = await fetch(`${API_BASE_URL}/system-prompts/${key}/reset`, {
-        method: "POST",
+        method: 'POST',
       });
       if (res.ok) {
         setEditingPrompt(null);
         fetchPrompts();
       }
     } catch (error) {
-      console.error("Failed to reset system prompt:", error);
+      console.error('Failed to reset system prompt:', error);
     }
   };
 
   const handleDelete = async (key: string) => {
-    if (!confirm("このプロンプトを削除しますか？")) return;
+    if (!confirm('このプロンプトを削除しますか？')) return;
     try {
       const res = await fetch(`${API_BASE_URL}/system-prompts/${key}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       if (res.ok) {
         fetchPrompts();
       } else {
         const data = await res.json();
-        alert(data.error || "削除に失敗しました");
+        alert(data.error || '削除に失敗しました');
       }
     } catch (error) {
-      console.error("Failed to delete system prompt:", error);
+      console.error('Failed to delete system prompt:', error);
     }
   };
 
@@ -142,13 +161,13 @@ export default function SystemPromptsPage() {
   };
 
   const filteredPrompts = prompts.filter((p) => {
-    if (filterCategory !== "all" && p.category !== filterCategory) return false;
+    if (filterCategory !== 'all' && p.category !== filterCategory) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       return (
         p.name.toLowerCase().includes(q) ||
         p.key.toLowerCase().includes(q) ||
-        (p.description || "").toLowerCase().includes(q) ||
+        (p.description || '').toLowerCase().includes(q) ||
         p.content.toLowerCase().includes(q)
       );
     }
@@ -208,11 +227,11 @@ export default function SystemPromptsPage() {
           </div>
           <div className="flex gap-2 flex-wrap">
             <button
-              onClick={() => setFilterCategory("all")}
+              onClick={() => setFilterCategory('all')}
               className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                filterCategory === "all"
-                  ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
-                  : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                filterCategory === 'all'
+                  ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
+                  : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
               } border border-zinc-200 dark:border-zinc-700`}
             >
               すべて
@@ -223,8 +242,8 @@ export default function SystemPromptsPage() {
                 onClick={() => setFilterCategory(key)}
                 className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
                   filterCategory === key
-                    ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
-                    : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                    ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
+                    : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                 } border border-zinc-200 dark:border-zinc-700`}
               >
                 {label}
@@ -238,49 +257,58 @@ export default function SystemPromptsPage() {
           <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
             <MessageSquare className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
             <p className="text-zinc-500 dark:text-zinc-400">
-              {searchQuery ? "検索条件に一致するプロンプトがありません" : "プロンプトがありません"}
+              {searchQuery
+                ? '検索条件に一致するプロンプトがありません'
+                : 'プロンプトがありません'}
             </p>
           </div>
         ) : (
           <div className="space-y-6">
-            {Object.entries(groupedPrompts).map(([category, categoryPrompts]) => {
-              const categoryInfo = CATEGORY_LABELS[category] || {
-                label: category,
-                color: "bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300",
-              };
+            {Object.entries(groupedPrompts).map(
+              ([category, categoryPrompts]) => {
+                const categoryInfo = CATEGORY_LABELS[category] || {
+                  label: category,
+                  color:
+                    'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300',
+                };
 
-              return (
-                <div key={category}>
-                  <h2 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded text-xs ${categoryInfo.color}`}>
-                      {categoryInfo.label}
-                    </span>
-                    <span className="text-zinc-400 dark:text-zinc-600">
-                      ({categoryPrompts.length})
-                    </span>
-                  </h2>
-                  <div className="space-y-3">
-                    {categoryPrompts.map((prompt) => (
-                      <PromptCard
-                        key={prompt.key}
-                        prompt={prompt}
-                        isExpanded={expandedKeys.has(prompt.key)}
-                        isEditing={editingPrompt?.key === prompt.key}
-                        onToggleExpand={() => toggleExpand(prompt.key)}
-                        onEdit={() => setEditingPrompt(prompt)}
-                        onCancelEdit={() => setEditingPrompt(null)}
-                        onSave={(updates) => handleSave(prompt.key, updates)}
-                        onReset={() => handleReset(prompt.key)}
-                        onDelete={() => handleDelete(prompt.key)}
-                        onToggleActive={() =>
-                          handleSave(prompt.key, { isActive: !prompt.isActive })
-                        }
-                      />
-                    ))}
+                return (
+                  <div key={category}>
+                    <h2 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs ${categoryInfo.color}`}
+                      >
+                        {categoryInfo.label}
+                      </span>
+                      <span className="text-zinc-400 dark:text-zinc-600">
+                        ({categoryPrompts.length})
+                      </span>
+                    </h2>
+                    <div className="space-y-3">
+                      {categoryPrompts.map((prompt) => (
+                        <PromptCard
+                          key={prompt.key}
+                          prompt={prompt}
+                          isExpanded={expandedKeys.has(prompt.key)}
+                          isEditing={editingPrompt?.key === prompt.key}
+                          onToggleExpand={() => toggleExpand(prompt.key)}
+                          onEdit={() => setEditingPrompt(prompt)}
+                          onCancelEdit={() => setEditingPrompt(null)}
+                          onSave={(updates) => handleSave(prompt.key, updates)}
+                          onReset={() => handleReset(prompt.key)}
+                          onDelete={() => handleDelete(prompt.key)}
+                          onToggleActive={() =>
+                            handleSave(prompt.key, {
+                              isActive: !prompt.isActive,
+                            })
+                          }
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              },
+            )}
           </div>
         )}
       </div>
@@ -322,9 +350,9 @@ function PromptCard({
   onDelete: () => void;
   onToggleActive: () => void;
 }) {
-  const [editContent, setEditContent] = useState("");
-  const [editName, setEditName] = useState("");
-  const [editDescription, setEditDescription] = useState("");
+  const [editContent, setEditContent] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
 
   useEffect(() => {
     if (isEditing) {
@@ -332,7 +360,7 @@ function PromptCard({
       const timeoutId = setTimeout(() => {
         setEditContent(prompt.content);
         setEditName(prompt.name);
-        setEditDescription(prompt.description || "");
+        setEditDescription(prompt.description || '');
       }, 0);
       return () => clearTimeout(timeoutId);
     }
@@ -340,15 +368,15 @@ function PromptCard({
 
   const categoryInfo = CATEGORY_LABELS[prompt.category] || {
     label: prompt.category,
-    color: "bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300",
+    color: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300',
   };
 
   return (
     <div
       className={`bg-white dark:bg-zinc-800 rounded-lg border transition-all ${
         prompt.isActive
-          ? "border-zinc-200 dark:border-zinc-700"
-          : "border-zinc-200 dark:border-zinc-700 opacity-60"
+          ? 'border-zinc-200 dark:border-zinc-700'
+          : 'border-zinc-200 dark:border-zinc-700 opacity-60'
       }`}
     >
       {/* ヘッダー */}
@@ -375,7 +403,9 @@ function PromptCard({
                   デフォルト
                 </span>
               )}
-              <span className={`px-1.5 py-0.5 text-xs rounded shrink-0 ${categoryInfo.color}`}>
+              <span
+                className={`px-1.5 py-0.5 text-xs rounded shrink-0 ${categoryInfo.color}`}
+              >
                 {categoryInfo.label}
               </span>
             </div>
@@ -386,19 +416,20 @@ function PromptCard({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0 ml-3" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="flex items-center gap-2 shrink-0 ml-3"
+          onClick={(e) => e.stopPropagation()}
+        >
           {/* 有効/無効トグル */}
           <button
             onClick={onToggleActive}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              prompt.isActive
-                ? "bg-indigo-600"
-                : "bg-zinc-300 dark:bg-zinc-600"
+              prompt.isActive ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-zinc-600'
             }`}
           >
             <span
               className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                prompt.isActive ? "translate-x-6" : "translate-x-1"
+                prompt.isActive ? 'translate-x-6' : 'translate-x-1'
               }`}
             />
           </button>
@@ -483,9 +514,12 @@ function PromptCard({
             <div>
               <div className="flex items-center justify-between mb-3">
                 <div className="text-xs text-zinc-400 dark:text-zinc-500">
-                  キー: <code className="px-1 py-0.5 bg-zinc-100 dark:bg-zinc-700 rounded">{prompt.key}</code>
+                  キー:{' '}
+                  <code className="px-1 py-0.5 bg-zinc-100 dark:bg-zinc-700 rounded">
+                    {prompt.key}
+                  </code>
                   <span className="mx-2">|</span>
-                  更新: {new Date(prompt.updatedAt).toLocaleString("ja-JP")}
+                  更新: {new Date(prompt.updatedAt).toLocaleString('ja-JP')}
                 </div>
                 <div className="flex items-center gap-1">
                   <button
@@ -533,34 +567,34 @@ function AddPromptModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [key, setKey] = useState("");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [content, setContent] = useState("");
-  const [category, setCategory] = useState("general");
+  const [key, setKey] = useState('');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [content, setContent] = useState('');
+  const [category, setCategory] = useState('general');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setError('');
 
     if (!key.trim() || !name.trim() || !content.trim()) {
-      setError("キー、名前、プロンプト内容は必須です");
+      setError('キー、名前、プロンプト内容は必須です');
       return;
     }
 
     // キーのバリデーション
     if (!/^[a-z0-9_]+$/.test(key)) {
-      setError("キーは英小文字、数字、アンダースコアのみ使用できます");
+      setError('キーは英小文字、数字、アンダースコアのみ使用できます');
       return;
     }
 
     setSaving(true);
     try {
       const res = await fetch(`${API_BASE_URL}/system-prompts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key, name, description, content, category }),
       });
 
@@ -568,10 +602,10 @@ function AddPromptModal({
         onSuccess();
       } else {
         const data = await res.json();
-        setError(data.error || "プロンプトの追加に失敗しました");
+        setError(data.error || 'プロンプトの追加に失敗しました');
       }
     } catch {
-      setError("プロンプトの追加に失敗しました");
+      setError('プロンプトの追加に失敗しました');
     } finally {
       setSaving(false);
     }
@@ -599,7 +633,9 @@ function AddPromptModal({
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
                     required
                   />
-                  <p className="text-xs text-zinc-400 mt-1">英小文字、数字、アンダースコアのみ</p>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    英小文字、数字、アンダースコアのみ
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
@@ -610,11 +646,13 @@ function AddPromptModal({
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   >
-                    {Object.entries(CATEGORY_LABELS).map(([value, { label }]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
+                    {Object.entries(CATEGORY_LABELS).map(
+                      ([value, { label }]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ),
+                    )}
                   </select>
                 </div>
               </div>
@@ -658,7 +696,9 @@ function AddPromptModal({
               </div>
             </div>
             {error && (
-              <p className="text-sm text-red-600 dark:text-red-400 mt-4">{error}</p>
+              <p className="text-sm text-red-600 dark:text-red-400 mt-4">
+                {error}
+              </p>
             )}
             <div className="flex justify-end gap-3 mt-6">
               <button
@@ -673,7 +713,7 @@ function AddPromptModal({
                 disabled={saving}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
               >
-                {saving ? "追加中..." : "追加"}
+                {saving ? '追加中...' : '追加'}
               </button>
             </div>
           </form>

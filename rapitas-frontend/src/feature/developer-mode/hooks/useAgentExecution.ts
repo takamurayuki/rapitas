@@ -1,6 +1,10 @@
-import { useState, useCallback } from "react";
-import type { AgentExecution, AgentExecutionStatus, AIAgentConfig } from "@/types";
-import { API_BASE_URL } from "@/utils/api";
+import { useState, useCallback } from 'react';
+import type {
+  AgentExecution,
+  AgentExecutionStatus,
+  AIAgentConfig,
+} from '@/types';
+import { API_BASE_URL } from '@/utils/api';
 
 export type ExecuteTaskOptions = {
   agentConfigId?: number;
@@ -27,16 +31,23 @@ export type UseAgentExecutionReturn = {
   isExecuting: boolean;
   currentExecution: AgentExecution | null;
   error: string | null;
-  executeTask: (taskId: number, options?: ExecuteTaskOptions) => Promise<{ sessionId: number } | { approvalRequestId: number }>;
+  executeTask: (
+    taskId: number,
+    options?: ExecuteTaskOptions,
+  ) => Promise<{ sessionId: number } | { approvalRequestId: number }>;
   stopExecution: (sessionId: number) => Promise<void>;
   getSession: (sessionId: number) => Promise<AgentSessionResponse>;
   getAgents: () => Promise<AIAgentConfig[]>;
-  getAgentTypes: () => Promise<{ registered: RegisteredAgentType[]; available: string[] }>;
+  getAgentTypes: () => Promise<{
+    registered: RegisteredAgentType[];
+    available: string[];
+  }>;
 };
 
 export function useAgentExecution(): UseAgentExecutionReturn {
   const [isExecuting, setIsExecuting] = useState(false);
-  const [currentExecution, setCurrentExecution] = useState<AgentExecution | null>(null);
+  const [currentExecution, setCurrentExecution] =
+    useState<AgentExecution | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const executeTask = useCallback(
@@ -46,15 +57,15 @@ export function useAgentExecution(): UseAgentExecutionReturn {
 
       try {
         const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/execute`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(options),
         });
 
         const data = await res.json();
 
         if (!res.ok) {
-          throw new Error(data.error || "Execution failed");
+          throw new Error(data.error || 'Execution failed');
         }
 
         if (data.requiresApproval) {
@@ -63,28 +74,31 @@ export function useAgentExecution(): UseAgentExecutionReturn {
 
         return { sessionId: data.sessionId };
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
+        const message = err instanceof Error ? err.message : 'Unknown error';
         setError(message);
         throw err;
       } finally {
         setIsExecuting(false);
       }
     },
-    []
+    [],
   );
 
   const stopExecution = useCallback(async (sessionId: number) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/agents/sessions/${sessionId}/stop`, {
-        method: "POST",
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/agents/sessions/${sessionId}/stop`,
+        {
+          method: 'POST',
+        },
+      );
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to stop execution");
+        throw new Error(data.error || 'Failed to stop execution');
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
+      const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);
       throw err;
     }
@@ -93,7 +107,7 @@ export function useAgentExecution(): UseAgentExecutionReturn {
   const getSession = useCallback(async (sessionId: number) => {
     const res = await fetch(`${API_BASE_URL}/agents/sessions/${sessionId}`);
     if (!res.ok) {
-      throw new Error("Failed to fetch session");
+      throw new Error('Failed to fetch session');
     }
     return res.json();
   }, []);
@@ -101,7 +115,7 @@ export function useAgentExecution(): UseAgentExecutionReturn {
   const getAgents = useCallback(async () => {
     const res = await fetch(`${API_BASE_URL}/agents`);
     if (!res.ok) {
-      throw new Error("Failed to fetch agents");
+      throw new Error('Failed to fetch agents');
     }
     return res.json();
   }, []);
@@ -109,7 +123,7 @@ export function useAgentExecution(): UseAgentExecutionReturn {
   const getAgentTypes = useCallback(async () => {
     const res = await fetch(`${API_BASE_URL}/agents/types`);
     if (!res.ok) {
-      throw new Error("Failed to fetch agent types");
+      throw new Error('Failed to fetch agent types');
     }
     return res.json();
   }, []);

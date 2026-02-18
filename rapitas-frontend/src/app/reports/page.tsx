@@ -1,6 +1,6 @@
-"use client";
-import { useEffect, useState } from "react";
-import type { WeeklyReport } from "@/types";
+'use client';
+import { useEffect, useState } from 'react';
+import type { WeeklyReport } from '@/types';
 import {
   FileText,
   TrendingUp,
@@ -10,9 +10,9 @@ import {
   CheckCircle2,
   Clock,
   BarChart3,
-} from "lucide-react";
-import { API_BASE_URL } from "@/utils/api";
-import BurndownChart from "@/components/BurndownChart";
+} from 'lucide-react';
+import { API_BASE_URL } from '@/utils/api';
+import BurndownChart from '@/components/BurndownChart';
 
 export default function ReportsPage() {
   const [report, setReport] = useState<WeeklyReport | null>(null);
@@ -29,7 +29,7 @@ export default function ReportsPage() {
         setReport(await res.json());
       }
     } catch (e) {
-      console.error("Failed to fetch report:", e);
+      console.error('Failed to fetch report:', e);
     } finally {
       setLoading(false);
     }
@@ -40,23 +40,27 @@ export default function ReportsPage() {
       const res = await fetch(`${API_BASE_URL}/export/tasks`);
       if (res.ok) {
         const data = await res.json();
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const blob = new Blob([JSON.stringify(data, null, 2)], {
+          type: 'application/json',
+        });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
+        const a = document.createElement('a');
         a.href = url;
-        a.download = `rapitas-export-${new Date().toISOString().split("T")[0]}.json`;
+        a.download = `rapitas-export-${new Date().toISOString().split('T')[0]}.json`;
         a.click();
         URL.revokeObjectURL(url);
       }
     } catch (e) {
-      console.error("Failed to export:", e);
+      console.error('Failed to export:', e);
     }
   };
 
   const getTrend = (value: number) => {
-    if (value > 0) return { icon: TrendingUp, color: "text-emerald-500", text: `+${value}` };
-    if (value < 0) return { icon: TrendingDown, color: "text-red-500", text: `${value}` };
-    return { icon: Minus, color: "text-zinc-400", text: "±0" };
+    if (value > 0)
+      return { icon: TrendingUp, color: 'text-emerald-500', text: `+${value}` };
+    if (value < 0)
+      return { icon: TrendingDown, color: 'text-red-500', text: `${value}` };
+    return { icon: Minus, color: 'text-zinc-400', text: '±0' };
   };
 
   if (loading) {
@@ -96,8 +100,8 @@ export default function ReportsPage() {
               週次レポート
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {new Date(report.period.start).toLocaleDateString("ja-JP")} 〜{" "}
-              {new Date(report.period.end).toLocaleDateString("ja-JP")}
+              {new Date(report.period.start).toLocaleDateString('ja-JP')} 〜{' '}
+              {new Date(report.period.end).toLocaleDateString('ja-JP')}
             </p>
           </div>
         </div>
@@ -118,7 +122,9 @@ export default function ReportsPage() {
               <CheckCircle2 className="w-5 h-5" />
               <span className="text-sm">完了タスク</span>
             </div>
-            <div className={`flex items-center gap-1 text-sm ${tasksTrend.color}`}>
+            <div
+              className={`flex items-center gap-1 text-sm ${tasksTrend.color}`}
+            >
               <tasksTrend.icon className="w-4 h-4" />
               <span>{tasksTrend.text}</span>
             </div>
@@ -137,7 +143,9 @@ export default function ReportsPage() {
               <Clock className="w-5 h-5" />
               <span className="text-sm">学習時間</span>
             </div>
-            <div className={`flex items-center gap-1 text-sm ${hoursTrend.color}`}>
+            <div
+              className={`flex items-center gap-1 text-sm ${hoursTrend.color}`}
+            >
               <hoursTrend.icon className="w-4 h-4" />
               <span>{hoursTrend.text}h</span>
             </div>
@@ -161,19 +169,26 @@ export default function ReportsPage() {
         <div className="space-y-6">
           {/* タスク完了グラフ */}
           <div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">タスク完了数</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">
+              タスク完了数
+            </p>
             <div className="flex items-end gap-2 h-24">
               {report.dailyData.map((day) => (
-                <div key={day.date} className="flex-1 flex flex-col items-center">
+                <div
+                  key={day.date}
+                  className="flex-1 flex flex-col items-center"
+                >
                   <div
                     className="w-full bg-indigo-500 rounded-t transition-all"
                     style={{
                       height: `${(day.tasks / maxDailyTasks) * 100}%`,
-                      minHeight: day.tasks > 0 ? "4px" : "0",
+                      minHeight: day.tasks > 0 ? '4px' : '0',
                     }}
                   />
                   <span className="text-xs text-zinc-400 mt-1">
-                    {new Date(day.date).toLocaleDateString("ja-JP", { weekday: "short" })}
+                    {new Date(day.date).toLocaleDateString('ja-JP', {
+                      weekday: 'short',
+                    })}
                   </span>
                 </div>
               ))}
@@ -182,15 +197,20 @@ export default function ReportsPage() {
 
           {/* 学習時間グラフ */}
           <div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">学習時間</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">
+              学習時間
+            </p>
             <div className="flex items-end gap-2 h-24">
               {report.dailyData.map((day) => (
-                <div key={day.date} className="flex-1 flex flex-col items-center">
+                <div
+                  key={day.date}
+                  className="flex-1 flex flex-col items-center"
+                >
                   <div
                     className="w-full bg-emerald-500 rounded-t transition-all"
                     style={{
                       height: `${(day.hours / maxDailyHours) * 100}%`,
-                      minHeight: day.hours > 0 ? "4px" : "0",
+                      minHeight: day.hours > 0 ? '4px' : '0',
                     }}
                   />
                   <span className="text-xs text-zinc-400 mt-1">
@@ -214,14 +234,17 @@ export default function ReportsPage() {
           </h2>
           <div className="space-y-3">
             {report.subjectBreakdown.map((item) => {
-              const total = report.subjectBreakdown.reduce((sum, i) => sum + i.count, 0);
+              const total = report.subjectBreakdown.reduce(
+                (sum, i) => sum + i.count,
+                0,
+              );
               const percentage = Math.round((item.count / total) * 100);
 
               return (
-                <div key={item.subject || "other"}>
+                <div key={item.subject || 'other'}>
                   <div className="flex items-center justify-between text-sm mb-1">
                     <span className="text-zinc-700 dark:text-zinc-300">
-                      {item.subject || "その他"}
+                      {item.subject || 'その他'}
                     </span>
                     <span className="text-zinc-500 dark:text-zinc-400">
                       {item.count}件 ({percentage}%)

@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from 'react';
 import {
   isTauri,
   openExternalUrlInSplitView,
   isSplitViewActive,
-} from "@/utils/tauri";
+} from '@/utils/tauri';
 
 interface UseSplitViewReturn {
   /** 分割表示が現在アクティブかどうか */
@@ -52,7 +52,7 @@ export function useSplitView(): UseSplitViewReturn {
         // 少し遅延してから状態を更新（ウィンドウ操作が完了するまで待機）
         setTimeout(checkSplitViewStatus, 500);
       } catch (error) {
-        console.error("Failed to open split view:", error);
+        console.error('Failed to open split view:', error);
       }
     },
     [checkSplitViewStatus],

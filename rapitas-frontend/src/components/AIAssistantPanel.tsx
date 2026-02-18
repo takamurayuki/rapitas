@@ -1,5 +1,5 @@
-"use client";
-import { useState, useRef, useEffect, useCallback } from "react";
+'use client';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Bot,
   Send,
@@ -12,46 +12,51 @@ import {
   X,
   Minimize2,
   Maximize2,
-} from "lucide-react";
-import { useAIChat } from "./note/useAIChat";
-import { fetchConfiguredProviders, fetchAvailableModels } from "./note/aiService";
-import Link from "next/link";
-import type { AIChatMessage, ApiProvider } from "@/types";
-import { useUIModeStore } from "@/stores/uiModeStore";
+} from 'lucide-react';
+import { useAIChat } from './note/useAIChat';
+import {
+  fetchConfiguredProviders,
+  fetchAvailableModels,
+} from './note/aiService';
+import Link from 'next/link';
+import type { AIChatMessage, ApiProvider } from '@/types';
+import { useUIModeStore } from '@/stores/uiModeStore';
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
-  claude: "Claude",
-  chatgpt: "ChatGPT",
-  gemini: "Gemini",
+  claude: 'Claude',
+  chatgpt: 'ChatGPT',
+  gemini: 'Gemini',
 };
 
 const PROVIDER_COLORS: Record<ApiProvider, string> = {
-  claude: "bg-orange-500",
-  chatgpt: "bg-green-500",
-  gemini: "bg-blue-500",
+  claude: 'bg-orange-500',
+  chatgpt: 'bg-green-500',
+  gemini: 'bg-blue-500',
 };
 
 const ChatMessage = ({ message }: { message: AIChatMessage }) => {
-  const isUser = message.role === "user";
+  const isUser = message.role === 'user';
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-4`}>
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
       <div
         className={`max-w-[70%] rounded-2xl px-4 py-3 ${
           isUser
-            ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-br-md"
-            : "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-bl-md shadow-md"
+            ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-br-md'
+            : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-bl-md shadow-md'
         }`}
       >
-        <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+        <p className="text-sm whitespace-pre-wrap leading-relaxed">
+          {message.content}
+        </p>
         <span
           className={`text-xs mt-1 block ${
-            isUser ? "text-blue-100" : "text-zinc-400 dark:text-zinc-500"
+            isUser ? 'text-blue-100' : 'text-zinc-400 dark:text-zinc-500'
           }`}
         >
-          {message.timestamp.toLocaleTimeString("ja-JP", {
-            hour: "2-digit",
-            minute: "2-digit",
+          {message.timestamp.toLocaleTimeString('ja-JP', {
+            hour: '2-digit',
+            minute: '2-digit',
           })}
         </span>
       </div>
@@ -61,25 +66,24 @@ const ChatMessage = ({ message }: { message: AIChatMessage }) => {
 
 export default function AIAssistantPanel() {
   const { currentMode } = useUIModeStore();
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // プロバイダー/モデル選択
-  const [selectedProvider, setSelectedProvider] = useState<ApiProvider>("claude");
-  const [selectedModel, setSelectedModel] = useState<string>("");
-  const [configuredProviders, setConfiguredProviders] = useState<ApiProvider[]>([]);
-  const [availableModels, setAvailableModels] = useState<Record<string, { value: string; label: string }[]>>({});
+  const [selectedProvider, setSelectedProvider] =
+    useState<ApiProvider>('claude');
+  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [configuredProviders, setConfiguredProviders] = useState<ApiProvider[]>(
+    [],
+  );
+  const [availableModels, setAvailableModels] = useState<
+    Record<string, { value: string; label: string }[]>
+  >({});
 
-  const {
-    messages,
-    isLoading,
-    error,
-    sendMessage,
-    clearMessages,
-  } = useAIChat({
+  const { messages, isLoading, error, sendMessage, clearMessages } = useAIChat({
     systemPrompt: `あなたはRapi+アプリケーションのAIアシスタントです。ユーザーのタスク管理、学習、開発作業に関する質問に日本語で丁寧に回答してください。`,
     provider: selectedProvider,
     model: selectedModel || undefined,
@@ -99,13 +103,13 @@ export default function AIAssistantPanel() {
   // メッセージリストを自動スクロール
   useEffect(() => {
     if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
 
   // AIモードに切り替わった時にフォーカス
   useEffect(() => {
-    if (currentMode === "ai" && inputRef.current) {
+    if (currentMode === 'ai' && inputRef.current) {
       setTimeout(() => {
         inputRef.current?.focus();
       }, 100);
@@ -115,13 +119,13 @@ export default function AIAssistantPanel() {
   const handleSendMessage = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
     const message = inputValue;
-    setInputValue("");
+    setInputValue('');
     await sendMessage(message);
   }, [inputValue, isLoading, sendMessage]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSendMessage();
       }
@@ -132,7 +136,7 @@ export default function AIAssistantPanel() {
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       setInputValue(e.target.value);
-      e.target.style.height = "auto";
+      e.target.style.height = 'auto';
       e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
     },
     [],
@@ -141,7 +145,7 @@ export default function AIAssistantPanel() {
   const currentModels = availableModels[selectedProvider] || [];
 
   // AIモードでない場合は表示しない
-  if (currentMode !== "ai") return null;
+  if (currentMode !== 'ai') return null;
 
   return (
     <div className="fixed inset-0 top-16 z-30 bg-zinc-50 dark:bg-zinc-900 flex flex-col">
@@ -155,8 +159,12 @@ export default function AIAssistantPanel() {
                 <Sparkles className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">AIアシスタント</h2>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">何でもお気軽にご質問ください</p>
+                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                  AIアシスタント
+                </h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  何でもお気軽にご質問ください
+                </p>
               </div>
               {configuredProviders.length > 0 && (
                 <span className="px-2 py-1 bg-zinc-100 dark:bg-zinc-700 rounded-lg text-xs font-medium">
@@ -169,8 +177,8 @@ export default function AIAssistantPanel() {
                 onClick={() => setShowSettings(!showSettings)}
                 className={`p-2 rounded-lg transition-colors ${
                   showSettings
-                    ? "bg-zinc-100 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                    ? 'bg-zinc-100 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100'
+                    : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                 }`}
                 title="AI設定"
               >
@@ -188,9 +196,13 @@ export default function AIAssistantPanel() {
               <button
                 onClick={() => setIsMinimized(!isMinimized)}
                 className="p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
-                title={isMinimized ? "展開" : "最小化"}
+                title={isMinimized ? '展開' : '最小化'}
               >
-                {isMinimized ? <Maximize2 className="w-5 h-5" /> : <Minimize2 className="w-5 h-5" />}
+                {isMinimized ? (
+                  <Maximize2 className="w-5 h-5" />
+                ) : (
+                  <Minimize2 className="w-5 h-5" />
+                )}
               </button>
             </div>
           </div>
@@ -204,35 +216,45 @@ export default function AIAssistantPanel() {
                     AIプロバイダー
                   </label>
                   <div className="flex gap-2">
-                    {(["claude", "chatgpt", "gemini"] as ApiProvider[]).map((p) => {
-                      const isConfigured = configuredProviders.includes(p);
-                      const isSelected = selectedProvider === p;
-                      return (
-                        <button
-                          key={p}
-                          onClick={() => {
-                            if (isConfigured) {
-                              setSelectedProvider(p);
-                              setSelectedModel("");
+                    {(['claude', 'chatgpt', 'gemini'] as ApiProvider[]).map(
+                      (p) => {
+                        const isConfigured = configuredProviders.includes(p);
+                        const isSelected = selectedProvider === p;
+                        return (
+                          <button
+                            key={p}
+                            onClick={() => {
+                              if (isConfigured) {
+                                setSelectedProvider(p);
+                                setSelectedModel('');
+                              }
+                            }}
+                            disabled={!isConfigured}
+                            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                              isSelected
+                                ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md'
+                                : isConfigured
+                                  ? 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-600'
+                                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed'
+                            }`}
+                            title={
+                              isConfigured
+                                ? PROVIDER_LABELS[p]
+                                : `${PROVIDER_LABELS[p]}（未設定）`
                             }
-                          }}
-                          disabled={!isConfigured}
-                          className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                            isSelected
-                              ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md"
-                              : isConfigured
-                              ? "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-600"
-                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed"
-                          }`}
-                          title={isConfigured ? PROVIDER_LABELS[p] : `${PROVIDER_LABELS[p]}（未設定）`}
-                        >
-                          <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
-                            isConfigured ? PROVIDER_COLORS[p] : "bg-zinc-300 dark:bg-zinc-600"
-                          }`} />
-                          {PROVIDER_LABELS[p]}
-                        </button>
-                      );
-                    })}
+                          >
+                            <span
+                              className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                                isConfigured
+                                  ? PROVIDER_COLORS[p]
+                                  : 'bg-zinc-300 dark:bg-zinc-600'
+                              }`}
+                            />
+                            {PROVIDER_LABELS[p]}
+                          </button>
+                        );
+                      },
+                    )}
                   </div>
                   {configuredProviders.length === 0 && (
                     <Link
@@ -270,9 +292,11 @@ export default function AIAssistantPanel() {
         </div>
 
         {/* メッセージエリア */}
-        <div className={`flex-1 bg-white dark:bg-zinc-800 border-x border-zinc-200 dark:border-zinc-700 overflow-hidden ${
-          isMinimized ? "h-0" : ""
-        }`}>
+        <div
+          className={`flex-1 bg-white dark:bg-zinc-800 border-x border-zinc-200 dark:border-zinc-700 overflow-hidden ${
+            isMinimized ? 'h-0' : ''
+          }`}
+        >
           <div className="h-full overflow-y-auto p-6 custom-scrollbar">
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center">
@@ -283,7 +307,8 @@ export default function AIAssistantPanel() {
                   AIアシスタントへようこそ
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-md">
-                  タスク管理、学習計画、コーディングの質問など、<br />
+                  タスク管理、学習計画、コーディングの質問など、
+                  <br />
                   あなたの作業をサポートします。
                 </p>
               </div>
@@ -317,7 +342,8 @@ export default function AIAssistantPanel() {
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm">{error}</p>
-                {(error.includes("APIキーが設定されていません") || error.includes("APIキーが無効です")) && (
+                {(error.includes('APIキーが設定されていません') ||
+                  error.includes('APIキーが無効です')) && (
                   <Link
                     href="/settings"
                     className="inline-flex items-center gap-1 mt-2 text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
@@ -332,9 +358,11 @@ export default function AIAssistantPanel() {
         )}
 
         {/* 入力エリア */}
-        <div className={`bg-white dark:bg-zinc-800 rounded-b-2xl border border-zinc-200 dark:border-zinc-700 p-4 ${
-          isMinimized ? "hidden" : ""
-        }`}>
+        <div
+          className={`bg-white dark:bg-zinc-800 rounded-b-2xl border border-zinc-200 dark:border-zinc-700 p-4 ${
+            isMinimized ? 'hidden' : ''
+          }`}
+        >
           <div className="flex items-end gap-3">
             <textarea
               ref={inputRef}

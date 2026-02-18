@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 // LocalStorageの読み書きを最適化するカスタムフック
 export function useLocalStorageState<T>(
   key: string,
-  defaultValue: T
+  defaultValue: T,
 ): [T, (value: T) => void] {
   // 初回のみLocalStorageから読み込み（クライアントサイドのみ）
   const [state, setState] = useState<T>(() => {
@@ -32,7 +32,10 @@ export function useLocalStorageState<T>(
           setState(JSON.parse(item));
         }
       } catch (error) {
-        console.error(`Error reading localStorage key "${key}" on mount:`, error);
+        console.error(
+          `Error reading localStorage key "${key}" on mount:`,
+          error,
+        );
       }
     }, 0);
 
@@ -56,7 +59,7 @@ export function useLocalStorageState<T>(
         console.error(`Error saving to localStorage key "${key}":`, error);
       }
     },
-    [key]
+    [key],
   );
 
   // 他のタブでの変更を検知
@@ -68,7 +71,10 @@ export function useLocalStorageState<T>(
         try {
           setState(JSON.parse(e.newValue));
         } catch (error) {
-          console.error(`Error parsing localStorage change for key "${key}":`, error);
+          console.error(
+            `Error parsing localStorage change for key "${key}":`,
+            error,
+          );
         }
       }
     };

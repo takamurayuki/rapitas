@@ -1,7 +1,7 @@
-"use client";
-import { useState, useEffect } from "react";
-import { Coffee, Pause, Hourglass } from "lucide-react";
-import GlobalPomodoroModal from "./GlobalPomodoroModal";
+'use client';
+import { useState, useEffect } from 'react';
+import { Coffee, Pause, Hourglass } from 'lucide-react';
+import GlobalPomodoroModal from './GlobalPomodoroModal';
 import {
   usePomodoroStore,
   formatTime,
@@ -9,8 +9,8 @@ import {
   DEFAULT_SHORT_BREAK,
   DEFAULT_LONG_BREAK,
   PomodoroState,
-} from "./pomodoroStore";
-import { API_BASE_URL } from "@/utils/api";
+} from './pomodoroStore';
+import { API_BASE_URL } from '@/utils/api';
 
 export default function GlobalPomodoroWidget() {
   const [showModal, setShowModal] = useState(false);
@@ -53,19 +53,20 @@ export default function GlobalPomodoroWidget() {
 
   // タスクが削除されていないか定期的に確認（全てのhookは条件付きreturnの前に配置）
   useEffect(() => {
-    if (!state?._hasHydrated || !state?.isTimerRunning || !state?.taskId) return;
+    if (!state?._hasHydrated || !state?.isTimerRunning || !state?.taskId)
+      return;
 
     const checkTaskExists = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/tasks/${state.taskId}`);
         if (!res.ok) {
           // タスクが見つからない場合はタイマーを停止
-          console.log("Task not found, stopping timer");
+          console.log('Task not found, stopping timer');
           stopTimer();
         }
       } catch (err) {
         // ネットワークエラーなどの場合はタイマーを停止しない
-        console.error("Failed to check task existence:", err);
+        console.error('Failed to check task existence:', err);
       }
     };
 
@@ -101,12 +102,15 @@ export default function GlobalPomodoroWidget() {
 
   // 残り時間を計算
   const getRemainingTimeLocal = () => {
-    const pomodoroDuration = settings?.pomodoroDuration || DEFAULT_POMODORO_DURATION;
-    const shortBreakDuration = settings?.shortBreakDuration || DEFAULT_SHORT_BREAK;
+    const pomodoroDuration =
+      settings?.pomodoroDuration || DEFAULT_POMODORO_DURATION;
+    const shortBreakDuration =
+      settings?.shortBreakDuration || DEFAULT_SHORT_BREAK;
     const longBreakDuration = settings?.longBreakDuration || DEFAULT_LONG_BREAK;
 
     if (isBreakTime) {
-      const breakDuration = (pomodoroCount || 0) % 4 === 0 ? longBreakDuration : shortBreakDuration;
+      const breakDuration =
+        (pomodoroCount || 0) % 4 === 0 ? longBreakDuration : shortBreakDuration;
       return breakDuration - (pomodoroSeconds || 0);
     }
     return pomodoroDuration - (pomodoroSeconds || 0);
@@ -128,12 +132,12 @@ export default function GlobalPomodoroWidget() {
   // ステータスに基づいてスタイルを決定
   const getButtonStyle = () => {
     if (isBreakTime) {
-      return "bg-green-50 dark:bg-green-950 border-green-300 dark:border-green-700";
+      return 'bg-green-50 dark:bg-green-950 border-green-300 dark:border-green-700';
     } else if (isPaused) {
-      return "bg-orange-50 dark:bg-orange-950 border-orange-300 dark:border-orange-700";
+      return 'bg-orange-50 dark:bg-orange-950 border-orange-300 dark:border-orange-700';
     }
     // 作業中（アクティブ）状態
-    return "bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-700";
+    return 'bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-700';
   };
 
   return (

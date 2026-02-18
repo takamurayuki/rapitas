@@ -1,5 +1,5 @@
-"use client";
-import { useState, useRef, useCallback } from "react";
+'use client';
+import { useState, useRef, useCallback } from 'react';
 import {
   Upload,
   X,
@@ -12,24 +12,24 @@ import {
   Loader2,
   Check,
   Eye,
-} from "lucide-react";
-import type { Resource } from "@/types";
-import { API_BASE_URL } from "@/utils/api";
-import FileViewer from "@/components/file-viewer/FileViewer";
+} from 'lucide-react';
+import type { Resource } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
+import FileViewer from '@/components/file-viewer/FileViewer';
 
 // ダウンロード状態の型
-type DownloadState = "idle" | "downloading" | "completed";
+type DownloadState = 'idle' | 'downloading' | 'completed';
 
 // ファイルをダウンロードする関数
 async function downloadFile(url: string, fileName: string) {
   try {
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error("ダウンロードに失敗しました");
+      throw new Error('ダウンロードに失敗しました');
     }
     const blob = await response.blob();
     const blobUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+    const link = document.createElement('a');
     link.href = blobUrl;
     link.download = fileName;
     document.body.appendChild(link);
@@ -37,7 +37,7 @@ async function downloadFile(url: string, fileName: string) {
     document.body.removeChild(link);
     URL.revokeObjectURL(blobUrl);
   } catch (error) {
-    console.error("Download error:", error);
+    console.error('Download error:', error);
     throw error;
   }
 }
@@ -65,17 +65,17 @@ export default function FileUploader({
   // ダウンロード処理（アニメーション付き）
   const handleDownload = useCallback(
     async (resourceId: number, url: string, fileName: string) => {
-      setDownloadStates((prev) => ({ ...prev, [resourceId]: "downloading" }));
+      setDownloadStates((prev) => ({ ...prev, [resourceId]: 'downloading' }));
       try {
         await downloadFile(url, fileName);
-        setDownloadStates((prev) => ({ ...prev, [resourceId]: "completed" }));
+        setDownloadStates((prev) => ({ ...prev, [resourceId]: 'completed' }));
         // 2秒後にアイドル状態に戻す
         setTimeout(() => {
-          setDownloadStates((prev) => ({ ...prev, [resourceId]: "idle" }));
+          setDownloadStates((prev) => ({ ...prev, [resourceId]: 'idle' }));
         }, 2000);
       } catch (e) {
-        setDownloadStates((prev) => ({ ...prev, [resourceId]: "idle" }));
-        setError(e instanceof Error ? e.message : "ダウンロードに失敗しました");
+        setDownloadStates((prev) => ({ ...prev, [resourceId]: 'idle' }));
+        setError(e instanceof Error ? e.message : 'ダウンロードに失敗しました');
       }
     },
     [],
@@ -90,24 +90,24 @@ export default function FileUploader({
       try {
         for (const file of Array.from(files)) {
           const formData = new FormData();
-          formData.append("file", file);
-          formData.append("taskId", taskId.toString());
+          formData.append('file', file);
+          formData.append('taskId', taskId.toString());
 
           const res = await fetch(`${API_BASE_URL}/resources/upload`, {
-            method: "POST",
+            method: 'POST',
             body: formData,
           });
 
           if (!res.ok) {
             const errorData = await res.json().catch(() => ({}));
-            throw new Error(errorData.message || "アップロードに失敗しました");
+            throw new Error(errorData.message || 'アップロードに失敗しました');
           }
           await res.json();
         }
 
         onResourcesChange();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "アップロードに失敗しました");
+        setError(e instanceof Error ? e.message : 'アップロードに失敗しました');
       } finally {
         setIsUploading(false);
       }
@@ -159,38 +159,38 @@ export default function FileUploader({
     }
     // Reset input
     if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+      fileInputRef.current.value = '';
     }
   };
 
   const handleDelete = async (resourceId: number) => {
     try {
       const res = await fetch(`${API_BASE_URL}/resources/${resourceId}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
 
       if (!res.ok) {
-        throw new Error("削除に失敗しました");
+        throw new Error('削除に失敗しました');
       }
 
       onResourcesChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "削除に失敗しました");
+      setError(e instanceof Error ? e.message : '削除に失敗しました');
     }
   };
 
   const getFileIcon = (resource: Resource) => {
-    if (resource.type === "image" || resource.mimeType?.startsWith("image/")) {
+    if (resource.type === 'image' || resource.mimeType?.startsWith('image/')) {
       return <Image className="w-4 h-4 text-emerald-500" />;
     }
-    if (resource.type === "pdf" || resource.mimeType === "application/pdf") {
+    if (resource.type === 'pdf' || resource.mimeType === 'application/pdf') {
       return <FileText className="w-4 h-4 text-rose-500" />;
     }
     return <File className="w-4 h-4 text-blue-500" />;
   };
 
   const formatFileSize = (bytes?: number | null) => {
-    if (!bytes) return "";
+    if (!bytes) return '';
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -200,19 +200,19 @@ export default function FileUploader({
     if (resource.filePath) {
       return `${API_BASE_URL}/resources/file/${resource.filePath}`;
     }
-    return resource.url || "#";
+    return resource.url || '#';
   };
 
   const getDownloadUrl = (resource: Resource) => {
     if (resource.filePath) {
       return `${API_BASE_URL}/resources/download/${resource.filePath}`;
     }
-    return resource.url || "#";
+    return resource.url || '#';
   };
 
   const fileResources = resources.filter(
     (r) =>
-      r.filePath || r.type === "file" || r.type === "image" || r.type === "pdf",
+      r.filePath || r.type === 'file' || r.type === 'image' || r.type === 'pdf',
   );
 
   return (
@@ -221,8 +221,8 @@ export default function FileUploader({
       <div
         className={`relative border-2 border-dashed rounded-xl p-4 transition-all cursor-pointer ${
           dragActive
-            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-            : "border-zinc-200 dark:border-zinc-700 hover:border-blue-200 dark:hover:border-blue-500"
+            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+            : 'border-zinc-200 dark:border-zinc-700 hover:border-blue-200 dark:hover:border-blue-500'
         }`}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -247,8 +247,8 @@ export default function FileUploader({
           <div>
             <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
               {isUploading
-                ? "アップロード中..."
-                : "ファイルをドラッグ&ドロップ"}
+                ? 'アップロード中...'
+                : 'ファイルをドラッグ&ドロップ'}
             </p>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
               または クリックして選択（最大10MB）
@@ -280,7 +280,7 @@ export default function FileUploader({
               className="flex items-center gap-3 p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg group"
             >
               {/* Preview or Icon */}
-              {resource.type === "image" && resource.filePath ? (
+              {resource.type === 'image' && resource.filePath ? (
                 <div className="w-10 h-10 rounded-lg overflow-hidden bg-zinc-200 dark:bg-zinc-700 shrink-0">
                   <img
                     src={getFileUrl(resource)}
@@ -301,7 +301,7 @@ export default function FileUploader({
                 </p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
                   {formatFileSize(resource.fileSize)}
-                  {resource.mimeType && ` • ${resource.mimeType.split("/")[1]}`}
+                  {resource.mimeType && ` • ${resource.mimeType.split('/')[1]}`}
                 </p>
               </div>
 
@@ -329,39 +329,39 @@ export default function FileUploader({
                       handleDownload(
                         resource.id,
                         getDownloadUrl(resource),
-                        resource.fileName || resource.title || "download",
+                        resource.fileName || resource.title || 'download',
                       )
                     }
-                    disabled={downloadStates[resource.id] === "downloading"}
+                    disabled={downloadStates[resource.id] === 'downloading'}
                     className={`relative p-1.5 rounded-lg transition-all duration-300 ${
-                      downloadStates[resource.id] === "completed"
-                        ? "text-emerald-500 bg-emerald-100 dark:bg-emerald-900/40 scale-110"
-                        : downloadStates[resource.id] === "downloading"
-                          ? "text-blue-500 bg-blue-50 dark:bg-blue-900/30"
-                          : "text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                      downloadStates[resource.id] === 'completed'
+                        ? 'text-emerald-500 bg-emerald-100 dark:bg-emerald-900/40 scale-110'
+                        : downloadStates[resource.id] === 'downloading'
+                          ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                          : 'text-zinc-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30'
                     }`}
                     title={
-                      downloadStates[resource.id] === "completed"
-                        ? "ダウンロード完了"
-                        : downloadStates[resource.id] === "downloading"
-                          ? "ダウンロード中..."
-                          : "ダウンロード"
+                      downloadStates[resource.id] === 'completed'
+                        ? 'ダウンロード完了'
+                        : downloadStates[resource.id] === 'downloading'
+                          ? 'ダウンロード中...'
+                          : 'ダウンロード'
                     }
                   >
-                    {downloadStates[resource.id] === "completed" ? (
+                    {downloadStates[resource.id] === 'completed' ? (
                       <Check className="w-4 h-4 animate-[successPop_0.4s_ease-out]" />
-                    ) : downloadStates[resource.id] === "downloading" ? (
+                    ) : downloadStates[resource.id] === 'downloading' ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <Download className="w-4 h-4" />
                     )}
                     {/* Ripple effect on completion */}
-                    {downloadStates[resource.id] === "completed" && (
+                    {downloadStates[resource.id] === 'completed' && (
                       <span className="absolute inset-0 rounded-lg bg-emerald-400/30 animate-[ripple_0.6s_ease-out]" />
                     )}
                   </button>
                   {/* Success tooltip */}
-                  {downloadStates[resource.id] === "completed" && (
+                  {downloadStates[resource.id] === 'completed' && (
                     <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 rounded-md whitespace-nowrap animate-[fadeInUp_0.3s_ease-out] shadow-sm">
                       完了!
                     </span>

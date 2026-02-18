@@ -1,5 +1,5 @@
-"use client";
-import { useState, useCallback, useEffect } from "react";
+'use client';
+import { useState, useCallback, useEffect } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -13,9 +13,9 @@ import {
   PlusCircle,
   Trash2,
   Clock,
-} from "lucide-react";
-import type { Priority } from "@/types";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import type { Priority } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
 
 type TaskSuggestion = {
   title: string;
@@ -25,13 +25,13 @@ type TaskSuggestion = {
   description: string | null;
   labelIds: number[];
   reason?: string | null;
-  category?: "recurring" | "extension" | "improvement" | "new";
+  category?: 'recurring' | 'extension' | 'improvement' | 'new';
 };
 
 type AiSuggestionsResponse = {
   suggestions: TaskSuggestion[];
   analysis: string | null;
-  source: "ai" | "ai_error" | "insufficient_data" | "none" | "cache";
+  source: 'ai' | 'ai_error' | 'insufficient_data' | 'none' | 'cache';
 };
 
 type TaskSuggestionsProps = {
@@ -50,28 +50,27 @@ const CATEGORY_CONFIG: Record<
   { label: string; icon: React.ReactNode; color: string }
 > = {
   recurring: {
-    label: "定期",
+    label: '定期',
     icon: <Repeat className="w-2.5 h-2.5" />,
-    color:
-      "bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400",
+    color: 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400',
   },
   extension: {
-    label: "発展",
+    label: '発展',
     icon: <ArrowRight className="w-2.5 h-2.5" />,
     color:
-      "bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400",
+      'bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400',
   },
   improvement: {
-    label: "改善",
+    label: '改善',
     icon: <Wrench className="w-2.5 h-2.5" />,
     color:
-      "bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400",
+      'bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400',
   },
   new: {
-    label: "新規",
+    label: '新規',
     icon: <PlusCircle className="w-2.5 h-2.5" />,
     color:
-      "bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400",
+      'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400',
   },
 };
 
@@ -105,11 +104,11 @@ export default function TaskSuggestions({
       setIsCacheLoading(true);
       try {
         const res = await fetch(
-          `${API_BASE_URL}/tasks/suggestions/ai/cache?themeId=${themeId}`
+          `${API_BASE_URL}/tasks/suggestions/ai/cache?themeId=${themeId}`,
         );
         if (res.ok) {
           const data: AiSuggestionsResponse = await res.json();
-          if (data.source === "cache" && data.suggestions.length > 0) {
+          if (data.source === 'cache' && data.suggestions.length > 0) {
             setAiSuggestions(data.suggestions);
             setAiAnalysis(data.analysis);
             setIsCached(true);
@@ -133,60 +132,66 @@ export default function TaskSuggestions({
   }, [themeId]);
 
   // AI提案をフェッチ（ボタン押下時のみ実行）
-  const fetchAiSuggestions = useCallback(async (forceRefresh = false) => {
-    if (!themeId) return;
+  const fetchAiSuggestions = useCallback(
+    async (forceRefresh = false) => {
+      if (!themeId) return;
 
-    setIsAiLoading(true);
-    setAiError(false);
+      setIsAiLoading(true);
+      setAiError(false);
 
-    // キャッシュ確認（強制リフレッシュでない場合）
-    if (!forceRefresh) {
+      // キャッシュ確認（強制リフレッシュでない場合）
+      if (!forceRefresh) {
+        try {
+          const cacheRes = await fetch(
+            `${API_BASE_URL}/tasks/suggestions/ai/cache?themeId=${themeId}`,
+          );
+          if (cacheRes.ok) {
+            const cacheData: AiSuggestionsResponse = await cacheRes.json();
+            if (
+              cacheData.source === 'cache' &&
+              cacheData.suggestions.length > 0
+            ) {
+              setAiSuggestions(cacheData.suggestions);
+              setAiAnalysis(cacheData.analysis);
+              setIsCached(true);
+              setIsAiLoading(false);
+              setIsExpanded(true);
+              return;
+            }
+          }
+        } catch (e) {
+          // キャッシュ取得失敗時はAI生成にフォールバック
+        }
+      }
+
       try {
-        const cacheRes = await fetch(
-          `${API_BASE_URL}/tasks/suggestions/ai/cache?themeId=${themeId}`
+        const res = await fetch(
+          `${API_BASE_URL}/tasks/suggestions/ai?themeId=${themeId}&limit=5`,
         );
-        if (cacheRes.ok) {
-          const cacheData: AiSuggestionsResponse = await cacheRes.json();
-          if (cacheData.source === "cache" && cacheData.suggestions.length > 0) {
-            setAiSuggestions(cacheData.suggestions);
-            setAiAnalysis(cacheData.analysis);
-            setIsCached(true);
-            setIsAiLoading(false);
+        if (res.ok) {
+          const data: AiSuggestionsResponse = await res.json();
+          if (data.source === 'ai' && data.suggestions.length > 0) {
+            setAiSuggestions(data.suggestions);
+            setAiAnalysis(data.analysis);
+            setIsCached(false); // 新規生成なのでキャッシュフラグはfalse
             setIsExpanded(true);
-            return;
+          } else {
+            setAiSuggestions([]);
+            setAiAnalysis(null);
+            if (data.source === 'ai_error') {
+              setAiError(true);
+            }
           }
         }
       } catch (e) {
-        // キャッシュ取得失敗時はAI生成にフォールバック
+        console.error('Failed to fetch AI suggestions:', e);
+        setAiError(true);
+      } finally {
+        setIsAiLoading(false);
       }
-    }
-
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/tasks/suggestions/ai?themeId=${themeId}&limit=5`
-      );
-      if (res.ok) {
-        const data: AiSuggestionsResponse = await res.json();
-        if (data.source === "ai" && data.suggestions.length > 0) {
-          setAiSuggestions(data.suggestions);
-          setAiAnalysis(data.analysis);
-          setIsCached(false); // 新規生成なのでキャッシュフラグはfalse
-          setIsExpanded(true);
-        } else {
-          setAiSuggestions([]);
-          setAiAnalysis(null);
-          if (data.source === "ai_error") {
-            setAiError(true);
-          }
-        }
-      }
-    } catch (e) {
-      console.error("Failed to fetch AI suggestions:", e);
-      setAiError(true);
-    } finally {
-      setIsAiLoading(false);
-    }
-  }, [themeId]);
+    },
+    [themeId],
+  );
 
   const clearCache = useCallback(async () => {
     if (!themeId) return;
@@ -194,7 +199,7 @@ export default function TaskSuggestions({
     try {
       await fetch(
         `${API_BASE_URL}/tasks/suggestions/ai/cache?themeId=${themeId}`,
-        { method: "DELETE" }
+        { method: 'DELETE' },
       );
     } catch (e) {
       // Ignore
@@ -209,9 +214,9 @@ export default function TaskSuggestions({
   const handleApply = (suggestion: TaskSuggestion) => {
     onApply({
       title: suggestion.title,
-      priority: (suggestion.priority as Priority) ?? "medium",
-      estimatedHours: suggestion.estimatedHours?.toString() ?? "",
-      description: suggestion.description ?? "",
+      priority: (suggestion.priority as Priority) ?? 'medium',
+      estimatedHours: suggestion.estimatedHours?.toString() ?? '',
+      description: suggestion.description ?? '',
       labelIds: suggestion.labelIds ?? [],
     });
   };
@@ -235,7 +240,9 @@ export default function TaskSuggestions({
       <div
         onClick={handleHeaderClick}
         className={`flex items-center justify-between px-4 py-2.5 ${
-          canExpand ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/30" : ""
+          canExpand
+            ? 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/30'
+            : ''
         } transition-colors`}
       >
         <div className="flex items-center gap-1.5">
@@ -250,7 +257,7 @@ export default function TaskSuggestions({
           )}
           {!isCacheLoading && hasSuggestions && (
             <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 font-medium">
-              {isCached ? "前回の提案" : ""} {aiSuggestions.length}件
+              {isCached ? '前回の提案' : ''} {aiSuggestions.length}件
             </span>
           )}
         </div>
@@ -367,11 +374,13 @@ export default function TaskSuggestions({
                   {suggestion.category && (
                     <span
                       className={`shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold ${
-                        CATEGORY_CONFIG[suggestion.category]?.color ?? CATEGORY_CONFIG.new.color
+                        CATEGORY_CONFIG[suggestion.category]?.color ??
+                        CATEGORY_CONFIG.new.color
                       }`}
                     >
-                      {CATEGORY_CONFIG[suggestion.category]?.icon ?? CATEGORY_CONFIG.new.icon}
-                      {CATEGORY_CONFIG[suggestion.category]?.label ?? "新規"}
+                      {CATEGORY_CONFIG[suggestion.category]?.icon ??
+                        CATEGORY_CONFIG.new.icon}
+                      {CATEGORY_CONFIG[suggestion.category]?.label ?? '新規'}
                     </span>
                   )}
 
@@ -386,8 +395,8 @@ export default function TaskSuggestions({
                   <p
                     className={`mt-1 text-[10px] text-zinc-500 dark:text-zinc-400 leading-relaxed transition-all ${
                       hoveredIndex === idx
-                        ? "max-h-20 opacity-100"
-                        : "max-h-0 opacity-0 overflow-hidden"
+                        ? 'max-h-20 opacity-100'
+                        : 'max-h-0 opacity-0 overflow-hidden'
                     }`}
                   >
                     {suggestion.reason}
@@ -405,7 +414,9 @@ export default function TaskSuggestions({
                 onClick={() => setIsListExpanded(!isListExpanded)}
                 className="text-[10px] text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
               >
-                {isListExpanded ? "閉じる" : `もっと見る (${aiSuggestions.length - 3})`}
+                {isListExpanded
+                  ? '閉じる'
+                  : `もっと見る (${aiSuggestions.length - 3})`}
               </button>
             </div>
           )}

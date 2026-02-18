@@ -1,6 +1,6 @@
-import { create } from "zustand";
-import type { Task, Status } from "@/types";
-import { API_BASE_URL, fetchWithRetry } from "@/utils/api";
+import { create } from 'zustand';
+import type { Task, Status } from '@/types';
+import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
 
 type TaskCacheState = {
   tasks: Task[];
@@ -32,9 +32,9 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
     try {
       const res = await fetchWithRetry(`${API_BASE_URL}/tasks`);
       if (!res.ok) {
-        const text = await res.text().catch(() => "<no body>");
-        console.error("GET /tasks failed:", res.status, res.statusText, text);
-        throw new Error("取得に失敗しました");
+        const text = await res.text().catch(() => '<no body>');
+        console.error('GET /tasks failed:', res.status, res.statusText, text);
+        throw new Error('取得に失敗しました');
       }
       const data: Task[] = await res.json();
       set({
@@ -43,7 +43,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
         initialized: true,
       });
     } catch (e) {
-      console.error("[taskCacheStore] fetchAll error:", e);
+      console.error('[taskCacheStore] fetchAll error:', e);
     } finally {
       set({ loading: false });
     }
@@ -61,7 +61,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
         `${API_BASE_URL}/tasks?since=${encodeURIComponent(lastFetchedAt)}`,
       );
       if (!res.ok) {
-        console.error("[taskCacheStore] fetchUpdates failed:", res.status);
+        console.error('[taskCacheStore] fetchUpdates failed:', res.status);
         return;
       }
 
@@ -98,7 +98,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
         });
       }
     } catch (e) {
-      console.error("[taskCacheStore] fetchUpdates error:", e);
+      console.error('[taskCacheStore] fetchUpdates error:', e);
     }
   },
 

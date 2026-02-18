@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import {
   CheckCircle,
   XCircle,
@@ -15,18 +15,18 @@ import {
   ListChecks,
   Code2,
   GitPullRequest,
-} from "lucide-react";
-import { useApprovals } from "@/feature/developer-mode/hooks/useApprovals";
-import { ExecutionReviewPanel } from "@/feature/developer-mode/components/ExecutionReviewPanel";
-import Pagination from "@/components/ui/pagination/Pagination";
-import type { ApprovalRequest, Priority, FileDiff } from "@/types";
-import { priorityColors, priorityLabels } from "@/types";
-import { getTaskDetailPath } from "@/utils/tauri";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import { useApprovals } from '@/feature/developer-mode/hooks/useApprovals';
+import { ExecutionReviewPanel } from '@/feature/developer-mode/components/ExecutionReviewPanel';
+import Pagination from '@/components/ui/pagination/Pagination';
+import type { ApprovalRequest, Priority, FileDiff } from '@/types';
+import { priorityColors, priorityLabels } from '@/types';
+import { getTaskDetailPath } from '@/utils/tauri';
+import { API_BASE_URL } from '@/utils/api';
 
 export default function ApprovalsClient() {
   const searchParams = useSearchParams();
-  const expandParam = searchParams.get("expand");
+  const expandParam = searchParams.get('expand');
   const {
     approvals,
     isLoading,
@@ -39,7 +39,7 @@ export default function ApprovalsClient() {
     approveCodeReview,
     rejectCodeReview,
   } = useApprovals();
-  const [filter, setFilter] = useState<string>("pending");
+  const [filter, setFilter] = useState<string>('pending');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -67,7 +67,7 @@ export default function ApprovalsClient() {
 
         // コードレビューの場合は差分も取得
         if (
-          targetApproval.requestType === "code_review" &&
+          targetApproval.requestType === 'code_review' &&
           !codeReviewDiff.has(targetId)
         ) {
           if (targetApproval.proposedChanges?.structuredDiff?.length) {
@@ -85,7 +85,7 @@ export default function ApprovalsClient() {
         }
       } else {
         // 該当IDがpendingフィルターで見つからない場合、全フィルターを試す
-        if (filter === "pending") {
+        if (filter === 'pending') {
           // approvedとrejectedも確認するため一時的にフィルターを変更しない
           // 代わりに、見つからないことをユーザーに伝えるか、他のステータスを探す
         }
@@ -142,8 +142,8 @@ export default function ApprovalsClient() {
       const res = await fetch(
         `${API_BASE_URL}/approvals/${id}/request-changes`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ feedback, comments }),
         },
       );
@@ -151,7 +151,7 @@ export default function ApprovalsClient() {
         await fetchApprovals(filter);
       }
     } catch (error) {
-      console.error("Failed to request changes:", error);
+      console.error('Failed to request changes:', error);
     } finally {
       setProcessingId(null);
       setExpandedId(null);
@@ -207,12 +207,12 @@ export default function ApprovalsClient() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("ja-JP", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+    return new Date(dateString).toLocaleDateString('ja-JP', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
@@ -234,7 +234,7 @@ export default function ApprovalsClient() {
           </div>
         </div>
 
-        {selectedIds.size > 0 && filter === "pending" && (
+        {selectedIds.size > 0 && filter === 'pending' && (
           <button
             onClick={handleBulkApprove}
             className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition-colors"
@@ -248,17 +248,17 @@ export default function ApprovalsClient() {
       {/* Filters */}
       <div className="flex items-center gap-2 mb-6">
         {[
-          { value: "pending", label: "承認待ち", icon: Clock },
-          { value: "approved", label: "承認済み", icon: CheckCircle },
-          { value: "rejected", label: "却下済み", icon: XCircle },
+          { value: 'pending', label: '承認待ち', icon: Clock },
+          { value: 'approved', label: '承認済み', icon: CheckCircle },
+          { value: 'rejected', label: '却下済み', icon: XCircle },
         ].map((f) => (
           <button
             key={f.value}
             onClick={() => setFilter(f.value)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               filter === f.value
-                ? "bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700"
-                : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700'
+                : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
           >
             <f.icon className="w-4 h-4" />
@@ -281,7 +281,10 @@ export default function ApprovalsClient() {
       {isLoading && (
         <div className="space-y-3 py-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-20 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse" />
+            <div
+              key={i}
+              className="h-20 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse"
+            />
           ))}
         </div>
       )}
@@ -293,104 +296,113 @@ export default function ApprovalsClient() {
             <Bot className="w-8 h-8 text-zinc-400" />
           </div>
           <p className="text-zinc-600 dark:text-zinc-400">
-            {filter === "pending"
-              ? "承認待ちの提案はありません"
-              : filter === "approved"
-                ? "承認済みの提案はありません"
-                : "却下済みの提案はありません"}
+            {filter === 'pending'
+              ? '承認待ちの提案はありません'
+              : filter === 'approved'
+                ? '承認済みの提案はありません'
+                : '却下済みの提案はありません'}
           </p>
         </div>
       )}
 
       {/* Approvals List */}
-      {!isLoading && approvals.length > 0 && (() => {
-        const totalPages = Math.ceil(approvals.length / itemsPerPage);
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const paginatedApprovals = approvals.slice(startIndex, startIndex + itemsPerPage);
+      {!isLoading &&
+        approvals.length > 0 &&
+        (() => {
+          const totalPages = Math.ceil(approvals.length / itemsPerPage);
+          const startIndex = (currentPage - 1) * itemsPerPage;
+          const paginatedApprovals = approvals.slice(
+            startIndex,
+            startIndex + itemsPerPage,
+          );
 
-        return (
-          <div className="space-y-4">
-            {/* Select All (pending only) */}
-            {filter === "pending" && (
-              <div className="flex items-center gap-3 px-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
-                <button
-                  onClick={toggleSelectAll}
-                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                    selectedIds.size === approvals.length
-                      ? "border-violet-500 bg-violet-500"
-                      : "border-zinc-300 dark:border-zinc-600"
-                  }`}
-                >
-                  {selectedIds.size === approvals.length && (
-                    <svg
-                      className="w-3 h-3 text-white"
-                      fill="currentColor"
-                      viewBox="0 0 12 12"
-                    >
-                      <path d="M10.28 2.28a.75.75 0 00-1.06-1.06L4.5 5.94 2.78 4.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.06 0l5.25-5.25z" />
-                    </svg>
-                  )}
-                </button>
-                <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                  全て選択 ({selectedIds.size}/{approvals.length})
-                </span>
-              </div>
-            )}
+          return (
+            <div className="space-y-4">
+              {/* Select All (pending only) */}
+              {filter === 'pending' && (
+                <div className="flex items-center gap-3 px-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
+                  <button
+                    onClick={toggleSelectAll}
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                      selectedIds.size === approvals.length
+                        ? 'border-violet-500 bg-violet-500'
+                        : 'border-zinc-300 dark:border-zinc-600'
+                    }`}
+                  >
+                    {selectedIds.size === approvals.length && (
+                      <svg
+                        className="w-3 h-3 text-white"
+                        fill="currentColor"
+                        viewBox="0 0 12 12"
+                      >
+                        <path d="M10.28 2.28a.75.75 0 00-1.06-1.06L4.5 5.94 2.78 4.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.06 0l5.25-5.25z" />
+                      </svg>
+                    )}
+                  </button>
+                  <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                    全て選択 ({selectedIds.size}/{approvals.length})
+                  </span>
+                </div>
+              )}
 
-            {paginatedApprovals.map((approval) =>
-              approval.requestType === "code_review" ? (
-                <CodeReviewCard
-                  key={approval.id}
-                  approval={approval}
-                  isExpanded={expandedId === approval.id}
-                  isProcessing={processingId === approval.id}
-                  isPending={filter === "pending"}
-                  diffFiles={codeReviewDiff.get(approval.id) || []}
-                  onToggleExpand={() => handleExpandCodeReview(approval.id)}
-                  onApprove={(commitMessage, baseBranch) =>
-                    handleCodeReviewApprove(
-                      approval.id,
-                      commitMessage,
-                      baseBranch,
-                    )
-                  }
-                  onReject={() => handleCodeReviewReject(approval.id)}
-                  onRequestChanges={(feedback, comments) =>
-                    handleRequestChanges(approval.id, feedback, comments)
-                  }
-                  formatDate={formatDate}
-                  error={error}
-                />
-              ) : (
-                <ApprovalCard
-                  key={approval.id}
-                  approval={approval}
-                  isSelected={selectedIds.has(approval.id)}
-                  isExpanded={expandedId === approval.id}
-                  isProcessing={processingId === approval.id}
-                  isPending={filter === "pending"}
-                  onToggleSelect={() => toggleSelect(approval.id)}
-                  onToggleExpand={() =>
-                    setExpandedId(expandedId === approval.id ? null : approval.id)
-                  }
-                  onApprove={(selected) => handleApprove(approval.id, selected)}
-                  onReject={() => handleReject(approval.id)}
-                  formatDate={formatDate}
-                />
-              ),
-            )}
+              {paginatedApprovals.map((approval) =>
+                approval.requestType === 'code_review' ? (
+                  <CodeReviewCard
+                    key={approval.id}
+                    approval={approval}
+                    isExpanded={expandedId === approval.id}
+                    isProcessing={processingId === approval.id}
+                    isPending={filter === 'pending'}
+                    diffFiles={codeReviewDiff.get(approval.id) || []}
+                    onToggleExpand={() => handleExpandCodeReview(approval.id)}
+                    onApprove={(commitMessage, baseBranch) =>
+                      handleCodeReviewApprove(
+                        approval.id,
+                        commitMessage,
+                        baseBranch,
+                      )
+                    }
+                    onReject={() => handleCodeReviewReject(approval.id)}
+                    onRequestChanges={(feedback, comments) =>
+                      handleRequestChanges(approval.id, feedback, comments)
+                    }
+                    formatDate={formatDate}
+                    error={error}
+                  />
+                ) : (
+                  <ApprovalCard
+                    key={approval.id}
+                    approval={approval}
+                    isSelected={selectedIds.has(approval.id)}
+                    isExpanded={expandedId === approval.id}
+                    isProcessing={processingId === approval.id}
+                    isPending={filter === 'pending'}
+                    onToggleSelect={() => toggleSelect(approval.id)}
+                    onToggleExpand={() =>
+                      setExpandedId(
+                        expandedId === approval.id ? null : approval.id,
+                      )
+                    }
+                    onApprove={(selected) =>
+                      handleApprove(approval.id, selected)
+                    }
+                    onReject={() => handleReject(approval.id)}
+                    formatDate={formatDate}
+                  />
+                ),
+              )}
 
-            {/* ページネーション */}
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              itemsPerPage={itemsPerPage}
-              onPageChange={setCurrentPage}
-              onItemsPerPageChange={setItemsPerPage}
-            />
-          </div>
-        );
-      })()}
+              {/* ページネーション */}
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                onItemsPerPageChange={setItemsPerPage}
+              />
+            </div>
+          );
+        })()}
     </div>
   );
 }
@@ -436,18 +448,18 @@ function ApprovalCard({
 
   const statusColors = {
     pending:
-      "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
+      'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
     approved:
-      "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
-    rejected: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300",
-    expired: "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
+      'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+    rejected: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+    expired: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400',
   };
 
   const statusLabels = {
-    pending: "承認待ち",
-    approved: "承認済み",
-    rejected: "却下済み",
-    expired: "期限切れ",
+    pending: '承認待ち',
+    approved: '承認済み',
+    rejected: '却下済み',
+    expired: '期限切れ',
   };
 
   return (
@@ -461,8 +473,8 @@ function ApprovalCard({
               onClick={onToggleSelect}
               className={`mt-1 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
                 isSelected
-                  ? "border-violet-500 bg-violet-500"
-                  : "border-zinc-300 dark:border-zinc-600"
+                  ? 'border-violet-500 bg-violet-500'
+                  : 'border-zinc-300 dark:border-zinc-600'
               }`}
             >
               {isSelected && (
@@ -506,7 +518,9 @@ function ApprovalCard({
             {approval.description && (
               <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3 line-clamp-3">
                 {approval.description.length > 200
-                  ? approval.description.substring(0, 200).replace(/\s+\S*$/, "") + "..."
+                  ? approval.description
+                      .substring(0, 200)
+                      .replace(/\s+\S*$/, '') + '...'
                   : approval.description}
               </p>
             )}
@@ -530,7 +544,7 @@ function ApprovalCard({
             className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
           >
             <ChevronRight
-              className={`w-5 h-5 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+              className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
             />
           </button>
         </div>
@@ -551,9 +565,9 @@ function ApprovalCard({
                   className={`flex items-start gap-3 p-3 rounded-lg border transition-all ${
                     isPending
                       ? selectedSubtasks.has(index)
-                        ? "border-violet-300 dark:border-violet-700 bg-violet-50 dark:bg-violet-900/20"
-                        : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
-                      : "border-zinc-200 dark:border-zinc-700"
+                        ? 'border-violet-300 dark:border-violet-700 bg-violet-50 dark:bg-violet-900/20'
+                        : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
+                      : 'border-zinc-200 dark:border-zinc-700'
                   }`}
                 >
                   {isPending && (
@@ -561,8 +575,8 @@ function ApprovalCard({
                       onClick={() => toggleSubtask(index)}
                       className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
                         selectedSubtasks.has(index)
-                          ? "border-violet-500 bg-violet-500"
-                          : "border-zinc-300 dark:border-zinc-600"
+                          ? 'border-violet-500 bg-violet-500'
+                          : 'border-zinc-300 dark:border-zinc-600'
                       }`}
                     >
                       {selectedSubtasks.has(index) && (
@@ -607,7 +621,7 @@ function ApprovalCard({
           {approval.proposedChanges.reasoning && (
             <div className="px-4 pb-4">
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                <span className="font-medium">分解理由:</span>{" "}
+                <span className="font-medium">分解理由:</span>{' '}
                 {approval.proposedChanges.reasoning}
               </p>
             </div>
@@ -643,7 +657,7 @@ function ApprovalCard({
                 )}
                 {selectedSubtasks.size ===
                 (approval.proposedChanges.subtasks?.length || 0)
-                  ? "全て承認"
+                  ? '全て承認'
                   : `${selectedSubtasks.size}件を承認`}
               </button>
             </div>
@@ -683,21 +697,21 @@ function CodeReviewCard({
 }) {
   const statusColors = {
     pending:
-      "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
+      'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
     approved:
-      "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
-    rejected: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300",
-    expired: "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
+      'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+    rejected: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+    expired: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400',
   };
 
   const statusLabels = {
-    pending: "承認待ち",
-    approved: "承認済み",
-    rejected: "却下済み",
-    expired: "期限切れ",
+    pending: '承認待ち',
+    approved: '承認済み',
+    rejected: '却下済み',
+    expired: '期限切れ',
   };
 
-  const defaultBranch = approval.config?.task?.theme?.defaultBranch || "main";
+  const defaultBranch = approval.config?.task?.theme?.defaultBranch || 'main';
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
@@ -745,7 +759,7 @@ function CodeReviewCard({
                 <Code2 className="w-3.5 h-3.5" />
                 {diffFiles.length > 0
                   ? `${diffFiles.length}ファイル変更`
-                  : "変更を読み込み中..."}
+                  : '変更を読み込み中...'}
               </span>
               <span className="flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" />
@@ -760,7 +774,7 @@ function CodeReviewCard({
             className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
           >
             <ChevronRight
-              className={`w-5 h-5 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+              className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
             />
           </button>
         </div>

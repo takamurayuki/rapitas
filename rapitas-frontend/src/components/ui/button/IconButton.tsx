@@ -1,6 +1,6 @@
-"use client";
-import React from "react";
-import { Loader2 } from "lucide-react";
+'use client';
+import React from 'react';
+import { Loader2 } from 'lucide-react';
 import {
   ButtonVariant,
   ButtonSize,
@@ -9,7 +9,7 @@ import {
   iconButtonSizeStyles,
   iconButtonIconSizeStyles,
   disabledStyles,
-} from "./buttonStyles";
+} from './buttonStyles';
 
 export type IconButtonVariant = ButtonVariant;
 export type IconButtonSize = ButtonSize;
@@ -18,33 +18,33 @@ type Props = {
   onClick?: () => void;
   className?: string;
   title?: string;
-  type?: "button" | "submit" | "reset";
+  type?: 'button' | 'submit' | 'reset';
   variant?: IconButtonVariant;
   size?: IconButtonSize;
   disabled?: boolean;
   loading?: boolean;
   icon: React.ReactNode;
-  "aria-label": string;
+  'aria-label': string;
 };
 
 export default function IconButton({
   onClick,
-  className = "",
+  className = '',
   title,
-  type = "button",
-  variant = "ghost",
-  size = "md",
+  type = 'button',
+  variant = 'ghost',
+  size = 'md',
   disabled = false,
   loading = false,
   icon,
-  "aria-label": ariaLabel,
+  'aria-label': ariaLabel,
 }: Props) {
   const base =
-    "inline-flex items-center justify-center rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900";
+    'inline-flex items-center justify-center rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900';
 
   // ghost バリアントは IconButton 専用のスタイルを使用
   const getVariantStyle = (v: IconButtonVariant): string => {
-    if (v === "ghost") {
+    if (v === 'ghost') {
       return iconButtonGhostStyle;
     }
     return variantStyles[v];
@@ -53,12 +53,13 @@ export default function IconButton({
   const renderIcon = (iconElement: React.ReactNode) => {
     if (React.isValidElement(iconElement)) {
       const existingClassName =
-        (iconElement.props as { className?: string }).className || "";
+        (iconElement.props as { className?: string }).className || '';
       return React.cloneElement(
         iconElement as React.ReactElement<{ className?: string }>,
         {
-          className: `${iconButtonIconSizeStyles[size]} ${existingClassName}`.trim(),
-        }
+          className:
+            `${iconButtonIconSizeStyles[size]} ${existingClassName}`.trim(),
+        },
       );
     }
     return iconElement;

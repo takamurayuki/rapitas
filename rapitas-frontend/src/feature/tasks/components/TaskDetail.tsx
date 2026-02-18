@@ -1,16 +1,16 @@
-import { Task } from "@/types";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
-import { createMarkdownComponents } from "@/feature/tasks/components/MarkdownComponents";
-import TaskStatusChange from "@/feature/tasks/components/TaskStatusChange";
+import { Task } from '@/types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
+import { createMarkdownComponents } from '@/feature/tasks/components/MarkdownComponents';
+import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
 import {
   statusConfig,
   renderStatusIcon,
-} from "@/feature/tasks/config/StatusConfig";
-import { getLabelsArray, hasLabels } from "@/utils/labels";
-import { Tag } from "lucide-react";
-import { getIconComponent } from "@/components/category/IconData";
+} from '@/feature/tasks/config/StatusConfig';
+import { getLabelsArray, hasLabels } from '@/utils/labels';
+import { Tag } from 'lucide-react';
+import { getIconComponent } from '@/components/category/IconData';
 
 interface TaskDetailProps {
   task: Task;
@@ -69,7 +69,7 @@ export default function TaskDetail({
                 required
               />
               <div className="flex items-center gap-1 shrink-0">
-                {(["todo", "in-progress", "done"] as const).map((status) => {
+                {(['todo', 'in-progress', 'done'] as const).map((status) => {
                   const config = statusConfig[status];
                   return (
                     <TaskStatusChange
@@ -143,7 +143,7 @@ export default function TaskDetail({
               {task.title}
             </h1>
             <div className="flex items-center gap-2">
-              {(["todo", "in-progress", "done"] as const).map((status) => {
+              {(['todo', 'in-progress', 'done'] as const).map((status) => {
                 const config = statusConfig[status];
                 return (
                   <TaskStatusChange
@@ -214,7 +214,8 @@ export default function TaskDetail({
                 <div className="flex flex-wrap gap-2">
                   {task.taskLabels.map((tl) => {
                     if (!tl.label) return null;
-                    const IconComponent = getIconComponent(tl.label.icon || "") || Tag;
+                    const IconComponent =
+                      getIconComponent(tl.label.icon || '') || Tag;
                     return (
                       <span
                         key={tl.id}
@@ -263,8 +264,8 @@ export default function TaskDetail({
           </div>
 
           <div className="text-sm text-zinc-500 dark:text-zinc-400 border-t border-zinc-200 dark:border-zinc-700 pt-4">
-            <p>作成日時: {new Date(task.createdAt).toLocaleString("ja-JP")}</p>
-            <p>更新日時: {new Date(task.updatedAt).toLocaleString("ja-JP")}</p>
+            <p>作成日時: {new Date(task.createdAt).toLocaleString('ja-JP')}</p>
+            <p>更新日時: {new Date(task.updatedAt).toLocaleString('ja-JP')}</p>
           </div>
         </>
       )}

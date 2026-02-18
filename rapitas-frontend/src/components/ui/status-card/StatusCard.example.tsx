@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
-import { StatusCard, AgentStatusType } from "./index";
-import { Bot, Zap } from "lucide-react";
+import React, { useState } from 'react';
+import { StatusCard, AgentStatusType } from './index';
+import { Bot, Zap } from 'lucide-react';
 
 /**
  * StatusCard 使用例・デモコンポーネント
@@ -40,22 +40,13 @@ export const WithMessageExample: React.FC = () => {
         メッセージ付き
       </h3>
       <div className="flex flex-col gap-3">
-        <StatusCard
-          status="processing"
-          message="ファイルを分析しています..."
-        />
+        <StatusCard status="processing" message="ファイルを分析しています..." />
         <StatusCard
           status="waiting_for_input"
           message="続行するには承認が必要です"
         />
-        <StatusCard
-          status="error"
-          message="API接続に失敗しました"
-        />
-        <StatusCard
-          status="completed"
-          message="タスクが正常に完了しました"
-        />
+        <StatusCard status="error" message="API接続に失敗しました" />
+        <StatusCard status="completed" message="タスクが正常に完了しました" />
       </div>
     </div>
   );
@@ -76,7 +67,9 @@ export const SizeVariantsExample: React.FC = () => {
           <StatusCard status="processing" size="sm" message="処理中" />
         </div>
         <div>
-          <span className="text-sm text-zinc-500 mb-1 block">Medium (md) - デフォルト</span>
+          <span className="text-sm text-zinc-500 mb-1 block">
+            Medium (md) - デフォルト
+          </span>
           <StatusCard status="processing" size="md" message="処理中" />
         </div>
         <div>
@@ -117,13 +110,14 @@ export const CustomIconExample: React.FC = () => {
  * インタラクティブデモ
  */
 export const InteractiveDemo: React.FC = () => {
-  const [currentStatus, setCurrentStatus] = useState<AgentStatusType>("processing");
+  const [currentStatus, setCurrentStatus] =
+    useState<AgentStatusType>('processing');
 
   const statusMessages: Record<AgentStatusType, string> = {
-    processing: "タスクを実行中です...",
-    waiting_for_input: "ユーザーの入力を待っています",
-    error: "予期しないエラーが発生しました",
-    completed: "すべてのタスクが完了しました",
+    processing: 'タスクを実行中です...',
+    waiting_for_input: 'ユーザーの入力を待っています',
+    error: '予期しないエラーが発生しました',
+    completed: 'すべてのタスクが完了しました',
   };
 
   const handleStatusChange = (newStatus: AgentStatusType) => {
@@ -137,23 +131,29 @@ export const InteractiveDemo: React.FC = () => {
       </h3>
 
       <div className="flex flex-wrap gap-2">
-        {(["processing", "waiting_for_input", "error", "completed"] as AgentStatusType[]).map(
-          (status) => (
-            <button
-              key={status}
-              onClick={() => setCurrentStatus(status)}
-              className={`
+        {(
+          [
+            'processing',
+            'waiting_for_input',
+            'error',
+            'completed',
+          ] as AgentStatusType[]
+        ).map((status) => (
+          <button
+            key={status}
+            onClick={() => setCurrentStatus(status)}
+            className={`
                 px-3 py-1.5 text-sm rounded-md transition-colors
-                ${currentStatus === status
-                  ? "bg-blue-500 text-white"
-                  : "bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600"
+                ${
+                  currentStatus === status
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
                 }
               `}
-            >
-              {status}
-            </button>
-          )
-        )}
+          >
+            {status}
+          </button>
+        ))}
       </div>
 
       <div className="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-lg">

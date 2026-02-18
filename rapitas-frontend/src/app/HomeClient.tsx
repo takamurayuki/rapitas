@@ -1,7 +1,7 @@
-"use client";
-import { useCallback, useEffect, useState, useRef } from "react";
-import React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+'use client';
+import { useCallback, useEffect, useState, useRef } from 'react';
+import React from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type {
   Theme,
   Category,
@@ -9,16 +9,16 @@ import type {
   Status,
   UserSettings,
   Task,
-} from "@/types";
-import TaskSlidePanel from "@/feature/tasks/components/TaskSlidePanel";
-import TaskCard from "@/feature/tasks/components/TaskCard";
-import { useToast } from "@/components/ui/toast/ToastContainer";
-import { useTaskDetailVisibilityStore } from "@/stores/taskDetailVisibilityStore";
-import Pagination from "@/components/ui/pagination/Pagination";
+} from '@/types';
+import TaskSlidePanel from '@/feature/tasks/components/TaskSlidePanel';
+import TaskCard from '@/feature/tasks/components/TaskCard';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import { useTaskDetailVisibilityStore } from '@/stores/taskDetailVisibilityStore';
+import Pagination from '@/components/ui/pagination/Pagination';
 import {
   statusConfig,
   renderStatusIcon,
-} from "@/feature/tasks/config/StatusConfig";
+} from '@/feature/tasks/config/StatusConfig';
 import {
   SwatchBook,
   Star,
@@ -28,28 +28,28 @@ import {
   ChevronsUp,
   FolderKanban,
   Plus,
-} from "lucide-react";
-import { getIconComponent } from "@/components/category/IconData";
-import { API_BASE_URL } from "@/utils/api";
-import { useExecutingTasksPolling } from "@/hooks/useExecutingTasksPolling";
-import { useAppModeStore } from "@/stores/appModeStore";
-import { useTaskCacheStore } from "@/stores/taskCacheStore";
+} from 'lucide-react';
+import { getIconComponent } from '@/components/category/IconData';
+import { API_BASE_URL } from '@/utils/api';
+import { useExecutingTasksPolling } from '@/hooks/useExecutingTasksPolling';
+import { useAppModeStore } from '@/stores/appModeStore';
+import { useTaskCacheStore } from '@/stores/taskCacheStore';
 import {
   ProgressRing,
   FlyingParticle,
   useTaskCompletionAnimation,
-} from "@/feature/tasks/components/TaskCompletionAnimation";
-import { useFilteredTasks } from "@/hooks/useFilteredTasks";
-import { useTaskSorting } from "@/hooks/useTaskSorting";
-import { useLocalStorageState } from "@/hooks/useLocalStorageState";
-import { useDebounce } from "@/hooks/useDebounce";
+} from '@/feature/tasks/components/TaskCompletionAnimation';
+import { useFilteredTasks } from '@/hooks/useFilteredTasks';
+import { useTaskSorting } from '@/hooks/useTaskSorting';
+import { useLocalStorageState } from '@/hooks/useLocalStorageState';
+import { useDebounce } from '@/hooks/useDebounce';
 
 const API_BASE = API_BASE_URL;
 
 export default function HomeClientPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const searchQuery = searchParams.get("search") || "";
+  const searchQuery = searchParams.get('search') || '';
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const { showToast } = useToast();
   const { showTaskDetail, hideTaskDetail } = useTaskDetailVisibilityStore();
@@ -64,9 +64,14 @@ export default function HomeClientPage() {
   const [themes, setThemes] = useState<Theme[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [initialDataLoading, setInitialDataLoading] = useState(true);
-  const [filter, setFilter] = useState<string>("all");
-  const [categoryFilter, setCategoryFilter] = useLocalStorageState<number | null>("selectedCategoryFilter", null);
-  const [themeFilter, setThemeFilter] = useLocalStorageState<number | null>("selectedThemeFilter", null);
+  const [filter, setFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useLocalStorageState<
+    number | null
+  >('selectedCategoryFilter', null);
+  const [themeFilter, setThemeFilter] = useLocalStorageState<number | null>(
+    'selectedThemeFilter',
+    null,
+  );
   const [priorityFilter, setPriorityFilter] = useState<Priority | null>(null);
   const [defaultTheme, setDefaultTheme] = useState<Theme | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
@@ -75,16 +80,16 @@ export default function HomeClientPage() {
 
   // クイック追加用
   const [isQuickAdding, setIsQuickAdding] = useState(false);
-  const [quickTaskTitle, setQuickTaskTitle] = useState("");
+  const [quickTaskTitle, setQuickTaskTitle] = useState('');
 
   // プログレスリング用ref
   const progressRingRef = useRef<HTMLDivElement>(null);
 
   // ソート
-  const [sortBy, setSortBy] = useState<"createdAt" | "priority" | "title">(
-    "createdAt",
+  const [sortBy, setSortBy] = useState<'createdAt' | 'priority' | 'title'>(
+    'createdAt',
   );
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // 複数選択
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
@@ -211,8 +216,8 @@ export default function HomeClientPage() {
 
     // タスクを完了にする場合、アニメーションをトリガー（本日のタスクのみ）
     if (
-      status === "done" &&
-      oldTask?.status !== "done" &&
+      status === 'done' &&
+      oldTask?.status !== 'done' &&
       cardElement &&
       isTodayTask(oldTask)
     ) {
@@ -227,11 +232,11 @@ export default function HomeClientPage() {
 
     try {
       const res = await fetch(`${API_BASE}/tasks/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-      if (!res.ok) throw new Error("更新に失敗しました");
+      if (!res.ok) throw new Error('更新に失敗しました');
     } catch (e) {
       console.error(e);
       // Rollback on failure
@@ -283,26 +288,26 @@ export default function HomeClientPage() {
 
     try {
       const res = await fetch(`${API_BASE}/tasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: quickTaskTitle,
-          status: "todo",
-          priority: "medium",
+          status: 'todo',
+          priority: 'medium',
           ...(themeFilter && { themeId: themeFilter }),
           ...(!themeFilter && defaultTheme && { themeId: defaultTheme.id }),
         }),
       });
 
-      if (!res.ok) throw new Error("作成に失敗しました");
-      setQuickTaskTitle("");
+      if (!res.ok) throw new Error('作成に失敗しました');
+      setQuickTaskTitle('');
       setIsQuickAdding(false);
-      showToast("タスクを作成しました", "success");
+      showToast('タスクを作成しました', 'success');
       // サーバーから最新データを再取得（theme情報を含む）
       await fetchTasks();
     } catch (e) {
       console.error(e);
-      showToast("タスクの作成に失敗しました", "error");
+      showToast('タスクの作成に失敗しました', 'error');
     }
   };
 
@@ -323,8 +328,8 @@ export default function HomeClientPage() {
       await Promise.all(
         taskIds.map((id) =>
           fetch(`${API_BASE}/tasks/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status }),
           }),
         ),
@@ -332,11 +337,11 @@ export default function HomeClientPage() {
       for (const id of taskIds) {
         updateTaskLocally(id, { status: status as Status });
       }
-      showToast(`${taskIds.length}件のタスクを更新しました`, "success");
+      showToast(`${taskIds.length}件のタスクを更新しました`, 'success');
       setSelectedTasks(new Set());
       setIsSelectionMode(false);
     } catch {
-      showToast("一括更新に失敗しました", "error");
+      showToast('一括更新に失敗しました', 'error');
     }
   };
 
@@ -347,17 +352,17 @@ export default function HomeClientPage() {
     try {
       await Promise.all(
         taskIds.map((id) =>
-          fetch(`${API_BASE}/tasks/${id}`, { method: "DELETE" }),
+          fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' }),
         ),
       );
       for (const id of taskIds) {
         removeTaskLocally(id);
       }
-      showToast(`${taskIds.length}件のタスクを削除しました`, "success");
+      showToast(`${taskIds.length}件のタスクを削除しました`, 'success');
       setSelectedTasks(new Set());
       setIsSelectionMode(false);
     } catch {
-      showToast("一括削除に失敗しました", "error");
+      showToast('一括削除に失敗しました', 'error');
     }
   };
 
@@ -375,18 +380,18 @@ export default function HomeClientPage() {
       // Ctrlキー（またはMacのCmdキー）との組み合わせをチェック
       if (e.ctrlKey || e.metaKey) {
         switch (e.key.toLowerCase()) {
-          case "n":
+          case 'n':
             e.preventDefault();
             const themeParam = themeFilter || defaultTheme?.id;
             router.push(
-              `/tasks/new${themeParam ? `?themeId=${themeParam}` : ""}`,
+              `/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`,
             );
             break;
-          case "q":
+          case 'q':
             e.preventDefault();
             setIsQuickAdding(true);
             break;
-          case "s":
+          case 's':
             e.preventDefault();
             setIsSelectionMode((prev) => !prev);
             if (isSelectionMode) {
@@ -394,16 +399,16 @@ export default function HomeClientPage() {
             }
             break;
         }
-      } else if (e.key === "Escape") {
+      } else if (e.key === 'Escape') {
         if (isQuickAdding) {
           setIsQuickAdding(false);
-          setQuickTaskTitle("");
+          setQuickTaskTitle('');
         }
       }
     };
 
-    window.addEventListener("keydown", handleKeyPress);
-    return () => window.removeEventListener("keydown", handleKeyPress);
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
   }, [router, isQuickAdding, isSelectionMode, defaultTheme?.id, themeFilter]);
 
   const fetchGlobalSettings = async () => {
@@ -415,7 +420,7 @@ export default function HomeClientPage() {
         return data as UserSettings;
       }
     } catch (e) {
-      console.error("Failed to fetch global settings:", e);
+      console.error('Failed to fetch global settings:', e);
     }
     return null;
   };
@@ -452,16 +457,23 @@ export default function HomeClientPage() {
       fetchTaskUpdates();
     };
 
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
-  }, [categoryFilter, fetchAllTasks, fetchTaskUpdates, fetchThemes, setCategoryFilter, taskCacheInitialized]);
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [
+    categoryFilter,
+    fetchAllTasks,
+    fetchTaskUpdates,
+    fetchThemes,
+    setCategoryFilter,
+    taskCacheInitialized,
+  ]);
 
   // activeModeが変わったとき、現在のカテゴリフィルタが非表示になったら最初の表示カテゴリに切り替え
   useEffect(() => {
     if (categories.length === 0) return;
     const visibleCategories = categories.filter((cat) => {
-      if (appMode === "all") return true;
-      if (cat.mode === "both") return true;
+      if (appMode === 'all') return true;
+      if (cat.mode === 'both') return true;
       return cat.mode === appMode;
     });
     if (categoryFilter !== null) {
@@ -482,7 +494,14 @@ export default function HomeClientPage() {
         }
       }
     }
-  }, [appMode, categories, categoryFilter, setCategoryFilter, themes, setThemeFilter]);
+  }, [
+    appMode,
+    categories,
+    categoryFilter,
+    setCategoryFilter,
+    themes,
+    setThemeFilter,
+  ]);
 
   // フィルター変更時にページを1に戻す
   useEffect(() => {
@@ -527,7 +546,7 @@ export default function HomeClientPage() {
               <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
                 {totalTasksCount > 0
                   ? `${completedTasksCount} / ${totalTasksCount} 完了`
-                  : "タスクが作成されていません"}
+                  : 'タスクが作成されていません'}
               </div>
             </div>
           </div>
@@ -539,15 +558,15 @@ export default function HomeClientPage() {
               <>
                 {/* ステータス変更ボタングループ */}
                 <div className="flex items-center gap-1 bg-white dark:bg-zinc-800 rounded-md shadow-sm p-1 border border-zinc-200 dark:border-zinc-700">
-                  {["todo", "in-progress", "done"].map((status, idx, arr) => {
+                  {['todo', 'in-progress', 'done'].map((status, idx, arr) => {
                     const config =
                       statusConfig[status as keyof typeof statusConfig];
                     const colorClasses =
-                      status === "todo"
-                        ? "bg-zinc-50 dark:bg-zinc-700/50 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
-                        : status === "in-progress"
-                          ? "bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                          : "bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400";
+                      status === 'todo'
+                        ? 'bg-zinc-50 dark:bg-zinc-700/50 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
+                        : status === 'in-progress'
+                          ? 'bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                          : 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400';
 
                     const isLast = idx === arr.length - 1;
                     return (
@@ -582,8 +601,8 @@ export default function HomeClientPage() {
                     onClick={() => setIsQuickAdding(!isQuickAdding)}
                     className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
                       isQuickAdding
-                        ? "bg-green-500 dark:bg-green-600 text-white shadow-sm"
-                        : "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/30"
+                        ? 'bg-green-500 dark:bg-green-600 text-white shadow-sm'
+                        : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/30'
                     }`}
                     title="クイック追加 (Ctrl+Q)"
                   >
@@ -609,7 +628,7 @@ export default function HomeClientPage() {
                     onClick={() => {
                       const themeParam = themeFilter || defaultTheme?.id;
                       router.push(
-                        `/tasks/new${themeParam ? `?themeId=${themeParam}` : ""}`,
+                        `/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`,
                       );
                     }}
                     className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30 rounded text-xs transition-all flex items-center gap-1.5"
@@ -651,13 +670,13 @@ export default function HomeClientPage() {
                     className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
                       selectedTasks.size === paginatedTasks.length &&
                       paginatedTasks.length > 0
-                        ? "bg-blue-500 dark:bg-blue-600 text-white shadow-sm"
-                        : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30"
+                        ? 'bg-blue-500 dark:bg-blue-600 text-white shadow-sm'
+                        : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30'
                     }`}
                     title={
                       selectedTasks.size === paginatedTasks.length
-                        ? "全解除"
-                        : "全選択"
+                        ? '全解除'
+                        : '全選択'
                     }
                   >
                     <svg
@@ -688,8 +707,8 @@ export default function HomeClientPage() {
                     <span>
                       {selectedTasks.size === paginatedTasks.length &&
                       paginatedTasks.length > 0
-                        ? "全解除"
-                        : "全選択"}
+                        ? '全解除'
+                        : '全選択'}
                     </span>
                   </button>
 
@@ -704,8 +723,8 @@ export default function HomeClientPage() {
                 }}
                 className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
                   isSelectionMode
-                    ? "bg-purple-500 dark:bg-purple-600 text-white shadow-sm"
-                    : "bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/30"
+                    ? 'bg-purple-500 dark:bg-purple-600 text-white shadow-sm'
+                    : 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/30'
                 }`}
                 title="一括選択モード (Ctrl+S)"
               >
@@ -723,7 +742,7 @@ export default function HomeClientPage() {
                   />
                 </svg>
                 <span>
-                  {isSelectionMode ? `選択中 (${selectedTasks.size})` : "一括"}
+                  {isSelectionMode ? `選択中 (${selectedTasks.size})` : '一括'}
                 </span>
               </button>
 
@@ -767,10 +786,10 @@ export default function HomeClientPage() {
                 value={quickTaskTitle}
                 onChange={(e) => setQuickTaskTitle(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") handleQuickAdd();
-                  if (e.key === "Escape") {
+                  if (e.key === 'Enter') handleQuickAdd();
+                  if (e.key === 'Escape') {
                     setIsQuickAdding(false);
-                    setQuickTaskTitle("");
+                    setQuickTaskTitle('');
                   }
                 }}
                 placeholder="タスクタイトルを入力... (Enter で作成、Esc でキャンセル)"
@@ -796,13 +815,13 @@ export default function HomeClientPage() {
               <div className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700 scrollbar-track-transparent">
                 {categories
                   .filter((cat) => {
-                    if (appMode === "all") return true;
-                    if (cat.mode === "both") return true;
+                    if (appMode === 'all') return true;
+                    if (cat.mode === 'both') return true;
                     return cat.mode === appMode;
                   })
                   .map((cat) => {
                     const CatIcon =
-                      getIconComponent(cat.icon || "") || FolderKanban;
+                      getIconComponent(cat.icon || '') || FolderKanban;
                     const isActive = categoryFilter === cat.id;
                     return (
                       <button
@@ -831,8 +850,8 @@ export default function HomeClientPage() {
                         }}
                         className={`relative flex items-center gap-1.5 px-4 py-2 text-xs font-medium transition-all whitespace-nowrap shrink-0 border-b-2 ${
                           isActive
-                            ? "bg-black/5 dark:bg-white/5"
-                            : "text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-black/2 dark:hover:bg-white/2 border-transparent"
+                            ? 'bg-black/5 dark:bg-white/5'
+                            : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-black/2 dark:hover:bg-white/2 border-transparent'
                         }`}
                         style={{
                           borderBottomColor: isActive ? cat.color : undefined,
@@ -870,7 +889,7 @@ export default function HomeClientPage() {
                       <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 py-0.5 px-1">
                         <span>このカテゴリにはテーマがありません。</span>
                         <button
-                          onClick={() => router.push("/themes")}
+                          onClick={() => router.push('/themes')}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
                         >
                           <Plus className="w-3 h-3" />
@@ -881,7 +900,7 @@ export default function HomeClientPage() {
                   }
                   return filteredThemes.map((theme) => {
                     const IconComponent =
-                      getIconComponent(theme.icon || "") || SwatchBook;
+                      getIconComponent(theme.icon || '') || SwatchBook;
                     const isActive = themeFilter === theme.id;
                     return (
                       <button
@@ -891,12 +910,12 @@ export default function HomeClientPage() {
                         }}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                           isActive
-                            ? "shadow-sm"
-                            : "border border-zinc-300 dark:border-zinc-700 hover:border-current"
+                            ? 'shadow-sm'
+                            : 'border border-zinc-300 dark:border-zinc-700 hover:border-current'
                         }`}
                         style={{
                           backgroundColor: isActive ? theme.color : undefined,
-                          color: isActive ? "#ffffff" : theme.color,
+                          color: isActive ? '#ffffff' : theme.color,
                         }}
                       >
                         <IconComponent className="w-3.5 h-3.5" />
@@ -915,8 +934,8 @@ export default function HomeClientPage() {
                 onClick={() => setIsFilterExpanded(!isFilterExpanded)}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
                   isFilterExpanded
-                    ? "bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200"
-                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                    ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200'
+                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                 }`}
               >
                 <svg
@@ -934,7 +953,7 @@ export default function HomeClientPage() {
                 </svg>
                 <span className="hidden sm:inline">フィルター</span>
                 <ChevronDown
-                  className={`w-3.5 h-3.5 transition-transform duration-200 ${isFilterExpanded ? "rotate-180" : ""}`}
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${isFilterExpanded ? 'rotate-180' : ''}`}
                 />
               </button>
             </div>
@@ -942,7 +961,7 @@ export default function HomeClientPage() {
             {/* フィルター・ソート（アコーディオンコンテンツ） */}
             <div
               className={`overflow-hidden transition-all duration-300 ease-out ${
-                isFilterExpanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+                isFilterExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
               }`}
             >
               <div className="flex flex-wrap items-center gap-4 px-3 py-2.5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
@@ -952,12 +971,12 @@ export default function HomeClientPage() {
                     ステータス:
                   </span>
                   <div className="flex items-center gap-1">
-                    {["all", "todo", "in-progress", "done"].map((status) => {
+                    {['all', 'todo', 'in-progress', 'done'].map((status) => {
                       const statusConfigLocal = {
-                        all: { label: "すべて", color: "theme" },
-                        todo: { label: "未着手", color: "zinc" },
-                        "in-progress": { label: "進行中", color: "blue" },
-                        done: { label: "完了", color: "green" },
+                        all: { label: 'すべて', color: 'theme' },
+                        todo: { label: '未着手', color: 'zinc' },
+                        'in-progress': { label: '進行中', color: 'blue' },
+                        done: { label: '完了', color: 'green' },
                       };
                       const config =
                         statusConfigLocal[
@@ -971,19 +990,19 @@ export default function HomeClientPage() {
                           onClick={() => setFilter(status)}
                           className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-all duration-200 ${
                             filter === status
-                              ? config.color === "theme"
-                                ? "text-white shadow-md"
-                                : config.color === "blue"
-                                  ? "bg-blue-600 text-white shadow-md"
-                                  : config.color === "green"
-                                    ? "bg-green-600 text-white shadow-md"
-                                    : "bg-zinc-600 text-white shadow-md"
-                              : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700"
+                              ? config.color === 'theme'
+                                ? 'text-white shadow-md'
+                                : config.color === 'blue'
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : config.color === 'green'
+                                    ? 'bg-green-600 text-white shadow-md'
+                                    : 'bg-zinc-600 text-white shadow-md'
+                              : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700'
                           }`}
                           style={{
                             backgroundColor:
-                              filter === status && config.color === "theme"
-                                ? "#6366F1"
+                              filter === status && config.color === 'theme'
+                                ? '#6366F1'
                                 : undefined,
                           }}
                         >
@@ -1008,40 +1027,40 @@ export default function HomeClientPage() {
                   <div className="flex items-center gap-1">
                     {[
                       {
-                        value: "",
-                        label: "すべて",
+                        value: '',
+                        label: 'すべて',
                         icon: null,
-                        iconColor: "",
-                        bgColor: "",
+                        iconColor: '',
+                        bgColor: '',
                         isThemeColor: true,
                       },
                       {
-                        value: "urgent",
-                        label: "緊急",
+                        value: 'urgent',
+                        label: '緊急',
                         icon: <ChevronsUp className="w-3.5 h-3.5" />,
-                        iconColor: "text-red-500",
-                        bgColor: "bg-red-500",
+                        iconColor: 'text-red-500',
+                        bgColor: 'bg-red-500',
                       },
                       {
-                        value: "high",
-                        label: "高",
+                        value: 'high',
+                        label: '高',
                         icon: <ChevronUp className="w-3.5 h-3.5" />,
-                        iconColor: "text-orange-500",
-                        bgColor: "bg-orange-500",
+                        iconColor: 'text-orange-500',
+                        bgColor: 'bg-orange-500',
                       },
                       {
-                        value: "medium",
-                        label: "中",
+                        value: 'medium',
+                        label: '中',
                         icon: <ChevronsUpDown className="w-3.5 h-3.5" />,
-                        iconColor: "text-blue-500",
-                        bgColor: "bg-blue-500",
+                        iconColor: 'text-blue-500',
+                        bgColor: 'bg-blue-500',
                       },
                       {
-                        value: "low",
-                        label: "低",
+                        value: 'low',
+                        label: '低',
                         icon: <ChevronDown className="w-3.5 h-3.5" />,
-                        iconColor: "text-zinc-400",
-                        bgColor: "bg-zinc-500",
+                        iconColor: 'text-zinc-400',
+                        bgColor: 'bg-zinc-500',
                       },
                     ].map((priority) => (
                       <button
@@ -1054,24 +1073,24 @@ export default function HomeClientPage() {
                           )
                         }
                         className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all duration-200 whitespace-nowrap focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
-                          (priorityFilter || "") === priority.value
+                          (priorityFilter || '') === priority.value
                             ? `${priority.bgColor} text-white shadow-md`
-                            : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700"
+                            : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700'
                         }`}
                         style={{
                           backgroundColor:
-                            (priorityFilter || "") === priority.value &&
-                            "isThemeColor" in priority &&
+                            (priorityFilter || '') === priority.value &&
+                            'isThemeColor' in priority &&
                             priority.isThemeColor
-                              ? "#6366F1"
+                              ? '#6366F1'
                               : undefined,
                         }}
                       >
                         {priority.icon && (
                           <span
                             className={
-                              (priorityFilter || "") === priority.value
-                                ? "text-white"
+                              (priorityFilter || '') === priority.value
+                                ? 'text-white'
                                 : priority.iconColor
                             }
                           >
@@ -1103,14 +1122,14 @@ export default function HomeClientPage() {
                   </select>
                   <button
                     onClick={() =>
-                      setSortOrder((o) => (o === "asc" ? "desc" : "asc"))
+                      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))
                     }
                     className="p-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0"
-                    title={sortOrder === "asc" ? "昇順" : "降順"}
+                    title={sortOrder === 'asc' ? '昇順' : '降順'}
                   >
                     <svg
                       className={`w-3.5 h-3.5 text-zinc-700 dark:text-zinc-300 transition-transform ${
-                        sortOrder === "desc" ? "rotate-180" : ""
+                        sortOrder === 'desc' ? 'rotate-180' : ''
                       }`}
                       fill="none"
                       stroke="currentColor"
@@ -1197,7 +1216,7 @@ export default function HomeClientPage() {
                   このカテゴリにテーマを追加して、タスクを整理しましょう
                 </p>
                 <button
-                  onClick={() => router.push("/themes")}
+                  onClick={() => router.push('/themes')}
                   className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-colors inline-flex items-center gap-2"
                 >
                   <Plus className="w-5 h-5" />
@@ -1225,7 +1244,7 @@ export default function HomeClientPage() {
                   onClick={() => {
                     const themeParam = themeFilter || defaultTheme?.id;
                     router.push(
-                      `/tasks/new${themeParam ? `?themeId=${themeParam}` : ""}`,
+                      `/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`,
                     );
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors inline-flex items-center gap-2"
@@ -1269,7 +1288,7 @@ export default function HomeClientPage() {
                   className="slide-in-bottom"
                   style={{
                     animationDelay: `${index * 0.02}s`,
-                    animationFillMode: "both",
+                    animationFillMode: 'both',
                   }}
                 >
                   <TaskCard

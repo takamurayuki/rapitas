@@ -1,17 +1,17 @@
-"use client";
-import { Tags } from "lucide-react";
+'use client';
+import { Tags } from 'lucide-react';
 import CategoryManager, {
   type CategoryManagerConfig,
-} from "@/components/category/CategoryManager";
+} from '@/components/category/CategoryManager';
 
 const config: CategoryManagerConfig = {
-  title: "ラベル一覧",
+  title: 'ラベル一覧',
   titleIcon: Tags,
-  itemName: "ラベル",
-  endpoint: "labels",
-  accentColor: "indigo",
-  defaultColor: "#6366F1",
-  defaultIcon: "Tag",
+  itemName: 'ラベル',
+  endpoint: 'labels',
+  accentColor: 'indigo',
+  defaultColor: '#6366F1',
+  defaultIcon: 'Tag',
   showDefaultButton: false,
 };
 

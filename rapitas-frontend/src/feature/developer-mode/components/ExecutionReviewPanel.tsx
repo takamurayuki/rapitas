@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
 import {
   CheckCircle,
   XCircle,
@@ -23,17 +23,22 @@ import {
   Maximize2,
   Globe,
   Code2,
-} from "lucide-react";
-import { DiffViewer } from "./DiffViewer";
-import type { FileDiff, AgentExecution, ReviewComment, ScreenshotInfo } from "@/types";
-import ReactMarkdown from "react-markdown";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import { DiffViewer } from './DiffViewer';
+import type {
+  FileDiff,
+  AgentExecution,
+  ReviewComment,
+  ScreenshotInfo,
+} from '@/types';
+import ReactMarkdown from 'react-markdown';
+import { API_BASE_URL } from '@/utils/api';
 
 type ExecutionReviewPanelProps = {
   execution?: AgentExecution;
   files: FileDiff[];
   executionLog?: string;
-  status: "pending" | "running" | "completed" | "failed";
+  status: 'pending' | 'running' | 'completed' | 'failed';
   onApprove: (commitMessage: string, baseBranch: string) => Promise<void>;
   onReject: () => Promise<void>;
   onRequestChanges?: (
@@ -60,7 +65,7 @@ export function ExecutionReviewPanel({
   onRequestChanges,
   isProcessing = false,
   error,
-  defaultBranch = "main",
+  defaultBranch = 'main',
   implementationSummary,
   executionTimeMs,
   taskId,
@@ -68,23 +73,25 @@ export function ExecutionReviewPanel({
   workingDirectory,
 }: ExecutionReviewPanelProps) {
   const [showLog, setShowLog] = useState(false);
-  const [commitMessage, setCommitMessage] = useState("");
+  const [commitMessage, setCommitMessage] = useState('');
   const [baseBranch, setBaseBranch] = useState(defaultBranch);
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const [isRequestingChanges, setIsRequestingChanges] = useState(false);
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
-  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackText, setFeedbackText] = useState('');
   const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
-  const [newCommentFile, setNewCommentFile] = useState("");
-  const [newCommentContent, setNewCommentContent] = useState("");
+  const [newCommentFile, setNewCommentFile] = useState('');
+  const [newCommentContent, setNewCommentContent] = useState('');
   const [newCommentType, setNewCommentType] =
-    useState<ReviewComment["type"]>("change_request");
+    useState<ReviewComment['type']>('change_request');
   const [showScreenshots, setShowScreenshots] = useState(true);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   // 手動スクリーンショット撮影用の状態
-  const [screenshots, setScreenshots] = useState<ScreenshotInfo[]>(initialScreenshots || []);
+  const [screenshots, setScreenshots] = useState<ScreenshotInfo[]>(
+    initialScreenshots || [],
+  );
   const [isCapturing, setIsCapturing] = useState(false);
 
   // initialScreenshots が後から変更された場合にも反映する
@@ -94,12 +101,12 @@ export function ExecutionReviewPanel({
     }
   }, [initialScreenshots]);
   const [showCaptureForm, setShowCaptureForm] = useState(false);
-  const [captureBaseUrl, setCaptureBaseUrl] = useState("");
-  const [capturePages, setCapturePages] = useState<Array<{ path: string; label: string }>>([
-    { path: "/", label: "home" },
-  ]);
-  const [newPagePath, setNewPagePath] = useState("");
-  const [newPageLabel, setNewPageLabel] = useState("");
+  const [captureBaseUrl, setCaptureBaseUrl] = useState('');
+  const [capturePages, setCapturePages] = useState<
+    Array<{ path: string; label: string }>
+  >([{ path: '/', label: 'home' }]);
+  const [newPagePath, setNewPagePath] = useState('');
+  const [newPageLabel, setNewPageLabel] = useState('');
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [detectedProject, setDetectedProject] = useState<{
     type: string;
@@ -134,7 +141,7 @@ export function ExecutionReviewPanel({
     setIsRequestingChanges(true);
     try {
       await onRequestChanges(feedbackText.trim(), reviewComments);
-      setFeedbackText("");
+      setFeedbackText('');
       setReviewComments([]);
       setShowFeedbackForm(false);
     } finally {
@@ -153,8 +160,8 @@ export function ExecutionReviewPanel({
     };
 
     setReviewComments([...reviewComments, comment]);
-    setNewCommentContent("");
-    setNewCommentFile("");
+    setNewCommentContent('');
+    setNewCommentFile('');
   };
 
   const removeComment = (id: string) => {
@@ -167,8 +174,8 @@ export function ExecutionReviewPanel({
 
     try {
       const res = await fetch(`${API_BASE_URL}/screenshots/detect-project`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workingDirectory }),
       });
       const data = await res.json();
@@ -194,8 +201,8 @@ export function ExecutionReviewPanel({
 
     try {
       const res = await fetch(`${API_BASE_URL}/screenshots/capture`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           baseUrl: captureBaseUrl || undefined,
           pages: capturePages,
@@ -208,10 +215,14 @@ export function ExecutionReviewPanel({
         setShowCaptureForm(false);
         setShowScreenshots(true);
       } else {
-        setCaptureError(data.error || "スクリーンショットの撮影に失敗しました");
+        setCaptureError(data.error || 'スクリーンショットの撮影に失敗しました');
       }
     } catch (err) {
-      setCaptureError(err instanceof Error ? err.message : "スクリーンショットの撮影に失敗しました");
+      setCaptureError(
+        err instanceof Error
+          ? err.message
+          : 'スクリーンショットの撮影に失敗しました',
+      );
     } finally {
       setIsCapturing(false);
     }
@@ -222,76 +233,76 @@ export function ExecutionReviewPanel({
     setCapturePages([
       ...capturePages,
       {
-        path: newPagePath.startsWith("/") ? newPagePath : `/${newPagePath}`,
-        label: newPageLabel.trim() || newPagePath.replace(/^\//, ""),
+        path: newPagePath.startsWith('/') ? newPagePath : `/${newPagePath}`,
+        label: newPageLabel.trim() || newPagePath.replace(/^\//, ''),
       },
     ]);
-    setNewPagePath("");
-    setNewPageLabel("");
+    setNewPagePath('');
+    setNewPageLabel('');
   };
 
   const removeCapturePage = (index: number) => {
     setCapturePages(capturePages.filter((_, i) => i !== index));
   };
 
-  const getCommentTypeLabel = (type: ReviewComment["type"]) => {
+  const getCommentTypeLabel = (type: ReviewComment['type']) => {
     switch (type) {
-      case "change_request":
-        return "修正依頼";
-      case "comment":
-        return "コメント";
-      case "question":
-        return "質問";
+      case 'change_request':
+        return '修正依頼';
+      case 'comment':
+        return 'コメント';
+      case 'question':
+        return '質問';
     }
   };
 
-  const getCommentTypeColor = (type: ReviewComment["type"]) => {
+  const getCommentTypeColor = (type: ReviewComment['type']) => {
     switch (type) {
-      case "change_request":
-        return "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300";
-      case "comment":
-        return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300";
-      case "question":
-        return "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300";
+      case 'change_request':
+        return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300';
+      case 'comment':
+        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300';
+      case 'question':
+        return 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300';
     }
   };
 
   const getStatusIcon = () => {
     switch (status) {
-      case "pending":
+      case 'pending':
         return <Clock className="w-5 h-5 text-amber-500" />;
-      case "running":
+      case 'running':
         return <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />;
-      case "completed":
+      case 'completed':
         return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case "failed":
+      case 'failed':
         return <XCircle className="w-5 h-5 text-red-500" />;
     }
   };
 
   const getStatusLabel = () => {
     switch (status) {
-      case "pending":
-        return "保留中";
-      case "running":
-        return "実行中";
-      case "completed":
-        return "完了";
-      case "failed":
-        return "失敗";
+      case 'pending':
+        return '保留中';
+      case 'running':
+        return '実行中';
+      case 'completed':
+        return '完了';
+      case 'failed':
+        return '失敗';
     }
   };
 
   const getStatusColor = () => {
     switch (status) {
-      case "pending":
-        return "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300";
-      case "running":
-        return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300";
-      case "completed":
-        return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300";
-      case "failed":
-        return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300";
+      case 'pending':
+        return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300';
+      case 'running':
+        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300';
+      case 'completed':
+        return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300';
+      case 'failed':
+        return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
     }
   };
 
@@ -407,7 +418,11 @@ export function ExecutionReviewPanel({
                     type="text"
                     value={captureBaseUrl}
                     onChange={(e) => setCaptureBaseUrl(e.target.value)}
-                    placeholder={detectedProject ? detectedProject.baseUrl : "http://localhost:3000"}
+                    placeholder={
+                      detectedProject
+                        ? detectedProject.baseUrl
+                        : 'http://localhost:3000'
+                    }
                     className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                   />
                   {detectedProject && (
@@ -453,7 +468,7 @@ export function ExecutionReviewPanel({
                       placeholder="/dashboard"
                       className="flex-1 px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") {
+                        if (e.key === 'Enter') {
                           e.preventDefault();
                           addCapturePage();
                         }
@@ -466,7 +481,7 @@ export function ExecutionReviewPanel({
                       placeholder="ラベル"
                       className="w-24 px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") {
+                        if (e.key === 'Enter') {
                           e.preventDefault();
                           addCapturePage();
                         }
@@ -500,7 +515,7 @@ export function ExecutionReviewPanel({
                   ) : (
                     <Camera className="w-4 h-4" />
                   )}
-                  {isCapturing ? "撮影中..." : "スクリーンショットを撮影"}
+                  {isCapturing ? '撮影中...' : 'スクリーンショットを撮影'}
                 </button>
               </div>
             )}
@@ -524,7 +539,12 @@ export function ExecutionReviewPanel({
                         {screenshot.label}
                       </span>
                     </div>
-                    <div className="relative cursor-pointer" onClick={() => setLightboxImage(`${API_BASE_URL}${screenshot.url}`)}>
+                    <div
+                      className="relative cursor-pointer"
+                      onClick={() =>
+                        setLightboxImage(`${API_BASE_URL}${screenshot.url}`)
+                      }
+                    >
                       <img
                         src={`${API_BASE_URL}${screenshot.url}`}
                         alt={`Screenshot of ${screenshot.page}`}
@@ -532,9 +552,13 @@ export function ExecutionReviewPanel({
                         loading="lazy"
                         onError={(e) => {
                           const target = e.currentTarget;
-                          target.style.display = "none";
-                          const fallback = target.parentElement?.querySelector(".screenshot-error");
-                          if (fallback instanceof HTMLElement) fallback.style.display = "flex";
+                          target.style.display = 'none';
+                          const fallback =
+                            target.parentElement?.querySelector(
+                              '.screenshot-error',
+                            );
+                          if (fallback instanceof HTMLElement)
+                            fallback.style.display = 'flex';
                         }}
                       />
                       <div className="screenshot-error hidden items-center justify-center gap-2 py-8 text-zinc-400 dark:text-zinc-500 text-sm">
@@ -589,7 +613,7 @@ export function ExecutionReviewPanel({
       </div>
 
       {/* Feedback / Change Request Section */}
-      {status === "completed" && files.length > 0 && (
+      {status === 'completed' && files.length > 0 && (
         <div className="border-b border-zinc-200 dark:border-zinc-800">
           <button
             onClick={() => setShowFeedbackForm(!showFeedbackForm)}
@@ -656,7 +680,7 @@ export function ExecutionReviewPanel({
                   <select
                     value={newCommentType}
                     onChange={(e) =>
-                      setNewCommentType(e.target.value as ReviewComment["type"])
+                      setNewCommentType(e.target.value as ReviewComment['type'])
                     }
                     className="px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                   >
@@ -734,7 +758,7 @@ export function ExecutionReviewPanel({
       )}
 
       {/* Commit & PR Options */}
-      {status === "completed" && files.length > 0 && (
+      {status === 'completed' && files.length > 0 && (
         <div className="p-6 space-y-4 border-b border-zinc-200 dark:border-zinc-800">
           {/* Commit Message */}
           <div>
@@ -797,7 +821,7 @@ export function ExecutionReviewPanel({
             isApproving ||
             isRejecting ||
             !commitMessage.trim() ||
-            status !== "completed" ||
+            status !== 'completed' ||
             files.length === 0
           }
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -830,7 +854,7 @@ function ImplementationSummarySection({
 
   const displaySummary = isExpanded
     ? summary
-    : summary.substring(0, COLLAPSE_THRESHOLD).replace(/\s+\S*$/, "") + "...";
+    : summary.substring(0, COLLAPSE_THRESHOLD).replace(/\s+\S*$/, '') + '...';
 
   return (
     <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
@@ -866,7 +890,7 @@ function ImplementationSummarySection({
               onClick={() => setIsExpanded(!isExpanded)}
               className="mt-2 text-xs font-medium text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
             >
-              {isExpanded ? "折りたたむ" : "すべて表示"}
+              {isExpanded ? '折りたたむ' : 'すべて表示'}
             </button>
           )}
         </div>

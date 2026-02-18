@@ -1,6 +1,6 @@
-"use client";
-import { useEffect, useState } from "react";
-import type { FlashcardDeck } from "@/types";
+'use client';
+import { useEffect, useState } from 'react';
+import type { FlashcardDeck } from '@/types';
 import {
   Plus,
   Trash2,
@@ -11,8 +11,8 @@ import {
   X,
   Layers,
   Sparkles,
-} from "lucide-react";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import { API_BASE_URL } from '@/utils/api';
 
 export default function FlashcardsPage() {
   const [decks, setDecks] = useState<FlashcardDeck[]>([]);
@@ -24,14 +24,16 @@ export default function FlashcardsPage() {
   const [isStudyMode, setIsStudyMode] = useState(false);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [deckName, setDeckName] = useState("");
-  const [deckColor] = useState("#3B82F6");
-  const [cardFront, setCardFront] = useState("");
-  const [cardBack, setCardBack] = useState("");
-  const [generateTopic, setGenerateTopic] = useState("");
+  const [deckName, setDeckName] = useState('');
+  const [deckColor] = useState('#3B82F6');
+  const [cardFront, setCardFront] = useState('');
+  const [cardBack, setCardBack] = useState('');
+  const [generateTopic, setGenerateTopic] = useState('');
   const [generateCount, setGenerateCount] = useState(10);
-  const [generateDifficulty, setGenerateDifficulty] = useState<"beginner" | "intermediate" | "advanced">("intermediate");
-  const [generateLanguage, setGenerateLanguage] = useState<"ja" | "en">("ja");
+  const [generateDifficulty, setGenerateDifficulty] = useState<
+    'beginner' | 'intermediate' | 'advanced'
+  >('intermediate');
+  const [generateLanguage, setGenerateLanguage] = useState<'ja' | 'en'>('ja');
   const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export default function FlashcardsPage() {
         setDecks(await res.json());
       }
     } catch (e) {
-      console.error("Failed to fetch decks:", e);
+      console.error('Failed to fetch decks:', e);
     } finally {
       setLoading(false);
     }
@@ -58,7 +60,7 @@ export default function FlashcardsPage() {
         setSelectedDeck(await res.json());
       }
     } catch (e) {
-      console.error("Failed to fetch deck:", e);
+      console.error('Failed to fetch deck:', e);
     }
   };
 
@@ -68,25 +70,25 @@ export default function FlashcardsPage() {
 
     try {
       const res = await fetch(`${API_BASE_URL}/flashcard-decks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: deckName, color: deckColor }),
       });
       if (res.ok) {
         fetchDecks();
         setIsCreateModalOpen(false);
-        setDeckName("");
+        setDeckName('');
       }
     } catch (e) {
-      console.error("Failed to create deck:", e);
+      console.error('Failed to create deck:', e);
     }
   };
 
   const handleDeleteDeck = async (id: number) => {
-    if (!confirm("このデッキを削除しますか？")) return;
+    if (!confirm('このデッキを削除しますか？')) return;
     try {
       const res = await fetch(`${API_BASE_URL}/flashcard-decks/${id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       if (res.ok) {
         fetchDecks();
@@ -95,7 +97,7 @@ export default function FlashcardsPage() {
         }
       }
     } catch (e) {
-      console.error("Failed to delete deck:", e);
+      console.error('Failed to delete deck:', e);
     }
   };
 
@@ -107,33 +109,33 @@ export default function FlashcardsPage() {
       const res = await fetch(
         `${API_BASE_URL}/flashcard-decks/${selectedDeck.id}/cards`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ front: cardFront, back: cardBack }),
         },
       );
       if (res.ok) {
         fetchDeck(selectedDeck.id);
         setIsCardModalOpen(false);
-        setCardFront("");
-        setCardBack("");
+        setCardFront('');
+        setCardBack('');
       }
     } catch (e) {
-      console.error("Failed to add card:", e);
+      console.error('Failed to add card:', e);
     }
   };
 
   const handleDeleteCard = async (cardId: number) => {
-    if (!confirm("このカードを削除しますか？")) return;
+    if (!confirm('このカードを削除しますか？')) return;
     try {
       const res = await fetch(`${API_BASE_URL}/flashcards/${cardId}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       if (res.ok && selectedDeck) {
         fetchDeck(selectedDeck.id);
       }
     } catch (e) {
-      console.error("Failed to delete card:", e);
+      console.error('Failed to delete card:', e);
     }
   };
 
@@ -143,8 +145,8 @@ export default function FlashcardsPage() {
     const card = selectedDeck.cards[currentCardIndex];
     try {
       await fetch(`${API_BASE_URL}/flashcards/${card.id}/review`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quality }),
       });
 
@@ -159,7 +161,7 @@ export default function FlashcardsPage() {
         fetchDeck(selectedDeck.id);
       }
     } catch (e) {
-      console.error("Failed to review card:", e);
+      console.error('Failed to review card:', e);
     }
   };
 
@@ -179,8 +181,8 @@ export default function FlashcardsPage() {
       const res = await fetch(
         `${API_BASE_URL}/flashcard-decks/${selectedDeck.id}/generate`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             topic: generateTopic,
             count: generateCount,
@@ -195,19 +197,21 @@ export default function FlashcardsPage() {
       if (res.ok && data.success) {
         fetchDeck(selectedDeck.id);
         setIsGenerateModalOpen(false);
-        setGenerateTopic("");
+        setGenerateTopic('');
         setGenerateCount(10);
-        setGenerateDifficulty("intermediate");
+        setGenerateDifficulty('intermediate');
       } else {
-        if (data.error === "API key not configured") {
-          alert("APIキーが設定されていません。設定 > AI設定からClaude APIキーを設定してください。");
+        if (data.error === 'API key not configured') {
+          alert(
+            'APIキーが設定されていません。設定 > AI設定からClaude APIキーを設定してください。',
+          );
         } else {
-          alert(data.error || "カードの生成に失敗しました");
+          alert(data.error || 'カードの生成に失敗しました');
         }
       }
     } catch (e) {
-      console.error("Failed to generate cards:", e);
-      alert("カードの生成に失敗しました");
+      console.error('Failed to generate cards:', e);
+      alert('カードの生成に失敗しました');
     } finally {
       setIsGenerating(false);
     }
@@ -261,7 +265,7 @@ export default function FlashcardsPage() {
         >
           <div className="text-center">
             <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-4">
-              {isFlipped ? "答え" : "問題"}
+              {isFlipped ? '答え' : '問題'}
             </p>
             <p className="text-2xl font-medium text-zinc-900 dark:text-zinc-50">
               {isFlipped ? card.back : card.front}
@@ -531,7 +535,14 @@ export default function FlashcardsPage() {
                     </label>
                     <select
                       value={generateDifficulty}
-                      onChange={(e) => setGenerateDifficulty(e.target.value as "beginner" | "intermediate" | "advanced")}
+                      onChange={(e) =>
+                        setGenerateDifficulty(
+                          e.target.value as
+                            | 'beginner'
+                            | 'intermediate'
+                            | 'advanced',
+                        )
+                      }
                       className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
                       disabled={isGenerating}
                     >
@@ -551,8 +562,10 @@ export default function FlashcardsPage() {
                         type="radio"
                         name="language"
                         value="ja"
-                        checked={generateLanguage === "ja"}
-                        onChange={(e) => setGenerateLanguage(e.target.value as "ja")}
+                        checked={generateLanguage === 'ja'}
+                        onChange={(e) =>
+                          setGenerateLanguage(e.target.value as 'ja')
+                        }
                         className="mr-2"
                         disabled={isGenerating}
                       />
@@ -563,8 +576,10 @@ export default function FlashcardsPage() {
                         type="radio"
                         name="language"
                         value="en"
-                        checked={generateLanguage === "en"}
-                        onChange={(e) => setGenerateLanguage(e.target.value as "en")}
+                        checked={generateLanguage === 'en'}
+                        onChange={(e) =>
+                          setGenerateLanguage(e.target.value as 'en')
+                        }
                         className="mr-2"
                         disabled={isGenerating}
                       />

@@ -1,7 +1,7 @@
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
-export type PomodoroStatus = "idle" | "work" | "shortBreak" | "longBreak";
+export type PomodoroStatus = 'idle' | 'work' | 'shortBreak' | 'longBreak';
 
 // デフォルト値
 const DEFAULT_POMODORO_DURATION = 25 * 60; // 25分
@@ -29,9 +29,9 @@ const DEFAULT_SETTINGS: PomodoroSettings = {
 let broadcastChannel: BroadcastChannel | null = null;
 
 const getBroadcastChannel = () => {
-  if (typeof window === "undefined") return null;
+  if (typeof window === 'undefined') return null;
   if (!broadcastChannel) {
-    broadcastChannel = new BroadcastChannel("pomodoro-sync");
+    broadcastChannel = new BroadcastChannel('pomodoro-sync');
   }
   return broadcastChannel;
 };
@@ -40,7 +40,7 @@ const getBroadcastChannel = () => {
 const broadcastState = (state: Partial<PomodoroState>) => {
   const channel = getBroadcastChannel();
   if (channel) {
-    channel.postMessage({ type: "STATE_UPDATE", state });
+    channel.postMessage({ type: 'STATE_UPDATE', state });
   }
 };
 
@@ -98,15 +98,15 @@ let audioContext: AudioContext | null = null;
 
 // 今日の日付を取得
 const getTodayDateString = () => {
-  return new Date().toISOString().split("T")[0];
+  return new Date().toISOString().split('T')[0];
 };
 
 // 通知音を再生
 const playNotificationSound = (
-  type: "work" | "break",
+  type: 'work' | 'break',
   volume: number = 0.5,
 ) => {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
 
   if (!audioContext) {
     const AudioContextClass =
@@ -120,13 +120,13 @@ const playNotificationSound = (
   if (!context) return;
 
   // AudioContext が suspended の場合は resume
-  if (context.state === "suspended") {
+  if (context.state === 'suspended') {
     context.resume();
   }
 
   const adjustedVolume = Math.max(0.01, Math.min(1, volume));
 
-  if (type === "work") {
+  if (type === 'work') {
     // 作業終了: 高い音3回
     const playBeep = (delay: number) => {
       const osc = context.createOscillator();
@@ -171,7 +171,7 @@ let timerIntervalId: ReturnType<typeof setInterval> | null = null;
 
 // タイマーを開始
 const startTimerInterval = () => {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
   if (timerIntervalId) return;
 
   timerIntervalId = setInterval(() => {
@@ -233,7 +233,7 @@ export const usePomodoroStore = create<PomodoroState>()(
 
       startTimer: (taskId: number, taskTitle: string) => {
         // AudioContextを初期化
-        if (typeof window !== "undefined" && !audioContext) {
+        if (typeof window !== 'undefined' && !audioContext) {
           const AudioContextClass =
             window.AudioContext ||
             (window as unknown as { webkitAudioContext: typeof AudioContext })
@@ -348,7 +348,7 @@ export const usePomodoroStore = create<PomodoroState>()(
           if (newPomodoroSeconds >= pomodoroDuration) {
             // ポモドーロ完了
             if (settings.soundEnabled) {
-              playNotificationSound("work", settings.soundVolume);
+              playNotificationSound('work', settings.soundVolume);
             }
             set({
               pomodoroSeconds: pomodoroDuration,
@@ -374,7 +374,7 @@ export const usePomodoroStore = create<PomodoroState>()(
 
           if (newPomodoroSeconds >= breakDuration) {
             if (settings.soundEnabled) {
-              playNotificationSound("break", settings.soundVolume);
+              playNotificationSound('break', settings.soundVolume);
             }
             set({
               pomodoroSeconds: breakDuration,
@@ -397,7 +397,7 @@ export const usePomodoroStore = create<PomodoroState>()(
       },
     }),
     {
-      name: "pomodoro-storage",
+      name: 'pomodoro-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         taskId: state.taskId,
@@ -433,11 +433,11 @@ export function formatTime(seconds: number): string {
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
   if (hrs > 0) {
-    return `${hrs}:${mins.toString().padStart(2, "0")}:${secs
+    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs
       .toString()
-      .padStart(2, "0")}`;
+      .padStart(2, '0')}`;
   }
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 export function getRemainingTime(state: {
@@ -465,11 +465,11 @@ export {
 };
 
 // BroadcastChannelのリスナーを設定（クライアントサイドのみ）
-if (typeof window !== "undefined") {
+if (typeof window !== 'undefined') {
   const channel = getBroadcastChannel();
   if (channel) {
     channel.onmessage = (event) => {
-      if (event.data?.type === "STATE_UPDATE" && event.data?.state) {
+      if (event.data?.type === 'STATE_UPDATE' && event.data?.state) {
         const currentState = usePomodoroStore.getState();
         const newState = event.data.state;
 
@@ -490,7 +490,7 @@ if (typeof window !== "undefined") {
   }
 
   // ページ離脱時のクリーンアップ（メモリリーク防止）
-  window.addEventListener("beforeunload", () => {
+  window.addEventListener('beforeunload', () => {
     stopTimerInterval();
     if (broadcastChannel) {
       broadcastChannel.close();

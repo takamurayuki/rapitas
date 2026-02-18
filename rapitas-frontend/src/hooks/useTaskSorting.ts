@@ -7,7 +7,11 @@ interface UseTaskSortingProps {
   sortOrder: 'asc' | 'desc';
 }
 
-export function useTaskSorting({ tasks, sortBy, sortOrder }: UseTaskSortingProps): Task[] {
+export function useTaskSorting({
+  tasks,
+  sortBy,
+  sortOrder,
+}: UseTaskSortingProps): Task[] {
   return useMemo(() => {
     const sorted = [...tasks].sort((a, b) => {
       let comparison = 0;

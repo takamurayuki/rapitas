@@ -1,22 +1,31 @@
-"use client";
+'use client';
 
-import { useState, useRef, useEffect } from "react";
-import { Bell, Check, CheckCheck, X, ExternalLink } from "lucide-react";
-import Link from "next/link";
-import { useNotifications } from "@/feature/developer-mode/hooks/useNotifications";
-import type { Notification } from "@/types";
+import { useState, useRef, useEffect } from 'react';
+import { Bell, Check, CheckCheck, X, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
+import { useNotifications } from '@/feature/developer-mode/hooks/useNotifications';
+import type { Notification } from '@/types';
 
 const typeIcons: Record<string, string> = {
-  approval_request: "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400",
-  task_completed: "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400",
-  agent_error: "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400",
-  daily_summary: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400",
-  pr_review_requested: "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400",
-  pr_approved: "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400",
-  pr_changes_requested: "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400",
-  agent_execution_started: "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400",
-  agent_execution_complete: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400",
-  github_sync_complete: "bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400",
+  approval_request:
+    'bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400',
+  task_completed:
+    'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
+  agent_error: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
+  daily_summary:
+    'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+  pr_review_requested:
+    'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+  pr_approved:
+    'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
+  pr_changes_requested:
+    'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
+  agent_execution_started:
+    'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400',
+  agent_execution_complete:
+    'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
+  github_sync_complete:
+    'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400',
 };
 
 export default function NotificationBell() {
@@ -45,11 +54,11 @@ export default function NotificationBell() {
     };
 
     if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isOpen]);
 
@@ -75,11 +84,11 @@ export default function NotificationBell() {
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-    if (diffMins < 1) return "たった今";
+    if (diffMins < 1) return 'たった今';
     if (diffMins < 60) return `${diffMins}分前`;
     if (diffHours < 24) return `${diffHours}時間前`;
     if (diffDays < 7) return `${diffDays}日前`;
-    return date.toLocaleDateString("ja-JP", { month: "short", day: "numeric" });
+    return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
   };
 
   return (
@@ -92,7 +101,7 @@ export default function NotificationBell() {
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-500 rounded-full">
-            {unreadCount > 99 ? "99+" : unreadCount}
+            {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
@@ -142,8 +151,8 @@ export default function NotificationBell() {
                   key={notification.id}
                   className={`relative group ${
                     !notification.isRead
-                      ? "bg-violet-50/50 dark:bg-violet-900/10"
-                      : ""
+                      ? 'bg-violet-50/50 dark:bg-violet-900/10'
+                      : ''
                   }`}
                 >
                   {notification.link ? (
@@ -232,7 +241,7 @@ function NotificationContent({
       <div
         className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${typeIcons[notification.type]}`}
       >
-        {notification.type === "approval_request" && (
+        {notification.type === 'approval_request' && (
           <svg
             className="w-4 h-4"
             fill="none"
@@ -247,10 +256,10 @@ function NotificationContent({
             />
           </svg>
         )}
-        {notification.type === "task_completed" && (
+        {notification.type === 'task_completed' && (
           <Check className="w-4 h-4" />
         )}
-        {notification.type === "agent_error" && (
+        {notification.type === 'agent_error' && (
           <svg
             className="w-4 h-4"
             fill="none"
@@ -265,7 +274,7 @@ function NotificationContent({
             />
           </svg>
         )}
-        {notification.type === "daily_summary" && (
+        {notification.type === 'daily_summary' && (
           <svg
             className="w-4 h-4"
             fill="none"
@@ -280,7 +289,7 @@ function NotificationContent({
             />
           </svg>
         )}
-        {notification.type === "pr_review_requested" && (
+        {notification.type === 'pr_review_requested' && (
           <svg
             className="w-4 h-4"
             fill="none"
@@ -301,7 +310,7 @@ function NotificationContent({
             />
           </svg>
         )}
-        {notification.type === "agent_execution_started" && (
+        {notification.type === 'agent_execution_started' && (
           <svg
             className="w-4 h-4"
             fill="none"

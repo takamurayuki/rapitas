@@ -1,6 +1,6 @@
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
-import type { ReactNode, HTMLAttributes, CSSProperties } from "react";
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import type { ReactNode, HTMLAttributes, CSSProperties } from 'react';
 
 // vscDarkPlusのスタイル型
 type SyntaxHighlighterStyle = { [key: string]: CSSProperties };
@@ -36,8 +36,8 @@ export const createMarkdownComponents = () => ({
     // 子要素に pre や code ブロックが含まれているかチェック
     const hasCodeBlock = node?.children?.some(
       (child) =>
-        child.type === "element" &&
-        (child.tagName === "pre" || child.tagName === "code"),
+        child.type === 'element' &&
+        (child.tagName === 'pre' || child.tagName === 'code'),
     );
 
     if (hasCodeBlock) {
@@ -46,9 +46,9 @@ export const createMarkdownComponents = () => ({
     return <p {...props}>{children}</p>;
   },
   code({ inline, className, children, style: _style, ...props }: CodeProps) {
-    const match = /language-(\w+)/.exec(className || "");
-    const language = match ? match[1] : "";
-    const codeString = String(children).replace(/\n$/, "");
+    const match = /language-(\w+)/.exec(className || '');
+    const language = match ? match[1] : '';
+    const codeString = String(children).replace(/\n$/, '');
     // _styleは使用しない（SyntaxHighlighterのstyleと競合するため）
     void _style;
 
@@ -81,8 +81,8 @@ export const createMarkdownComponents = () => ({
             showLineNumbers={true}
             customStyle={{
               margin: 0,
-              borderRadius: "0.5rem",
-              padding: "1rem",
+              borderRadius: '0.5rem',
+              padding: '1rem',
             }}
             {...props}
           >

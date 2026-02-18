@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useMemo, useState, memo, useCallback, useEffect, useRef } from "react";
+import { useMemo, useState, memo, useCallback, useEffect, useRef } from 'react';
 import {
   Plus,
   Trash2,
@@ -17,17 +17,17 @@ import {
   ArrowLeft,
   Network,
   GripVertical,
-} from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
-import type { Comment, CommentSearchResult } from "@/types";
-import { API_BASE_URL } from "@/utils/api";
+} from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
+import type { Comment, CommentSearchResult } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
 
 // Types
 type CommentLink = {
   id: number;
-  direction: "outgoing" | "incoming";
+  direction: 'outgoing' | 'incoming';
   label?: string | null;
   linkedComment: { id: number; content: string; taskId: number };
 };
@@ -53,7 +53,7 @@ type Props = {
 
 const timeAgo = (d: Date) => {
   const m = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (m < 1) return "今";
+  if (m < 1) return '今';
   if (m < 60) return `${m}分前`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}時間前`;
@@ -67,30 +67,30 @@ const LABEL_COLORS: Record<
   { bg: string; text: string; border: string; line: string }
 > = {
   関連: {
-    bg: "bg-blue-50 dark:bg-blue-900/20",
-    text: "text-blue-600 dark:text-blue-400",
-    border: "border-blue-200 dark:border-blue-800",
-    line: "#3b82f6",
+    bg: 'bg-blue-50 dark:bg-blue-900/20',
+    text: 'text-blue-600 dark:text-blue-400',
+    border: 'border-blue-200 dark:border-blue-800',
+    line: '#3b82f6',
   },
   発展: {
-    bg: "bg-emerald-50 dark:bg-emerald-900/20",
-    text: "text-emerald-600 dark:text-emerald-400",
-    border: "border-emerald-200 dark:border-emerald-800",
-    line: "#10b981",
+    bg: 'bg-emerald-50 dark:bg-emerald-900/20',
+    text: 'text-emerald-600 dark:text-emerald-400',
+    border: 'border-emerald-200 dark:border-emerald-800',
+    line: '#10b981',
   },
   補足: {
-    bg: "bg-amber-50 dark:bg-amber-900/20",
-    text: "text-amber-600 dark:text-amber-400",
-    border: "border-amber-200 dark:border-amber-800",
-    line: "#f59e0b",
+    bg: 'bg-amber-50 dark:bg-amber-900/20',
+    text: 'text-amber-600 dark:text-amber-400',
+    border: 'border-amber-200 dark:border-amber-800',
+    line: '#f59e0b',
   },
 };
 
 const DEFAULT_LINK_STYLE = {
-  bg: "bg-blue-50 dark:bg-blue-900/20",
-  text: "text-blue-600 dark:text-blue-400",
-  border: "border-blue-200 dark:border-blue-800",
-  line: "#8b5cf6",
+  bg: 'bg-blue-50 dark:bg-blue-900/20',
+  text: 'text-blue-600 dark:text-blue-400',
+  border: 'border-blue-200 dark:border-blue-800',
+  line: '#8b5cf6',
 };
 
 // Link Preview Popover
@@ -127,7 +127,7 @@ const LinkPreview = memo(function LinkPreview({
         onClick={() => onScrollToNote(link.linkedComment.id)}
         className={`group/l inline-flex items-center gap-1 pl-1.5 pr-1 py-0.5 ${style.bg} border ${style.border} rounded-md text-[10px] ${style.text} hover:opacity-80 transition-all cursor-pointer hover:shadow-sm`}
       >
-        {link.direction === "outgoing" ? (
+        {link.direction === 'outgoing' ? (
           <ArrowRight className="w-2.5 h-2.5 shrink-0" />
         ) : (
           <ArrowLeft className="w-2.5 h-2.5 shrink-0" />
@@ -153,7 +153,7 @@ const LinkPreview = memo(function LinkPreview({
         <div className="absolute z-40 bottom-full left-0 mb-1.5 w-64 animate-in fade-in slide-in-from-bottom-1 duration-150">
           <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-700 p-2.5 overflow-hidden">
             <div className="flex items-center gap-1.5 mb-1.5">
-              {link.direction === "outgoing" ? (
+              {link.direction === 'outgoing' ? (
                 <ArrowRight className={`w-3 h-3 ${style.text}`} />
               ) : (
                 <ArrowLeft className={`w-3 h-3 ${style.text}`} />
@@ -166,7 +166,7 @@ const LinkPreview = memo(function LinkPreview({
                 </span>
               )}
               <span className="text-[10px] text-zinc-400">
-                {link.direction === "outgoing" ? "リンク先" : "リンク元"}
+                {link.direction === 'outgoing' ? 'リンク先' : 'リンク元'}
               </span>
             </div>
             <div className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed line-clamp-4 [&>p]:m-0">
@@ -260,24 +260,24 @@ const Note = memo(function Note({
       style={{ marginLeft: indent > 0 ? `${indent * 12}px` : 0 }}
       className={
         indent > 0
-          ? "border-l-2 border-zinc-200 dark:border-zinc-700 pl-2.5 mt-1"
-          : ""
+          ? 'border-l-2 border-zinc-200 dark:border-zinc-700 pl-2.5 mt-1'
+          : ''
       }
     >
       <div
         className={`group rounded-lg px-2.5 py-2 transition-all duration-200
-          ${isDragSource ? "opacity-50 scale-[0.98]" : ""}
-          ${isDragOver ? "ring-2 ring-blue-400 ring-offset-1 dark:ring-offset-zinc-900 bg-blue-50/50 dark:bg-blue-900/20" : "bg-zinc-50/50 dark:bg-zinc-800/30"}
-          ${isHighlighted ? "ring-2 ring-blue-400 ring-offset-1 dark:ring-offset-zinc-900 animate-pulse" : ""}
+          ${isDragSource ? 'opacity-50 scale-[0.98]' : ''}
+          ${isDragOver ? 'ring-2 ring-blue-400 ring-offset-1 dark:ring-offset-zinc-900 bg-blue-50/50 dark:bg-blue-900/20' : 'bg-zinc-50/50 dark:bg-zinc-800/30'}
+          ${isHighlighted ? 'ring-2 ring-blue-400 ring-offset-1 dark:ring-offset-zinc-900 animate-pulse' : ''}
           border border-transparent hover:border-zinc-200 dark:hover:border-zinc-700`}
         draggable={!isEdit && !isReply}
         onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = "link";
+          e.dataTransfer.effectAllowed = 'link';
           onDragStart(note.id);
         }}
         onDragOver={(e) => {
           e.preventDefault();
-          e.dataTransfer.dropEffect = "link";
+          e.dataTransfer.dropEffect = 'link';
           onDragOver(note.id);
         }}
         onDragLeave={() => onDragOver(-1)}
@@ -421,7 +421,7 @@ const Note = memo(function Note({
                       className="flex-1 px-2 py-1 text-xs bg-transparent outline-none placeholder:text-zinc-400"
                       autoFocus
                       onKeyDown={(e) =>
-                        e.key === "Enter" &&
+                        e.key === 'Enter' &&
                         (e.preventDefault(), onReplySubmit())
                       }
                     />
@@ -495,10 +495,10 @@ const LinkModal = memo(function LinkModal({
   onSelect: (id: number, label?: string) => void;
   onClose: () => void;
 }) {
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState('');
   const [results, setResults] = useState<CommentSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [label, setLabel] = useState("");
+  const [label, setLabel] = useState('');
 
   useEffect(() => {
     const search = async () => {
@@ -507,9 +507,9 @@ const LinkModal = memo(function LinkModal({
         const p = new URLSearchParams({
           excludeId: String(source.id),
           taskId: String(taskId),
-          limit: "10",
+          limit: '10',
         });
-        if (q.trim()) p.set("q", q.trim());
+        if (q.trim()) p.set('q', q.trim());
         const res = await fetch(`${API_BASE_URL}/comments/search?${p}`);
         if (res.ok) setResults(await res.json());
       } catch {
@@ -571,17 +571,17 @@ const LinkModal = memo(function LinkModal({
 
           {/* Label buttons */}
           <div className="flex gap-1.5 mt-2">
-            {(["関連", "発展", "補足"] as const).map((l) => {
+            {(['関連', '発展', '補足'] as const).map((l) => {
               const style = LABEL_COLORS[l];
               const isActive = label === l;
               return (
                 <button
                   key={l}
-                  onClick={() => setLabel(isActive ? "" : l)}
+                  onClick={() => setLabel(isActive ? '' : l)}
                   className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
                     isActive
                       ? `${style.bg} ${style.text} ${style.border} font-medium`
-                      : "border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-600"
+                      : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-600'
                   }`}
                 >
                   {l}
@@ -623,7 +623,7 @@ const LinkModal = memo(function LinkModal({
             <div className="p-6 text-center">
               <Search className="w-5 h-5 text-zinc-300 dark:text-zinc-600 mx-auto mb-1.5" />
               <p className="text-xs text-zinc-400">
-                {q ? "一致するメモがありません" : "リンク先のメモを検索"}
+                {q ? '一致するメモがありません' : 'リンク先のメモを検索'}
               </p>
             </div>
           )}
@@ -684,7 +684,7 @@ const DragLinkLabelSelector = memo(function DragLinkLabelSelector({
             ラベルを選択（任意）:
           </p>
           <div className="flex flex-wrap gap-1.5 mb-3">
-            {(["関連", "発展", "補足"] as const).map((l) => {
+            {(['関連', '発展', '補足'] as const).map((l) => {
               const style = LABEL_COLORS[l];
               return (
                 <button
@@ -737,7 +737,7 @@ const RelationshipMap = memo(function RelationshipMap({
     }[] = [];
     const collectLinks = (n: NoteData) => {
       n.links?.forEach((l) => {
-        if (l.direction === "outgoing") {
+        if (l.direction === 'outgoing') {
           links.push({
             from: n.id,
             to: l.linkedComment.id,
@@ -809,7 +809,7 @@ const RelationshipMap = memo(function RelationshipMap({
             </button>
             <div className="flex items-center gap-0.5 shrink-0">
               <div
-                className={`w-4 h-0.5 ${link.label ? "" : "bg-blue-300 dark:bg-blue-600"}`}
+                className={`w-4 h-0.5 ${link.label ? '' : 'bg-blue-300 dark:bg-blue-600'}`}
                 style={link.label ? { backgroundColor: style.line } : undefined}
               />
               {link.label && (
@@ -850,9 +850,9 @@ export default function MemoSection({
   onDeleteLink,
 }: Props) {
   const [editId, setEditId] = useState<number | null>(null);
-  const [editText, setEditText] = useState("");
+  const [editText, setEditText] = useState('');
   const [replyId, setReplyId] = useState<number | null>(null);
-  const [replyText, setReplyText] = useState("");
+  const [replyText, setReplyText] = useState('');
   const [linkNote, setLinkNote] = useState<NoteData | null>(null);
   const [showMap, setShowMap] = useState(false);
   const [highlightedNoteId, setHighlightedNoteId] = useState<number | null>(
@@ -878,7 +878,7 @@ export default function MemoSection({
           l.toComment &&
           links.push({
             id: l.id,
-            direction: "outgoing",
+            direction: 'outgoing',
             label: l.label,
             linkedComment: l.toComment,
           }),
@@ -888,7 +888,7 @@ export default function MemoSection({
           l.fromComment &&
           links.push({
             id: l.id,
-            direction: "incoming",
+            direction: 'incoming',
             label: l.label,
             linkedComment: l.fromComment,
           }),
@@ -926,11 +926,11 @@ export default function MemoSection({
   }, [editId, editText, onUpdateComment]);
   const handleCancel = useCallback(() => {
     setEditId(null);
-    setEditText("");
+    setEditText('');
   }, []);
   const handleReply = useCallback((n: NoteData) => {
     setReplyId(n.id);
-    setReplyText("");
+    setReplyText('');
   }, []);
   const handleReplySubmit = useCallback(() => {
     if (replyId && replyText.trim()) {
@@ -940,7 +940,7 @@ export default function MemoSection({
   }, [replyId, replyText, onAddComment]);
   const handleReplyCancel = useCallback(() => {
     setReplyId(null);
-    setReplyText("");
+    setReplyText('');
   }, []);
   const handleLink = useCallback((n: NoteData) => setLinkNote(n), []);
   const handleLinkSelect = useCallback(
@@ -962,7 +962,7 @@ export default function MemoSection({
     if (!containerRef.current) return;
     const el = containerRef.current.querySelector(`[data-note-id="${id}"]`);
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setHighlightedNoteId(id);
       setTimeout(() => setHighlightedNoteId(null), 2000);
     }
@@ -1042,8 +1042,8 @@ export default function MemoSection({
               onClick={() => setShowMap(!showMap)}
               className={`flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
                 showMap
-                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800"
-                  : "text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+                  ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800'
+                  : 'text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
               }`}
             >
               <Network className="w-3 h-3" />
@@ -1082,7 +1082,7 @@ export default function MemoSection({
           value={newComment}
           onChange={(e) => onNewCommentChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               handleSubmit();
             }
