@@ -991,6 +991,12 @@ function startFileWatcher() {
 }
 
 async function main() {
+  // CI環境では実行しない
+  if (process.env.CI === 'true' || process.env.CI === '1') {
+    console.log("CI environment detected. Skipping dev server startup.");
+    process.exit(0);
+  }
+
   // ポートのクリーンアップ（前回クラッシュ時のゾンビプロセス対策）
   console.log("\nChecking ports...");
   actualBackendPort = await ensurePortAvailable(BACKEND_PORT);

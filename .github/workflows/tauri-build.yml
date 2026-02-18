@@ -181,9 +181,11 @@ jobs:
 
       - name: Build Tauri application
         working-directory: rapitas-desktop
-        run: pnpm tauri build --target ${{ matrix.target }} --config src-tauri/tauri.ci.conf.json
+        run: pnpm tauri build --target ${{ matrix.target }} --config src-tauri/tauri.ci.conf.json --no-dev-server
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI: true
+          DATABASE_URL: "dummy://ci-build"  # Provide dummy URL to prevent missing env var errors
 
       - name: Upload artifacts (Windows)
         if: matrix.platform == 'windows-latest'
