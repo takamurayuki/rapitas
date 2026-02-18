@@ -9,7 +9,6 @@ import {
   Eye,
   Filter,
   ArrowLeft,
-  Loader2,
   GitMerge,
   XCircle,
 } from "lucide-react";

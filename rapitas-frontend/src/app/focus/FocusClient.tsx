@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Task } from "@/types";
 import {
@@ -38,7 +38,7 @@ export default function FocusClient() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const fetchTask = async (id: number) => {
+  const fetchTask = useCallback(async (id: number) => {
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${id}`);
       if (res.ok) {
@@ -47,9 +47,49 @@ export default function FocusClient() {
     } catch (e) {
       console.error("Failed to fetch task:", e);
     }
-  };
+  }, []);
 
-  const handleTimerComplete = () => {
+  const saveTimeEntry = useCallback(async () => {
+    const endTime = new Date();
+    const duration = (customWorkTime / 60); // 時間単位
+
+    try {
+      // タスクに紐づいている場合は時間を記録
+      if (taskId && startTime) {
+        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/time-entries`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            duration,
+            startedAt: startTime.toISOString(),
+            endedAt: endTime.toISOString(),
+            note: `フォーカスセッション ${sessionsCompleted + 1}`,
+          }),
+        });
+
+        if (res.ok) {
+          const newEntry = await res.json();
+          setTimeEntries((prev) => [...prev, newEntry]);
+          setSessionsCompleted((prev) => prev + 1);
+          showToast(`${customWorkTime}分の作業時間を記録しました`, "success");
+        }
+      }
+
+      // 学習統計を更新
+      await fetch(`${API_BASE_URL}/statistics/daily-study`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hours: duration,
+          date: new Date().toISOString().split("T")[0],
+        }),
+      });
+    } catch (e) {
+      console.error("Failed to save time entry:", e);
+    }
+  }, [customWorkTime, taskId, startTime, sessionsCompleted]);
+
+  const handleTimerComplete = useCallback(() => {
     setIsRunning(false);
 
     // 通知音
@@ -79,57 +119,10 @@ export default function FocusClient() {
       setMode("work");
       setTimeLeft(customWorkTime * 60);
     }
-  };
+  }, [soundEnabled, mode, saveTimeEntry, customBreakTime, customWorkTime]);
 
-  const saveTimeEntry = async () => {
-    const endTime = new Date();
-    const duration = (customWorkTime / 60); // 時間単位
 
-    try {
-      // タスクに紐づいている場合は時間を記録
-      if (taskId && startTime) {
-        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/time-entries`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            duration,
-            startedAt: startTime.toISOString(),
-            endedAt: endTime.toISOString(),
-            note: `フォーカスセッション ${sessionsCompleted + 1}`,
-          }),
-        });
-
-        if (res.ok) {
-          showToast(`${customWorkTime}分の作業時間を記録しました`, "success");
-        }
-      }
-
-      // ストリーク記録（タスクがなくても記録）
-      await fetch(`${API_BASE_URL}/study-streaks/record`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studyMinutes: customWorkTime,
-        }),
-      });
-
-      // 実績チェック
-      const achievementRes = await fetch(`${API_BASE_URL}/achievements/check`, { method: "POST" });
-      if (achievementRes.ok) {
-        const { newlyUnlocked } = await achievementRes.json();
-        if (newlyUnlocked && newlyUnlocked.length > 0) {
-          newlyUnlocked.forEach((achievement: { name: string }) => {
-            showToast(`🏆 「${achievement.name}」を獲得しました！`, "success");
-          });
-        }
-      }
-    } catch (e) {
-      console.error("Failed to save time entry:", e);
-      showToast("時間の記録に失敗しました", "error");
-    }
-  };
-
-  const playNotificationSound = () => {
+  const playNotificationSound = useCallback(() => {
     // シンプルなビープ音を生成
     const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const audioContext = new AudioContextClass();
@@ -145,7 +138,7 @@ export default function FocusClient() {
 
     oscillator.start();
     setTimeout(() => oscillator.stop(), 200);
-  };
+  }, []);
 
   const startTimer = () => {
     if (!isRunning && mode === "work") {

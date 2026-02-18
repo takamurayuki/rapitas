@@ -333,7 +333,7 @@ function PromptCard({
       setEditName(prompt.name);
       setEditDescription(prompt.description || "");
     }
-  }, [isEditing, prompt.content, prompt.name, prompt.description]);
+  }, [isEditing, prompt]);
 
   const categoryInfo = CATEGORY_LABELS[prompt.category] || {
     label: prompt.category,

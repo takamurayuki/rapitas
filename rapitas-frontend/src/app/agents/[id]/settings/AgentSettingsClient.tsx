@@ -26,7 +26,6 @@ import {
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { API_BASE_URL } from "@/utils/api";
 import {
-  validateName,
   validateUrl,
   validateApiKey,
   collectErrors,
@@ -201,6 +200,7 @@ export default function AgentSettingsClient({
         setError("エージェントが見つかりません");
       }
     } catch (err) {
+      console.error("Failed to fetch agent:", err);
       setError("エージェントの取得に失敗しました");
     } finally {
       setLoading(false);
@@ -393,6 +393,7 @@ export default function AgentSettingsClient({
         message: data.message || (data.success ? "接続成功" : "接続失敗"),
       });
     } catch (err) {
+      console.error("Failed to test connection:", err);
       setTestResult({
         success: false,
         message: "接続テストに失敗しました",

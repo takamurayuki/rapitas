@@ -28,9 +28,6 @@ import {
   ChevronUp,
   ChevronsUp,
   FolderKanban,
-  Code,
-  BookOpen,
-  Layers,
   Plus,
 } from "lucide-react";
 import { getIconComponent } from "@/components/category/IconData";
@@ -40,7 +37,6 @@ import { useAppModeStore } from "@/stores/appModeStore";
 import { useTaskCacheStore } from "@/stores/taskCacheStore";
 import {
   ProgressRing,
-  CardLightSweep,
   FlyingParticle,
   useTaskCompletionAnimation,
 } from "@/feature/tasks/components/TaskCompletionAnimation";
@@ -177,7 +173,7 @@ export default function HomeClientPage() {
     }
   };
 
-  const fetchThemes = async () => {
+  const fetchThemes = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/themes`);
       const data = await res.json();
@@ -205,7 +201,7 @@ export default function HomeClientPage() {
       console.error(e);
       return [];
     }
-  };
+  }, [categoryFilter, themeFilter]);
 
   const updateStatus = async (
     id: number,
@@ -487,7 +483,7 @@ export default function HomeClientPage() {
         }
       }
     }
-  }, [appMode, categories]);
+  }, [appMode, categories, categoryFilter, setCategoryFilter, themes, setThemeFilter]);
 
   // フィルター変更時にページを1に戻す
   useEffect(() => {

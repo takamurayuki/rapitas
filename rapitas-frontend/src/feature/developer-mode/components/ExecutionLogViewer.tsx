@@ -140,8 +140,12 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   useEffect(() => {
     if (!searchQuery.trim()) {
       if (searchMatches.length > 0 || currentMatchIndex !== 0) {
-        setSearchMatches([]);
-        setCurrentMatchIndex(0);
+        // 非同期で更新
+        const timer = setTimeout(() => {
+          setSearchMatches([]);
+          setCurrentMatchIndex(0);
+        }, 0);
+        return () => clearTimeout(timer);
       }
       return;
     }

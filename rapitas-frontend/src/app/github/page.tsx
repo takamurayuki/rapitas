@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  Loader2,
 } from "lucide-react";
 import type { GitHubIntegration, GitHubPullRequest, GitHubIssue } from "@/types";
 import { getLabelsArray } from "@/utils/labels";

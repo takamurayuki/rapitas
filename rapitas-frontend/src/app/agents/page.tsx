@@ -11,10 +11,8 @@ import {
   Terminal,
   Zap,
   Activity,
-  Star,
   AlertTriangle,
   Globe,
-  ChevronDown,
   Code,
   Search,
   Trash2,
@@ -88,8 +86,6 @@ export default function AgentsPage() {
     available: string[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [settingDefault, setSettingDefault] = useState<string | null>(null);
-  const [enablingType, setEnablingType] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -197,30 +193,8 @@ export default function AgentsPage() {
     }
   }, [agents]);
 
-  const handleSetDefault = async (agentId: number) => {
-    setSettingDefault(String(agentId));
-    setError(null);
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/agents/${agentId}/set-default`,
-        { method: "PUT" },
-      );
-      if (res.ok) {
-        await fetchData();
-      } else {
-        const data = await res.json();
-        setError(data.error || "デフォルトの設定に失敗しました");
-      }
-    } catch {
-      setError("デフォルトの設定に失敗しました");
-    } finally {
-      setSettingDefault(null);
-    }
-  };
-
   // エージェントタイプを有効化（DB上にレコードがなければ作成）
   const handleEnableAgentType = async (agentType: string, agentName: string) => {
-    setEnablingType(agentType);
     setError(null);
     try {
       // 既にこのタイプのエージェントがDB上にあるか確認
@@ -257,13 +231,11 @@ export default function AgentsPage() {
     } catch {
       setError("エージェントの有効化に失敗しました");
     } finally {
-      setEnablingType(null);
     }
   };
 
   // エージェントタイプを無効化
   const handleDisableAgentType = async (agentType: string) => {
-    setEnablingType(agentType);
     setError(null);
     try {
       const existing = agents.find((a) => a.agentType === agentType && a.isActive);
@@ -281,7 +253,6 @@ export default function AgentsPage() {
     } catch {
       setError("エージェントの無効化に失敗しました");
     } finally {
-      setEnablingType(null);
     }
   };
 
@@ -343,15 +314,6 @@ export default function AgentsPage() {
     );
   };
 
-  const capabilityLabels: Record<string, string> = {
-    codeGeneration: "コード生成",
-    codeReview: "レビュー",
-    taskAnalysis: "分析",
-    fileOperations: "ファイル操作",
-    terminalAccess: "ターミナル",
-    gitOperations: "Git",
-    webSearch: "Web検索",
-  };
 
   const handleSaveDevelopmentAgent = async () => {
     if (!developmentAgent.type) return;

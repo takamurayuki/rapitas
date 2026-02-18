@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import type { Task, ExamGoal, ScheduleEvent, ScheduleEventInput } from "@/types";
+import type { ExamGoal, ScheduleEvent, ScheduleEventInput } from "@/types";
 import {
   ChevronLeft,
   ChevronRight,
@@ -22,7 +22,7 @@ import { API_BASE_URL } from "@/utils/api";
 import { useTaskCacheStore } from "@/stores/taskCacheStore";
 import ScheduleEventDialog from "@/feature/calendar/components/ScheduleEventDialog";
 import PaidLeaveDialog from "@/feature/calendar/components/PaidLeaveDialog";
-import { getHolidaysForMonth, type Holiday } from "@/utils/holidays";
+import { getHolidaysForMonth } from "@/utils/holidays";
 import type { PaidLeaveBalance } from "@/types";
 
 const API_BASE = API_BASE_URL;

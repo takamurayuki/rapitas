@@ -12,7 +12,6 @@ import {
   Bell,
   BellOff,
   Moon,
-  Sun,
   Briefcase,
   Dumbbell,
   UtensilsCrossed,

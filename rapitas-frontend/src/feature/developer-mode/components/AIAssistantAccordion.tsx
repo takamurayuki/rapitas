@@ -196,9 +196,13 @@ export function AIAssistantAccordion({
   // 親からのoptimizedPromptの変更を反映
   useEffect(() => {
     if (optimizedPrompt && optimizedPrompt !== localOptimizedPrompt) {
-      setLocalOptimizedPrompt(optimizedPrompt);
+      // 非同期で更新
+      const timer = setTimeout(() => {
+        setLocalOptimizedPrompt(optimizedPrompt);
+      }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [optimizedPrompt]); // localOptimizedPromptは依存配列に含めない
+  }, [optimizedPrompt, localOptimizedPrompt]);
 
   const handlePromptGenerated = useCallback(
     (prompt: string) => {

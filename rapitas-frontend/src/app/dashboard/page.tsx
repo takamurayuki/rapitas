@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ExamGoal, StudyStreak } from "@/types";
 import {
   BarChart3,
@@ -47,7 +47,7 @@ export default function DashboardPage() {
   const [streakInfo, setStreakInfo] = useState<StreakInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchOverview = async () => {
+  const fetchOverview = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/statistics/overview`);
       if (res.ok) {
@@ -56,9 +56,9 @@ export default function DashboardPage() {
     } catch (e) {
       console.error("Failed to fetch overview:", e);
     }
-  };
+  }, []);
 
-  const fetchDailyStudy = async () => {
+  const fetchDailyStudy = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/statistics/daily-study?days=14`);
       if (res.ok) {
@@ -67,9 +67,9 @@ export default function DashboardPage() {
     } catch (e) {
       console.error("Failed to fetch daily study:", e);
     }
-  };
+  }, []);
 
-  const fetchStreakInfo = async () => {
+  const fetchStreakInfo = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/study-streaks/current`);
       if (res.ok) {
@@ -78,14 +78,19 @@ export default function DashboardPage() {
     } catch (e) {
       console.error("Failed to fetch streak info:", e);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    Promise.all([
-      fetchOverview(),
-      fetchDailyStudy(),
-      fetchStreakInfo(),
-    ]).finally(() => setLoading(false));
+    const loadData = async () => {
+      await Promise.all([
+        fetchOverview(),
+        fetchDailyStudy(),
+        fetchStreakInfo(),
+      ]);
+      setLoading(false);
+    };
+
+    loadData();
   }, [fetchOverview, fetchDailyStudy, fetchStreakInfo]);
 
   const formatDate = (dateStr: string) => {

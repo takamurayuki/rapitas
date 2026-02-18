@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import {
   Plus,
   Edit2,
@@ -105,7 +105,7 @@ export default function CategoriesPage() {
     }
   };
 
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/categories`);
@@ -117,14 +117,14 @@ export default function CategoriesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     seedDefaults().then(() => {
       fetchItems();
       fetchDefaultCategory();
     });
-  }, []);
+  }, [fetchItems]);
 
   const handleAdd = async () => {
     if (!formData.name.trim()) {
