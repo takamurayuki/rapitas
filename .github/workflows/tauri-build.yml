@@ -138,7 +138,36 @@ jobs:
 
       - name: Build frontend
         working-directory: rapitas-frontend
-        run: pnpm run build:tauri:ci
+        run: |
+          echo "Building frontend with TAURI_BUILD=$TAURI_BUILD"
+          echo "Current environment variables:"
+          echo "NEXT_TURBO=$NEXT_TURBO"
+          echo "TAURI_BUILD=$TAURI_BUILD"
+
+          # Run Next.js build directly
+          npx next build
+
+          # Run restore script
+          node scripts/prepare-tauri-build.js restore
+
+          # Check build output
+          echo ""
+          echo "Checking build output..."
+          if [ -d "out" ]; then
+            echo "✓ out directory exists with $(ls -1 out | wc -l) files"
+            ls -la out/ | head -10
+          else
+            echo "✗ out directory not found!"
+            echo ""
+            echo "Current directory contents:"
+            ls -la
+            echo ""
+            echo "Checking .next directory:"
+            if [ -d ".next" ]; then
+              ls -la .next/ | head -10
+            fi
+          fi
+        shell: bash
         env:
           NEXT_TELEMETRY_DISABLED: 1
           # Disable Turbopack for CI builds to avoid import resolution issues
