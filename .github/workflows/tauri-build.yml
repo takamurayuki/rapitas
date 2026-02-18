@@ -144,7 +144,9 @@ jobs:
 
           # Test if the binary runs
           echo "Testing backend binary..."
-          ./rapitas-backend.exe --version || echo "Binary test completed"
+          $env:CI = "true"
+          ./rapitas-backend.exe --version
+          echo "Binary version test completed"
 
           # Create binaries directory and copy
           New-Item -ItemType Directory -Force -Path ../rapitas-desktop/src-tauri/binaries
@@ -177,7 +179,7 @@ jobs:
 
           # Test if the binary runs
           echo "Testing backend binary..."
-          ./rapitas-backend --version || echo "Binary test completed"
+          CI=true ./rapitas-backend --version
 
           # Create binaries directory and copy
           mkdir -p ../rapitas-desktop/src-tauri/binaries

@@ -92,6 +92,16 @@ app.onError(({ code, error }) => {
   };
 });
 
+// Check for version flag (for CI/CD build testing)
+if (process.argv.includes("--version") || process.argv.includes("-v")) {
+  console.log("CI/CD Stub Backend v1.0.0");
+  process.exit(0);
+}
+
+// Check for CI environment flag
+const isCI = process.env.CI === "true";
+const CI_TIMEOUT = 5000; // 5 seconds timeout in CI
+
 // サーバー起動
 const PORT = parseInt(process.env.PORT || "3001", 10);
 app.listen({
@@ -102,6 +112,15 @@ app.listen({
 console.log(`🚀 CI/CD Stub Backend running on http://localhost:${PORT}`);
 console.log(`⚠️  This is a minimal stub server for CI/CD builds.`);
 console.log(`⚠️  Database functionality is not available.`);
+
+// Auto-exit after timeout in CI environment
+if (isCI) {
+  console.log(`⏱️  CI mode: Auto-exit after ${CI_TIMEOUT}ms`);
+  setTimeout(() => {
+    console.log("CI timeout reached, exiting...");
+    process.exit(0);
+  }, CI_TIMEOUT);
+}
 
 // グレースフルシャットダウン
 process.on("SIGTERM", () => {
