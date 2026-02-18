@@ -2654,6 +2654,7 @@ dependencies = [
 name = "rapitas-desktop"
 version = "1.0.0"
 dependencies = [
+ "glob",
  "open",
  "serde",
  "serde_json",

@@ -9,9 +9,17 @@
     "active": true,
     "targets": "all",
     "resources": [
-      "../../rapitas-backend/prisma/migrations/**/*",
-      "../../rapitas-backend/prisma/schema.prisma",
-      "binaries/rapitas-backend*"
+      {
+        "path": "../../rapitas-backend/prisma/migrations",
+        "target": "migrations"
+      },
+      {
+        "path": "../../rapitas-backend/prisma/schema.prisma",
+        "target": "schema.prisma"
+      }
+    ],
+    "externalBin": [
+      "binaries/rapitas-backend"
     ]
   },
   "plugins": {

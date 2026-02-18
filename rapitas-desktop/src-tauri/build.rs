@@ -20,6 +20,7 @@ fn main() {
     };
 
     let source_path = PathBuf::from("binaries").join(&binary_name);
+    let binaries_dir = PathBuf::from("binaries");
 
     // In CI/CD, the binary might not have the full target triple in the name
     // Try alternative names if the primary one doesn't exist
@@ -67,12 +68,64 @@ fn main() {
             source_path.display()
         );
         println!("cargo:warning=Looked for alternatives in: binaries/");
-        if let Ok(entries) = fs::read_dir("binaries") {
+
+        // Check if binaries directory exists
+        if !binaries_dir.exists() {
+            println!("cargo:warning=  binaries/ directory does not exist");
+            // In CI, this is expected during the initial Rust check phase
+            // The backend binary will be built later in the workflow
+            if env::var("CI").is_ok() {
+                println!("cargo:warning=  Running in CI environment - binary will be built later");
+            }
+        } else if let Ok(entries) = fs::read_dir(&binaries_dir) {
+            let mut found_any = false;
             for entry in entries.flatten() {
+                found_any = true;
                 println!(
                     "cargo:warning=  Found: {}",
                     entry.file_name().to_string_lossy()
                 );
+            }
+            if !found_any {
+                println!("cargo:warning=  binaries/ directory is empty");
+            }
+        }
+
+        // In CI environment, check if we're in the Rust check phase
+        // where the binary hasn't been built yet
+        if env::var("CI").is_ok() && env::var("RUST_CHECK_ONLY").is_ok() {
+            println!("cargo:warning=  Rust check phase - skipping binary requirement");
+        }
+    }
+
+    // Try to find any binaries using glob pattern
+    // This is to provide more helpful debugging info
+    if !found && binaries_dir.exists() {
+        // List all files that start with "rapitas-backend"
+        if let Ok(entries) = fs::read_dir(&binaries_dir) {
+            println!("cargo:warning=  Looking for files matching rapitas-backend*:");
+            for entry in entries.flatten() {
+                let file_name = entry.file_name();
+                let file_name_str = file_name.to_string_lossy();
+                if file_name_str.starts_with("rapitas-backend") {
+                    println!("cargo:warning=    Found matching file: {}", file_name_str);
+                }
+            }
+        }
+
+        // Also try using glob crate if available
+        #[cfg(feature = "glob")]
+        {
+            use glob::glob;
+            let pattern = binaries_dir.join("rapitas-backend*");
+            if let Ok(paths) = glob(pattern.to_str().unwrap_or("binaries/rapitas-backend*")) {
+                let files: Vec<_> = paths.filter_map(Result::ok).collect();
+                if !files.is_empty() {
+                    println!("cargo:warning=  Glob found files:");
+                    for file in files {
+                        println!("cargo:warning=    {}", file.display());
+                    }
+                }
             }
         }
     }

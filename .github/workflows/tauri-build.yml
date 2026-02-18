@@ -257,7 +257,19 @@ jobs:
 
       - name: Prepare desktop build
         working-directory: rapitas-desktop
-        run: pnpm run ci:prepare
+        run: |
+          pnpm run ci:prepare
+
+          # Verify backend binary exists after build
+          echo "Checking backend binary in binaries directory..."
+          ls -la src-tauri/binaries/ || echo "binaries directory not found"
+
+      - name: Prepare backend binary configuration
+        working-directory: rapitas-desktop
+        run: |
+          # Run the script to prepare backend binary configuration
+          node scripts/prepare-backend-binary.js ${{ matrix.target }}
+        shell: bash
 
       - name: Build Tauri application
         working-directory: rapitas-desktop
