@@ -39,9 +39,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": [
-      "binaries/rapitas-backend"
-    ],
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
@@ -51,7 +48,9 @@
         "installMode": "both"
       }
     },
-    "resources": []
+    "resources": [
+      "binaries/rapitas-backend*"
+    ]
   },
   "plugins": {
     "shell": {

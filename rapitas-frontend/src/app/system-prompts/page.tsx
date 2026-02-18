@@ -323,9 +323,9 @@ function PromptCard({
   onDelete: () => void;
   onToggleActive: () => void;
 }) {
-  const [editContent, setEditContent] = useState(prompt.content);
-  const [editName, setEditName] = useState(prompt.name);
-  const [editDescription, setEditDescription] = useState(prompt.description || "");
+  const [editContent, setEditContent] = useState(isEditing ? prompt.content : "");
+  const [editName, setEditName] = useState(isEditing ? prompt.name : "");
+  const [editDescription, setEditDescription] = useState(isEditing ? (prompt.description || "") : "");
 
   useEffect(() => {
     if (isEditing) {
@@ -333,7 +333,7 @@ function PromptCard({
       setEditName(prompt.name);
       setEditDescription(prompt.description || "");
     }
-  }, [isEditing, prompt]);
+  }, [isEditing, prompt.content, prompt.name, prompt.description]);
 
   const categoryInfo = CATEGORY_LABELS[prompt.category] || {
     label: prompt.category,

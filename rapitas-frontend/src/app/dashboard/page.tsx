@@ -47,14 +47,6 @@ export default function DashboardPage() {
   const [streakInfo, setStreakInfo] = useState<StreakInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    Promise.all([
-      fetchOverview(),
-      fetchDailyStudy(),
-      fetchStreakInfo(),
-    ]).finally(() => setLoading(false));
-  }, []);
-
   const fetchOverview = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/statistics/overview`);
@@ -87,6 +79,14 @@ export default function DashboardPage() {
       console.error("Failed to fetch streak info:", e);
     }
   };
+
+  useEffect(() => {
+    Promise.all([
+      fetchOverview(),
+      fetchDailyStudy(),
+      fetchStreakInfo(),
+    ]).finally(() => setLoading(false));
+  }, []);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);

@@ -38,28 +38,6 @@ export default function FocusClient() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  useEffect(() => {
-    if (taskId) {
-      fetchTask(parseInt(taskId));
-    }
-  }, [taskId]);
-
-  useEffect(() => {
-    if (isRunning && timeLeft > 0) {
-      intervalRef.current = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (timeLeft === 0) {
-      handleTimerComplete();
-    }
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [isRunning, timeLeft]);
-
   const fetchTask = async (id: number) => {
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${id}`);
@@ -196,6 +174,28 @@ export default function FocusClient() {
     const secs = seconds % 60;
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
+
+  useEffect(() => {
+    if (taskId) {
+      fetchTask(parseInt(taskId));
+    }
+  }, [taskId]);
+
+  useEffect(() => {
+    if (isRunning && timeLeft > 0) {
+      intervalRef.current = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+      }, 1000);
+    } else if (timeLeft === 0) {
+      handleTimerComplete();
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [isRunning, timeLeft, handleTimerComplete]);
 
   const progress = mode === "work"
     ? ((customWorkTime * 60 - timeLeft) / (customWorkTime * 60)) * 100

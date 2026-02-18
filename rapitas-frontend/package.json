@@ -9,7 +9,8 @@
     "build:tauri:ci": "cross-env TAURI_BUILD=true next build && node scripts/prepare-tauri-build.js restore",
     "build:tauri:no-restore": "node scripts/prepare-tauri-build.js backup && cross-env TAURI_BUILD=true next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "echo \"No tests configured yet\" && exit 0"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

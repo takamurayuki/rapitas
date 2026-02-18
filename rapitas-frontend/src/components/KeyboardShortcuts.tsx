@@ -17,13 +17,8 @@ export const OPEN_SHORTCUTS_EVENT = "openKeyboardShortcuts";
 export default function KeyboardShortcuts() {
   const router = useRouter();
   const [showHelp, setShowHelp] = useState(false);
-  const [isMac, setIsMac] = useState(false);
+  const [isMac, setIsMac] = useState(() => getIsMac());
   const shortcuts = useShortcutStore((state) => state.shortcuts);
-
-  // クライアントサイドでOS検出
-  useEffect(() => {
-    setIsMac(getIsMac());
-  }, []);
 
   // 外部からモーダルを開くためのイベントリスナー
   useEffect(() => {

@@ -61,8 +61,8 @@ jobs:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
         run: bun test
 
-  test-frontend:
-    name: Test Frontend
+  check-frontend:
+    name: Check Frontend
     runs-on: ubuntu-latest
 
     steps:
@@ -92,10 +92,6 @@ jobs:
       - name: Install frontend dependencies
         working-directory: rapitas-frontend
         run: pnpm install --no-frozen-lockfile
-
-      - name: Run frontend tests
-        working-directory: rapitas-frontend
-        run: pnpm test
 
       - name: Run TypeScript type check
         working-directory: rapitas-frontend

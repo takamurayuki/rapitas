@@ -10,10 +10,24 @@
     "targets": "all",
     "resources": [
       "../../rapitas-backend/prisma/migrations/**/*",
-      "../../rapitas-backend/prisma/schema.prisma"
-    ],
-    "externalBin": [
-      "binaries/rapitas-backend"
+      "../../rapitas-backend/prisma/schema.prisma",
+      {
+        "path": "binaries/rapitas-backend*",
+        "target": "rapitas-backend"
+      }
     ]
+  },
+  "plugins": {
+    "shell": {
+      "open": true,
+      "sidecar": true,
+      "scope": [
+        {
+          "name": "binaries/rapitas-backend",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    }
   }
 }

@@ -137,7 +137,6 @@ export default function AchievementNotifications() {
 
   // ポーリングで新しい実績を確認
   useEffect(() => {
-    if (!mounted) return;
 
     let lastCheckedIds: number[] = [];
 

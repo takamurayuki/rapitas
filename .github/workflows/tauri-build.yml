@@ -150,7 +150,13 @@ jobs:
 
           # Create binaries directory and copy
           New-Item -ItemType Directory -Force -Path ../rapitas-desktop/src-tauri/binaries
-          Copy-Item rapitas-backend.exe ../rapitas-desktop/src-tauri/binaries/rapitas-backend-${{ matrix.target }}.exe
+
+          # Copy with platform-specific naming for Tauri sidecar
+          if ("${{ matrix.target }}" -eq "x86_64-pc-windows-msvc") {
+            Copy-Item rapitas-backend.exe ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-pc-windows-msvc.exe
+            # Also copy without target suffix for fallback
+            Copy-Item rapitas-backend.exe ../rapitas-desktop/src-tauri/binaries/rapitas-backend.exe
+          }
 
           echo "Backend binary copied to Tauri binaries directory"
           dir ../rapitas-desktop/src-tauri/binaries/
@@ -192,8 +198,19 @@ jobs:
 
           # Create binaries directory and copy
           mkdir -p ../rapitas-desktop/src-tauri/binaries
-          cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend-${{ matrix.target }}
-          chmod +x ../rapitas-desktop/src-tauri/binaries/rapitas-backend-${{ matrix.target }}
+
+          # Copy with platform-specific naming for Tauri sidecar
+          if [ "${{ matrix.target }}" == "x86_64-unknown-linux-gnu" ]; then
+            cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu
+            # Also copy without target suffix for fallback
+            cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend
+          elif [ "${{ matrix.target }}" == "x86_64-apple-darwin" ]; then
+            cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-apple-darwin
+          elif [ "${{ matrix.target }}" == "aarch64-apple-darwin" ]; then
+            cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend-aarch64-apple-darwin
+          fi
+
+          chmod +x ../rapitas-desktop/src-tauri/binaries/rapitas-backend*
 
           echo "Backend binary copied to Tauri binaries directory"
           ls -la ../rapitas-desktop/src-tauri/binaries/
