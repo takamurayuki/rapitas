@@ -45,9 +45,11 @@ export function ResumableExecutionsBanner() {
   const [dismissingIds, setDismissingIds] = useState<Set<number>>(new Set());
   const [autoResume, setAutoResume] = useState(false);
   const [connectionError, setConnectionError] = useState<Error | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   // セッション中に一度だけ自動再開を実行するためのフラグ
   const autoResumeCheckedRef = useRef(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // グローバルストアの実行中タスク数を監視
   const executingTasksSize = useExecutionStateStore(
@@ -216,6 +218,34 @@ export function ResumableExecutionsBanner() {
     };
     resumeAll();
   }, [autoResume, isLoading, executions]);
+
+  // プルダウンの外側クリックで閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowDropdown(false);
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showDropdown]);
 
   // Resume a specific execution
   const handleResume = async (executionId: number, isAutoResume = false) => {
@@ -600,28 +630,100 @@ export function ResumableExecutionsBanner() {
         {/* Quick actions when collapsed */}
         {!isExpanded && executions.length > 0 && (
           <div className="px-3 pb-3 flex items-center gap-2">
-            {executions[0].canResume ? (
-              <button
-                onClick={() => handleResume(executions[0].id)}
-                disabled={resumingIds.has(executions[0].id)}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-              >
-                {resumingIds.has(executions[0].id) ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            {/* 1件のみの場合は現行のボタン表示 */}
+            {executions.length === 1 ? (
+              <>
+                {executions[0].canResume ? (
+                  <button
+                    onClick={() => handleResume(executions[0].id)}
+                    disabled={resumingIds.has(executions[0].id)}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                  >
+                    {resumingIds.has(executions[0].id) ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Zap className="w-3.5 h-3.5" />
+                    )}
+                    最新を再開
+                  </button>
                 ) : (
-                  <Zap className="w-3.5 h-3.5" />
+                  <a
+                    href={`/tasks/${executions[0].taskId}?showHeader=true`}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-linear-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-lg text-xs font-semibold transition-all shadow-sm hover:shadow-md"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    実行中のタスクを確認
+                  </a>
                 )}
-                最新を再開
-              </button>
+              </>
             ) : (
-              <a
-                href={`/tasks/${executions[0].taskId}?showHeader=true`}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-linear-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-lg text-xs font-semibold transition-all shadow-sm hover:shadow-md"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                実行中のタスクを確認
-              </a>
+              /* 複数件の場合はプルダウン形式 */
+              <div className="relative flex-1 min-w-0" ref={dropdownRef}>
+                <div className="relative">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowDropdown(!showDropdown);
+                    }}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                      hasRunning
+                        ? 'bg-linear-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white'
+                        : 'bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white'
+                    } ${showDropdown ? 'shadow-lg scale-[0.98]' : 'shadow-sm hover:shadow-md'}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Bot className="w-3.5 h-3.5" />
+                      <span>
+                        {runningCount > 0
+                          ? `${runningCount}件実行中`
+                          : `${interruptedCount}件再開可能`}
+                      </span>
+                    </div>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* プルダウンメニュー */}
+                  {showDropdown && (
+                    <div className="absolute left-0 right-0 top-full mt-2 min-w-[200px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-2xl overflow-hidden z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200">
+                      <div className="max-h-64 overflow-y-auto">
+                        {executions.map((exec) => (
+                          <a
+                            key={exec.id}
+                            href={`/tasks/${exec.taskId}?showHeader=true`}
+                            onClick={() => setShowDropdown(false)}
+                            className="flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors border-b border-zinc-100 dark:border-zinc-800 last:border-b-0"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
+                                  {exec.taskTitle || `タスク #${exec.taskId}`}
+                                </span>
+                                {(exec.status === 'running' ||
+                                  exec.status === 'waiting_for_input') && (
+                                  <span className="shrink-0 flex items-center gap-0.5 px-1 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[9px] font-medium rounded">
+                                    <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                                  </span>
+                                )}
+                                {exec.status === 'interrupted' && (
+                                  <span className="shrink-0 px-1 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[9px] font-medium rounded">
+                                    中断
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                                {formatTimeAgo(exec.startedAt || exec.createdAt)}
+                              </p>
+                            </div>
+                            <ExternalLink className="w-3 h-3 text-zinc-400 shrink-0" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
+            {/* 複数の中断タスクがある場合の全て再開ボタン */}
             {interruptedCount > 1 && (
               <button
                 onClick={handleResumeAll}
@@ -635,16 +737,19 @@ export function ResumableExecutionsBanner() {
                 全て再開
               </button>
             )}
-            <button
-              onClick={() => setIsExpanded(true)}
-              className={`px-3 py-2 bg-white/60 dark:bg-zinc-800/60 hover:bg-white dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded-lg text-xs font-medium transition-colors border ${
-                hasRunning
-                  ? 'border-blue-200/50 dark:border-blue-700/30'
-                  : 'border-amber-200/50 dark:border-amber-700/30'
-              }`}
-            >
-              詳細
-            </button>
+            {/* 1件の場合でも詳細ボタンを表示 */}
+            {executions.length === 1 && (
+              <button
+                onClick={() => setIsExpanded(true)}
+                className={`px-3 py-2 bg-white/60 dark:bg-zinc-800/60 hover:bg-white dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded-lg text-xs font-medium transition-colors border ${
+                  hasRunning
+                    ? 'border-blue-200/50 dark:border-blue-700/30'
+                    : 'border-amber-200/50 dark:border-amber-700/30'
+                }`}
+              >
+                詳細
+              </button>
+            )}
           </div>
         )}
       </div>

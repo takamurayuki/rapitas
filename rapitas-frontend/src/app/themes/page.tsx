@@ -518,16 +518,12 @@ export default function ThemesPage() {
   };
 
   const renderForm = (isEdit: boolean, itemId?: number) => (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 基本情報 */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
-          <SwatchBook className="w-4 h-4" />
-          基本情報
-        </h3>
+      <div className="space-y-3">
 
         <div>
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+          <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
             テーマ名 <span className="text-red-500">*</span>
           </label>
           <input
@@ -535,13 +531,13 @@ export default function ThemesPage() {
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="テーマ名を入力"
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
             autoFocus
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+          <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
             説明（任意）
           </label>
           <textarea
@@ -550,24 +546,24 @@ export default function ThemesPage() {
               setFormData({ ...formData, description: e.target.value })
             }
             placeholder="説明を入力"
-            rows={2}
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none"
+            rows={1}
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
               カラー
             </label>
-            <div className="flex gap-3 items-center">
+            <div className="flex gap-2 items-center">
               <input
                 type="color"
                 value={formData.color}
                 onChange={(e) =>
                   setFormData({ ...formData, color: e.target.value })
                 }
-                className="h-11 w-16 rounded-lg border border-zinc-300 dark:border-zinc-700 cursor-pointer"
+                className="h-9 w-12 rounded-lg border border-zinc-300 dark:border-zinc-700 cursor-pointer"
               />
               <input
                 type="text"
@@ -575,46 +571,46 @@ export default function ThemesPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, color: e.target.value })
                 }
-                className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all font-mono"
+                className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all font-mono"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
               選択中のアイコン
             </label>
             <div
-              className="h-11 rounded-lg border-2 flex items-center justify-center"
+              className="h-9 rounded-lg border-2 flex items-center justify-center"
               style={{
                 borderColor: formData.color,
                 backgroundColor: formData.color + '15',
               }}
             >
               <div style={{ color: formData.color }}>
-                {renderIcon(formData.icon, 24)}
+                {renderIcon(formData.icon, 20)}
               </div>
             </div>
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+          <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
             アイコンを選択 {!formData.icon && '(未選択時: SwatchBook)'}
           </label>
 
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
+          <div className="relative mb-2">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
             <input
               type="text"
               value={iconSearchQuery}
               onChange={(e) => setIconSearchQuery(e.target.value)}
               placeholder="アイコンを検索...（例: 本、仕事、星）"
-              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              className="w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
             />
           </div>
 
-          <div className="max-h-48 overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
+          <div className="max-h-36 overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
             {filteredIcons.length === 50 && debouncedIconSearchQuery && (
               <div className="p-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
                 表示数が多いため、最初の50件のみ表示しています。絞り込むには検索ワードを追加してください。
@@ -637,10 +633,10 @@ export default function ThemesPage() {
 
       {/* カテゴリ選択 */}
       {categories.length > 0 && (
-        <div className="border-t border-zinc-200 dark:border-zinc-700 pt-6 space-y-4">
-          <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
+        <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4 space-y-3">
+          <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
             所属カテゴリ <span className="text-red-500">*</span>
-          </h3>
+          </label>
           {selectedCategoryId !== null ? (
             <div className="flex items-center gap-2">
               {(() => {
@@ -672,7 +668,7 @@ export default function ThemesPage() {
                   categoryId: e.target.value ? Number(e.target.value) : null,
                 })
               }
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
             >
               <option value="" disabled>
                 カテゴリを選択してください
@@ -688,48 +684,43 @@ export default function ThemesPage() {
       )}
 
       {/* 開発プロジェクト設定 */}
-      <div className="border-t border-zinc-200 dark:border-zinc-700 pt-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
-            <Code className="w-4 h-4" />
-            開発プロジェクト設定
-          </h3>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={formData.isDevelopment}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                if (checked && !formData.categoryId) {
-                  const devCategory = categories.find(
-                    (c) => c.name === '開発' && c.isDefault,
-                  );
-                  setFormData({
-                    ...formData,
-                    isDevelopment: true,
-                    categoryId: devCategory?.id ?? formData.categoryId,
-                  });
-                } else {
-                  setFormData({ ...formData, isDevelopment: checked });
-                }
-              }}
-              className="w-4 h-4 rounded border-zinc-300 text-purple-600 focus:ring-purple-500"
-            />
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">
-              開発プロジェクトとして設定
-            </span>
-          </label>
-        </div>
+      <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4 space-y-3">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={formData.isDevelopment}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              if (checked && !formData.categoryId) {
+                const devCategory = categories.find(
+                  (c) => c.name === '開発' && c.isDefault,
+                );
+                setFormData({
+                  ...formData,
+                  isDevelopment: true,
+                  categoryId: devCategory?.id ?? formData.categoryId,
+                });
+              } else {
+                setFormData({ ...formData, isDevelopment: checked });
+              }
+            }}
+            className="w-4 h-4 rounded border-zinc-300 text-purple-600 focus:ring-purple-500"
+          />
+          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+            <Code className="w-3.5 h-3.5" />
+            開発プロジェクトとして設定
+          </span>
+        </label>
 
         {formData.isDevelopment && (
-          <div className="space-y-4 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
-            <p className="text-xs text-purple-700 dark:text-purple-300">
+          <div className="space-y-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+            <p className="text-xs text-purple-700 dark:text-purple-300 mb-2">
               開発プロジェクトとして設定すると、このテーマのタスクでAI開発モードを使用する際に、以下の設定が自動適用されます。
             </p>
 
             <div>
-              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-2">
-                <FolderGit2 className="w-4 h-4" />
+              <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1 flex items-center gap-1.5">
+                <FolderGit2 className="w-3.5 h-3.5" />
                 GitHubリポジトリURL
               </label>
               <input
@@ -739,13 +730,13 @@ export default function ThemesPage() {
                   setFormData({ ...formData, repositoryUrl: e.target.value })
                 }
                 placeholder="https://github.com/username/repository"
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
               />
             </div>
 
             <div>
-              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-2">
-                <FolderOpen className="w-4 h-4" />
+              <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1 flex items-center gap-1.5">
+                <FolderOpen className="w-3.5 h-3.5" />
                 作業ディレクトリ（ローカルパス）
               </label>
               <DirectoryPicker
@@ -777,40 +768,40 @@ export default function ThemesPage() {
                       )}
                     </div>
                   ) : dirStatus.exists === false ? (
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
                         <AlertCircle className="w-3.5 h-3.5" />
                         フォルダが存在しません
                       </div>
 
                       {/* フォルダ作成UI */}
-                      <div className="p-3 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-800">
-                        <p className="text-xs text-amber-700 dark:text-amber-300 mb-2">
-                          このパスにフォルダを作成しますか？
-                        </p>
+                      <div className="p-2 bg-amber-50 dark:bg-amber-900/10 rounded border border-amber-200 dark:border-amber-800">
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={handleCreateDirectory}
                             disabled={isCreatingDir}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {isCreatingDir ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <Loader2 className="w-3 h-3 animate-spin" />
                             ) : (
-                              <FolderPlus className="w-3.5 h-3.5" />
+                              <FolderPlus className="w-3 h-3" />
                             )}
-                            このパスにフォルダを作成
+                            作成
                           </button>
+                          <span className="text-xs text-amber-700 dark:text-amber-300">
+                            このパスにフォルダを作成
+                          </span>
                         </div>
 
                         {/* 別のフォルダ名で作成 */}
                         {showCreateFolder && (
-                          <div className="mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
-                            <p className="text-xs text-amber-700 dark:text-amber-300 mb-2">
-                              または別のフォルダ名で作成:
+                          <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800">
+                            <p className="text-xs text-amber-700 dark:text-amber-300 mb-1">
+                              別のフォルダ名:
                             </p>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
                               <input
                                 type="text"
                                 value={newFolderName}
@@ -822,8 +813,8 @@ export default function ThemesPage() {
                                     handleCreateNewFolder();
                                   }
                                 }}
-                                placeholder="フォルダ名を入力..."
-                                className="flex-1 px-3 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                                placeholder="フォルダ名..."
+                                className="flex-1 px-2 py-1 text-xs bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
                                 disabled={isCreatingDir}
                               />
                               <button
@@ -832,12 +823,12 @@ export default function ThemesPage() {
                                 disabled={
                                   !newFolderName.trim() || isCreatingDir
                                 }
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 {isCreatingDir ? (
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <Loader2 className="w-3 h-3 animate-spin" />
                                 ) : (
-                                  <FolderPlus className="w-3.5 h-3.5" />
+                                  <FolderPlus className="w-3 h-3" />
                                 )}
                                 作成
                               </button>
@@ -852,13 +843,13 @@ export default function ThemesPage() {
 
               <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                 Claude
-                Codeがコード変更を行うローカルのプロジェクトフォルダを指定してください。「参照」ボタンでフォルダを選択できます。
+                Codeがコード変更を行うローカルのプロジェクトフォルダを指定してください。
               </p>
             </div>
 
             <div>
-              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-2">
-                <GitBranch className="w-4 h-4" />
+              <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1 flex items-center gap-1.5">
+                <GitBranch className="w-3.5 h-3.5" />
                 デフォルトブランチ
               </label>
               <input
@@ -868,28 +859,28 @@ export default function ThemesPage() {
                   setFormData({ ...formData, defaultBranch: e.target.value })
                 }
                 placeholder="main"
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
               />
             </div>
           </div>
         )}
       </div>
 
-      <div className="flex gap-2 justify-end pt-2">
+      <div className="flex gap-2 justify-end pt-1">
         <button
           onClick={cancelEdit}
-          className="flex items-center gap-2 rounded-lg bg-zinc-200 dark:bg-zinc-800 px-4 py-2.5 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-all font-medium"
+          className="flex items-center gap-1.5 rounded-lg bg-zinc-200 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-all font-medium"
         >
-          <X className="w-4 h-4" />
+          <X className="w-3.5 h-3.5" />
           キャンセル
         </button>
         <button
           onClick={() =>
             isEdit && itemId ? handleUpdate(itemId) : handleAdd()
           }
-          className="flex items-center gap-2 rounded-lg bg-purple-600 hover:bg-purple-700 px-4 py-2.5 text-white transition-all shadow-lg hover:shadow-xl font-medium"
+          className="flex items-center gap-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 px-3 py-2 text-sm text-white transition-all shadow-lg hover:shadow-xl font-medium"
         >
-          <Save className="w-4 h-4" />
+          <Save className="w-3.5 h-3.5" />
           {isEdit ? '保存' : '作成'}
         </button>
       </div>
@@ -898,15 +889,15 @@ export default function ThemesPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="mx-auto max-w-5xl px-4 py-6">
         {/* ヘッダー */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-3">
-              <SwatchBook className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+              <SwatchBook className="w-6 h-6 text-purple-600 dark:text-purple-400" />
               テーマ一覧
             </h1>
-            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
               テーマを管理します。開発プロジェクトの設定もここで行えます。
             </p>
           </div>
@@ -921,9 +912,9 @@ export default function ThemesPage() {
                 });
                 setIsAdding(true);
               }}
-              className="flex items-center gap-2 rounded-lg bg-purple-600 hover:bg-purple-700 px-5 py-2.5 text-white transition-all shadow-lg hover:shadow-xl font-medium"
+              className="flex items-center gap-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 px-4 py-2 text-sm text-white transition-all shadow-lg hover:shadow-xl font-medium"
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4" />
               新規テーマ
             </button>
           )}
@@ -931,7 +922,7 @@ export default function ThemesPage() {
 
         {/* カテゴリタブ */}
         {categories.length > 0 && (
-          <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-1">
+          <div className="mb-4 flex items-center gap-1.5 overflow-x-auto pb-1">
             {categories.map((cat) => {
               const count = items.filter((t) => t.categoryId === cat.id).length;
               const isSelected = selectedCategoryId === cat.id;
@@ -942,7 +933,7 @@ export default function ThemesPage() {
                     setSelectedCategoryId(cat.id);
                     cancelEdit();
                   }}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                     isSelected
                       ? 'text-white shadow-md'
                       : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
@@ -951,10 +942,10 @@ export default function ThemesPage() {
                     isSelected ? { backgroundColor: cat.color } : undefined
                   }
                 >
-                  {renderIcon(cat.icon, 16)}
+                  {renderIcon(cat.icon, 14)}
                   {cat.name}
                   <span
-                    className={`text-xs px-1.5 py-0.5 rounded-full ${
+                    className={`text-xs px-1 py-0.5 rounded-full ${
                       isSelected
                         ? 'bg-white/20 text-white'
                         : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400'
@@ -970,7 +961,7 @@ export default function ThemesPage() {
 
         {/* 新規追加フォーム */}
         {isAdding && (
-          <div className="mb-6 rounded-xl border-2 border-purple-500 bg-white dark:bg-indigo-dark-900 p-6 shadow-xl">
+          <div className="mb-4 rounded-xl border-2 border-purple-500 bg-white dark:bg-indigo-dark-900 p-4 shadow-xl">
             {renderForm(false)}
           </div>
         )}
@@ -1010,7 +1001,7 @@ export default function ThemesPage() {
                   >
                     {(provided) => (
                       <div
-                        className="grid gap-4"
+                        className="grid gap-3"
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                       >
@@ -1032,15 +1023,15 @@ export default function ThemesPage() {
                                 }`}
                               >
                                 {editingId === item.id ? (
-                                  <div className="p-6">
-                                    <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-                                      <Edit2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                                  <div className="p-4">
+                                    <h2 className="mb-3 text-base font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+                                      <Edit2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                                       テーマを編集
                                     </h2>
                                     {renderForm(true, item.id)}
                                   </div>
                                 ) : (
-                                  <div className="p-5 flex items-center justify-between gap-4">
+                                  <div className="p-4 flex items-center justify-between gap-4">
                                     <div className="flex items-center gap-4 flex-1 min-w-0">
                                       <div
                                         {...provided.dragHandleProps}
@@ -1050,34 +1041,34 @@ export default function ThemesPage() {
                                         <GripVertical className="w-5 h-5" />
                                       </div>
                                       <div
-                                        className="flex items-center justify-center w-14 h-14 rounded-xl shrink-0 shadow-sm"
+                                        className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0 shadow-sm"
                                         style={{
                                           backgroundColor: item.color + '20',
                                           color: item.color,
                                         }}
                                       >
-                                        {renderIcon(item.icon, 28)}
+                                        {renderIcon(item.icon, 20)}
                                       </div>
                                       <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
-                                          <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 truncate">
+                                          <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50 truncate">
                                             {item.name}
                                           </h3>
                                           {item.isDevelopment && (
-                                            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                                            <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
                                               <Code className="w-3 h-3" />
-                                              開発
+                                              <span className="hidden sm:inline">開発</span>
                                             </span>
                                           )}
                                         </div>
                                         {item.description && (
-                                          <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-0.5 line-clamp-2">
+                                          <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5 line-clamp-1">
                                             {item.description}
                                           </p>
                                         )}
-                                        <div className="flex items-center gap-3 mt-2 flex-wrap">
+                                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                                           <span
-                                            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md"
+                                            className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded"
                                             style={{
                                               backgroundColor:
                                                 item.color + '15',
@@ -1097,18 +1088,18 @@ export default function ThemesPage() {
                                               <span className="font-semibold">
                                                 {item._count.tasks}
                                               </span>
-                                              タスク
+                                              <span className="hidden sm:inline">タスク</span>
                                             </span>
                                           )}
                                           {item.isDevelopment &&
                                             item.workingDirectory && (
-                                              <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1 font-mono">
+                                              <span className="hidden md:flex text-xs text-zinc-500 dark:text-zinc-400 items-center gap-1 font-mono">
                                                 <FolderOpen className="w-3 h-3" />
                                                 {item.workingDirectory.length >
-                                                40
+                                                30
                                                   ? '...' +
                                                     item.workingDirectory.slice(
-                                                      -37,
+                                                      -27,
                                                     )
                                                   : item.workingDirectory}
                                               </span>
@@ -1119,7 +1110,7 @@ export default function ThemesPage() {
                                     <div className="flex items-center gap-2 shrink-0">
                                       <button
                                         onClick={() => setDefault(item.id)}
-                                        className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-all font-medium ${
+                                        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-all font-medium ${
                                           item.isDefault
                                             ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-2 border-purple-500'
                                             : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
@@ -1131,27 +1122,29 @@ export default function ThemesPage() {
                                         }
                                       >
                                         <Star
-                                          className={`w-4 h-4 ${item.isDefault ? 'fill-current' : ''}`}
+                                          className={`w-3.5 h-3.5 ${item.isDefault ? 'fill-current' : ''}`}
                                         />
-                                        {item.isDefault
-                                          ? 'デフォルト'
-                                          : 'デフォルト設定'}
+                                        <span className="hidden sm:inline">
+                                          {item.isDefault
+                                            ? 'デフォルト'
+                                            : 'デフォルト設定'}
+                                        </span>
                                       </button>
                                       <button
                                         onClick={() => startEdit(item)}
-                                        className="flex items-center gap-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-3 py-2 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
+                                        className="flex items-center gap-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1.5 text-sm text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
                                       >
-                                        <Edit2 className="w-4 h-4" />
-                                        編集
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                        <span className="hidden sm:inline">編集</span>
                                       </button>
                                       <button
                                         onClick={() =>
                                           handleDelete(item.id, item.name)
                                         }
-                                        className="flex items-center gap-2 rounded-lg bg-red-100 dark:bg-red-900/30 px-3 py-2 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
+                                        className="flex items-center gap-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 px-2.5 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
                                       >
-                                        <Trash2 className="w-4 h-4" />
-                                        削除
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        <span className="hidden sm:inline">削除</span>
                                       </button>
                                     </div>
                                   </div>

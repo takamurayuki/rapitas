@@ -64,6 +64,10 @@ import DropdownMenu from '@/components/ui/dropdown/DropdownMenu';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
 import { API_BASE_URL } from '@/utils/api';
+import { apiFetch, parallelFetch } from '@/lib/api-client';
+import { preloadTaskDetails } from '@/lib/task-api';
+import { cacheManager } from '@/lib/cache-utils';
+import { useExecutionStateStore } from '@/stores/executionStateStore';
 
 const API_BASE = API_BASE_URL;
 
@@ -229,6 +233,10 @@ export default function TaskDetailClient({
     enableSSE: true,
   });
 
+  // グローバル実行状態から現在のタスクの実行状態を確認
+  const { isTaskExecuting } = useExecutionStateStore();
+  const isTaskExecutingInStore = isTaskExecuting(taskId);
+
   // サブタスクごとの実行ログ管理
   const subtasksForLogs = useMemo(() => {
     return (task?.subtasks || []).map((s) => ({ id: s.id, title: s.title }));
@@ -249,12 +257,12 @@ export default function TaskDetailClient({
         setLoading(true);
         setShowSkeleton(true);
         skeletonStartRef.current = Date.now();
-        const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
-        if (!res.ok) throw new Error('タスクの取得に失敗しました');
-        const data = await res.json();
+        const data = await apiFetch<Task>(`/tasks/${resolvedTaskId}`, {
+          cacheTime: 60000, // 1分キャッシュ
+        });
         setTask(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'エラーが発生しました');
+      } catch (err: any) {
+        setError(err.message || 'タスクの取得に失敗しました');
       } finally {
         setLoading(false);
         // スケルトン最低表示時間を保証
@@ -272,10 +280,11 @@ export default function TaskDetailClient({
 
     const fetchTimeEntries = async () => {
       try {
-        const res = await fetch(
-          `${API_BASE}/tasks/${resolvedTaskId}/time-entries`,
+        const data = await apiFetch<TimeEntry[]>(
+          `/tasks/${resolvedTaskId}/time-entries`,
+          { cacheTime: 30000 } // 30秒キャッシュ
         );
-        if (res.ok) setTimeEntries(await res.json());
+        setTimeEntries(data);
       } catch (err) {
         console.error('Failed to fetch time entries:', err);
       }
@@ -283,8 +292,11 @@ export default function TaskDetailClient({
 
     const fetchComments = async () => {
       try {
-        const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/comments`);
-        if (res.ok) setComments(await res.json());
+        const data = await apiFetch<Comment[]>(
+          `/tasks/${resolvedTaskId}/comments`,
+          { cacheTime: 30000 } // 30秒キャッシュ
+        );
+        setComments(data);
       } catch (err) {
         console.error('Failed to fetch comments:', err);
       }
@@ -292,10 +304,11 @@ export default function TaskDetailClient({
 
     const fetchResources = async () => {
       try {
-        const res = await fetch(
-          `${API_BASE}/tasks/${resolvedTaskId}/resources`,
+        const data = await apiFetch<Resource[]>(
+          `/tasks/${resolvedTaskId}/resources`,
+          { cacheTime: 60000 } // 1分キャッシュ
         );
-        if (res.ok) setResources(await res.json());
+        setResources(data);
       } catch (err) {
         console.error('Failed to fetch resources:', err);
       }
@@ -303,14 +316,13 @@ export default function TaskDetailClient({
 
     const fetchGlobalSettings = async () => {
       try {
-        const res = await fetch(`${API_BASE}/settings`);
-        if (res.ok) {
-          const data = await res.json();
-          setGlobalSettings(data);
-          // グローバル設定からAIアシスタントパネルを初期化
-          if (data.aiTaskAnalysisDefault) {
-            setShowAIAssistant(true);
-          }
+        const data = await apiFetch<UserSettings>('/settings', {
+          cacheTime: 300000, // 5分キャッシュ
+        });
+        setGlobalSettings(data);
+        // グローバル設定からAIアシスタントパネルを初期化
+        if (data.aiTaskAnalysisDefault) {
+          setShowAIAssistant(true);
         }
       } catch (err) {
         console.error('Failed to fetch global settings:', err);
@@ -318,13 +330,22 @@ export default function TaskDetailClient({
     };
 
     if (resolvedTaskId) {
-      fetchTask();
-      fetchTimeEntries();
-      fetchComments();
-      fetchResources();
-      fetchDevModeConfig();
-      fetchAgents();
-      fetchGlobalSettings();
+      // 並列リクエストで高速化
+      Promise.all([
+        fetchTask(),
+        fetchTimeEntries(),
+        fetchComments(),
+        fetchResources(),
+        fetchDevModeConfig(),
+        fetchAgents(),
+        fetchGlobalSettings(),
+      ]);
+
+      // 関連タスクをプリフェッチ
+      if (task?.subtasks && task.subtasks.length > 0) {
+        const subtaskIds = task.subtasks.map(s => s.id);
+        preloadTaskDetails(subtaskIds);
+      }
     }
 
     return () => {
@@ -373,6 +394,27 @@ export default function TaskDetailClient({
     devModeLoading,
     taskId,
     enableDeveloperMode,
+  ]);
+
+  // 開発者モードが有効な場合、または実行中/実行結果がある場合は、AIアシスタントパネルを表示
+  useEffect(() => {
+    if (
+      devModeConfig?.isEnabled === true ||
+      isExecuting ||
+      executionResult !== null ||
+      isParallelExecutionRunning ||
+      parallelSessionId !== null ||
+      isTaskExecutingInStore  // グローバル実行状態も確認
+    ) {
+      setShowAIAssistant(true);
+    }
+  }, [
+    devModeConfig?.isEnabled,
+    isExecuting,
+    executionResult,
+    isParallelExecutionRunning,
+    parallelSessionId,
+    isTaskExecutingInStore,
   ]);
 
   // autoExecute=true パラメータによる自動実行
@@ -1199,8 +1241,20 @@ export default function TaskDetailClient({
             </div>
 
             {/* AI アシスタント統合パネル（タスク分析 + プロンプト最適化 + エージェント実行） */}
-            {/* 開発プロジェクトかつAIアシスタント設定が有効な場合に表示 */}
-            {task.theme?.isDevelopment === true && showAIAssistant && (
+            {/* 開発プロジェクトで、以下のいずれかの条件を満たす場合に表示:
+                - AIアシスタント設定が有効
+                - 開発者モードが有効
+                - エージェント実行中
+                - 実行結果がある
+                - グローバル実行状態で実行中 */}
+            {task.theme?.isDevelopment === true &&
+             (showAIAssistant ||
+              devModeConfig?.isEnabled === true ||
+              isExecuting ||
+              isParallelExecutionRunning ||
+              executionResult !== null ||
+              analysisResult !== null ||
+              isTaskExecutingInStore) && (
               <div className="mb-6">
                 <AIAccordionPanel
                   taskId={taskId}

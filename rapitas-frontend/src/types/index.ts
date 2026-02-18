@@ -456,6 +456,9 @@ export type WeeklyReport = {
 // 実行ステータス（共通）
 export type ExecutionStatus = 'idle' | 'running' | 'completed' | 'failed';
 
+// エージェントステータス
+export type AgentStatus = 'pending' | 'running' | 'paused' | 'completed' | 'failed';
+
 // 実行結果（共通）
 export type ExecutionResult = {
   success: boolean;
@@ -635,6 +638,7 @@ export type UserSettings = {
   autoGenerateTitle: boolean;
   autoGenerateTitleDelay: number;
   autoCreateAfterTitleGeneration: boolean;
+  autoFetchTaskSuggestions: boolean;
   defaultCategoryId?: number | null;
   activeMode: ActiveMode;
   claudeApiKeyConfigured?: boolean;

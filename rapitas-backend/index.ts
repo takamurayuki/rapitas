@@ -50,6 +50,7 @@ import {
   rateLimitRoutes,
   paidLeaveRoutes,
   urlMetadataRoutes,
+  batchRoutes,
 } from "./routes";
 
 // Import shared database client
@@ -158,6 +159,7 @@ app.use(learningGoalsRoutes);
 app.use(rateLimitRoutes);
 app.use(paidLeaveRoutes);
 app.use(urlMetadataRoutes);
+app.use(batchRoutes);
 
 // Start server
 const PORT = parseInt(process.env.PORT || "3001", 10);

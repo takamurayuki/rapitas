@@ -443,6 +443,7 @@ model UserSettings {
   autoGenerateTitle           Boolean   @default(false)
   autoGenerateTitleDelay      Int       @default(3)       // タイトル自動生成までの待機秒数
   autoCreateAfterTitleGeneration Boolean @default(false) // タイトル生成後の自動作成
+  autoFetchTaskSuggestions    Boolean   @default(true)  // テーマ選択時にAI提案を自動取得
   defaultCategoryId           Int?      // デフォルトで選択されるカテゴリ
   activeMode                  String    @default("both") // "development", "learning", "both"
   claudeApiKeyEncrypted       String?
@@ -778,17 +779,21 @@ model PaidLeaveBalance {
 
 // AI提案キャッシュ（テーマごとに保存）
 model TaskSuggestionCache {
-  id              Int       @id @default(autoincrement())
-  themeId         Int
-  title           String
-  description     String?
-  priority        String    @default("medium")
-  estimatedHours  Float?
-  reason          String?
-  category        String    @default("new") // recurring, extension, improvement, new
-  labelIds        String    @default("[]") // JSON array stored as string
-  analysis        String?   // AI分析テキスト（最初のレコードだけに保存）
-  createdAt       DateTime  @default(now())
+  id                Int       @id @default(autoincrement())
+  themeId           Int
+  title             String
+  description       String?
+  priority          String    @default("medium")
+  estimatedHours    Float?
+  reason            String?
+  category          String    @default("new") // recurring, extension, improvement, new
+  labelIds          String    @default("[]") // JSON array stored as string
+  analysis          String?   // AI分析テキスト（最初のレコードだけに保存）
+  completionCriteria String?  // 完了条件
+  measurableOutcome String?   // 測定可能な成果
+  dependencies      String?   // 前提条件
+  suggestedApproach String?   // 推奨アプローチ
+  createdAt         DateTime  @default(now())
 
   @@index([themeId])
 }

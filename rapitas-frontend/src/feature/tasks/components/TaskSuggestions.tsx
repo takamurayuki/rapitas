@@ -13,9 +13,14 @@ import {
   PlusCircle,
   Trash2,
   Clock,
+  Info,
+  CheckCircle2,
+  Target,
+  BarChart3,
 } from 'lucide-react';
-import type { Priority } from '@/types';
+import type { Priority, UserSettings } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
+import TaskSuggestionDetail from './TaskSuggestionDetail';
 
 type TaskSuggestion = {
   title: string;
@@ -26,6 +31,10 @@ type TaskSuggestion = {
   labelIds: number[];
   reason?: string | null;
   category?: 'recurring' | 'extension' | 'improvement' | 'new';
+  completionCriteria?: string | null;
+  measurableOutcome?: string | null;
+  dependencies?: string | null;
+  suggestedApproach?: string | null;
 };
 
 type AiSuggestionsResponse = {
@@ -84,13 +93,34 @@ export default function TaskSuggestions({
   const [isCacheLoading, setIsCacheLoading] = useState(false);
   const [aiError, setAiError] = useState(false);
   const [isCached, setIsCached] = useState(false);
+  const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
+  const [hasAutoFetchedForTheme, setHasAutoFetchedForTheme] = useState<Set<number>>(new Set());
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [isListExpanded, setIsListExpanded] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<TaskSuggestion | null>(null);
+  const [showDetail, setShowDetail] = useState(false);
 
-  // themeId変更時にキャッシュのみ自動読み込み（AI生成はしない）
+  // ユーザー設定を取得
   useEffect(() => {
+    const fetchUserSettings = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/settings`);
+        if (res.ok) {
+          setUserSettings(await res.json());
+        }
+      } catch (e) {
+        console.error('Failed to fetch user settings:', e);
+      }
+    };
+    fetchUserSettings();
+  }, []);
+
+  // themeId変更時の処理
+  useEffect(() => {
+    console.log('[TaskSuggestions] Theme changed to:', themeId);
+
     if (!themeId) {
       setAiSuggestions([]);
       setAiAnalysis(null);
@@ -100,42 +130,102 @@ export default function TaskSuggestions({
       return;
     }
 
-    const loadCache = async () => {
+    const loadCacheAndMaybeAutoFetch = async () => {
+      console.log('[TaskSuggestions] Starting cache load for theme:', themeId);
       setIsCacheLoading(true);
+      let cacheFound = false;
+
       try {
         const res = await fetch(
           `${API_BASE_URL}/tasks/suggestions/ai/cache?themeId=${themeId}`,
         );
         if (res.ok) {
           const data: AiSuggestionsResponse = await res.json();
+          console.log('[TaskSuggestions] Cache response:', data.source, 'suggestions:', data.suggestions.length);
+
           if (data.source === 'cache' && data.suggestions.length > 0) {
             setAiSuggestions(data.suggestions);
             setAiAnalysis(data.analysis);
             setIsCached(true);
             setIsExpanded(true);
-            setIsCacheLoading(false);
-            return;
+            cacheFound = true;
           }
         }
       } catch (e) {
-        // Cache load failure is not critical
+        console.error('[TaskSuggestions] Cache load error:', e);
       }
-      // キャッシュが無い場合はリセット
-      setAiSuggestions([]);
-      setAiAnalysis(null);
-      setIsCached(false);
-      setIsExpanded(false);
+
       setIsCacheLoading(false);
+
+      // 自動取得のロジック改善
+      const shouldAutoFetch = userSettings?.autoFetchTaskSuggestions && !cacheFound;
+      const alreadyFetched = hasAutoFetchedForTheme.has(themeId);
+
+      console.log('[TaskSuggestions] Auto-fetch check:', {
+        autoFetchEnabled: userSettings?.autoFetchTaskSuggestions,
+        cacheFound,
+        shouldAutoFetch,
+        alreadyFetched,
+        themeId
+      });
+
+      if (shouldAutoFetch && !alreadyFetched) {
+        console.log('[TaskSuggestions] Starting auto-fetch for theme:', themeId);
+
+        // このテーマに対して自動取得済みとマーク
+        setHasAutoFetchedForTheme(prev => new Set(prev).add(themeId));
+
+        // AI提案を自動取得
+        setIsAiLoading(true);
+        setAiError(false);
+        try {
+          const res = await fetch(
+            `${API_BASE_URL}/tasks/suggestions/ai?themeId=${themeId}&limit=5`,
+          );
+          if (res.ok) {
+            const data: AiSuggestionsResponse = await res.json();
+            console.log('[TaskSuggestions] AI response:', data.source, 'suggestions:', data.suggestions.length);
+
+            if (data.source === 'ai' && data.suggestions.length > 0) {
+              setAiSuggestions(data.suggestions);
+              setAiAnalysis(data.analysis);
+              setIsCached(false);
+              setIsExpanded(true);
+            } else {
+              setAiSuggestions([]);
+              setAiAnalysis(null);
+              if (data.source === 'ai_error' || data.source === 'insufficient_data') {
+                console.log('[TaskSuggestions] AI generation failed:', data.source);
+                setAiError(true);
+              }
+            }
+          }
+        } catch (e) {
+          console.error('[TaskSuggestions] Failed to fetch AI suggestions:', e);
+          setAiError(true);
+        } finally {
+          setIsAiLoading(false);
+        }
+      } else if (!cacheFound) {
+        // キャッシュが無い場合はリセット
+        console.log('[TaskSuggestions] No cache found, resetting state');
+        setAiSuggestions([]);
+        setAiAnalysis(null);
+        setIsCached(false);
+        setIsExpanded(false);
+      }
     };
 
-    loadCache();
-  }, [themeId]);
+    loadCacheAndMaybeAutoFetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [themeId, userSettings?.autoFetchTaskSuggestions]);
 
   // AI提案をフェッチ（ボタン押下時のみ実行）
   const fetchAiSuggestions = useCallback(
     async (forceRefresh = false) => {
       if (!themeId) return;
 
+      console.log('[TaskSuggestions] Fetching AI suggestions, forceRefresh:', forceRefresh);
       setIsAiLoading(true);
       setAiError(false);
 
@@ -151,6 +241,7 @@ export default function TaskSuggestions({
               cacheData.source === 'cache' &&
               cacheData.suggestions.length > 0
             ) {
+              console.log('[TaskSuggestions] Using cached suggestions');
               setAiSuggestions(cacheData.suggestions);
               setAiAnalysis(cacheData.analysis);
               setIsCached(true);
@@ -161,30 +252,45 @@ export default function TaskSuggestions({
           }
         } catch (e) {
           // キャッシュ取得失敗時はAI生成にフォールバック
+          console.error('[TaskSuggestions] Cache fetch error:', e);
         }
       }
 
       try {
+        console.log('[TaskSuggestions] Generating new AI suggestions');
         const res = await fetch(
           `${API_BASE_URL}/tasks/suggestions/ai?themeId=${themeId}&limit=5`,
         );
         if (res.ok) {
           const data: AiSuggestionsResponse = await res.json();
+          console.log('[TaskSuggestions] AI generation response:', data.source, 'suggestions:', data.suggestions.length);
+
           if (data.source === 'ai' && data.suggestions.length > 0) {
             setAiSuggestions(data.suggestions);
             setAiAnalysis(data.analysis);
             setIsCached(false); // 新規生成なのでキャッシュフラグはfalse
             setIsExpanded(true);
+
+            // 強制リフレッシュの場合は、自動取得フラグをリセット（次回テーマ選択時に再度自動取得可能にする）
+            if (forceRefresh) {
+              console.log('[TaskSuggestions] Resetting auto-fetch flag for theme:', themeId);
+              setHasAutoFetchedForTheme(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(themeId);
+                return newSet;
+              });
+            }
           } else {
             setAiSuggestions([]);
             setAiAnalysis(null);
-            if (data.source === 'ai_error') {
+            if (data.source === 'ai_error' || data.source === 'insufficient_data') {
+              console.log('[TaskSuggestions] AI generation failed:', data.source);
               setAiError(true);
             }
           }
         }
       } catch (e) {
-        console.error('Failed to fetch AI suggestions:', e);
+        console.error('[TaskSuggestions] Failed to fetch AI suggestions:', e);
         setAiError(true);
       } finally {
         setIsAiLoading(false);
@@ -196,29 +302,58 @@ export default function TaskSuggestions({
   const clearCache = useCallback(async () => {
     if (!themeId) return;
 
+    console.log('[TaskSuggestions] Clearing cache for theme:', themeId);
+
     try {
       await fetch(
         `${API_BASE_URL}/tasks/suggestions/ai/cache?themeId=${themeId}`,
         { method: 'DELETE' },
       );
     } catch (e) {
-      // Ignore
+      console.error('[TaskSuggestions] Failed to clear cache:', e);
     }
 
     setAiSuggestions([]);
     setAiAnalysis(null);
     setIsCached(false);
     setIsExpanded(false);
+
+    // キャッシュクリア時も自動取得フラグをリセット（次回テーマ選択時に再度自動取得可能にする）
+    console.log('[TaskSuggestions] Resetting auto-fetch flag for theme:', themeId);
+    setHasAutoFetchedForTheme(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(themeId);
+      return newSet;
+    });
   }, [themeId]);
 
   const handleApply = (suggestion: TaskSuggestion) => {
+    // 詳細情報がある場合は、完了条件などを説明に追加
+    let enhancedDescription = suggestion.description ?? '';
+
+    if (suggestion.completionCriteria) {
+      enhancedDescription += '\n\n【完了条件】\n' + suggestion.completionCriteria;
+    }
+
+    if (suggestion.measurableOutcome) {
+      enhancedDescription += '\n\n【測定可能な成果】\n' + suggestion.measurableOutcome;
+    }
+
     onApply({
       title: suggestion.title,
       priority: (suggestion.priority as Priority) ?? 'medium',
       estimatedHours: suggestion.estimatedHours?.toString() ?? '',
-      description: suggestion.description ?? '',
+      description: enhancedDescription.trim(),
       labelIds: suggestion.labelIds ?? [],
     });
+
+    setShowDetail(false);
+    setSelectedSuggestion(null);
+  };
+
+  const handleSuggestionClick = (suggestion: TaskSuggestion) => {
+    setSelectedSuggestion(suggestion);
+    setShowDetail(true);
   };
 
   const visibleSuggestions = isListExpanded
@@ -359,50 +494,110 @@ export default function TaskSuggestions({
           )}
 
           {/* Suggestion items */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             {visibleSuggestions.map((suggestion, idx) => (
-              <button
+              <div
                 key={`${suggestion.title}-${idx}`}
-                type="button"
-                onClick={() => handleApply(suggestion)}
-                onMouseEnter={() => setHoveredIndex(idx)}
-                onMouseLeave={() => setHoveredIndex(null)}
-                className="group relative w-full text-left px-3 py-2 rounded-lg text-xs transition-all border bg-white dark:bg-zinc-800/50 border-violet-200/50 dark:border-violet-800/30 hover:bg-violet-50 dark:hover:bg-violet-900/20 hover:border-violet-300 dark:hover:border-violet-700"
+                className="group relative rounded-lg border bg-white dark:bg-zinc-800/50 border-violet-200/50 dark:border-violet-800/30 hover:border-violet-300 dark:hover:border-violet-700 transition-all overflow-hidden"
               >
-                <div className="flex items-center gap-2">
-                  {/* Category badge */}
-                  {suggestion.category && (
-                    <span
-                      className={`shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold ${
-                        CATEGORY_CONFIG[suggestion.category]?.color ??
-                        CATEGORY_CONFIG.new.color
-                      }`}
-                    >
-                      {CATEGORY_CONFIG[suggestion.category]?.icon ??
-                        CATEGORY_CONFIG.new.icon}
-                      {CATEGORY_CONFIG[suggestion.category]?.label ?? '新規'}
-                    </span>
-                  )}
+                <button
+                  type="button"
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  onMouseEnter={() => setHoveredIndex(idx)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                  className="w-full text-left px-3 py-2.5 hover:bg-violet-50/50 dark:hover:bg-violet-900/10 transition-colors"
+                >
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        {/* Category badge */}
+                        {suggestion.category && (
+                          <span
+                            className={`shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold ${
+                              CATEGORY_CONFIG[suggestion.category]?.color ??
+                              CATEGORY_CONFIG.new.color
+                            }`}
+                          >
+                            {CATEGORY_CONFIG[suggestion.category]?.icon ??
+                              CATEGORY_CONFIG.new.icon}
+                            {CATEGORY_CONFIG[suggestion.category]?.label ?? '新規'}
+                          </span>
+                        )}
 
-                  {/* Title */}
-                  <span className="font-medium text-zinc-800 dark:text-zinc-200 truncate">
-                    {suggestion.title}
-                  </span>
-                </div>
+                        {/* Priority and time */}
+                        {(suggestion.priority === 'urgent' || suggestion.priority === 'high') && (
+                          <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-rose-500 dark:bg-rose-400" />
+                        )}
 
-                {/* Reason on hover */}
-                {suggestion.reason && (
-                  <p
-                    className={`mt-1 text-[10px] text-zinc-500 dark:text-zinc-400 leading-relaxed transition-all ${
-                      hoveredIndex === idx
-                        ? 'max-h-20 opacity-100'
-                        : 'max-h-0 opacity-0 overflow-hidden'
-                    }`}
+                        {suggestion.estimatedHours && (
+                          <div className="flex items-center gap-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">
+                            <Clock className="w-3 h-3" />
+                            <span>{suggestion.estimatedHours}h</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Title */}
+                      <h4 className="font-medium text-sm text-zinc-800 dark:text-zinc-200 mb-0.5">
+                        {suggestion.title}
+                      </h4>
+
+                      {/* SMART indicators */}
+                      <div className="flex items-center gap-3 mt-1.5">
+                        {suggestion.measurableOutcome && (
+                          <div className="flex items-center gap-1 text-[10px] text-violet-600 dark:text-violet-400">
+                            <BarChart3 className="w-3 h-3" />
+                            <span>測定可能</span>
+                          </div>
+                        )}
+                        {suggestion.completionCriteria && (
+                          <div className="flex items-center gap-1 text-[10px] text-green-600 dark:text-green-400">
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>明確な完了条件</span>
+                          </div>
+                        )}
+                        {suggestion.dependencies && (
+                          <div className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400">
+                            <Target className="w-3 h-3" />
+                            <span>前提条件あり</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Brief description on hover */}
+                      {suggestion.description && (
+                        <p
+                          className={`mt-1.5 text-[11px] text-zinc-600 dark:text-zinc-400 leading-relaxed line-clamp-2 transition-all ${
+                            hoveredIndex === idx
+                              ? 'opacity-100'
+                              : 'opacity-0'
+                          }`}
+                        >
+                          {suggestion.description}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="shrink-0 p-1">
+                      <Info className="w-4 h-4 text-zinc-400 dark:text-zinc-500" />
+                    </div>
+                  </div>
+                </button>
+
+                {/* Quick apply button */}
+                <div className="absolute right-2 bottom-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleApply(suggestion);
+                    }}
+                    className="px-2 py-1 text-[10px] font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors"
                   >
-                    {suggestion.reason}
-                  </p>
-                )}
-              </button>
+                    すぐに作成
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
 
@@ -427,8 +622,45 @@ export default function TaskSuggestions({
       {isExpanded && aiError && !isAiLoading && aiSuggestions.length === 0 && (
         <div className="px-4 pb-3 text-center">
           <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
-            AIキーが未設定、またはデータが不足しています
+            AI提案の生成に失敗しました。APIキーの設定を確認してください。
           </p>
+        </div>
+      )}
+
+      {/* Detail Modal */}
+      {showDetail && selectedSuggestion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => {
+              setShowDetail(false);
+              setSelectedSuggestion(null);
+            }}
+          />
+          <div className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                タスクの詳細
+              </h2>
+              <button
+                onClick={() => {
+                  setShowDetail(false);
+                  setSelectedSuggestion(null);
+                }}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6">
+              <TaskSuggestionDetail
+                suggestion={selectedSuggestion}
+                onApply={() => handleApply(selectedSuggestion)}
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

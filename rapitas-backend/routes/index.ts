@@ -44,3 +44,4 @@ export { learningGoalsRoutes } from "./learning-goals";
 export { rateLimitRoutes } from "./rate-limits";
 export { paidLeaveRoutes } from "./paid-leave";
 export { urlMetadataRoutes } from "./url-metadata";
+export { batchRoutes } from "./batch";

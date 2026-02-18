@@ -17,6 +17,7 @@ import { useTaskDetailVisibilityStore } from '@/stores/taskDetailVisibilityStore
 import { API_BASE_URL } from '@/utils/api';
 import { useExecutingTasksPolling } from '@/hooks/useExecutingTasksPolling';
 import { useTaskCacheStore } from '@/stores/taskCacheStore';
+import { useTaskAutoSync } from '@/hooks/useTaskAutoSync';
 import {
   ExternalLink,
   Flag,
@@ -212,6 +213,13 @@ export default function KanbanPage() {
       setLoading(false);
     }
   }, [taskCacheInitialized, fetchTaskUpdates, fetchAllTasks]);
+
+  // 自動同期を有効化
+  useTaskAutoSync({
+    enabled: true,
+    interval: 30000,
+    silent: true,
+  });
 
   const updateStatus = async (id: number, status: string) => {
     const oldTask = tasks.find((t) => t.id === id);

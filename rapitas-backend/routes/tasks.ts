@@ -177,6 +177,8 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       const { themeId, limit } = query;
       const resultLimit = Math.min(parseInt(limit ?? "5"), 10);
 
+      console.log("[tasks/suggestions/ai] Request received - themeId:", themeId, "limit:", resultLimit);
+
       if (!themeId) {
         return { suggestions: [], source: "none" };
       }
@@ -185,6 +187,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
 
       // Check if AI is available
       const aiAvailable = await isAnyApiKeyConfigured();
+      console.log("[tasks/suggestions/ai] AI available:", aiAvailable);
 
       // Get theme info
       const theme = await prisma.theme.findUnique({
@@ -193,8 +196,11 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       });
 
       if (!theme) {
+        console.log("[tasks/suggestions/ai] Theme not found:", parsedThemeId);
         return { suggestions: [], source: "none" };
       }
+
+      console.log("[tasks/suggestions/ai] Theme found:", theme.name);
 
       // Get completed tasks for analysis
       const completedTasks = await prisma.task.findMany({
@@ -217,6 +223,8 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
         take: 30,
       });
 
+      console.log("[tasks/suggestions/ai] Completed tasks found:", completedTasks.length);
+
       // Get existing active tasks to avoid duplicates
       const existingTasks = await prisma.task.findMany({
         where: {
@@ -228,54 +236,85 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       });
 
       const existingTitles = existingTasks.map((t: { title: string }) => t.title);
+      console.log("[tasks/suggestions/ai] Existing active tasks:", existingTitles.length);
 
-      if (!aiAvailable || completedTasks.length < 2) {
-        // Fallback: return empty if no AI or insufficient data
+      if (!aiAvailable) {
+        console.log("[tasks/suggestions/ai] AI not available");
         return { suggestions: [], source: "insufficient_data" };
       }
 
+      // AIを使用する場合は、完了タスクが0件でもテーマ情報から提案を生成
+      if (completedTasks.length === 0) {
+        console.log("[tasks/suggestions/ai] No completed tasks, generating initial suggestions based on theme");
+      }
+
       // Build a summary of past tasks for the AI
-      const taskSummary = completedTasks.map((t: typeof completedTasks[number], i: number) => {
-        const labels = t.taskLabels?.map((tl: { label: { name: string } }) => tl.label.name).join(", ") || "なし";
-        return `${i + 1}. "${t.title}" (優先度: ${t.priority}, 見積: ${t.estimatedHours ?? "未設定"}h, ラベル: ${labels})${t.description ? ` - ${t.description.slice(0, 80)}` : ""}`;
-      }).join("\n");
+      const taskSummary = completedTasks.length > 0
+        ? completedTasks.map((t: typeof completedTasks[number], i: number) => {
+            const labels = t.taskLabels?.map((tl: { label: { name: string } }) => tl.label.name).join(", ") || "なし";
+            return `${i + 1}. "${t.title}" (優先度: ${t.priority}, 見積: ${t.estimatedHours ?? "未設定"}h, ラベル: ${labels})${t.description ? ` - ${t.description.slice(0, 80)}` : ""}`;
+          }).join("\n")
+        : "（まだ完了タスクがありません）";
 
       const existingTaskList = existingTitles.length > 0
         ? `\n\n## 現在進行中・未着手のタスク（これらと重複しないこと）\n${existingTitles.map((t: string) => `- ${t}`).join("\n")}`
         : "";
 
-      const systemPrompt = `あなたはタスク管理AIアシスタントです。ユーザーの過去のタスク履歴を分析し、次に取り組むべきタスクを提案します。
+      const systemPrompt = `あなたはタスク管理AIアシスタントです。テーマの情報と過去のタスク履歴を分析し、次に取り組むべきタスクを提案します。
 
-以下の観点で分析してください:
-1. **繰り返しパターン**: 定期的に行われているタスクで、次回実行が必要なもの
-2. **関連タスク**: 完了済みタスクの延長線上にある発展的なタスク
-3. **未着手の可能性**: 過去のタスクから推測される、まだ着手していない関連作業
-4. **改善・最適化**: 過去のタスクを踏まえた改善や最適化のタスク
+**重要**: 提案するタスクは必ずSMART目標の原則に従ってください:
+- **Specific（具体的）**: 何を、どこで、どのように行うか明確にする
+- **Measurable（測定可能）**: 完了基準を数値や具体的な成果物で定義
+- **Achievable（達成可能）**: 実現可能な範囲で設定
+- **Relevant（関連性）**: テーマとの関連性が明確
+- **Time-bound（期限）**: 推定時間を含める
 
-提案するタスクは具体的かつ実行可能なものにしてください。
+過去のタスクがある場合は以下の観点で分析してください:
+1. **繰り返しパターン**: 定期的タスクの具体的な次回実行内容（例: "第3章の問題集50問を解く"）
+2. **関連タスク**: 完了済みタスクの発展版（例: "基本実装完了→パフォーマンステストで応答時間を20%改善"）
+3. **未着手作業**: 過去のパターンから推測される具体的作業（例: "エラーハンドリング実装: 5種類の例外処理を追加"）
+4. **改善・最適化**: 測定可能な改善目標（例: "ビルド時間を現在の3分から2分に短縮"）
+
+過去のタスクがない場合は、テーマから具体的なタスクを推測:
+1. **初期セットアップ**: 具体的な環境構築手順（例: "Next.js プロジェクト作成と5つの必須パッケージ導入"）
+2. **基本的な実装**: 明確な成果物（例: "ユーザー認証機能: ログイン・ログアウト・パスワードリセットの3画面実装"）
+3. **ドキュメント化**: 具体的な文書作成（例: "README.md作成: インストール手順、使用方法、API仕様の3セクション"）
+4. **テスト・検証**: 定量的なテスト（例: "単体テスト20件作成、カバレッジ80%達成"）
 
 回答は必ず以下のJSON形式で返してください:
 {
-  "analysis": "過去のタスク傾向の簡潔な分析（2-3文）",
+  "analysis": "テーマの特徴や過去のタスク傾向の簡潔な分析（2-3文）",
   "suggestions": [
     {
-      "title": "提案タスクのタイトル（簡潔に）",
-      "description": "タスクの説明（1-2文）",
+      "title": "提案タスクのタイトル（動詞＋具体的な対象＋数量/範囲）",
+      "description": "タスクの詳細説明（何を・どのように・どこまで）",
       "priority": "low" | "medium" | "high" | "urgent",
-      "estimatedHours": 数値またはnull,
-      "reason": "この提案の根拠（どの過去タスクから推測したか）",
-      "category": "recurring" | "extension" | "improvement" | "new"
+      "estimatedHours": 数値（必須、0.5刻み）,
+      "reason": "この提案の根拠（過去のデータや論理的な理由）",
+      "category": "recurring" | "extension" | "improvement" | "new",
+      "completionCriteria": "完了条件（箇条書きで2-3項目）",
+      "measurableOutcome": "測定可能な成果（数値目標や具体的な成果物）",
+      "dependencies": "前提条件や必要なもの（ある場合）",
+      "suggestedApproach": "推奨される実施方法（ステップや手順）"
     }
   ]
 }`;
 
-      const userPrompt = `## テーマ: ${theme.name}${theme.description ? ` (${theme.description})` : ""}
+      const userPrompt = completedTasks.length > 0
+        ? `## テーマ: ${theme.name}${theme.description ? ` (${theme.description})` : ""}
 
 ## 過去の完了タスク（新しい順）
 ${taskSummary}
 ${existingTaskList}
 
 上記の過去タスクを分析し、次に取り組むべきタスクを${resultLimit}件提案してください。
+既存の進行中・未着手タスクと重複しない提案をお願いします。`
+        : `## テーマ: ${theme.name}${theme.description ? ` (${theme.description})` : ""}
+
+このテーマに関するタスクはまだありません。
+${existingTaskList}
+
+テーマの内容から推測して、最初に取り組むべきタスクを${resultLimit}件提案してください。
 既存の進行中・未着手タスクと重複しない提案をお願いします。`;
 
       try {
@@ -306,6 +345,10 @@ ${existingTaskList}
           estimatedHours?: number | null;
           reason?: string;
           category?: string;
+          completionCriteria?: string;
+          measurableOutcome?: string;
+          dependencies?: string;
+          suggestedApproach?: string;
         }) => ({
           title: s.title,
           description: s.description || null,
@@ -313,6 +356,10 @@ ${existingTaskList}
           estimatedHours: s.estimatedHours || null,
           reason: s.reason || null,
           category: s.category || "new",
+          completionCriteria: s.completionCriteria || null,
+          measurableOutcome: s.measurableOutcome || null,
+          dependencies: s.dependencies || null,
+          suggestedApproach: s.suggestedApproach || null,
           labelIds: [],
           frequency: 0,
         }));
@@ -334,6 +381,10 @@ ${existingTaskList}
                   estimatedHours: number | null;
                   reason: string | null;
                   category: string;
+                  completionCriteria: string | null;
+                  measurableOutcome: string | null;
+                  dependencies: string | null;
+                  suggestedApproach: string | null;
                   labelIds: number[];
                 }, idx: number) => ({
                   themeId: parsedThemeId,
@@ -345,6 +396,11 @@ ${existingTaskList}
                   category: s.category,
                   labelIds: JSON.stringify(s.labelIds),
                   analysis: idx === 0 ? (parsed.analysis || null) : null,
+                  // 新しいフィールドは既存のカラムがない場合、descriptionに統合
+                  completionCriteria: s.completionCriteria,
+                  measurableOutcome: s.measurableOutcome,
+                  dependencies: s.dependencies,
+                  suggestedApproach: s.suggestedApproach,
                 })),
               });
             }
@@ -412,6 +468,10 @@ ${existingTaskList}
         reason: string | null;
         category: string;
         labelIds: string;
+        completionCriteria?: string | null;
+        measurableOutcome?: string | null;
+        dependencies?: string | null;
+        suggestedApproach?: string | null;
       }) => ({
         title: c.title,
         description: c.description,
@@ -419,6 +479,10 @@ ${existingTaskList}
         estimatedHours: c.estimatedHours,
         reason: c.reason,
         category: c.category,
+        completionCriteria: c.completionCriteria || null,
+        measurableOutcome: c.measurableOutcome || null,
+        dependencies: c.dependencies || null,
+        suggestedApproach: c.suggestedApproach || null,
         labelIds: JSON.parse(c.labelIds),
         frequency: 0,
       }));
@@ -489,7 +553,7 @@ ${existingTaskList}
           throw new ValidationError("Invalid `since` parameter");
         }
 
-        const [updated, totalCount] = await Promise.all([
+        const [updated, totalCount, allIds] = await Promise.all([
           prisma.task.findMany({
             where: {
               ...baseWhere,
@@ -512,11 +576,17 @@ ${existingTaskList}
             orderBy: { createdAt: "desc" },
           }),
           prisma.task.count({ where: baseWhere }),
+          // 現在存在する全タスクのIDを取得（削除検出用）
+          prisma.task.findMany({
+            where: baseWhere,
+            select: { id: true },
+          }),
         ]);
 
         return {
           tasks: updated,
           totalCount,
+          activeIds: allIds.map(t => t.id), // 現在アクティブなタスクIDのリスト
           since: sinceDate.toISOString(),
           incremental: true,
         };

@@ -288,9 +288,9 @@ export default function CategoryManager({ config }: Props) {
   const TitleIcon = config.titleIcon;
 
   const renderForm = (isEdit: boolean, itemId?: number) => (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+        <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
           {config.itemName}名 <span className="text-red-500">*</span>
         </label>
         <input
@@ -298,13 +298,13 @@ export default function CategoryManager({ config }: Props) {
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           placeholder={`${config.itemName}名を入力`}
-          className={`w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all`}
+          className={`w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all`}
           autoFocus
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+        <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
           説明（任意）
         </label>
         <textarea
@@ -313,24 +313,24 @@ export default function CategoryManager({ config }: Props) {
             setFormData({ ...formData, description: e.target.value })
           }
           placeholder="説明を入力"
-          rows={2}
-          className={`w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all resize-none`}
+          rows={1}
+          className={`w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all resize-none`}
         />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+          <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
             カラー
           </label>
-          <div className="flex gap-3 items-center">
+          <div className="flex gap-2 items-center">
             <input
               type="color"
               value={formData.color}
               onChange={(e) =>
                 setFormData({ ...formData, color: e.target.value })
               }
-              className="h-11 w-16 rounded-lg border border-zinc-300 dark:border-zinc-700 cursor-pointer"
+              className="h-9 w-12 rounded-lg border border-zinc-300 dark:border-zinc-700 cursor-pointer"
             />
             <input
               type="text"
@@ -338,46 +338,46 @@ export default function CategoryManager({ config }: Props) {
               onChange={(e) =>
                 setFormData({ ...formData, color: e.target.value })
               }
-              className={`flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all font-mono`}
+              className={`flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all font-mono`}
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+          <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
             選択中のアイコン
           </label>
           <div
-            className="h-11 rounded-lg border-2 flex items-center justify-center"
+            className="h-9 rounded-lg border-2 flex items-center justify-center"
             style={{
               borderColor: formData.color,
               backgroundColor: formData.color + '15',
             }}
           >
             <div style={{ color: formData.color }}>
-              {renderIcon(formData.icon, 24)}
+              {renderIcon(formData.icon, 20)}
             </div>
           </div>
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+        <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
           アイコンを選択 {!formData.icon && `(未選択時: ${config.defaultIcon})`}
         </label>
 
-        <div className="relative mb-3">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
+        <div className="relative mb-2">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
           <input
             type="text"
             value={iconSearchQuery}
             onChange={(e) => setIconSearchQuery(e.target.value)}
             placeholder="アイコンを検索...（例: 本、仕事、星）"
-            className={`w-full pl-10 pr-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all`}
+            className={`w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all`}
           />
         </div>
 
-        <div className="max-h-48 overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
+        <div className="max-h-36 overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
           {filteredIcons.length === 50 && debouncedIconSearchQuery && (
             <div className="p-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
               表示数が多いため、最初の50件のみ表示しています。絞り込むには検索ワードを追加してください。
@@ -397,21 +397,21 @@ export default function CategoryManager({ config }: Props) {
         </div>
       </div>
 
-      <div className="flex gap-2 justify-end pt-2">
+      <div className="flex gap-2 justify-end pt-1">
         <button
           onClick={cancelEdit}
-          className="flex items-center gap-2 rounded-lg bg-zinc-200 dark:bg-zinc-800 px-4 py-2.5 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-all font-medium"
+          className="flex items-center gap-1.5 rounded-lg bg-zinc-200 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-all font-medium"
         >
-          <X className="w-4 h-4" />
+          <X className="w-3.5 h-3.5" />
           キャンセル
         </button>
         <button
           onClick={() =>
             isEdit && itemId ? handleUpdate(itemId) : handleAdd()
           }
-          className={`flex items-center gap-2 rounded-lg ${accent.bg} px-4 py-2.5 text-white transition-all shadow-lg hover:shadow-xl font-medium`}
+          className={`flex items-center gap-1.5 rounded-lg ${accent.bg} px-3 py-2 text-sm text-white transition-all shadow-lg hover:shadow-xl font-medium`}
         >
-          <Save className="w-4 h-4" />
+          <Save className="w-3.5 h-3.5" />
           {isEdit ? '保存' : '作成'}
         </button>
       </div>
@@ -420,26 +420,26 @@ export default function CategoryManager({ config }: Props) {
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="mx-auto max-w-5xl px-4 py-6">
         {/* ヘッダー */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 flex items-center justify-between">
           <div>
             <h1
-              className={`text-3xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-3`}
+              className={`text-2xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2`}
             >
-              <TitleIcon className={`w-8 h-8 ${accent.text}`} />
+              <TitleIcon className={`w-6 h-6 ${accent.text}`} />
               {config.title}
             </h1>
-            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
               {config.itemName}を管理します
             </p>
           </div>
           {!isAdding && (
             <button
               onClick={() => setIsAdding(true)}
-              className={`flex items-center gap-2 rounded-lg ${accent.bg} px-5 py-2.5 text-white transition-all shadow-lg hover:shadow-xl font-medium`}
+              className={`flex items-center gap-1.5 rounded-lg ${accent.bg} px-4 py-2 text-sm text-white transition-all shadow-lg hover:shadow-xl font-medium`}
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4" />
               新規{config.itemName}
             </button>
           )}
@@ -448,10 +448,10 @@ export default function CategoryManager({ config }: Props) {
         {/* 新規追加フォーム */}
         {isAdding && (
           <div
-            className={`mb-6 rounded-xl border-2 ${accent.border} bg-white dark:bg-zinc-900 p-6 shadow-xl`}
+            className={`mb-4 rounded-xl border-2 ${accent.border} bg-white dark:bg-zinc-900 p-4 shadow-xl`}
           >
-            <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-              <Plus className={`w-5 h-5 ${accent.text}`} />
+            <h2 className="mb-3 text-base font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+              <Plus className={`w-4 h-4 ${accent.text}`} />
               新規{config.itemName}作成
             </h2>
             {renderForm(false)}
@@ -476,7 +476,7 @@ export default function CategoryManager({ config }: Props) {
             <Droppable droppableId={config.endpoint}>
               {(provided) => (
                 <div
-                  className="grid gap-4"
+                  className="grid gap-3"
                   ref={provided.innerRef}
                   {...provided.droppableProps}
                 >
@@ -504,15 +504,15 @@ export default function CategoryManager({ config }: Props) {
                             }`}
                           >
                             {editingId === item.id ? (
-                              <div className="p-6">
-                                <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-                                  <Edit2 className={`w-5 h-5 ${accent.text}`} />
+                              <div className="p-4">
+                                <h2 className="mb-3 text-base font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+                                  <Edit2 className={`w-4 h-4 ${accent.text}`} />
                                   {config.itemName}を編集
                                 </h2>
                                 {renderForm(true, item.id)}
                               </div>
                             ) : (
-                              <div className="p-5 flex items-center justify-between gap-4">
+                              <div className="p-4 flex items-center justify-between gap-4">
                                 <div className="flex items-center gap-4 flex-1 min-w-0">
                                   <div
                                     {...provided.dragHandleProps}
@@ -522,26 +522,26 @@ export default function CategoryManager({ config }: Props) {
                                     <GripVertical className="w-5 h-5" />
                                   </div>
                                   <div
-                                    className="flex items-center justify-center w-14 h-14 rounded-xl shrink-0 shadow-sm"
+                                    className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0 shadow-sm"
                                     style={{
                                       backgroundColor: item.color + '20',
                                       color: item.color,
                                     }}
                                   >
-                                    {renderIcon(item.icon, 28)}
+                                    {renderIcon(item.icon, 20)}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 truncate">
+                                    <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50 truncate">
                                       {item.name}
                                     </h3>
                                     {item.description && (
-                                      <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-0.5 line-clamp-2">
+                                      <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5 line-clamp-1">
                                         {item.description}
                                       </p>
                                     )}
-                                    <div className="flex items-center gap-3 mt-2">
+                                    <div className="flex items-center gap-2 mt-1.5">
                                       <span
-                                        className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md"
+                                        className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded"
                                         style={{
                                           backgroundColor: item.color + '15',
                                           color: item.color,
@@ -560,7 +560,7 @@ export default function CategoryManager({ config }: Props) {
                                           <span className="font-semibold">
                                             {item._count.tasks}
                                           </span>
-                                          タスク
+                                          <span className="hidden sm:inline">タスク</span>
                                         </span>
                                       )}
                                     </div>
@@ -570,35 +570,37 @@ export default function CategoryManager({ config }: Props) {
                                   {config.showDefaultButton && (
                                     <button
                                       onClick={() => setDefault(item.id)}
-                                      className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-all font-medium ${
+                                      className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-all font-medium ${
                                         item.isDefault
                                           ? `${accent.bgLight} ${accent.text} border-2 ${accent.border}`
                                           : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                                       }`}
                                     >
                                       <Star
-                                        className={`w-4 h-4 ${item.isDefault ? 'fill-current' : ''}`}
+                                        className={`w-3.5 h-3.5 ${item.isDefault ? 'fill-current' : ''}`}
                                       />
-                                      {item.isDefault
-                                        ? 'デフォルト'
-                                        : 'デフォルト設定'}
+                                      <span className="hidden sm:inline">
+                                        {item.isDefault
+                                          ? 'デフォルト'
+                                          : 'デフォルト設定'}
+                                      </span>
                                     </button>
                                   )}
                                   <button
                                     onClick={() => startEdit(item)}
-                                    className="flex items-center gap-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-3 py-2 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
+                                    className="flex items-center gap-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1.5 text-sm text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
                                   >
-                                    <Edit2 className="w-4 h-4" />
-                                    編集
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">編集</span>
                                   </button>
                                   <button
                                     onClick={() =>
                                       handleDelete(item.id, item.name)
                                     }
-                                    className="flex items-center gap-2 rounded-lg bg-red-100 dark:bg-red-900/30 px-3 py-2 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
+                                    className="flex items-center gap-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 px-2.5 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
                                   >
-                                    <Trash2 className="w-4 h-4" />
-                                    削除
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">削除</span>
                                   </button>
                                 </div>
                               </div>

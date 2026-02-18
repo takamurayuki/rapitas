@@ -115,6 +115,12 @@ export function useDeveloperMode(taskId: number) {
         ) {
           setIsExecuting(true);
           setExecutionStatus('running');
+          // グローバルストアに実行中タスクを記録
+          setExecutingTask({
+            taskId,
+            sessionId: statusData.sessionId,
+            status: statusData.executionStatus === 'waiting_for_input' ? 'waiting_for_input' : 'running',
+          });
         } else if (statusData.executionStatus === 'interrupted') {
           // 中断された実行がある場合（サーバー再起動後など）
           // 中断状態を適切に表示（failedではなくinterruptedとして扱う）

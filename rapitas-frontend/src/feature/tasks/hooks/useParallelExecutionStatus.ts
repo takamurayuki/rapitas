@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import type { ParallelExecutionStatus } from '../components/SubtaskExecutionStatus';
+import { useExecutionStateStore } from '@/stores/executionStateStore';
 
 /**
  * サブタスクの実行ステータス
@@ -117,6 +118,9 @@ export function useParallelExecutionStatus({
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // グローバル実行状態ストアへのアクセス
+  const { setExecutingTask, removeExecutingTask } = useExecutionStateStore();
 
   // サブタスクのステータスを取得
   const getSubtaskStatus = useCallback(
@@ -513,6 +517,12 @@ export function useParallelExecutionStatus({
           // SSE接続を開始
           connectSSE(newSessionId);
 
+          // グローバルストアに実行中タスクを記録
+          setExecutingTask({
+            taskId,
+            status: 'running',
+          });
+
           return newSessionId;
         }
         return null;
@@ -523,7 +533,7 @@ export function useParallelExecutionStatus({
         return null;
       }
     },
-    [taskId, connectSSE],
+    [taskId, connectSSE, setExecutingTask],
   );
 
   // セッションを停止
@@ -556,10 +566,21 @@ export function useParallelExecutionStatus({
             }
           : null,
       );
+
+      // グローバルストアから削除
+      removeExecutingTask(taskId);
     } catch (err) {
       console.error('[StopSession] Error:', err);
     }
-  }, [sessionId]);
+  }, [sessionId, removeExecutingTask, taskId]);
+
+  // セッション状態の変化を監視してストアを更新
+  useEffect(() => {
+    if (sessionState?.status === 'completed' || sessionState?.status === 'failed' || sessionState?.status === 'cancelled') {
+      // 終了状態になったらストアから削除
+      removeExecutingTask(taskId);
+    }
+  }, [sessionState?.status, removeExecutingTask, taskId]);
 
   // ポーリングを開始/停止
   useEffect(() => {

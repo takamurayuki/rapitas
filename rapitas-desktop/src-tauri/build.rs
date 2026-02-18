@@ -126,6 +126,10 @@ fn main() {
             "binaries/rapitas-backend-placeholder"
         };
         println!("cargo:rustc-env=RAPITAS_BACKEND_PATH={}", placeholder_name);
+    } else if !found {
+        // Not in CI and binary not found - this is an error
+        // However, don't panic here to allow the build to show a better error message
+        println!("cargo:rustc-env=RAPITAS_BACKEND_PATH=binaries/rapitas-backend-not-found");
     }
 
     tauri_build::build()

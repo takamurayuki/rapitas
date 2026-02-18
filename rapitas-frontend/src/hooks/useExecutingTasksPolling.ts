@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { useTaskCacheStore } from '@/stores/taskCacheStore';
 
 /**
  * 実行中のタスクをポーリングで検出し、グローバルストアに反映するフック
@@ -16,6 +17,7 @@ export function useExecutingTasksPolling(options?: {
 }) {
   const { interval = 5000, onExecutingTaskFound } = options || {};
   const { setExecutingTask, removeExecutingTask } = useExecutionStateStore();
+  const fetchTaskUpdates = useTaskCacheStore((s) => s.fetchUpdates);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onExecutingTaskFoundRef = useRef(onExecutingTaskFound);
   // 前回検出済みのタスクIDセット（新規検出判定用）
@@ -68,10 +70,15 @@ export function useExecutingTasksPolling(options?: {
       }
 
       knownTaskIdsRef.current = currentExecutingIds;
+
+      // 実行中タスクがある場合は、サイレントモードでタスク更新
+      if (currentExecutingIds.size > 0) {
+        fetchTaskUpdates(true); // silent mode
+      }
     } catch {
       // ネットワークエラー等は静かに無視
     }
-  }, [setExecutingTask, removeExecutingTask]);
+  }, [setExecutingTask, removeExecutingTask, fetchTaskUpdates]);
 
   useEffect(() => {
     // 初回即チェック

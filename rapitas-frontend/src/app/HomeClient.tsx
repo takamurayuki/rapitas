@@ -31,9 +31,12 @@ import {
 } from 'lucide-react';
 import { getIconComponent } from '@/components/category/IconData';
 import { API_BASE_URL } from '@/utils/api';
+import { apiFetch, parallelFetch, prefetch } from '@/lib/api-client';
+import { fetchTaskStatistics, preloadTaskDetails } from '@/lib/task-api';
 import { useExecutingTasksPolling } from '@/hooks/useExecutingTasksPolling';
 import { useAppModeStore } from '@/stores/appModeStore';
 import { useTaskCacheStore } from '@/stores/taskCacheStore';
+import { useExecutionStateStore } from '@/stores/executionStateStore';
 import {
   ProgressRing,
   FlyingParticle,
@@ -43,6 +46,7 @@ import { useFilteredTasks } from '@/hooks/useFilteredTasks';
 import { useTaskSorting } from '@/hooks/useTaskSorting';
 import { useLocalStorageState } from '@/hooks/useLocalStorageState';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useTaskAutoSync } from '@/hooks/useTaskAutoSync';
 
 const API_BASE = API_BASE_URL;
 
@@ -61,6 +65,9 @@ export default function HomeClientPage() {
   const fetchTaskUpdates = useTaskCacheStore((s) => s.fetchUpdates);
   const updateTaskLocally = useTaskCacheStore((s) => s.updateTaskLocally);
   const removeTaskLocally = useTaskCacheStore((s) => s.removeTaskLocally);
+  const executingTasksSize = useExecutionStateStore(
+    (s) => s.executingTasks.size,
+  );
   const [themes, setThemes] = useState<Theme[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [initialDataLoading, setInitialDataLoading] = useState(true);
@@ -116,6 +123,15 @@ export default function HomeClientPage() {
     }
   }, [taskCacheInitialized, fetchTaskUpdates, fetchAllTasks]);
 
+  // 自動同期を有効化（30秒ごと、サイレントモード）
+  // AIエージェント実行中は、useExecutingTasksPollingが5秒ごとに更新するので重複を避ける
+  useTaskAutoSync({
+    enabled: true,
+    interval: 30000, // 30秒
+    silent: true,
+    skipDuringExecution: true, // AIエージェント実行中はスキップ
+  });
+
   // フィルタリングとカウント処理を最適化
   const { filteredTasks, statusCounts, todayTasksCounts } = useFilteredTasks({
     tasks,
@@ -167,10 +183,11 @@ export default function HomeClientPage() {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch(`${API_BASE}/categories`);
-      const data = await res.json();
+      const data = await apiFetch<Category[]>('/categories', {
+        cacheTime: 300000,
+      }); // 5分キャッシュ
       setCategories(data);
-      return data as Category[];
+      return data;
     } catch (e) {
       console.error(e);
       return [] as Category[];
@@ -179,8 +196,7 @@ export default function HomeClientPage() {
 
   const fetchThemes = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/themes`);
-      const data = await res.json();
+      const data = await apiFetch<Theme[]>('/themes', { cacheTime: 300000 }); // 5分キャッシュ
       setThemes(data);
       // グローバルデフォルトテーマを設定（クイック追加等で使用）
       const firstDefaultTheme = data.find((t: Theme) => t.isDefault);
@@ -214,12 +230,16 @@ export default function HomeClientPage() {
   ) => {
     const oldTask = tasks.find((t) => t.id === id);
 
-    // タスクを完了にする場合、アニメーションをトリガー（本日のタスクのみ）
+    // タスクを完了にする場合、アニメーションをトリガー（本日のタスクのみ、かつテーマがある場合）
+    const hasThemesInCategory =
+      categoryFilter === null ||
+      themes.filter((t) => t.categoryId === categoryFilter).length > 0;
     if (
       status === 'done' &&
       oldTask?.status !== 'done' &&
       cardElement &&
-      isTodayTask(oldTask)
+      isTodayTask(oldTask) &&
+      hasThemesInCategory
     ) {
       const rect = cardElement.getBoundingClientRect();
       const x = rect.left + rect.width * 0.15;
@@ -287,9 +307,8 @@ export default function HomeClientPage() {
     if (!quickTaskTitle.trim()) return;
 
     try {
-      const res = await fetch(`${API_BASE}/tasks`, {
+      await apiFetch('/tasks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: quickTaskTitle,
           status: 'todo',
@@ -297,9 +316,9 @@ export default function HomeClientPage() {
           ...(themeFilter && { themeId: themeFilter }),
           ...(!themeFilter && defaultTheme && { themeId: defaultTheme.id }),
         }),
+        skipCache: true, // POSTリクエストはキャッシュスキップ
       });
 
-      if (!res.ok) throw new Error('作成に失敗しました');
       setQuickTaskTitle('');
       setIsQuickAdding(false);
       showToast('タスクを作成しました', 'success');
@@ -413,12 +432,11 @@ export default function HomeClientPage() {
 
   const fetchGlobalSettings = async () => {
     try {
-      const res = await fetch(`${API_BASE}/settings`);
-      if (res.ok) {
-        const data = await res.json();
-        setGlobalSettings(data);
-        return data as UserSettings;
-      }
+      const data = await apiFetch<UserSettings>('/settings', {
+        cacheTime: 300000,
+      }); // 5分キャッシュ
+      setGlobalSettings(data);
+      return data;
     } catch (e) {
       console.error('Failed to fetch global settings:', e);
     }
@@ -434,16 +452,29 @@ export default function HomeClientPage() {
 
     const initialLoad = async () => {
       setInitialDataLoading(true);
-      // If cache is already initialized, use incremental fetch; otherwise full fetch
-      const taskFetch = taskCacheInitialized
-        ? fetchTaskUpdates()
-        : fetchAllTasks();
-      const [, , categoriesData, settings] = await Promise.all([
-        taskFetch,
-        fetchThemes(),
-        fetchCategories(),
-        fetchGlobalSettings(),
-      ]);
+
+      // 並列リクエストを最適化
+      const requests = {
+        tasks: taskCacheInitialized ? fetchTaskUpdates() : fetchAllTasks(),
+        themes: fetchThemes(),
+        categories: fetchCategories(),
+        settings: fetchGlobalSettings(),
+        statistics: fetchTaskStatistics(),
+      };
+
+      const results = await Promise.allSettled(Object.values(requests));
+      const [
+        taskResult,
+        themeResult,
+        categoriesResult,
+        settingsResult,
+        statsResult,
+      ] = results;
+
+      const categoriesData =
+        categoriesResult.status === 'fulfilled' ? categoriesResult.value as Category[] : [];
+      const settings =
+        settingsResult.status === 'fulfilled' ? settingsResult.value as UserSettings : null;
       // カテゴリフィルタが未設定の場合はデフォルトカテゴリを適用
       if (categoryFilter === null) {
         if (settings?.defaultCategoryId) {
@@ -458,18 +489,6 @@ export default function HomeClientPage() {
     };
     initialLoad();
   }, []); // 依存配列を空にして初回のみ実行
-
-  // ページがフォーカスを取得したときに差分のみ取得（ローディング表示なし）
-  useEffect(() => {
-    const handleFocus = () => {
-      if (hasInitialized && taskCacheInitialized) {
-        fetchTaskUpdates();
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [fetchTaskUpdates, hasInitialized, taskCacheInitialized]);
 
   // activeModeが変わったとき、現在のカテゴリフィルタが非表示になったら最初の表示カテゴリに切り替え
   useEffect(() => {
@@ -531,25 +550,52 @@ export default function HomeClientPage() {
         <div className="mb-4 flex items-center justify-between">
           {/* 左側: プログレスリングとタイトル */}
           <div className="flex items-center gap-4">
-            {/* プログレスリング */}
-            {totalTasksCount > 0 && (
-              <ProgressRing
-                completed={completedTasksCount}
-                total={totalTasksCount}
-                bursts={bursts}
-                onBurstDone={handleBurstDone}
-                ringRef={progressRingRef as React.RefObject<HTMLDivElement>}
-                colors={colors}
-              />
-            )}
+            {/* カテゴリにテーマがある場合のみプログレスリングを表示 */}
+            {(() => {
+              const hasThemesInCategory =
+                categoryFilter === null ||
+                themes.filter((t) => t.categoryId === categoryFilter).length >
+                  0;
+              return (
+                hasThemesInCategory &&
+                totalTasksCount > 0 && (
+                  <ProgressRing
+                    completed={completedTasksCount}
+                    total={totalTasksCount}
+                    bursts={bursts}
+                    onBurstDone={handleBurstDone}
+                    ringRef={progressRingRef as React.RefObject<HTMLDivElement>}
+                    colors={colors}
+                  />
+                )
+              );
+            })()}
             <div>
-              <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+              <h1
+                className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50"
+                suppressHydrationWarning
+              >
+                {/* 条件分岐をシンプルにして、ハイドレーションエラーを回避 */}
                 本日のタスク
               </h1>
-              <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                {totalTasksCount > 0
-                  ? `${completedTasksCount} / ${totalTasksCount} 完了`
-                  : 'タスクが作成されていません'}
+              <div
+                className="text-sm text-zinc-500 dark:text-zinc-400 mt-1"
+                suppressHydrationWarning
+              >
+                {(() => {
+                  // カテゴリフィルタがある場合のみテーマをチェック
+                  if (categoryFilter !== null && themes.length > 0) {
+                    const hasThemesInCategory = themes.some(
+                      (t) => t.categoryId === categoryFilter,
+                    );
+                    if (!hasThemesInCategory) {
+                      return 'テーマを追加してタスクを整理しましょう';
+                    }
+                  }
+                  return totalTasksCount > 0
+                    ? `${completedTasksCount} / ${totalTasksCount} 完了`
+                    : 'タスクが作成されていません';
+                })()}
               </div>
             </div>
           </div>
@@ -1152,7 +1198,8 @@ export default function HomeClientPage() {
           </div>
         )}
 
-        {initialDataLoading ? (
+        {/* 初回読み込み時のスケルトン表示 - taskCacheInitializedもチェックして既存データがある時はスケルトンを表示しない */}
+        {initialDataLoading && !taskCacheInitialized ? (
           <div className="animate-pulse space-y-4">
             {/* 統合フィルターUIスケルトン（アコーディオン） */}
             <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
@@ -1195,14 +1242,6 @@ export default function HomeClientPage() {
                 </div>
               ))}
             </div>
-          </div>
-        ) : taskCacheLoading && !taskCacheInitialized ? (
-          // タスクデータが初回読み込み中の場合は追加でローディング表示
-          <div className="text-center py-8">
-            <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-            <p className="text-zinc-500 dark:text-zinc-400">
-              タスク一覧を読み込み中...
-            </p>
           </div>
         ) : sortedTasks.length === 0 ? (
           <div className="text-center py-12 text-zinc-500 dark:text-zinc-400">
@@ -1273,16 +1312,18 @@ export default function HomeClientPage() {
         ) : (
           <>
             {/* タスクデータが読み込み中の場合は追加で読み込み中表示を表示しつつ、既存データがあれば併用表示 */}
-            {taskCacheLoading && taskCacheInitialized && (
-              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                  <span className="text-sm text-blue-700 dark:text-blue-300">
-                    タスクデータを更新中...
-                  </span>
+            {taskCacheLoading &&
+              taskCacheInitialized &&
+              executingTasksSize > 0 && (
+                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                    <span className="text-sm text-blue-700 dark:text-blue-300">
+                      AIエージェント実行中のタスクを更新中...
+                    </span>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
             <div className="grid gap-3">
               {paginatedTasks.map((task, index) => (

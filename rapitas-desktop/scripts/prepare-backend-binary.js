@@ -35,23 +35,34 @@ if (!fs.existsSync(binariesDir)) {
 // Check if binary exists
 if (!fs.existsSync(binaryPath)) {
   console.log(`Backend binary not found: ${binaryPath}`);
-  console.log(`Looking for alternatives in ${binariesDir}...`);
 
-  const files = fs.readdirSync(binariesDir);
-  console.log('Found files:', files);
+  // Check if binaries directory exists before trying to read it
+  if (fs.existsSync(binariesDir)) {
+    console.log(`Looking for alternatives in ${binariesDir}...`);
+    const files = fs.readdirSync(binariesDir);
+    console.log('Found files:', files);
 
-  // Try to find any rapitas-backend file
-  const backendFile = files.find(f => f.startsWith('rapitas-backend') && !f.includes('placeholder'));
-  if (backendFile) {
-    console.log(`Found alternative: ${backendFile}`);
-    // Create a symlink or copy with the expected name
-    const alternativePath = path.join(binariesDir, backendFile);
-    try {
-      fs.copyFileSync(alternativePath, binaryPath);
-      console.log(`Copied ${backendFile} to ${binaryName}`);
-    } catch (e) {
-      console.error(`Failed to copy binary: ${e.message}`);
+    // Try to find any rapitas-backend file
+    const backendFile = files.find(f => f.startsWith('rapitas-backend') && !f.includes('placeholder'));
+    if (backendFile) {
+      console.log(`Found alternative: ${backendFile}`);
+      // Create a symlink or copy with the expected name
+      const alternativePath = path.join(binariesDir, backendFile);
+      try {
+        fs.copyFileSync(alternativePath, binaryPath);
+        console.log(`Copied ${backendFile} to ${binaryName}`);
+
+        // Make sure the file is executable on Unix systems
+        if (!isWindows) {
+          fs.chmodSync(binaryPath, 0o755);
+          console.log(`Made ${binaryName} executable`);
+        }
+      } catch (e) {
+        console.error(`Failed to copy binary: ${e.message}`);
+      }
     }
+  } else {
+    console.log(`Binaries directory does not exist: ${binariesDir}`);
   }
 }
 

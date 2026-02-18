@@ -117,7 +117,9 @@ export default function NewTaskClient() {
       try {
         const res = await fetch(`${API_BASE}/settings`);
         if (res.ok) {
-          setGlobalSettings(await res.json());
+          const settings = await res.json();
+          console.log('[NewTaskClient] Fetched settings:', settings);
+          setGlobalSettings(settings);
         }
       } catch (e) {
         console.error('Failed to fetch global settings:', e);
@@ -225,11 +227,12 @@ export default function NewTaskClient() {
           fromAutoGenerate &&
           globalSettings?.autoCreateAfterTitleGeneration
         ) {
+          console.log('[NewTaskClient] Auto-creating task with title:', data.title);
           showToast('タスクを自動作成します...', 'info');
-          // 少し遅延を入れてタイトルがセットされたことを確認
+          // 生成されたタイトルを直接渡して実行
           setTimeout(() => {
-            handleSubmit();
-          }, 500);
+            handleSubmitWithTitle(data.title);
+          }, 100); // 短い遅延を入れて状態更新を確実にする
         }
       }
     } catch (e) {
@@ -266,7 +269,9 @@ export default function NewTaskClient() {
     }
 
     const delaySec = globalSettings?.autoGenerateTitleDelay ?? 3;
+    console.log('[NewTaskClient] Setting auto-generate timer for', delaySec, 'seconds');
     autoGenerateTimerRef.current = setTimeout(() => {
+      console.log('[NewTaskClient] Auto-generate timer triggered, calling handleGenerateTitle');
       handleGenerateTitle(true); // fromAutoGenerateフラグをtrueで呼び出し
     }, delaySec * 1000);
 
@@ -282,6 +287,102 @@ export default function NewTaskClient() {
     globalSettings?.autoGenerateTitle,
     globalSettings?.autoGenerateTitleDelay,
   ]);
+
+  const handleSubmitWithTitle = async (generatedTitle: string) => {
+    console.log('[NewTaskClient] handleSubmitWithTitle called with:', generatedTitle);
+    if (isSubmitting || !generatedTitle.trim()) {
+      console.log('[NewTaskClient] Aborting submission - isSubmitting:', isSubmitting, 'title empty:', !generatedTitle.trim());
+      return;
+    }
+
+    const executeAfterCreate = globalSettings?.autoExecuteAfterCreate ?? false;
+
+    setIsSubmitting(true);
+    try {
+      const labelArray = labels
+        .split(',')
+        .map((l) => l.trim())
+        .filter(Boolean);
+
+      const taskData = {
+        title: generatedTitle, // 引数から受け取ったタイトルを使用
+        description: description || undefined,
+        status: 'todo',
+        priority,
+        themeId: themeId || undefined,
+        labels: labelArray.length > 0 ? labelArray : undefined,
+        labelIds: selectedLabelIds.length > 0 ? selectedLabelIds : undefined,
+        estimatedHours: estimatedHours
+          ? parseFloat(estimatedHours)
+          : undefined,
+        dueDate: dueDate || undefined,
+      };
+
+      console.log('[NewTaskClient] Creating task with data:', taskData);
+
+      const res = await fetch(`${API_BASE}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(taskData),
+      });
+
+      if (!res.ok) throw new Error('作成に失敗しました');
+      const createdTask = await res.json();
+
+      // サブタスク作成
+      if (subtasks.length > 0) {
+        const subtaskResults = await Promise.allSettled(
+          subtasks
+            .filter((st) => st.title.trim())
+            .map(async (st) => {
+              const subtaskRes = await fetch(`${API_BASE}/tasks`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  title: st.title,
+                  status: 'todo',
+                  parentId: createdTask.id,
+                }),
+              });
+              if (!subtaskRes.ok) {
+                const errorText = await subtaskRes.text();
+                console.error(
+                  `[NewTaskClient] Failed to create subtask "${st.title}":`,
+                  errorText,
+                );
+              }
+              return subtaskRes;
+            }),
+        );
+
+        const failedCount = subtaskResults.filter(
+          (r) => r.status === 'rejected',
+        ).length;
+        if (failedCount > 0) {
+          console.warn(
+            `[NewTaskClient] ${failedCount} subtask(s) failed to create`,
+          );
+        }
+      }
+
+      if (executeAfterCreate) {
+        showToast('タスクを作成しました。実行を開始します...', 'success');
+        const detailPath = getTaskDetailPath(createdTask.id);
+        const separator = detailPath.includes('?') ? '&' : '?';
+        router.push(
+          `${detailPath}${separator}autoExecute=true&showHeader=true`,
+        );
+      } else {
+        showToast('タスクを作成しました', 'success');
+        router.push('/');
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('タスクの作成に失敗しました', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();

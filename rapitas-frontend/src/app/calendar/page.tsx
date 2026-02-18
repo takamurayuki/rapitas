@@ -20,6 +20,7 @@ import { useToast } from '@/components/ui/toast/ToastContainer';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
 import { useTaskCacheStore } from '@/stores/taskCacheStore';
+import { useTaskAutoSync } from '@/hooks/useTaskAutoSync';
 import ScheduleEventDialog from '@/feature/calendar/components/ScheduleEventDialog';
 import PaidLeaveDialog from '@/feature/calendar/components/PaidLeaveDialog';
 import { getHolidaysForMonth } from '@/utils/holidays';
@@ -106,6 +107,13 @@ export default function CalendarPage() {
     fetchAllTasks,
     fetchPaidLeaveBalance,
   ]);
+
+  // 自動同期を有効化
+  useTaskAutoSync({
+    enabled: true,
+    interval: 30000,
+    silent: true,
+  });
 
   // Build events from cached tasks + local exams/schedules
   useEffect(() => {

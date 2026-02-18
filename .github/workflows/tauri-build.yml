@@ -240,10 +240,28 @@ jobs:
               echo "✓ Binary exists at expected path"
               echo "Size: $(stat -c%s ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu) bytes"
               echo "Permissions: $(ls -la ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu)"
+
+              # Test that the binary is executable
+              if [ -x "../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu" ]; then
+                echo "✓ Binary is executable"
+              else
+                echo "✗ Binary is NOT executable - fixing permissions"
+                chmod +x ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu
+              fi
             else
               echo "✗ Binary NOT found at expected path!"
               echo "Contents of binaries directory:"
               ls -la ../rapitas-desktop/src-tauri/binaries/ || echo "Directory not found"
+
+              # Try to fix by looking for alternative names
+              echo ""
+              echo "Attempting to fix by finding alternative binary names..."
+              if [ -f "../rapitas-desktop/src-tauri/binaries/rapitas-backend" ]; then
+                echo "Found 'rapitas-backend' - copying to expected name"
+                cp ../rapitas-desktop/src-tauri/binaries/rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu
+                chmod +x ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu
+                echo "✓ Fixed: copied and made executable"
+              fi
             fi
           fi
 
@@ -286,16 +304,55 @@ jobs:
           # Enable Tauri build mode for static export
           TAURI_BUILD: 'true'
 
-      - name: Prepare desktop build
+      - name: Prepare desktop build (Windows)
+        if: matrix.platform == 'windows-latest'
         working-directory: rapitas-desktop
         run: |
           pnpm run ci:prepare
 
           # Verify backend binary exists after build
           echo "Checking backend binary in binaries directory..."
-          ls -la src-tauri/binaries/ || echo "binaries directory not found"
+          if (Test-Path "src-tauri/binaries") {
+            Get-ChildItem "src-tauri/binaries" | Format-Table Name, Length
+          } else {
+            echo "binaries directory not found"
+          }
 
-      - name: Verify backend binary before configuration
+      - name: Prepare desktop build (Unix)
+        if: matrix.platform != 'windows-latest'
+        working-directory: rapitas-desktop
+        run: |
+          pnpm run ci:prepare
+
+          # Verify backend binary exists after build
+          echo "Checking backend binary in binaries directory..."
+          if [ -d "src-tauri/binaries" ]; then
+            ls -la src-tauri/binaries/
+          else
+            echo "binaries directory not found"
+          fi
+        shell: bash
+
+      - name: Verify backend binary before configuration (Windows)
+        if: matrix.platform == 'windows-latest'
+        working-directory: rapitas-desktop
+        run: |
+          echo "Checking binaries directory content before configuration:"
+          if (Test-Path "src-tauri/binaries") {
+            echo "Directory exists. Contents:"
+            Get-ChildItem "src-tauri/binaries" | Format-Table Name, Length, LastWriteTime
+            echo ""
+            echo "Looking for expected binary: rapitas-backend-${{ matrix.target }}*"
+            Get-ChildItem "src-tauri/binaries/rapitas-backend*" -ErrorAction SilentlyContinue | Format-Table Name, Length
+            if ($LASTEXITCODE -ne 0) { echo "No rapitas-backend files found" }
+          } else {
+            echo "binaries directory does not exist!"
+            echo "Creating binaries directory..."
+            New-Item -ItemType Directory -Force -Path "src-tauri/binaries"
+          }
+
+      - name: Verify backend binary before configuration (Unix)
+        if: matrix.platform != 'windows-latest'
         working-directory: rapitas-desktop
         run: |
           echo "Checking binaries directory content before configuration:"
@@ -317,11 +374,29 @@ jobs:
         run: |
           # Run the script to prepare backend binary configuration
           node scripts/prepare-backend-binary.js ${{ matrix.target }}
+
+          # Verify that the binary setup is correct
+          echo ""
+          echo "Final verification after prepare-backend-binary.js:"
+          if [ -d "src-tauri/binaries" ]; then
+            echo "Binaries directory contents:"
+            ls -la src-tauri/binaries/
+          else
+            echo "ERROR: binaries directory does not exist!"
+          fi
+
+          # Check tauri.build.conf.json was updated
+          echo ""
+          echo "Checking tauri.build.conf.json externalBin configuration:"
+          grep -A2 -B2 "externalBin" src-tauri/tauri.build.conf.json || echo "No externalBin found in config"
         shell: bash
 
       - name: Build Tauri application
         working-directory: rapitas-desktop
         run: |
+          # Ensure binaries directory exists before build
+          mkdir -p src-tauri/binaries
+
           # Use the build script with tauri.build.conf.json
           # This includes the --features custom-protocol flag and the correct config file
           pnpm run build --target ${{ matrix.target }}
