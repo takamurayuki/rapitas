@@ -69,8 +69,7 @@ export default function ErrorDemoPage() {
 
   const triggerDependencyError = () => {
     try {
-      // @ts-ignore
-      const missingModule = require('non-existent-module');
+      throw new Error("Cannot find module 'non-existent-module'");
     } catch (error: any) {
       console.error(error);
     }

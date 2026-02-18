@@ -1,5 +1,5 @@
 // Setup global error handlers
-import { setupGlobalErrorHandlers, errorHandler } from "./middleware";
+import { setupGlobalErrorHandlers, errorHandler, performanceOptimization } from "./middleware";
 setupGlobalErrorHandlers();
 
 import { Elysia } from "elysia";
@@ -53,8 +53,20 @@ import {
   batchRoutes,
 } from "./routes";
 
+// Import optimized batch routes
+import { batchRoutesV2 } from "./routes/batch-v2";
+
+// Import WebSocket routes
+import { websocketRoutes, wsManager } from "./services/websocket-service";
+
 // Import shared database client
 import { prisma, ensureDatabaseConnection } from "./config";
+
+// Import Prisma optimizations
+import { setupPrismaOptimizations } from "./utils/prisma-optimization";
+
+// Import cache service
+import { cacheService } from "./services/cache-service";
 
 // Import orchestrator for startup recovery
 import { orchestrator } from "./routes/approvals";
@@ -65,11 +77,18 @@ import { realtimeService } from "./services/realtime-service";
 // Ensure database connection before starting server
 await ensureDatabaseConnection();
 
+// Setup Prisma optimizations
+setupPrismaOptimizations(prisma);
+
 const app = new Elysia();
 
-// Apply middleware
+// Apply performance optimization middleware
+app.use(performanceOptimization);
+
+// Apply CORS
 app.use(cors());
 
+// Apply error handler
 app.use(errorHandler);
 
 // Swagger documentation
@@ -78,9 +97,9 @@ app.use(
     documentation: {
       info: {
         title: "Rapitas API",
-        version: "1.0.0",
+        version: "2.0.0",
         description:
-          "Rapitas - AI-powered task management and development automation API",
+          "Rapitas - AI-powered task management and development automation API with performance optimizations",
       },
       tags: [
         { name: "Tasks", description: "Task management operations" },
@@ -101,6 +120,14 @@ app.use(
         {
           name: "SSE",
           description: "Server-Sent Events for real-time updates",
+        },
+        {
+          name: "WebSocket",
+          description: "WebSocket connections for real-time bidirectional communication",
+        },
+        {
+          name: "Batch",
+          description: "Batch API for optimized multiple requests",
         },
         {
           name: "Study",
@@ -161,9 +188,30 @@ app.use(paidLeaveRoutes);
 app.use(urlMetadataRoutes);
 app.use(batchRoutes);
 
-// Start behavior scheduler
-import { BehaviorScheduler } from "./src/services/behaviorScheduler";
-BehaviorScheduler.start();
+// Apply optimized batch routes
+app.use(batchRoutesV2);
+
+// Apply WebSocket routes
+app.use(websocketRoutes);
+
+// Health check endpoint with performance metrics
+app.get("/health", ({ set }) => {
+  const cacheStats = cacheService.getStats();
+  const wsStats = wsManager.getStats();
+
+  return {
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    performance: {
+      cache: cacheStats,
+      websocket: {
+        totalClients: wsStats.totalClients,
+        totalRooms: wsStats.totalRooms,
+      },
+    },
+  };
+});
 
 // Start server
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -172,7 +220,7 @@ app.listen({
   idleTimeout: 30, // 30秒のアイドルタイムアウトでCLOSE_WAIT蓄積を防止
   reusePort: true, // TIME_WAIT状態のゾンビソケットがあってもバインド可能にする
 });
-console.log(`🚀 Rapitas backend running on http://localhost:${PORT}`);
+console.log(`🚀 Rapitas backend (optimized) running on http://localhost:${PORT}`);
 
 // Orchestratorにサーバー停止コールバックを設定（グレースフルシャットダウン時にポートを正しく解放するため）
 orchestrator.setServerStopCallback(() => {
@@ -203,19 +251,24 @@ const handleProcessSignal = async (signal: string) => {
       console.error("[Server] Error stopping listener:", error);
     }
 
-    // Step 2: SSE接続を全て閉じる（既存接続のクリーンアップ）
-    console.log("[Server] Step 2: Closing SSE connections...");
+    // Step 2: WebSocketとSSE接続を全て閉じる
+    console.log("[Server] Step 2: Closing WebSocket and SSE connections...");
+    wsManager.shutdown();
     const clientCount = realtimeService.getClientCount();
     realtimeService.shutdown();
     console.log(`[Server] Closed ${clientCount} SSE client(s).`);
 
     // Step 3: 接続がドレインされるのを待つ
-    // TCPソケットが完全に閉じるまでに少し時間が必要
     console.log("[Server] Step 3: Waiting for connections to drain...");
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Step 4: データベース接続を閉じる
-    console.log("[Server] Step 4: Closing database connection...");
+    // Step 4: キャッシュの統計を保存
+    console.log("[Server] Step 4: Saving cache statistics...");
+    const cacheStats = cacheService.getStats();
+    console.log(`[Server] Cache statistics: ${JSON.stringify(cacheStats)}`);
+
+    // Step 5: データベース接続を閉じる
+    console.log("[Server] Step 5: Closing database connection...");
     try {
       await prisma.$disconnect();
       console.log("[Server] Database connection closed.");
@@ -241,11 +294,30 @@ const handleProcessSignal = async (signal: string) => {
 process.on("SIGTERM", () => handleProcessSignal("SIGTERM"));
 process.on("SIGINT", () => handleProcessSignal("SIGINT"));
 
-// Startup recovery: mark stale running/pending executions as interrupted
-// and update related Task/Session statuses, then auto-resume if enabled
+// Startup recovery with cache warming
 const startupRecovery = async () => {
   // サーバーが完全に起動するまで少し待機
   await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  // キャッシュのウォーミング
+  console.log("🔥 Warming up cache...");
+  await cacheService.warmup([
+    {
+      key: "categories",
+      factory: () => prisma.category.findMany(),
+      ttl: 3600, // 1時間
+    },
+    {
+      key: "themes",
+      factory: () => prisma.theme.findMany(),
+      ttl: 3600,
+    },
+    {
+      key: "projects",
+      factory: () => prisma.project.findMany(),
+      ttl: 1800, // 30分
+    },
+  ]);
 
   const result = await orchestrator.recoverStaleExecutions();
 

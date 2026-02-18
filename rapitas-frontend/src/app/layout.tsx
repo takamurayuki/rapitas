@@ -11,6 +11,7 @@ import { ToastProvider } from '@/components/ui/toast/ToastContainer';
 import { PomodoroProvider } from '@/feature/tasks/pomodoro/PomodoroProvider';
 import ExternalLinksProvider from '@/components/ExternalLinksProvider';
 import NoteProvider from '@/components/note/NoteProvider';
+// import WindowResizeOptimizer from '@/components/WindowResizeOptimizer';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -75,6 +76,7 @@ export default function RootLayout({
                 <Suspense fallback={<div className="h-16" />}>
                   <Header />
                 </Suspense>
+                {/* <WindowResizeOptimizer /> */}
                 {children}
                 <Suspense fallback={null}>
                   <KeyboardShortcuts />

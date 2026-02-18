@@ -41,6 +41,9 @@ model Theme {
   updatedAt        DateTime       @updatedAt
   tasks            Task[]
   templates        TaskTemplate[]
+  userBehaviors    UserBehavior[]
+  taskPatterns     TaskPattern[]
+  behaviorSummaries UserBehaviorSummary[]
 }
 
 model Project {
@@ -111,6 +114,7 @@ model Task {
   requireApproval       String        @default("always")
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
+  userBehaviors         UserBehavior[]
 }
 
 model TimeEntry {
@@ -165,6 +169,70 @@ model ActivityLog {
   changes   String?  // JSON stored as string
   metadata  String?  // JSON stored as string
   createdAt DateTime @default(now())
+}
+
+// ユーザー行動データを記録
+model UserBehavior {
+  id              Int       @id @default(autoincrement())
+  userId          Int       @default(1) // 将来のマルチユーザー対応用
+  actionType      String    // task_created, task_completed, task_started, task_updated, theme_selected, label_used, etc.
+  taskId          Int?
+  task            Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  themeId         Int?
+  theme           Theme?    @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  context         String?   // JSON: 詳細な行動コンテキスト（時間帯、曜日、前後の行動など）
+  metadata        String?   // JSON: その他のメタデータ
+  createdAt       DateTime  @default(now())
+
+  @@index([userId, actionType])
+  @@index([createdAt])
+}
+
+// タスク完了パターンを記録
+model TaskPattern {
+  id                    Int       @id @default(autoincrement())
+  userId                Int       @default(1)
+  themeId              Int?
+  theme                Theme?    @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  taskTitle            String
+  taskDescription      String?
+  priority             String
+  estimatedHours       Float?
+  actualHours          Float?
+  completionRate       Float?    // 完了率（0-1）
+  averageTimeToStart   Float?    // 作成から開始までの平均時間（時間）
+  averageTimeToComplete Float?   // 開始から完了までの平均時間（時間）
+  frequency            Int       @default(1) // このパターンの出現回数
+  labelIds             String    @default("[]") // JSON array of label IDs
+  lastOccurrence       DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([userId, taskTitle, themeId])
+  @@index([userId, themeId])
+}
+
+// AI学習用の集計データ
+model UserBehaviorSummary {
+  id                    Int       @id @default(autoincrement())
+  userId                Int       @default(1)
+  periodType           String    // daily, weekly, monthly
+  periodStart          DateTime
+  periodEnd            DateTime
+  themeId              Int?
+  theme                Theme?    @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  totalTasks           Int       @default(0)
+  completedTasks       Int       @default(0)
+  averageCompletionTime Float?    // 平均完了時間（時間）
+  preferredTimeOfDay   String?   // morning, afternoon, evening, night
+  preferredDayOfWeek   String?   // JSON array: ["monday", "tuesday", ...]
+  mostUsedLabels       String    @default("[]") // JSON array of label IDs with counts
+  taskPriorities       String    @default("{}") // JSON: {"urgent": 10, "high": 20, ...}
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([userId, periodType, periodStart, themeId])
+  @@index([userId, periodType, periodStart])
 }
 
 model Label {

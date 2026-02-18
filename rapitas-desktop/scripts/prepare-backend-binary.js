@@ -81,17 +81,9 @@ if (!config.bundle) {
   config.bundle = {};
 }
 
-// Remove glob patterns and add specific file
-config.bundle.resources = [
-  {
-    path: "../../rapitas-backend/prisma/migrations",
-    target: "migrations"
-  },
-  {
-    path: "../../rapitas-backend/prisma/schema.prisma",
-    target: "schema.prisma"
-  }
-];
+// Remove resources configuration - it causes build errors on macOS
+// The resources will be handled differently
+config.bundle.resources = [];
 
 // Set externalBin to include the specific binary file
 if (fs.existsSync(binaryPath)) {

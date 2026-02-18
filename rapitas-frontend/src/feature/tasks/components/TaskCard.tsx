@@ -140,7 +140,8 @@ const TaskCard = memo(function TaskCard({
   return (
     <div
       ref={cardRef}
-      className={`group relative rounded-lg border-l-4 border-t border-r border-b transition-all duration-200 ${
+      data-task-card
+      className={`group relative rounded-lg border-l-4 border-t border-r border-b transition-[transform,box-shadow,border-color] duration-200 ${
         currentStatus.borderColor
       } ${`border-zinc-200 dark:border-zinc-800 ${currentStatus.bgColor} dark:bg-indigo-dark-900 hover:shadow-lg hover:scale-[1.02] hover:border-opacity-80`}`}
     >
@@ -150,7 +151,7 @@ const TaskCard = memo(function TaskCard({
         colors={sweepColors}
       />
       <div
-        className="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all duration-200 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 rounded-t-lg"
+        className="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors duration-200 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 rounded-t-lg"
         onClick={() => {
           if (isSelectionMode && onToggleSelect) {
             onToggleSelect(task.id);
@@ -299,7 +300,7 @@ const TaskCard = memo(function TaskCard({
                 <div
                   className={`h-full ${getProgressBarColor(
                     completionRate,
-                  )} transition-all duration-300`}
+                  )} transition-[width] duration-300`}
                   style={{ width: `${completionRate}%` }}
                 />
               </div>

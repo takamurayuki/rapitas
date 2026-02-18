@@ -472,9 +472,13 @@ export default function HomeClientPage() {
       ] = results;
 
       const categoriesData =
-        categoriesResult.status === 'fulfilled' ? categoriesResult.value as Category[] : [];
+        categoriesResult.status === 'fulfilled'
+          ? (categoriesResult.value as Category[])
+          : [];
       const settings =
-        settingsResult.status === 'fulfilled' ? settingsResult.value as UserSettings : null;
+        settingsResult.status === 'fulfilled'
+          ? (settingsResult.value as UserSettings)
+          : null;
       // カテゴリフィルタが未設定の場合はデフォルトカテゴリを適用
       if (categoryFilter === null) {
         if (settings?.defaultCategoryId) {

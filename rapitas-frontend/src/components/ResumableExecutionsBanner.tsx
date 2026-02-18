@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Play,
   X,
@@ -50,6 +51,8 @@ export function ResumableExecutionsBanner() {
   // セッション中に一度だけ自動再開を実行するためのフラグ
   const autoResumeCheckedRef = useRef(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownButtonRef = useRef<HTMLButtonElement>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
 
   // グローバルストアの実行中タスク数を監視
   const executingTasksSize = useExecutionStateStore(
@@ -222,7 +225,8 @@ export function ResumableExecutionsBanner() {
   // プルダウンの外側クリックで閉じる
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) &&
+          dropdownButtonRef.current && !dropdownButtonRef.current.contains(event.target as Node)) {
         setShowDropdown(false);
       }
     };
@@ -233,17 +237,34 @@ export function ResumableExecutionsBanner() {
       }
     };
 
+    const handleResize = () => {
+      if (showDropdown && dropdownButtonRef.current) {
+        const rect = dropdownButtonRef.current.getBoundingClientRect();
+        setDropdownPosition({
+          top: rect.bottom + 8,
+          left: rect.left,
+          width: rect.width,
+        });
+      }
+    };
+
     if (showDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('resize', handleResize);
+      window.addEventListener('scroll', handleResize, true);
     } else {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('scroll', handleResize, true);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('scroll', handleResize, true);
     };
   }, [showDropdown]);
 
@@ -423,7 +444,7 @@ export function ResumableExecutionsBanner() {
   return (
     <div className="fixed bottom-20 right-6 z-50 max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
       <div
-        className={`border rounded-2xl shadow-xl overflow-hidden backdrop-blur-sm ${
+        className={`border rounded-2xl shadow-xl backdrop-blur-sm ${
           hasRunning
             ? 'bg-linear-to-br from-blue-50 to-indigo-50 dark:from-blue-950/95 dark:to-indigo-950/95 border-blue-200/80 dark:border-blue-700/60 shadow-blue-500/10 dark:shadow-blue-900/20'
             : 'bg-linear-to-br from-amber-50 to-orange-50 dark:from-amber-950/95 dark:to-orange-950/95 border-amber-200/80 dark:border-amber-700/60 shadow-amber-500/10 dark:shadow-amber-900/20'
@@ -659,10 +680,19 @@ export function ResumableExecutionsBanner() {
             ) : (
               /* 複数件の場合はプルダウン形式 */
               <div className="relative flex-1 min-w-0" ref={dropdownRef}>
-                <div className="relative">
+                <div className="relative static">
                   <button
+                    ref={dropdownButtonRef}
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (!showDropdown && dropdownButtonRef.current) {
+                        const rect = dropdownButtonRef.current.getBoundingClientRect();
+                        setDropdownPosition({
+                          top: rect.bottom + 8,
+                          left: rect.left,
+                          width: rect.width,
+                        });
+                      }
                       setShowDropdown(!showDropdown);
                     }}
                     className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
@@ -683,9 +713,18 @@ export function ResumableExecutionsBanner() {
                   </button>
 
                   {/* プルダウンメニュー */}
-                  {showDropdown && (
-                    <div className="absolute left-0 right-0 top-full mt-2 min-w-[200px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-2xl overflow-hidden z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200">
-                      <div className="max-h-64 overflow-y-auto">
+                  {showDropdown && typeof window !== 'undefined' && createPortal(
+                    <div
+                      ref={dropdownRef}
+                      className="fixed bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-2xl z-[100] animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200"
+                      style={{
+                        top: `${dropdownPosition.top}px`,
+                        left: `${dropdownPosition.left}px`,
+                        width: `${dropdownPosition.width}px`,
+                        maxWidth: '24rem',
+                      }}
+                    >
+                      <div className="max-h-64 overflow-y-auto rounded-lg">
                         {executions.map((exec) => (
                           <a
                             key={exec.id}
@@ -718,7 +757,8 @@ export function ResumableExecutionsBanner() {
                           </a>
                         ))}
                       </div>
-                    </div>
+                    </div>,
+                    document.body
                   )}
                 </div>
               </div>

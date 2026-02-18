@@ -97,4 +97,14 @@ if (foundBuildDir) {
   process.exit(1);
 }
 
+// Copy Prisma resources
+console.log('\nCopying Prisma resources...');
+try {
+  require('./copy-prisma-resources.js');
+} catch (error) {
+  console.error('Error copying Prisma resources:', error.message);
+  // Don't fail the build if resources aren't available
+  console.warn('Continuing without Prisma resources');
+}
+
 console.log('\nCI build preparation completed successfully!');

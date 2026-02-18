@@ -48,10 +48,7 @@
         "installMode": "both"
       }
     },
-    "resources": [],
-    "externalBin": [
-      "binaries/rapitas-backend"
-    ]
+    "externalBin": ["binaries/rapitas-backend"]
   },
   "plugins": {
     "shell": {

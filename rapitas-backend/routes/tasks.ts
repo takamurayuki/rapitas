@@ -6,6 +6,7 @@ import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
 import { AppError, ValidationError } from "../middleware/error-handler";
 import { sendAIMessage, getDefaultProvider, isAnyApiKeyConfigured, type AIMessage } from "../utils/ai-client";
+import { UserBehaviorService } from "../src/services/userBehaviorService";
 
 export const tasksRoutes = new Elysia({ prefix: "/tasks" })
   // Search task titles for autocomplete
@@ -214,6 +215,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
           description: true,
           priority: true,
           estimatedHours: true,
+          actualHours: true,
           completedAt: true,
           taskLabels: {
             include: { label: true },
@@ -224,6 +226,32 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       });
 
       console.log("[tasks/suggestions/ai] Completed tasks found:", completedTasks.length);
+
+      // ユーザーの行動パターンを取得
+      const taskPatterns = await prisma.taskPattern.findMany({
+        where: {
+          themeId: parsedThemeId,
+          frequency: { gte: 2 }, // 2回以上実行されたタスク
+        },
+        orderBy: [
+          { frequency: "desc" },
+          { lastOccurrence: "desc" }
+        ],
+        take: 10,
+      });
+
+      console.log("[tasks/suggestions/ai] Task patterns found:", taskPatterns.length);
+
+      // ユーザーの行動サマリーを取得（最新の週次・月次データ）
+      const behaviorSummary = await prisma.userBehaviorSummary.findFirst({
+        where: {
+          themeId: parsedThemeId,
+          periodType: { in: ["weekly", "monthly"] }
+        },
+        orderBy: { periodEnd: "desc" }
+      });
+
+      console.log("[tasks/suggestions/ai] Behavior summary found:", behaviorSummary ? "yes" : "no");
 
       // Get existing active tasks to avoid duplicates
       const existingTasks = await prisma.task.findMany({
@@ -252,25 +280,60 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       const taskSummary = completedTasks.length > 0
         ? completedTasks.map((t: typeof completedTasks[number], i: number) => {
             const labels = t.taskLabels?.map((tl: { label: { name: string } }) => tl.label.name).join(", ") || "なし";
-            return `${i + 1}. "${t.title}" (優先度: ${t.priority}, 見積: ${t.estimatedHours ?? "未設定"}h, ラベル: ${labels})${t.description ? ` - ${t.description.slice(0, 80)}` : ""}`;
+            const accuracy = t.estimatedHours && t.actualHours
+              ? `見積精度: ${Math.round((t.actualHours / t.estimatedHours) * 100)}%`
+              : "";
+            return `${i + 1}. "${t.title}" (優先度: ${t.priority}, 見積: ${t.estimatedHours ?? "未設定"}h, 実績: ${t.actualHours ?? "未記録"}h ${accuracy}, ラベル: ${labels})${t.description ? ` - ${t.description.slice(0, 80)}` : ""}`;
           }).join("\n")
         : "（まだ完了タスクがありません）";
+
+      // 行動パターンのサマリーを作成
+      const patternSummary = taskPatterns.length > 0
+        ? "\n\n【頻繁に実行されるタスクパターン】\n" + taskPatterns.map((p: typeof taskPatterns[number], i: number) => {
+            const labelIds = p.labelIds ? JSON.parse(p.labelIds) : [];
+            const avgTimeToStart = p.averageTimeToStart ? `平均開始時間: ${Math.round(p.averageTimeToStart)}時間後` : "";
+            const avgTimeToComplete = p.averageTimeToComplete ? `平均完了時間: ${Math.round(p.averageTimeToComplete)}時間` : "";
+            return `${i + 1}. "${p.taskTitle}" (頻度: ${p.frequency}回, 優先度: ${p.priority}, ${avgTimeToStart}, ${avgTimeToComplete})`;
+          }).join("\n")
+        : "";
+
+      // ユーザーの好みと傾向を分析
+      const userPreferences = behaviorSummary ? {
+        preferredTimeOfDay: behaviorSummary.preferredTimeOfDay,
+        mostUsedLabels: behaviorSummary.mostUsedLabels ? JSON.parse(behaviorSummary.mostUsedLabels) : [],
+        taskPriorities: behaviorSummary.taskPriorities ? JSON.parse(behaviorSummary.taskPriorities) : {},
+        averageCompletionTime: behaviorSummary.averageCompletionTime,
+      } : null;
+
+      const preferenceSummary = userPreferences
+        ? `\n\n【ユーザーの作業傾向】
+- 好みの作業時間帯: ${userPreferences.preferredTimeOfDay || "不明"}
+- 平均完了時間: ${userPreferences.averageCompletionTime ? `${Math.round(userPreferences.averageCompletionTime)}時間` : "不明"}
+- よく使うラベル: ${userPreferences.mostUsedLabels.slice(0, 3).map((l: any) => `${l.labelId}`).join(", ") || "なし"}
+- 優先度の傾向: ${Object.entries(userPreferences.taskPriorities).map(([p, c]) => `${p}: ${c}`).join(", ") || "不明"}`
+        : "";
 
       const existingTaskList = existingTitles.length > 0
         ? `\n\n## 現在進行中・未着手のタスク（これらと重複しないこと）\n${existingTitles.map((t: string) => `- ${t}`).join("\n")}`
         : "";
 
-      const systemPrompt = `あなたはタスク管理AIアシスタントです。テーマの情報と過去のタスク履歴を分析し、次に取り組むべきタスクを提案します。
+      const systemPrompt = `あなたはタスク管理AIアシスタントです。テーマの情報、過去のタスク履歴、そしてユーザーの行動パターンを分析し、パーソナライズされた次のタスクを提案します。
 
 **重要**: 提案するタスクは必ずSMART目標の原則に従ってください:
 - **Specific（具体的）**: 何を、どこで、どのように行うか明確にする
 - **Measurable（測定可能）**: 完了基準を数値や具体的な成果物で定義
-- **Achievable（達成可能）**: 実現可能な範囲で設定
+- **Achievable（達成可能）**: 実現可能な範囲で設定（ユーザーの実績精度を考慮）
 - **Relevant（関連性）**: テーマとの関連性が明確
-- **Time-bound（期限）**: 推定時間を含める
+- **Time-bound（期限）**: ユーザーの過去の実績に基づいた現実的な推定時間
+
+ユーザーの行動パターンを考慮してください:
+- 頻繁に実行されるタスクパターンを優先
+- ユーザーの好みの作業時間帯に合わせた難易度
+- よく使うラベルや優先度の傾向を反映
+- 過去の見積精度を考慮した現実的な時間見積もり
 
 過去のタスクがある場合は以下の観点で分析してください:
-1. **繰り返しパターン**: 定期的タスクの具体的な次回実行内容（例: "第3章の問題集50問を解く"）
+1. **繰り返しパターン**: 頻度の高いタスクの具体的な次回実行内容（例: "第3章の問題集50問を解く"）
 2. **関連タスク**: 完了済みタスクの発展版（例: "基本実装完了→パフォーマンステストで応答時間を20%改善"）
 3. **未着手作業**: 過去のパターンから推測される具体的作業（例: "エラーハンドリング実装: 5種類の例外処理を追加"）
 4. **改善・最適化**: 測定可能な改善目標（例: "ビルド時間を現在の3分から2分に短縮"）
@@ -305,9 +368,11 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
 
 ## 過去の完了タスク（新しい順）
 ${taskSummary}
+${patternSummary}
+${preferenceSummary}
 ${existingTaskList}
 
-上記の過去タスクを分析し、次に取り組むべきタスクを${resultLimit}件提案してください。
+上記の過去タスクとユーザーの行動パターンを分析し、パーソナライズされた次に取り組むべきタスクを${resultLimit}件提案してください。
 既存の進行中・未着手タスクと重複しない提案をお願いします。`
         : `## テーマ: ${theme.name}${theme.description ? ` (${theme.description})` : ""}
 
@@ -760,7 +825,7 @@ ${existingTaskList}
               });
             }
 
-            return await tx.task.findUnique({
+            const createdTask = await tx.task.findUnique({
               where: { id: task.id },
               include: {
                 subtasks: true,
@@ -775,10 +840,13 @@ ${existingTaskList}
                 },
               },
             });
+
+            return createdTask;
           }, {
             isolationLevel: 'Serializable', // 競合を防ぐための分離レベル
           });
 
+          // サブタスクは行動記録しない（親タスクのみ記録）
           return result;
         }
 
@@ -814,7 +882,7 @@ ${existingTaskList}
         }
 
         // @ts-ignore
-        return await prisma.task.findUnique({
+        const createdTask = await prisma.task.findUnique({
           where: { id: task.id },
           include: {
             subtasks: true,
@@ -829,6 +897,13 @@ ${existingTaskList}
             },
           },
         });
+
+        // ユーザー行動を記録（親タスクのみ）
+        if (!parentId && createdTask) {
+          await UserBehaviorService.recordTaskCreated(createdTask.id, createdTask);
+        }
+
+        return createdTask;
       } catch (error) {
         if (error instanceof AppError) {
           throw error;
@@ -901,6 +976,12 @@ ${existingTaskList}
         examGoalId,
       } = body;
 
+      // 現在のタスクの状態を取得（行動記録のため）
+      const currentTask = await prisma.task.findUnique({
+        where: { id: taskId },
+        select: { status: true, parentId: true }
+      });
+
       // Record streak on task completion
       if (status === "done") {
         const today = new Date();
@@ -923,6 +1004,7 @@ ${existingTaskList}
           ...(themeId !== undefined && { themeId }),
           ...(status && { status }),
           ...(status === "done" && { completedAt: new Date() }),
+          ...(status === "in_progress" && currentTask?.status !== "in_progress" && { startedAt: new Date() }),
           // @ts-ignore
           ...(priority && { priority }),
           ...(labels && { labels }),
@@ -952,8 +1034,8 @@ ${existingTaskList}
         }
       }
 
-      // @ts-ignore
-      return await prisma.task.findUnique({
+      // 更新後のタスクを取得
+      const updatedTask = await prisma.task.findUnique({
         where: { id: taskId },
         include: {
           theme: true,
@@ -967,6 +1049,36 @@ ${existingTaskList}
           },
         },
       });
+
+      // ユーザー行動を記録（親タスクのみ）
+      if (!currentTask?.parentId && updatedTask) {
+        // 状態変更に応じて行動を記録
+        if (status && currentTask?.status !== status) {
+          if (status === "in_progress" && currentTask?.status !== "in_progress") {
+            await UserBehaviorService.recordTaskStarted(taskId, updatedTask);
+          } else if (status === "done" && currentTask?.status !== "done") {
+            await UserBehaviorService.recordTaskCompleted(taskId, updatedTask);
+          }
+        }
+
+        // タスクの更新も記録（状態変更以外）
+        if (title || description !== undefined || priority || themeId !== undefined) {
+          await UserBehaviorService.recordBehavior("task_updated", {
+            taskId,
+            themeId: updatedTask.themeId,
+            metadata: {
+              changes: {
+                title: title !== undefined,
+                description: description !== undefined,
+                priority: priority !== undefined,
+                themeId: themeId !== undefined,
+              }
+            }
+          });
+        }
+      }
+
+      return updatedTask;
     }
   )
 
