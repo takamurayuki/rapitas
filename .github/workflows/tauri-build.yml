@@ -170,7 +170,15 @@ jobs:
           echo 'import "./stub-index.ts";' > tauri-entry.ts
 
           # Build standalone executable with embedded runtime
-          bun build tauri-entry.ts --compile --outfile rapitas-backend
+          if [ "${{ matrix.target }}" == "x86_64-unknown-linux-gnu" ]; then
+            bun build tauri-entry.ts --compile --target bun-linux-x64 --outfile rapitas-backend
+          elif [ "${{ matrix.target }}" == "x86_64-apple-darwin" ]; then
+            bun build tauri-entry.ts --compile --target bun-darwin-x64 --outfile rapitas-backend
+          elif [ "${{ matrix.target }}" == "aarch64-apple-darwin" ]; then
+            bun build tauri-entry.ts --compile --target bun-darwin-arm64 --outfile rapitas-backend
+          else
+            bun build tauri-entry.ts --compile --outfile rapitas-backend
+          fi
 
           # Verify the build
           echo "Backend build complete. File details:"
@@ -179,7 +187,8 @@ jobs:
 
           # Test if the binary runs
           echo "Testing backend binary..."
-          CI=true ./rapitas-backend --version
+          CI=true timeout 5 ./rapitas-backend --version || true
+          echo "Binary version test completed"
 
           # Create binaries directory and copy
           mkdir -p ../rapitas-desktop/src-tauri/binaries

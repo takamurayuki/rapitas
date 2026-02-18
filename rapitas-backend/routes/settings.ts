@@ -26,6 +26,31 @@ let modelCache: {
 
 const MODEL_CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
 
+// API Response Types
+interface ClaudeModelsResponse {
+  models: Array<{
+    id: string;
+    display_name?: string;
+  }>;
+}
+
+interface OpenAIModelsResponse {
+  data: Array<{
+    id: string;
+    object: string;
+    created: number;
+    owned_by: string;
+  }>;
+}
+
+interface GeminiModelsResponse {
+  models: Array<{
+    name: string;
+    displayName?: string;
+    supportedGenerationMethods?: string[];
+  }>;
+}
+
 // Fallback models in case dynamic fetching fails
 const FALLBACK_MODELS: Record<string, Array<{ value: string; label: string }>> = {
   claude: [
@@ -82,8 +107,8 @@ async function fetchAvailableModels(): Promise<Record<string, Array<{ value: str
           },
         });
         if (response.ok) {
-          const data = await response.json();
-          models.claude = data.models?.map((model: any) => ({
+          const data = await response.json() as ClaudeModelsResponse;
+          models.claude = data.models?.map((model) => ({
             value: model.id,
             label: model.display_name || model.id,
           })) || FALLBACK_MODELS.claude;
@@ -108,10 +133,10 @@ async function fetchAvailableModels(): Promise<Record<string, Array<{ value: str
           },
         });
         if (response.ok) {
-          const data = await response.json();
-          const gptModels = data.data?.filter((model: any) =>
+          const data = await response.json() as OpenAIModelsResponse;
+          const gptModels = data.data?.filter((model) =>
             model.id.includes("gpt") || model.id.includes("o1")
-          ).map((model: any) => ({
+          ).map((model) => ({
             value: model.id,
             label: model.id.replace(/-/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()),
           })) || [];
@@ -132,10 +157,10 @@ async function fetchAvailableModels(): Promise<Record<string, Array<{ value: str
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${geminiApiKey}`);
         if (response.ok) {
-          const data = await response.json();
-          const geminiModels = data.models?.filter((model: any) =>
+          const data = await response.json() as GeminiModelsResponse;
+          const geminiModels = data.models?.filter((model) =>
             model.supportedGenerationMethods?.includes("generateContent")
-          ).map((model: any) => ({
+          ).map((model) => ({
             value: model.name.replace("models/", ""),
             label: model.displayName || model.name.replace("models/", ""),
           })) || [];

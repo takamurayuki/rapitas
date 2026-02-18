@@ -26,7 +26,7 @@ const stubResponse = {
 
 // タスク関連のスタブエンドポイント
 app.get("/tasks", () => stubResponse);
-app.get("/tasks/:id", ({ params: { id } }) => ({
+app.get("/tasks/:id", ({ params: { id } }: { params: { id: string } }) => ({
   ...stubResponse,
   id,
   title: "Stub Task"
@@ -34,7 +34,7 @@ app.get("/tasks/:id", ({ params: { id } }) => ({
 
 // テーマ関連のスタブエンドポイント
 app.get("/themes", () => stubResponse);
-app.get("/themes/:id", ({ params: { id } }) => ({
+app.get("/themes/:id", ({ params: { id } }: { params: { id: string } }) => ({
   ...stubResponse,
   id,
   name: "Stub Theme"
@@ -42,7 +42,7 @@ app.get("/themes/:id", ({ params: { id } }) => ({
 
 // プロジェクト関連のスタブエンドポイント
 app.get("/projects", () => stubResponse);
-app.get("/projects/:id", ({ params: { id } }) => ({
+app.get("/projects/:id", ({ params: { id } }: { params: { id: string } }) => ({
   ...stubResponse,
   id,
   name: "Stub Project"
@@ -60,7 +60,7 @@ app.get("/settings", () => ({
 }));
 
 // SSEスタブエンドポイント
-app.get("/sse", ({ set }) => {
+app.get("/sse", ({ set }: { set: any }) => {
   set.headers["Content-Type"] = "text/event-stream";
   set.headers["Cache-Control"] = "no-cache";
   set.headers["Connection"] = "keep-alive";
@@ -78,7 +78,7 @@ app.get("/sse", ({ set }) => {
 });
 
 // 404ハンドラー
-app.onError(({ code, error }) => {
+app.onError(({ code, error }: { code: string; error: Error }) => {
   if (code === "NOT_FOUND") {
     return {
       error: "Not Found",

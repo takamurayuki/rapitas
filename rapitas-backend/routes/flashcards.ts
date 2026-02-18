@@ -5,6 +5,24 @@ import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
 import { decrypt } from "../utils/encryption";
 
+// Claude API Response Types
+interface ClaudeAPIResponse {
+  id: string;
+  type: string;
+  role: string;
+  content: Array<{
+    type: string;
+    text: string;
+  }>;
+  model: string;
+  stop_reason: string;
+  stop_sequence: string | null;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+  };
+}
+
 export const flashcardsRoutes = new Elysia()
   .get("/flashcard-decks", async () => {
     return await prisma.flashcardDeck.findMany({
@@ -291,7 +309,7 @@ Output in the following JSON format:
           throw new Error(`API request failed: ${response.statusText}`);
         }
 
-        const data = await response.json();
+        const data = await response.json() as ClaudeAPIResponse;
         const content = data.content[0].text;
 
         // JSON部分を抽出

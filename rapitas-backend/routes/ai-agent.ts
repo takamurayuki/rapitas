@@ -151,7 +151,7 @@ export const aiAgentRoutes = new Elysia()
     });
 
     // 開発用とレビュー用のエージェントのみを返す
-    const filteredAgents = agents.filter((agent) => {
+    const filteredAgents = agents.filter((agent: typeof agents[0]) => {
       // 開発用エージェント設定を確認
       const isDevelopmentAgent = agent.name.includes("Development Agent");
       // レビュー用エージェント設定を確認
@@ -162,7 +162,7 @@ export const aiAgentRoutes = new Elysia()
       return isDevelopmentAgent || isReviewAgent || isDefaultAgent;
     });
 
-    return filteredAgents.map((agent) => ({
+    return filteredAgents.map((agent: typeof filteredAgents[0]) => ({
       ...agent,
       capabilities: fromJsonString(agent.capabilities) ?? {},
     }));
@@ -180,7 +180,7 @@ export const aiAgentRoutes = new Elysia()
         { createdAt: "desc" },
       ],
     });
-    return agents.map((agent) => ({
+    return agents.map((agent: typeof agents[0]) => ({
       ...agent,
       capabilities: fromJsonString(agent.capabilities) ?? {},
     }));

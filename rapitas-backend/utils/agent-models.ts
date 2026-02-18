@@ -9,6 +9,32 @@ type ModelInfo = {
   description?: string;
 };
 
+// API Response Types
+interface AnthropicModelsResponse {
+  models?: Array<{
+    id: string;
+    display_name?: string;
+    description?: string;
+  }>;
+}
+
+interface OpenAIModelsResponse {
+  data?: Array<{
+    id: string;
+    object: string;
+    created: number;
+    owned_by: string;
+  }>;
+}
+
+interface GoogleModelsResponse {
+  models?: Array<{
+    name: string;
+    displayName?: string;
+    description?: string;
+  }>;
+}
+
 /**
  * Get available models for Claude Code agent
  */
@@ -51,8 +77,8 @@ async function getAnthropicAPIModels(): Promise<ModelInfo[]> {
     });
 
     if (response.ok) {
-      const data = await response.json();
-      return data.models?.map((m: any) => ({
+      const data = await response.json() as AnthropicModelsResponse;
+      return data.models?.map((m) => ({
         value: m.id,
         label: m.display_name || m.id,
         description: m.description,
@@ -85,12 +111,12 @@ async function getOpenAIModels(): Promise<ModelInfo[]> {
     });
 
     if (response.ok) {
-      const data = await response.json();
-      const gptModels = data.data?.filter((m: any) =>
+      const data = await response.json() as OpenAIModelsResponse;
+      const gptModels = data.data?.filter((m) =>
         m.id.includes("gpt") && !m.id.includes("instruct") && !m.id.includes("0125")
       );
 
-      return gptModels?.map((m: any) => ({
+      return gptModels?.map((m) => ({
         value: m.id,
         label: m.id.replace(/-/g, " ").replace(/gpt/g, "GPT").replace(/\b\w/g, (l: string) => l.toUpperCase()),
         description: m.id.includes("4o") ? "マルチモーダル対応" :
@@ -155,11 +181,11 @@ async function getGeminiModels(): Promise<ModelInfo[]> {
     });
 
     if (response.ok) {
-      const data = await response.json();
-      const geminiModels = data.models?.filter((m: any) => m.name.includes("gemini"));
+      const data = await response.json() as GoogleModelsResponse;
+      const geminiModels = data.models?.filter((m) => m.name.includes("gemini"));
 
-      return geminiModels?.map((m: any) => ({
-        value: m.name.split("/").pop(),
+      return geminiModels?.map((m) => ({
+        value: m.name.split("/").pop() || m.name,
         label: m.displayName || m.name,
         description: m.description,
       })) || [];

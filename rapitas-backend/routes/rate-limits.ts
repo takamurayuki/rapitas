@@ -15,6 +15,44 @@ type RateLimitInfo = {
   resetAt?: Date;
 };
 
+// OpenAI API Response Types
+interface OpenAISubscriptionResponse {
+  object: string;
+  has_payment_method: boolean;
+  canceled: boolean;
+  canceled_at: number | null;
+  delinquent: boolean | null;
+  access_until: number;
+  soft_limit: number;
+  hard_limit: number;
+  system_hard_limit: number;
+  soft_limit_usd: number;
+  hard_limit_usd: number;
+  system_hard_limit_usd: number;
+  plan?: {
+    title: string;
+    id: string;
+  };
+  account_name: string;
+  po_number: string | null;
+  billing_email: string | null;
+  tax_ids: string | null;
+  billing_address: any;
+  business_address: any;
+}
+
+interface OpenAIUsageResponse {
+  object: string;
+  daily_costs: Array<{
+    timestamp: number;
+    line_items: Array<{
+      name: string;
+      cost: number;
+    }>;
+  }>;
+  total_usage: number;
+}
+
 export const rateLimitRoutes = new Elysia({ prefix: "/rate-limits" })
   // Get rate limit info for all providers
   .get("/", async () => {
@@ -55,8 +93,8 @@ export const rateLimitRoutes = new Elysia({ prefix: "/rate-limits" })
           });
 
           if (subscriptionRes.ok && usageRes.ok) {
-            const subscription = await subscriptionRes.json();
-            const usage = await usageRes.json();
+            const subscription = await subscriptionRes.json() as OpenAISubscriptionResponse;
+            const usage = await usageRes.json() as OpenAIUsageResponse;
 
             rateLimits.push({
               provider: "chatgpt",
