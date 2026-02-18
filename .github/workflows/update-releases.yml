@@ -1,0 +1,73 @@
+name: Update Release Assets
+
+on:
+  release:
+    types: [published, edited]
+  workflow_dispatch:
+
+jobs:
+  update-release:
+    name: Update Release Metadata
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate update metadata
+        run: |
+          node -e "
+          const fs = require('fs');
+          const path = require('path');
+
+          // Get release information from GitHub context
+          const tagName = process.env.GITHUB_REF_NAME || '';
+          const version = tagName.replace(/^v/, '');
+          const releaseDate = new Date().toISOString();
+          const releaseUrl = \`https://github.com/\${process.env.GITHUB_REPOSITORY}/releases/tag/\${tagName}\`;
+
+          // Create update.json for Tauri updater
+          const updateJson = {
+            version: version,
+            notes: 'Check the release page for detailed release notes',
+            pub_date: releaseDate,
+            platforms: {
+              'darwin-x86_64': {
+                signature: '',
+                url: \`\${releaseUrl}/download/Rapitas_\${version}_x64.dmg\`
+              },
+              'darwin-aarch64': {
+                signature: '',
+                url: \`\${releaseUrl}/download/Rapitas_\${version}_aarch64.dmg\`
+              },
+              'linux-x86_64': {
+                signature: '',
+                url: \`\${releaseUrl}/download/rapitas_\${version}_amd64.AppImage\`
+              },
+              'windows-x86_64': {
+                signature: '',
+                url: \`\${releaseUrl}/download/Rapitas_\${version}_x64-setup.exe\`
+              }
+            }
+          };
+
+          fs.writeFileSync('update.json', JSON.stringify(updateJson, null, 2));
+          console.log('Generated update.json:', updateJson);
+          "
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+
+      - name: Upload update.json
+        uses: softprops/action-gh-release@v2
+        with:
+          files: update.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
