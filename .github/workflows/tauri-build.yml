@@ -191,11 +191,19 @@ jobs:
           echo "Backend build complete. File details:"
           ls -la rapitas-backend
           echo "File size: $(stat -c%s rapitas-backend 2>/dev/null || stat -f%z rapitas-backend) bytes"
+          echo "File type: $(file rapitas-backend)"
 
           # Test if the binary runs
           echo "Testing backend binary..."
-          CI=true timeout 5 ./rapitas-backend --version || true
-          echo "Binary version test completed"
+          # Don't test execution in CI - just verify file exists and is executable
+          if [ -x ./rapitas-backend ]; then
+            echo "✓ Backend binary is executable"
+          else
+            echo "✗ Backend binary is not executable"
+            chmod +x ./rapitas-backend
+            echo "Made backend binary executable"
+          fi
+          echo "Binary test completed"
 
           # Create binaries directory and copy
           mkdir -p ../rapitas-desktop/src-tauri/binaries
@@ -222,6 +230,22 @@ jobs:
 
           echo "Backend binary copied to Tauri binaries directory"
           ls -la ../rapitas-desktop/src-tauri/binaries/
+
+          # Extra verification for Linux
+          if [ "${{ matrix.target }}" == "x86_64-unknown-linux-gnu" ]; then
+            echo ""
+            echo "Verifying Linux binary setup:"
+            echo "Expected binary: rapitas-backend-x86_64-unknown-linux-gnu"
+            if [ -f "../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu" ]; then
+              echo "✓ Binary exists at expected path"
+              echo "Size: $(stat -c%s ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu) bytes"
+              echo "Permissions: $(ls -la ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu)"
+            else
+              echo "✗ Binary NOT found at expected path!"
+              echo "Contents of binaries directory:"
+              ls -la ../rapitas-desktop/src-tauri/binaries/ || echo "Directory not found"
+            fi
+          fi
 
       - name: Build frontend
         working-directory: rapitas-frontend

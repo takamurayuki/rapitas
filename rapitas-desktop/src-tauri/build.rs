@@ -119,7 +119,13 @@ fn main() {
     // handled by the prepare-backend-binary.js script
     if !found && env::var("CI").is_ok() {
         println!("cargo:warning=CI environment detected with missing binary - setting placeholder");
-        println!("cargo:rustc-env=RAPITAS_BACKEND_PATH=binaries/rapitas-backend-placeholder");
+        // Use platform-specific placeholder name to match what prepare-backend-binary.js creates
+        let placeholder_name = if target_os == "windows" {
+            "binaries/rapitas-backend-placeholder.exe"
+        } else {
+            "binaries/rapitas-backend-placeholder"
+        };
+        println!("cargo:rustc-env=RAPITAS_BACKEND_PATH={}", placeholder_name);
     }
 
     tauri_build::build()

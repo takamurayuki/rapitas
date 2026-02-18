@@ -99,22 +99,32 @@ if (fs.existsSync(binaryPath)) {
     console.log(`Using alternative binary: ${foundBinary}`);
   } else {
     console.warn(`Warning: No backend binary found in ${binariesDir}`);
-    // Create an empty placeholder file to prevent build failure
-    const placeholderName = isWindows ? 'rapitas-backend-placeholder.exe' : 'rapitas-backend-placeholder';
-    const placeholderPath = path.join(binariesDir, placeholderName);
+    console.warn(`Expected binary name: ${binaryName}`);
 
-    if (!fs.existsSync(binariesDir)) {
-      fs.mkdirSync(binariesDir, { recursive: true });
+    // In CI/CD, create a placeholder to allow build to proceed
+    if (process.env.CI) {
+      console.log('CI environment detected - creating placeholder binary');
+      // Create an empty placeholder file to prevent build failure
+      const placeholderName = isWindows ? 'rapitas-backend-placeholder.exe' : 'rapitas-backend-placeholder';
+      const placeholderPath = path.join(binariesDir, placeholderName);
+
+      if (!fs.existsSync(binariesDir)) {
+        fs.mkdirSync(binariesDir, { recursive: true });
+      }
+
+      // Create minimal executable placeholder
+      const placeholderContent = isWindows ? '' : '#!/bin/sh\necho "CI placeholder binary"\nexit 0';
+      fs.writeFileSync(placeholderPath, placeholderContent);
+      if (!isWindows) {
+        fs.chmodSync(placeholderPath, 0o755);
+      }
+
+      config.bundle.externalBin = [`binaries/${placeholderName}`];
+      console.log(`Created placeholder binary: ${placeholderPath}`);
+    } else {
+      console.error('No backend binary found and not in CI environment');
+      process.exit(1);
     }
-
-    // Create empty placeholder file
-    fs.writeFileSync(placeholderPath, '');
-    if (!isWindows) {
-      fs.chmodSync(placeholderPath, 0o755);
-    }
-
-    config.bundle.externalBin = [`binaries/${placeholderName}`];
-    console.log(`Created placeholder binary: ${placeholderName}`);
   }
 }
 
