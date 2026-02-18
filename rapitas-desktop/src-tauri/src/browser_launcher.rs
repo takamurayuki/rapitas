@@ -2,7 +2,13 @@
 use std::process::Command;
 
 #[cfg(target_os = "windows")]
-pub fn launch_browser_with_size(url: &str, x: i32, y: i32, width: i32, height: i32) -> Result<(), String> {
+pub fn launch_browser_with_size(
+    url: &str,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+) -> Result<(), String> {
     // デフォルトブラウザのパスを取得
     let browser_result = get_default_browser();
 
@@ -18,7 +24,7 @@ pub fn launch_browser_with_size(url: &str, x: i32, y: i32, width: i32, height: i
                     &format!("--window-position={},{}", x, y),
                     &format!("--window-size={},{}", width, height),
                     "--force-device-scale-factor=1",
-                    url
+                    url,
                 ])
                 .spawn()
                 .map_err(|e| format!("ブラウザ起動失敗: {}", e))?;
@@ -27,9 +33,11 @@ pub fn launch_browser_with_size(url: &str, x: i32, y: i32, width: i32, height: i
             Command::new(&browser_path)
                 .args(&[
                     "-new-tab",
-                    "-width", &width.to_string(),
-                    "-height", &height.to_string(),
-                    url
+                    "-width",
+                    &width.to_string(),
+                    "-height",
+                    &height.to_string(),
+                    url,
                 ])
                 .spawn()
                 .map_err(|e| format!("ブラウザ起動失敗: {}", e))?;
@@ -50,10 +58,10 @@ pub fn launch_browser_with_size(url: &str, x: i32, y: i32, width: i32, height: i
 
 #[cfg(target_os = "windows")]
 fn get_default_browser() -> Result<String, String> {
-    use std::ptr;
-    use winapi::um::shellapi::{FindExecutableW};
     use std::ffi::{OsStr, OsString};
     use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    use std::ptr;
+    use winapi::um::shellapi::FindExecutableW;
 
     // HTTP URLに関連付けられた実行ファイルを検索
     let url_wide: Vec<u16> = OsStr::new("http://example.com")
@@ -64,14 +72,13 @@ fn get_default_browser() -> Result<String, String> {
     let mut exe_path: [u16; 260] = [0; 260];
 
     unsafe {
-        let result = FindExecutableW(
-            url_wide.as_ptr(),
-            ptr::null(),
-            exe_path.as_mut_ptr()
-        );
+        let result = FindExecutableW(url_wide.as_ptr(), ptr::null(), exe_path.as_mut_ptr());
 
         if result as usize > 32 {
-            let len = exe_path.iter().position(|&c| c == 0).unwrap_or(exe_path.len());
+            let len = exe_path
+                .iter()
+                .position(|&c| c == 0)
+                .unwrap_or(exe_path.len());
             let path = OsString::from_wide(&exe_path[..len]);
             Ok(path.to_string_lossy().to_string())
         } else {
@@ -83,17 +90,19 @@ fn get_default_browser() -> Result<String, String> {
 
 #[cfg(target_os = "windows")]
 fn get_browser_from_registry() -> Result<String, String> {
-    use winapi::um::winreg::{RegOpenKeyExW, RegQueryValueExW, HKEY_CURRENT_USER};
-    use winapi::shared::minwindef::{HKEY, DWORD};
     use std::ffi::{OsStr, OsString};
     use std::os::windows::ffi::{OsStrExt, OsStringExt};
     use std::ptr;
+    use winapi::shared::minwindef::{DWORD, HKEY};
+    use winapi::um::winreg::{RegOpenKeyExW, RegQueryValueExW, HKEY_CURRENT_USER};
 
     unsafe {
-        let key_path = OsStr::new(r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice")
-            .encode_wide()
-            .chain(Some(0))
-            .collect::<Vec<u16>>();
+        let key_path = OsStr::new(
+            r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice",
+        )
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<u16>>();
 
         let mut hkey: HKEY = ptr::null_mut();
         let result = RegOpenKeyExW(
@@ -101,7 +110,7 @@ fn get_browser_from_registry() -> Result<String, String> {
             key_path.as_ptr(),
             0,
             0x20019, // KEY_READ
-            &mut hkey
+            &mut hkey,
         );
 
         if result != 0 {
@@ -122,7 +131,7 @@ fn get_browser_from_registry() -> Result<String, String> {
             ptr::null_mut(),
             ptr::null_mut(),
             buffer.as_mut_ptr() as *mut u8,
-            &mut size
+            &mut size,
         );
 
         winapi::um::winreg::RegCloseKey(hkey);
@@ -149,7 +158,13 @@ fn get_browser_from_registry() -> Result<String, String> {
 }
 
 #[cfg(not(target_os = "windows"))]
-pub fn launch_browser_with_size(url: &str, _x: i32, _y: i32, _width: i32, _height: i32) -> Result<(), String> {
+pub fn launch_browser_with_size(
+    url: &str,
+    _x: i32,
+    _y: i32,
+    _width: i32,
+    _height: i32,
+) -> Result<(), String> {
     // Windows以外の環境では通常の方法で開く
     open::that(url).map_err(|e| format!("ブラウザ起動失敗: {}", e))
 }

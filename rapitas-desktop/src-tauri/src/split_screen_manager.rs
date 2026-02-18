@@ -1,21 +1,20 @@
 #[cfg(target_os = "windows")]
-use winapi::{
-    um::{
-        winuser::{
-            SetWindowPos, ShowWindow, GetForegroundWindow,
-            SWP_FRAMECHANGED, SWP_NOZORDER, SW_NORMAL, SW_RESTORE, SW_SHOWMINIMIZED,
-            SW_SHOWMAXIMIZED, GetWindowPlacement, WINDOWPLACEMENT,
-        },
-    },
+use winapi::um::winuser::{
+    GetForegroundWindow, GetWindowPlacement, SetWindowPos, ShowWindow, SWP_FRAMECHANGED,
+    SWP_NOZORDER, SW_NORMAL, SW_RESTORE, SW_SHOWMAXIMIZED, SW_SHOWMINIMIZED, WINDOWPLACEMENT,
 };
 
 use std::thread;
 use std::time::Duration;
 
 #[cfg(target_os = "windows")]
-pub fn split_screen_with_browser(url: &str, _screen_width: i32, _screen_height: i32) -> Result<(), String> {
-    use crate::window_manager::*;
+pub fn split_screen_with_browser(
+    url: &str,
+    _screen_width: i32,
+    _screen_height: i32,
+) -> Result<(), String> {
     use crate::browser_launcher;
+    use crate::window_manager::*;
 
     // 作業領域（タスクバーを除いた領域）を取得
     let (work_x, work_y, work_width, work_height) = get_work_area();
@@ -29,15 +28,15 @@ pub fn split_screen_with_browser(url: &str, _screen_width: i32, _screen_height: 
     for window in &all_windows {
         let title_lower = window.title.to_lowercase();
         // より正確なブラウザ検出（実行ファイル名も考慮）
-        if title_lower.contains("chrome") ||
-           title_lower.contains("edge") ||
-           title_lower.contains("firefox") ||
-           title_lower.contains("opera") ||
-           title_lower.contains("brave") ||
-           title_lower.contains("vivaldi") ||
-           title_lower.contains("microsoft edge") ||
-           title_lower.contains("google chrome") {
-
+        if title_lower.contains("chrome")
+            || title_lower.contains("edge")
+            || title_lower.contains("firefox")
+            || title_lower.contains("opera")
+            || title_lower.contains("brave")
+            || title_lower.contains("vivaldi")
+            || title_lower.contains("microsoft edge")
+            || title_lower.contains("google chrome")
+        {
             unsafe {
                 let mut placement = WINDOWPLACEMENT {
                     length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
@@ -117,12 +116,13 @@ pub fn split_screen_with_browser(url: &str, _screen_width: i32, _screen_height: 
         let latest_windows = get_all_windows();
         for window in latest_windows {
             let title_lower = window.title.to_lowercase();
-            if title_lower.contains("chrome") ||
-               title_lower.contains("edge") ||
-               title_lower.contains("firefox") ||
-               title_lower.contains("opera") ||
-               title_lower.contains("brave") ||
-               title_lower.contains("vivaldi") {
+            if title_lower.contains("chrome")
+                || title_lower.contains("edge")
+                || title_lower.contains("firefox")
+                || title_lower.contains("opera")
+                || title_lower.contains("brave")
+                || title_lower.contains("vivaldi")
+            {
                 set_window_split_left_with_height(window.hwnd, work_width, work_height);
                 break;
             }

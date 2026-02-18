@@ -7,9 +7,8 @@ use winapi::{
         windef::{HWND, RECT},
     },
     um::winuser::{
-        EnumWindows, GetWindowTextW, IsWindowVisible,
-        SetForegroundWindow, SetWindowPos, ShowWindow, SWP_FRAMECHANGED, SWP_NOZORDER,
-        SW_NORMAL, SW_RESTORE,
+        EnumWindows, GetWindowTextW, IsWindowVisible, SetForegroundWindow, SetWindowPos,
+        ShowWindow, SWP_FRAMECHANGED, SWP_NOZORDER, SW_NORMAL, SW_RESTORE,
     },
 };
 
@@ -160,7 +159,7 @@ pub fn get_work_area() -> (i32, i32, i32, i32) {
             work_area.left,
             work_area.top,
             work_area.right - work_area.left,
-            work_area.bottom - work_area.top
+            work_area.bottom - work_area.top,
         )
     }
 }

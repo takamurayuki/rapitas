@@ -104,9 +104,7 @@ fn load_shortcut_config(app: &tauri::AppHandle) -> String {
 }
 
 /// 文字列ショートカットをパースして Shortcut に変換
-fn parse_shortcut_from_config(
-    config: &str,
-) -> Option<tauri_plugin_global_shortcut::Shortcut> {
+fn parse_shortcut_from_config(config: &str) -> Option<tauri_plugin_global_shortcut::Shortcut> {
     use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
 
     let parts: Vec<&str> = config.split('+').map(|s| s.trim()).collect();
@@ -280,20 +278,16 @@ async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), Strin
         if let Some(main_window) = app.get_webview_window("main") {
             main_window.unmaximize().ok();
             main_window
-                .set_position(tauri::Position::Physical(
-                    tauri::PhysicalPosition {
-                        x: (screen_width / 2) as i32,
-                        y: 0,
-                    }
-                ))
+                .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+                    x: (screen_width / 2) as i32,
+                    y: 0,
+                }))
                 .ok();
             main_window
-                .set_size(tauri::Size::Physical(
-                    tauri::PhysicalSize {
-                        width: (screen_width / 2) as u32,
-                        height: screen_height as u32,
-                    }
-                ))
+                .set_size(tauri::Size::Physical(tauri::PhysicalSize {
+                    width: (screen_width / 2) as u32,
+                    height: screen_height as u32,
+                }))
                 .ok();
             main_window.show().ok();
         }
@@ -330,8 +324,8 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
     let tray_icon_bytes = include_bytes!("../icons/32x32.png");
-    let tray_icon_image = tauri::image::Image::from_bytes(tray_icon_bytes)
-        .expect("failed to load tray icon");
+    let tray_icon_image =
+        tauri::image::Image::from_bytes(tray_icon_bytes).expect("failed to load tray icon");
 
     let _tray = TrayIconBuilder::new()
         .icon(tray_icon_image)
@@ -366,7 +360,9 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
 /// グローバルショートカットをセットアップする (Ctrl+Alt+R でウィンドウを最前面に表示)
 fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+    use tauri_plugin_global_shortcut::{
+        Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
+    };
 
     // 保存された設定からショートカットを読み込み、なければデフォルト (Ctrl+Alt+R)
     let shortcut_config = load_shortcut_config(app.handle());
@@ -399,7 +395,12 @@ fn main() {
         tauri::Builder::default()
             .plugin(tauri_plugin_shell::init())
             .manage(Mutex::new(release::BackendState { child: None }))
-            .invoke_handler(tauri::generate_handler![get_global_shortcut, set_global_shortcut, open_split_view, get_window_decorations])
+            .invoke_handler(tauri::generate_handler![
+                get_global_shortcut,
+                set_global_shortcut,
+                open_split_view,
+                get_window_decorations
+            ])
             .setup(|app| {
                 release::setup_sidecar(app);
                 setup_tray(app)?;
@@ -423,7 +424,12 @@ fn main() {
         println!("[Dev Mode] Skipping sidecar - backend started by dev.js");
         tauri::Builder::default()
             .plugin(tauri_plugin_shell::init())
-            .invoke_handler(tauri::generate_handler![get_global_shortcut, set_global_shortcut, open_split_view, get_window_decorations])
+            .invoke_handler(tauri::generate_handler![
+                get_global_shortcut,
+                set_global_shortcut,
+                open_split_view,
+                get_window_decorations
+            ])
             .setup(|app| {
                 setup_tray(app)?;
                 setup_global_shortcut(app)?;
