@@ -141,9 +141,9 @@ const TaskCard = memo(function TaskCard({
     <div
       ref={cardRef}
       data-task-card
-      className={`group relative rounded-lg border-l-4 border-t border-r border-b transition-[transform,box-shadow,border-color] duration-200 ${
+      className={`group relative rounded-lg border-l-4 border-t border-r border-b transition-all duration-300 ease-out hover:duration-200 ${
         currentStatus.borderColor
-      } ${`border-zinc-200 dark:border-zinc-800 ${currentStatus.bgColor} dark:bg-indigo-dark-900 hover:shadow-lg hover:scale-[1.02] hover:border-opacity-80`}`}
+      } ${`border-zinc-200 dark:border-zinc-800 ${currentStatus.bgColor} dark:bg-indigo-dark-900 hover:shadow-xl hover:scale-[1.02] hover:-translate-y-0.5 hover:border-opacity-80 dark:hover:shadow-2xl dark:hover:shadow-black/30`}`}
     >
       {/* カードライトスイープエフェクト */}
       <CardLightSweep
@@ -151,7 +151,7 @@ const TaskCard = memo(function TaskCard({
         colors={sweepColors}
       />
       <div
-        className="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors duration-200 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 rounded-t-lg"
+        className="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all duration-300 ease-out hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 rounded-t-lg"
         onClick={() => {
           if (isSelectionMode && onToggleSelect) {
             onToggleSelect(task.id);
@@ -221,10 +221,10 @@ const TaskCard = memo(function TaskCard({
                     e.stopPropagation();
                     setExpandedSubtasks(!expandedSubtasks);
                   }}
-                  className="shrink-0 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1"
+                  className="shrink-0 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1 transition-all duration-200 ease-out hover:scale-105"
                 >
                   <svg
-                    className={`w-3 h-3 transition-transform ${
+                    className={`w-3 h-3 transition-transform duration-300 ease-out ${
                       expandedSubtasks ? 'rotate-90' : ''
                     }`}
                     fill="none"
@@ -300,7 +300,7 @@ const TaskCard = memo(function TaskCard({
                 <div
                   className={`h-full ${getProgressBarColor(
                     completionRate,
-                  )} transition-[width] duration-300`}
+                  )} transition-all duration-700 ease-out`}
                   style={{ width: `${completionRate}%` }}
                 />
               </div>
@@ -344,7 +344,7 @@ const TaskCard = memo(function TaskCard({
                   e.stopPropagation();
                   onOpenInPage(task.id);
                 }}
-                className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
+                className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all duration-200 ease-out hover:scale-110"
                 title="ページで開く"
               >
                 <ExternalLink className="w-4 h-4" />
