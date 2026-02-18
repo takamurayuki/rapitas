@@ -113,21 +113,6 @@ fn main() {
             }
         }
 
-        // Also try using glob crate if available
-        #[cfg(feature = "glob")]
-        {
-            use glob::glob;
-            let pattern = binaries_dir.join("rapitas-backend*");
-            if let Ok(paths) = glob(pattern.to_str().unwrap_or("binaries/rapitas-backend*")) {
-                let files: Vec<_> = paths.filter_map(Result::ok).collect();
-                if !files.is_empty() {
-                    println!("cargo:warning=  Glob found files:");
-                    for file in files {
-                        println!("cargo:warning=    {}", file.display());
-                    }
-                }
-            }
-        }
     }
 
     tauri_build::build()
