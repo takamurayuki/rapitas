@@ -6,8 +6,8 @@ import {
   useCallback,
   ReactNode,
 } from "react";
-import Toast from "./Toast";
-import type { ToastType } from "./Toast";
+import { Toast } from "./index";
+import type { ToastType } from "./index";
 
 interface ToastMessage {
   id: string;
