@@ -181,7 +181,10 @@ jobs:
 
       - name: Build Tauri application
         working-directory: rapitas-desktop
-        run: pnpm tauri build --target ${{ matrix.target }} --config src-tauri/tauri.ci.conf.json --no-dev-server
+        run: |
+          # Use the build script with tauri.build.conf.json
+          # This includes the --features custom-protocol flag and the correct config file
+          pnpm run build --target ${{ matrix.target }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CI: true
