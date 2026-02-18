@@ -180,6 +180,25 @@ export default function AgentSettingsClient({
     {},
   );
 
+  const fetchModels = useCallback(async (agentType: string) => {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/agents/models?type=${agentType}`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableModels(data.models || []);
+
+        // Update provider config with fetched models
+        if (PROVIDER_CONFIGS[agentType]) {
+          PROVIDER_CONFIGS[agentType].models = data.models || [];
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch models:', err);
+    }
+  }, []);
+
   const fetchAgent = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/agents/${id}`);
@@ -206,25 +225,6 @@ export default function AgentSettingsClient({
   useEffect(() => {
     fetchAgent();
   }, [fetchAgent]);
-
-  const fetchModels = useCallback(async (agentType: string) => {
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/agents/models?type=${agentType}`,
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setAvailableModels(data.models || []);
-
-        // Update provider config with fetched models
-        if (PROVIDER_CONFIGS[agentType]) {
-          PROVIDER_CONFIGS[agentType].models = data.models || [];
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch models:', err);
-    }
-  }, []);
 
   const validateField = (field: string, value: string): string | null => {
     let result: ValidationResult;
