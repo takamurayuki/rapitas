@@ -28,7 +28,7 @@ export interface ParsedLogEntry {
   level?: LogLevel;
   message?: string;
   source?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   raw: string;
   type: LogType;
 }

@@ -14,25 +14,25 @@ type BatchRequest = {
   id: string;
   method: string;
   url: string;
-  body?: any;
+  body?: unknown;
 };
 
 type BatchResponse = {
   id: string;
   status: number;
-  body: any;
+  body: unknown;
   error?: string;
 };
 
 class APIClient {
-  private cache = new Map<string, { data: any; timestamp: number }>();
+  private cache = new Map<string, { data: unknown; timestamp: number }>();
   private pendingBatch: BatchRequest[] = [];
   private batchTimeout: NodeJS.Timeout | null = null;
   private batchResolvers = new Map<string, {
-    resolve: (value: any) => void;
-    reject: (reason: any) => void;
+    resolve: (value: unknown) => void;
+    reject: (reason: unknown) => void;
   }>();
-  private requestQueue = new Map<string, Promise<any>>();
+  private requestQueue = new Map<string, Promise<unknown>>();
 
   // デバウンス用のマップ
   private debounceTimers = new Map<string, NodeJS.Timeout>();
@@ -43,7 +43,7 @@ class APIClient {
   /**
    * 基本的なfetchラッパー（キャッシング付き）
    */
-  async fetch<T = any>(path: string, options: RequestOptions = {}): Promise<T> {
+  async fetch<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
     const url = `${API_BASE_URL}${path}`;
     const cacheKey = `${options.method || 'GET'}:${url}:${JSON.stringify(options.body || {})}`;
 
@@ -81,7 +81,7 @@ class APIClient {
    * バッチリクエスト
    * 複数のAPIリクエストを1つのHTTPリクエストにまとめる
    */
-  async batchFetch<T = any>(path: string, options: RequestOptions = {}): Promise<T> {
+  async batchFetch<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
     const id = Math.random().toString(36).substring(7);
     const request: BatchRequest = {
       id,
@@ -110,7 +110,7 @@ class APIClient {
    * デバウンス付きfetch
    * 連続した同じリクエストを最後の1つだけ実行
    */
-  async debouncedFetch<T = any>(
+  async debouncedFetch<T = unknown>(
     path: string,
     options: RequestOptions = {},
     delay: number = 300
@@ -143,7 +143,7 @@ class APIClient {
    * スロットリング付きfetch
    * 一定時間内に1回だけリクエストを実行
    */
-  async throttledFetch<T = any>(
+  async throttledFetch<T = unknown>(
     path: string,
     options: RequestOptions = {},
     interval: number = 1000
@@ -171,7 +171,7 @@ class APIClient {
    * 並列リクエストの最適化
    * Promise.allSettledを使用して、一部が失敗しても他のリクエストは継続
    */
-  async parallelFetch<T extends Record<string, any>>(
+  async parallelFetch<T extends Record<string, unknown>>(
     requests: Record<string, { path: string; options?: RequestOptions }>
   ): Promise<T> {
     const entries = Object.entries(requests);
@@ -179,7 +179,7 @@ class APIClient {
       entries.map(([_, req]) => this.fetch(req.path, req.options))
     );
 
-    const response: Record<string, any> = {};
+    const response: Record<string, unknown> = {};
     entries.forEach(([key], index) => {
       const result = results[index];
       if (result.status === 'fulfilled') {
@@ -295,7 +295,7 @@ class APIClient {
   /**
    * キャッシュから取得
    */
-  private getFromCache(key: string): any | null {
+  private getFromCache(key: string): unknown | null {
     const cached = this.cache.get(key);
     if (!cached) return null;
 
@@ -311,7 +311,7 @@ class APIClient {
   /**
    * キャッシュに保存
    */
-  private setCache(key: string, data: any, cacheTime: number = 5 * 60 * 1000): void {
+  private setCache(key: string, data: unknown, cacheTime: number = 5 * 60 * 1000): void {
     this.cache.set(key, {
       data,
       timestamp: Date.now(),

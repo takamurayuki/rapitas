@@ -2,21 +2,21 @@
  * HTTPキャッシュとETag管理のユーティリティ
  */
 
-interface CacheEntry {
+interface CacheEntry<T = unknown> {
   etag?: string;
   lastModified?: string;
-  data: any;
+  data: T;
   timestamp: number;
 }
 
 class CacheManager {
-  private etagCache = new Map<string, CacheEntry>();
+  private etagCache = new Map<string, CacheEntry<unknown>>();
   private cacheVersion = '1.0';
 
   /**
    * ETagを使用した条件付きリクエスト
    */
-  async fetchWithETag<T = any>(
+  async fetchWithETag<T = unknown>(
     url: string,
     options: RequestInit = {}
   ): Promise<{ data: T; fromCache: boolean }> {
@@ -81,7 +81,7 @@ class CacheManager {
   /**
    * Service Worker用のキャッシュ戦略
    */
-  async applyCacheStrategy<T = any>(
+  async applyCacheStrategy<T = unknown>(
     url: string,
     strategy: 'cache-first' | 'network-first' | 'stale-while-revalidate' = 'network-first',
     options: RequestInit = {}
@@ -142,7 +142,7 @@ class CacheManager {
   /**
    * データの取得とキャッシュ
    */
-  private async fetchAndCache<T = any>(
+  private async fetchAndCache<T = unknown>(
     url: string,
     cacheKey: string,
     options: RequestInit

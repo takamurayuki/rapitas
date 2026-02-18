@@ -261,8 +261,8 @@ export default function TaskDetailClient({
           cacheTime: 60000, // 1分キャッシュ
         });
         setTask(data);
-      } catch (err: any) {
-        setError(err.message || 'タスクの取得に失敗しました');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'タスクの取得に失敗しました');
       } finally {
         setLoading(false);
         // スケルトン最低表示時間を保証

@@ -6,7 +6,7 @@ import React, { useState, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
@@ -203,20 +203,20 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
               {/* ログタイプ選択 */}
               <div className="flex items-center gap-4">
                 <Label htmlFor="logType" className="min-w-[100px]">ログタイプ:</Label>
-                <Select value={selectedLogType} onValueChange={(value) => setSelectedLogType(value as LogType)}>
-                  <SelectTrigger id="logType" className="w-[200px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unknown">自動検出</SelectItem>
-                    <SelectItem value="json">JSON</SelectItem>
-                    <SelectItem value="syslog">Syslog</SelectItem>
-                    <SelectItem value="apache_common">Apache Common</SelectItem>
-                    <SelectItem value="apache_combined">Apache Combined</SelectItem>
-                    <SelectItem value="nginx">Nginx</SelectItem>
-                    <SelectItem value="nodejs">Node.js</SelectItem>
-                    <SelectItem value="custom">カスタム</SelectItem>
-                  </SelectContent>
+                <Select
+                  id="logType"
+                  className="w-[200px]"
+                  value={selectedLogType}
+                  onChange={(e) => setSelectedLogType(e.target.value as LogType)}
+                >
+                  <option value="unknown">自動検出</option>
+                  <option value="json">JSON</option>
+                  <option value="syslog">Syslog</option>
+                  <option value="apache_common">Apache Common</option>
+                  <option value="apache_combined">Apache Combined</option>
+                  <option value="nginx">Nginx</option>
+                  <option value="nodejs">Node.js</option>
+                  <option value="custom">カスタム</option>
                 </Select>
               </div>
 
@@ -351,20 +351,15 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
                   <Label>最小ログレベル</Label>
                   <Select
                     value={filter.level || ''}
-                    onValueChange={(value) => setFilter({ ...filter, level: value as LogLevel || undefined })}
+                    onChange={(e) => setFilter({ ...filter, level: e.target.value as LogLevel || undefined })}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="すべて" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">すべて</SelectItem>
-                      <SelectItem value="trace">TRACE</SelectItem>
-                      <SelectItem value="debug">DEBUG</SelectItem>
-                      <SelectItem value="info">INFO</SelectItem>
-                      <SelectItem value="warn">WARN</SelectItem>
-                      <SelectItem value="error">ERROR</SelectItem>
-                      <SelectItem value="fatal">FATAL</SelectItem>
-                    </SelectContent>
+                    <option value="">すべて</option>
+                    <option value="trace">TRACE</option>
+                    <option value="debug">DEBUG</option>
+                    <option value="info">INFO</option>
+                    <option value="warn">WARN</option>
+                    <option value="error">ERROR</option>
+                    <option value="fatal">FATAL</option>
                   </Select>
                 </div>
 

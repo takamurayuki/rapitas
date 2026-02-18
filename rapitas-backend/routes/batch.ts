@@ -1,4 +1,4 @@
-import { Elysia, t } from "elysia";
+import { Elysia, t, type Context } from "elysia";
 import { prisma } from "../config";
 
 /**
@@ -8,7 +8,8 @@ import { prisma } from "../config";
 export const batchRoutes = new Elysia({ prefix: "/batch" })
   .post(
     "/",
-    async ({ body }) => {
+    async (context: any) => {
+      const { body } = context as { body: { requests: Array<{ id: string; method: string; url: string; body?: any }> } };
       const results = await Promise.all(
         body.requests.map(async (request) => {
           try {
@@ -221,14 +222,14 @@ async function handleStatisticsRequests(
           ...acc,
           [item.status]: item._count,
         }),
-        {}
+        {} as Record<string, number>
       ),
       byCategory: byCategory.reduce(
         (acc, item) => ({
           ...acc,
           [item.categoryId]: item._count,
         }),
-        {}
+        {} as Record<string, number>
       ),
     };
   }

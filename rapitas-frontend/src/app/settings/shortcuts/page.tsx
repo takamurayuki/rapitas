@@ -22,14 +22,6 @@ import {
 
 type ModifierKey = 'Ctrl' | 'Alt' | 'Shift';
 
-interface ExtendedWindow extends Window {
-  __TAURI__?: {
-    core?: {
-      invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
-    };
-  };
-}
-
 const MODIFIER_KEYS: ModifierKey[] = ['Ctrl', 'Alt', 'Shift'];
 
 const AVAILABLE_KEYS = [
@@ -171,7 +163,7 @@ export default function ShortcutSettingsPage() {
     }
 
     try {
-      const tauri = (window as ExtendedWindow).__TAURI__;
+      const tauri = window.__TAURI__;
       if (tauri?.core?.invoke) {
         const result = await tauri.core.invoke('get_global_shortcut');
         const shortcut = String(result);
@@ -312,7 +304,7 @@ export default function ShortcutSettingsPage() {
     }
 
     try {
-      const tauri = (window as ExtendedWindow).__TAURI__;
+      const tauri = window.__TAURI__;
       if (tauri?.core?.invoke) {
         await tauri.core.invoke('set_global_shortcut', {
           shortcut: newShortcut,

@@ -46,7 +46,7 @@ export function useWindowResize({
     // Tauri環境かチェック
     const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
 
-    if (isTauri) {
+    if (isTauri && window.__TAURI__?.event) {
       // Tauriからの最適化されたリサイズイベントを受信
       const { listen } = window.__TAURI__.event;
 

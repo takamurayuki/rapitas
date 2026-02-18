@@ -49,9 +49,12 @@ export function useTaskSearch(options: UseTaskSearchOptions = {}) {
       if (!abortControllerRef.current.signal.aborted) {
         setResults(tasks);
       }
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
+    } catch (err) {
+      if (err instanceof Error && err.name !== 'AbortError') {
         setError(err.message || '検索中にエラーが発生しました');
+        console.error('Search error:', err);
+      } else if (!(err instanceof Error)) {
+        setError('検索中にエラーが発生しました');
         console.error('Search error:', err);
       }
     } finally {

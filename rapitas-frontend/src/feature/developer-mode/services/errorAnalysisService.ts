@@ -46,7 +46,7 @@ export interface ErrorAnalysis {
   context: {
     environment?: string;
     userAction?: string;
-    systemState?: any;
+    systemState?: Record<string, unknown>;
   };
 }
 
@@ -211,7 +211,7 @@ class ErrorAnalysisService {
       task?: Task;
       agent?: AgentSession;
       userAction?: string;
-      systemState?: any;
+      systemState?: Record<string, unknown>;
     }
   ): ErrorAnalysis {
     const analysis: ErrorAnalysis = {
@@ -321,8 +321,8 @@ class ErrorAnalysisService {
         )
       : this.errorHistory;
 
-    const errorsByCategory: Record<ErrorCategory, number> = {} as any;
-    const errorsBySeverity: Record<ErrorSeverity, number> = {} as any;
+    const errorsByCategory: Record<ErrorCategory, number> = {} as Record<ErrorCategory, number>;
+    const errorsBySeverity: Record<ErrorSeverity, number> = {} as Record<ErrorSeverity, number>;
 
     // Initialize counts
     Object.values(ErrorCategory).forEach(category => {

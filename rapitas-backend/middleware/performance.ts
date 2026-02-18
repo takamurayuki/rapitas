@@ -1,4 +1,4 @@
-import { Elysia } from "elysia";
+import { Elysia, type Context } from "elysia";
 import { LRUCache } from "lru-cache";
 
 // メモリキャッシュの設定
@@ -23,7 +23,8 @@ function generateETag(data: any): string {
 
 // レスポンス圧縮の設定
 export const compressionMiddleware = new Elysia({ name: "compression" })
-  .derive(async ({ request, set }) => {
+  .derive(async (context: any) => {
+    const { request, set } = context;
     const acceptEncoding = request.headers.get("accept-encoding");
     const supportsGzip = acceptEncoding?.includes("gzip");
     const supportsBrotli = acceptEncoding?.includes("br");
@@ -39,7 +40,8 @@ export const compressionMiddleware = new Elysia({ name: "compression" })
 
 // キャッシュミドルウェア
 export const cacheMiddleware = new Elysia({ name: "cache" })
-  .derive(async ({ request, set, path }) => {
+  .derive(async (context: any) => {
+    const { request, set, path } = context;
     // GETリクエストのみキャッシュ
     if (request.method !== "GET") {
       return { cache: { enabled: false } };
@@ -102,7 +104,8 @@ interface RequestMetrics {
 const metricsMap = new WeakMap<Request, RequestMetrics>();
 
 export const performanceMonitoring = new Elysia({ name: "performance-monitoring" })
-  .derive(({ request }) => {
+  .derive((context: any) => {
+    const { request } = context;
     const metrics: RequestMetrics = {
       startTime: performance.now(),
       dbQueryTime: 0,
@@ -121,7 +124,8 @@ export const performanceMonitoring = new Elysia({ name: "performance-monitoring"
       }
     };
   })
-  .onAfterHandle(({ request, set, path }) => {
+  .onAfterHandle((context: any) => {
+    const { request, set, path } = context;
     const metrics = metricsMap.get(request);
     if (metrics) {
       const totalTime = performance.now() - metrics.startTime;
@@ -156,7 +160,8 @@ export const connectionPooling = {
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 export const rateLimitMiddleware = new Elysia({ name: "rate-limit" })
-  .derive(({ request, set }) => {
+  .derive((context: any) => {
+    const { request, set } = context;
     const clientIp = request.headers.get("x-forwarded-for") || "unknown";
     const now = Date.now();
     const windowMs = 60000; // 1分

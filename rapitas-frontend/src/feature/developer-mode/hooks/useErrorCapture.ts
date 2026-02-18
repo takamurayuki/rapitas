@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useRef } from 'react';
+import type { ErrorInfo } from 'react';
 import { errorAnalysisService, ErrorAnalysis } from '../services/errorAnalysisService';
 import { Task, AgentSession } from '@/types';
 
@@ -27,7 +28,7 @@ export function useErrorCapture({
     context?: {
       stackTrace?: string;
       userAction?: string;
-      systemState?: any;
+      systemState?: Record<string, unknown>;
     }
   ) => {
     const analysis = errorAnalysisService.analyzeError(message, {
@@ -46,7 +47,7 @@ export function useErrorCapture({
 
     originalConsoleError.current = console.error;
 
-    console.error = function(...args: any[]) {
+    console.error = function(...args: unknown[]) {
       // Call original console.error
       originalConsoleError.current?.apply(console, args);
 
@@ -170,7 +171,7 @@ export function useErrorCapture({
   }, [captureNetworkErrors, captureError]);
 
   // Capture React errors (if in a React Error Boundary)
-  const captureReactError = useCallback((error: Error, errorInfo: any) => {
+  const captureReactError = useCallback((error: Error, errorInfo: ErrorInfo) => {
     captureError(`React Error: ${error.message}`, {
       stackTrace: error.stack,
       userAction: 'React component error',
@@ -184,7 +185,7 @@ export function useErrorCapture({
   const manualCaptureError = useCallback((
     message: string,
     error?: Error,
-    additionalContext?: any
+    additionalContext?: Record<string, unknown>
   ) => {
     return captureError(message, {
       stackTrace: error?.stack,

@@ -85,10 +85,18 @@ if (!config.bundle) {
 // The resources will be handled differently
 config.bundle.resources = [];
 
-// Set externalBin to include the specific binary file
-if (fs.existsSync(binaryPath)) {
+// Set externalBin to include the generic binary file to match tauri.conf.json
+// The CI workflow ensures both platform-specific and generic names exist
+const genericBinaryName = isWindows ? 'rapitas-backend.exe' : 'rapitas-backend';
+const genericBinaryPath = path.join(binariesDir, genericBinaryName);
+
+if (fs.existsSync(genericBinaryPath)) {
+  config.bundle.externalBin = [`binaries/${genericBinaryName}`];
+  console.log(`Set externalBin to include generic binary: ${genericBinaryName}`);
+} else if (fs.existsSync(binaryPath)) {
+  // Fallback to platform-specific name if generic doesn't exist
   config.bundle.externalBin = [`binaries/${binaryName}`];
-  console.log(`Set externalBin to include ${binaryName}`);
+  console.log(`Set externalBin to include platform-specific binary: ${binaryName}`);
 } else {
   // Check for any existing backend binary
   let foundBinary = null;

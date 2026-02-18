@@ -155,7 +155,7 @@ jobs:
           # Copy with platform-specific naming for Tauri sidecar
           if ("${{ matrix.target }}" -eq "x86_64-pc-windows-msvc") {
             Copy-Item rapitas-backend.exe ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-pc-windows-msvc.exe
-            # Also copy without target suffix for fallback
+            # IMPORTANT: Also copy as generic name that matches tauri.conf.json
             Copy-Item rapitas-backend.exe ../rapitas-desktop/src-tauri/binaries/rapitas-backend.exe
           }
 
@@ -211,19 +211,26 @@ jobs:
           # Copy with platform-specific naming for Tauri sidecar
           if [ "${{ matrix.target }}" == "x86_64-unknown-linux-gnu" ]; then
             cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu
-            # Also copy without target suffix for fallback
+            # IMPORTANT: Also copy as generic name that matches tauri.conf.json
             cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend
             # Verify copy was successful
             echo "Verifying Linux binary copy:"
             ls -la ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu
+            ls -la ../rapitas-desktop/src-tauri/binaries/rapitas-backend
           elif [ "${{ matrix.target }}" == "x86_64-apple-darwin" ]; then
             cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-apple-darwin
+            # Also copy as generic name
+            cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend
             echo "Verifying macOS x64 binary copy:"
             ls -la ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-apple-darwin
+            ls -la ../rapitas-desktop/src-tauri/binaries/rapitas-backend
           elif [ "${{ matrix.target }}" == "aarch64-apple-darwin" ]; then
             cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend-aarch64-apple-darwin
+            # Also copy as generic name
+            cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend
             echo "Verifying macOS ARM64 binary copy:"
             ls -la ../rapitas-desktop/src-tauri/binaries/rapitas-backend-aarch64-apple-darwin
+            ls -la ../rapitas-desktop/src-tauri/binaries/rapitas-backend
           fi
 
           chmod +x ../rapitas-desktop/src-tauri/binaries/rapitas-backend*
@@ -257,10 +264,8 @@ jobs:
               echo ""
               echo "Attempting to fix by finding alternative binary names..."
               if [ -f "../rapitas-desktop/src-tauri/binaries/rapitas-backend" ]; then
-                echo "Found 'rapitas-backend' - copying to expected name"
-                cp ../rapitas-desktop/src-tauri/binaries/rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu
-                chmod +x ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu
-                echo "✓ Fixed: copied and made executable"
+                echo "Found 'rapitas-backend' - this should already be in place"
+                echo "✓ Generic binary exists"
               fi
             fi
           fi

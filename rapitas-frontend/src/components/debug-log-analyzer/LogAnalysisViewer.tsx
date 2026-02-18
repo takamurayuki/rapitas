@@ -270,7 +270,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ level, count }) => `${level}: ${count}`}
+                    label={({ payload, value }) => `${payload.level}: ${value}`}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="count"
@@ -297,11 +297,11 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="time"
-                    tickFormatter={(time) => new Date(time).toLocaleTimeString()}
+                    tickFormatter={(time: string | number) => new Date(time).toLocaleTimeString()}
                   />
                   <YAxis />
                   <Tooltip
-                    labelFormatter={(time) => new Date(time).toLocaleString()}
+                    labelFormatter={(time: string | number) => new Date(time).toLocaleString()}
                   />
                   <Legend />
                   <Line
@@ -343,7 +343,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
                         <p className="text-sm font-mono text-gray-700 dark:text-gray-300">
                           {pattern.pattern}
                         </p>
-                        <Badge variant="destructive">{pattern.count}回</Badge>
+                        <Badge variant="default" className="bg-red-100 text-red-900 dark:bg-red-900 dark:text-red-100">{pattern.count}回</Badge>
                       </div>
                     </div>
                   ))}
@@ -425,7 +425,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
                     <Input
                       placeholder="ログを検索..."
                       value={searchText}
-                      onChange={(e) => setSearchText(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchText(e.target.value)}
                       className="pl-10"
                     />
                   </div>
@@ -435,12 +435,8 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
                     <Button
                       key={level}
                       size="sm"
-                      variant={selectedLevel === level ? 'default' : 'outline'}
+                      variant={selectedLevel === level ? 'secondary' : 'outline'}
                       onClick={() => setSelectedLevel(selectedLevel === level ? null : level as LogLevel)}
-                      style={{
-                        borderColor: selectedLevel === level ? color : undefined,
-                        backgroundColor: selectedLevel === level ? color : undefined
-                      }}
                     >
                       {level.toUpperCase()}
                     </Button>

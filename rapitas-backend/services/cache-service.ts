@@ -12,7 +12,7 @@ interface CacheStrategy {
 
 // メモリキャッシュ戦略（開発環境用）
 class MemoryCacheStrategy implements CacheStrategy {
-  private cache: LRUCache<string, any>;
+  private cache: LRUCache<string, unknown>;
 
   constructor(options: { max?: number; ttl?: number } = {}) {
     this.cache = new LRUCache({
@@ -59,7 +59,7 @@ class RedisCacheStrategy implements CacheStrategy {
   constructor(redisUrl?: string) {
     this.redis = new Redis(redisUrl || process.env.REDIS_URL || "redis://localhost:6379");
 
-    this.redis.on("error", (err) => {
+    this.redis.on("error", (err: Error) => {
       console.error("Redis connection error:", err);
     });
 
@@ -291,7 +291,7 @@ export class CacheService {
 
   // キャッシュウォーミング
   async warmup(
-    keys: Array<{ key: string; factory: () => Promise<any>; ttl?: number }>
+    keys: Array<{ key: string; factory: () => Promise<unknown>; ttl?: number }>
   ): Promise<void> {
     await Promise.all(
       keys.map(({ key, factory, ttl }) => this.getOrSet(key, factory, ttl))
@@ -342,7 +342,7 @@ export const cacheService = new CacheService();
 // キャッシュキーのヘルパー
 export const CacheKeys = {
   task: (id: string) => `task:${id}`,
-  taskList: (filters: any) => `tasks:${JSON.stringify(filters)}`,
+  taskList: (filters: Record<string, unknown>) => `tasks:${JSON.stringify(filters)}`,
   project: (id: string) => `project:${id}`,
   user: (id: string) => `user:${id}`,
   statistics: (type: string) => `stats:${type}`,
@@ -359,16 +359,16 @@ export const CacheKeys = {
 // キャッシュデコレーター（TypeScript用）
 export function Cacheable(options: {
   ttl?: number;
-  keyGenerator?: (...args: any[]) => string;
+  keyGenerator?: (...args: unknown[]) => string;
 } = {}) {
   return function (
-    target: any,
+    target: object,
     propertyKey: string,
     descriptor: PropertyDescriptor
   ) {
     const originalMethod = descriptor.value;
 
-    descriptor.value = async function (...args: any[]) {
+    descriptor.value = async function (...args: unknown[]) {
       const key = options.keyGenerator
         ? options.keyGenerator(...args)
         : `${target.constructor.name}:${propertyKey}:${JSON.stringify(args)}`;

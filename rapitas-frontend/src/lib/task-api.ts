@@ -5,6 +5,11 @@
 import { apiClient, apiFetch, debouncedFetch, parallelFetch } from './api-client';
 import type { Task, Status } from '@/types';
 
+type RequestOptions = {
+  cacheTime?: number;
+  [key: string]: unknown;
+};
+
 /**
  * タスクの一括取得（カテゴリ別）
  * 複数カテゴリのタスクを並列で取得
@@ -18,9 +23,9 @@ export async function fetchTasksByCategories(categoryIds: number[]): Promise<Rec
       options: { cacheTime: 30000 } // 30秒キャッシュ
     };
     return acc;
-  }, {} as Record<string, { path: string; options?: any }>);
+  }, {} as Record<string, { path: string; options?: RequestOptions }>);
 
-  const results = await parallelFetch<Record<string, Task[] | { error: any }>>(requests);
+  const results = await parallelFetch<Record<string, Task[] | { error: unknown }>>(requests);
 
   // レスポンスを整形
   const tasksByCategory: Record<number, Task[]> = {};
@@ -104,9 +109,9 @@ export async function fetchTaskDependencies(taskIds: number[]): Promise<Record<n
       options: { cacheTime: 120000 } // 2分キャッシュ
     };
     return acc;
-  }, {} as Record<string, { path: string; options?: any }>);
+  }, {} as Record<string, { path: string; options?: RequestOptions }>);
 
-  const results = await parallelFetch<Record<string, number[] | { error: any }>>(requests);
+  const results = await parallelFetch<Record<string, number[] | { error: unknown }>>(requests);
 
   // レスポンスを整形
   const dependencies: Record<number, number[]> = {};

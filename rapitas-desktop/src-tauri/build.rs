@@ -22,24 +22,37 @@ fn main() {
     let source_path = PathBuf::from("binaries").join(&binary_name);
     let binaries_dir = PathBuf::from("binaries");
 
-    // In CI/CD, the binary might not have the full target triple in the name
-    // Try alternative names if the primary one doesn't exist
+    // In CI/CD, we ensure both generic and platform-specific binaries exist
+    // Prioritize the generic name that matches tauri.conf.json
+    let generic_binary_name = match target_os.as_str() {
+        "windows" => "rapitas-backend.exe",
+        _ => "rapitas-backend",
+    };
+
     let alt_binary_name = format!(
         "rapitas-backend-{}-{}-{}",
         target_arch, target_os, target_env
     );
     let alternative_names: Vec<&str> = match target_os.as_str() {
         "windows" => vec![
-            "rapitas-backend.exe",
+            generic_binary_name,
             "rapitas-backend-x86_64-pc-windows-msvc.exe",
         ],
-        _ => vec!["rapitas-backend", &alt_binary_name],
+        _ => vec![generic_binary_name, &alt_binary_name],
     };
 
     let mut found = false;
 
-    // First try the primary name
-    if source_path.exists() {
+    // First try the generic name that matches tauri.conf.json
+    let generic_path = PathBuf::from("binaries").join(&generic_binary_name);
+    if generic_path.exists() {
+        println!(
+            "cargo:rustc-env=RAPITAS_BACKEND_PATH={}",
+            generic_path.display()
+        );
+        found = true;
+    } else if source_path.exists() {
+        // Then try the platform-specific name
         println!(
             "cargo:rustc-env=RAPITAS_BACKEND_PATH={}",
             source_path.display()

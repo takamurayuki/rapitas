@@ -45,15 +45,25 @@ interface WebviewWindowOptions {
 }
 
 interface TauriAPI {
+  event: {
+    listen: (
+      event: string,
+      handler: (event: unknown) => void,
+    ) => Promise<() => void>;
+    emit: (event: string, payload?: unknown) => Promise<void>;
+  };
+  window: {
+    getCurrent: () => TauriWindow;
+  };
+  core?: {
+    invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
+  };
   webviewWindow?: {
     WebviewWindow: WebviewWindowConstructor;
     getCurrent(): TauriWindow;
     getCurrentWebviewWindow(): {
       close(): Promise<void>;
     };
-  };
-  window?: {
-    getCurrent(): TauriWindow;
   };
 }
 
@@ -86,7 +96,7 @@ interface ExtendedWindow extends Window {
  */
 export function isTauri(): boolean {
   if (typeof window === 'undefined') return false;
-  return !!(window as ExtendedWindow).__TAURI__;
+  return !!(window as Window & ExtendedWindow).__TAURI__;
 }
 
 /**
@@ -145,7 +155,7 @@ export function getQueryParam(param: string): string | null {
 export async function hideToTray(): Promise<void> {
   if (!isTauri()) return;
   try {
-    const tauri = (window as ExtendedWindow).__TAURI__;
+    const tauri = (window as Window & ExtendedWindow).__TAURI__;
     const webviewWindow = tauri?.webviewWindow;
     if (webviewWindow) {
       const current = webviewWindow.getCurrentWebviewWindow();
@@ -194,7 +204,7 @@ export async function openExternalUrlInSplitView(
       unlisten: () => {},
     };
 
-    (window as ExtendedWindow).__RAPITAS_SPLIT_VIEW__ = splitViewData;
+    (window as Window & ExtendedWindow).__RAPITAS_SPLIT_VIEW__ = splitViewData;
 
     window.dispatchEvent(
       new CustomEvent('rapitas:split-view-activated', {
@@ -226,7 +236,7 @@ export async function openExternalUrlInNewWindow(
   }
 
   try {
-    const tauri = (window as ExtendedWindow).__TAURI__;
+    const tauri = (window as Window & ExtendedWindow).__TAURI__;
     const webviewWindow = tauri?.webviewWindow?.WebviewWindow;
 
     if (webviewWindow) {
@@ -274,7 +284,7 @@ export async function openExternalUrlInNewWindow(
  */
 export function isSplitViewActive(): boolean {
   if (!isTauri()) return false;
-  return !!(window as ExtendedWindow).__RAPITAS_SPLIT_VIEW__;
+  return !!(window as Window & ExtendedWindow).__RAPITAS_SPLIT_VIEW__;
 }
 
 /**
@@ -283,7 +293,8 @@ export function isSplitViewActive(): boolean {
 export async function restoreFromSplitView(): Promise<void> {
   if (!isTauri()) return;
 
-  const splitViewData = (window as ExtendedWindow).__RAPITAS_SPLIT_VIEW__;
+  const splitViewData = (window as Window & ExtendedWindow)
+    .__RAPITAS_SPLIT_VIEW__;
   if (!splitViewData) return;
 
   try {
@@ -323,7 +334,7 @@ export async function restoreFromSplitView(): Promise<void> {
     }
 
     // 分割表示状態をクリア
-    delete (window as ExtendedWindow).__RAPITAS_SPLIT_VIEW__;
+    delete (window as Window & ExtendedWindow).__RAPITAS_SPLIT_VIEW__;
 
     // 分割表示が解除されたことを通知
     window.dispatchEvent(

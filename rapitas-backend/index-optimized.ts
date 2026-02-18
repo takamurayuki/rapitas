@@ -2,7 +2,7 @@
 import { setupGlobalErrorHandlers, errorHandler, performanceOptimization } from "./middleware";
 setupGlobalErrorHandlers();
 
-import { Elysia } from "elysia";
+import { Elysia, type Context } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { swagger } from "@elysiajs/swagger";
 
@@ -195,7 +195,8 @@ app.use(batchRoutesV2);
 app.use(websocketRoutes);
 
 // Health check endpoint with performance metrics
-app.get("/health", ({ set }) => {
+app.get("/health", (context: Context) => {
+  const { set } = context;
   const cacheStats = cacheService.getStats();
   const wsStats = wsManager.getStats();
 

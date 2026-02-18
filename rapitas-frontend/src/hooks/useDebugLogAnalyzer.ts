@@ -178,7 +178,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
         // 日付文字列をDateオブジェクトに変換
         const result = {
           ...data.result,
-          entries: data.result.entries.map((entry: any) => ({
+          entries: data.result.entries.map((entry: ParsedLogEntry) => ({
             ...entry,
             timestamp: entry.timestamp ? new Date(entry.timestamp) : undefined,
           })),

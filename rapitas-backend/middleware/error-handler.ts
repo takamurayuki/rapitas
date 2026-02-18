@@ -42,7 +42,7 @@ export class ValidationError extends AppError {
  * Error handler middleware plugin
  */
 export const errorHandler = new Elysia({ name: "error-handler" }).onError(
-  ({ code, error, set }: { code: string; error: Error; set: { status: number } }) => {
+  ({ code, error, set }) => {
     // Custom AppError
     if (error instanceof AppError) {
       set.status = error.statusCode;

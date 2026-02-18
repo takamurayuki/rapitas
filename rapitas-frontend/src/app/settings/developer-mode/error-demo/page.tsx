@@ -5,10 +5,11 @@ import { ArrowLeft, AlertCircle, Code, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useErrorCapture } from '@/feature/developer-mode/hooks/useErrorCapture';
+import { ErrorAnalysis } from '@/feature/developer-mode/services/errorAnalysisService';
 import Link from 'next/link';
 
 export default function ErrorDemoPage() {
-  const [lastError, setLastError] = useState<any>(null);
+  const [lastError, setLastError] = useState<ErrorAnalysis | null>(null);
 
   const { manualCaptureError } = useErrorCapture({
     captureConsoleErrors: true,
@@ -24,17 +25,17 @@ export default function ErrorDemoPage() {
     try {
       // SyntaxErrorは実行時には発生しないので、evalを使用
       eval('const x = {');
-    } catch (error: any) {
-      manualCaptureError('SyntaxError: Unexpected token', error);
+    } catch (error) {
+      manualCaptureError('SyntaxError: Unexpected token', error instanceof Error ? error : new Error(String(error)));
     }
   };
 
   const triggerTypeError = () => {
     try {
-      const obj: any = null;
+      const obj = null as unknown as { someProperty: { doSomething: () => void } };
       // This will throw: Cannot read properties of null
       obj.someProperty.doSomething();
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
     }
   };
@@ -70,7 +71,7 @@ export default function ErrorDemoPage() {
   const triggerDependencyError = () => {
     try {
       throw new Error("Cannot find module 'non-existent-module'");
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
     }
   };

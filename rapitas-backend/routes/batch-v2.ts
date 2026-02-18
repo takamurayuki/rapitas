@@ -1,23 +1,30 @@
-import { Elysia, t } from "elysia";
+import { Elysia, t, type Context } from "elysia";
 import { prisma } from "../config";
 import { cacheService, CacheKeys } from "../services/cache-service";
 import { PrismaOptimizer, QueryOptimizers } from "../utils/prisma-optimization";
+import { performanceMonitoring } from "../middleware/performance";
 
 // バッチ処理の結果型
 interface BatchResult {
   id: string;
   status: number;
-  body?: any;
+  body?: string | object;
   error?: string;
   cached?: boolean;
   executionTime?: number;
 }
 
 // リクエストハンドラーのレジストリ
-const requestHandlers = new Map<string, (params: any) => Promise<any>>();
+const requestHandlers = new Map<
+  string,
+  (params: { query?: any; params?: any; body?: any }) => Promise<any>
+>();
 
 // ハンドラーを登録
-function registerHandler(pattern: string, handler: (params: any) => Promise<any>) {
+function registerHandler(
+  pattern: string,
+  handler: (params: { query?: any; params?: any; body?: any }) => Promise<any>,
+) {
   requestHandlers.set(pattern, handler);
 }
 
@@ -40,11 +47,11 @@ registerHandler("GET:/tasks", async ({ query }) => {
     limit = 20,
     search,
     projectId,
-    priority
+    priority,
   } = query;
 
   // フィルター構築
-  const where: any = {};
+  const where: Record<string, any> = {};
   if (categoryId) where.categoryId = parseInt(categoryId);
   if (status) where.status = status;
   if (projectId) where.projectId = parseInt(projectId);
@@ -52,7 +59,7 @@ registerHandler("GET:/tasks", async ({ query }) => {
 
   // インクリメンタル更新の場合
   if (since) {
-    const [tasks, totalCount, activeIds] = await PrismaOptimizer.parallelQueries({
+    const results = await PrismaOptimizer.parallelQueries({
       tasks: prisma.task.findMany({
         where: {
           ...where,
@@ -69,9 +76,9 @@ registerHandler("GET:/tasks", async ({ query }) => {
     });
 
     const result = {
-      tasks,
-      totalCount,
-      activeIds: activeIds.map((t) => t.id),
+      tasks: results.tasks,
+      totalCount: results.totalCount,
+      activeIds: results.activeIds.map((t: { id: number }) => t.id),
       since,
       incremental: true,
     };
@@ -87,9 +94,13 @@ registerHandler("GET:/tasks", async ({ query }) => {
     const results = await prisma.task.findMany({
       ...searchQuery,
       ...PrismaOptimizer.cursorPagination(cursor, parseInt(limit)),
+      orderBy: { createdAt: "desc" },
     });
 
-    const formatted = PrismaOptimizer.formatCursorResults(results, parseInt(limit));
+    const formatted = PrismaOptimizer.formatCursorResults(
+      results,
+      parseInt(limit),
+    );
     await cacheService.set(cacheKey, formatted, CacheKeys.TTL.MEDIUM);
     return formatted;
   }
@@ -99,9 +110,13 @@ registerHandler("GET:/tasks", async ({ query }) => {
     where,
     ...QueryOptimizers.taskWithRelations(),
     ...PrismaOptimizer.cursorPagination(cursor, parseInt(limit)),
+    orderBy: { createdAt: "desc" },
   });
 
-  const formatted = PrismaOptimizer.formatCursorResults(results, parseInt(limit));
+  const formatted = PrismaOptimizer.formatCursorResults(
+    results,
+    parseInt(limit),
+  );
   await cacheService.set(cacheKey, formatted, CacheKeys.TTL.MEDIUM);
   return formatted;
 });
@@ -197,11 +212,11 @@ class BatchProcessor {
       method: string;
       url: string;
       body?: any;
-    }>
+    }>,
   ): Promise<BatchResult[]> {
     // リクエストをキューに追加
     const promises = requests.map((request) =>
-      this.createRequestProcessor(request)
+      this.createRequestProcessor(request),
     );
 
     // 同時実行数を制限しながら処理
@@ -209,7 +224,7 @@ class BatchProcessor {
 
     for (let i = 0; i < promises.length; i += this.concurrencyLimit) {
       const batch = promises.slice(i, i + this.concurrencyLimit);
-      const batchResults = await Promise.all(batch.map(fn => fn()));
+      const batchResults = await Promise.all(batch.map((fn) => fn()));
       results.push(...batchResults);
     }
 
@@ -229,14 +244,18 @@ class BatchProcessor {
         // URLを解析
         const urlParts = request.url.split("?");
         const pathParts = urlParts[0].replace(/^\//, "").split("/");
-        const query = urlParts[1] ? Object.fromEntries(new URLSearchParams(urlParts[1])) : {};
+        const query = urlParts[1]
+          ? Object.fromEntries(new URLSearchParams(urlParts[1]))
+          : {};
 
         // パスパラメータを抽出
         const handlerKey = this.buildHandlerKey(request.method, pathParts);
         const handler = this.findHandler(handlerKey);
 
         if (!handler) {
-          throw new Error(`No handler found for ${request.method} ${request.url}`);
+          throw new Error(
+            `No handler found for ${request.method} ${request.url}`,
+          );
         }
 
         // ハンドラーを実行
@@ -270,12 +289,14 @@ class BatchProcessor {
 
   private buildHandlerKey(method: string, pathParts: string[]): string {
     // パスをパターンに変換（例: tasks/123 -> tasks/:id）
-    const pattern = pathParts.map((part, index) => {
-      if (/^\d+$/.test(part) && index > 0) {
-        return ":id";
-      }
-      return part;
-    }).join("/");
+    const pattern = pathParts
+      .map((part, index) => {
+        if (/^\d+$/.test(part) && index > 0) {
+          return ":id";
+        }
+        return part;
+      })
+      .join("/");
 
     return `${method}:/${pattern}`;
   }
@@ -287,12 +308,12 @@ class BatchProcessor {
     }
 
     // パターンマッチングを試みる
-    for (const [pattern, handler] of requestHandlers) {
+    for (const [pattern, handler] of Array.from(requestHandlers)) {
       const regex = this.patternToRegex(pattern);
       const match = key.match(regex);
 
       if (match) {
-        const params: any = {};
+        const params: Record<string, string> = {};
         const paramNames = pattern.match(/:(\w+)/g);
 
         if (paramNames) {
@@ -326,10 +347,28 @@ export const batchRoutesV2 = new Elysia({ prefix: "/batch/v2" })
   .post(
     "/",
     async ({ body, set }) => {
-      const results = await batchProcessor.processRequests(body.requests);
+      const typedBody = body as {
+        requests: Array<{
+          id: string;
+          method: string;
+          path: string;
+          params?: any;
+        }>;
+      };
+      const results = await batchProcessor.processRequests(
+        typedBody.requests.map((req) => ({
+          id: req.id,
+          method: req.method,
+          url: req.path,
+          body: req.params,
+        })),
+      );
 
       // 実行統計を追加
-      const totalTime = results.reduce((sum, r) => sum + (r.executionTime || 0), 0);
+      const totalTime = results.reduce(
+        (sum, r) => sum + (r.executionTime || 0),
+        0,
+      );
       const cachedCount = results.filter((r) => r.cached).length;
 
       set.headers["x-batch-total-time"] = `${totalTime.toFixed(2)}ms`;
@@ -359,17 +398,18 @@ export const batchRoutesV2 = new Elysia({ prefix: "/batch/v2" })
               t.Literal("PATCH"),
               t.Literal("DELETE"),
             ]),
-            url: t.String(),
-            body: t.Optional(t.Any()),
-          })
+            path: t.String(),
+            params: t.Optional(t.Any()),
+          }),
         ),
       }),
       detail: {
         tags: ["Batch"],
         summary: "Optimized batch API with caching and parallel processing",
-        description: "Process multiple API requests with intelligent caching, parallel execution, and performance monitoring",
+        description:
+          "Process multiple API requests with intelligent caching, parallel execution, and performance monitoring",
       },
-    }
+    },
   )
   .get(
     "/stats",
@@ -386,8 +426,5 @@ export const batchRoutesV2 = new Elysia({ prefix: "/batch/v2" })
         summary: "Get batch processing statistics",
         description: "View cache hit rates and registered handlers",
       },
-    }
+    },
   );
-
-// パフォーマンスモニタリングをインポート
-import { performanceMonitoring } from "../middleware/performance";

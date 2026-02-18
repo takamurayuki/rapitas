@@ -2,7 +2,7 @@
  * デバッグログ解析APIエンドポイント
  */
 
-import { Elysia, t } from "elysia";
+import { Elysia, t, type Context } from "elysia";
 import DebugLogAnalyzer, {
   LogType,
   LogLevel,
@@ -16,7 +16,8 @@ export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
   // ログ解析エンドポイント
   .post(
     "/analyze",
-    async ({ body }) => {
+    async (context: any) => {
+      const { body } = context as { body: { content: string; type?: string; options?: any } };
       try {
         const { content, type, options } = body;
 
@@ -99,7 +100,8 @@ export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
   // ログタイプの検出
   .post(
     "/detect-type",
-    async ({ body }) => {
+    async (context: any) => {
+      const { body } = context as { body: { content: string } };
       try {
         const { content } = body;
 
@@ -136,7 +138,8 @@ export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
   // ストリーム解析エンドポイント（大きなファイル用）
   .post(
     "/analyze-stream",
-    async ({ body, set }) => {
+    async (context: any) => {
+      const { body, set } = context as { body: { url: string; type?: string; options?: any }; set: any };
       try {
         const { url, type, options } = body;
 

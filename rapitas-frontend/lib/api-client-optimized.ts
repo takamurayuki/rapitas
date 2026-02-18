@@ -1,4 +1,5 @@
 import { io, Socket } from "socket.io-client";
+import React from "react";
 
 /**
  * 最適化されたAPIクライアント
@@ -50,17 +51,17 @@ class OptimizedAPIClient {
     });
 
     // リアルタイムイベントハンドラー
-    this.socket.on("task-updated", (data) => {
+    this.socket.on("task-updated", (data: any) => {
       this.invalidateCache(`task:${data.data.id}`);
       this.emit("task-updated", data);
     });
 
-    this.socket.on("task-deleted", (data) => {
+    this.socket.on("task-deleted", (data: any) => {
       this.invalidateCache(`task:${data.taskId}`);
       this.emit("task-deleted", data);
     });
 
-    this.socket.on("batch-update", (data) => {
+    this.socket.on("batch-update", (data: any) => {
       data.updates.forEach((update: any) => {
         this.invalidateCache(`${update.type}:${update.id}`);
       });

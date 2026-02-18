@@ -1,4 +1,4 @@
-import { Elysia } from "elysia";
+import { Elysia, type Context } from "elysia";
 import { prisma } from "../../config/database";
 
 /**
@@ -8,7 +8,8 @@ import { prisma } from "../../config/database";
 export const taskStatisticsRoutes = new Elysia({ prefix: "/tasks" })
   .get(
     "/statistics",
-    async ({ set }) => {
+    async (context: any) => {
+      const { set } = context;
       const [total, byStatus, byCategory, recent] = await Promise.all([
         // 総タスク数
         prisma.task.count(),
@@ -42,14 +43,14 @@ export const taskStatisticsRoutes = new Elysia({ prefix: "/tasks" })
             ...acc,
             [item.status]: item._count,
           }),
-          { todo: 0, "in-progress": 0, done: 0 }
+          { todo: 0, "in-progress": 0, done: 0 } as Record<string, number>
         ),
         byCategory: byCategory.reduce(
           (acc, item) => ({
             ...acc,
             [item.categoryId]: item._count,
           }),
-          {}
+          {} as Record<string, number>
         ),
         recentlyCompleted: recent,
       };
@@ -73,7 +74,8 @@ export const taskStatisticsRoutes = new Elysia({ prefix: "/tasks" })
 
   .get(
     "/recent",
-    async ({ query, set }) => {
+    async (context: any) => {
+      const { query, set } = context;
       const limit = Math.min(parseInt(query.limit || "10"), 50);
 
       const recentTasks = await prisma.task.findMany({

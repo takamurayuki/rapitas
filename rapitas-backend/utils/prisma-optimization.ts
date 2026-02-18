@@ -38,28 +38,27 @@ export class PrismaOptimizer {
   }
 
   // カーソルベースのページネーション
-  static cursorPagination<T extends { id: string }>(
+  static cursorPagination<T extends { id: string | number }>(
     cursor?: string,
     limit: number = 20
   ) {
     return {
       take: limit + 1,
       ...(cursor && {
-        cursor: { id: cursor },
+        cursor: { id: parseInt(cursor) },
         skip: 1,
       }),
-      orderBy: { createdAt: "desc" as const },
     };
   }
 
   // 結果のフォーマット
-  static formatCursorResults<T extends { id: string }>(
+  static formatCursorResults<T extends { id: string | number }>(
     items: T[],
     limit: number
   ) {
     const hasNextPage = items.length > limit;
     const data = hasNextPage ? items.slice(0, -1) : items;
-    const nextCursor = hasNextPage ? data[data.length - 1]?.id : undefined;
+    const nextCursor = hasNextPage ? String(data[data.length - 1]?.id) : undefined;
 
     return {
       data,
@@ -70,7 +69,7 @@ export class PrismaOptimizer {
 }
 
 // Prismaミドルウェアの拡張
-export function setupPrismaOptimizations(prisma: PrismaClient) {
+export function setupPrismaOptimizations(prisma: any) {
   // クエリのロギングとパフォーマンス計測
   prisma.$use(async (params, next) => {
     const before = Date.now();
@@ -211,7 +210,7 @@ export const QueryOptimizers = {
       },
       timeEntries: {
         select: { id: true, startTime: true, endTime: true, duration: true },
-        orderBy: { startTime: "desc" as const },
+        orderBy: { startTime: "desc" as const } as any,
         take: 5,
       },
       taskDependencies: {
@@ -230,14 +229,8 @@ export const QueryOptimizers = {
   }),
 
   // 集計クエリの最適化
-  async getTaskStatistics(prisma: PrismaClient, filters: any) {
-    const [
-      totalCount,
-      statusCounts,
-      priorityCounts,
-      overdueTasks,
-      upcomingTasks,
-    ] = await PrismaOptimizer.parallelQueries({
+  async getTaskStatistics(prisma: any, filters: any) {
+    const results = await PrismaOptimizer.parallelQueries({
       totalCount: prisma.task.count({ where: filters }),
       statusCounts: prisma.task.groupBy({
         by: ["status"],
@@ -272,15 +265,15 @@ export const QueryOptimizers = {
     });
 
     return {
-      total: totalCount,
+      total: results.totalCount,
       byStatus: Object.fromEntries(
-        statusCounts.map((s) => [s.status, s._count.status])
+        results.statusCounts.map((s: any) => [s.status, s._count.status])
       ),
       byPriority: Object.fromEntries(
-        priorityCounts.map((p) => [p.priority, p._count.priority])
+        results.priorityCounts.map((p: any) => [p.priority, p._count.priority])
       ),
-      overdue: overdueTasks,
-      upcoming: upcomingTasks,
+      overdue: results.overdueTasks,
+      upcoming: results.upcomingTasks,
     };
   },
 

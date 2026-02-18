@@ -3,10 +3,17 @@ import { websocket } from "@elysiajs/websocket";
 import { prisma } from "../config";
 import { cacheService } from "./cache-service";
 
+// WebSocketインスタンスの型（簡易定義）
+interface WebSocketInstance {
+  send: (data: string) => void;
+  close: () => void;
+  readyState: number;
+}
+
 // WebSocketクライアントの管理
 interface WSClient {
   id: string;
-  ws: any;
+  ws: WebSocketInstance;
   subscriptions: Set<string>;
   lastActivity: number;
   metadata?: {
@@ -19,7 +26,7 @@ interface WSClient {
 interface WSRoom {
   name: string;
   clients: Set<string>;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 class WebSocketManager {
@@ -35,7 +42,7 @@ class WebSocketManager {
   }
 
   // クライアントの追加
-  addClient(id: string, ws: any, metadata?: any): void {
+  addClient(id: string, ws: WebSocketInstance, metadata?: { userId?: string; sessionId?: string }): void {
     const client: WSClient = {
       id,
       ws,
@@ -58,6 +65,11 @@ class WebSocketManager {
       this.clients.delete(id);
       console.log(`WebSocket client disconnected: ${id}`);
     }
+  }
+
+  // クライアントの取得
+  getClient(id: string): WSClient | undefined {
+    return this.clients.get(id);
   }
 
   // ルームに参加
@@ -102,7 +114,7 @@ class WebSocketManager {
   }
 
   // メッセージをルームに送信
-  sendToRoom(roomName: string, message: any): void {
+  sendToRoom(roomName: string, message: unknown): void {
     const room = this.rooms.get(roomName);
     if (!room) return;
 
@@ -116,7 +128,7 @@ class WebSocketManager {
   }
 
   // 特定のクライアントにメッセージを送信
-  sendToClient(clientId: string, message: any): void {
+  sendToClient(clientId: string, message: unknown): void {
     const client = this.clients.get(clientId);
     if (client?.ws.readyState === 1) {
       client.ws.send(JSON.stringify(message));
@@ -125,7 +137,7 @@ class WebSocketManager {
   }
 
   // すべてのクライアントにブロードキャスト
-  broadcast(message: any): void {
+  broadcast(message: unknown): void {
     for (const [_, client] of this.clients) {
       if (client.ws.readyState === 1) {
         client.ws.send(JSON.stringify(message));
@@ -193,10 +205,17 @@ class WebSocketManager {
 // WebSocketマネージャーのインスタンス
 const wsManager = new WebSocketManager();
 
+// WebSocketハンドラーの型
+type WebSocketHandler<T = unknown> = (
+  ws: WebSocketInstance,
+  clientId: string,
+  data: T
+) => void | Promise<void>;
+
 // WebSocketイベントハンドラー
 const webSocketHandlers = {
   // タスクの更新を購読
-  subscribeTask: async (ws: any, clientId: string, data: { taskId: string }) => {
+  subscribeTask: async (ws: WebSocketInstance, clientId: string, data: { taskId: string }) => {
     wsManager.joinRoom(clientId, `task:${data.taskId}`);
 
     // 現在のタスクデータを送信
@@ -218,17 +237,17 @@ const webSocketHandlers = {
   },
 
   // カテゴリの更新を購読
-  subscribeCategory: (ws: any, clientId: string, data: { categoryId: string }) => {
+  subscribeCategory: (ws: WebSocketInstance, clientId: string, data: { categoryId: string }) => {
     wsManager.joinRoom(clientId, `category:${data.categoryId}`);
   },
 
   // 統計情報の購読
-  subscribeStatistics: (ws: any, clientId: string) => {
+  subscribeStatistics: (ws: WebSocketInstance, clientId: string) => {
     wsManager.joinRoom(clientId, "statistics");
   },
 
   // リアルタイムコラボレーション
-  joinCollaboration: (ws: any, clientId: string, data: { sessionId: string }) => {
+  joinCollaboration: (ws: WebSocketInstance, clientId: string, data: { sessionId: string }) => {
     wsManager.joinRoom(clientId, `collab:${data.sessionId}`);
 
     // 他のクライアントに参加を通知
@@ -240,7 +259,7 @@ const webSocketHandlers = {
   },
 
   // カーソル位置の共有
-  updateCursor: (ws: any, clientId: string, data: { sessionId: string; position: any }) => {
+  updateCursor: (ws: WebSocketInstance, clientId: string, data: { sessionId: string; position: { x: number; y: number } }) => {
     wsManager.sendToRoom(`collab:${data.sessionId}`, {
       type: "cursor-update",
       clientId,
@@ -250,7 +269,7 @@ const webSocketHandlers = {
   },
 
   // タイピング状態の共有
-  setTypingStatus: (ws: any, clientId: string, data: { sessionId: string; isTyping: boolean }) => {
+  setTypingStatus: (ws: WebSocketInstance, clientId: string, data: { sessionId: string; isTyping: boolean }) => {
     wsManager.sendToRoom(`collab:${data.sessionId}`, {
       type: "typing-status",
       clientId,
@@ -260,8 +279,8 @@ const webSocketHandlers = {
   },
 
   // Pong応答（ヘルスチェック）
-  pong: (ws: any, clientId: string) => {
-    const client = wsManager.clients.get(clientId);
+  pong: (ws: WebSocketInstance, clientId: string) => {
+    const client = wsManager.getClient(clientId);
     if (client) {
       client.lastActivity = Date.now();
     }
@@ -339,7 +358,7 @@ export const notifyDataChange = {
   },
 
   // バッチ更新通知
-  batchUpdated: (updates: Array<{ type: string; id: string | number; data?: any }>) => {
+  batchUpdated: (updates: Array<{ type: string; id: string | number; data?: unknown }>) => {
     wsManager.broadcast({
       type: "batch-update",
       updates,
@@ -367,10 +386,10 @@ export const websocketRoutes = new Elysia()
             message: `Unknown message type: ${data.type}`,
           }));
         }
-      } catch (error: any) {
+      } catch (error) {
         ws.send(JSON.stringify({
           type: "error",
-          message: error.message || "Invalid message format",
+          message: error instanceof Error ? error.message : "Invalid message format",
         }));
       }
     },

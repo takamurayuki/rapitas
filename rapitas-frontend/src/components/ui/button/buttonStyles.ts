@@ -8,7 +8,9 @@ export type ButtonVariant =
   | 'success'
   | 'danger'
   | 'warning'
-  | 'ghost';
+  | 'ghost'
+  | 'outline'
+  | 'destructive';
 
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
@@ -28,6 +30,10 @@ export const variantStyles: Record<ButtonVariant, string> = {
     'bg-amber-500 hover:bg-amber-600 text-white border-transparent dark:bg-amber-500 dark:hover:bg-amber-400',
   ghost:
     'bg-transparent hover:bg-zinc-100 text-zinc-700 border-transparent dark:text-zinc-300 dark:hover:bg-zinc-800',
+  outline:
+    'bg-transparent hover:bg-zinc-100 text-zinc-700 border-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:border-zinc-700',
+  destructive:
+    'bg-red-600 hover:bg-red-700 text-white border-transparent dark:bg-red-600 dark:hover:bg-red-500',
 };
 
 /**
