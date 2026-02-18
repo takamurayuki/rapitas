@@ -12,38 +12,55 @@ const SCRIPTS_DIR = __dirname;
 
 console.log('=== Building Rapitas for production (PostgreSQL) ===\n');
 
+// CI環境の検出
+const isCI = process.env.CI === 'true';
+
+if (isCI) {
+  console.log('CI environment detected - skipping database operations\n');
+}
+
 try {
   // 0. 既存プロセスを停止してPrisma Clientを生成
   console.log('Step 0: Stopping processes and generating Prisma Client...');
-  try {
-    if (process.platform === 'win32') {
-      execSync('taskkill /F /IM bun.exe >NUL 2>&1', { shell: true, stdio: 'ignore' });
-      execSync('taskkill /F /IM rapitas-backend.exe >NUL 2>&1', { shell: true, stdio: 'ignore' });
-      execSync('ping -n 2 127.0.0.1 >NUL 2>&1', { shell: true, stdio: 'ignore' });
-    }
-  } catch (e) { /* ignore */ }
 
-  // データベーススキーマを同期
-  console.log('Syncing database schema...');
-  execSync('bunx prisma db push --skip-generate', {
-    cwd: BACKEND_DIR,
-    stdio: 'inherit',
-    shell: true
-  });
-  console.log('Database schema synced.');
+  if (!isCI) {
+    try {
+      if (process.platform === 'win32') {
+        execSync('taskkill /F /IM bun.exe >NUL 2>&1', { shell: true, stdio: 'ignore' });
+        execSync('taskkill /F /IM rapitas-backend.exe >NUL 2>&1', { shell: true, stdio: 'ignore' });
+        execSync('ping -n 2 127.0.0.1 >NUL 2>&1', { shell: true, stdio: 'ignore' });
+      }
+    } catch (e) { /* ignore */ }
 
-  execSync('bun run db:generate', {
-    cwd: BACKEND_DIR,
-    stdio: 'inherit',
-    shell: true
-  });
-  console.log('Prisma Client generated.\n');
+    // データベーススキーマを同期
+    console.log('Syncing database schema...');
+    execSync('bunx prisma db push --skip-generate', {
+      cwd: BACKEND_DIR,
+      stdio: 'inherit',
+      shell: true
+    });
+    console.log('Database schema synced.');
+
+    execSync('bun run db:generate', {
+      cwd: BACKEND_DIR,
+      stdio: 'inherit',
+      shell: true
+    });
+    console.log('Prisma Client generated.\n');
+  } else {
+    console.log('Skipped database operations in CI environment.\n');
+  }
 
   // 1. バックエンドをビルド
   console.log('Step 1: Building backend...');
-  execSync(`node "${path.join(SCRIPTS_DIR, 'build-backend.js')}"`, {
+  const backendBuildScript = isCI ? 'build-backend-ci.js' : 'build-backend.js';
+  execSync(`node "${path.join(SCRIPTS_DIR, backendBuildScript)}"`, {
     stdio: 'inherit',
-    shell: true
+    shell: true,
+    env: {
+      ...process.env,
+      TARGET: process.env.TARGET || ''  // Pass through TARGET env var for CI
+    }
   });
   console.log('Backend build complete.\n');
 

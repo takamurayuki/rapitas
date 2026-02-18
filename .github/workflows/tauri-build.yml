@@ -188,7 +188,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CI: true
-          DATABASE_URL: "dummy://ci-build"  # Provide dummy URL to prevent missing env var errors
+          DATABASE_URL: "postgresql://user:password@localhost:5432/rapitas?schema=public"  # Valid dummy URL for CI
+          TARGET: ${{ matrix.target }}  # Pass target to build scripts
 
       - name: Upload artifacts (Windows)
         if: matrix.platform == 'windows-latest'
