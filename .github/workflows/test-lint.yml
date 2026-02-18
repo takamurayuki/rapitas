@@ -142,9 +142,9 @@ jobs:
         working-directory: rapitas-frontend
         run: pnpm install --no-frozen-lockfile
 
-      - name: Lint backend code
+      - name: Check backend TypeScript
         working-directory: rapitas-backend
-        run: bunx eslint src --ext .ts,.tsx
+        run: bunx tsc --noEmit
 
       - name: Lint frontend code
         working-directory: rapitas-frontend
