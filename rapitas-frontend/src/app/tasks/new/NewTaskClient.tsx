@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -53,7 +53,7 @@ export default function NewTaskClient() {
   const [themeId, setThemeId] = useState<number | null>(null);
 
   // オプションフィールド
-  const [labels, setLabels] = useState("");
+  const [labels] = useState("");
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
   const [estimatedHours, setEstimatedHours] = useState("");
   const [dueDate, setDueDate] = useState("");

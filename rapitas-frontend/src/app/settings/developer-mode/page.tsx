@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Bot, AlertCircle, Loader2, RotateCcw, Zap, Sparkles } from "lucide-react";
+import { Bot, AlertCircle, Loader2, RotateCcw, Zap } from "lucide-react";
 import type { UserSettings } from "@/types";
 import { useToast } from "@/components/ui/toast/ToastContainer";
 import { API_BASE_URL } from "@/utils/api";

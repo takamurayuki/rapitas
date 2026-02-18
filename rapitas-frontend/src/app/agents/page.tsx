@@ -193,68 +193,6 @@ export default function AgentsPage() {
     }
   }, [agents]);
 
-  // エージェントタイプを有効化（DB上にレコードがなければ作成）
-  const handleEnableAgentType = async (agentType: string, agentName: string) => {
-    setError(null);
-    try {
-      // 既にこのタイプのエージェントがDB上にあるか確認
-      const existing = agents.find((a) => a.agentType === agentType);
-      if (existing) {
-        // 無効化されていれば有効化
-        if (!existing.isActive) {
-          const res = await fetch(
-            `${API_BASE_URL}/agents/${existing.id}/toggle-active`,
-            { method: "PUT" },
-          );
-          if (!res.ok) {
-            const data = await res.json();
-            setError(data.error || "エージェントの有効化に失敗しました");
-          }
-        }
-      } else {
-        // 新規作成
-        const res = await fetch(`${API_BASE_URL}/agents`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: agentName,
-            agentType,
-            isDefault: agents.filter((a) => a.isActive).length === 0,
-          }),
-        });
-        if (!res.ok) {
-          const data = await res.json();
-          setError(data.error || "エージェントの追加に失敗しました");
-        }
-      }
-      await fetchData();
-    } catch {
-      setError("エージェントの有効化に失敗しました");
-    } finally {
-    }
-  };
-
-  // エージェントタイプを無効化
-  const handleDisableAgentType = async (agentType: string) => {
-    setError(null);
-    try {
-      const existing = agents.find((a) => a.agentType === agentType && a.isActive);
-      if (existing) {
-        const res = await fetch(
-          `${API_BASE_URL}/agents/${existing.id}/toggle-active`,
-          { method: "PUT" },
-        );
-        if (!res.ok) {
-          const data = await res.json();
-          setError(data.error || "エージェントの無効化に失敗しました");
-        }
-        await fetchData();
-      }
-    } catch {
-      setError("エージェントの無効化に失敗しました");
-    } finally {
-    }
-  };
 
   const getAgentTypeInfo = (type: string) => {
     const typeInfo: Record<

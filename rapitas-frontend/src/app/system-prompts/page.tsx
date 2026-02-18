@@ -5,7 +5,6 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import {
   MessageSquare,
   Plus,
-  Loader2,
   Save,
   X,
   RotateCcw,
@@ -329,9 +328,13 @@ function PromptCard({
 
   useEffect(() => {
     if (isEditing) {
-      setEditContent(prompt.content);
-      setEditName(prompt.name);
-      setEditDescription(prompt.description || "");
+      // Use setTimeout to avoid synchronous setState call
+      const timeoutId = setTimeout(() => {
+        setEditContent(prompt.content);
+        setEditName(prompt.name);
+        setEditDescription(prompt.description || "");
+      }, 0);
+      return () => clearTimeout(timeoutId);
     }
   }, [isEditing, prompt]);
 

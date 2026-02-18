@@ -17,8 +17,6 @@ import {
   Clock,
   CheckCircle2,
   Circle,
-  MessageSquare,
-  Send,
   Trash2,
   FileText,
   Tag,
@@ -34,25 +32,16 @@ import {
   FileStack,
   Bot,
   ArrowLeft,
-  Loader2,
   CheckSquare,
   Square,
-  StickyNote,
-  Plus,
-  CornerDownRight,
-  Link2,
-  Search,
   Flag,
 } from "lucide-react";
 import {
   SubtaskTitleIndicator,
-  type ParallelExecutionStatus,
 } from "@/feature/tasks/components/SubtaskExecutionStatus";
 import { useParallelExecutionStatus } from "@/feature/tasks/hooks/useParallelExecutionStatus";
 import { useSubtaskLogs } from "@/feature/tasks/hooks/useSubtaskLogs";
 import { getTaskDetailPath } from "@/utils/tauri";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import PomodoroTimer from "@/feature/tasks/components/PomodoroTimer";
 import Button from "@/components/ui/button/Button";
 import {
@@ -82,7 +71,6 @@ interface TaskDetailClientProps {
 export default function TaskDetailClient({
   taskId: propTaskId,
   onTaskUpdated,
-  onClose,
 }: TaskDetailClientProps = {}) {
   const params = useParams();
   const router = useRouter();

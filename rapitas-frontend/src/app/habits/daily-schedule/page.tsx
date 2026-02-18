@@ -67,25 +67,6 @@ function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   };
 }
 
-function describeArc(
-  cx: number,
-  cy: number,
-  r: number,
-  startAngle: number,
-  endAngle: number
-): string {
-  let sweep = endAngle - startAngle;
-  if (sweep < 0) sweep += 360;
-  const largeArc = sweep > 180 ? 1 : 0;
-  const start = polarToCartesian(cx, cy, r, startAngle);
-  const end = polarToCartesian(cx, cy, r, endAngle);
-  return [
-    `M ${cx} ${cy}`,
-    `L ${start.x} ${start.y}`,
-    `A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y}`,
-    `Z`,
-  ].join(" ");
-}
 
 function formatDuration(startTime: string, endTime: string): string {
   const start = timeToMinutes(startTime);

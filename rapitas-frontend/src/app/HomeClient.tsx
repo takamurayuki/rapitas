@@ -200,7 +200,7 @@ export default function HomeClientPage() {
       console.error(e);
       return [];
     }
-  }, [categoryFilter, themeFilter]);
+  }, [categoryFilter, themeFilter, setThemeFilter]);
 
   const updateStatus = async (
     id: number,
@@ -404,7 +404,7 @@ export default function HomeClientPage() {
 
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [router, isQuickAdding, isSelectionMode]);
+  }, [router, isQuickAdding, isSelectionMode, defaultTheme?.id, themeFilter]);
 
   const fetchGlobalSettings = async () => {
     try {
@@ -454,7 +454,7 @@ export default function HomeClientPage() {
 
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
-  }, []);
+  }, [categoryFilter, fetchAllTasks, fetchTaskUpdates, fetchThemes, setCategoryFilter, taskCacheInitialized]);
 
   // activeModeが変わったとき、現在のカテゴリフィルタが非表示になったら最初の表示カテゴリに切り替え
   useEffect(() => {

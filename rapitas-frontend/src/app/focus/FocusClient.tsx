@@ -166,7 +166,11 @@ export default function FocusClient() {
 
   useEffect(() => {
     if (taskId) {
-      fetchTask(parseInt(taskId));
+      // Use setTimeout to avoid synchronous setState call
+      const timeoutId = setTimeout(() => {
+        fetchTask(parseInt(taskId));
+      }, 0);
+      return () => clearTimeout(timeoutId);
     }
   }, [taskId, fetchTask]);
 
@@ -175,8 +179,12 @@ export default function FocusClient() {
       intervalRef.current = setInterval(() => {
         setTimeLeft((prev) => prev - 1);
       }, 1000);
-    } else if (timeLeft === 0) {
-      handleTimerComplete();
+    } else if (timeLeft === 0 && isRunning) {
+      // Use setTimeout to avoid synchronous setState call
+      const timeoutId = setTimeout(() => {
+        handleTimerComplete();
+      }, 0);
+      return () => clearTimeout(timeoutId);
     }
 
     return () => {

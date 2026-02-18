@@ -14,7 +14,6 @@ import {
 import TaskSlidePanel from "@/feature/tasks/components/TaskSlidePanel";
 import { getLabelsArray, hasLabels } from "@/utils/labels";
 import { useTaskDetailVisibilityStore } from "@/stores/taskDetailVisibilityStore";
-import { getTaskDetailPath } from "@/utils/tauri";
 import { API_BASE_URL } from "@/utils/api";
 import { useExecutingTasksPolling } from "@/hooks/useExecutingTasksPolling";
 import { useTaskCacheStore } from "@/stores/taskCacheStore";
@@ -81,7 +80,7 @@ export default function KanbanPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPriorities, setSelectedPriorities] = useState<Priority[]>([]);
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters] = useState(false);
   const [labels, setLabels] = useState<Label[]>([]);
 
   // 週間表示の状態

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -180,11 +180,7 @@ export default function AgentSettingsClient({
     {},
   );
 
-  useEffect(() => {
-    fetchAgent();
-  }, [id]);
-
-  const fetchAgent = async () => {
+  const fetchAgent = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/agents/${id}`);
       if (res.ok) {
@@ -205,9 +201,13 @@ export default function AgentSettingsClient({
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, fetchModels]);
 
-  const fetchModels = async (agentType: string) => {
+  useEffect(() => {
+    fetchAgent();
+  }, [fetchAgent]);
+
+  const fetchModels = useCallback(async (agentType: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/agents/models?type=${agentType}`);
       if (res.ok) {
@@ -222,7 +222,7 @@ export default function AgentSettingsClient({
     } catch (err) {
       console.error("Failed to fetch models:", err);
     }
-  };
+  }, []);
 
   const validateField = (field: string, value: string): string | null => {
     let result: ValidationResult;

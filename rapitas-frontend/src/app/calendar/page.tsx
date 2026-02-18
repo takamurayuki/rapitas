@@ -158,7 +158,7 @@ export default function CalendarPage() {
     };
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
-  }, [fetchEvents]);
+  }, [fetchEvents, fetchTaskUpdates]);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
