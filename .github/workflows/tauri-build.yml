@@ -205,10 +205,17 @@ jobs:
             cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu
             # Also copy without target suffix for fallback
             cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend
+            # Verify copy was successful
+            echo "Verifying Linux binary copy:"
+            ls -la ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-unknown-linux-gnu
           elif [ "${{ matrix.target }}" == "x86_64-apple-darwin" ]; then
             cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-apple-darwin
+            echo "Verifying macOS x64 binary copy:"
+            ls -la ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-apple-darwin
           elif [ "${{ matrix.target }}" == "aarch64-apple-darwin" ]; then
             cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/rapitas-backend-aarch64-apple-darwin
+            echo "Verifying macOS ARM64 binary copy:"
+            ls -la ../rapitas-desktop/src-tauri/binaries/rapitas-backend-aarch64-apple-darwin
           fi
 
           chmod +x ../rapitas-desktop/src-tauri/binaries/rapitas-backend*
@@ -263,6 +270,23 @@ jobs:
           # Verify backend binary exists after build
           echo "Checking backend binary in binaries directory..."
           ls -la src-tauri/binaries/ || echo "binaries directory not found"
+
+      - name: Verify backend binary before configuration
+        working-directory: rapitas-desktop
+        run: |
+          echo "Checking binaries directory content before configuration:"
+          if [ -d "src-tauri/binaries" ]; then
+            echo "Directory exists. Contents:"
+            ls -la src-tauri/binaries/
+            echo ""
+            echo "Looking for expected binary: rapitas-backend-${{ matrix.target }}*"
+            ls -la src-tauri/binaries/rapitas-backend* 2>/dev/null || echo "No rapitas-backend files found"
+          else
+            echo "binaries directory does not exist!"
+            echo "Creating binaries directory..."
+            mkdir -p src-tauri/binaries
+          fi
+        shell: bash
 
       - name: Prepare backend binary configuration
         working-directory: rapitas-desktop

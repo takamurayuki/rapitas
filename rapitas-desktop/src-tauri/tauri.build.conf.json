@@ -9,9 +9,7 @@
     "active": true,
     "targets": "all",
     "resources": [],
-    "externalBin": [
-      "binaries/rapitas-backend"
-    ]
+    "externalBin": []
   },
   "plugins": {
     "shell": {

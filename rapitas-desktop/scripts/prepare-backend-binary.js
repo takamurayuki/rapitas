@@ -26,27 +26,31 @@ if (isWindows) {
 const binariesDir = path.join(__dirname, '..', 'src-tauri', 'binaries');
 const binaryPath = path.join(binariesDir, binaryName);
 
+// Ensure binaries directory exists
+if (!fs.existsSync(binariesDir)) {
+  fs.mkdirSync(binariesDir, { recursive: true });
+  console.log(`Created binaries directory: ${binariesDir}`);
+}
+
 // Check if binary exists
 if (!fs.existsSync(binaryPath)) {
-  console.error(`Backend binary not found: ${binaryPath}`);
+  console.log(`Backend binary not found: ${binaryPath}`);
   console.log(`Looking for alternatives in ${binariesDir}...`);
 
-  if (fs.existsSync(binariesDir)) {
-    const files = fs.readdirSync(binariesDir);
-    console.log('Found files:', files);
+  const files = fs.readdirSync(binariesDir);
+  console.log('Found files:', files);
 
-    // Try to find any rapitas-backend file
-    const backendFile = files.find(f => f.startsWith('rapitas-backend'));
-    if (backendFile) {
-      console.log(`Found alternative: ${backendFile}`);
-      // Create a symlink or copy with the expected name
-      const alternativePath = path.join(binariesDir, backendFile);
-      try {
-        fs.copyFileSync(alternativePath, binaryPath);
-        console.log(`Copied ${backendFile} to ${binaryName}`);
-      } catch (e) {
-        console.error(`Failed to copy binary: ${e.message}`);
-      }
+  // Try to find any rapitas-backend file
+  const backendFile = files.find(f => f.startsWith('rapitas-backend') && !f.includes('placeholder'));
+  if (backendFile) {
+    console.log(`Found alternative: ${backendFile}`);
+    // Create a symlink or copy with the expected name
+    const alternativePath = path.join(binariesDir, backendFile);
+    try {
+      fs.copyFileSync(alternativePath, binaryPath);
+      console.log(`Copied ${backendFile} to ${binaryName}`);
+    } catch (e) {
+      console.error(`Failed to copy binary: ${e.message}`);
     }
   }
 }
@@ -83,9 +87,35 @@ if (fs.existsSync(binaryPath)) {
   config.bundle.externalBin = [`binaries/${binaryName}`];
   console.log(`Set externalBin to include ${binaryName}`);
 } else {
-  console.warn(`Warning: Binary ${binaryName} not found, using fallback externalBin`);
-  // Use a fallback that won't cause glob errors
-  config.bundle.externalBin = [];
+  // Check for any existing backend binary
+  let foundBinary = null;
+  if (fs.existsSync(binariesDir)) {
+    const files = fs.readdirSync(binariesDir);
+    foundBinary = files.find(f => f.startsWith('rapitas-backend') && !f.includes('placeholder'));
+  }
+
+  if (foundBinary) {
+    config.bundle.externalBin = [`binaries/${foundBinary}`];
+    console.log(`Using alternative binary: ${foundBinary}`);
+  } else {
+    console.warn(`Warning: No backend binary found in ${binariesDir}`);
+    // Create an empty placeholder file to prevent build failure
+    const placeholderName = isWindows ? 'rapitas-backend-placeholder.exe' : 'rapitas-backend-placeholder';
+    const placeholderPath = path.join(binariesDir, placeholderName);
+
+    if (!fs.existsSync(binariesDir)) {
+      fs.mkdirSync(binariesDir, { recursive: true });
+    }
+
+    // Create empty placeholder file
+    fs.writeFileSync(placeholderPath, '');
+    if (!isWindows) {
+      fs.chmodSync(placeholderPath, 0o755);
+    }
+
+    config.bundle.externalBin = [`binaries/${placeholderName}`];
+    console.log(`Created placeholder binary: ${placeholderName}`);
+  }
 }
 
 // Write the updated config

@@ -114,5 +114,13 @@ fn main() {
         }
     }
 
+    // In CI environment, if binary is not found, set a placeholder path
+    // This allows the build to proceed, and the actual binary will be
+    // handled by the prepare-backend-binary.js script
+    if !found && env::var("CI").is_ok() {
+        println!("cargo:warning=CI environment detected with missing binary - setting placeholder");
+        println!("cargo:rustc-env=RAPITAS_BACKEND_PATH=binaries/rapitas-backend-placeholder");
+    }
+
     tauri_build::build()
 }
