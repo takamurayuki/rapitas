@@ -6,7 +6,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const OUTPUT_DIR = '.next-tauri';
+// Next.js 14以降、静的エクスポートは常に'out'ディレクトリに出力される
+const OUTPUT_DIR = 'out';
 
 // SPAフォールバックが必要な動的ルート
 const DYNAMIC_ROUTES = [
