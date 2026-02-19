@@ -14,11 +14,18 @@ const OUTPUT_DIR = path.resolve(__dirname, '../src-tauri/binaries');
 const platform = process.platform;
 const arch = process.arch;
 
-// Tauriが期待するバイナリ名のフォーマット: <sidecar-name>-<target-triple>
+// Tauriが期待するバイナリ名のフォーマット: Windows では <sidecar-name>.exe-<target-triple>.exe
 const targetTriple = getTargetTriple();
-const outputName = `rapitas-backend-${targetTriple}${platform === 'win32' ? '.exe' : ''}`;
+const outputName = platform === 'win32'
+  ? `rapitas-backend.exe-${targetTriple}.exe`
+  : `rapitas-backend-${targetTriple}`;
 
 function getTargetTriple() {
+  // GitHub ActionsのTARGET環境変数を優先（CI環境用）
+  if (process.env.TARGET) {
+    return process.env.TARGET;
+  }
+
   const platformMap = {
     'win32': 'x86_64-pc-windows-msvc',
     'darwin': arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin',

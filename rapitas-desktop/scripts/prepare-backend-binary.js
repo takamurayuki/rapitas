@@ -15,7 +15,8 @@ const isLinux = target.includes('linux');
 // Determine the binary name based on target
 let binaryName;
 if (isWindows) {
-  binaryName = `rapitas-backend-${target}.exe`;
+  // Windows uses special naming: <name>.exe-<target>.exe
+  binaryName = `rapitas-backend.exe-${target}.exe`;
 } else if (isMacos) {
   binaryName = `rapitas-backend-${target}`;
 } else {

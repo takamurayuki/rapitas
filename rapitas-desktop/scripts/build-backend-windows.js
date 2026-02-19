@@ -19,9 +19,11 @@ const BUN_VERSION = '1.1.42';
 const platform = process.platform;
 const arch = process.arch;
 
-// Tauriが期待するバイナリ名のフォーマット: <sidecar-name>-<target-triple>
+// Tauriが期待するバイナリ名のフォーマット: Windows では <sidecar-name>.exe-<target-triple>.exe
 const targetTriple = getTargetTriple();
-const outputName = `rapitas-backend-${targetTriple}${platform === 'win32' ? '.exe' : ''}`;
+const outputName = platform === 'win32'
+  ? `rapitas-backend.exe-${targetTriple}.exe`
+  : `rapitas-backend-${targetTriple}`;
 
 function getTargetTriple() {
   // GitHub ActionsのTARGET環境変数を優先
