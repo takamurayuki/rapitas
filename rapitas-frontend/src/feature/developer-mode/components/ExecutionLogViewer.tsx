@@ -6,6 +6,7 @@ import React, {
   useRef,
   useCallback,
   useMemo,
+  memo,
 } from 'react';
 import {
   Terminal,
@@ -55,6 +56,45 @@ export type ExecutionLogViewerProps = {
   maxHeight?: number;
 };
 
+// ログエントリコンポーネント（メモ化）
+const LogEntry = memo<{
+  log: string;
+  index: number;
+  isNewEntry: boolean;
+  searchQuery: string;
+  highlightText: (text: string, query: string) => React.ReactNode;
+}>(({ log, index, isNewEntry, searchQuery, highlightText }) => {
+  const className = [
+    log.includes('[エラー]')
+      ? 'text-red-400'
+      : log.includes('[エージェント]')
+        ? 'text-emerald-400 font-semibold'
+        : log.includes('[実行開始]') ||
+            log.includes('[継続]') ||
+            log.includes('[完了]')
+          ? 'text-blue-400'
+          : /^\[.+?\]/.test(log.trimStart())
+            ? 'text-cyan-400'
+            : '',
+    isNewEntry ? 'log-entry-new' : '',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <span
+      key={index}
+      className={className}
+      style={{
+        display: 'block',
+        animation: isNewEntry ? 'fadeInSlide 0.3s ease-out' : undefined,
+      }}
+    >
+      {searchQuery ? highlightText(log, searchQuery) : log}
+    </span>
+  );
+});
+
+LogEntry.displayName = 'LogEntry';
+
 /**
  * ExecutionLogViewer - AIエージェント実行ログの表示コンポーネント
  *
@@ -89,6 +129,8 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   const isUserScrollingRef = useRef(false);
   const isAutoScrollingRef = useRef(false);
   const prevLogsLengthRef = useRef(0);
+  // ログ更新のバッファリング用
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // スクロール位置を監視して自動スクロールを制御
   const handleScroll = useCallback(() => {
@@ -112,7 +154,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     handleScroll();
   }, [handleScroll]);
 
-  // ログが更新されたら自動スクロール
+  // ログが更新されたら自動スクロール（バッファリング付き）
   useEffect(() => {
     if (logs.length > prevLogsLengthRef.current) {
       if (
@@ -120,19 +162,36 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         autoScroll &&
         !isUserScrollingRef.current
       ) {
-        isAutoScrollingRef.current = true;
-        requestAnimationFrame(() => {
-          if (logContainerRef.current) {
-            logContainerRef.current.scrollTop =
-              logContainerRef.current.scrollHeight;
+        // 既存のタイマーをクリア
+        if (scrollTimerRef.current) {
+          clearTimeout(scrollTimerRef.current);
+        }
+
+        // 少し待機してから一度だけスクロール
+        scrollTimerRef.current = setTimeout(() => {
+          if (logContainerRef.current && autoScroll) {
+            isAutoScrollingRef.current = true;
+
+            // スムーズスクロールを使用
+            logContainerRef.current.scrollTo({
+              top: logContainerRef.current.scrollHeight,
+              behavior: 'smooth'
+            });
+
+            setTimeout(() => {
+              isAutoScrollingRef.current = false;
+            }, 300);
           }
-          setTimeout(() => {
-            isAutoScrollingRef.current = false;
-          }, 50);
-        });
+        }, 100); // 100msのバッファリング
       }
     }
     prevLogsLengthRef.current = logs.length;
+
+    return () => {
+      if (scrollTimerRef.current) {
+        clearTimeout(scrollTimerRef.current);
+      }
+    };
   }, [logs.length, autoScroll]);
 
   // 検索機能（ログ長でデバウンス。ログの増加は検索をトリガーしない）
@@ -201,7 +260,10 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
           0,
           (lineNumber - 3) * estimatedLineHeight,
         );
-        logContainerRef.current.scrollTop = scrollPosition;
+        logContainerRef.current.scrollTo({
+          top: scrollPosition,
+          behavior: 'smooth'
+        });
         setAutoScroll(false);
       }
     },
@@ -239,7 +301,10 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
 
   const scrollToBottom = useCallback(() => {
     if (logContainerRef.current) {
-      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+      logContainerRef.current.scrollTo({
+        top: logContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
       setAutoScroll(true);
     }
   }, []);
@@ -296,32 +361,39 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     [],
   );
 
+  // 前のログ数を追跡して新しいエントリを識別
+  const [displayedLogsCount, setDisplayedLogsCount] = useState(0);
+
+  useEffect(() => {
+    if (logs.length > displayedLogsCount) {
+      // アニメーション用の遅延を設定
+      const timer = setTimeout(() => {
+        setDisplayedLogsCount(logs.length);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [logs.length, displayedLogsCount]);
+
   // ログテキストをメモ化
   const logContent = useMemo(() => {
     if (logs.length === 0) {
       return null;
     }
-    return logs.map((log, i) => (
-      <span
-        key={i}
-        className={
-          log.includes('[エラー]')
-            ? 'text-red-400'
-            : log.includes('[エージェント]')
-              ? 'text-emerald-400 font-semibold'
-              : log.includes('[実行開始]') ||
-                  log.includes('[継続]') ||
-                  log.includes('[完了]')
-                ? 'text-blue-400'
-                : /^\[.+?\]/.test(log.trimStart())
-                  ? 'text-cyan-400'
-                  : ''
-        }
-      >
-        {searchQuery ? highlightText(log, searchQuery) : log}
-      </span>
-    ));
-  }, [logs, searchQuery, highlightText]);
+    return logs.map((log, i) => {
+      const isNewEntry = i >= displayedLogsCount - 5; // 最新5件をアニメーション対象
+
+      return (
+        <LogEntry
+          key={i}
+          log={log}
+          index={i}
+          isNewEntry={isNewEntry}
+          searchQuery={searchQuery}
+          highlightText={highlightText}
+        />
+      );
+    });
+  }, [logs, searchQuery, highlightText, displayedLogsCount]);
 
   // ステータスバッジの内容をメモ化
   const statusBadge = useMemo(() => {
@@ -509,7 +581,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         onMouseUp={handleScrollEnd}
         onTouchStart={handleScrollStart}
         onTouchEnd={handleScrollEnd}
-        className={`bg-zinc-900 overflow-auto font-mono text-sm ${
+        className={`bg-zinc-900 overflow-auto font-mono text-sm execution-log-container ${
           isFullscreen ? 'flex-1' : ''
         } ${showHeader ? 'rounded-b-lg' : 'rounded-lg'}`}
         style={{ height: isFullscreen ? undefined : maxHeight }}
