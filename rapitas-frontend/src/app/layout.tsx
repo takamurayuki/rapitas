@@ -11,6 +11,7 @@ import { ToastProvider } from '@/components/ui/toast/ToastContainer';
 import { PomodoroProvider } from '@/feature/tasks/pomodoro/PomodoroProvider';
 import ExternalLinksProvider from '@/components/ExternalLinksProvider';
 import NoteProvider from '@/components/note/NoteProvider';
+import CacheWarmupInitializer from '@/components/CacheWarmupInitializer';
 // import WindowResizeOptimizer from '@/components/WindowResizeOptimizer';
 
 const geistSans = Geist({
@@ -89,6 +90,7 @@ export default function RootLayout({
                 <Suspense fallback={null}>
                   <NoteProvider />
                 </Suspense>
+                <CacheWarmupInitializer />
               </Suspense>
             </ExternalLinksProvider>
           </ToastProvider>

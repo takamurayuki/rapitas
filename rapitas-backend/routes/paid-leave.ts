@@ -48,7 +48,8 @@ const calculateUsedDays = async (userId: string, fiscalYear: number): Promise<nu
 
 export const paidLeaveRoutes = new Elysia({ prefix: "/paid-leave" })
   // 有給残日数を取得
-  .get("/balance", async ({ query }: { query: { userId?: string; fiscalYear?: string } }) => {
+  .get("/balance", async ({ 
+ query }: { query: { userId?: string; fiscalYear?: string } }) => {
     try {
       const userId = query.userId || "default";
       const fiscalYear = query.fiscalYear ? parseInt(query.fiscalYear) : getCurrentFiscalYear();
@@ -104,7 +105,8 @@ export const paidLeaveRoutes = new Elysia({ prefix: "/paid-leave" })
   })
 
   // 有給残日数を更新
-  .put("/balance", async ({ body }: { body: { userId?: string; fiscalYear?: number; totalDays?: number; carryOverDays?: number } }) => {
+  .put("/balance", async ({ 
+ body }: { body: { userId?: string; fiscalYear?: number; totalDays?: number; carryOverDays?: number } }) => {
     try {
       const { userId = "default", fiscalYear, totalDays, carryOverDays } = body;
       const targetYear = fiscalYear || getCurrentFiscalYear();
@@ -159,7 +161,8 @@ export const paidLeaveRoutes = new Elysia({ prefix: "/paid-leave" })
   })
 
   // 有給申請履歴を取得
-  .get("/history", async ({ query }: { query: { userId?: string; fiscalYear?: string } }) => {
+  .get("/history", async ({ 
+ query }: { query: { userId?: string; fiscalYear?: string } }) => {
     try {
       const userId = query.userId || "default";
       const fiscalYear = query.fiscalYear ? parseInt(query.fiscalYear) : getCurrentFiscalYear();

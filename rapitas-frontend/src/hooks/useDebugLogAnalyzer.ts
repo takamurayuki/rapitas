@@ -8,7 +8,8 @@ import {
   LogAnalysisResult,
   AnalyzeOptions,
   AnalyzeLogRequest,
-  AnalyzeLogResponse
+  AnalyzeLogResponse,
+  ParsedLogEntry
 } from '@/types/debug-log';
 
 interface UseDebugLogAnalyzerResult {

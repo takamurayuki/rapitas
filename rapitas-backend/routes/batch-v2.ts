@@ -29,7 +29,8 @@ function registerHandler(
 }
 
 // 最適化されたハンドラーを登録
-registerHandler("GET:/tasks", async ({ query }) => {
+registerHandler("GET:/tasks", async ({ 
+ query }) => {
   const cacheKey = CacheKeys.taskList(query);
 
   // キャッシュから取得を試みる
@@ -121,7 +122,8 @@ registerHandler("GET:/tasks", async ({ query }) => {
   return formatted;
 });
 
-registerHandler("GET:/tasks/:id", async ({ params }) => {
+registerHandler("GET:/tasks/:id", async ({ 
+ params }) => {
   const id = parseInt(params.id);
   const cacheKey = CacheKeys.task(params.id);
 
@@ -156,7 +158,8 @@ registerHandler("GET:/statistics/tasks", async () => {
   return stats;
 });
 
-registerHandler("POST:/tasks", async ({ body }) => {
+registerHandler("POST:/tasks", async ({ 
+ body }) => {
   const task = await prisma.task.create({
     data: body,
     ...QueryOptimizers.taskWithRelations(),
@@ -169,7 +172,8 @@ registerHandler("POST:/tasks", async ({ body }) => {
   return task;
 });
 
-registerHandler("PATCH:/tasks/:id", async ({ params, body }) => {
+registerHandler("PATCH:/tasks/:id", async ({ 
+ params, body }) => {
   const id = parseInt(params.id);
   const task = await prisma.task.update({
     where: { id },
@@ -185,7 +189,8 @@ registerHandler("PATCH:/tasks/:id", async ({ params, body }) => {
   return task;
 });
 
-registerHandler("DELETE:/tasks/:id", async ({ params }) => {
+registerHandler("DELETE:/tasks/:id", async ({ 
+ params }) => {
   const id = parseInt(params.id);
   await prisma.task.delete({ where: { id } });
 
@@ -346,7 +351,8 @@ export const batchRoutesV2 = new Elysia({ prefix: "/batch/v2" })
   .use(performanceMonitoring)
   .post(
     "/",
-    async ({ body, set }) => {
+    async ({ 
+ body, set }) => {
       const typedBody = body as {
         requests: Array<{
           id: string;

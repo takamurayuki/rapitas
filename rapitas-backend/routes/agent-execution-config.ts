@@ -2,14 +2,14 @@
  * Agent Execution Config API Routes
  * エージェント実行設定の保存・取得API
  */
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
 
 export const agentExecutionConfigRoutes = new Elysia({
   prefix: "/agent-execution-config",
 })
   // エージェント実行設定の取得
-  .get("/:taskId", async ({ params, set }: { params: { taskId: string }; set: { status: number } }) => {
+  .get("/:taskId", async ({ params, set }: any) => {
     const taskId = parseInt(params.taskId);
 
     const config = await prisma.agentExecutionConfig.findUnique({
@@ -38,36 +38,7 @@ export const agentExecutionConfigRoutes = new Elysia({
   // エージェント実行設定の作成または更新（upsert）
   .put(
     "/:taskId",
-    async ({
-      params,
-      body,
-      set,
-    }: {
-      params: { taskId: string };
-      body: {
-        agentConfigId?: number | null;
-        workingDirectory?: string | null;
-        timeoutMs?: number;
-        maxRetries?: number;
-        branchStrategy?: string;
-        branchPrefix?: string;
-        autoCommit?: boolean;
-        autoCreatePR?: boolean;
-        requireApproval?: string;
-        autoExecuteOnAnalysis?: boolean;
-        parallelExecution?: boolean;
-        maxConcurrentAgents?: number;
-        useOptimizedPrompt?: boolean;
-        additionalInstructions?: string | null;
-        autoCodeReview?: boolean;
-        reviewScope?: string;
-        notifyOnStart?: boolean;
-        notifyOnComplete?: boolean;
-        notifyOnError?: boolean;
-        notifyOnQuestion?: boolean;
-      };
-      set: { status: number };
-    }) => {
+    async ({ params, body, set }: { params: any; body: any; set: any }) => {
       const taskId = parseInt(params.taskId);
 
       // タスクの存在確認
@@ -181,36 +152,7 @@ export const agentExecutionConfigRoutes = new Elysia({
   // エージェント実行設定の部分更新
   .patch(
     "/:taskId",
-    async ({
-      params,
-      body,
-      set,
-    }: {
-      params: { taskId: string };
-      body: {
-        agentConfigId?: number | null;
-        workingDirectory?: string | null;
-        timeoutMs?: number;
-        maxRetries?: number;
-        branchStrategy?: string;
-        branchPrefix?: string;
-        autoCommit?: boolean;
-        autoCreatePR?: boolean;
-        requireApproval?: string;
-        autoExecuteOnAnalysis?: boolean;
-        parallelExecution?: boolean;
-        maxConcurrentAgents?: number;
-        useOptimizedPrompt?: boolean;
-        additionalInstructions?: string | null;
-        autoCodeReview?: boolean;
-        reviewScope?: string;
-        notifyOnStart?: boolean;
-        notifyOnComplete?: boolean;
-        notifyOnError?: boolean;
-        notifyOnQuestion?: boolean;
-      };
-      set: { status: number };
-    }) => {
+    async ({ params, body, set }: { params: any; body: any; set: any }) => {
       const taskId = parseInt(params.taskId);
 
       const existing = await prisma.agentExecutionConfig.findUnique({
@@ -282,7 +224,7 @@ export const agentExecutionConfigRoutes = new Elysia({
   )
 
   // エージェント実行設定の削除（デフォルトに戻す）
-  .delete("/:taskId", async ({ params, set }: { params: { taskId: string }; set: { status: number } }) => {
+  .delete("/:taskId", async ({ params, set }) => {
     const taskId = parseInt(params.taskId);
 
     const existing = await prisma.agentExecutionConfig.findUnique({

@@ -195,7 +195,8 @@ export const taskDependencyRoutes = new Elysia()
   // Task dependency analysis (file-sharing based)
   .get(
     "/tasks/:id/dependency-analysis",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       const taskIdNum = parseInt(params.id);
 
       const task = await prisma.task.findUnique({
@@ -308,7 +309,8 @@ export const taskDependencyRoutes = new Elysia()
   // SSE-based dependency analysis stream
   .get(
     "/tasks/:id/dependency-analysis/stream",
-    async ({ params, set }: { params: { id: string }; set: { status: number; headers: Record<string, string> } }) => {
+    async ({ 
+ params, set }: { params: { id: string }; set: { status: number; headers: Record<string, string> } }) => {
       const taskIdNum = parseInt(params.id);
 
       set.headers = {

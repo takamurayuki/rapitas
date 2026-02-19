@@ -17,7 +17,8 @@ export const examGoalsRoutes = new Elysia({ prefix: "/exam-goals" })
     });
   })
 
-  .get("/:id", async ({ params }: { params: { id: string } }) => {
+  .get("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) throw new ValidationError("無効なIDです");
 
@@ -33,7 +34,8 @@ export const examGoalsRoutes = new Elysia({ prefix: "/exam-goals" })
 
   .post(
     "/",
-    async ({ body }: {
+    async ({ 
+ body }: {
       body: {
         name: string;
         description?: string;
@@ -69,7 +71,8 @@ export const examGoalsRoutes = new Elysia({ prefix: "/exam-goals" })
 
   .patch(
     "/:id",
-    async ({ params, body }: {
+    async ({ 
+ params, body }: {
       params: { id: string };
       body: {
         name?: string;
@@ -102,7 +105,8 @@ export const examGoalsRoutes = new Elysia({ prefix: "/exam-goals" })
     }
   )
 
-  .delete("/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) throw new ValidationError("無効なIDです");
 

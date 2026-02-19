@@ -14,7 +14,8 @@ export const dailyScheduleRoutes = new Elysia({ prefix: "/daily-schedule" })
 
   .post(
     "/",
-    async ({
+    async ({ 
+
       body,
     }: {
       body: {
@@ -58,7 +59,8 @@ export const dailyScheduleRoutes = new Elysia({ prefix: "/daily-schedule" })
 
   .patch(
     "/:id",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {
@@ -92,7 +94,8 @@ export const dailyScheduleRoutes = new Elysia({ prefix: "/daily-schedule" })
     }
   )
 
-  .delete("/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     return await prisma.dailyScheduleBlock.delete({ where: { id } });
   })
@@ -100,7 +103,8 @@ export const dailyScheduleRoutes = new Elysia({ prefix: "/daily-schedule" })
   // Bulk create/replace all blocks at once
   .put(
     "/bulk",
-    async ({
+    async ({ 
+
       body,
     }: {
       body: {

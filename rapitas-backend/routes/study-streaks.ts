@@ -5,7 +5,8 @@ import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
 
 export const studyStreaksRoutes = new Elysia({ prefix: "/study-streaks" })
-  .get("/", async ({ query }: { query: { days?: string } }) => {
+  .get("/", async ({ 
+ query }: { query: { days?: string } }) => {
     const { days } = query;
     const daysNum = days ? parseInt(days) : 30;
 
@@ -80,7 +81,8 @@ export const studyStreaksRoutes = new Elysia({ prefix: "/study-streaks" })
 
   .post(
     "/record",
-    async ({ body }: {
+    async ({ 
+ body }: {
       body: {
         date?: string | null;
         studyMinutes?: number | null;

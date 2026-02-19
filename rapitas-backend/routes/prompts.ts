@@ -11,7 +11,8 @@ import { getLabelsArray, toJsonString } from "../utils/db-helpers";
 
 export const promptsRoutes = new Elysia()
   // タスクのプロンプト一覧取得
-  .get("/tasks/:id/prompts", async ({ params }: { params: { id: string } }) => {
+  .get("/tasks/:id/prompts", async ({ 
+ params }: { params: { id: string } }) => {
     const taskIdNum = parseInt(params.id);
 
     // タスクと子タスクを取得
@@ -55,7 +56,8 @@ export const promptsRoutes = new Elysia()
   // プロンプト作成
   .post(
     "/tasks/:id/prompts",
-    async ({
+    async ({ 
+
       params,
       body,
       set,
@@ -98,7 +100,8 @@ export const promptsRoutes = new Elysia()
   // プロンプト更新
   .patch(
     "/prompts/:id",
-    async ({
+    async ({ 
+
       params,
       body,
       set,
@@ -135,7 +138,8 @@ export const promptsRoutes = new Elysia()
   // プロンプト削除
   .delete(
     "/prompts/:id",
-    async ({ params, set }: { params: { id: string }; set: { status?: number } }) => {
+    async ({ 
+ params, set }: { params: { id: string }; set: { status?: number } }) => {
       const promptId = parseInt(params.id);
 
       const existing = await prisma.taskPrompt.findUnique({
@@ -158,7 +162,8 @@ export const promptsRoutes = new Elysia()
   // サブタスクを含む全プロンプト生成（一括最適化）
   .post(
     "/tasks/:id/prompts/generate-all",
-    async ({ params, set }: { params: { id: string }; set: { status?: number } }) => {
+    async ({ 
+ params, set }: { params: { id: string }; set: { status?: number } }) => {
       const taskIdNum = parseInt(params.id);
 
       // デフォルトプロバイダーのAPIキーチェック

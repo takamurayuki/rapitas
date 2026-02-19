@@ -15,13 +15,13 @@ app.use(cors());
 app.get("/health", () => ({
   status: "ok",
   message: "CI/CD Stub Backend",
-  timestamp: new Date().toISOString()
+  timestamp: new Date().toISOString(),
 }));
 
 // 基本的なAPIレスポンス
 const stubResponse = {
   message: "This is a stub response from CI/CD build. Database not connected.",
-  data: []
+  data: [],
 };
 
 // タスク関連のスタブエンドポイント
@@ -29,7 +29,7 @@ app.get("/tasks", () => stubResponse);
 app.get("/tasks/:id", ({ params: { id } }: { params: { id: string } }) => ({
   ...stubResponse,
   id,
-  title: "Stub Task"
+  title: "Stub Task",
 }));
 
 // テーマ関連のスタブエンドポイント
@@ -37,7 +37,7 @@ app.get("/themes", () => stubResponse);
 app.get("/themes/:id", ({ params: { id } }: { params: { id: string } }) => ({
   ...stubResponse,
   id,
-  name: "Stub Theme"
+  name: "Stub Theme",
 }));
 
 // プロジェクト関連のスタブエンドポイント
@@ -45,7 +45,7 @@ app.get("/projects", () => stubResponse);
 app.get("/projects/:id", ({ params: { id } }: { params: { id: string } }) => ({
   ...stubResponse,
   id,
-  name: "Stub Project"
+  name: "Stub Project",
 }));
 
 // 設定関連のスタブエンドポイント
@@ -56,11 +56,11 @@ app.get("/settings", () => ({
   enableParallelExecution: false,
   maxParallelExecutions: 1,
   autoRetryOnRateLimit: false,
-  rateLimitRetryDelay: 5
+  rateLimitRetryDelay: 5,
 }));
 
 // SSEスタブエンドポイント
-app.get("/sse", ({ set }: { set: { headers: Record<string, string> } }) => {
+app.get("/sse", ({ set }) => {
   set.headers["Content-Type"] = "text/event-stream";
   set.headers["Cache-Control"] = "no-cache";
   set.headers["Connection"] = "keep-alive";
@@ -68,27 +68,29 @@ app.get("/sse", ({ set }: { set: { headers: Record<string, string> } }) => {
   return new Response(
     new ReadableStream({
       start(controller) {
-        controller.enqueue("data: {\"type\":\"connected\",\"message\":\"CI/CD Stub SSE\"}\n\n");
-      }
+        controller.enqueue(
+          'data: {"type":"connected","message":"CI/CD Stub SSE"}\n\n',
+        );
+      },
     }),
     {
-      headers: set.headers
-    }
+      headers: set.headers,
+    },
   );
 });
 
 // 404ハンドラー
-app.onError(({ code, error }: { code: string; error: Error }) => {
+app.onError(({ code, error }) => {
   if (code === "NOT_FOUND") {
     return {
       error: "Not Found",
       message: "This endpoint is not available in CI/CD stub backend",
-      stub: true
+      stub: true,
     };
   }
   return {
     error: error.message,
-    stub: true
+    stub: true,
   };
 });
 
@@ -106,7 +108,7 @@ const CI_TIMEOUT = 5000; // 5 seconds timeout in CI
 const PORT = parseInt(process.env.PORT || "3001", 10);
 app.listen({
   port: PORT,
-  reusePort: true
+  reusePort: true,
 });
 
 console.log(`🚀 CI/CD Stub Backend running on http://localhost:${PORT}`);

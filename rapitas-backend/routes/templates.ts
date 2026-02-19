@@ -6,7 +6,8 @@ import { prisma } from "../config/database";
 import { toJsonString, fromJsonString } from "../utils/db-helpers";
 
 export const templatesRoutes = new Elysia({ prefix: "/templates" })
-  .get("/", async ({ query }: { query: { category?: string; search?: string; themeId?: string } }) => {
+  .get("/", async ({ 
+ query }: { query: { category?: string; search?: string; themeId?: string } }) => {
     const { category, search, themeId } = query;
 
     const where: Record<string, unknown> = {};
@@ -52,7 +53,8 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
     return templates.map((t: { category: string }) => t.category);
   })
 
-  .get("/:id", async ({ params }: { params: { id: string } }) => {
+  .get("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     return await prisma.taskTemplate.findUnique({
       where: { id },
@@ -71,7 +73,8 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
 
   .post(
     "/",
-    async ({
+    async ({ 
+
       body,
     }: {
       body: {
@@ -117,7 +120,8 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
   // タスクからテンプレートを作成
   .post(
     "/from-task/:taskId",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {
@@ -201,7 +205,8 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
     }
   )
 
-  .delete("/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     return await prisma.taskTemplate.delete({ where: { id } });
   })
@@ -209,7 +214,8 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
   // テンプレートからタスク作成
   .post(
     "/:id/apply",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {

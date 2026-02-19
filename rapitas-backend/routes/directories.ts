@@ -8,7 +8,8 @@ import * as path from "path";
 
 export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   // Browse directories
-  .get("/browse", async ({ query }: { query: { path?: string } }) => {
+  .get("/browse", async ({ 
+ query }: { query: { path?: string } }) => {
     const { path: dirPath } = query;
 
     try {
@@ -138,7 +139,8 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   // Validate path
   .post(
     "/validate",
-    async ({ body }: { body: { path: string } }) => {
+    async ({ 
+ body }: { body: { path: string } }) => {
       const { path: dirPath } = body;
 
       if (!dirPath) {
@@ -192,7 +194,8 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   // Add favorite directory
   .post(
     "/favorites",
-    async ({ body }: { body: { path: string; name?: string } }) => {
+    async ({ 
+ body }: { body: { path: string; name?: string } }) => {
       const { path: dirPath, name } = body;
 
       try {
@@ -237,7 +240,8 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   // Update favorite directory
   .patch(
     "/favorites/:id",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {
@@ -267,7 +271,8 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   // Create a new directory
   .post(
     "/create",
-    async ({ body }: { body: { path: string } }) => {
+    async ({ 
+ body }: { body: { path: string } }) => {
       const { path: dirPath } = body;
 
       if (!dirPath || !dirPath.trim()) {
@@ -317,7 +322,8 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   )
 
   // Delete favorite directory
-  .delete("/favorites/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/favorites/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
 
     try {

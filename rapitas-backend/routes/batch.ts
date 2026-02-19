@@ -116,7 +116,7 @@ async function handleTaskRequests(
         const activeIds = await prisma.task.findMany({
           where,
           select: { id: true },
-        }).then(tasks => tasks.map(t => t.id));
+        }).then((tasks) => tasks.map((t) => t.id));
 
         return {
           tasks,
@@ -136,7 +136,7 @@ async function handleTaskRequests(
         where: { taskId: parseInt(id) },
         select: { dependsOnTaskId: true },
       });
-      return dependencies.map(d => d.dependsOnTaskId);
+      return dependencies.map((d) => d.dependsOnTaskId);
     }
 
     if (subResource === "related") {

@@ -14,6 +14,7 @@ import { getIconComponent } from '@/components/category/IconData';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
 import { CardLightSweep, useProgressColors } from './TaskCompletionAnimation';
+import { prefetch } from '@/lib/api-client';
 
 interface TaskCardProps {
   task: Task;
@@ -51,6 +52,7 @@ const TaskCard = memo(function TaskCard({
   });
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
+  const prefetchedRef = useRef(false);
 
   const currentStatus =
     statusConfig[task.status as keyof typeof statusConfig] || statusConfig.todo;
@@ -134,6 +136,21 @@ const TaskCard = memo(function TaskCard({
     }
   };
 
+  // ホバー時のプリフェッチ処理
+  const handleMouseEnter = async () => {
+    if (!prefetchedRef.current) {
+      prefetchedRef.current = true;
+      // タスク詳細をプリフェッチ（24時間キャッシュ）
+      await prefetch([`/tasks/${task.id}`], 24 * 60 * 60 * 1000);
+
+      // サブタスクがある場合は関連データもプリフェッチ
+      if (task.subtasks && task.subtasks.length > 0) {
+        const subtaskPaths = task.subtasks.map(s => `/tasks/${s.id}`);
+        await prefetch(subtaskPaths, 24 * 60 * 60 * 1000); // 24時間キャッシュ
+      }
+    }
+  };
+
   // ライトスイープ用のカラー設定（仮の値）
   const sweepColors = useProgressColors(1, 2);
 
@@ -141,6 +158,7 @@ const TaskCard = memo(function TaskCard({
     <div
       ref={cardRef}
       data-task-card
+      onMouseEnter={handleMouseEnter}
       className={`group relative rounded-lg border-l-4 border-t border-r border-b transition-all duration-300 ease-out hover:duration-200 ${
         currentStatus.borderColor
       } ${`border-zinc-200 dark:border-zinc-800 ${currentStatus.bgColor} dark:bg-indigo-dark-900 hover:shadow-xl hover:scale-[1.02] hover:-translate-y-0.5 hover:border-opacity-80 dark:hover:shadow-2xl dark:hover:shadow-black/30`}`}

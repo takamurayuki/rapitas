@@ -221,7 +221,7 @@ export class UserBehaviorService {
 
     // テーマごとに集計
     const themeGroups = new Map<number | null, typeof behaviors>();
-    behaviors.forEach(b => {
+    behaviors.forEach((b) => {
       const key = b.themeId;
       if (!themeGroups.has(key)) {
         themeGroups.set(key, []);
@@ -230,14 +230,14 @@ export class UserBehaviorService {
     });
 
     for (const [themeId, themeBehaviors] of themeGroups) {
-      const taskCreated = themeBehaviors.filter(b => b.actionType === 'task_created').length;
-      const taskCompleted = themeBehaviors.filter(b => b.actionType === 'task_completed').length;
+      const taskCreated = themeBehaviors.filter((b) => b.actionType === 'task_created').length;
+      const taskCompleted = themeBehaviors.filter((b) => b.actionType === 'task_completed').length;
 
       // ラベル使用頻度を計算
       const labelCounts = new Map<number, number>();
-      themeBehaviors.forEach(b => {
+      themeBehaviors.forEach((b) => {
         if (b.task?.taskLabels) {
-          b.task.taskLabels.forEach(tl => {
+          b.task.taskLabels.forEach((tl) => {
             labelCounts.set(tl.labelId, (labelCounts.get(tl.labelId) || 0) + 1);
           });
         }
@@ -245,7 +245,7 @@ export class UserBehaviorService {
 
       // 優先度別タスク数を計算
       const priorityCounts: Record<string, number> = {};
-      themeBehaviors.forEach(b => {
+      themeBehaviors.forEach((b) => {
         if (b.task?.priority) {
           priorityCounts[b.task.priority] = (priorityCounts[b.task.priority] || 0) + 1;
         }
@@ -253,7 +253,7 @@ export class UserBehaviorService {
 
       // 時間帯の好みを計算
       const timeOfDayCounts: Record<string, number> = {};
-      themeBehaviors.forEach(b => {
+      themeBehaviors.forEach((b) => {
         const context = b.context ? JSON.parse(b.context) : {};
         if (context.timeOfDay) {
           timeOfDayCounts[context.timeOfDay] = (timeOfDayCounts[context.timeOfDay] || 0) + 1;

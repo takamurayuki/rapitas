@@ -15,7 +15,8 @@ export const aiChatRoutes = new Elysia()
   // AIチャット（非ストリーミング）
   .post(
     "/ai/chat",
-    async ({
+    async ({ 
+
       body,
       set,
     }: {
@@ -72,7 +73,8 @@ export const aiChatRoutes = new Elysia()
   // AIチャット（ストリーミング）
   .post(
     "/ai/chat/stream",
-    async ({
+    async ({ 
+
       body,
       set,
     }: {

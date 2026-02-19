@@ -32,7 +32,8 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
   // Get theme by ID
   .get(
     "/:id",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       const id = parseInt(params.id);
       if (isNaN(id)) {
         throw new ValidationError("無効なIDです");
@@ -60,7 +61,8 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
   // Create theme (categoryId is required)
   .post(
     "/",
-    async ({ body }: { body: {
+    async ({ 
+ body }: { body: {
       name: string;
       description?: string;
       color?: string;
@@ -106,7 +108,8 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
   // Update theme
   .patch(
     "/:id",
-    async ({ params, body }: {
+    async ({ 
+ params, body }: {
       params: { id: string };
       body: {
         name?: string;
@@ -179,7 +182,8 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
   )
 
   // Delete theme
-  .delete("/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("無効なIDです");
@@ -193,7 +197,8 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
   // Reorder themes
   .patch(
     "/reorder",
-    async ({ body }: {
+    async ({ 
+ body }: {
       body: { orders: Array<{ id: number; sortOrder: number }> }
     }) => {
       const { orders } = body;
@@ -212,7 +217,8 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
   )
 
   // Set default theme (per category: only one default per category)
-  .patch("/:id/set-default", async ({ params }: { params: { id: string } }) => {
+  .patch("/:id/set-default", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("無効なIDです");

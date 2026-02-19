@@ -12,7 +12,8 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
   // Search task titles for autocomplete
   .get(
     "/search",
-    async ({ query }: {
+    async ({ 
+ query }: {
       query: { q?: string; limit?: string; themeId?: string; projectId?: string }
     }) => {
       const { q, limit, themeId, projectId } = query;
@@ -62,7 +63,8 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
   // Get task suggestions based on past tasks for a theme (frequency-based fallback)
   .get(
     "/suggestions",
-    async ({ query }: {
+    async ({ 
+ query }: {
       query: { themeId?: string; limit?: string }
     }) => {
       const { themeId, limit } = query;
@@ -172,7 +174,8 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
   // AI-powered task suggestions: analyze past tasks and suggest new ones
   .get(
     "/suggestions/ai",
-    async ({ query }: {
+    async ({ 
+ query }: {
       query: { themeId?: string; limit?: string }
     }) => {
       const { themeId, limit } = query;
@@ -498,7 +501,8 @@ ${existingTaskList}
   // Get cached AI suggestions for a theme
   .get(
     "/suggestions/ai/cache",
-    async ({ query }: {
+    async ({ 
+ query }: {
       query: { themeId?: string }
     }) => {
       const { themeId } = query;
@@ -564,7 +568,8 @@ ${existingTaskList}
   // Delete cached suggestions for a theme
   .delete(
     "/suggestions/ai/cache",
-    async ({ query }: {
+    async ({ 
+ query }: {
       query: { themeId?: string }
     }) => {
       const { themeId } = query;
@@ -599,7 +604,8 @@ ${existingTaskList}
   // Get all tasks (supports incremental fetch via `since` param)
   .get(
     "/",
-    async ({ query }: {
+    async ({ 
+ query }: {
       query: { projectId?: string; milestoneId?: string; priority?: string; since?: string }
     }) => {
       const { projectId, milestoneId, priority, since } = query;
@@ -651,7 +657,7 @@ ${existingTaskList}
         return {
           tasks: updated,
           totalCount,
-          activeIds: allIds.map(t => t.id), // 現在アクティブなタスクIDのリスト
+          activeIds: allIds.map((t) => t.id), // 現在アクティブなタスクIDのリスト
           since: sinceDate.toISOString(),
           incremental: true,
         };
@@ -682,7 +688,8 @@ ${existingTaskList}
   )
 
   // Get task by ID
-  .get("/:id", async ({ params }: { params: { id: string } }) => {
+  .get("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("無効なIDです");
@@ -711,7 +718,8 @@ ${existingTaskList}
   // Create task
   .post(
     "/",
-    async ({ body }: { body: {
+    async ({ 
+ body }: { body: {
       title: string;
       description?: string;
       status?: string;
@@ -937,7 +945,8 @@ ${existingTaskList}
   // Update task
   .patch(
     "/:id",
-    async ({ params, body }: {
+    async ({ 
+ params, body }: {
       params: { id: string };
       body: {
         title?: string;
@@ -1083,7 +1092,8 @@ ${existingTaskList}
   )
 
   // Delete task
-  .delete("/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("無効なIDです");
@@ -1095,7 +1105,8 @@ ${existingTaskList}
   })
 
   // 重複サブタスクを削除（特定のタスク配下）
-  .post("/:id/cleanup-duplicates", async ({ params }: { params: { id: string } }) => {
+  .post("/:id/cleanup-duplicates", async ({ 
+ params }: { params: { id: string } }) => {
     const parentId = parseInt(params.id);
     if (isNaN(parentId)) {
       throw new ValidationError("無効なIDです");
@@ -1219,7 +1230,8 @@ ${existingTaskList}
   })
 
   // サブタスクの一括削除（特定のタスク配下のすべてのサブタスクを削除）
-  .delete("/:id/subtasks", async ({ params }: { params: { id: string } }) => {
+  .delete("/:id/subtasks", async ({ 
+ params }: { params: { id: string } }) => {
     const parentId = parseInt(params.id);
     if (isNaN(parentId)) {
       throw new ValidationError("無効なIDです");
@@ -1261,7 +1273,8 @@ ${existingTaskList}
   // サブタスクの選択削除（指定されたIDのサブタスクを一括削除）
   .post(
     "/:id/subtasks/delete-selected",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {

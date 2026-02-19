@@ -33,7 +33,8 @@ export const flashcardsRoutes = new Elysia()
     });
   })
 
-  .get("/flashcard-decks/:id", async ({ params }: { params: { id: string } }) => {
+  .get("/flashcard-decks/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     return await prisma.flashcardDeck.findUnique({
       where: { id },
@@ -47,7 +48,8 @@ export const flashcardsRoutes = new Elysia()
 
   .post(
     "/flashcard-decks",
-    async ({
+    async ({ 
+
       body,
     }: {
       body: {
@@ -77,14 +79,16 @@ export const flashcardsRoutes = new Elysia()
     }
   )
 
-  .delete("/flashcard-decks/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/flashcard-decks/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     return await prisma.flashcardDeck.delete({ where: { id } });
   })
 
   .post(
     "/flashcard-decks/:deckId/cards",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {
@@ -111,7 +115,8 @@ export const flashcardsRoutes = new Elysia()
 
   .patch(
     "/flashcards/:id",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {
@@ -130,7 +135,8 @@ export const flashcardsRoutes = new Elysia()
     }
   )
 
-  .delete("/flashcards/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/flashcards/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     return await prisma.flashcard.delete({ where: { id } });
   })
@@ -138,7 +144,8 @@ export const flashcardsRoutes = new Elysia()
   // フラッシュカード復習（SM-2アルゴリズム）
   .post(
     "/flashcards/:id/review",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {
@@ -207,7 +214,8 @@ export const flashcardsRoutes = new Elysia()
   // AIでフラッシュカードを自動生成
   .post(
     "/flashcard-decks/:deckId/generate",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {

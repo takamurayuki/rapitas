@@ -20,7 +20,8 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
   })
 
   // 学習目標をIDで取得
-  .get("/:id", async ({ params }: { params: { id: string } }) => {
+  .get("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     return await prisma.learningGoal.findUnique({
       where: { id },
@@ -30,7 +31,8 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
   // 学習目標を作成
   .post(
     "/",
-    async ({
+    async ({ 
+
       body,
     }: {
       body: {
@@ -73,7 +75,8 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
   // 学習目標を更新
   .patch(
     "/:id",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {
@@ -111,7 +114,8 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
   )
 
   // 学習目標を削除
-  .delete("/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     return await prisma.learningGoal.delete({
       where: { id },
@@ -121,7 +125,8 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
   // AI学習プランを生成
   .post(
     "/:id/generate-plan",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       const id = parseInt(params.id);
 
       const goal = await prisma.learningGoal.findUnique({
@@ -267,7 +272,8 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
   )
 
   // 学習プランをタスクに適用（テーマ作成 → タスク・サブタスク登録）
-  .post("/:id/apply", async ({ params }: { params: { id: string } }) => {
+  .post("/:id/apply", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
 
     const goal = await prisma.learningGoal.findUnique({

@@ -1,13 +1,14 @@
-import { Elysia } from "elysia";
-import { websocket } from "@elysiajs/websocket";
+import { Elysia, t } from "elysia";
+import { websocket, type ElysiaWS } from "@elysiajs/websocket";
 import { prisma } from "../config";
 import { cacheService } from "./cache-service";
 
-// WebSocketインスタンスの型（簡易定義）
+// WebSocketインスタンスの型
 interface WebSocketInstance {
   send: (data: string) => void;
   close: () => void;
   readyState: number;
+  data?: any;
 }
 
 // WebSocketクライアントの管理
@@ -371,15 +372,15 @@ export const notifyDataChange = {
 export const websocketRoutes = new Elysia()
   .use(websocket())
   .ws("/ws", {
-    async message(ws, message) {
-      const clientId = ws.id || ws.data?.id || `client-${Date.now()}`;
+    async message(ws: ElysiaWS, message: string | ArrayBuffer) {
+      const clientId = (ws as any).id || `client-${Date.now()}`;
 
       try {
         const data = JSON.parse(message.toString());
         const handler = webSocketHandlers[data.type as keyof typeof webSocketHandlers];
 
         if (handler) {
-          await handler(ws, clientId, data.data || {});
+          await handler(ws as any, clientId, data.data || {});
         } else {
           ws.send(JSON.stringify({
             type: "error",
@@ -394,9 +395,9 @@ export const websocketRoutes = new Elysia()
       }
     },
 
-    open(ws) {
-      const clientId = ws.id || ws.data?.id || `client-${Date.now()}`;
-      wsManager.addClient(clientId, ws, ws.data);
+    open(ws: ElysiaWS) {
+      const clientId = (ws as any).id || `client-${Date.now()}`;
+      wsManager.addClient(clientId, ws as any, (ws as any).data);
 
       ws.send(JSON.stringify({
         type: "connected",
@@ -405,16 +406,12 @@ export const websocketRoutes = new Elysia()
       }));
     },
 
-    close(ws) {
-      const clientId = ws.id || ws.data?.id;
+    close(ws: ElysiaWS) {
+      const clientId = (ws as any).id;
       if (clientId) {
         wsManager.removeClient(clientId);
       }
-    },
-
-    error(ws, error) {
-      console.error("WebSocket error:", error);
-    },
+    }
   })
   .get("/ws/stats", () => {
     return wsManager.getStats();

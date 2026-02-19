@@ -110,7 +110,8 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .get(
     "/tasks/:id/analyze",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       try {
         const taskId = parseInt(params.id);
         const input = await buildAnalysisInput(taskId);
@@ -166,7 +167,8 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .get(
     "/tasks/:id/analyze/stream",
-    async ({ params, set }: { params: { id: string }; set: { headers: Record<string, string> } }) => {
+    async ({ 
+ params, set }: { params: { id: string }; set: { headers: Record<string, string> } }) => {
       const taskId = parseInt(params.id);
 
       set.headers = {
@@ -255,7 +257,8 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .post(
     "/tasks/:id/execute",
-    async ({ params, body }: { params: { id: string }; body: { config?: Partial<ParallelExecutionConfig> } }) => {
+    async ({ 
+ params, body }: { params: { id: string }; body: { config?: Partial<ParallelExecutionConfig> } }) => {
       try {
         const taskId = parseInt(params.id);
         const config = body.config as Partial<ParallelExecutionConfig> | undefined;
@@ -375,7 +378,8 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .get(
     "/sessions/:sessionId/status",
-    async ({ params }: { params: { sessionId: string } }) => {
+    async ({ 
+ params }: { params: { sessionId: string } }) => {
       try {
         const executor = getParallelExecutor();
         const status = executor.getSessionStatus(params.sessionId);
@@ -408,7 +412,8 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .post(
     "/sessions/:sessionId/stop",
-    async ({ params }: { params: { sessionId: string } }) => {
+    async ({ 
+ params }: { params: { sessionId: string } }) => {
       try {
         const executor = getParallelExecutor();
         await executor.stopSession(params.sessionId);
@@ -437,7 +442,8 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .get(
     "/sessions/:sessionId/logs",
-    async ({ params, query }: { params: { sessionId: string }; query: { taskId?: string; level?: string; limit?: string } }) => {
+    async ({ 
+ params, query }: { params: { sessionId: string }; query: { taskId?: string; level?: string; limit?: string } }) => {
       try {
         const executor = getParallelExecutor();
         const logs = executor.getLogs({
@@ -476,7 +482,8 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .get(
     "/sessions/:sessionId/logs/stream",
-    async ({ params, set }: { params: { sessionId: string }; set: { headers: Record<string, string> } }) => {
+    async ({ 
+ params, set }: { params: { sessionId: string }; set: { headers: Record<string, string> } }) => {
       set.headers = {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",

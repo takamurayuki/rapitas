@@ -189,7 +189,8 @@ export const aiAgentRoutes = new Elysia()
   // Toggle agent active status
   .put(
     "/agents/:id/toggle-active",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       const agentId = parseInt(params.id, 10);
       if (isNaN(agentId)) {
         return { error: "Invalid agent ID" };
@@ -256,7 +257,8 @@ export const aiAgentRoutes = new Elysia()
   // Set default agent by ID
   .put(
     "/agents/:id/set-default",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       const agentId = parseInt(params.id, 10);
       if (isNaN(agentId)) {
         return { error: "Invalid agent ID" };
@@ -315,7 +317,8 @@ export const aiAgentRoutes = new Elysia()
   // Create agent configuration
   .post(
     "/agents",
-    async ({
+    async ({ 
+
       body,
     }: {
       body: {
@@ -389,7 +392,8 @@ export const aiAgentRoutes = new Elysia()
   // Update agent configuration
   .patch(
     "/agents/:id",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {
@@ -508,7 +512,8 @@ export const aiAgentRoutes = new Elysia()
   // Get single agent configuration with masked API key
   .get(
     "/agents/:id",
-    async ({
+    async ({ 
+
       params,
       set,
     }: {
@@ -558,7 +563,8 @@ export const aiAgentRoutes = new Elysia()
   )
 
   // Delete agent configuration
-  .delete("/agents/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/agents/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const { id } = params;
 
     // 削除前の値を取得
@@ -590,7 +596,8 @@ export const aiAgentRoutes = new Elysia()
   // Save API key for agent
   .post(
     "/agents/:id/api-key",
-    async ({
+    async ({ 
+
       params,
       body,
       set,
@@ -649,7 +656,8 @@ export const aiAgentRoutes = new Elysia()
   // Delete API key for agent
   .delete(
     "/agents/:id/api-key",
-    async ({
+    async ({ 
+
       params,
       set,
     }: {
@@ -688,7 +696,8 @@ export const aiAgentRoutes = new Elysia()
   // Test connection for agent (alias for test-connection)
   .post(
     "/agents/:id/test",
-    async ({
+    async ({ 
+
       params,
       set,
     }: {
@@ -1014,7 +1023,8 @@ export const aiAgentRoutes = new Elysia()
   })
 
   // Get available models for a specific agent type
-  .get("/agents/models", async ({ query }: { query: { type?: string } }) => {
+  .get("/agents/models", async ({ 
+ query }: { query: { type?: string } }) => {
     if (query.type) {
       const models = await getModelsForAgentType(query.type);
       return { models };
@@ -1028,7 +1038,8 @@ export const aiAgentRoutes = new Elysia()
   // Set development agent configuration
   .post(
     "/agents/development",
-    async ({
+    async ({ 
+
       body,
     }: {
       body: {
@@ -1093,7 +1104,8 @@ export const aiAgentRoutes = new Elysia()
   // Set review agent configuration
   .post(
     "/agents/review",
-    async ({
+    async ({ 
+
       body,
     }: {
       body: {
@@ -1163,7 +1175,8 @@ export const aiAgentRoutes = new Elysia()
   // Get configuration schema for a specific agent type
   .get(
     "/agents/config-schema/:agentType",
-    async ({
+    async ({ 
+
       params,
       set,
     }: {
@@ -1185,7 +1198,8 @@ export const aiAgentRoutes = new Elysia()
   // Validate agent configuration
   .post(
     "/agents/validate-config",
-    async ({
+    async ({ 
+
       body,
       set,
     }: {
@@ -1233,7 +1247,8 @@ export const aiAgentRoutes = new Elysia()
   // Get audit logs for a specific agent
   .get(
     "/agents/:id/audit-logs",
-    async ({
+    async ({ 
+
       params,
       query,
     }: {
@@ -1251,7 +1266,8 @@ export const aiAgentRoutes = new Elysia()
   // Get recent audit logs (all agents)
   .get(
     "/agents/audit-logs/recent",
-    async ({ query }: { query: { limit?: string } }) => {
+    async ({ 
+ query }: { query: { limit?: string } }) => {
       const limit = query.limit ? parseInt(query.limit) : 100;
       const logs = await getRecentAuditLogs(limit);
       return { logs };
@@ -1261,7 +1277,8 @@ export const aiAgentRoutes = new Elysia()
   // Test API key connection for an agent
   .post(
     "/agents/:id/test-connection",
-    async ({
+    async ({ 
+
       params,
       set,
     }: {
@@ -1364,7 +1381,8 @@ export const aiAgentRoutes = new Elysia()
   // Execute agent on task
   .post(
     "/tasks/:id/execute",
-    async ({
+    async ({ 
+
       params,
       body,
       set,
@@ -2034,7 +2052,8 @@ export const aiAgentRoutes = new Elysia()
   // Get task execution status
   .get(
     "/tasks/:id/execution-status",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       try {
         const taskId = parseInt(params.id);
 
@@ -2134,7 +2153,8 @@ export const aiAgentRoutes = new Elysia()
   // Respond to agent (answer question)
   .post(
     "/tasks/:id/agent-respond",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {
@@ -2467,7 +2487,8 @@ export const aiAgentRoutes = new Elysia()
   // Get session details
   .get(
     "/agents/sessions/:id",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       return await prisma.agentSession.findUnique({
         where: { id: parseInt(params.id) },
         include: {
@@ -2487,7 +2508,8 @@ export const aiAgentRoutes = new Elysia()
   // Stop session
   .post(
     "/agents/sessions/:id/stop",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       const sessionId = parseInt(params.id);
 
       // オーケストレーターで停止を試みる
@@ -2525,7 +2547,8 @@ export const aiAgentRoutes = new Elysia()
   // Get execution logs (for recovery after app restart)
   .get(
     "/tasks/:id/execution-logs",
-    async ({
+    async ({ 
+
       params,
       query,
     }: {
@@ -2684,7 +2707,8 @@ export const aiAgentRoutes = new Elysia()
   // Stop task execution (rollback changes)
   .post(
     "/tasks/:id/stop-execution",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       const taskId = parseInt(params.id);
 
       const task = await prisma.task.findUnique({
@@ -2999,7 +3023,8 @@ export const aiAgentRoutes = new Elysia()
   // Mark interrupted execution as acknowledged (to clear it from the list)
   .post(
     "/agents/executions/:id/acknowledge",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       const executionId = parseInt(params.id);
 
       const execution = await prisma.agentExecution.findUnique({
@@ -3030,7 +3055,8 @@ export const aiAgentRoutes = new Elysia()
   // Resume interrupted execution
   .post(
     "/agents/executions/:id/resume",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {
@@ -3389,7 +3415,8 @@ export const aiAgentRoutes = new Elysia()
   // Reset execution state for a task (allows re-running)
   .post(
     "/tasks/:id/reset-execution-state",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       const taskId = parseInt(params.id);
 
       try {
@@ -3588,7 +3615,8 @@ export const aiAgentRoutes = new Elysia()
   // Continue execution with additional instruction
   .post(
     "/tasks/:id/continue-execution",
-    async ({
+    async ({ 
+
       params,
       body,
       set,

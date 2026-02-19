@@ -116,7 +116,8 @@ export const resourcesRoutes = new Elysia()
   // Get resources for a task
   .get(
     "/tasks/:id/resources",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       const id = parseInt(params.id);
       if (isNaN(id)) throw new ValidationError("無効なIDです");
 
@@ -130,7 +131,8 @@ export const resourcesRoutes = new Elysia()
   // Create URL-based resource
   .post(
     "/resources",
-    async ({
+    async ({ 
+
       body,
     }: {
       body: {
@@ -166,7 +168,8 @@ export const resourcesRoutes = new Elysia()
   // Upload file resource
   .post(
     "/resources/upload",
-    async ({
+    async ({ 
+
       body,
     }: {
       body: {
@@ -242,7 +245,8 @@ export const resourcesRoutes = new Elysia()
   // Upload file from path (for Tauri drag-drop)
   .post(
     "/resources/upload-from-path",
-    async ({
+    async ({ 
+
       body,
     }: {
       body: {
@@ -321,7 +325,8 @@ export const resourcesRoutes = new Elysia()
   // Serve uploaded file (inline - for viewing)
   .get(
     "/resources/file/:filename",
-    async ({
+    async ({ 
+
       params,
       set,
     }: {
@@ -367,7 +372,8 @@ export const resourcesRoutes = new Elysia()
   // Download uploaded file (attachment - for downloading)
   .get(
     "/resources/download/:filename",
-    async ({
+    async ({ 
+
       params,
       set,
     }: {
@@ -408,7 +414,8 @@ export const resourcesRoutes = new Elysia()
   )
 
   // Delete resource (and file if exists)
-  .delete("/resources/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/resources/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) throw new ValidationError("無効なIDです");
 

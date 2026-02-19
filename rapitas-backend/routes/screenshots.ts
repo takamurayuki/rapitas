@@ -19,7 +19,8 @@ export const screenshotsRoutes = new Elysia()
   // スクリーンショット画像の配信
   .get(
     "/screenshots/:filename",
-    async ({ params }: { params: { filename: string } }) => {
+    async ({ 
+ params }: { params: { filename: string } }) => {
       const { filename } = params;
 
       // パストラバーサル防止
@@ -53,7 +54,8 @@ export const screenshotsRoutes = new Elysia()
   // 手動でスクリーンショットを撮影
   .post(
     "/screenshots/capture",
-    async ({ body }: { body: ScreenshotOptions }) => {
+    async ({ 
+ body }: { body: ScreenshotOptions }) => {
       try {
         const results = await captureScreenshots(body);
         return {
@@ -73,7 +75,8 @@ export const screenshotsRoutes = new Elysia()
   // 全ページのスクリーンショットを撮影（changedFiles 指定時は変更ページのみ）
   .post(
     "/screenshots/capture-all",
-    async ({ body }: { body: ScreenshotOptions & { changedFiles?: string[] } }) => {
+    async ({ 
+ body }: { body: ScreenshotOptions & { changedFiles?: string[] } }) => {
       try {
         if (!body.workingDirectory) {
           return {
@@ -100,7 +103,8 @@ export const screenshotsRoutes = new Elysia()
   // プロジェクトの全ページルートを検出
   .post(
     "/screenshots/detect-pages",
-    async ({ body }: { body: { workingDirectory: string } }) => {
+    async ({ 
+ body }: { body: { workingDirectory: string } }) => {
       try {
         const { workingDirectory } = body;
         if (!workingDirectory) {
@@ -127,7 +131,8 @@ export const screenshotsRoutes = new Elysia()
   // プロジェクト構造を検出
   .post(
     "/screenshots/detect-project",
-    async ({ body }: { body: { workingDirectory: string } }) => {
+    async ({ 
+ body }: { body: { workingDirectory: string } }) => {
       try {
         const { workingDirectory } = body;
         if (!workingDirectory) {

@@ -185,7 +185,8 @@ export const achievementsRoutes = new Elysia({ prefix: "/achievements" })
     }));
   })
 
-  .post("/:key/unlock", async ({ params }: { params: { key: string } }) => {
+  .post("/:key/unlock", async ({ 
+ params }: { params: { key: string } }) => {
     const { key } = params;
     const achievement = await prisma.achievement.findUnique({ where: { key } });
     if (!achievement) return { error: "Achievement not found" };
@@ -209,7 +210,7 @@ export const achievementsRoutes = new Elysia({ prefix: "/achievements" })
 
   // 実績チェック（タスク完了時などに呼ばれる）
   .post("/check", async () => {
-    const newlyUnlocked = [];
+    const newlyUnlocked: any[] = [];
 
     // タスク完了数をチェック
     const completedTasks = await prisma.task.count({
@@ -272,7 +273,7 @@ export const achievementsRoutes = new Elysia({ prefix: "/achievements" })
     for (const achievement of achievements) {
       if (achievement.unlockedBy.length > 0) continue;
 
-      const condition = achievement.condition as {
+      const condition = JSON.parse(achievement.condition) as {
         type: string;
         count?: number;
         days?: number;

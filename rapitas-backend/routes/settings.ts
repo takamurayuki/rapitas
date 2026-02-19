@@ -280,7 +280,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   // Update settings
   .patch(
     "/",
-    async ({ body, set }: {
+    async ({ 
+ body, set }: {
       body: {
         developerModeDefault?: boolean;
         aiTaskAnalysisDefault?: boolean;
@@ -366,7 +367,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   })
 
   // Get API key status for a specific provider
-  .get("/api-key", async ({ query }: { query: { provider?: string } }) => {
+  .get("/api-key", async ({ 
+ query }: { query: { provider?: string } }) => {
     const provider = (query.provider as string) || "claude";
 
     if (!isValidProvider(provider)) {
@@ -441,7 +443,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   // Save API key for a specific provider
   .post(
     "/api-key",
-    async ({ body, set }: { body: { apiKey: string; provider?: string }; set: { status: number } }) => {
+    async ({ 
+ body, set }: { body: { apiKey: string; provider?: string }; set: { status: number } }) => {
       const { apiKey, provider = "claude" } = body;
 
       if (!isValidProvider(provider)) {
@@ -488,7 +491,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   // Validate API key format for a specific provider
   .post(
     "/api-key/validate",
-    async ({ body, set }: { body: { apiKey: string; provider?: string }; set: { status: number } }) => {
+    async ({ 
+ body, set }: { body: { apiKey: string; provider?: string }; set: { status: number } }) => {
       const { apiKey, provider = "claude" } = body;
 
       if (!isValidProvider(provider)) {
@@ -508,7 +512,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   )
 
   // Delete API key for a specific provider
-  .delete("/api-key", async ({ query }: { query: { provider?: string } }) => {
+  .delete("/api-key", async ({ 
+ query }: { query: { provider?: string } }) => {
     const provider = (query.provider as string) || "claude";
 
     if (!isValidProvider(provider)) {
@@ -534,7 +539,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   })
 
   // Get default model for a specific provider
-  .get("/model", async ({ query }: { query: { provider?: string } }) => {
+  .get("/model", async ({ 
+ query }: { query: { provider?: string } }) => {
     const provider = (query.provider as string) || "claude";
 
     if (!isValidProvider(provider)) {
@@ -553,7 +559,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   // Save default model for a specific provider
   .post(
     "/model",
-    async ({ body, set }: { body: { model: string; provider?: string }; set: { status: number } }) => {
+    async ({ 
+ body, set }: { body: { model: string; provider?: string }; set: { status: number } }) => {
       const { model, provider = "claude" } = body;
 
       if (!isValidProvider(provider)) {

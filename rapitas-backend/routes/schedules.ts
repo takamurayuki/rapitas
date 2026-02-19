@@ -7,7 +7,8 @@ import { ValidationError, NotFoundError } from "../middleware/error-handler";
 
 export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   // Get all schedule events (with optional date range filter)
-  .get("/", async ({ query }: { query: { from?: string; to?: string } }) => {
+  .get("/", async ({ 
+ query }: { query: { from?: string; to?: string } }) => {
     const { from, to } = query;
 
     const where: Record<string, unknown> = {};
@@ -24,7 +25,8 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   })
 
   // Get single schedule event
-  .get("/:id", async ({ params }: { params: { id: string } }) => {
+  .get("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) throw new ValidationError("Invalid ID");
 
@@ -37,7 +39,8 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   // Create schedule event
   .post(
     "/",
-    async ({
+    async ({ 
+
       body,
     }: {
       body: {
@@ -77,7 +80,8 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   // Update schedule event
   .patch(
     "/:id",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {
@@ -126,7 +130,8 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   )
 
   // Delete schedule event
-  .delete("/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) throw new ValidationError("Invalid ID");
 
@@ -164,7 +169,8 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   // Mark reminder as sent
   .post(
     "/reminders/:id/sent",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       const id = parseInt(params.id);
       if (isNaN(id)) throw new ValidationError("Invalid ID");
 

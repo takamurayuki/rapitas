@@ -301,7 +301,12 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
                   />
                   <YAxis />
                   <Tooltip
-                    labelFormatter={(time: string | number) => new Date(time).toLocaleString()}
+                    labelFormatter={(label) => {
+                      if (typeof label === 'string' || typeof label === 'number') {
+                        return new Date(label).toLocaleString();
+                      }
+                      return String(label);
+                    }}
                   />
                   <Legend />
                   <Line

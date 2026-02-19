@@ -1,8 +1,5 @@
 import { Task } from '@/types';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkBreaks from 'remark-breaks';
-import { createMarkdownComponents } from '@/feature/tasks/components/MarkdownComponents';
+import TaskDescription from '@/feature/tasks/components/TaskDescription';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
 import {
   statusConfig,
@@ -165,43 +162,7 @@ export default function TaskDetail({
               <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
                 説明
               </h2>
-              <div
-                className="prose prose-sm prose-zinc dark:prose-invert max-w-none 
-                prose-headings:font-bold 
-                prose-h1:text-2xl prose-h1:mt-4 prose-h1:mb-2
-                prose-h2:text-xl prose-h2:mt-3 prose-h2:mb-2
-                prose-h3:text-lg prose-h3:mt-2 prose-h3:mb-1
-                prose-p:my-2 prose-p:leading-relaxed
-                prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline
-                prose-pre:bg-zinc-100 prose-pre:dark:bg-indigo-dark-800 
-                prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto
-                prose-blockquote:border-l-4 prose-blockquote:border-zinc-300 
-                prose-blockquote:dark:border-zinc-700 prose-blockquote:pl-4 
-                prose-blockquote:italic prose-blockquote:text-zinc-600 
-                prose-blockquote:dark:text-zinc-400
-                prose-ul:my-2 prose-ol:my-2
-                prose-li:my-1
-                prose-table:border-collapse prose-table:w-full
-                prose-th:border prose-th:border-zinc-300 prose-th:dark:border-zinc-700 
-                prose-th:bg-zinc-100 prose-th:dark:bg-indigo-dark-800 prose-th:px-3 prose-th:py-2
-                prose-td:border prose-td:border-zinc-300 prose-td:dark:border-zinc-700 
-                prose-td:px-3 prose-td:py-2
-                prose-img:rounded-lg prose-img:shadow-md
-                prose-hr:border-zinc-300 prose-hr:dark:border-zinc-700
-                [&_code]:bg-zinc-100 [&_code]:dark:bg-indigo-dark-800 
-                [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded 
-                [&_code]:text-sm [&_code]:font-mono
-                [&_code]:text-zinc-800 [&_code]:dark:text-zinc-200
-                [&_code]:before:content-[''] [&_code]:after:content-['']
-                [&_pre_code]:bg-transparent [&_pre_code]:p-0"
-              >
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm, remarkBreaks]}
-                  components={createMarkdownComponents()}
-                >
-                  {task.description}
-                </ReactMarkdown>
-              </div>
+              <TaskDescription description={task.description} />
             </div>
           )}
 

@@ -7,7 +7,8 @@ import { ValidationError, NotFoundError } from "../middleware/error-handler";
 
 export const notificationsRoutes = new Elysia({ prefix: "/notifications" })
   // Get notifications list
-  .get("/", async ({ query }: { query: { unreadOnly?: string; limit?: string } }) => {
+  .get("/", async ({ 
+ query }: { query: { unreadOnly?: string; limit?: string } }) => {
     const { unreadOnly, limit } = query;
 
     return await prisma.notification.findMany({
@@ -26,7 +27,8 @@ export const notificationsRoutes = new Elysia({ prefix: "/notifications" })
   })
 
   // Mark as read
-  .patch("/:id/read", async ({ params }: { params: { id: string } }) => {
+  .patch("/:id/read", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("無効なIDです");
@@ -48,7 +50,8 @@ export const notificationsRoutes = new Elysia({ prefix: "/notifications" })
   })
 
   // Delete notification
-  .delete("/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("無効なIDです");

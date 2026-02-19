@@ -166,7 +166,8 @@ Guidelines:
 
 export const systemPromptsRoutes = new Elysia()
   // システムプロンプト一覧取得
-  .get("/system-prompts", async ({ query }: { query: { category?: string } }) => {
+  .get("/system-prompts", async ({ 
+ query }: { query: { category?: string } }) => {
     const where: Record<string, unknown> = {};
     if (query.category) {
       where.category = query.category;
@@ -181,7 +182,8 @@ export const systemPromptsRoutes = new Elysia()
   })
 
   // システムプロンプト取得（キーで）
-  .get("/system-prompts/:key", async ({ params, set }: { params: { key: string }; set: { status?: number } }) => {
+  .get("/system-prompts/:key", async ({ 
+ params, set }: { params: { key: string }; set: { status?: number } }) => {
     const prompt = await prisma.systemPrompt.findUnique({
       where: { key: params.key },
     });
@@ -197,7 +199,8 @@ export const systemPromptsRoutes = new Elysia()
   // システムプロンプト作成
   .post(
     "/system-prompts",
-    async ({
+    async ({ 
+
       body,
       set,
     }: {
@@ -244,7 +247,8 @@ export const systemPromptsRoutes = new Elysia()
   // システムプロンプト更新
   .patch(
     "/system-prompts/:key",
-    async ({
+    async ({ 
+
       params,
       body,
       set,
@@ -288,7 +292,8 @@ export const systemPromptsRoutes = new Elysia()
   // システムプロンプト削除（デフォルトプロンプトは削除不可）
   .delete(
     "/system-prompts/:key",
-    async ({ params, set }: { params: { key: string }; set: { status?: number } }) => {
+    async ({ 
+ params, set }: { params: { key: string }; set: { status?: number } }) => {
       const existing = await prisma.systemPrompt.findUnique({
         where: { key: params.key },
       });
@@ -314,7 +319,8 @@ export const systemPromptsRoutes = new Elysia()
   // デフォルトプロンプトをリセット（元の内容に戻す）
   .post(
     "/system-prompts/:key/reset",
-    async ({ params, set }: { params: { key: string }; set: { status?: number } }) => {
+    async ({ 
+ params, set }: { params: { key: string }; set: { status?: number } }) => {
       const defaultPrompt = DEFAULT_SYSTEM_PROMPTS.find((p) => p.key === params.key);
       if (!defaultPrompt) {
         set.status = 404;

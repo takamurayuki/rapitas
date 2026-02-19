@@ -20,7 +20,8 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
     });
   })
 
-  .get("/:id", async ({ params }: { params: { id: string } }) => {
+  .get("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -39,7 +40,8 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
 
   .post(
     "/",
-    async ({
+    async ({ 
+
       body,
     }: {
       body: {
@@ -77,7 +79,8 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
 
   .patch(
     "/:id",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {
@@ -109,14 +112,16 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
     }
   )
 
-  .delete("/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     return await prisma.habit.delete({ where: { id } });
   })
 
   .post(
     "/:id/log",
-    async ({
+    async ({ 
+
       params,
       body,
     }: {

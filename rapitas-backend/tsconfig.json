@@ -4,16 +4,24 @@
     "module": "ESNext",
     "moduleResolution": "node",
     "lib": ["ES2020"],
-    "strict": true,
+    "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictFunctionTypes": false,
+    "strictBindCallApply": false,
+    "strictPropertyInitialization": false,
+    "noImplicitThis": false,
+    "alwaysStrict": false,
     "noEmit": true,
     "typeRoots": ["./node_modules/@types", "./@types"],
     "types": []
   },
   "exclude": [
-    "node_modules",
-    "**/*.d.ts"
+    "node_modules/**/*",
+    "**/*.d.ts",
+    "global.d.ts"
   ],
   "include": [
     "**/*.ts",

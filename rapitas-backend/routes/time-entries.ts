@@ -8,7 +8,8 @@ import { ValidationError } from "../middleware/error-handler";
 
 export const timeEntriesRoutes = new Elysia()
   // Get time entries for a task
-  .get("/tasks/:id/time-entries", async ({ params }: { params: { id: string } }) => {
+  .get("/tasks/:id/time-entries", async ({ 
+ params }: { params: { id: string } }) => {
     const taskId = parseInt(params.id);
     if (isNaN(taskId)) {
       throw new ValidationError("無効なタスクIDです");
@@ -23,7 +24,8 @@ export const timeEntriesRoutes = new Elysia()
   // Create time entry for a task
   .post(
     "/tasks/:id/time-entries",
-    async ({ params, body }: {
+    async ({ 
+ params, body }: {
       params: { id: string };
       body: {
         duration: number;

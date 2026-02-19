@@ -5,17 +5,20 @@ import type { PrismaClient } from "@prisma/client";
 export class PrismaOptimizer {
   // 選択フィールドの最適化
   static selectFields<T>(fields: (keyof T)[]): Record<keyof T, boolean> {
-    return fields.reduce((acc, field) => {
-      acc[field] = true;
-      return acc;
-    }, {} as Record<keyof T, boolean>);
+    return fields.reduce(
+      (acc, field) => {
+        acc[field] = true;
+        return acc;
+      },
+      {} as Record<keyof T, boolean>,
+    );
   }
 
   // バッチ処理の最適化
   static async batchOperation<T>(
     items: T[],
     batchSize: number,
-    operation: (batch: T[]) => Promise<void>
+    operation: (batch: T[]) => Promise<void>,
   ): Promise<void> {
     for (let i = 0; i < items.length; i += batchSize) {
       const batch = items.slice(i, i + batchSize);
@@ -25,22 +28,25 @@ export class PrismaOptimizer {
 
   // 並列クエリの実行
   static async parallelQueries<T extends Record<string, Promise<any>>>(
-    queries: T
+    queries: T,
   ): Promise<{ [K in keyof T]: Awaited<T[K]> }> {
     const keys = Object.keys(queries) as (keyof T)[];
     const promises = keys.map((key) => queries[key]);
     const results = await Promise.all(promises);
 
-    return keys.reduce((acc, key, index) => {
-      acc[key] = results[index];
-      return acc;
-    }, {} as { [K in keyof T]: Awaited<T[K]> });
+    return keys.reduce(
+      (acc, key, index) => {
+        acc[key] = results[index];
+        return acc;
+      },
+      {} as { [K in keyof T]: Awaited<T[K]> },
+    );
   }
 
   // カーソルベースのページネーション
   static cursorPagination<T extends { id: string | number }>(
     cursor?: string,
-    limit: number = 20
+    limit: number = 20,
   ) {
     return {
       take: limit + 1,
@@ -54,11 +60,13 @@ export class PrismaOptimizer {
   // 結果のフォーマット
   static formatCursorResults<T extends { id: string | number }>(
     items: T[],
-    limit: number
+    limit: number,
   ) {
     const hasNextPage = items.length > limit;
     const data = hasNextPage ? items.slice(0, -1) : items;
-    const nextCursor = hasNextPage ? String(data[data.length - 1]?.id) : undefined;
+    const nextCursor = hasNextPage
+      ? String(data[data.length - 1]?.id)
+      : undefined;
 
     return {
       data,
@@ -69,9 +77,9 @@ export class PrismaOptimizer {
 }
 
 // Prismaミドルウェアの拡張
-export function setupPrismaOptimizations(prisma: any) {
+export function setupPrismaOptimizations(prisma: PrismaClient) {
   // クエリのロギングとパフォーマンス計測
-  prisma.$use(async (params, next) => {
+  (prisma as any).$use(async (params, next) => {
     const before = Date.now();
     const result = await next(params);
     const after = Date.now();
@@ -79,7 +87,9 @@ export function setupPrismaOptimizations(prisma: any) {
 
     // 遅いクエリの検出
     if (duration > 100) {
-      console.warn(`Slow query detected: ${params.model}.${params.action} took ${duration}ms`);
+      console.warn(
+        `Slow query detected: ${params.model}.${params.action} took ${duration}ms`,
+      );
     }
 
     // メトリクスの記録（実際のアプリケーションではメトリクスサービスに送信）
@@ -95,7 +105,7 @@ export function setupPrismaOptimizations(prisma: any) {
   });
 
   // 自動的なリトライロジック
-  prisma.$use(async (params, next) => {
+  (prisma as any).$use(async (params, next) => {
     const maxRetries = 3;
     let retries = 0;
 
@@ -111,8 +121,12 @@ export function setupPrismaOptimizations(prisma: any) {
           error.code === "P2024" || // タイムアウト
           (error.code === "P2002" && retries < maxRetries) // ユニーク制約違反（リトライ可能な場合）
         ) {
-          console.log(`Retrying query (${retries}/${maxRetries}): ${params.model}.${params.action}`);
-          await new Promise((resolve) => setTimeout(resolve, Math.pow(2, retries) * 100));
+          console.log(
+            `Retrying query (${retries}/${maxRetries}): ${params.model}.${params.action}`,
+          );
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.pow(2, retries) * 100),
+          );
           continue;
         }
 
@@ -133,7 +147,7 @@ export class PrismaDataLoader<T> {
   constructor(
     private loader: (ids: string[]) => Promise<Map<string, T>>,
     private batchSize = 100,
-    private batchDelay = 10
+    private batchDelay = 10,
   ) {}
 
   async load(id: string): Promise<T | null> {
@@ -205,7 +219,7 @@ export const QueryOptimizers = {
         select: {
           label: {
             select: { id: true, name: true, color: true },
-          }
+          },
         },
       },
       timeEntries: {
@@ -267,10 +281,10 @@ export const QueryOptimizers = {
     return {
       total: results.totalCount,
       byStatus: Object.fromEntries(
-        results.statusCounts.map((s: any) => [s.status, s._count.status])
+        results.statusCounts.map((s: any) => [s.status, s._count.status]),
       ),
       byPriority: Object.fromEntries(
-        results.priorityCounts.map((p: any) => [p.priority, p._count.priority])
+        results.priorityCounts.map((p: any) => [p.priority, p._count.priority]),
       ),
       overdue: results.overdueTasks,
       upcoming: results.upcomingTasks,
@@ -285,15 +299,23 @@ export const QueryOptimizers = {
         {
           OR: [
             { title: { contains: searchTerm, mode: "insensitive" as const } },
-            { description: { contains: searchTerm, mode: "insensitive" as const } },
+            {
+              description: {
+                contains: searchTerm,
+                mode: "insensitive" as const,
+              },
+            },
             {
               labels: {
                 some: {
                   label: {
-                    name: { contains: searchTerm, mode: "insensitive" as const }
-                  }
-                }
-              }
+                    name: {
+                      contains: searchTerm,
+                      mode: "insensitive" as const,
+                    },
+                  },
+                },
+              },
             },
           ],
         },

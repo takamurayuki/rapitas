@@ -67,6 +67,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { apiFetch, parallelFetch } from '@/lib/api-client';
 import { preloadTaskDetails } from '@/lib/task-api';
 import { cacheManager } from '@/lib/cache-utils';
+import { recordTaskAccess } from '@/lib/cache-warmup';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
 
 const API_BASE = API_BASE_URL;
@@ -258,9 +259,12 @@ export default function TaskDetailClient({
         setShowSkeleton(true);
         skeletonStartRef.current = Date.now();
         const data = await apiFetch<Task>(`/tasks/${resolvedTaskId}`, {
-          cacheTime: 60000, // 1分キャッシュ
+          cacheTime: 24 * 60 * 60 * 1000, // 24時間キャッシュ
         });
         setTask(data);
+
+        // タスクアクセスを記録（次回起動時のウォームアップ用）
+        recordTaskAccess(resolvedTaskId);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'タスクの取得に失敗しました');
       } finally {
@@ -282,7 +286,7 @@ export default function TaskDetailClient({
       try {
         const data = await apiFetch<TimeEntry[]>(
           `/tasks/${resolvedTaskId}/time-entries`,
-          { cacheTime: 30000 } // 30秒キャッシュ
+          { cacheTime: 60 * 60 * 1000 } // 1時間キャッシュ
         );
         setTimeEntries(data);
       } catch (err) {
@@ -294,7 +298,7 @@ export default function TaskDetailClient({
       try {
         const data = await apiFetch<Comment[]>(
           `/tasks/${resolvedTaskId}/comments`,
-          { cacheTime: 30000 } // 30秒キャッシュ
+          { cacheTime: 60 * 60 * 1000 } // 1時間キャッシュ
         );
         setComments(data);
       } catch (err) {
@@ -306,7 +310,7 @@ export default function TaskDetailClient({
       try {
         const data = await apiFetch<Resource[]>(
           `/tasks/${resolvedTaskId}/resources`,
-          { cacheTime: 60000 } // 1分キャッシュ
+          { cacheTime: 60 * 60 * 1000 } // 1時間キャッシュ
         );
         setResources(data);
       } catch (err) {
@@ -317,7 +321,7 @@ export default function TaskDetailClient({
     const fetchGlobalSettings = async () => {
       try {
         const data = await apiFetch<UserSettings>('/settings', {
-          cacheTime: 300000, // 5分キャッシュ
+          cacheTime: 6 * 60 * 60 * 1000, // 6時間キャッシュ
         });
         setGlobalSettings(data);
         // グローバル設定からAIアシスタントパネルを初期化

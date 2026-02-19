@@ -125,7 +125,8 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
   // Get category by ID
   .get(
     "/:id",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       const id = parseInt(params.id);
       if (isNaN(id)) {
         throw new ValidationError("Invalid ID");
@@ -156,7 +157,8 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
   // Create category
   .post(
     "/",
-    async ({ body }: {
+    async ({ 
+ body }: {
       body: {
         name: string;
         description?: string;
@@ -192,7 +194,8 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
   // Update category
   .patch(
     "/:id",
-    async ({ params, body }: {
+    async ({ 
+ params, body }: {
       params: { id: string };
       body: {
         name?: string;
@@ -239,7 +242,8 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
   )
 
   // Delete category (default categories cannot be deleted)
-  .delete("/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("Invalid ID");
@@ -261,7 +265,8 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
   // Set default category (for task list initial selection)
   .patch(
     "/:id/set-default",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ 
+ params }: { params: { id: string } }) => {
       const id = parseInt(params.id);
       if (isNaN(id)) {
         throw new ValidationError("Invalid ID");
@@ -295,7 +300,8 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
   // Reorder categories
   .patch(
     "/reorder",
-    async ({ body }: {
+    async ({ 
+ body }: {
       body: { orders: Array<{ id: number; sortOrder: number }> }
     }) => {
       const { orders } = body;

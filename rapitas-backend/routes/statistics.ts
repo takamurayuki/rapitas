@@ -86,7 +86,8 @@ export const statisticsRoutes = new Elysia({ prefix: "/statistics" })
   })
 
   // 日別学習時間
-  .get("/daily-study", async ({ query }: { query: { days?: string } }) => {
+  .get("/daily-study", async ({ 
+ query }: { query: { days?: string } }) => {
     const daysNum = query.days ? parseInt(query.days) : 7;
 
     const startDate = new Date();
@@ -121,7 +122,8 @@ export const statisticsRoutes = new Elysia({ prefix: "/statistics" })
   })
 
   // 科目別学習時間
-  .get("/subject-breakdown", async ({ query }: { query: { days?: string } }) => {
+  .get("/subject-breakdown", async ({ 
+ query }: { query: { days?: string } }) => {
     const daysNum = query.days ? parseInt(query.days) : 30;
 
     const startDate = new Date();
@@ -165,7 +167,8 @@ export const statisticsRoutes = new Elysia({ prefix: "/statistics" })
   // バーンダウンチャートデータ
   .get(
     "/burndown",
-    async ({
+    async ({ 
+
       query,
     }: {
       query: { days?: string; themeId?: string; projectId?: string };

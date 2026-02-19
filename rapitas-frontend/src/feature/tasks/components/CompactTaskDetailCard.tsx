@@ -1,10 +1,7 @@
 'use client';
 
 import { Task, Label, Resource, Comment } from '@/types';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkBreaks from 'remark-breaks';
-import { createMarkdownComponents } from '@/feature/tasks/components/MarkdownComponents';
+import TaskDescription from '@/feature/tasks/components/TaskDescription';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
 import {
   statusConfig,
@@ -120,36 +117,11 @@ export default function CompactTaskDetailCard({
             </AccordionTrigger>
             <AccordionContent id="description">
               <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4">
-                <div
-                  className="prose prose-zinc dark:prose-invert max-w-none prose-sm
-                  prose-headings:font-bold
-                  prose-h1:text-lg prose-h1:mt-3 prose-h1:mb-2
-                  prose-h2:text-base prose-h2:mt-2 prose-h2:mb-1.5
-                  prose-h3:text-sm prose-h3:mt-1.5 prose-h3:mb-1
-                  prose-p:my-1.5 prose-p:leading-relaxed prose-p:text-sm
-                  prose-a:text-violet-600 prose-a:no-underline hover:prose-a:underline
-                  prose-pre:bg-zinc-100 prose-pre:dark:bg-zinc-900
-                  prose-pre:p-3 prose-pre:rounded-lg prose-pre:overflow-x-auto prose-pre:text-xs
-                  prose-blockquote:border-l-4 prose-blockquote:border-violet-300
-                  prose-blockquote:dark:border-violet-700 prose-blockquote:pl-3
-                  prose-blockquote:italic prose-blockquote:text-zinc-600
-                  prose-blockquote:dark:text-zinc-400 prose-blockquote:text-sm
-                  prose-ul:my-1.5 prose-ol:my-1.5
-                  prose-li:my-0.5 prose-li:text-sm
-                  [&_code]:bg-zinc-200 [&_code]:dark:bg-zinc-700
-                  [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded
-                  [&_code]:text-xs [&_code]:font-mono
-                  [&_code]:text-zinc-800 [&_code]:dark:text-zinc-200
-                  [&_code]:before:content-[''] [&_code]:after:content-['']
-                  [&_pre_code]:bg-transparent [&_pre_code]:p-0"
-                >
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm, remarkBreaks]}
-                    components={createMarkdownComponents()}
-                  >
-                    {task.description}
-                  </ReactMarkdown>
-                </div>
+                <TaskDescription
+                  description={task.description}
+                  isCompact={true}
+                  maxInitialLength={300}
+                />
               </div>
             </AccordionContent>
           </AccordionItem>

@@ -13,7 +13,8 @@ export const executionLogsRoutes = new Elysia()
   /**
    * 実行ログファイルの一覧を取得
    */
-  .get("/api/execution-logs", async ({ query }: { query: { limit?: string; offset?: string } }) => {
+  .get("/api/execution-logs", async ({ 
+ query }: { query: { limit?: string; offset?: string } }) => {
     const limit = Number(query?.limit) || 50;
     const offset = Number(query?.offset) || 0;
 
@@ -37,7 +38,8 @@ export const executionLogsRoutes = new Elysia()
   /**
    * 特定の実行IDのログファイルを取得
    */
-  .get("/api/execution-logs/:executionId", async ({ params, query, set }: { params: { executionId: string }; query: { format?: string }; set: { status: number; headers: Record<string, string> } }) => {
+  .get("/api/execution-logs/:executionId", async ({ 
+ params, query, set }: { params: { executionId: string }; query: { format?: string }; set: { status: number; headers: Record<string, string> } }) => {
     const executionId = Number(params.executionId);
     if (isNaN(executionId)) {
       set.status = 400;
@@ -84,7 +86,8 @@ export const executionLogsRoutes = new Elysia()
   /**
    * 特定の実行IDのログファイルをダウンロード
    */
-  .get("/api/execution-logs/:executionId/download", async ({ params, set }: { params: { executionId: string }; set: { status: number; headers: Record<string, string> } }) => {
+  .get("/api/execution-logs/:executionId/download", async ({ 
+ params, set }: { params: { executionId: string }; set: { status: number; headers: Record<string, string> } }) => {
     const executionId = Number(params.executionId);
     if (isNaN(executionId)) {
       set.status = 400;
@@ -109,7 +112,8 @@ export const executionLogsRoutes = new Elysia()
   /**
    * 特定の実行IDのエラーサマリーのみ取得
    */
-  .get("/api/execution-logs/:executionId/errors", async ({ params, set }: { params: { executionId: string }; set: { status: number; headers: Record<string, string> } }) => {
+  .get("/api/execution-logs/:executionId/errors", async ({ 
+ params, set }: { params: { executionId: string }; set: { status: number; headers: Record<string, string> } }) => {
     const executionId = Number(params.executionId);
     if (isNaN(executionId)) {
       set.status = 400;

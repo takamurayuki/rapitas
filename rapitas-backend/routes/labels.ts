@@ -21,7 +21,8 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
   })
 
   // Get label by ID
-  .get("/:id", async ({ params }: { params: { id: string } }) => {
+  .get("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("無効なIDです");
@@ -48,7 +49,8 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
   // Create label
   .post(
     "/",
-    async ({ body }: { body: {
+    async ({ 
+ body }: { body: {
       name: string;
       description?: string;
       color?: string;
@@ -73,7 +75,8 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
   // Update label
   .patch(
     "/:id",
-    async ({ params, body }: {
+    async ({ 
+ params, body }: {
       params: { id: string };
       body: {
         name?: string;
@@ -107,7 +110,8 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
   // Reorder labels
   .patch(
     "/reorder",
-    async ({ body }: {
+    async ({ 
+ body }: {
       body: { orders: Array<{ id: number; sortOrder: number }> }
     }) => {
       const { orders } = body;
@@ -126,7 +130,8 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
   )
 
   // Delete label
-  .delete("/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("無効なIDです");
@@ -145,7 +150,8 @@ export const taskLabelsRoutes = new Elysia()
   // Update task labels (bulk)
   .put(
     "/tasks/:id/labels",
-    async ({ params, body }: {
+    async ({ 
+ params, body }: {
       params: { id: string };
       body: { labelIds: number[] }
     }) => {

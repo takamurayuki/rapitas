@@ -8,7 +8,8 @@ import { ValidationError } from "../middleware/error-handler";
 
 export const milestonesRoutes = new Elysia({ prefix: "/milestones" })
   // Get all milestones
-  .get("/", async ({ query }: { query: { projectId?: string } }) => {
+  .get("/", async ({ 
+ query }: { query: { projectId?: string } }) => {
     const { projectId } = query;
     return await prisma.milestone.findMany({
       where: projectId ? { projectId: parseInt(projectId) } : undefined,
@@ -21,7 +22,8 @@ export const milestonesRoutes = new Elysia({ prefix: "/milestones" })
   })
 
   // Get milestone by ID
-  .get("/:id", async ({ params }: { params: { id: string } }) => {
+  .get("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("無効なIDです");
@@ -42,7 +44,8 @@ export const milestonesRoutes = new Elysia({ prefix: "/milestones" })
   // Create milestone
   .post(
     "/",
-    async ({ body }: { body: {
+    async ({ 
+ body }: { body: {
       name: string;
       projectId: number;
       description?: string;
@@ -69,7 +72,8 @@ export const milestonesRoutes = new Elysia({ prefix: "/milestones" })
   // Update milestone
   .patch(
     "/:id",
-    async ({ params, body }: {
+    async ({ 
+ params, body }: {
       params: { id: string };
       body: {
         name?: string;
@@ -97,7 +101,8 @@ export const milestonesRoutes = new Elysia({ prefix: "/milestones" })
   )
 
   // Delete milestone
-  .delete("/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("無効なIDです");

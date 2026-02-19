@@ -45,7 +45,7 @@ class CacheManager {
 
       // 304 Not Modified - キャッシュを使用
       if (response.status === 304 && cached) {
-        return { data: cached.data, fromCache: true };
+        return { data: cached.data as T, fromCache: true };
       }
 
       if (!response.ok) {
@@ -72,7 +72,7 @@ class CacheManager {
       // ネットワークエラー時は、キャッシュがあれば使用
       if (cached && this.isCacheValid(cached)) {
         console.warn('Network error, using cached data:', error);
-        return { data: cached.data, fromCache: true };
+        return { data: cached.data as T, fromCache: true };
       }
       throw error;
     }
@@ -93,7 +93,7 @@ class CacheManager {
       case 'cache-first':
         // キャッシュがあればそれを使用、なければネットワーク
         if (cached && this.isCacheValid(cached)) {
-          return cached.data;
+          return cached.data as T;
         }
         return this.fetchAndCache(url, cacheKey, options);
 
@@ -103,7 +103,7 @@ class CacheManager {
           return await this.fetchAndCache(url, cacheKey, options);
         } catch (error) {
           if (cached && this.isCacheValid(cached)) {
-            return cached.data;
+            return cached.data as T;
           }
           throw error;
         }
@@ -113,7 +113,7 @@ class CacheManager {
         if (cached) {
           // バックグラウンドで更新
           this.fetchAndCache(url, cacheKey, options).catch(console.error);
-          return cached.data;
+          return cached.data as T;
         }
         return this.fetchAndCache(url, cacheKey, options);
     }

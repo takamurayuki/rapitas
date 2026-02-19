@@ -20,7 +20,8 @@ export const projectsRoutes = new Elysia({ prefix: "/projects" })
   })
 
   // Get project by ID
-  .get("/:id", async ({ params }: { params: { id: string } }) => {
+  .get("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("無効なIDです");
@@ -46,7 +47,8 @@ export const projectsRoutes = new Elysia({ prefix: "/projects" })
   // Create project
   .post(
     "/",
-    async ({ body }: { body: {
+    async ({ 
+ body }: { body: {
       name: string;
       description?: string;
       color?: string;
@@ -70,7 +72,8 @@ export const projectsRoutes = new Elysia({ prefix: "/projects" })
   // Update project
   .patch(
     "/:id",
-    async ({ params, body }: {
+    async ({ 
+ params, body }: {
       params: { id: string };
       body: {
         name?: string;
@@ -98,7 +101,8 @@ export const projectsRoutes = new Elysia({ prefix: "/projects" })
   )
 
   // Delete project
-  .delete("/:id", async ({ params }: { params: { id: string } }) => {
+  .delete("/:id", async ({ 
+ params }: { params: { id: string } }) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("無効なIDです");
