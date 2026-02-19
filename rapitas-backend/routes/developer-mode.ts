@@ -16,7 +16,8 @@ import { getLabelsArray, toJsonString, fromJsonString } from "../utils/db-helper
 
 export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
   // 開発者モード設定取得
-  .get("/config/:taskId", async ({  params  }: any) => {
+  .get("/config/:taskId", async (context: any) => {
+      const { params  } = context;
     const taskId = parseInt(params.taskId);
     const config = await prisma.developerModeConfig.findUnique({
       where: { taskId },
@@ -36,9 +37,17 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
 
   // 開発者モード有効化
   .post(
-    "/enable/:taskId", async ({  params, body  }: any) => {
+    "/enable/:taskId",
+    async ({ 
+
+      params,
+      body,
+    }: {
+      params: { taskId: string };
+      body: { autoApprove?: boolean; maxSubtasks?: number; priority?: string };
+    }) => {
       const taskId = parseInt(params.taskId);
-      const { autoApprove, maxSubtasks, priority } = body as any;
+      const { autoApprove, maxSubtasks, priority  } = body as any;
 
       // タスクを更新
       await prisma.task.update({
@@ -69,7 +78,8 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
   )
 
   // 開発者モード無効化
-  .delete("/disable/:taskId", async ({  params  }: any) => {
+  .delete("/disable/:taskId", async (context: any) => {
+      const { params  } = context;
     const taskId = parseInt(params.taskId);
 
     await prisma.task.update({
@@ -93,9 +103,22 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
 
   // 開発者モード設定更新
   .patch(
-    "/config/:taskId", async ({  params, body  }: any) => {
+    "/config/:taskId",
+    async ({ 
+
+      params,
+      body,
+    }: {
+      params: { taskId: string };
+      body: {
+        autoApprove?: boolean;
+        notifyInApp?: boolean;
+        maxSubtasks?: number;
+        priority?: string;
+      };
+    }) => {
       const taskId = parseInt(params.taskId);
-      const { autoApprove, notifyInApp, maxSubtasks, priority } = body as any;
+      const { autoApprove, notifyInApp, maxSubtasks, priority  } = body as any;
 
       return await prisma.developerModeConfig.update({
         where: { taskId },
@@ -111,7 +134,9 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
 
   // タスク分析・サブタスク提案
   .post(
-    "/analyze/:taskId", async ({  params, set  }: any) => {
+    "/analyze/:taskId",
+    async (context: any) => {
+      const { params, set  } = context;
       const taskId = parseInt(params.taskId);
 
       // デフォルトプロバイダーのAPIキーチェック
@@ -306,7 +331,17 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
 
   // プロンプト最適化API
   .post(
-    "/optimize-prompt/:taskId", async ({  params, body, set  }: any) => {
+    "/optimize-prompt/:taskId",
+    async ({ 
+
+      params,
+      body,
+      set,
+    }: {
+      params: { taskId: string };
+      body: { clarificationAnswers?: Record<string, string>; savePrompt?: boolean };
+      set: { status?: number };
+    }) => {
       const taskId = parseInt(params.taskId);
       const { clarificationAnswers, savePrompt } = body || {};
 
@@ -435,9 +470,36 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
 
   // 最適化プロンプトをエージェント実行用フォーマットに変換
   .post(
-    "/format-prompt/:taskId", async ({  params, body, set  }: any) => {
+    "/format-prompt/:taskId",
+    async ({ 
+
+      params,
+      body,
+      set,
+    }: {
+      params: { taskId: string };
+      body: {
+        optimizedResult: {
+          optimizedPrompt: string;
+          structuredSections: {
+            objective: string;
+            context: string;
+            requirements: string[];
+            constraints: string[];
+            deliverables: string[];
+            technicalDetails?: string;
+          };
+          promptQuality: {
+            score: number;
+            issues: string[];
+            suggestions: string[];
+          };
+        };
+      };
+      set: { status?: number };
+    }) => {
       const taskId = parseInt(params.taskId);
-      const { optimizedResult } = body as any;
+      const { optimizedResult  } = body as any;
 
       if (!optimizedResult) {
         set.status = 400;
@@ -484,8 +546,16 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
 
   // ブランチ名生成API
   .post(
-    "/generate-branch-name", async ({  body, set  }: any) => {
-      const { title, description } = body as any;
+    "/generate-branch-name",
+    async ({ 
+
+      body,
+      set,
+    }: {
+      body: { title: string; description?: string };
+      set: { status?: number };
+    }) => {
+      const { title, description  } = body as any;
 
       if (!title) {
         set.status = 400;
@@ -524,7 +594,8 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
   )
 
   // セッション履歴取得
-  .get("/sessions/:taskId", async ({  params  }: any) => {
+  .get("/sessions/:taskId", async (context: any) => {
+      const { params  } = context;
     const taskId = parseInt(params.taskId);
 
     const config = await prisma.developerModeConfig.findUnique({
@@ -548,8 +619,16 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
 
   // タスク説明からタイトル自動生成
   .post(
-    "/generate-title", async ({  body, set  }: any) => {
-      const { description } = body as any;
+    "/generate-title",
+    async ({ 
+
+      body,
+      set,
+    }: {
+      body: { description: string };
+      set: { status?: number };
+    }) => {
+      const { description  } = body as any;
 
       if (!description || !description.trim()) {
         set.status = 400;

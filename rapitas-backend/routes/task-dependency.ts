@@ -2,7 +2,7 @@
  * Task Dependency Analysis API Routes
  * Provides task dependency analysis and visualization
  */
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
 import {
   SSEStreamController,
@@ -194,7 +194,9 @@ const buildTree = (dependencyAnalysis: DependencyInfo[]): TreeNode[] => {
 export const taskDependencyRoutes = new Elysia()
   // Task dependency analysis (file-sharing based)
   .get(
-    "/tasks/:id/dependency-analysis", async ({  params  }: any) => {
+    "/tasks/:id/dependency-analysis",
+    async (context: any) => {
+      const { params  } = context;
       const taskIdNum = parseInt(params.id);
 
       const task = await prisma.task.findUnique({
@@ -306,7 +308,9 @@ export const taskDependencyRoutes = new Elysia()
 
   // SSE-based dependency analysis stream
   .get(
-    "/tasks/:id/dependency-analysis/stream", async ({  params, set  }: any) => {
+    "/tasks/:id/dependency-analysis/stream",
+    async (context: any) => {
+      const { params, set  } = context;
       const taskIdNum = parseInt(params.id);
 
       set.headers = {

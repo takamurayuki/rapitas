@@ -48,7 +48,121 @@ const calculateUsedDays = async (userId: string, fiscalYear: number): Promise<nu
 
 export const paidLeaveRoutes = new Elysia({ prefix: "/paid-leave" })
   // 有給残日数を取得
-  .get("/balance", async ({  query  }: any) => {
+  .get("/balance", async (context: any) => {
+      const { query  } = context;
+    try {
+      const userId = query.userId || "default";
+      const fiscalYear = query.fiscalYear ? parseInt(query.fiscalYear) : getCurrentFiscalYear();
+
+      let balance = await prisma.paidLeaveBalance.findUnique({
+        where: {
+          userId_fiscalYear: {
+            userId,
+            fiscalYear,
+          },
+        },
+      });
+
+      if (!balance) {
+        // 初回作成
+        const usedDays = await calculateUsedDays(userId, fiscalYear);
+        const remainingDays = 20 - usedDays; // デフォルト20日から使用日数を引く
+
+        balance = await prisma.paidLeaveBalance.create({
+          data: {
+            userId,
+            fiscalYear,
+            totalDays: 20,
+            usedDays,
+            remainingDays,
+          },
+        });
+      } else {
+        // 使用日数を再計算して更新
+        const usedDays = await calculateUsedDays(userId, fiscalYear);
+        const remainingDays = balance.totalDays + balance.carryOverDays - usedDays;
+
+        balance = await prisma.paidLeaveBalance.update({
+          where: { id: balance.id },
+          data: {
+            usedDays,
+            remainingDays,
+            lastCalculatedAt: new Date(),
+          },
+        });
+      }
+
+      return createResponse(balance);
+    } catch (error) {
+      console.error("Failed to get paid leave balance:", error);
+      return createErrorResponse("Failed to get paid leave balance", 500);
+    }
+  }, {
+    query: t.Object({
+      userId: t.Optional(t.String()),
+      fiscalYear: t.Optional(t.String()),
+    })
+  })
+
+  // 有給残日数を更新
+  .put("/balance", async (context: any) => {
+      const { body  } = context;
+    try {
+      const { userId = "default", fiscalYear, totalDays, carryOverDays  } = body as any;
+      const targetYear = fiscalYear || getCurrentFiscalYear();
+
+      const balance = await prisma.paidLeaveBalance.upsert({
+        where: {
+          userId_fiscalYear: {
+            userId,
+            fiscalYear: targetYear,
+          },
+        },
+        update: {
+          totalDays: totalDays || 20,
+          carryOverDays: carryOverDays || 0,
+          lastCalculatedAt: new Date(),
+        },
+        create: {
+          userId,
+          fiscalYear: targetYear,
+          totalDays: totalDays || 20,
+          usedDays: 0,
+          remainingDays: (totalDays || 20) + (carryOverDays || 0),
+          carryOverDays: carryOverDays || 0,
+        },
+      });
+
+      // 使用日数を再計算
+      const usedDays = await calculateUsedDays(userId, targetYear);
+      const remainingDays = balance.totalDays + balance.carryOverDays - usedDays;
+
+      const updatedBalance = await prisma.paidLeaveBalance.update({
+        where: { id: balance.id },
+        data: {
+          usedDays,
+          remainingDays,
+          lastCalculatedAt: new Date(),
+        },
+      });
+
+      return createResponse(updatedBalance);
+    } catch (error) {
+      console.error("Failed to update paid leave balance:", error);
+      return createErrorResponse("Failed to update paid leave balance", 500);
+    }
+  }, {
+    body: t.Object({
+      userId: t.Optional(t.String()),
+      fiscalYear: t.Optional(t.Number()),
+      totalDays: t.Optional(t.Number()),
+      carryOverDays: t.Optional(t.Number()),
+    })
+  })
+
+  // 有給申請履歴を取得
+  .get("/history", async (context: any) => {
+      const { query  } = context;
     try {
       const userId = query.userId || "default";
       const fiscalYear = query.fiscalYear ? parseInt(query.fiscalYear) : getCurrentFiscalYear();

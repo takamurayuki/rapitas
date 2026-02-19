@@ -29,8 +29,8 @@ function registerHandler(
 }
 
 // 最適化されたハンドラーを登録
-registerHandler("GET:/tasks", async ({  
- query  }: any) => {
+registerHandler("GET:/tasks", async (context: any) => {
+      const { query  } = context;
   const cacheKey = CacheKeys.taskList(query);
 
   // キャッシュから取得を試みる
@@ -40,8 +40,7 @@ registerHandler("GET:/tasks", async ({
   }
 
   // クエリパラメータの解析
-  const {
-    categoryId,
+  const { categoryId,
     status,
     since,
     cursor,
@@ -49,7 +48,7 @@ registerHandler("GET:/tasks", async ({
     search,
     projectId,
     priority,
-  } = query as any;
+   } = query as any;
 
   // フィルター構築
   const where: Record<string, any> = {};
@@ -122,8 +121,8 @@ registerHandler("GET:/tasks", async ({
   return formatted;
 });
 
-registerHandler("GET:/tasks/:id", async ({  
- params  }: any) => {
+registerHandler("GET:/tasks/:id", async (context: any) => {
+      const { params  } = context;
   const id = parseInt(params.id);
   const cacheKey = CacheKeys.task(params.id);
 
@@ -158,8 +157,8 @@ registerHandler("GET:/statistics/tasks", async () => {
   return stats;
 });
 
-registerHandler("POST:/tasks", async ({  
- body  }: any) => {
+registerHandler("POST:/tasks", async (context: any) => {
+      const { body  } = context;
   const task = await prisma.task.create({
     data: body,
     ...QueryOptimizers.taskWithRelations(),
@@ -172,8 +171,8 @@ registerHandler("POST:/tasks", async ({
   return task;
 });
 
-registerHandler("PATCH:/tasks/:id", async ({  
- params, body  }: any) => {
+registerHandler("PATCH:/tasks/:id", async (context: any) => {
+      const { params, body  } = context;
   const id = parseInt(params.id);
   const task = await prisma.task.update({
     where: { id },
@@ -189,8 +188,8 @@ registerHandler("PATCH:/tasks/:id", async ({
   return task;
 });
 
-registerHandler("DELETE:/tasks/:id", async ({  
- params  }: any) => {
+registerHandler("DELETE:/tasks/:id", async (context: any) => {
+      const { params  } = context;
   const id = parseInt(params.id);
   await prisma.task.delete({ where: { id } });
 
@@ -351,8 +350,8 @@ export const batchRoutesV2 = new Elysia({ prefix: "/batch/v2" })
   .use(performanceMonitoring)
   .post(
     "/",
-    async ({  
- body, set  }: any) => {
+    async (context: any) => {
+      const { body, set  } = context;
       const typedBody = body as {
         requests: Array<{
           id: string;

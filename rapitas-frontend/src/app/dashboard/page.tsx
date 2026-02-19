@@ -62,7 +62,8 @@ export default function DashboardPage() {
     try {
       const res = await fetch(`${API_BASE_URL}/statistics/daily-study?days=14`);
       if (res.ok) {
-        setDailyStudy(await res.json());
+        const data = await res.json();
+        setDailyStudy(Array.isArray(data) ? data : []);
       }
     } catch (e) {
       console.error('Failed to fetch daily study:', e);

@@ -610,7 +610,7 @@ export default function DailySchedulePage() {
                               {block.label}
                             </span>
                             {block.isNotify && (
-                              <Bell className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                              <Bell className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                             )}
                           </div>
                           <span className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -619,7 +619,7 @@ export default function DailySchedulePage() {
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-1 shrink-0">
                           <button
                             onClick={() => openEditModal(block)}
                             className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"

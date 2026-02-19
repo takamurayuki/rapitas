@@ -1,7 +1,7 @@
 /**
  * Achievements API Routes
  */
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
 
 // 初期実績データ
@@ -185,27 +185,35 @@ export const achievementsRoutes = new Elysia({ prefix: "/achievements" })
     }));
   })
 
-  .post("/:key/unlock", async ({  params  }: any) => {
-    const { key } = params as any;
-    const achievement = await prisma.achievement.findUnique({ where: { key } });
-    if (!achievement) return { error: "Achievement not found" };
+  .post("/:key/unlock",
+    async (context: any) => {
+      const { params } = context;
+      const { key } = params as any;
+      const achievement = await prisma.achievement.findUnique({ where: { key } });
+      if (!achievement) return { error: "Achievement not found" };
 
-    const existing = await prisma.userAchievement.findUnique({
-      where: { achievementId: achievement.id },
-    });
-    if (existing)
-      return {
-        ...achievement,
-        isUnlocked: true,
-        unlockedAt: existing.unlockedAt,
-      };
+      const existing = await prisma.userAchievement.findUnique({
+        where: { achievementId: achievement.id },
+      });
+      if (existing)
+        return {
+          ...achievement,
+          isUnlocked: true,
+          unlockedAt: existing.unlockedAt,
+        };
 
-    await prisma.userAchievement.create({
-      data: { achievementId: achievement.id },
-    });
+      await prisma.userAchievement.create({
+        data: { achievementId: achievement.id },
+      });
 
-    return { ...achievement, isUnlocked: true, unlockedAt: new Date() };
-  })
+      return { ...achievement, isUnlocked: true, unlockedAt: new Date() };
+    },
+    {
+      params: t.Object({
+        key: t.String()
+      })
+    }
+  )
 
   // 実績チェック（タスク完了時などに呼ばれる）
   .post("/check", async () => {

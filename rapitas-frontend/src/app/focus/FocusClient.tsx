@@ -236,8 +236,8 @@ export default function FocusClient() {
     <div
       className={`min-h-screen transition-colors duration-500 ${
         mode === 'work'
-          ? 'bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950'
-          : 'bg-gradient-to-br from-emerald-950 via-slate-900 to-teal-950'
+          ? 'bg-linear-to-br from-indigo-950 via-slate-900 to-purple-950'
+          : 'bg-linear-to-br from-emerald-950 via-slate-900 to-teal-950'
       }`}
     >
       {/* ヘッダー */}

@@ -8,7 +8,7 @@ import { prisma } from "../config";
 export const batchRoutes = new Elysia({ prefix: "/batch" })
   .post(
     "/",
-    async (context: any) => {
+    async (context) => {
       const { body } = context as { body: { requests: Array<{ id: string; method: string; url: string; body?: any }> } };
       const results = await Promise.all(
         body.requests.map(async (request) => {

@@ -2,7 +2,7 @@
  * System Prompts API Routes
  * ハードコードされたプロンプトをDB管理するためのCRUDエンドポイント
  */
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
 
 // デフォルトのシステムプロンプト定義
@@ -166,7 +166,161 @@ Guidelines:
 
 export const systemPromptsRoutes = new Elysia()
   // システムプロンプト一覧取得
-  .get("/system-prompts", async ({  query  }: any) => {
+  .get("/system-prompts", async (context: any) => {
+      const { query  } = context;
+    const where: Record<string, unknown> = {};
+    if (query.category) {
+      where.category = query.category;
+    }
+
+    const prompts = await prisma.systemPrompt.findMany({
+      where,
+      orderBy: [{ category: "asc" }, { name: "asc" }],
+    });
+
+    return prompts;
+  })
+
+  // システムプロンプト取得（キーで）
+  .get("/system-prompts/:key", async (context: any) => {
+      const { params, set  } = context;
+    const prompt = await prisma.systemPrompt.findUnique({
+      where: { key: params.key },
+    });
+
+    if (!prompt) {
+      set.status = 404;
+      return { error: "システムプロンプトが見つかりません" };
+    }
+
+    return prompt;
+  })
+
+  // システムプロンプト作成
+  .post(
+    "/system-prompts",
+    async ({ 
+
+      body,
+      set,
+    }: {
+      body: {
+        key: string;
+        name: string;
+        description?: string;
+        content: string;
+        category?: string;
+      };
+      set: { status?: number };
+    }) => {
+      const { key, name, description, content, category  } = body as any;
+
+      if (!key || !name || !content) {
+        set.status = 400;
+        return { error: "key, name, content は必須です" };
+      }
+
+      const existing = await prisma.systemPrompt.findUnique({
+        where: { key },
+      });
+
+      if (existing) {
+        set.status = 409;
+        return { error: "同じキーのプロンプトが既に存在します" };
+      }
+
+      const prompt = await prisma.systemPrompt.create({
+        data: {
+          key,
+          name,
+          description,
+          content,
+          category: category || "general",
+          isDefault: false,
+        },
+      });
+
+      return prompt;
+    }
+  )
+
+  // システムプロンプト更新
+  .patch(
+    "/system-prompts/:key",
+    async ({ 
+
+      params,
+      body,
+      set,
+    }: {
+      params: { key: string };
+      body: {
+        name?: string;
+        description?: string;
+        content?: string;
+        category?: string;
+        isActive?: boolean;
+      };
+      set: { status?: number };
+    }) => {
+      const existing = await prisma.systemPrompt.findUnique({
+        where: { key: params.key },
+      });
+
+      if (!existing) {
+        set.status = 404;
+        return { error: "システムプロンプトが見つかりません" };
+      }
+
+      const { name, description, content, category, isActive  } = body as any;
+
+      const updated = await prisma.systemPrompt.update({
+        where: { key: params.key },
+        data: {
+          ...(name !== undefined && { name }),
+          ...(description !== undefined && { description }),
+          ...(content !== undefined && { content }),
+          ...(category !== undefined && { category }),
+          ...(isActive !== undefined && { isActive }),
+        },
+      });
+
+      return updated;
+    }
+  )
+
+  // システムプロンプト削除（デフォルトプロンプトは削除不可）
+  .delete(
+    "/system-prompts/:key",
+    async (context: any) => {
+      const { params, set  } = context;
+      const existing = await prisma.systemPrompt.findUnique({
+        where: { key: params.key },
+      });
+
+      if (!existing) {
+        set.status = 404;
+        return { error: "システムプロンプトが見つかりません" };
+      }
+
+      if (existing.isDefault) {
+        set.status = 400;
+        return { error: "デフォルトプロンプトは削除できません。無効化してください。" };
+      }
+
+      await prisma.systemPrompt.delete({
+        where: { key: params.key },
+      });
+
+      return { success: true };
+    }
+  )
+
+  // デフォルトプロンプトをリセット（元の内容に戻す）
+  .post(
+    "/system-prompts/:key/reset",
+    async (context: any) => {
+      const { params, set  } = context;
       const defaultPrompt = DEFAULT_SYSTEM_PROMPTS.find((p) => p.key === params.key);
       if (!defaultPrompt) {
         set.status = 404;
@@ -195,7 +349,7 @@ export const systemPromptsRoutes = new Elysia()
   )
 
   // デフォルトプロンプトの初期シード
-  .post("/system-prompts/seed", async ({ params, set }: any) => {
+  .post("/system-prompts/seed", async () => {
     const results: Array<{ key: string; action: string }> = [];
 
     for (const prompt of DEFAULT_SYSTEM_PROMPTS) {

@@ -6,8 +6,9 @@ import { Elysia, t } from "elysia";
 
 export const urlMetadataRoutes = new Elysia().post(
   "/url-metadata",
-  async ({  body  }: any) => {
-    const { url } = body as any;
+  async (context: any) => {
+      const { body  } = context;
+    const { url  } = body as any;
 
     try {
       const parsedUrl = new URL(url);

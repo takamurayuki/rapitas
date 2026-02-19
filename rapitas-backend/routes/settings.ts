@@ -280,8 +280,288 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   // Update settings
   .patch(
     "/",
-    async ({  body, set  }: any) => {
-      const { model, provider = "claude" } = body as any;
+    async ({ 
+ body, set }: {
+      body: {
+        developerModeDefault?: boolean;
+        aiTaskAnalysisDefault?: boolean;
+        autoResumeInterruptedTasks?: boolean;
+        autoExecuteAfterCreate?: boolean;
+        autoGenerateTitle?: boolean;
+        autoGenerateTitleDelay?: number;
+        autoCreateAfterTitleGeneration?: boolean;
+        defaultAiProvider?: string;
+        defaultCategoryId?: number | null;
+        activeMode?: string;
+      };
+      set: { status?: number };
+    }) => {
+      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, autoExecuteAfterCreate, autoGenerateTitle, autoGenerateTitleDelay, autoCreateAfterTitleGeneration, defaultAiProvider, defaultCategoryId, activeMode  } = body as any;
+
+      try {
+        let settings = await prisma.userSettings.findFirst();
+        if (!settings) {
+          settings = await prisma.userSettings.create({
+            data: {
+              developerModeDefault: developerModeDefault ?? false,
+              aiTaskAnalysisDefault: aiTaskAnalysisDefault ?? false,
+              autoResumeInterruptedTasks: autoResumeInterruptedTasks ?? false,
+              autoExecuteAfterCreate: autoExecuteAfterCreate ?? false,
+              autoGenerateTitle: autoGenerateTitle ?? false,
+              ...(autoGenerateTitleDelay !== undefined && { autoGenerateTitleDelay }),
+              autoCreateAfterTitleGeneration: autoCreateAfterTitleGeneration ?? false,
+              ...(defaultCategoryId !== undefined && { defaultCategoryId }),
+              ...(activeMode !== undefined && { activeMode }),
+            },
+          });
+        } else {
+          settings = await prisma.userSettings.update({
+            where: { id: settings.id },
+            data: {
+              ...(developerModeDefault !== undefined && { developerModeDefault }),
+              ...(aiTaskAnalysisDefault !== undefined && { aiTaskAnalysisDefault }),
+              ...(autoResumeInterruptedTasks !== undefined && { autoResumeInterruptedTasks }),
+              ...(autoExecuteAfterCreate !== undefined && { autoExecuteAfterCreate }),
+              ...(autoGenerateTitle !== undefined && { autoGenerateTitle }),
+              ...(autoGenerateTitleDelay !== undefined && { autoGenerateTitleDelay }),
+              ...(autoCreateAfterTitleGeneration !== undefined && { autoCreateAfterTitleGeneration }),
+              ...(defaultAiProvider !== undefined && { defaultAiProvider }),
+              ...(defaultCategoryId !== undefined && { defaultCategoryId }),
+              ...(activeMode !== undefined && { activeMode }),
+            },
+          });
+        }
+
+        return settings;
+      } catch (error: unknown) {
+        console.error("Settings update error:", error);
+        set.status = 500;
+        return {
+          error: "設定の保存に失敗しました",
+          message: error instanceof Error ? error.message : "Unknown error",
+        };
+      }
+    },
+    {
+      body: t.Object({
+        developerModeDefault: t.Optional(t.Boolean()),
+        aiTaskAnalysisDefault: t.Optional(t.Boolean()),
+        autoResumeInterruptedTasks: t.Optional(t.Boolean()),
+        autoExecuteAfterCreate: t.Optional(t.Boolean()),
+        autoGenerateTitle: t.Optional(t.Boolean()),
+        autoGenerateTitleDelay: t.Optional(t.Number()),
+        autoCreateAfterTitleGeneration: t.Optional(t.Boolean()),
+        defaultAiProvider: t.Optional(t.String()),
+        defaultCategoryId: t.Optional(t.Union([t.Number(), t.Null()])),
+        activeMode: t.Optional(t.String()),
+      }),
+    }
+  )
+
+  // Get API status
+  .get("/api-status", async () => {
+    const claudeApiKey = await getApiKeyForProvider("claude");
+    return {
+      claudeApiKeyConfigured: !!claudeApiKey,
+    };
+  })
+
+  // Get API key status for a specific provider
+  .get("/api-key", async (context: any) => {
+      const { query  } = context;
+    const provider = (query.provider as string) || "claude";
+
+    if (!isValidProvider(provider)) {
+      return { configured: false, maskedKey: null, provider };
+    }
+
+    const settings = await prisma.userSettings.findFirst();
+    if (!settings) {
+      return { configured: false, maskedKey: null, provider };
+    }
+
+    const column = PROVIDER_COLUMNS[provider];
+    const encryptedKey = settings[column];
+
+    if (!encryptedKey) {
+      // Fallback to env var for Claude
+      if (provider === "claude" && process.env.CLAUDE_API_KEY) {
+        return {
+          configured: true,
+          maskedKey: maskApiKey(process.env.CLAUDE_API_KEY),
+          provider,
+          source: "env",
+        };
+      }
+      return { configured: false, maskedKey: null, provider };
+    }
+
+    try {
+      const decrypted = decrypt(encryptedKey);
+      return {
+        configured: true,
+        maskedKey: maskApiKey(decrypted),
+        provider,
+        source: "db",
+      };
+    } catch {
+      return { configured: false, maskedKey: null, provider };
+    }
+  })
+
+  // Get all providers' API key status
+  .get("/api-keys", async () => {
+    const settings = await prisma.userSettings.findFirst();
+    const providers = Object.keys(PROVIDER_COLUMNS) as ApiProvider[];
+
+    const result: Record<string, { configured: boolean; maskedKey: string | null }> = {};
+
+    for (const provider of providers) {
+      const column = PROVIDER_COLUMNS[provider];
+      const encryptedKey = settings?.[column];
+
+      if (encryptedKey) {
+        try {
+          const decrypted = decrypt(encryptedKey);
+          result[provider] = { configured: true, maskedKey: maskApiKey(decrypted) };
+        } catch {
+          result[provider] = { configured: false, maskedKey: null };
+        }
+      } else if (provider === "claude" && process.env.CLAUDE_API_KEY) {
+        result[provider] = {
+          configured: true,
+          maskedKey: maskApiKey(process.env.CLAUDE_API_KEY),
+        };
+      } else {
+        result[provider] = { configured: false, maskedKey: null };
+      }
+    }
+
+    return result;
+  })
+
+  // Save API key for a specific provider
+  .post(
+    "/api-key",
+    async (context: any) => {
+      const { body, set  } = context;
+      const { apiKey, provider = "claude"  } = body as any;
+
+      if (!isValidProvider(provider)) {
+        set.status = 400;
+        return { error: `無効なプロバイダです: ${provider}` };
+      }
+
+      // プロバイダ別のAPIキー形式バリデーション
+      const validation = validateApiKeyFormat(apiKey, provider);
+      if (!validation.valid) {
+        set.status = 400;
+        return { error: validation.error };
+      }
+
+      const column = PROVIDER_COLUMNS[provider];
+      const encrypted = encrypt(apiKey.trim());
+
+      // upsertで安全に保存（他プロバイダのキーを上書きしない）
+      const existing = await prisma.userSettings.findFirst();
+      if (existing) {
+        await prisma.userSettings.update({
+          where: { id: existing.id },
+          data: { [column]: encrypted },
+        });
+      } else {
+        await prisma.userSettings.create({
+          data: { [column]: encrypted },
+        });
+      }
+
+      return {
+        maskedKey: maskApiKey(apiKey.trim()),
+        provider,
+      };
+    },
+    {
+      body: t.Object({
+        apiKey: t.String({ minLength: 1 }),
+        provider: t.Optional(t.String()),
+      }),
+    }
+  )
+
+  // Validate API key format for a specific provider
+  .post(
+    "/api-key/validate",
+    async (context: any) => {
+      const { body, set  } = context;
+      const { apiKey, provider = "claude"  } = body as any;
+
+      if (!isValidProvider(provider)) {
+        set.status = 400;
+        return { valid: false, error: `無効なプロバイダです: ${provider}` };
+      }
+
+      const validation = validateApiKeyFormat(apiKey, provider);
+      return validation;
+    },
+    {
+      body: t.Object({
+        apiKey: t.String(),
+        provider: t.Optional(t.String()),
+      }),
+    }
+  )
+
+  // Delete API key for a specific provider
+  .delete("/api-key", async (context: any) => {
+      const { query  } = context;
+    const provider = (query.provider as string) || "claude";
+
+    if (!isValidProvider(provider)) {
+      throw new Error(`Invalid provider: ${provider}`);
+    }
+
+    const column = PROVIDER_COLUMNS[provider];
+    const settings = await prisma.userSettings.findFirst();
+
+    if (settings) {
+      await prisma.userSettings.update({
+        where: { id: settings.id },
+        data: { [column]: null },
+      });
+    }
+
+    return { success: true, provider };
+  })
+
+  // Get available models for all providers
+  .get("/models", async () => {
+    return await fetchAvailableModels();
+  })
+
+  // Get default model for a specific provider
+  .get("/model", async (context: any) => {
+      const { query  } = context;
+    const provider = (query.provider as string) || "claude";
+
+    if (!isValidProvider(provider)) {
+      return { provider, model: null };
+    }
+
+    const settings = await prisma.userSettings.findFirst();
+    if (!settings) {
+      return { provider, model: null };
+    }
+
+    const column = PROVIDER_MODEL_COLUMNS[provider];
+    return { provider, model: settings[column] };
+  })
+
+  // Save default model for a specific provider
+  .post(
+    "/model",
+    async (context: any) => {
+      const { body, set  } = context;
+      const { model, provider = "claude"  } = body as any;
 
       if (!isValidProvider(provider)) {
         set.status = 400;

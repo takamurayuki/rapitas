@@ -2,7 +2,7 @@
  * SSE (Server-Sent Events) API Routes
  * Real-time event streaming endpoints
  */
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import { realtimeService } from "../services/realtime-service";
 
 export const sseRoutes = new Elysia({ prefix: "/events" })
@@ -75,8 +75,8 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
       query: { lastEventId?: string };
       set: { headers: Record<string, string> };
     }) => {
-      const { channel } = params as any;
-      const { lastEventId } = query as any;
+      const { channel  } = params as any;
+      const { lastEventId  } = query as any;
 
       set.headers = {
         "Content-Type": "text/event-stream",

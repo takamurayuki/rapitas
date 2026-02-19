@@ -2,7 +2,7 @@
  * AI Chat API Routes
  * マルチプロバイダー対応（Claude / ChatGPT / Gemini）
  */
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import {
   sendAIMessage,
   sendAIMessageStream,
@@ -15,8 +15,21 @@ export const aiChatRoutes = new Elysia()
   // AIチャット（非ストリーミング）
   .post(
     "/ai/chat",
-    async ({  body, set  }: any) => {
-      const { message, conversationHistory = [], systemPrompt, provider, model } = body as any;
+    async ({ 
+
+      body,
+      set,
+    }: {
+      body: {
+        message: string;
+        conversationHistory?: Array<{ role: string; content: string }>;
+        systemPrompt?: string;
+        provider?: string;
+        model?: string;
+      };
+      set: { status: number };
+    }) => {
+      const { message, conversationHistory = [], systemPrompt, provider, model  } = body as any;
 
       if (!message || message.trim() === "") {
         set.status = 400;
@@ -59,8 +72,22 @@ export const aiChatRoutes = new Elysia()
 
   // AIチャット（ストリーミング）
   .post(
-    "/ai/chat/stream", async ({  body, set  }: any) => {
-      const { message, conversationHistory = [], systemPrompt, provider, model } = body as any;
+    "/ai/chat/stream",
+    async ({ 
+
+      body,
+      set,
+    }: {
+      body: {
+        message: string;
+        conversationHistory?: Array<{ role: string; content: string }>;
+        systemPrompt?: string;
+        provider?: string;
+        model?: string;
+      };
+      set: { headers: Record<string, string>; status: number };
+    }) => {
+      const { message, conversationHistory = [], systemPrompt, provider, model  } = body as any;
 
       if (!message || message.trim() === "") {
         set.status = 400;

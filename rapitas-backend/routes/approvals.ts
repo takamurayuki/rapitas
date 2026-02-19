@@ -2,7 +2,7 @@
  * Approvals API Routes
  * Task execution approval, code review, and subtask creation workflows
  */
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
 import { createOrchestrator } from "../services/agents/agent-orchestrator";
 import { GitHubService } from "../services/github-service";
@@ -146,8 +146,9 @@ function parseApprovalJsonFields(approval: ApprovalWithChanges | null) {
 
 export const approvalsRoutes = new Elysia({ prefix: "/approvals" })
   // Get approval list
-  .get("/", async ({  query  }: any) => {
-    const { status } = query as any;
+  .get("/", async (context: any) => {
+      const { query  } = context;
+    const { status  } = query as any;
     const approvals = await prisma.approvalRequest.findMany({
       where: status ? { status } : { status: "pending" },
       include: {
@@ -172,8 +173,9 @@ export const approvalsRoutes = new Elysia({ prefix: "/approvals" })
   })
 
   // Get approval details
-  .get("/:id", async ({  params  }: any) => {
-    const { id } = params as any;
+  .get("/:id", async (context: any) => {
+      const { params  } = context;
+    const { id  } = params as any;
     const approval = await prisma.approvalRequest.findUnique({
       where: { id: parseInt(id) },
       include: {
@@ -198,10 +200,18 @@ export const approvalsRoutes = new Elysia({ prefix: "/approvals" })
 
   // Approve request
   .post(
-    "/:id/approve", async ({  params, body  }: any) => {
-      const { id } = params as any;
+    "/:id/approve",
+    async ({ 
+
+      params,
+      body,
+    }: {
+      params: { id: string };
+      body: { selectedSubtasks?: number[] };
+    }) => {
+      const { id  } = params as any;
       const approvalId = parseInt(id);
-      const { selectedSubtasks } = body as any;
+      const { selectedSubtasks  } = body as any;
 
       const approval = await prisma.approvalRequest.findUnique({
         where: { id: approvalId },
@@ -502,9 +512,17 @@ Task ID: ${task.id}
 
   // Reject request
   .post(
-    "/:id/reject", async ({  params, body  }: any) => {
-      const { id } = params as any;
-      const { reason } = body as any;
+    "/:id/reject",
+    async ({ 
+
+      params,
+      body,
+    }: {
+      params: { id: string };
+      body: { reason?: string };
+    }) => {
+      const { id  } = params as any;
+      const { reason  } = body as any;
 
       const approval = await prisma.approvalRequest.findUnique({
         where: { id: parseInt(id) },
@@ -559,9 +577,17 @@ Task ID: ${task.id}
 
   // Approve code review (commit + create PR)
   .post(
-    "/:id/approve-code-review", async ({  params, body  }: any) => {
-      const { id } = params as any;
-      const { commitMessage, baseBranch = "main" } = body as any;
+    "/:id/approve-code-review",
+    async ({ 
+
+      params,
+      body,
+    }: {
+      params: { id: string };
+      body: { commitMessage: string; baseBranch?: string };
+    }) => {
+      const { id  } = params as any;
+      const { commitMessage, baseBranch = "main"  } = body as any;
 
       const approval = await prisma.approvalRequest.findUnique({
         where: { id: parseInt(id) },
@@ -654,9 +680,17 @@ Task ID: ${task.id}
 
   // Reject code review (discard changes)
   .post(
-    "/:id/reject-code-review", async ({  params, body  }: any) => {
-      const { id } = params as any;
-      const { reason } = body as any;
+    "/:id/reject-code-review",
+    async ({ 
+
+      params,
+      body,
+    }: {
+      params: { id: string };
+      body: { reason?: string };
+    }) => {
+      const { id  } = params as any;
+      const { reason  } = body as any;
 
       const approval = await prisma.approvalRequest.findUnique({
         where: { id: parseInt(id) },
@@ -718,9 +752,20 @@ Task ID: ${task.id}
 
   // Request changes (send feedback and re-execute)
   .post(
-    "/:id/request-changes", async ({  params, body  }: any) => {
-      const { id } = params as any;
-      const { feedback, comments } = body as any;
+    "/:id/request-changes",
+    async ({ 
+
+      params,
+      body,
+    }: {
+      params: { id: string };
+      body: {
+        feedback: string;
+        comments: { file?: string; content: string; type: string }[];
+      };
+    }) => {
+      const { id  } = params as any;
+      const { feedback, comments  } = body as any;
 
       const approval = await prisma.approvalRequest.findUnique({
         where: { id: parseInt(id) },
@@ -933,8 +978,9 @@ ${previousImplementation}
   )
 
   // Get diff
-  .get("/:id/diff", async ({  params  }: any) => {
-    const { id } = params as any;
+  .get("/:id/diff", async (context: any) => {
+      const { params  } = context;
+    const { id  } = params as any;
 
     const approval = await prisma.approvalRequest.findUnique({
       where: { id: parseInt(id) },
@@ -971,8 +1017,9 @@ ${previousImplementation}
   })
 
   // Bulk approve
-  .post("/bulk-approve", async ({  body  }: any) => {
-    const { ids } = body as any;
+  .post("/bulk-approve", async (context: any) => {
+      const { body  } = context;
+    const { ids  } = body as any;
 
     const results = [];
     for (const id of ids) {

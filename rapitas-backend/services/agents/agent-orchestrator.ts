@@ -27,7 +27,7 @@ const execAsync = promisify(exec);
 // JSONフィールドを文字列に変換するヘルパー関数
 function toJsonString(value: unknown): string | null {
   if (value === null || value === undefined) return null;
-  if (typeof value === 'string') return value;
+  if (typeof value === "string") return value;
   return JSON.stringify(value);
 }
 
@@ -43,6 +43,7 @@ export type ExecutionOptions = {
   analysisInfo?: TaskAnalysisInfo;
   /** 前回の実行からの継続であることを示すフラグ */
   continueFromPrevious?: boolean;
+  branchName?: string;
 };
 
 export type ExecutionState = {
@@ -143,7 +144,9 @@ export class AgentOrchestrator {
    */
   private setupSignalHandlers(): void {
     const handleShutdown = async (signal: string) => {
-      console.log(`[Orchestrator] Received ${signal}, initiating graceful shutdown...`);
+      console.log(
+        `[Orchestrator] Received ${signal}, initiating graceful shutdown...`,
+      );
       await this.gracefulShutdown();
     };
 
@@ -164,7 +167,9 @@ export class AgentOrchestrator {
       await this.saveAllAgentStates();
     });
 
-    console.log("[Orchestrator] Signal handlers registered for graceful shutdown");
+    console.log(
+      "[Orchestrator] Signal handlers registered for graceful shutdown",
+    );
   }
 
   /**
@@ -172,14 +177,18 @@ export class AgentOrchestrator {
    * 全てのアクティブなエージェントを停止し、状態を保存
    * @param options.skipServerStop - trueの場合、サーバーのリスニングソケット停止をスキップ（シャットダウンAPIから呼ばれた場合用）
    */
-  async gracefulShutdown(options?: { skipServerStop?: boolean }): Promise<void> {
+  async gracefulShutdown(options?: {
+    skipServerStop?: boolean;
+  }): Promise<void> {
     if (this.isShuttingDown) {
       console.log("[Orchestrator] Shutdown already in progress, waiting...");
       return this.shutdownPromise || Promise.resolve();
     }
 
     this.isShuttingDown = true;
-    console.log(`[Orchestrator] Starting graceful shutdown with ${this.activeAgents.size} active agents`);
+    console.log(
+      `[Orchestrator] Starting graceful shutdown with ${this.activeAgents.size} active agents`,
+    );
 
     this.shutdownPromise = (async () => {
       const shutdownTimeout = 30000; // 30秒のタイムアウト
@@ -189,7 +198,9 @@ export class AgentOrchestrator {
         // 全ての質問タイムアウトをキャンセル
         for (const [executionId, timeoutInfo] of this.questionTimeouts) {
           clearTimeout(timeoutInfo.timeoutTimer);
-          console.log(`[Orchestrator] Cancelled question timeout for execution ${executionId}`);
+          console.log(
+            `[Orchestrator] Cancelled question timeout for execution ${executionId}`,
+          );
         }
         this.questionTimeouts.clear();
 
@@ -200,29 +211,39 @@ export class AgentOrchestrator {
         const stopPromises = Array.from(this.activeAgents.entries()).map(
           async ([executionId, info]) => {
             try {
-              console.log(`[Orchestrator] Stopping agent for execution ${executionId}...`);
+              console.log(
+                `[Orchestrator] Stopping agent for execution ${executionId}...`,
+              );
 
               // エージェントを停止
               await Promise.race([
                 info.agent.stop(),
                 new Promise((_, reject) =>
-                  setTimeout(() => reject(new Error("Stop timeout")), 10000)
+                  setTimeout(() => reject(new Error("Stop timeout")), 10000),
                 ),
               ]);
 
               // 最終状態をDBに保存
               await this.saveAgentState(executionId, info, "interrupted");
-              console.log(`[Orchestrator] Agent for execution ${executionId} stopped and state saved`);
+              console.log(
+                `[Orchestrator] Agent for execution ${executionId} stopped and state saved`,
+              );
             } catch (error) {
-              console.error(`[Orchestrator] Error stopping agent ${executionId}:`, error);
+              console.error(
+                `[Orchestrator] Error stopping agent ${executionId}:`,
+                error,
+              );
               // エラーでも状態保存を試みる
               try {
                 await this.saveAgentState(executionId, info, "interrupted");
               } catch (saveError) {
-                console.error(`[Orchestrator] Failed to save state for ${executionId}:`, saveError);
+                console.error(
+                  `[Orchestrator] Failed to save state for ${executionId}:`,
+                  saveError,
+                );
               }
             }
-          }
+          },
         );
 
         // タイムアウト付きで全エージェントの停止を待機
@@ -231,8 +252,8 @@ export class AgentOrchestrator {
           new Promise((_, reject) =>
             setTimeout(
               () => reject(new Error("Shutdown timeout")),
-              shutdownTimeout - (Date.now() - startTime)
-            )
+              shutdownTimeout - (Date.now() - startTime),
+            ),
           ),
         ]);
 
@@ -252,7 +273,10 @@ export class AgentOrchestrator {
             await this.serverStopCallback();
             console.log("[Orchestrator] Server listener stopped");
           } catch (error) {
-            console.error("[Orchestrator] Failed to stop server listener:", error);
+            console.error(
+              "[Orchestrator] Failed to stop server listener:",
+              error,
+            );
           }
         }
       }
@@ -268,11 +292,12 @@ export class AgentOrchestrator {
   private async saveAgentState(
     executionId: number,
     info: ActiveAgentInfo,
-    status: "interrupted" | "failed"
+    status: "interrupted" | "failed",
   ): Promise<void> {
-    const errorMessage = status === "interrupted"
-      ? `プロセスが中断されました。\n\n【最後の出力】\n${info.lastOutput.slice(-1000)}`
-      : `プロセスが異常終了しました。\n\n【最後の出力】\n${info.lastOutput.slice(-1000)}`;
+    const errorMessage =
+      status === "interrupted"
+        ? `プロセスが中断されました。\n\n【最後の出力】\n${info.lastOutput.slice(-1000)}`
+        : `プロセスが異常終了しました。\n\n【最後の出力】\n${info.lastOutput.slice(-1000)}`;
 
     await this.prisma.agentExecution.update({
       where: { id: executionId },
@@ -294,7 +319,10 @@ export class AgentOrchestrator {
         },
       });
     } catch (error) {
-      console.error(`[Orchestrator] Failed to update session ${info.sessionId}:`, error);
+      console.error(
+        `[Orchestrator] Failed to update session ${info.sessionId}:`,
+        error,
+      );
     }
 
     // タスクのステータスを todo に戻す
@@ -308,10 +336,15 @@ export class AgentOrchestrator {
           where: { id: info.taskId },
           data: { status: "todo" },
         });
-        console.log(`[Orchestrator] Task ${info.taskId} reverted to 'todo' during shutdown`);
+        console.log(
+          `[Orchestrator] Task ${info.taskId} reverted to 'todo' during shutdown`,
+        );
       }
     } catch (error) {
-      console.error(`[Orchestrator] Failed to update task ${info.taskId}:`, error);
+      console.error(
+        `[Orchestrator] Failed to update task ${info.taskId}:`,
+        error,
+      );
     }
   }
 
@@ -319,13 +352,18 @@ export class AgentOrchestrator {
    * 全てのアクティブなエージェントの状態を保存
    */
   private async saveAllAgentStates(): Promise<void> {
-    console.log(`[Orchestrator] Saving state for ${this.activeAgents.size} active agents...`);
+    console.log(
+      `[Orchestrator] Saving state for ${this.activeAgents.size} active agents...`,
+    );
 
     for (const [executionId, info] of this.activeAgents) {
       try {
         await this.saveAgentState(executionId, info, "interrupted");
       } catch (error) {
-        console.error(`[Orchestrator] Failed to save state for execution ${executionId}:`, error);
+        console.error(
+          `[Orchestrator] Failed to save state for execution ${executionId}:`,
+          error,
+        );
       }
     }
   }
@@ -333,15 +371,16 @@ export class AgentOrchestrator {
   /**
    * 中断されたセッションを取得
    */
-  async getInterruptedExecutions(): Promise<Array<{
-    id: number;
-    sessionId: number;
-    taskId: number;
-    status: string;
-    claudeSessionId: string | null;
-    output: string;
-    createdAt: Date;
-  }>> {
+  async getInterruptedExecutions(): Promise<
+    Array<{
+      id: number;
+      sessionId: number;
+      status: string;
+      claudeSessionId: string | null;
+      output: string;
+      createdAt: Date;
+    }>
+  > {
     return await this.prisma.agentExecution.findMany({
       where: {
         status: "interrupted",
@@ -362,7 +401,9 @@ export class AgentOrchestrator {
     updatedSessions: number;
     interruptedExecutionIds: number[];
   }> {
-    console.log("[Orchestrator] Starting startup recovery of stale executions...");
+    console.log(
+      "[Orchestrator] Starting startup recovery of stale executions...",
+    );
 
     let recoveredExecutions = 0;
     let updatedTasks = 0;
@@ -371,7 +412,9 @@ export class AgentOrchestrator {
 
     try {
       // メモリ上でアクティブな実行IDを取得（起動直後は空のはず）
-      const activeExecutionIds = this.getActiveExecutions().map((e) => e.executionId);
+      const activeExecutionIds = this.getActiveExecutions().map(
+        (e) => e.executionId,
+      );
 
       // running/pending/waiting_for_input のままDB上に残っている実行を検索
       // サーバー起動以前に作成された実行のみを対象にする（起動後の新規実行を誤検出しない）
@@ -397,11 +440,20 @@ export class AgentOrchestrator {
       });
 
       if (staleExecutions.length === 0) {
-        console.log("[Orchestrator] No stale executions found. Recovery complete.");
-        return { recoveredExecutions: 0, updatedTasks: 0, updatedSessions: 0, interruptedExecutionIds: [] };
+        console.log(
+          "[Orchestrator] No stale executions found. Recovery complete.",
+        );
+        return {
+          recoveredExecutions: 0,
+          updatedTasks: 0,
+          updatedSessions: 0,
+          interruptedExecutionIds: [],
+        };
       }
 
-      console.log(`[Orchestrator] Found ${staleExecutions.length} stale executions to recover`);
+      console.log(
+        `[Orchestrator] Found ${staleExecutions.length} stale executions to recover`,
+      );
 
       // 影響を受けるセッションIDとタスクIDを追跡
       const affectedSessionIds = new Set<number>();
@@ -428,9 +480,14 @@ export class AgentOrchestrator {
             affectedTaskIds.add(taskId);
           }
 
-          console.log(`[Orchestrator] Execution ${exec.id} marked as interrupted`);
+          console.log(
+            `[Orchestrator] Execution ${exec.id} marked as interrupted`,
+          );
         } catch (error) {
-          console.error(`[Orchestrator] Failed to recover execution ${exec.id}:`, error);
+          console.error(
+            `[Orchestrator] Failed to recover execution ${exec.id}:`,
+            error,
+          );
         }
       }
 
@@ -454,10 +511,15 @@ export class AgentOrchestrator {
               },
             });
             updatedSessions++;
-            console.log(`[Orchestrator] Session ${sessionId} marked as interrupted`);
+            console.log(
+              `[Orchestrator] Session ${sessionId} marked as interrupted`,
+            );
           }
         } catch (error) {
-          console.error(`[Orchestrator] Failed to update session ${sessionId}:`, error);
+          console.error(
+            `[Orchestrator] Failed to update session ${sessionId}:`,
+            error,
+          );
         }
       }
 
@@ -479,7 +541,10 @@ export class AgentOrchestrator {
             console.log(`[Orchestrator] Task ${taskId} reverted to 'todo'`);
           }
         } catch (error) {
-          console.error(`[Orchestrator] Failed to update task ${taskId}:`, error);
+          console.error(
+            `[Orchestrator] Failed to update task ${taskId}:`,
+            error,
+          );
         }
       }
 
@@ -500,18 +565,26 @@ export class AgentOrchestrator {
             },
           });
         } catch (error) {
-          console.error("[Orchestrator] Failed to create recovery notification:", error);
+          console.error(
+            "[Orchestrator] Failed to create recovery notification:",
+            error,
+          );
         }
       }
 
       console.log(
-        `[Orchestrator] Recovery complete: ${recoveredExecutions} executions, ${updatedTasks} tasks, ${updatedSessions} sessions updated`
+        `[Orchestrator] Recovery complete: ${recoveredExecutions} executions, ${updatedTasks} tasks, ${updatedSessions} sessions updated`,
       );
     } catch (error) {
       console.error("[Orchestrator] Startup recovery failed:", error);
     }
 
-    return { recoveredExecutions, updatedTasks, updatedSessions, interruptedExecutionIds };
+    return {
+      recoveredExecutions,
+      updatedTasks,
+      updatedSessions,
+      interruptedExecutionIds,
+    };
   }
 
   /**
@@ -589,7 +662,14 @@ export class AgentOrchestrator {
    * DB設定からAgentConfigInputを構築するヘルパー
    */
   private buildAgentConfigFromDb(
-    dbConfig: { id: number; agentType: string; name: string; apiKeyEncrypted: string | null; endpoint: string | null; modelId: string | null },
+    dbConfig: {
+      id: number;
+      agentType: string;
+      name: string;
+      apiKeyEncrypted: string | null;
+      endpoint: string | null;
+      modelId: string | null;
+    },
     options: { workingDirectory?: string; timeout?: number },
   ): AgentConfigInput {
     let decryptedApiKey: string | undefined;
@@ -597,7 +677,10 @@ export class AgentOrchestrator {
       try {
         decryptedApiKey = decrypt(dbConfig.apiKeyEncrypted);
       } catch (e) {
-        console.error(`[Orchestrator] Failed to decrypt API key for agent ${dbConfig.id}:`, e);
+        console.error(
+          `[Orchestrator] Failed to decrypt API key for agent ${dbConfig.id}:`,
+          e,
+        );
       }
     }
 
@@ -638,18 +721,23 @@ export class AgentOrchestrator {
   startQuestionTimeout(
     executionId: number,
     taskId: number,
-    questionKey?: QuestionKey
+    questionKey?: QuestionKey,
   ): void {
     // 既存のタイムアウトがあればキャンセル
     this.cancelQuestionTimeout(executionId);
 
-    const timeoutSeconds = questionKey?.timeout_seconds || DEFAULT_QUESTION_TIMEOUT_SECONDS;
+    const timeoutSeconds =
+      questionKey?.timeout_seconds || DEFAULT_QUESTION_TIMEOUT_SECONDS;
     const timeoutMs = timeoutSeconds * 1000;
 
-    console.log(`[Orchestrator] Starting question timeout for execution ${executionId}: ${timeoutSeconds}s`);
+    console.log(
+      `[Orchestrator] Starting question timeout for execution ${executionId}: ${timeoutSeconds}s`,
+    );
 
     const timeoutTimer = setTimeout(async () => {
-      console.log(`[Orchestrator] Question timeout triggered for execution ${executionId}`);
+      console.log(
+        `[Orchestrator] Question timeout triggered for execution ${executionId}`,
+      );
       await this.handleQuestionTimeout(executionId, taskId);
     }, timeoutMs);
 
@@ -685,7 +773,9 @@ export class AgentOrchestrator {
     if (timeoutInfo) {
       clearTimeout(timeoutInfo.timeoutTimer);
       this.questionTimeouts.delete(executionId);
-      console.log(`[Orchestrator] Question timeout cancelled for execution ${executionId}`);
+      console.log(
+        `[Orchestrator] Question timeout cancelled for execution ${executionId}`,
+      );
     }
   }
 
@@ -693,10 +783,15 @@ export class AgentOrchestrator {
    * 継続実行のロックを取得
    * @returns ロック取得に成功した場合はtrue、既にロックされている場合はfalse
    */
-  tryAcquireContinuationLock(executionId: number, source: "user_response" | "auto_timeout"): boolean {
+  tryAcquireContinuationLock(
+    executionId: number,
+    source: "user_response" | "auto_timeout",
+  ): boolean {
     const existingLock = this.continuationLocks.get(executionId);
     if (existingLock) {
-      console.log(`[Orchestrator] Continuation lock already held for execution ${executionId} by ${existingLock.source}`);
+      console.log(
+        `[Orchestrator] Continuation lock already held for execution ${executionId} by ${existingLock.source}`,
+      );
       return false;
     }
 
@@ -705,7 +800,9 @@ export class AgentOrchestrator {
       lockedAt: new Date(),
       source,
     });
-    console.log(`[Orchestrator] Continuation lock acquired for execution ${executionId} by ${source}`);
+    console.log(
+      `[Orchestrator] Continuation lock acquired for execution ${executionId} by ${source}`,
+    );
     return true;
   }
 
@@ -716,7 +813,9 @@ export class AgentOrchestrator {
     const lock = this.continuationLocks.get(executionId);
     if (lock) {
       this.continuationLocks.delete(executionId);
-      console.log(`[Orchestrator] Continuation lock released for execution ${executionId}`);
+      console.log(
+        `[Orchestrator] Continuation lock released for execution ${executionId}`,
+      );
     }
   }
 
@@ -731,7 +830,10 @@ export class AgentOrchestrator {
    * 質問タイムアウト発生時の処理
    * エージェントに自動的に継続を指示
    */
-  private async handleQuestionTimeout(executionId: number, taskId: number): Promise<void> {
+  private async handleQuestionTimeout(
+    executionId: number,
+    taskId: number,
+  ): Promise<void> {
     try {
       // タイムアウト情報を取得して削除
       const timeoutInfo = this.questionTimeouts.get(executionId);
@@ -739,7 +841,9 @@ export class AgentOrchestrator {
 
       // ロックを取得（既に処理中なら早期リターン）
       if (!this.tryAcquireContinuationLock(executionId, "auto_timeout")) {
-        console.log(`[Orchestrator] Skipping timeout handling for execution ${executionId} - already being processed`);
+        console.log(
+          `[Orchestrator] Skipping timeout handling for execution ${executionId} - already being processed`,
+        );
         return;
       }
 
@@ -753,13 +857,17 @@ export class AgentOrchestrator {
         });
 
         if (!execution) {
-          console.log(`[Orchestrator] Execution ${executionId} not found for timeout handling`);
+          console.log(
+            `[Orchestrator] Execution ${executionId} not found for timeout handling`,
+          );
           return;
         }
 
         // まだ waiting_for_input 状態かどうか確認
         if (execution.status !== "waiting_for_input") {
-          console.log(`[Orchestrator] Execution ${executionId} is no longer waiting for input (status: ${execution.status})`);
+          console.log(
+            `[Orchestrator] Execution ${executionId} is no longer waiting for input (status: ${execution.status})`,
+          );
           return;
         }
 
@@ -769,13 +877,15 @@ export class AgentOrchestrator {
           data: { status: "running" },
         });
 
-        console.log(`[Orchestrator] Auto-continuing execution ${executionId} after timeout`);
+        console.log(
+          `[Orchestrator] Auto-continuing execution ${executionId} after timeout`,
+        );
 
         // 質問のタイプに応じてデフォルト回答を生成
         const defaultResponse = this.generateDefaultResponse(
           timeoutInfo?.questionKey,
           execution.question,
-          execution.questionDetails
+          execution.questionDetails,
         );
 
         // タイムアウトイベントを発火（フロントエンドに通知）
@@ -793,9 +903,13 @@ export class AgentOrchestrator {
         });
 
         // 自動継続を実行（内部でロックは解放される）
-        const result = await this.executeContinuationInternal(executionId, defaultResponse, {
-          timeout: 900000,
-        });
+        const result = await this.executeContinuationInternal(
+          executionId,
+          defaultResponse,
+          {
+            timeout: 900000,
+          },
+        );
 
         // 結果に応じてタスクとセッションのステータスを更新
         if (result.success && !result.waitingForInput) {
@@ -808,7 +922,9 @@ export class AgentOrchestrator {
                 completedAt: new Date(),
               },
             });
-            console.log(`[Orchestrator] Task ${taskId} updated to 'done' after timeout auto-continue`);
+            console.log(
+              `[Orchestrator] Task ${taskId} updated to 'done' after timeout auto-continue`,
+            );
 
             // セッションのステータスも完了に更新
             await this.prisma.agentSession.update({
@@ -819,7 +935,10 @@ export class AgentOrchestrator {
               },
             });
           } catch (updateError) {
-            console.error(`[Orchestrator] Failed to update task/session status after timeout:`, updateError);
+            console.error(
+              `[Orchestrator] Failed to update task/session status after timeout:`,
+              updateError,
+            );
           }
         } else if (!result.success && !result.waitingForInput) {
           // 失敗時はタスクステータスを todo に戻す
@@ -834,26 +953,36 @@ export class AgentOrchestrator {
               data: {
                 status: "failed",
                 completedAt: new Date(),
-                errorMessage: result.errorMessage || "Execution failed after timeout auto-continue",
+                errorMessage:
+                  result.errorMessage ||
+                  "Execution failed after timeout auto-continue",
               },
             });
           } catch (updateError) {
-            console.error(`[Orchestrator] Failed to update task/session status after timeout failure:`, updateError);
+            console.error(
+              `[Orchestrator] Failed to update task/session status after timeout failure:`,
+              updateError,
+            );
           }
         }
       } catch (error) {
         // エラー時はステータスを元に戻す
-        await this.prisma.agentExecution.update({
-          where: { id: executionId },
-          data: { status: "waiting_for_input" },
-        }).catch(() => {});
+        await this.prisma.agentExecution
+          .update({
+            where: { id: executionId },
+            data: { status: "waiting_for_input" },
+          })
+          .catch(() => {});
         throw error;
       } finally {
         // ロックを解放
         this.releaseContinuationLock(executionId);
       }
     } catch (error) {
-      console.error(`[Orchestrator] Error handling question timeout for execution ${executionId}:`, error);
+      console.error(
+        `[Orchestrator] Error handling question timeout for execution ${executionId}:`,
+        error,
+      );
     }
   }
 
@@ -863,18 +992,26 @@ export class AgentOrchestrator {
   private generateDefaultResponse(
     questionKey?: QuestionKey,
     questionText?: string,
-    questionDetails?: string | null
+    questionDetails?: string | null,
   ): string {
     // 質問詳細からオプションがある場合は最初の選択肢を使用
     if (questionDetails) {
-      let details: { options?: Array<{ label: string; description?: string }> } | null = null;
+      let details: {
+        options?: Array<{ label: string; description?: string }>;
+      } | null = null;
       try {
-        details = JSON.parse(questionDetails) as { options?: Array<{ label: string; description?: string }> };
+        details = JSON.parse(questionDetails) as {
+          options?: Array<{ label: string; description?: string }>;
+        };
       } catch {
         details = null;
       }
 
-      if (details?.options && Array.isArray(details.options) && details.options.length > 0) {
+      if (
+        details?.options &&
+        Array.isArray(details.options) &&
+        details.options.length > 0
+      ) {
         // 最初の選択肢（通常は推奨オプション）を選択
         const firstOption = details.options[0];
         return firstOption.label || "1";
@@ -902,7 +1039,11 @@ export class AgentOrchestrator {
       const text = questionText.toLowerCase();
 
       // Yes/No系の質問
-      if (text.includes("y/n") || text.includes("[y/n]") || text.includes("(yes/no)")) {
+      if (
+        text.includes("y/n") ||
+        text.includes("[y/n]") ||
+        text.includes("(yes/no)")
+      ) {
         return "y";
       }
 
@@ -934,9 +1075,16 @@ export class AgentOrchestrator {
       return null;
     }
 
-    const timeoutSeconds = timeoutInfo.questionKey?.timeout_seconds || DEFAULT_QUESTION_TIMEOUT_SECONDS;
-    const deadline = new Date(timeoutInfo.questionStartedAt.getTime() + timeoutSeconds * 1000);
-    const remainingSeconds = Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / 1000));
+    const timeoutSeconds =
+      timeoutInfo.questionKey?.timeout_seconds ||
+      DEFAULT_QUESTION_TIMEOUT_SECONDS;
+    const deadline = new Date(
+      timeoutInfo.questionStartedAt.getTime() + timeoutSeconds * 1000,
+    );
+    const remainingSeconds = Math.max(
+      0,
+      Math.ceil((deadline.getTime() - Date.now()) / 1000),
+    );
 
     return {
       remainingSeconds,
@@ -980,9 +1128,13 @@ export class AgentOrchestrator {
       if (defaultDbConfig) {
         agentConfig = this.buildAgentConfigFromDb(defaultDbConfig, options);
         resolvedAgentConfigId = defaultDbConfig.id;
-        console.log(`[Orchestrator] Using default agent from DB: ${defaultDbConfig.name} (type: ${defaultDbConfig.agentType})`);
+        console.log(
+          `[Orchestrator] Using default agent from DB: ${defaultDbConfig.name} (type: ${defaultDbConfig.agentType})`,
+        );
       } else {
-        console.log(`[Orchestrator] No default agent in DB, falling back to Claude Code`);
+        console.log(
+          `[Orchestrator] No default agent in DB, falling back to Claude Code`,
+        );
       }
     }
 
@@ -1046,7 +1198,9 @@ export class AgentOrchestrator {
     if (this.isShuttingDown) {
       this.activeAgents.delete(execution.id);
       this.activeExecutions.delete(execution.id);
-      fileLogger.logError("Server is shutting down, cannot start new execution");
+      fileLogger.logError(
+        "Server is shutting down, cannot start new execution",
+      );
       await fileLogger.flush();
       throw new Error("Server is shutting down, cannot start new execution");
     }
@@ -1054,10 +1208,18 @@ export class AgentOrchestrator {
     // 質問検出ハンドラを設定（質問が検出されたら即座にDBを更新）
     agent.setQuestionDetectedHandler(async (info) => {
       console.log(`[Orchestrator] Question detected during streaming!`);
-      console.log(`[Orchestrator] Question: ${info.question.substring(0, 100)}`);
+      console.log(
+        `[Orchestrator] Question: ${info.question.substring(0, 100)}`,
+      );
       console.log(`[Orchestrator] Question type: ${info.questionType}`);
-      console.log(`[Orchestrator] Claude Session ID: ${info.claudeSessionId || "(なし)"}`);
-      fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
+      console.log(
+        `[Orchestrator] Claude Session ID: ${info.claudeSessionId || "(なし)"}`,
+      );
+      fileLogger.logQuestionDetected(
+        info.question,
+        info.questionType,
+        info.claudeSessionId,
+      );
 
       try {
         // 即座にDBステータスを waiting_for_input に更新（セッションIDも保存）
@@ -1071,13 +1233,19 @@ export class AgentOrchestrator {
             claudeSessionId: info.claudeSessionId || null,
           },
         });
-        console.log(`[Orchestrator] DB updated to waiting_for_input for execution ${execution.id}`);
+        console.log(
+          `[Orchestrator] DB updated to waiting_for_input for execution ${execution.id}`,
+        );
 
         // 状態も更新
         state.status = "waiting_for_input";
 
         // 質問タイムアウトを開始
-        this.startQuestionTimeout(execution.id, options.taskId, info.questionKey);
+        this.startQuestionTimeout(
+          execution.id,
+          options.taskId,
+          info.questionKey,
+        );
 
         // タイムアウト情報を取得
         const timeoutInfo = this.getQuestionTimeoutInfo(execution.id);
@@ -1096,13 +1264,17 @@ export class AgentOrchestrator {
             questionDetails: info.questionDetails,
             questionKey: info.questionKey,
             // タイムアウト情報を追加
-            questionTimeoutSeconds: timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
+            questionTimeoutSeconds:
+              timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
             questionTimeoutDeadline: timeoutInfo?.deadline?.toISOString(),
           },
           timestamp: new Date(),
         });
       } catch (error) {
-        console.error(`[Orchestrator] Failed to update DB on question detection:`, error);
+        console.error(
+          `[Orchestrator] Failed to update DB on question detection:`,
+          error,
+        );
       }
     });
 
@@ -1111,7 +1283,11 @@ export class AgentOrchestrator {
     const DB_UPDATE_INTERVAL = 200; // 0.2秒ごとにDBを更新（リアルタイム表示のため）
     let pendingDbUpdate = false;
     let logSequenceNumber = 0; // ログのシーケンス番号
-    let pendingLogChunks: { chunk: string; isError: boolean; timestamp: Date }[] = [];
+    let pendingLogChunks: {
+      chunk: string;
+      isError: boolean;
+      timestamp: Date;
+    }[] = [];
     let pendingLogSave = false;
     const LOG_BATCH_INTERVAL = 500; // 0.5秒ごとにログを一括保存
 
@@ -1261,10 +1437,15 @@ export class AgentOrchestrator {
 
         if (previousExecution?.output) {
           previousOutput = previousExecution.output;
-          console.log(`[Orchestrator] Previous execution output loaded for continuation (${previousOutput.length} chars)`);
+          console.log(
+            `[Orchestrator] Previous execution output loaded for continuation (${previousOutput.length} chars)`,
+          );
         }
       } catch (error) {
-        console.error("[Orchestrator] Failed to load previous execution output:", error);
+        console.error(
+          "[Orchestrator] Failed to load previous execution output:",
+          error,
+        );
       }
     }
 
@@ -1274,9 +1455,10 @@ export class AgentOrchestrator {
       : `${agentConfig.name} (${agentConfig.type})`;
 
     // 継続実行の場合は前回のログから継続、新規実行の場合は新しいメッセージから開始
-    const initialMessage = options.continueFromPrevious && previousOutput
-      ? previousOutput + "\n[継続実行] 追加指示の実行を開始します...\n"
-      : `[実行開始] タスクの実行を開始します...\n[エージェント] ${agentLabel}\n`;
+    const initialMessage =
+      options.continueFromPrevious && previousOutput
+        ? previousOutput + "\n[継続実行] 追加指示の実行を開始します...\n"
+        : `[実行開始] タスクの実行を開始します...\n[エージェント] ${agentLabel}\n`;
 
     state.output = initialMessage;
 
@@ -1300,8 +1482,12 @@ export class AgentOrchestrator {
       // 分析情報の有無をログ出力
       if (options.analysisInfo) {
         console.log(`[Orchestrator] AI task analysis enabled`);
-        console.log(`[Orchestrator] Analysis summary: ${options.analysisInfo.summary?.substring(0, 100)}`);
-        console.log(`[Orchestrator] Subtasks count: ${options.analysisInfo.subtasks?.length || 0}`);
+        console.log(
+          `[Orchestrator] Analysis summary: ${options.analysisInfo.summary?.substring(0, 100)}`,
+        );
+        console.log(
+          `[Orchestrator] Subtasks count: ${options.analysisInfo.subtasks?.length || 0}`,
+        );
       } else {
         console.log(`[Orchestrator] AI task analysis not provided`);
       }
@@ -1319,7 +1505,11 @@ export class AgentOrchestrator {
         executionStatus = "waiting_for_input";
         state.status = "waiting_for_input";
         console.log(`[Orchestrator] Setting status to waiting_for_input`);
-        fileLogger.logStatusChange("running", "waiting_for_input", "Question detected");
+        fileLogger.logStatusChange(
+          "running",
+          "waiting_for_input",
+          "Question detected",
+        );
       } else if (result.success) {
         executionStatus = "completed";
         state.status = "completed";
@@ -1487,7 +1677,9 @@ export class AgentOrchestrator {
   ): Promise<AgentExecutionResult> {
     // ロックを取得（既に処理中なら早期リターン）
     if (!this.tryAcquireContinuationLock(executionId, "user_response")) {
-      console.log(`[Orchestrator] Skipping continuation for execution ${executionId} - already being processed`);
+      console.log(
+        `[Orchestrator] Skipping continuation for execution ${executionId} - already being processed`,
+      );
       return {
         success: false,
         output: "",
@@ -1518,7 +1710,9 @@ export class AgentOrchestrator {
 
       // ステータスチェック: running の場合は既に処理中
       if (execution.status === "running") {
-        console.log(`[Orchestrator] Execution ${executionId} is already running, skipping continuation`);
+        console.log(
+          `[Orchestrator] Execution ${executionId} is already running, skipping continuation`,
+        );
         return {
           success: false,
           output: "",
@@ -1527,7 +1721,9 @@ export class AgentOrchestrator {
       }
 
       if (execution.status !== "waiting_for_input") {
-        console.log(`[Orchestrator] Execution ${executionId} is not waiting for input (status: ${execution.status})`);
+        console.log(
+          `[Orchestrator] Execution ${executionId} is not waiting for input (status: ${execution.status})`,
+        );
         return {
           success: false,
           output: "",
@@ -1539,7 +1735,11 @@ export class AgentOrchestrator {
       this.cancelQuestionTimeout(executionId);
 
       // 内部処理を実行（ロックは継承）
-      return await this.executeContinuationInternal(executionId, response, options);
+      return await this.executeContinuationInternal(
+        executionId,
+        response,
+        options,
+      );
     } catch (error) {
       throw error;
     } finally {
@@ -1559,7 +1759,11 @@ export class AgentOrchestrator {
   ): Promise<AgentExecutionResult> {
     try {
       // 内部処理を実行
-      return await this.executeContinuationInternal(executionId, response, options);
+      return await this.executeContinuationInternal(
+        executionId,
+        response,
+        options,
+      );
     } finally {
       // ロックを解放
       this.releaseContinuationLock(executionId);
@@ -1603,7 +1807,9 @@ export class AgentOrchestrator {
 
     // 保存されているClaudeセッションIDを取得
     const claudeSessionId = execution.claudeSessionId;
-    console.log(`[Orchestrator] Resuming execution with claudeSessionId: ${claudeSessionId}`);
+    console.log(
+      `[Orchestrator] Resuming execution with claudeSessionId: ${claudeSessionId}`,
+    );
 
     // エージェント設定を取得（--resumeでセッションを再開）
     let agentConfig: AgentConfigInput = {
@@ -1627,7 +1833,10 @@ export class AgentOrchestrator {
           try {
             decryptedApiKey = decrypt(dbConfig.apiKeyEncrypted);
           } catch (e) {
-            console.error(`[Orchestrator] Failed to decrypt API key for agent ${dbConfig.id}:`, e);
+            console.error(
+              `[Orchestrator] Failed to decrypt API key for agent ${dbConfig.id}:`,
+              e,
+            );
           }
         }
 
@@ -1663,10 +1872,13 @@ export class AgentOrchestrator {
       agentConfig.name,
       agentConfig.modelId,
     );
-    fileLogger.logExecutionStart(`[Continuation] User response: ${response.substring(0, 200)}`, {
-      claudeSessionId,
-      previousStatus: execution.status,
-    });
+    fileLogger.logExecutionStart(
+      `[Continuation] User response: ${response.substring(0, 200)}`,
+      {
+        claudeSessionId,
+        previousStatus: execution.status,
+      },
+    );
     fileLogger.logQuestionAnswered(response, "user");
 
     // 実行状態を追跡
@@ -1706,10 +1918,18 @@ export class AgentOrchestrator {
     // 質問検出ハンドラを設定（質問が検出されたら即座にDBを更新）
     agent.setQuestionDetectedHandler(async (info) => {
       console.log(`[Orchestrator] Question detected during continuation!`);
-      console.log(`[Orchestrator] Question: ${info.question.substring(0, 100)}`);
+      console.log(
+        `[Orchestrator] Question: ${info.question.substring(0, 100)}`,
+      );
       console.log(`[Orchestrator] Question type: ${info.questionType}`);
-      console.log(`[Orchestrator] Claude Session ID: ${info.claudeSessionId || "(なし)"}`);
-      fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
+      console.log(
+        `[Orchestrator] Claude Session ID: ${info.claudeSessionId || "(なし)"}`,
+      );
+      fileLogger.logQuestionDetected(
+        info.question,
+        info.questionType,
+        info.claudeSessionId,
+      );
 
       try {
         // 即座にDBステータスを waiting_for_input に更新（セッションIDも保存）
@@ -1720,10 +1940,13 @@ export class AgentOrchestrator {
             question: info.question || null,
             questionType: info.questionType || null,
             questionDetails: toJsonString(info.questionDetails),
-            claudeSessionId: info.claudeSessionId || execution.claudeSessionId || null,
+            claudeSessionId:
+              info.claudeSessionId || execution.claudeSessionId || null,
           },
         });
-        console.log(`[Orchestrator] DB updated to waiting_for_input for execution ${execution.id}`);
+        console.log(
+          `[Orchestrator] DB updated to waiting_for_input for execution ${execution.id}`,
+        );
 
         // 状態も更新
         state.status = "waiting_for_input";
@@ -1748,13 +1971,17 @@ export class AgentOrchestrator {
             questionDetails: info.questionDetails,
             questionKey: info.questionKey,
             // タイムアウト情報を追加
-            questionTimeoutSeconds: timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
+            questionTimeoutSeconds:
+              timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
             questionTimeoutDeadline: timeoutInfo?.deadline?.toISOString(),
           },
           timestamp: new Date(),
         });
       } catch (error) {
-        console.error(`[Orchestrator] Failed to update DB on question detection:`, error);
+        console.error(
+          `[Orchestrator] Failed to update DB on question detection:`,
+          error,
+        );
       }
     });
 
@@ -1769,8 +1996,13 @@ export class AgentOrchestrator {
       orderBy: { sequenceNumber: "desc" },
       take: 1,
     });
-    let logSequenceNumber = existingLogs.length > 0 ? existingLogs[0].sequenceNumber + 1 : 0;
-    let pendingLogChunks: { chunk: string; isError: boolean; timestamp: Date }[] = [];
+    let logSequenceNumber =
+      existingLogs.length > 0 ? existingLogs[0].sequenceNumber + 1 : 0;
+    let pendingLogChunks: {
+      chunk: string;
+      isError: boolean;
+      timestamp: Date;
+    }[] = [];
     let pendingLogSave = false;
     const LOG_BATCH_INTERVAL = 500;
 
@@ -1915,19 +2147,29 @@ export class AgentOrchestrator {
       // --resume でセッション再開に失敗した場合のフォールバック
       // 実行時間が短い（10秒未満）場合、またはエラーメッセージがセッション関連の場合は
       // セッション再開失敗と判断してフォールバックを試みる
-      const isSessionResumeFailure = !result.success && !result.waitingForInput && claudeSessionId && (
-        (result.executionTimeMs !== undefined && result.executionTimeMs < 10000) ||
-        (result.errorMessage && /session|expired|invalid|not found|code 1/i.test(result.errorMessage))
-      );
+      const isSessionResumeFailure =
+        !result.success &&
+        !result.waitingForInput &&
+        claudeSessionId &&
+        ((result.executionTimeMs !== undefined &&
+          result.executionTimeMs < 10000) ||
+          (result.errorMessage &&
+            /session|expired|invalid|not found|code 1/i.test(
+              result.errorMessage,
+            )));
       if (isSessionResumeFailure) {
-        console.log(`[Orchestrator] Session resume failed (executionTime: ${result.executionTimeMs}ms, error: ${result.errorMessage?.substring(0, 100)}). Retrying --resume after delay...`);
-        fileLogger.logError(`Session resume failed with --resume ${claudeSessionId}. Retrying after 3s delay.`);
+        console.log(
+          `[Orchestrator] Session resume failed (executionTime: ${result.executionTimeMs}ms, error: ${result.errorMessage?.substring(0, 100)}). Retrying --resume after delay...`,
+        );
+        fileLogger.logError(
+          `Session resume failed with --resume ${claudeSessionId}. Retrying after 3s delay.`,
+        );
 
         // 前のエージェントをクリーンアップ
         await agentFactory.removeAgent(agent.id);
 
         // セッションの保存が完了するまで待機してからリトライ
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await new Promise((resolve) => setTimeout(resolve, 3000));
 
         // --resume で再試行（同じセッションIDを使用）
         const retryAgent = agentFactory.createAgent(agentConfig);
@@ -1935,7 +2177,11 @@ export class AgentOrchestrator {
         // ハンドラを再設定（リトライ用）
         retryAgent.setQuestionDetectedHandler(async (info) => {
           console.log(`[Orchestrator] Question detected during resume retry!`);
-          fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
+          fileLogger.logQuestionDetected(
+            info.question,
+            info.questionType,
+            info.claudeSessionId,
+          );
           try {
             await this.prisma.agentExecution.update({
               where: { id: execution.id },
@@ -1944,7 +2190,8 @@ export class AgentOrchestrator {
                 question: info.question || null,
                 questionType: info.questionType || null,
                 questionDetails: toJsonString(info.questionDetails),
-                claudeSessionId: info.claudeSessionId || execution.claudeSessionId || null,
+                claudeSessionId:
+                  info.claudeSessionId || execution.claudeSessionId || null,
               },
             });
             state.status = "waiting_for_input";
@@ -1962,13 +2209,18 @@ export class AgentOrchestrator {
                 questionType: info.questionType,
                 questionDetails: info.questionDetails,
                 questionKey: info.questionKey,
-                questionTimeoutSeconds: timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
+                questionTimeoutSeconds:
+                  timeoutInfo?.remainingSeconds ||
+                  DEFAULT_QUESTION_TIMEOUT_SECONDS,
                 questionTimeoutDeadline: timeoutInfo?.deadline?.toISOString(),
               },
               timestamp: new Date(),
             });
           } catch (error) {
-            console.error(`[Orchestrator] Failed to update DB on question detection (resume retry):`, error);
+            console.error(
+              `[Orchestrator] Failed to update DB on question detection (resume retry):`,
+              error,
+            );
           }
         });
 
@@ -2015,17 +2267,26 @@ export class AgentOrchestrator {
         const retryResult = await retryAgent.execute(agentTask);
 
         // リトライも失敗した場合は --continue にフォールバック
-        const isRetryFailure = !retryResult.success && !retryResult.waitingForInput && (
-          (retryResult.executionTimeMs !== undefined && retryResult.executionTimeMs < 10000) ||
-          (retryResult.errorMessage && /session|expired|invalid|not found|code 1/i.test(retryResult.errorMessage))
-        );
+        const isRetryFailure =
+          !retryResult.success &&
+          !retryResult.waitingForInput &&
+          ((retryResult.executionTimeMs !== undefined &&
+            retryResult.executionTimeMs < 10000) ||
+            (retryResult.errorMessage &&
+              /session|expired|invalid|not found|code 1/i.test(
+                retryResult.errorMessage,
+              )));
 
         if (!isRetryFailure) {
           // リトライ成功
           result = retryResult;
         } else {
-          console.log(`[Orchestrator] --resume retry also failed. Attempting fallback with --continue...`);
-          fileLogger.logError(`--resume retry also failed. Attempting --continue fallback.`);
+          console.log(
+            `[Orchestrator] --resume retry also failed. Attempting fallback with --continue...`,
+          );
+          fileLogger.logError(
+            `--resume retry also failed. Attempting --continue fallback.`,
+          );
           await agentFactory.removeAgent(retryAgent.id);
 
           // --continue でフォールバック（最新の会話を継続）
@@ -2038,8 +2299,14 @@ export class AgentOrchestrator {
 
           // ハンドラを再設定
           fallbackAgent.setQuestionDetectedHandler(async (info) => {
-            console.log(`[Orchestrator] Question detected during continuation fallback!`);
-            fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
+            console.log(
+              `[Orchestrator] Question detected during continuation fallback!`,
+            );
+            fileLogger.logQuestionDetected(
+              info.question,
+              info.questionType,
+              info.claudeSessionId,
+            );
             try {
               await this.prisma.agentExecution.update({
                 where: { id: execution.id },
@@ -2048,7 +2315,8 @@ export class AgentOrchestrator {
                   question: info.question || null,
                   questionType: info.questionType || null,
                   questionDetails: toJsonString(info.questionDetails),
-                  claudeSessionId: info.claudeSessionId || execution.claudeSessionId || null,
+                  claudeSessionId:
+                    info.claudeSessionId || execution.claudeSessionId || null,
                 },
               });
               state.status = "waiting_for_input";
@@ -2066,13 +2334,18 @@ export class AgentOrchestrator {
                   questionType: info.questionType,
                   questionDetails: info.questionDetails,
                   questionKey: info.questionKey,
-                  questionTimeoutSeconds: timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
+                  questionTimeoutSeconds:
+                    timeoutInfo?.remainingSeconds ||
+                    DEFAULT_QUESTION_TIMEOUT_SECONDS,
                   questionTimeoutDeadline: timeoutInfo?.deadline?.toISOString(),
                 },
                 timestamp: new Date(),
               });
             } catch (error) {
-              console.error(`[Orchestrator] Failed to update DB on question detection (fallback):`, error);
+              console.error(
+                `[Orchestrator] Failed to update DB on question detection (fallback):`,
+                error,
+              );
             }
           });
 
@@ -2123,13 +2396,22 @@ export class AgentOrchestrator {
           const fallbackResult = await fallbackAgent.execute(agentTask);
 
           // --continue でも失敗した場合は、新規セッションでリトライ
-          const isContinueFallbackFailure = !fallbackResult.success && !fallbackResult.waitingForInput && (
-            (fallbackResult.executionTimeMs !== undefined && fallbackResult.executionTimeMs < 10000) ||
-            (fallbackResult.errorMessage && /session|expired|invalid|not found|code 1/i.test(fallbackResult.errorMessage))
-          );
+          const isContinueFallbackFailure =
+            !fallbackResult.success &&
+            !fallbackResult.waitingForInput &&
+            ((fallbackResult.executionTimeMs !== undefined &&
+              fallbackResult.executionTimeMs < 10000) ||
+              (fallbackResult.errorMessage &&
+                /session|expired|invalid|not found|code 1/i.test(
+                  fallbackResult.errorMessage,
+                )));
           if (isContinueFallbackFailure) {
-            console.log(`[Orchestrator] --continue fallback also failed (executionTime: ${fallbackResult.executionTimeMs}ms). Attempting new session with context...`);
-            fileLogger.logError(`--continue fallback also failed. Starting new session with context.`);
+            console.log(
+              `[Orchestrator] --continue fallback also failed (executionTime: ${fallbackResult.executionTimeMs}ms). Attempting new session with context...`,
+            );
+            fileLogger.logError(
+              `--continue fallback also failed. Starting new session with context.`,
+            );
 
             await agentFactory.removeAgent(fallbackAgent.id);
 
@@ -2143,8 +2425,14 @@ export class AgentOrchestrator {
 
             // ハンドラを再設定
             newAgent.setQuestionDetectedHandler(async (info) => {
-              console.log(`[Orchestrator] Question detected during new session retry!`);
-              fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
+              console.log(
+                `[Orchestrator] Question detected during new session retry!`,
+              );
+              fileLogger.logQuestionDetected(
+                info.question,
+                info.questionType,
+                info.claudeSessionId,
+              );
               try {
                 await this.prisma.agentExecution.update({
                   where: { id: execution.id },
@@ -2157,7 +2445,11 @@ export class AgentOrchestrator {
                   },
                 });
                 state.status = "waiting_for_input";
-                this.startQuestionTimeout(execution.id, taskId, info.questionKey);
+                this.startQuestionTimeout(
+                  execution.id,
+                  taskId,
+                  info.questionKey,
+                );
                 const timeoutInfo = this.getQuestionTimeoutInfo(execution.id);
                 this.emitEvent({
                   type: "execution_output",
@@ -2171,13 +2463,19 @@ export class AgentOrchestrator {
                     questionType: info.questionType,
                     questionDetails: info.questionDetails,
                     questionKey: info.questionKey,
-                    questionTimeoutSeconds: timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
-                    questionTimeoutDeadline: timeoutInfo?.deadline?.toISOString(),
+                    questionTimeoutSeconds:
+                      timeoutInfo?.remainingSeconds ||
+                      DEFAULT_QUESTION_TIMEOUT_SECONDS,
+                    questionTimeoutDeadline:
+                      timeoutInfo?.deadline?.toISOString(),
                   },
                   timestamp: new Date(),
                 });
               } catch (error) {
-                console.error(`[Orchestrator] Failed to update DB on question detection (new session):`, error);
+                console.error(
+                  `[Orchestrator] Failed to update DB on question detection (new session):`,
+                  error,
+                );
               }
             });
 
@@ -2246,7 +2544,11 @@ export class AgentOrchestrator {
       if (result.waitingForInput) {
         executionStatus = "waiting_for_input";
         state.status = "waiting_for_input";
-        fileLogger.logStatusChange("running", "waiting_for_input", "Question detected during continuation");
+        fileLogger.logStatusChange(
+          "running",
+          "waiting_for_input",
+          "Question detected during continuation",
+        );
       } else if (result.success) {
         executionStatus = "completed";
         state.status = "completed";
@@ -2286,7 +2588,8 @@ export class AgentOrchestrator {
           questionType: result.questionType || null,
           questionDetails: toJsonString(result.questionDetails),
           // セッションIDを更新（新しいセッションが作成された場合）
-          claudeSessionId: result.claudeSessionId || execution.claudeSessionId || null,
+          claudeSessionId:
+            result.claudeSessionId || execution.claudeSessionId || null,
         },
       });
 
@@ -2412,13 +2715,17 @@ export class AgentOrchestrator {
 
     const state = this.activeExecutions.get(executionId);
     if (!state) {
-      console.log(`[Orchestrator] stopExecution: No active execution found for ${executionId}`);
+      console.log(
+        `[Orchestrator] stopExecution: No active execution found for ${executionId}`,
+      );
       return false;
     }
 
     const agent = agentFactory.getAgent(state.agentId);
     if (!agent) {
-      console.log(`[Orchestrator] stopExecution: No agent found for ${state.agentId}`);
+      console.log(
+        `[Orchestrator] stopExecution: No agent found for ${state.agentId}`,
+      );
       // エージェントが見つからなくてもDBとマップはクリーンアップ
       this.activeExecutions.delete(executionId);
       this.activeAgents.delete(executionId);
@@ -2455,7 +2762,9 @@ export class AgentOrchestrator {
       timestamp: new Date(),
     });
 
-    console.log(`[Orchestrator] Execution ${executionId} stopped and cleaned up`);
+    console.log(
+      `[Orchestrator] Execution ${executionId} stopped and cleaned up`,
+    );
     return true;
   }
 
@@ -2505,17 +2814,22 @@ export class AgentOrchestrator {
       throw new Error(`Task not found for execution: ${executionId}`);
     }
 
-    const workingDirectory = task.theme?.workingDirectory || options.workingDirectory || process.cwd();
+    const workingDirectory =
+      task.theme?.workingDirectory || options.workingDirectory || process.cwd();
     const claudeSessionId = execution.claudeSessionId;
 
     console.log(`[Orchestrator] Resuming interrupted execution ${executionId}`);
     console.log(`[Orchestrator] Task: ${task.title} (ID: ${task.id})`);
-    console.log(`[Orchestrator] Claude Session ID: ${claudeSessionId || "(なし - 新規セッションで開始)"}`);
+    console.log(
+      `[Orchestrator] Claude Session ID: ${claudeSessionId || "(なし - 新規セッションで開始)"}`,
+    );
     console.log(`[Orchestrator] Working Directory: ${workingDirectory}`);
 
     // セッションIDがない場合の警告
     if (!claudeSessionId) {
-      console.warn(`[Orchestrator] WARNING: No Claude session ID found for execution ${executionId}. Starting as new session.`);
+      console.warn(
+        `[Orchestrator] WARNING: No Claude session ID found for execution ${executionId}. Starting as new session.`,
+      );
     }
 
     // 前回の実行ログを取得して要約を作成
@@ -2560,7 +2874,10 @@ export class AgentOrchestrator {
           try {
             decryptedApiKey = decrypt(dbConfig.apiKeyEncrypted);
           } catch (e) {
-            console.error(`[Orchestrator] Failed to decrypt API key for agent ${dbConfig.id}:`, e);
+            console.error(
+              `[Orchestrator] Failed to decrypt API key for agent ${dbConfig.id}:`,
+              e,
+            );
           }
         }
 
@@ -2640,9 +2957,17 @@ export class AgentOrchestrator {
     // 質問検出ハンドラを設定
     agent.setQuestionDetectedHandler(async (info) => {
       console.log(`[Orchestrator] Question detected during resume!`);
-      console.log(`[Orchestrator] Question: ${info.question.substring(0, 100)}`);
-      console.log(`[Orchestrator] Claude Session ID: ${info.claudeSessionId || "(なし)"}`);
-      fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
+      console.log(
+        `[Orchestrator] Question: ${info.question.substring(0, 100)}`,
+      );
+      console.log(
+        `[Orchestrator] Claude Session ID: ${info.claudeSessionId || "(なし)"}`,
+      );
+      fileLogger.logQuestionDetected(
+        info.question,
+        info.questionType,
+        info.claudeSessionId,
+      );
 
       try {
         await this.prisma.agentExecution.update({
@@ -2652,7 +2977,8 @@ export class AgentOrchestrator {
             question: info.question || null,
             questionType: info.questionType || null,
             questionDetails: toJsonString(info.questionDetails),
-            claudeSessionId: info.claudeSessionId || execution.claudeSessionId || null,
+            claudeSessionId:
+              info.claudeSessionId || execution.claudeSessionId || null,
           },
         });
 
@@ -2673,13 +2999,17 @@ export class AgentOrchestrator {
             questionType: info.questionType,
             questionDetails: info.questionDetails,
             questionKey: info.questionKey,
-            questionTimeoutSeconds: timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
+            questionTimeoutSeconds:
+              timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
             questionTimeoutDeadline: timeoutInfo?.deadline?.toISOString(),
           },
           timestamp: new Date(),
         });
       } catch (error) {
-        console.error(`[Orchestrator] Failed to update DB on question detection:`, error);
+        console.error(
+          `[Orchestrator] Failed to update DB on question detection:`,
+          error,
+        );
       }
     });
 
@@ -2694,8 +3024,13 @@ export class AgentOrchestrator {
       orderBy: { sequenceNumber: "desc" },
       take: 1,
     });
-    let logSequenceNumber = existingLogs.length > 0 ? existingLogs[0].sequenceNumber + 1 : 0;
-    let pendingLogChunks: { chunk: string; isError: boolean; timestamp: Date }[] = [];
+    let logSequenceNumber =
+      existingLogs.length > 0 ? existingLogs[0].sequenceNumber + 1 : 0;
+    let pendingLogChunks: {
+      chunk: string;
+      isError: boolean;
+      timestamp: Date;
+    }[] = [];
     let pendingLogSave = false;
     const LOG_BATCH_INTERVAL = 500;
 
@@ -2847,7 +3182,11 @@ export class AgentOrchestrator {
       if (result.waitingForInput) {
         executionStatus = "waiting_for_input";
         state.status = "waiting_for_input";
-        fileLogger.logStatusChange("running", "waiting_for_input", "Question detected during resume");
+        fileLogger.logStatusChange(
+          "running",
+          "waiting_for_input",
+          "Question detected during resume",
+        );
       } else if (result.success) {
         executionStatus = "completed";
         state.status = "completed";
@@ -2886,7 +3225,8 @@ export class AgentOrchestrator {
           question: result.question || null,
           questionType: result.questionType || null,
           questionDetails: toJsonString(result.questionDetails),
-          claudeSessionId: result.claudeSessionId || execution.claudeSessionId || null,
+          claudeSessionId:
+            result.claudeSessionId || execution.claudeSessionId || null,
         },
       });
 
@@ -3154,7 +3494,10 @@ ${errorMessage}
 
       return { success: true, commitHash: hash.trim() };
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   }
 
@@ -3211,7 +3554,10 @@ ${errorMessage}
 
       return { success: true, prUrl, prNumber };
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   }
 
@@ -3514,6 +3860,8 @@ ${errorMessage}
 }
 
 // ファクトリー関数
-export function createOrchestrator(prisma: PrismaClientInstance): AgentOrchestrator {
+export function createOrchestrator(
+  prisma: PrismaClientInstance,
+): AgentOrchestrator {
   return AgentOrchestrator.getInstance(prisma);
 }

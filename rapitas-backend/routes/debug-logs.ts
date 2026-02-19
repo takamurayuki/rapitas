@@ -16,10 +16,10 @@ export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
   // ログ解析エンドポイント
   .post(
     "/analyze",
-    async (context: any) => {
+    async (context) => {
       const { body } = context as { body: { content: string; type?: string; options?: any } };
       try {
-        const { content, type, options } = body as any;
+        const { content, type, options  } = body as any;
 
         // アナライザーのインスタンスを作成
         const analyzer = new DebugLogAnalyzer();
@@ -100,10 +100,10 @@ export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
   // ログタイプの検出
   .post(
     "/detect-type",
-    async (context: any) => {
+    async (context) => {
       const { body } = context as { body: { content: string } };
       try {
-        const { content } = body as any;
+        const { content  } = body as any;
 
         const analyzer = new DebugLogAnalyzer();
         const additionalParsers = LogParserFactory.createAllParsers();
@@ -138,10 +138,10 @@ export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
   // ストリーム解析エンドポイント（大きなファイル用）
   .post(
     "/analyze-stream",
-    async (context: any) => {
+    async (context) => {
       const { body, set } = context as { body: { url: string; type?: string; options?: any }; set: any };
       try {
-        const { url, type, options } = body as any;
+        const { url, type, options  } = body as any;
 
         // URLからログをストリーミングで取得
         const response = await fetch(url);
