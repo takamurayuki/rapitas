@@ -33,8 +33,7 @@ export const flashcardsRoutes = new Elysia()
     });
   })
 
-  .get("/flashcard-decks/:id", async ({ 
- params }: { params: { id: string } }) => {
+  .get("/flashcard-decks/:id", async ({  params  }: any) => {
     const id = parseInt(params.id);
     return await prisma.flashcardDeck.findUnique({
       where: { id },
@@ -47,19 +46,8 @@ export const flashcardsRoutes = new Elysia()
   })
 
   .post(
-    "/flashcard-decks",
-    async ({ 
-
-      body,
-    }: {
-      body: {
-        name: string;
-        description?: string;
-        color?: string;
-        taskId?: number;
-      };
-    }) => {
-      const { name, description, color, taskId } = body;
+    "/flashcard-decks", async ({  body  }: any) => {
+      const { name, description, color, taskId } = body as any;
       return await prisma.flashcardDeck.create({
         data: {
           name,
@@ -79,24 +67,15 @@ export const flashcardsRoutes = new Elysia()
     }
   )
 
-  .delete("/flashcard-decks/:id", async ({ 
- params }: { params: { id: string } }) => {
+  .delete("/flashcard-decks/:id", async ({  params  }: any) => {
     const id = parseInt(params.id);
     return await prisma.flashcardDeck.delete({ where: { id } });
   })
 
   .post(
-    "/flashcard-decks/:deckId/cards",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { deckId: string };
-      body: { front: string; back: string };
-    }) => {
+    "/flashcard-decks/:deckId/cards", async ({  params, body  }: any) => {
       const deckId = parseInt(params.deckId);
-      const { front, back } = body;
+      const { front, back } = body as any;
       return await prisma.flashcard.create({
         data: {
           deckId,
@@ -114,17 +93,9 @@ export const flashcardsRoutes = new Elysia()
   )
 
   .patch(
-    "/flashcards/:id",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { id: string };
-      body: { front?: string; back?: string };
-    }) => {
+    "/flashcards/:id", async ({  params, body  }: any) => {
       const id = parseInt(params.id);
-      const { front, back } = body;
+      const { front, back } = body as any;
       return await prisma.flashcard.update({
         where: { id },
         data: {
@@ -135,25 +106,16 @@ export const flashcardsRoutes = new Elysia()
     }
   )
 
-  .delete("/flashcards/:id", async ({ 
- params }: { params: { id: string } }) => {
+  .delete("/flashcards/:id", async ({  params  }: any) => {
     const id = parseInt(params.id);
     return await prisma.flashcard.delete({ where: { id } });
   })
 
   // フラッシュカード復習（SM-2アルゴリズム）
   .post(
-    "/flashcards/:id/review",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { id: string };
-      body: { quality: number };
-    }) => {
+    "/flashcards/:id/review", async ({  params, body  }: any) => {
       const id = parseInt(params.id);
-      const { quality } = body; // 0-5 (0=完全忘れ, 5=完璧)
+      const { quality } = body as any; // 0-5 (0=完全忘れ, 5=完璧)
 
       const card = await prisma.flashcard.findUnique({
         where: { id },
@@ -213,22 +175,9 @@ export const flashcardsRoutes = new Elysia()
 
   // AIでフラッシュカードを自動生成
   .post(
-    "/flashcard-decks/:deckId/generate",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { deckId: string };
-      body: {
-        topic: string;
-        count?: number;
-        difficulty?: "beginner" | "intermediate" | "advanced";
-        language?: "ja" | "en";
-      };
-    }) => {
+    "/flashcard-decks/:deckId/generate", async ({  params, body  }: any) => {
       const deckId = parseInt(params.deckId);
-      const { topic, count = 10, difficulty = "intermediate", language = "ja" } = body;
+      const { topic, count = 10, difficulty = "intermediate", language = "ja" } = body as any;
 
       // デッキの存在確認
       const deck = await prisma.flashcardDeck.findUnique({

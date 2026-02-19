@@ -75,8 +75,8 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
       query: { lastEventId?: string };
       set: { headers: Record<string, string> };
     }) => {
-      const { channel } = params;
-      const { lastEventId } = query;
+      const { channel } = params as any;
+      const { lastEventId } = query as any;
 
       set.headers = {
         "Content-Type": "text/event-stream",

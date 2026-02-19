@@ -21,7 +21,11 @@
   "exclude": [
     "node_modules/**/*",
     "**/*.d.ts",
-    "global.d.ts"
+    "global.d.ts",
+    "node_modules/@elysiajs/websocket/**/*",
+    "node_modules/@elysiajs/websocket/src/**/*",
+    "node_modules/@elysiajs/websocket/src/index.ts",
+    "node_modules/@elysiajs/websocket/src/types.ts"
   ],
   "include": [
     "**/*.ts",

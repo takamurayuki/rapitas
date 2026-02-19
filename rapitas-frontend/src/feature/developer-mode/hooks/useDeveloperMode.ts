@@ -384,7 +384,45 @@ export function useDeveloperMode(taskId: number) {
               }),
             },
           );
-          const data = await res.json();
+
+          // レスポンスがJSONかどうかを確認
+          // Check if endpoint exists (404 error)
+          if (res.status === 404) {
+            console.error('[useDeveloperMode] Endpoint not found:', res.url);
+            throw new Error('実行エンドポイントが見つかりません。サーバーの設定を確認してください。');
+          }
+
+          const contentType = res.headers.get('content-type');
+          let data;
+          let responseText: string | null = null;
+
+          try {
+            // Try to get response text first
+            responseText = await res.text();
+
+            // If it's JSON content type or looks like JSON, try to parse it
+            if ((contentType && contentType.includes('application/json')) ||
+                (responseText && responseText.trim().startsWith('{'))) {
+              try {
+                data = JSON.parse(responseText);
+              } catch (jsonErr) {
+                console.error('[useDeveloperMode] JSON parse error:', jsonErr);
+                console.error('[useDeveloperMode] Response text:', responseText);
+                // Check if it's a Prisma error
+                if (responseText && responseText.includes('Invalid `prisma')) {
+                  throw new Error('データベースクエリエラーが発生しました。');
+                }
+                throw new Error('Invalid JSON response');
+              }
+            } else {
+              console.error('[useDeveloperMode] Non-JSON response:', responseText);
+              data = { error: responseText || 'Invalid response format' };
+            }
+          } catch (textErr) {
+            console.error('[useDeveloperMode] Failed to read response:', textErr);
+            data = { error: '応答の読み取りに失敗しました' };
+          }
+
           if (res.ok) {
             setExecutionResult({
               success: true,
@@ -414,7 +452,45 @@ export function useDeveloperMode(taskId: number) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody),
           });
-          const data = await res.json();
+
+          // レスポンスがJSONかどうかを確認
+          // Check if endpoint exists (404 error)
+          if (res.status === 404) {
+            console.error('[useDeveloperMode] Endpoint not found:', res.url);
+            throw new Error('実行エンドポイントが見つかりません。サーバーの設定を確認してください。');
+          }
+
+          const contentType = res.headers.get('content-type');
+          let data;
+          let responseText: string | null = null;
+
+          try {
+            // Try to get response text first
+            responseText = await res.text();
+
+            // If it's JSON content type or looks like JSON, try to parse it
+            if ((contentType && contentType.includes('application/json')) ||
+                (responseText && responseText.trim().startsWith('{'))) {
+              try {
+                data = JSON.parse(responseText);
+              } catch (jsonErr) {
+                console.error('[useDeveloperMode] JSON parse error:', jsonErr);
+                console.error('[useDeveloperMode] Response text:', responseText);
+                // Check if it's a Prisma error
+                if (responseText && responseText.includes('Invalid `prisma')) {
+                  throw new Error('データベースクエリエラーが発生しました。');
+                }
+                throw new Error('Invalid JSON response');
+              }
+            } else {
+              console.error('[useDeveloperMode] Non-JSON response:', responseText);
+              data = { error: responseText || 'Invalid response format' };
+            }
+          } catch (textErr) {
+            console.error('[useDeveloperMode] Failed to read response:', textErr);
+            data = { error: '応答の読み取りに失敗しました' };
+          }
+
           if (res.ok) {
             setExecutionResult({
               success: true,

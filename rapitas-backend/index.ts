@@ -11,7 +11,6 @@ import {
   categoriesRoutes,
   themesRoutes,
   labelsRoutes,
-  taskLabelsRoutes,
   projectsRoutes,
   milestonesRoutes,
   timeEntriesRoutes,
@@ -36,7 +35,6 @@ import {
   sseRoutes,
   taskDependencyRoutes,
   githubRoutes,
-  taskGithubRoutes,
   approvalsRoutes,
   aiAgentRoutes,
   parallelExecutionRoutes,
@@ -69,6 +67,20 @@ const app = new Elysia();
 
 // Apply middleware
 app.use(cors());
+
+// Ensure all responses are JSON formatted
+app.onBeforeHandle(({ set }) => {
+  set.headers['Content-Type'] = 'application/json; charset=utf-8';
+});
+
+// Handle all errors and ensure JSON response
+app.onError(({ error, set }) => {
+  // Set JSON content type for error responses
+  set.headers['Content-Type'] = 'application/json; charset=utf-8';
+
+  // Let the errorHandler middleware handle the actual error
+  return;
+});
 
 app.use(errorHandler);
 
@@ -120,7 +132,6 @@ app.use(
 app.use(categoriesRoutes);
 app.use(themesRoutes);
 app.use(labelsRoutes);
-app.use(taskLabelsRoutes);
 app.use(projectsRoutes);
 app.use(milestonesRoutes);
 app.use(timeEntriesRoutes);
@@ -145,7 +156,6 @@ app.use(aiChatRoutes);
 app.use(sseRoutes);
 app.use(taskDependencyRoutes);
 app.use(githubRoutes);
-app.use(taskGithubRoutes);
 app.use(approvalsRoutes);
 app.use(aiAgentRoutes);
 app.use(parallelExecutionRoutes);

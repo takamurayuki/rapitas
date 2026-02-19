@@ -4,7 +4,7 @@
  */
 export { categoriesRoutes } from "./categories";
 export { themesRoutes } from "./themes";
-export { labelsRoutes, taskLabelsRoutes } from "./labels";
+export { labelsRoutes } from "./labels";
 export { projectsRoutes } from "./projects";
 export { milestonesRoutes } from "./milestones";
 export { timeEntriesRoutes } from "./time-entries";
@@ -30,7 +30,7 @@ export { aiChatRoutes } from "./ai-chat";
 // New modular routes
 export { sseRoutes } from "./sse";
 export { taskDependencyRoutes } from "./task-dependency";
-export { githubRoutes, taskGithubRoutes } from "./github";
+export { githubRoutes } from "./github";
 export { approvalsRoutes, orchestrator } from "./approvals";
 export { aiAgentRoutes } from "./ai-agent";
 export { parallelExecutionRoutes } from "./parallel-execution";

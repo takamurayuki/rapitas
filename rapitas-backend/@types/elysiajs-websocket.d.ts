@@ -60,13 +60,7 @@ declare module "@elysiajs/websocket" {
     handler: WebSocketHandler<T>;
   }
 
-  // 主要なエクスポートは、互換性のためにいくつかの型を省略
-  export const createValidationError: any;
-  export const DEFS: any;
-  export const TypedSchema: any;
-  export const ElysiaInstance: any;
-  export const HookHandler: any;
-  export const SCHEMA: any;
+  // 互換性のために型を省略（Elysiaの内部APIは使用しない）
 
   export function websocket<T extends Elysia = Elysia>(config?: {
     idleTimeout?: number;

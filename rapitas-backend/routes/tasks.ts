@@ -11,12 +11,8 @@ import { UserBehaviorService } from "../src/services/userBehaviorService";
 export const tasksRoutes = new Elysia({ prefix: "/tasks" })
   // Search task titles for autocomplete
   .get(
-    "/search",
-    async ({ 
- query }: {
-      query: { q?: string; limit?: string; themeId?: string; projectId?: string }
-    }) => {
-      const { q, limit, themeId, projectId } = query;
+    "/search", async ({  query  }: any) => {
+      const { q, limit, themeId, projectId } = query as any;
       const searchQuery = q?.trim() ?? "";
       const resultLimit = Math.min(parseInt(limit ?? "10"), 20);
 
@@ -62,12 +58,8 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
 
   // Get task suggestions based on past tasks for a theme (frequency-based fallback)
   .get(
-    "/suggestions",
-    async ({ 
- query }: {
-      query: { themeId?: string; limit?: string }
-    }) => {
-      const { themeId, limit } = query;
+    "/suggestions", async ({  query  }: any) => {
+      const { themeId, limit } = query as any;
       const resultLimit = Math.min(parseInt(limit ?? "10"), 20);
 
       if (!themeId) {
@@ -173,12 +165,8 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
 
   // AI-powered task suggestions: analyze past tasks and suggest new ones
   .get(
-    "/suggestions/ai",
-    async ({ 
- query }: {
-      query: { themeId?: string; limit?: string }
-    }) => {
-      const { themeId, limit } = query;
+    "/suggestions/ai", async ({  query  }: any) => {
+      const { themeId, limit } = query as any;
       const resultLimit = Math.min(parseInt(limit ?? "5"), 10);
 
       console.log("[tasks/suggestions/ai] Request received - themeId:", themeId, "limit:", resultLimit);
@@ -500,12 +488,8 @@ ${existingTaskList}
 
   // Get cached AI suggestions for a theme
   .get(
-    "/suggestions/ai/cache",
-    async ({ 
- query }: {
-      query: { themeId?: string }
-    }) => {
-      const { themeId } = query;
+    "/suggestions/ai/cache", async ({  query  }: any) => {
+      const { themeId } = query as any;
 
       if (!themeId) {
         return { suggestions: [], analysis: null, source: "none" };
@@ -567,12 +551,8 @@ ${existingTaskList}
 
   // Delete cached suggestions for a theme
   .delete(
-    "/suggestions/ai/cache",
-    async ({ 
- query }: {
-      query: { themeId?: string }
-    }) => {
-      const { themeId } = query;
+    "/suggestions/ai/cache", async ({  query  }: any) => {
+      const { themeId } = query as any;
 
       if (!themeId) {
         return { success: false, message: "themeId is required" };
@@ -603,12 +583,8 @@ ${existingTaskList}
 
   // Get all tasks (supports incremental fetch via `since` param)
   .get(
-    "/",
-    async ({ 
- query }: {
-      query: { projectId?: string; milestoneId?: string; priority?: string; since?: string }
-    }) => {
-      const { projectId, milestoneId, priority, since } = query;
+    "/", async ({  query  }: any) => {
+      const { projectId, milestoneId, priority, since } = query as any;
 
       const baseWhere = {
         parentId: null,
@@ -688,8 +664,7 @@ ${existingTaskList}
   )
 
   // Get task by ID
-  .get("/:id", async ({ 
- params }: { params: { id: string } }) => {
+  .get("/:id", async ({  params  }: any) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("無効なIDです");
@@ -717,26 +692,7 @@ ${existingTaskList}
 
   // Create task
   .post(
-    "/",
-    async ({ 
- body }: { body: {
-      title: string;
-      description?: string;
-      status?: string;
-      priority?: string;
-      labels?: string[];
-      labelIds?: number[];
-      estimatedHours?: number;
-      dueDate?: string;
-      subject?: string;
-      parentId?: number;
-      projectId?: number;
-      milestoneId?: number;
-      themeId?: number;
-      examGoalId?: number;
-      isDeveloperMode?: boolean;
-      isAiTaskAnalysis?: boolean;
-    }}) => {
+    "/", async ({  body  }: any) => {
       const {
         title,
         description,
@@ -754,7 +710,7 @@ ${existingTaskList}
         examGoalId,
         isDeveloperMode,
         isAiTaskAnalysis,
-      } = body;
+      } = body as any;
 
       try {
         // サブタスク作成時はトランザクションで重複チェックと作成を原子的に実行
@@ -944,26 +900,7 @@ ${existingTaskList}
 
   // Update task
   .patch(
-    "/:id",
-    async ({ 
- params, body }: {
-      params: { id: string };
-      body: {
-        title?: string;
-        description?: string;
-        themeId?: number | null;
-        status?: string;
-        priority?: string;
-        labels?: string[];
-        labelIds?: number[];
-        estimatedHours?: number;
-        dueDate?: string | null;
-        subject?: string | null;
-        projectId?: number | null;
-        milestoneId?: number | null;
-        examGoalId?: number | null;
-      }
-    }) => {
+    "/:id", async ({  params, body  }: any) => {
       const taskId = parseInt(params.id);
       if (isNaN(taskId)) {
         throw new ValidationError("無効なIDです");
@@ -983,7 +920,7 @@ ${existingTaskList}
         projectId,
         milestoneId,
         examGoalId,
-      } = body;
+      } = body as any;
 
       // 現在のタスクの状態を取得（行動記録のため）
       const currentTask = await prisma.task.findUnique({
@@ -1092,8 +1029,7 @@ ${existingTaskList}
   )
 
   // Delete task
-  .delete("/:id", async ({ 
- params }: { params: { id: string } }) => {
+  .delete("/:id", async ({  params  }: any) => {
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError("無効なIDです");
@@ -1105,8 +1041,7 @@ ${existingTaskList}
   })
 
   // 重複サブタスクを削除（特定のタスク配下）
-  .post("/:id/cleanup-duplicates", async ({ 
- params }: { params: { id: string } }) => {
+  .post("/:id/cleanup-duplicates", async ({  params  }: any) => {
     const parentId = parseInt(params.id);
     if (isNaN(parentId)) {
       throw new ValidationError("無効なIDです");
@@ -1230,8 +1165,7 @@ ${existingTaskList}
   })
 
   // サブタスクの一括削除（特定のタスク配下のすべてのサブタスクを削除）
-  .delete("/:id/subtasks", async ({ 
- params }: { params: { id: string } }) => {
+  .delete("/:id/subtasks", async ({  params  }: any) => {
     const parentId = parseInt(params.id);
     if (isNaN(parentId)) {
       throw new ValidationError("無効なIDです");
@@ -1272,21 +1206,13 @@ ${existingTaskList}
 
   // サブタスクの選択削除（指定されたIDのサブタスクを一括削除）
   .post(
-    "/:id/subtasks/delete-selected",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { id: string };
-      body: { subtaskIds: number[] };
-    }) => {
+    "/:id/subtasks/delete-selected", async ({  params, body  }: any) => {
       const parentId = parseInt(params.id);
       if (isNaN(parentId)) {
         throw new ValidationError("無効なIDです");
       }
 
-      const { subtaskIds } = body;
+      const { subtaskIds } = body as any;
 
       if (!subtaskIds || subtaskIds.length === 0) {
         throw new ValidationError("削除するサブタスクが指定されていません");

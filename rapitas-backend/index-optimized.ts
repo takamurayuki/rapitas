@@ -11,7 +11,6 @@ import {
   categoriesRoutes,
   themesRoutes,
   labelsRoutes,
-  taskLabelsRoutes,
   projectsRoutes,
   milestonesRoutes,
   timeEntriesRoutes,
@@ -36,7 +35,6 @@ import {
   sseRoutes,
   taskDependencyRoutes,
   githubRoutes,
-  taskGithubRoutes,
   approvalsRoutes,
   aiAgentRoutes,
   parallelExecutionRoutes,
@@ -147,7 +145,6 @@ app.use(
 app.use(categoriesRoutes);
 app.use(themesRoutes);
 app.use(labelsRoutes);
-app.use(taskLabelsRoutes);
 app.use(projectsRoutes);
 app.use(milestonesRoutes);
 app.use(timeEntriesRoutes);
@@ -172,7 +169,6 @@ app.use(aiChatRoutes);
 app.use(sseRoutes);
 app.use(taskDependencyRoutes);
 app.use(githubRoutes);
-app.use(taskGithubRoutes);
 app.use(approvalsRoutes);
 app.use(aiAgentRoutes);
 app.use(parallelExecutionRoutes);

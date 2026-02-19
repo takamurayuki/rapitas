@@ -109,9 +109,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    * 依存関係を分析してツリーマップを取得
    */
   .get(
-    "/tasks/:id/analyze",
-    async ({ 
- params }: { params: { id: string } }) => {
+    "/tasks/:id/analyze", async ({  params  }: any) => {
       try {
         const taskId = parseInt(params.id);
         const input = await buildAnalysisInput(taskId);
@@ -166,9 +164,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    * SSEストリームで依存関係分析
    */
   .get(
-    "/tasks/:id/analyze/stream",
-    async ({ 
- params, set }: { params: { id: string }; set: { headers: Record<string, string> } }) => {
+    "/tasks/:id/analyze/stream", async ({  params, set  }: any) => {
       const taskId = parseInt(params.id);
 
       set.headers = {
@@ -256,9 +252,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    * 並列実行セッションを開始
    */
   .post(
-    "/tasks/:id/execute",
-    async ({ 
- params, body }: { params: { id: string }; body: { config?: Partial<ParallelExecutionConfig> } }) => {
+    "/tasks/:id/execute", async ({  params, body  }: any) => {
       try {
         const taskId = parseInt(params.id);
         const config = body.config as Partial<ParallelExecutionConfig> | undefined;
@@ -377,9 +371,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    * 並列実行セッションの状態を取得
    */
   .get(
-    "/sessions/:sessionId/status",
-    async ({ 
- params }: { params: { sessionId: string } }) => {
+    "/sessions/:sessionId/status", async ({  params  }: any) => {
       try {
         const executor = getParallelExecutor();
         const status = executor.getSessionStatus(params.sessionId);
@@ -411,9 +403,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    * 並列実行セッションを停止
    */
   .post(
-    "/sessions/:sessionId/stop",
-    async ({ 
- params }: { params: { sessionId: string } }) => {
+    "/sessions/:sessionId/stop", async ({  params  }: any) => {
       try {
         const executor = getParallelExecutor();
         await executor.stopSession(params.sessionId);
@@ -441,9 +431,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    * セッションの実行ログを取得
    */
   .get(
-    "/sessions/:sessionId/logs",
-    async ({ 
- params, query }: { params: { sessionId: string }; query: { taskId?: string; level?: string; limit?: string } }) => {
+    "/sessions/:sessionId/logs", async ({  params, query  }: any) => {
       try {
         const executor = getParallelExecutor();
         const logs = executor.getLogs({
@@ -481,9 +469,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    * SSEストリームで実行ログをリアルタイムに取得
    */
   .get(
-    "/sessions/:sessionId/logs/stream",
-    async ({ 
- params, set }: { params: { sessionId: string }; set: { headers: Record<string, string> } }) => {
+    "/sessions/:sessionId/logs/stream", async ({  params, set  }: any) => {
       set.headers = {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",

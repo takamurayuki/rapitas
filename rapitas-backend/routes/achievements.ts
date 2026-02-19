@@ -185,9 +185,8 @@ export const achievementsRoutes = new Elysia({ prefix: "/achievements" })
     }));
   })
 
-  .post("/:key/unlock", async ({ 
- params }: { params: { key: string } }) => {
-    const { key } = params;
+  .post("/:key/unlock", async ({  params  }: any) => {
+    const { key } = params as any;
     const achievement = await prisma.achievement.findUnique({ where: { key } });
     if (!achievement) return { error: "Achievement not found" };
 

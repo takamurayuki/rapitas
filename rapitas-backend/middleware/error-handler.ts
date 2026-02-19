@@ -57,7 +57,7 @@ export const errorHandler = new Elysia({ name: "error-handler" }).onError(
       set.status = 400;
       return {
         error: "バリデーションエラー",
-        details: error.message,
+        details: ('message' in error && typeof error.message === 'string') ? error.message : String(error),
       };
     }
 
@@ -67,10 +67,31 @@ export const errorHandler = new Elysia({ name: "error-handler" }).onError(
       return { error: "リソースが見つかりません" };
     }
 
+    // Prisma related errors
+    if ('message' in error && typeof error.message === 'string' && error.message.includes("Invalid `prisma")) {
+      console.error("[Prisma Error]", error);
+      set.status = 400;
+      return {
+        error: "データベースクエリエラー",
+        details: error.message
+      };
+    }
+
     // Generic server error
     console.error("[Error]", error);
     set.status = 500;
-    return { error: "サーバーエラーが発生しました" };
+
+    // Ensure error response is always JSON
+    const errorMessage = error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : "サーバーエラーが発生しました";
+
+    return {
+      error: errorMessage,
+      type: (error instanceof Error && error.name) ? error.name : "UnknownError"
+    };
   }
 );
 
