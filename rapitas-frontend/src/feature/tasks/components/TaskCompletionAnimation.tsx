@@ -299,7 +299,8 @@ export function ProgressRing({
               color: colors.progress > 0 ? colors.primary : '#94a3b8',
             }}
           >
-            {completed}
+            {Math.floor(colors.progress * 100)}
+            <span className="text-xs font-normal opacity-60">%</span>
           </span>
         )}
       </div>

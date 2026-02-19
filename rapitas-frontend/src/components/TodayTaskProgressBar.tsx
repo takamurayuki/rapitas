@@ -1,0 +1,314 @@
+'use client';
+import React, { memo, useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Cpu, Activity, Award, Zap, Trophy } from 'lucide-react';
+
+// --- Cynical & Motivational Messages ---
+const PROGRESS_MESSAGES = [
+  'Surprisingly adequate.',
+  'Is that all?',
+  "Don't get used to it.",
+  'Efficiency: Acceptable.',
+  'Human error minimized.',
+  'Fabulous effort, I guess.',
+  'One less failure.',
+  'Absolute perfection. Finally.',
+];
+
+// --- Fabulous Golden Particle ---
+const GoldParticle = ({ x, y }: { x: number; y: number }) => {
+  const angle = Math.random() * Math.PI * 2;
+  const distance = 30 + Math.random() * 50;
+  return (
+    <motion.div
+      initial={{ x: 0, y: 0, scale: 0, rotate: 0 }}
+      animate={{
+        x: Math.cos(angle) * distance,
+        y: Math.sin(angle) * distance,
+        scale: [0, 1.5, 0],
+        rotate: 360,
+      }}
+      transition={{ duration: 1, ease: 'easeOut' }}
+      className="pointer-events-none absolute z-50 text-amber-400"
+      style={{ left: x, top: y }}
+    >
+      <Zap size={10} fill="currentColor" />
+    </motion.div>
+  );
+};
+
+// --- Cynical Reward Popup ---
+const CynicalPopup = ({ x, y }: { x: number; y: number }) => {
+  const msg =
+    PROGRESS_MESSAGES[Math.floor(Math.random() * PROGRESS_MESSAGES.length)];
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 0, x: -20 }}
+      animate={{ opacity: 1, y: -50, x: 20 }}
+      exit={{ opacity: 0 }}
+      className="pointer-events-none absolute z-50 whitespace-nowrap border border-amber-500/50 bg-white/90 dark:bg-black/80 px-2 py-1 font-mono text-[10px] uppercase tracking-tighter text-amber-600 dark:text-amber-200"
+      style={{ left: x, top: y }}
+    >
+      {`> ${msg}`}
+    </motion.div>
+  );
+};
+
+interface TodayTaskProgressBarProps {
+  completedCount: number;
+  totalCount: number;
+  className?: string;
+  compact?: boolean;
+}
+
+const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
+  ({ completedCount, totalCount, className = '', compact = false }) => {
+    const [previousCompleted, setPreviousCompleted] = useState(completedCount);
+    const [showEffects, setShowEffects] = useState(false);
+    const [systemCritical, setSystemCritical] = useState(false);
+
+    const progress = totalCount > 0 ? completedCount / totalCount : 0;
+    const efficiency = Math.floor(progress * 100);
+
+    useEffect(() => {
+      if (completedCount > previousCompleted) {
+        setShowEffects(true);
+        setTimeout(() => setShowEffects(false), 1200);
+      }
+      setPreviousCompleted(completedCount);
+    }, [completedCount, previousCompleted]);
+
+    useEffect(() => {
+      if (efficiency === 100 && totalCount > 0) {
+        setSystemCritical(true);
+        const timer = setTimeout(() => setSystemCritical(false), 4000);
+        return () => clearTimeout(timer);
+      }
+    }, [efficiency, totalCount]);
+
+    if (compact) {
+      return (
+        <div
+          className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-amber-500/50 ${className}`}
+        >
+          {/* Minimal header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Trophy size={14} className="text-amber-500" />
+              <p className="font-mono text-xs font-black tracking-tight text-slate-800 dark:text-slate-100">
+                本日のタスク
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <p className="font-mono text-xs text-slate-500 dark:text-slate-600">
+                ({completedCount}/{totalCount})
+              </p>
+              {/* <p
+                className={`font-mono text-sm font-bold ${
+                  efficiency === 100
+                    ? 'text-amber-500 dark:text-amber-400'
+                    : 'text-slate-700 dark:text-slate-200'
+                }`}
+              >
+                {efficiency}%
+              </p> */}
+            </div>
+          </div>
+
+          {/* Compact Progress Bar */}
+          <div className="mt-2 relative flex h-1.5 w-full overflow-hidden bg-slate-200 dark:bg-slate-800">
+            <motion.div
+              animate={{ width: `${efficiency}%` }}
+              className={`h-full transition-all duration-1000 ${
+                efficiency === 100
+                  ? 'bg-linear-to-r from-blue-500 to-blue-400 shadow-[0_0_10px_#3b82f6]'
+                  : efficiency >= 75
+                    ? 'bg-blue-500/80'
+                    : efficiency >= 50
+                      ? 'bg-slate-500 dark:bg-slate-400'
+                      : 'bg-slate-400 dark:bg-slate-600'
+              }`}
+            />
+            {/* Vertical lines for compact version */}
+            {[25, 50, 75].map((percent) => (
+              <div
+                key={percent}
+                className="absolute top-0 h-full w-[1px] bg-slate-400 dark:bg-slate-600 opacity-50"
+                style={{ left: `${percent}%` }}
+              />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // Full version
+    return (
+      <>
+        <div
+          className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-md dark:shadow-[0_0_15px_rgba(0,0,0,0.5)] transition-all duration-300 hover:border-amber-500/50 dark:hover:border-amber-500/50 ${className}`}
+        >
+          {/* Mechanical Scanline on hover */}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-amber-400 to-transparent opacity-0 transition-opacity group-hover:opacity-10 h-1/2 animate-pulse" />
+
+          {/* Header: Task Command Center */}
+          <div className="mb-4 flex items-start justify-between">
+            <div className="flex items-center gap-2">
+              <Cpu size={16} className="animate-pulse text-amber-500" />
+              <div>
+                <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.4em] text-amber-600/70 dark:text-amber-500/50">
+                  DAILY PROTOCOL
+                </p>
+                <h3 className="flex items-center gap-2 font-mono text-sm font-black tracking-tighter text-slate-800 dark:text-slate-100">
+                  TASK_PROGRESS_INDEX
+                </h3>
+              </div>
+            </div>
+          </div>
+
+          {/* Progress Bar with Percentage */}
+          <div className="flex items-center gap-4">
+            {/* Progress Bar Container with Vertical Lines */}
+            <div className="relative flex-1">
+              <div className="relative h-6 w-full overflow-hidden bg-slate-200 dark:bg-slate-800 rounded">
+                <motion.div
+                  animate={{ width: `${efficiency}%` }}
+                  className={`h-full transition-all duration-1000 ${
+                    efficiency === 100
+                      ? 'bg-gradient-to-r from-amber-500 to-amber-400 shadow-[0_0_10px_#fbbf24]'
+                      : efficiency >= 75
+                        ? 'bg-amber-500/80'
+                        : efficiency >= 50
+                          ? 'bg-slate-500 dark:bg-slate-400'
+                          : 'bg-slate-400 dark:bg-slate-600'
+                  }`}
+                />
+
+                {/* Vertical Gauge Lines */}
+                <div className="absolute inset-0 flex">
+                  {[25, 50, 75].map((percent) => (
+                    <div
+                      key={percent}
+                      className="absolute top-0 h-full w-[1px] bg-slate-400 dark:bg-slate-600"
+                      style={{ left: `${percent}%` }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Gauge Labels */}
+              <div className="mt-1 flex justify-between">
+                {[0, 25, 50, 75, 100].map((m) => (
+                  <span
+                    key={m}
+                    className="font-mono text-[8px] text-slate-500 dark:text-slate-700"
+                  >
+                    {m}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Percentage and Count Display */}
+            <div className="text-right">
+              <p
+                className={`font-mono text-2xl font-black ${
+                  efficiency === 100
+                    ? 'text-amber-500 dark:text-amber-400'
+                    : 'text-slate-700 dark:text-slate-200'
+                }`}
+              >
+                {efficiency}%
+              </p>
+              <p className="font-mono text-xs text-slate-500 dark:text-slate-600">
+                ({completedCount}/{totalCount})
+              </p>
+            </div>
+          </div>
+
+          {/* Status Indicators */}
+          <div className="mt-4 flex items-center justify-between font-mono text-[10px] text-slate-500 dark:text-slate-700">
+            <div className="flex items-center gap-4">
+              <span>MEM_USAGE: LOW</span>
+              <span>
+                PRODUCTIVITY:{' '}
+                {efficiency >= 80 ? 'HIGH' : efficiency >= 50 ? 'MED' : 'LOW'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Activity
+                size={12}
+                className={`${efficiency >= 50 ? 'text-amber-500/50' : 'text-slate-400 dark:text-slate-700'} animate-pulse`}
+              />
+              <span>SYSTEM_ACTIVE</span>
+            </div>
+          </div>
+
+          {/* Effects Container */}
+          <AnimatePresence>
+            {showEffects && (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                {[...Array(8)].map((_, i) => (
+                  <GoldParticle key={i} x={50} y={40} />
+                ))}
+                <CynicalPopup x={50} y={40} />
+              </div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Fabulous Overlay on 100% */}
+        <AnimatePresence>
+          {systemCritical && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-amber-500/10 dark:bg-amber-500/10 backdrop-blur-[1px]"
+            >
+              <div className="text-center">
+                <motion.div
+                  initial={{ scale: 0, rotate: 180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  className="mb-4 inline-block border-2 border-amber-500 bg-white dark:bg-black p-8 shadow-[0_0_50px_rgba(251,191,36,0.3)]"
+                >
+                  <Award
+                    size={64}
+                    className="mx-auto mb-4 text-amber-500 dark:text-amber-400"
+                  />
+                  <h2 className="font-mono text-4xl font-black italic tracking-tighter text-slate-800 dark:text-white">
+                    F-A-B-U-L-O-U-S
+                  </h2>
+                  <p className="mt-2 font-mono text-xs tracking-[0.5em] text-amber-600 dark:text-amber-500">
+                    DAILY OBJECTIVE: COMPLETE
+                  </p>
+                </motion.div>
+
+                {/* Rain of Gold */}
+                {[...Array(20)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{
+                      y: -100,
+                      x: (Math.random() - 0.5) * 800,
+                      opacity: 1,
+                    }}
+                    animate={{ y: 800, opacity: 0 }}
+                    transition={{ duration: 2, delay: i * 0.1, ease: 'linear' }}
+                    className="absolute font-mono text-[8px] text-amber-500/40"
+                  >
+                    {Math.random() > 0.5 ? '1010101' : 'TASK_COMPLETE'}
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </>
+    );
+  },
+);
+
+TodayTaskProgressBar.displayName = 'TodayTaskProgressBar';
+
+export default TodayTaskProgressBar;

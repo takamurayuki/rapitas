@@ -34,6 +34,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { apiFetch, parallelFetch, prefetch } from '@/lib/api-client';
 import { fetchTaskStatistics, preloadTaskDetails } from '@/lib/task-api';
 import { useExecutingTasksPolling } from '@/hooks/useExecutingTasksPolling';
+import TodayTaskProgressBar from '@/components/TodayTaskProgressBar';
 import { useAppModeStore } from '@/stores/appModeStore';
 import { useTaskCacheStore } from '@/stores/taskCacheStore';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
@@ -555,7 +556,7 @@ export default function HomeClientPage() {
           {/* 左側: プログレスリングとタイトル */}
           <div className="flex items-center gap-4">
             {/* カテゴリにテーマがある場合のみプログレスリングを表示 */}
-            {(() => {
+            {/* {(() => {
               const hasThemesInCategory =
                 categoryFilter === null ||
                 themes.filter((t) => t.categoryId === categoryFilter).length >
@@ -573,15 +574,17 @@ export default function HomeClientPage() {
                   />
                 )
               );
-            })()}
-            <div>
-              <h1
-                className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50"
-                suppressHydrationWarning
-              >
-                {/* 条件分岐をシンプルにして、ハイドレーションエラーを回避 */}
-                本日のタスク
-              </h1>
+            })()} */}
+
+            {/* Progress Bar - Compact Version */}
+            <TodayTaskProgressBar
+              completedCount={completedTasksCount}
+              totalCount={totalTasksCount}
+              compact={true}
+              className="w-52"
+            />
+
+            {/* <div>
               <div
                 className="text-sm text-zinc-500 dark:text-zinc-400 mt-1"
                 suppressHydrationWarning
@@ -601,7 +604,7 @@ export default function HomeClientPage() {
                     : 'タスクが作成されていません';
                 })()}
               </div>
-            </div>
+            </div> */}
           </div>
 
           {/* 右側: アクションボタン */}

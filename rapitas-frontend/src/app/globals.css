@@ -977,3 +977,13 @@ iframe:not([src='']) + .iframe-loading {
 .log-entry-new {
   animation: fadeInSlide 0.3s ease-out;
 }
+
+/* TodayTaskProgressBar のメカニカルデザイン用 */
+@keyframes animate-stripes {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 40px 0;
+  }
+}
