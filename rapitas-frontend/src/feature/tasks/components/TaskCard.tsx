@@ -145,7 +145,7 @@ const TaskCard = memo(function TaskCard({
 
       // サブタスクがある場合は関連データもプリフェッチ
       if (task.subtasks && task.subtasks.length > 0) {
-        const subtaskPaths = task.subtasks.map(s => `/tasks/${s.id}`);
+        const subtaskPaths = task.subtasks.map((s) => `/tasks/${s.id}`);
         await prefetch(subtaskPaths, 24 * 60 * 60 * 1000); // 24時間キャッシュ
       }
     }
@@ -376,7 +376,7 @@ const TaskCard = memo(function TaskCard({
       {showContextMenu && (
         <div
           ref={contextMenuRef}
-          className="fixed z-50 bg-white dark:bg-zinc-800 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-700 py-1 min-w-[160px] animate-in fade-in duration-100"
+          className="fixed z-50 bg-white dark:bg-zinc-800 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-700 py-1 min-w-40 animate-in fade-in duration-100"
           style={{
             left: `${contextMenuPosition.x}px`,
             top: `${contextMenuPosition.y}px`,

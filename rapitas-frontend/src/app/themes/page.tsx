@@ -521,7 +521,6 @@ export default function ThemesPage() {
     <div className="space-y-4">
       {/* 基本情報 */}
       <div className="space-y-3">
-
         <div>
           <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
             テーマ名 <span className="text-red-500">*</span>
@@ -999,7 +998,11 @@ export default function ThemesPage() {
                   <Droppable
                     droppableId={`themes-category-${currentCategoryId}`}
                   >
-                    {(provided) => (
+                    {(provided: {
+                      innerRef: React.Ref<HTMLDivElement>;
+                      droppableProps: {};
+                      placeholder: React.ReactNode;
+                    }) => (
                       <div
                         className="grid gap-3"
                         ref={provided.innerRef}
@@ -1057,7 +1060,9 @@ export default function ThemesPage() {
                                           {item.isDevelopment && (
                                             <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
                                               <Code className="w-3 h-3" />
-                                              <span className="hidden sm:inline">開発</span>
+                                              <span className="hidden sm:inline">
+                                                開発
+                                              </span>
                                             </span>
                                           )}
                                         </div>
@@ -1088,7 +1093,9 @@ export default function ThemesPage() {
                                               <span className="font-semibold">
                                                 {item._count.tasks}
                                               </span>
-                                              <span className="hidden sm:inline">タスク</span>
+                                              <span className="hidden sm:inline">
+                                                タスク
+                                              </span>
                                             </span>
                                           )}
                                           {item.isDevelopment &&
@@ -1135,7 +1142,9 @@ export default function ThemesPage() {
                                         className="flex items-center gap-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1.5 text-sm text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
                                       >
                                         <Edit2 className="w-3.5 h-3.5" />
-                                        <span className="hidden sm:inline">編集</span>
+                                        <span className="hidden sm:inline">
+                                          編集
+                                        </span>
                                       </button>
                                       <button
                                         onClick={() =>
@@ -1144,7 +1153,9 @@ export default function ThemesPage() {
                                         className="flex items-center gap-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 px-2.5 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
-                                        <span className="hidden sm:inline">削除</span>
+                                        <span className="hidden sm:inline">
+                                          削除
+                                        </span>
                                       </button>
                                     </div>
                                   </div>

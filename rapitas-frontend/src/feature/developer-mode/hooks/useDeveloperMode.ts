@@ -119,7 +119,10 @@ export function useDeveloperMode(taskId: number) {
           setExecutingTask({
             taskId,
             sessionId: statusData.sessionId,
-            status: statusData.executionStatus === 'waiting_for_input' ? 'waiting_for_input' : 'running',
+            status:
+              statusData.executionStatus === 'waiting_for_input'
+                ? 'waiting_for_input'
+                : 'running',
           });
         } else if (statusData.executionStatus === 'interrupted') {
           // 中断された実行がある場合（サーバー再起動後など）
@@ -389,7 +392,9 @@ export function useDeveloperMode(taskId: number) {
           // Check if endpoint exists (404 error)
           if (res.status === 404) {
             console.error('[useDeveloperMode] Endpoint not found:', res.url);
-            throw new Error('実行エンドポイントが見つかりません。サーバーの設定を確認してください。');
+            throw new Error(
+              '実行エンドポイントが見つかりません。サーバーの設定を確認してください。',
+            );
           }
 
           const contentType = res.headers.get('content-type');
@@ -401,26 +406,63 @@ export function useDeveloperMode(taskId: number) {
             responseText = await res.text();
 
             // If it's JSON content type or looks like JSON, try to parse it
-            if ((contentType && contentType.includes('application/json')) ||
-                (responseText && responseText.trim().startsWith('{'))) {
+            if (
+              (contentType && contentType.includes('application/json')) ||
+              (responseText && responseText.trim().startsWith('{'))
+            ) {
               try {
-                data = JSON.parse(responseText);
+                data = await JSON.parse(responseText);
               } catch (jsonErr) {
                 console.error('[useDeveloperMode] JSON parse error:', jsonErr);
-                console.error('[useDeveloperMode] Response text:', responseText);
+                console.error(
+                  '[useDeveloperMode] Response text:',
+                  responseText,
+                );
                 // Check if it's a Prisma error
                 if (responseText && responseText.includes('Invalid `prisma')) {
                   throw new Error('データベースクエリエラーが発生しました。');
                 }
-                throw new Error('Invalid JSON response');
+                // If response is empty, it might be still processing
+                if (!responseText || responseText.trim() === '') {
+                  throw new Error(
+                    'サーバーからの応答がありません。しばらくしてから再度お試しください。',
+                  );
+                }
+                throw new Error('サーバーの応答形式が正しくありません。');
               }
             } else {
-              console.error('[useDeveloperMode] Non-JSON response:', responseText);
-              data = { error: responseText || 'Invalid response format' };
+              console.error(
+                '[useDeveloperMode] Non-JSON response:',
+                responseText,
+              );
+              data = {
+                error: responseText || 'サーバーの応答形式が正しくありません',
+              };
             }
           } catch (textErr) {
-            console.error('[useDeveloperMode] Failed to read response:', textErr);
-            data = { error: '応答の読み取りに失敗しました' };
+            console.error(
+              '[useDeveloperMode] Failed to read response:',
+              textErr,
+            );
+            // Wait a bit and retry once
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            try {
+              const retryText = await res.clone().text();
+              if (retryText && retryText.trim().startsWith('{')) {
+                data = JSON.parse(retryText);
+              } else {
+                data = {
+                  error:
+                    'サーバーとの通信中にエラーが発生しました。再度お試しください。',
+                };
+              }
+            } catch (retryErr) {
+              console.error('[useDeveloperMode] Retry also failed:', retryErr);
+              data = {
+                error:
+                  'サーバーとの通信中にエラーが発生しました。再度お試しください。',
+              };
+            }
           }
 
           if (res.ok) {
@@ -457,7 +499,9 @@ export function useDeveloperMode(taskId: number) {
           // Check if endpoint exists (404 error)
           if (res.status === 404) {
             console.error('[useDeveloperMode] Endpoint not found:', res.url);
-            throw new Error('実行エンドポイントが見つかりません。サーバーの設定を確認してください。');
+            throw new Error(
+              '実行エンドポイントが見つかりません。サーバーの設定を確認してください。',
+            );
           }
 
           const contentType = res.headers.get('content-type');
@@ -469,26 +513,63 @@ export function useDeveloperMode(taskId: number) {
             responseText = await res.text();
 
             // If it's JSON content type or looks like JSON, try to parse it
-            if ((contentType && contentType.includes('application/json')) ||
-                (responseText && responseText.trim().startsWith('{'))) {
+            if (
+              (contentType && contentType.includes('application/json')) ||
+              (responseText && responseText.trim().startsWith('{'))
+            ) {
               try {
-                data = JSON.parse(responseText);
+                data = await JSON.parse(responseText);
               } catch (jsonErr) {
                 console.error('[useDeveloperMode] JSON parse error:', jsonErr);
-                console.error('[useDeveloperMode] Response text:', responseText);
+                console.error(
+                  '[useDeveloperMode] Response text:',
+                  responseText,
+                );
                 // Check if it's a Prisma error
                 if (responseText && responseText.includes('Invalid `prisma')) {
                   throw new Error('データベースクエリエラーが発生しました。');
                 }
-                throw new Error('Invalid JSON response');
+                // If response is empty, it might be still processing
+                if (!responseText || responseText.trim() === '') {
+                  throw new Error(
+                    'サーバーからの応答がありません。しばらくしてから再度お試しください。',
+                  );
+                }
+                throw new Error('サーバーの応答形式が正しくありません。');
               }
             } else {
-              console.error('[useDeveloperMode] Non-JSON response:', responseText);
-              data = { error: responseText || 'Invalid response format' };
+              console.error(
+                '[useDeveloperMode] Non-JSON response:',
+                responseText,
+              );
+              data = {
+                error: responseText || 'サーバーの応答形式が正しくありません',
+              };
             }
           } catch (textErr) {
-            console.error('[useDeveloperMode] Failed to read response:', textErr);
-            data = { error: '応答の読み取りに失敗しました' };
+            console.error(
+              '[useDeveloperMode] Failed to read response:',
+              textErr,
+            );
+            // Wait a bit and retry once
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            try {
+              const retryText = await res.clone().text();
+              if (retryText && retryText.trim().startsWith('{')) {
+                data = JSON.parse(retryText);
+              } else {
+                data = {
+                  error:
+                    'サーバーとの通信中にエラーが発生しました。再度お試しください。',
+                };
+              }
+            } catch (retryErr) {
+              console.error('[useDeveloperMode] Retry also failed:', retryErr);
+              data = {
+                error:
+                  'サーバーとの通信中にエラーが発生しました。再度お試しください。',
+              };
+            }
           }
 
           if (res.ok) {

@@ -21,7 +21,7 @@ import {
   Cell,
   LineChart,
   Line,
-  ResponsiveContainer
+  ResponsiveContainer,
 } from 'recharts';
 import {
   AlertCircle,
@@ -32,10 +32,14 @@ import {
   Search,
   Download,
   Clock,
-  TrendingUp
+  TrendingUp,
 } from 'lucide-react';
 
-import type { LogAnalysisResult, LogLevel, ParsedLogEntry } from '@/types/debug-log';
+import type {
+  LogAnalysisResult,
+  LogLevel,
+  ParsedLogEntry,
+} from '@/types/debug-log';
 
 interface LogAnalysisViewerProps {
   analysis: LogAnalysisResult;
@@ -48,7 +52,7 @@ const LOG_LEVEL_COLORS: Record<LogLevel, string> = {
   info: '#3B82F6',
   warn: '#F59E0B',
   error: '#EF4444',
-  fatal: '#991B1B'
+  fatal: '#991B1B',
 };
 
 const LOG_LEVEL_ICONS: Record<LogLevel, React.ElementType> = {
@@ -57,12 +61,12 @@ const LOG_LEVEL_ICONS: Record<LogLevel, React.ElementType> = {
   info: Info,
   warn: AlertTriangle,
   error: AlertCircle,
-  fatal: AlertCircle
+  fatal: AlertCircle,
 };
 
 export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
   analysis,
-  onExport
+  onExport,
 }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<LogLevel | null>(null);
@@ -70,9 +74,13 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
 
   // ログエントリーのフィルタリング
   const filteredEntries = useMemo(() => {
-    return analysis.entries.filter(entry => {
+    return analysis.entries.filter((entry) => {
       if (selectedLevel && entry.level !== selectedLevel) return false;
-      if (searchText && entry.message && !entry.message.toLowerCase().includes(searchText.toLowerCase())) {
+      if (
+        searchText &&
+        entry.message &&
+        !entry.message.toLowerCase().includes(searchText.toLowerCase())
+      ) {
         return false;
       }
       return true;
@@ -86,7 +94,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
       .map(([level, count]) => ({
         level: level.toUpperCase(),
         count,
-        color: LOG_LEVEL_COLORS[level as LogLevel]
+        color: LOG_LEVEL_COLORS[level as LogLevel],
       }));
   }, [analysis.summary.levelDistribution]);
 
@@ -95,15 +103,23 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
     if (!analysis.summary.timeRange) return [];
 
     const entriesWithTime = analysis.entries
-      .filter(entry => entry.timestamp)
-      .sort((a, b) => (a.timestamp!.getTime() - b.timestamp!.getTime()));
+      .filter((entry) => entry.timestamp)
+      .sort((a, b) => a.timestamp!.getTime() - b.timestamp!.getTime());
 
     // 時間ごとのエラー数を集計
-    const hourlyData = new Map<string, { time: string, errors: number, warnings: number, info: number }>();
+    const hourlyData = new Map<
+      string,
+      { time: string; errors: number; warnings: number; info: number }
+    >();
 
-    entriesWithTime.forEach(entry => {
+    entriesWithTime.forEach((entry) => {
       const hour = entry.timestamp!.toISOString().substring(0, 13);
-      const existing = hourlyData.get(hour) || { time: hour, errors: 0, warnings: 0, info: 0 };
+      const existing = hourlyData.get(hour) || {
+        time: hour,
+        errors: 0,
+        warnings: 0,
+        info: 0,
+      };
 
       switch (entry.level) {
         case 'error':
@@ -130,7 +146,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
       .slice(0, 10)
       .map(([source, count]) => ({
         source,
-        count
+        count,
       }));
   }, [analysis.summary.sourceDistribution]);
 
@@ -143,7 +159,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
         key={index}
         className="flex items-start gap-3 p-3 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/50"
       >
-        <Icon className="w-4 h-4 mt-1 flex-shrink-0" style={{ color }} />
+        <Icon className="w-4 h-4 mt-1 shrink-0" style={{ color }} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             {entry.timestamp && (
@@ -193,32 +209,50 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">総エントリー数</p>
-                <p className="text-2xl font-bold">{analysis.summary.totalEntries}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  総エントリー数
+                </p>
+                <p className="text-2xl font-bold">
+                  {analysis.summary.totalEntries}
+                </p>
               </div>
               <Activity className="w-8 h-8 text-gray-400" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className={analysis.summary.errorCount > 0 ? 'border-red-500' : ''}>
+        <Card
+          className={analysis.summary.errorCount > 0 ? 'border-red-500' : ''}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">エラー数</p>
-                <p className="text-2xl font-bold text-red-500">{analysis.summary.errorCount}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  エラー数
+                </p>
+                <p className="text-2xl font-bold text-red-500">
+                  {analysis.summary.errorCount}
+                </p>
               </div>
               <AlertCircle className="w-8 h-8 text-red-500" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className={analysis.summary.warningCount > 0 ? 'border-yellow-500' : ''}>
+        <Card
+          className={
+            analysis.summary.warningCount > 0 ? 'border-yellow-500' : ''
+          }
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">警告数</p>
-                <p className="text-2xl font-bold text-yellow-500">{analysis.summary.warningCount}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  警告数
+                </p>
+                <p className="text-2xl font-bold text-yellow-500">
+                  {analysis.summary.warningCount}
+                </p>
               </div>
               <AlertTriangle className="w-8 h-8 text-yellow-500" />
             </div>
@@ -229,13 +263,16 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">時間範囲</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  時間範囲
+                </p>
                 <p className="text-sm font-medium">
                   {analysis.summary.timeRange
                     ? `${Math.round(
                         (analysis.summary.timeRange.end.getTime() -
                           analysis.summary.timeRange.start.getTime()) /
-                          1000 / 60
+                          1000 /
+                          60,
                       )}分`
                     : 'N/A'}
                 </p>
@@ -297,12 +334,17 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="time"
-                    tickFormatter={(time: string | number) => new Date(time).toLocaleTimeString()}
+                    tickFormatter={(time: string | number) =>
+                      new Date(time).toLocaleTimeString()
+                    }
                   />
                   <YAxis />
                   <Tooltip
                     labelFormatter={(label) => {
-                      if (typeof label === 'string' || typeof label === 'number') {
+                      if (
+                        typeof label === 'string' ||
+                        typeof label === 'number'
+                      ) {
                         return new Date(label).toLocaleString();
                       }
                       return String(label);
@@ -342,16 +384,26 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {analysis.patterns.errors.slice(0, 5).map((pattern, index) => (
-                    <div key={index} className="border-l-4 border-red-500 pl-4">
-                      <div className="flex justify-between items-start">
-                        <p className="text-sm font-mono text-gray-700 dark:text-gray-300">
-                          {pattern.pattern}
-                        </p>
-                        <Badge variant="default" className="bg-red-100 text-red-900 dark:bg-red-900 dark:text-red-100">{pattern.count}回</Badge>
+                  {analysis.patterns.errors
+                    .slice(0, 5)
+                    .map((pattern, index) => (
+                      <div
+                        key={index}
+                        className="border-l-4 border-red-500 pl-4"
+                      >
+                        <div className="flex justify-between items-start">
+                          <p className="text-sm font-mono text-gray-700 dark:text-gray-300">
+                            {pattern.pattern}
+                          </p>
+                          <Badge
+                            variant="default"
+                            className="bg-red-100 text-red-900 dark:bg-red-900 dark:text-red-100"
+                          >
+                            {pattern.count}回
+                          </Badge>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               </CardContent>
             </Card>
@@ -365,16 +417,23 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {analysis.patterns.warnings.slice(0, 5).map((pattern, index) => (
-                    <div key={index} className="border-l-4 border-yellow-500 pl-4">
-                      <div className="flex justify-between items-start">
-                        <p className="text-sm font-mono text-gray-700 dark:text-gray-300">
-                          {pattern.pattern}
-                        </p>
-                        <Badge className="bg-yellow-500">{pattern.count}回</Badge>
+                  {analysis.patterns.warnings
+                    .slice(0, 5)
+                    .map((pattern, index) => (
+                      <div
+                        key={index}
+                        className="border-l-4 border-yellow-500 pl-4"
+                      >
+                        <div className="flex justify-between items-start">
+                          <p className="text-sm font-mono text-gray-700 dark:text-gray-300">
+                            {pattern.pattern}
+                          </p>
+                          <Badge className="bg-yellow-500">
+                            {pattern.count}回
+                          </Badge>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               </CardContent>
             </Card>
@@ -387,14 +446,19 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {analysis.patterns.frequentMessages.slice(0, 10).map((pattern, index) => (
-                  <div key={index} className="flex justify-between items-start">
-                    <p className="text-sm font-mono text-gray-700 dark:text-gray-300 truncate flex-1">
-                      {pattern.pattern}
-                    </p>
-                    <Badge variant="outline">{pattern.count}回</Badge>
-                  </div>
-                ))}
+                {analysis.patterns.frequentMessages
+                  .slice(0, 10)
+                  .map((pattern, index) => (
+                    <div
+                      key={index}
+                      className="flex justify-between items-start"
+                    >
+                      <p className="text-sm font-mono text-gray-700 dark:text-gray-300 truncate flex-1">
+                        {pattern.pattern}
+                      </p>
+                      <Badge variant="outline">{pattern.count}回</Badge>
+                    </div>
+                  ))}
               </div>
             </CardContent>
           </Card>
@@ -430,7 +494,9 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
                     <Input
                       placeholder="ログを検索..."
                       value={searchText}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchText(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setSearchText(e.target.value)
+                      }
                       className="pl-10"
                     />
                   </div>
@@ -440,8 +506,14 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
                     <Button
                       key={level}
                       size="sm"
-                      variant={selectedLevel === level ? 'secondary' : 'outline'}
-                      onClick={() => setSelectedLevel(selectedLevel === level ? null : level as LogLevel)}
+                      variant={
+                        selectedLevel === level ? 'secondary' : 'outline'
+                      }
+                      onClick={() =>
+                        setSelectedLevel(
+                          selectedLevel === level ? null : (level as LogLevel),
+                        )
+                      }
                     >
                       {level.toUpperCase()}
                     </Button>
@@ -463,7 +535,9 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
             </CardHeader>
             <CardContent className="p-0">
               <div className="max-h-[600px] overflow-y-auto">
-                {filteredEntries.slice(0, 1000).map((entry, index) => renderLogEntry(entry, index))}
+                {filteredEntries
+                  .slice(0, 1000)
+                  .map((entry, index) => renderLogEntry(entry, index))}
                 {filteredEntries.length > 1000 && (
                   <div className="p-4 text-center text-gray-500">
                     表示上限（1000件）を超えています。フィルターを使用して絞り込んでください。

@@ -52,7 +52,11 @@ export function ResumableExecutionsBanner() {
   const autoResumeCheckedRef = useRef(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dropdownButtonRef = useRef<HTMLButtonElement>(null);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [dropdownPosition, setDropdownPosition] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
 
   // グローバルストアの実行中タスク数を監視
   const executingTasksSize = useExecutionStateStore(
@@ -225,8 +229,12 @@ export function ResumableExecutionsBanner() {
   // プルダウンの外側クリックで閉じる
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) &&
-          dropdownButtonRef.current && !dropdownButtonRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node) &&
+        dropdownButtonRef.current &&
+        !dropdownButtonRef.current.contains(event.target as Node)
+      ) {
         setShowDropdown(false);
       }
     };
@@ -680,13 +688,14 @@ export function ResumableExecutionsBanner() {
             ) : (
               /* 複数件の場合はプルダウン形式 */
               <div className="relative flex-1 min-w-0" ref={dropdownRef}>
-                <div className="relative static">
+                <div className="relative">
                   <button
                     ref={dropdownButtonRef}
                     onClick={(e) => {
                       e.stopPropagation();
                       if (!showDropdown && dropdownButtonRef.current) {
-                        const rect = dropdownButtonRef.current.getBoundingClientRect();
+                        const rect =
+                          dropdownButtonRef.current.getBoundingClientRect();
                         setDropdownPosition({
                           top: rect.bottom + 8,
                           left: rect.left,
@@ -709,57 +718,63 @@ export function ResumableExecutionsBanner() {
                           : `${interruptedCount}件再開可能`}
                       </span>
                     </div>
-                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 transition-transform ${showDropdown ? 'rotate-180' : ''}`}
+                    />
                   </button>
 
                   {/* プルダウンメニュー */}
-                  {showDropdown && typeof window !== 'undefined' && createPortal(
-                    <div
-                      ref={dropdownRef}
-                      className="fixed bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-2xl z-[100] animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200"
-                      style={{
-                        top: `${dropdownPosition.top}px`,
-                        left: `${dropdownPosition.left}px`,
-                        width: `${dropdownPosition.width}px`,
-                        maxWidth: '24rem',
-                      }}
-                    >
-                      <div className="max-h-64 overflow-y-auto rounded-lg">
-                        {executions.map((exec) => (
-                          <a
-                            key={exec.id}
-                            href={`/tasks/${exec.taskId}?showHeader=true`}
-                            onClick={() => setShowDropdown(false)}
-                            className="flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors border-b border-zinc-100 dark:border-zinc-800 last:border-b-0"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
-                                  {exec.taskTitle || `タスク #${exec.taskId}`}
-                                </span>
-                                {(exec.status === 'running' ||
-                                  exec.status === 'waiting_for_input') && (
-                                  <span className="shrink-0 flex items-center gap-0.5 px-1 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[9px] font-medium rounded">
-                                    <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                  {showDropdown &&
+                    typeof window !== 'undefined' &&
+                    createPortal(
+                      <div
+                        ref={dropdownRef}
+                        className="fixed bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-2xl z-100 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200"
+                        style={{
+                          top: `${dropdownPosition.top}px`,
+                          left: `${dropdownPosition.left}px`,
+                          width: `${dropdownPosition.width}px`,
+                          maxWidth: '24rem',
+                        }}
+                      >
+                        <div className="max-h-64 overflow-y-auto rounded-lg">
+                          {executions.map((exec) => (
+                            <a
+                              key={exec.id}
+                              href={`/tasks/${exec.taskId}?showHeader=true`}
+                              onClick={() => setShowDropdown(false)}
+                              className="flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors border-b border-zinc-100 dark:border-zinc-800 last:border-b-0"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
+                                    {exec.taskTitle || `タスク #${exec.taskId}`}
                                   </span>
-                                )}
-                                {exec.status === 'interrupted' && (
-                                  <span className="shrink-0 px-1 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[9px] font-medium rounded">
-                                    中断
-                                  </span>
-                                )}
+                                  {(exec.status === 'running' ||
+                                    exec.status === 'waiting_for_input') && (
+                                    <span className="shrink-0 flex items-center gap-0.5 px-1 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[9px] font-medium rounded">
+                                      <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                                    </span>
+                                  )}
+                                  {exec.status === 'interrupted' && (
+                                    <span className="shrink-0 px-1 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[9px] font-medium rounded">
+                                      中断
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                                  {formatTimeAgo(
+                                    exec.startedAt || exec.createdAt,
+                                  )}
+                                </p>
                               </div>
-                              <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-                                {formatTimeAgo(exec.startedAt || exec.createdAt)}
-                              </p>
-                            </div>
-                            <ExternalLink className="w-3 h-3 text-zinc-400 shrink-0" />
-                          </a>
-                        ))}
-                      </div>
-                    </div>,
-                    document.body
-                  )}
+                              <ExternalLink className="w-3 h-3 text-zinc-400 shrink-0" />
+                            </a>
+                          ))}
+                        </div>
+                      </div>,
+                      document.body,
+                    )}
                 </div>
               </div>
             )}

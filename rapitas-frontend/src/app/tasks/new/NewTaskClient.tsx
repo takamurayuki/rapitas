@@ -227,7 +227,10 @@ export default function NewTaskClient() {
           fromAutoGenerate &&
           globalSettings?.autoCreateAfterTitleGeneration
         ) {
-          console.log('[NewTaskClient] Auto-creating task with title:', data.title);
+          console.log(
+            '[NewTaskClient] Auto-creating task with title:',
+            data.title,
+          );
           showToast('タスクを自動作成します...', 'info');
           // 生成されたタイトルを直接渡して実行
           setTimeout(() => {
@@ -269,9 +272,15 @@ export default function NewTaskClient() {
     }
 
     const delaySec = globalSettings?.autoGenerateTitleDelay ?? 3;
-    console.log('[NewTaskClient] Setting auto-generate timer for', delaySec, 'seconds');
+    console.log(
+      '[NewTaskClient] Setting auto-generate timer for',
+      delaySec,
+      'seconds',
+    );
     autoGenerateTimerRef.current = setTimeout(() => {
-      console.log('[NewTaskClient] Auto-generate timer triggered, calling handleGenerateTitle');
+      console.log(
+        '[NewTaskClient] Auto-generate timer triggered, calling handleGenerateTitle',
+      );
       handleGenerateTitle(true); // fromAutoGenerateフラグをtrueで呼び出し
     }, delaySec * 1000);
 
@@ -289,9 +298,17 @@ export default function NewTaskClient() {
   ]);
 
   const handleSubmitWithTitle = async (generatedTitle: string) => {
-    console.log('[NewTaskClient] handleSubmitWithTitle called with:', generatedTitle);
+    console.log(
+      '[NewTaskClient] handleSubmitWithTitle called with:',
+      generatedTitle,
+    );
     if (isSubmitting || !generatedTitle.trim()) {
-      console.log('[NewTaskClient] Aborting submission - isSubmitting:', isSubmitting, 'title empty:', !generatedTitle.trim());
+      console.log(
+        '[NewTaskClient] Aborting submission - isSubmitting:',
+        isSubmitting,
+        'title empty:',
+        !generatedTitle.trim(),
+      );
       return;
     }
 
@@ -312,9 +329,7 @@ export default function NewTaskClient() {
         themeId: themeId || undefined,
         labels: labelArray.length > 0 ? labelArray : undefined,
         labelIds: selectedLabelIds.length > 0 ? selectedLabelIds : undefined,
-        estimatedHours: estimatedHours
-          ? parseFloat(estimatedHours)
-          : undefined,
+        estimatedHours: estimatedHours ? parseFloat(estimatedHours) : undefined,
         dueDate: dueDate || undefined,
       };
 
@@ -734,7 +749,7 @@ export default function NewTaskClient() {
                       type="datetime-local"
                       value={dueDate}
                       onChange={(e) => setDueDate(e.target.value)}
-                      className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all dark:[color-scheme:dark]"
+                      className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all dark:scheme:dark"
                     />
                     {dueDate && (
                       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 shrink-0">

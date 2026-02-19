@@ -99,7 +99,7 @@ export function FlyingParticle({
   return createPortal(
     <div
       ref={ref}
-      className="fixed top-0 left-0 w-3 h-3 pointer-events-none z-[9999]"
+      className="fixed top-0 left-0 w-3 h-3 pointer-events-none z-9999"
     >
       <div
         className="w-full h-full rounded-full animate-task-particle-pulse"

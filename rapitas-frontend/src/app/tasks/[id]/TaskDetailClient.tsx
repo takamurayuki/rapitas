@@ -1283,38 +1283,49 @@ export default function TaskDetailClient({
                   isApproving={approvalLoading}
                   onPromptGenerated={(prompt) => setOptimizedPrompt(prompt)}
                   onSubtasksCreated={async () => {
-                    // タスクを再取得してサブタスクを更新
-                    const res = await fetch(
-                      `${API_BASE}/tasks/${resolvedTaskId}`,
-                    );
-                    if (res.ok) {
+                    try {
+                      // タスクを再取得してサブタスクを更新
+                      const res = await fetch(
+                        `${API_BASE}/tasks/${resolvedTaskId}`,
+                      );
+                      if (!res.ok) {
+                        console.error('[TaskDetail] Failed to fetch task after subtask creation');
+                        return;
+                      }
+
                       const data = await res.json();
                       setTask(data);
+
+                      // サーバー側の処理が完了するまで少し待機
+                      await new Promise(resolve => setTimeout(resolve, 500));
 
                       // 自動実行設定を確認
                       try {
                         const configRes = await fetch(
                           `${API_BASE}/agent-execution-config/${resolvedTaskId}`,
                         );
-                        if (configRes.ok) {
-                          const configData = await configRes.json();
-                          if (configData.autoExecuteOnAnalysis) {
-                            // サブタスクがある場合は並列実行、なければ通常実行
-                            if (data.subtasks && data.subtasks.length > 0) {
-                              console.log(
-                                '[TaskDetail] Auto-executing parallel tasks after analysis',
-                              );
-                              startSession();
-                            } else {
-                              console.log(
-                                '[TaskDetail] Auto-executing agent after analysis',
-                              );
-                              executeAgent({
-                                useTaskAnalysis: true,
-                                optimizedPrompt: optimizedPrompt || undefined,
-                                agentConfigId: agentConfigId ?? undefined,
-                              });
-                            }
+                        if (!configRes.ok) {
+                          console.warn('[TaskDetail] Auto-execute config not found');
+                          return;
+                        }
+
+                        const configData = await configRes.json();
+                        if (configData.autoExecuteOnAnalysis) {
+                          // サブタスクがある場合は並列実行、なければ通常実行
+                          if (data.subtasks && data.subtasks.length > 0) {
+                            console.log(
+                              '[TaskDetail] Auto-executing parallel tasks after analysis',
+                            );
+                            startSession();
+                          } else {
+                            console.log(
+                              '[TaskDetail] Auto-executing agent after analysis',
+                            );
+                            await executeAgent({
+                              useTaskAnalysis: true,
+                              optimizedPrompt: optimizedPrompt || undefined,
+                              agentConfigId: agentConfigId ?? undefined,
+                            });
                           }
                         }
                       } catch (err) {
@@ -1323,6 +1334,11 @@ export default function TaskDetailClient({
                           err,
                         );
                       }
+                    } catch (err) {
+                      console.error(
+                        '[TaskDetail] Error in onSubtasksCreated:',
+                        err,
+                      );
                     }
                   }}
                   // エージェント実行関連（開発者モードが有効なら表示）
