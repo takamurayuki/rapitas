@@ -264,7 +264,12 @@ export default function TaskDetailClient({
         setTask(data);
 
         // タスクアクセスを記録（次回起動時のウォームアップ用）
-        recordTaskAccess(resolvedTaskId);
+        if (resolvedTaskId) {
+          const numericTaskId = parseInt(resolvedTaskId, 10);
+          if (!isNaN(numericTaskId)) {
+            recordTaskAccess(numericTaskId);
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'タスクの取得に失敗しました');
       } finally {
