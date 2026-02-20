@@ -14,6 +14,52 @@ import { useExecutionStateStore } from '@/stores/executionStateStore';
 
 export type { ExecutionStatus, ExecutionResult };
 
+/**
+ * Safe JSON parsing with improved validation
+ */
+function safeJsonParse(text: string): { success: boolean; data?: any; error?: string } {
+  // Basic validation
+  if (!text || typeof text !== 'string') {
+    return { success: false, error: 'Empty or invalid response text' };
+  }
+
+  const trimmed = text.trim();
+
+  // Check for common error message patterns
+  if (trimmed.startsWith('Invalid `prisma') || trimmed.startsWith('Invalid `p')) {
+    return { success: false, error: 'Database query error detected' };
+  }
+
+  // Check if response looks like an error message (not JSON)
+  if (trimmed.startsWith('Error:') || trimmed.startsWith('ERROR:')) {
+    return { success: false, error: trimmed };
+  }
+
+  // More strict JSON validation
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return { success: false, error: 'Response is not JSON format' };
+  }
+
+  // Check if JSON appears complete (basic bracket matching for objects)
+  if (trimmed.startsWith('{') && !trimmed.endsWith('}')) {
+    return { success: false, error: 'Incomplete JSON object detected' };
+  }
+
+  if (trimmed.startsWith('[') && !trimmed.endsWith(']')) {
+    return { success: false, error: 'Incomplete JSON array detected' };
+  }
+
+  try {
+    const data = JSON.parse(trimmed);
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      error: `JSON parse failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    };
+  }
+}
+
 export function useDeveloperMode(taskId: number) {
   const [config, setConfig] = useState<DeveloperModeConfig | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -405,39 +451,33 @@ export function useDeveloperMode(taskId: number) {
             // Try to get response text first
             responseText = await res.text();
 
-            // If it's JSON content type or looks like JSON, try to parse it
-            if (
-              (contentType && contentType.includes('application/json')) ||
-              (responseText && responseText.trim().startsWith('{'))
-            ) {
-              try {
-                data = await JSON.parse(responseText);
-              } catch (jsonErr) {
-                console.error('[useDeveloperMode] JSON parse error:', jsonErr);
-                console.error(
-                  '[useDeveloperMode] Response text:',
-                  responseText,
-                );
-                // Check if it's a Prisma error
-                if (responseText && responseText.includes('Invalid `prisma')) {
-                  throw new Error('データベースクエリエラーが発生しました。');
-                }
-                // If response is empty, it might be still processing
-                if (!responseText || responseText.trim() === '') {
-                  throw new Error(
-                    'サーバーからの応答がありません。しばらくしてから再度お試しください。',
-                  );
-                }
-                throw new Error('サーバーの応答形式が正しくありません。');
-              }
+            // Use safe JSON parsing
+            const parseResult = safeJsonParse(responseText);
+
+            if (parseResult.success) {
+              data = parseResult.data;
             } else {
-              console.error(
-                '[useDeveloperMode] Non-JSON response:',
-                responseText,
-              );
-              data = {
-                error: responseText || 'サーバーの応答形式が正しくありません',
-              };
+              console.error('[useDeveloperMode] JSON parse failed:', parseResult.error);
+              console.error('[useDeveloperMode] Response text:', responseText);
+
+              // Check for specific error patterns
+              if (parseResult.error?.includes('Database query error')) {
+                throw new Error('データベースクエリエラーが発生しました。');
+              }
+
+              // If response is empty, it might be still processing
+              if (!responseText || responseText.trim() === '') {
+                throw new Error(
+                  'サーバーからの応答がありません。しばらくしてから再度お試しください。',
+                );
+              }
+
+              // If it's clearly an error message, use it as is
+              if (responseText.trim().startsWith('Error:') || responseText.trim().startsWith('Invalid')) {
+                data = { error: responseText.trim() };
+              } else {
+                data = { error: 'サーバーの応答形式が正しくありません。' };
+              }
             }
           } catch (textErr) {
             console.error(
@@ -448,8 +488,10 @@ export function useDeveloperMode(taskId: number) {
             await new Promise((resolve) => setTimeout(resolve, 1000));
             try {
               const retryText = await res.clone().text();
-              if (retryText && retryText.trim().startsWith('{')) {
-                data = JSON.parse(retryText);
+              const retryParseResult = safeJsonParse(retryText);
+
+              if (retryParseResult.success) {
+                data = retryParseResult.data;
               } else {
                 data = {
                   error:
@@ -512,39 +554,33 @@ export function useDeveloperMode(taskId: number) {
             // Try to get response text first
             responseText = await res.text();
 
-            // If it's JSON content type or looks like JSON, try to parse it
-            if (
-              (contentType && contentType.includes('application/json')) ||
-              (responseText && responseText.trim().startsWith('{'))
-            ) {
-              try {
-                data = await JSON.parse(responseText);
-              } catch (jsonErr) {
-                console.error('[useDeveloperMode] JSON parse error:', jsonErr);
-                console.error(
-                  '[useDeveloperMode] Response text:',
-                  responseText,
-                );
-                // Check if it's a Prisma error
-                if (responseText && responseText.includes('Invalid `prisma')) {
-                  throw new Error('データベースクエリエラーが発生しました。');
-                }
-                // If response is empty, it might be still processing
-                if (!responseText || responseText.trim() === '') {
-                  throw new Error(
-                    'サーバーからの応答がありません。しばらくしてから再度お試しください。',
-                  );
-                }
-                throw new Error('サーバーの応答形式が正しくありません。');
-              }
+            // Use safe JSON parsing
+            const parseResult = safeJsonParse(responseText);
+
+            if (parseResult.success) {
+              data = parseResult.data;
             } else {
-              console.error(
-                '[useDeveloperMode] Non-JSON response:',
-                responseText,
-              );
-              data = {
-                error: responseText || 'サーバーの応答形式が正しくありません',
-              };
+              console.error('[useDeveloperMode] JSON parse failed:', parseResult.error);
+              console.error('[useDeveloperMode] Response text:', responseText);
+
+              // Check for specific error patterns
+              if (parseResult.error?.includes('Database query error')) {
+                throw new Error('データベースクエリエラーが発生しました。');
+              }
+
+              // If response is empty, it might be still processing
+              if (!responseText || responseText.trim() === '') {
+                throw new Error(
+                  'サーバーからの応答がありません。しばらくしてから再度お試しください。',
+                );
+              }
+
+              // If it's clearly an error message, use it as is
+              if (responseText.trim().startsWith('Error:') || responseText.trim().startsWith('Invalid')) {
+                data = { error: responseText.trim() };
+              } else {
+                data = { error: 'サーバーの応答形式が正しくありません。' };
+              }
             }
           } catch (textErr) {
             console.error(
@@ -555,8 +591,10 @@ export function useDeveloperMode(taskId: number) {
             await new Promise((resolve) => setTimeout(resolve, 1000));
             try {
               const retryText = await res.clone().text();
-              if (retryText && retryText.trim().startsWith('{')) {
-                data = JSON.parse(retryText);
+              const retryParseResult = safeJsonParse(retryText);
+
+              if (retryParseResult.success) {
+                data = retryParseResult.data;
               } else {
                 data = {
                   error:

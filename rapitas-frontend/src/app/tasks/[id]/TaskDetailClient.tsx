@@ -82,7 +82,7 @@ interface TaskDetailClientProps {
 function TaskDetailClient({
   taskId: propTaskId,
   onTaskUpdated,
-}: TaskDetailClientProps = {}) {
+}: TaskDetailClientProps) {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();

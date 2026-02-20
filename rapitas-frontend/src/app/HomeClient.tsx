@@ -910,11 +910,12 @@ function HomeClientPage() {
                         }}
                         className={`relative flex items-center gap-1.5 px-4 py-2 font-mono text-[11px] uppercase tracking-wider transition-all whitespace-nowrap shrink-0 border-r ${
                           isActive
-                            ? 'bg-slate-100 dark:bg-slate-700/50 font-bold'
+                            ? 'bg-slate-200 dark:bg-slate-600/70 font-bold border-b-2'
                             : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/30'
                         } border-slate-200 dark:border-slate-700`}
                         style={{
                           color: isActive ? cat.color : undefined,
+                          borderBottomColor: isActive ? cat.color : undefined,
                         }}
                       >
                         <CatIcon className="w-3.5 h-3.5" />
@@ -960,7 +961,7 @@ function HomeClientPage() {
                         onClick={() => {
                           setThemeFilter(theme.id);
                         }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider transition-all whitespace-nowrap shrink-0 rounded-sm ${
+                        className={`flex items-center gap-1.5 px-3 py-1.5 font-medium text-xs transition-all whitespace-nowrap shrink-0 rounded-sm ${
                           isActive
                             ? 'shadow-lg font-bold text-white dark:text-white'
                             : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'

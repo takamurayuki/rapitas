@@ -935,10 +935,15 @@ export default function ThemesPage() {
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                     isSelected
                       ? 'text-white shadow-md'
-                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                      : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border'
                   }`}
                   style={
-                    isSelected ? { backgroundColor: cat.color } : undefined
+                    isSelected
+                      ? { backgroundColor: cat.color }
+                      : {
+                          color: cat.color,
+                          borderColor: cat.color + '60'
+                        }
                   }
                 >
                   {renderIcon(cat.icon, 14)}
