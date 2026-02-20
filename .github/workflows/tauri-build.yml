@@ -90,7 +90,9 @@ jobs:
             libsoup-3.0-dev \
             libxdo-dev \
             libxcb-shape0-dev \
-            libxcb-xfixes0-dev
+            libxcb-xfixes0-dev \
+            libfuse2 \
+            file
 
       - name: Install pnpm
         run: npm install -g pnpm@latest
@@ -409,6 +411,30 @@ jobs:
             echo "Binaries directory already exists"
           fi
 
+      - name: Prepare AppImage tools (Ubuntu)
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          # Set environment variables for AppImage tools
+          echo "Setting up AppImage environment..."
+
+          # Make AppImage tools work without FUSE in CI
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          echo "APPIMAGE_EXTRACT_AND_RUN=1" >> $GITHUB_ENV
+
+          # Disable sandboxing for AppImage creation
+          export NO_SANDBOX=1
+          echo "NO_SANDBOX=1" >> $GITHUB_ENV
+
+          # Ensure all downloaded AppImage tools have execute permissions
+          if [ -d "$HOME/.cache/tauri" ]; then
+            echo "Setting execute permissions for cached AppImage tools..."
+            find "$HOME/.cache/tauri" -name "*.AppImage" -type f -exec chmod +x {} \;
+            find "$HOME/.cache/tauri" -name "linuxdeploy*" -type f -exec chmod +x {} \;
+            find "$HOME/.cache/tauri" -name "AppRun*" -type f -exec chmod +x {} \;
+          fi
+
+          echo "AppImage environment setup complete"
+
       - name: Build Tauri application
         working-directory: rapitas-desktop
         run: |
@@ -419,6 +445,7 @@ jobs:
           CI: true
           DATABASE_URL: "postgresql://user:password@localhost:5432/rapitas?schema=public"  # Valid dummy URL for CI
           TARGET: ${{ matrix.target }}  # Pass target to build scripts
+          APPIMAGE_EXTRACT_AND_RUN: 1  # Allow AppImages to run in Docker/CI environments
 
       - name: List build artifacts
         working-directory: rapitas-desktop
