@@ -463,7 +463,31 @@ export default function HomeClientPage() {
         statistics: fetchTaskStatistics(),
       };
 
-      const results = await Promise.allSettled(Object.values(requests));
+      // タイムアウト付きで初回ロード（ゾンビソケット等でAPIが応答しない場合の対策）
+      const INITIAL_LOAD_TIMEOUT = 15000; // 15秒
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error('Initial data load timed out')),
+          INITIAL_LOAD_TIMEOUT,
+        ),
+      );
+
+      let results: PromiseSettledResult<unknown>[];
+      try {
+        results = (await Promise.race([
+          Promise.allSettled(Object.values(requests)),
+          timeoutPromise,
+        ])) as PromiseSettledResult<unknown>[];
+      } catch {
+        console.warn(
+          'Initial data load timed out after 15s - API may be unreachable',
+        );
+        results = Object.values(requests).map(() => ({
+          status: 'rejected' as const,
+          reason: new Error('timeout'),
+        }));
+      }
+
       const [
         taskResult,
         themeResult,
@@ -555,27 +579,6 @@ export default function HomeClientPage() {
         <div className="mb-4 flex items-center justify-between">
           {/* 左側: プログレスリングとタイトル */}
           <div className="flex items-center gap-4">
-            {/* カテゴリにテーマがある場合のみプログレスリングを表示 */}
-            {/* {(() => {
-              const hasThemesInCategory =
-                categoryFilter === null ||
-                themes.filter((t) => t.categoryId === categoryFilter).length >
-                  0;
-              return (
-                hasThemesInCategory &&
-                totalTasksCount > 0 && (
-                  <ProgressRing
-                    completed={completedTasksCount}
-                    total={totalTasksCount}
-                    bursts={bursts}
-                    onBurstDone={handleBurstDone}
-                    ringRef={progressRingRef as React.RefObject<HTMLDivElement>}
-                    colors={colors}
-                  />
-                )
-              );
-            })()} */}
-
             {/* Progress Bar - Compact Version */}
             <TodayTaskProgressBar
               completedCount={completedTasksCount}
@@ -583,28 +586,6 @@ export default function HomeClientPage() {
               compact={true}
               className="w-52"
             />
-
-            {/* <div>
-              <div
-                className="text-sm text-zinc-500 dark:text-zinc-400 mt-1"
-                suppressHydrationWarning
-              >
-                {(() => {
-                  // カテゴリフィルタがある場合のみテーマをチェック
-                  if (categoryFilter !== null && themes.length > 0) {
-                    const hasThemesInCategory = themes.some(
-                      (t) => t.categoryId === categoryFilter,
-                    );
-                    if (!hasThemesInCategory) {
-                      return 'テーマを追加してタスクを整理しましょう';
-                    }
-                  }
-                  return totalTasksCount > 0
-                    ? `${completedTasksCount} / ${totalTasksCount} 完了`
-                    : 'タスクが作成されていません';
-                })()}
-              </div>
-            </div> */}
           </div>
 
           {/* 右側: アクションボタン */}
@@ -612,29 +593,6 @@ export default function HomeClientPage() {
             {/* バルク操作ボタン（選択時のみ表示） */}
             {isSelectionMode && selectedTasks.size > 0 && (
               <>
-                {/* 選択数の表示 */}
-                <div className="flex items-center px-3 py-1.5 bg-white dark:bg-slate-900/50 rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm">
-                  <svg
-                    className="w-4 h-4 text-purple-600 dark:text-purple-400 mr-1.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
-                    />
-                  </svg>
-                  <span className="font-mono text-sm font-bold text-purple-700 dark:text-purple-300">
-                    {selectedTasks.size}
-                  </span>
-                  <span className="font-mono text-xs text-purple-600 dark:text-purple-400 ml-1">
-                    件選択
-                  </span>
-                </div>
-
                 {/* ステータス変更ボタングループ */}
                 <div className="relative flex items-center gap-1 px-3 py-1 bg-white dark:bg-slate-900/50 rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm">
                   <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 mr-2">
@@ -670,7 +628,9 @@ export default function HomeClientPage() {
                           <span className="w-3.5 h-3.5">
                             {renderStatusIcon(status)}
                           </span>
-                          <span className="font-mono text-xs font-black tracking-tight">{config.label}</span>
+                          <span className="font-mono text-xs font-black tracking-tight">
+                            {config.label}
+                          </span>
                         </button>
                       </React.Fragment>
                     );
@@ -707,7 +667,9 @@ export default function HomeClientPage() {
                           d="M12 4v16m8-8H4"
                         />
                       </svg>
-                      <span className="font-mono text-xs font-black tracking-tight">クイック</span>
+                      <span className="font-mono text-xs font-black tracking-tight">
+                        クイック
+                      </span>
                     </button>
                   </div>
 
@@ -736,7 +698,9 @@ export default function HomeClientPage() {
                           d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                         />
                       </svg>
-                      <span className="font-mono text-xs font-black tracking-tight">新規</span>
+                      <span className="font-mono text-xs font-black tracking-tight">
+                        新規
+                      </span>
                     </button>
                   </div>
                 </>
@@ -746,11 +710,12 @@ export default function HomeClientPage() {
               {isSelectionMode && (
                 <>
                   {/* 全選択/全解除ボタン */}
-                  <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400">
+                  <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-slate-500 dark:hover:border-slate-400">
                     <button
                       onClick={() => {
                         if (selectedTasks.size === paginatedTasks.length) {
                           setSelectedTasks(new Set());
+                          setIsSelectionMode(false);
                         } else {
                           setSelectedTasks(
                             new Set(paginatedTasks.map((t) => t.id)),
@@ -758,13 +723,14 @@ export default function HomeClientPage() {
                         }
                       }}
                       className={`flex items-center gap-2 transition-all cursor-pointer ${
-                        selectedTasks.size === paginatedTasks.length && paginatedTasks.length > 0
-                          ? 'text-blue-600 dark:text-blue-400'
-                          : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300'
+                        selectedTasks.size === paginatedTasks.length &&
+                        paginatedTasks.length > 0
+                          ? 'text-slate-600 dark:text-slate-400'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                       }`}
                       title={
                         selectedTasks.size === paginatedTasks.length
-                          ? '全解除'
+                          ? '全解除・選択モード終了'
                           : '全選択'
                       }
                     >
@@ -823,37 +789,12 @@ export default function HomeClientPage() {
                             d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                           />
                         </svg>
-                        <span className="font-mono text-xs font-black tracking-tight">削除</span>
+                        <span className="font-mono text-xs font-black tracking-tight">
+                          削除
+                        </span>
                       </button>
                     </div>
                   )}
-
-                  {/* 選択モード解除ボタン */}
-                  <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-slate-500 dark:hover:border-slate-400">
-                    <button
-                      onClick={() => {
-                        setIsSelectionMode(false);
-                        setSelectedTasks(new Set());
-                      }}
-                      className="flex items-center gap-2 transition-all cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                      title="選択モードを解除"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                      <span className="font-mono text-xs font-black tracking-tight">解除</span>
-                    </button>
-                  </div>
                 </>
               )}
 
@@ -885,7 +826,9 @@ export default function HomeClientPage() {
                     />
                   </svg>
                   <span className="font-mono text-xs font-black tracking-tight">
-                    {isSelectionMode ? `選択中 (${selectedTasks.size})` : '一括'}
+                    {isSelectionMode
+                      ? `選択中 (${selectedTasks.size})`
+                      : '一括'}
                   </span>
                 </button>
               </div>
@@ -1079,62 +1022,69 @@ export default function HomeClientPage() {
                     STATUS:
                   </span>
                   <div className="flex items-center">
-                    {['all', 'todo', 'in-progress', 'done'].map((status, idx) => {
-                      const statusConfigLocal = {
-                        all: { label: 'ALL', color: 'amber' },
-                        todo: { label: 'TODO', color: 'slate' },
-                        'in-progress': { label: 'IN_PROGRESS', color: 'blue' },
-                        done: { label: 'DONE', color: 'green' },
-                      };
-                      const config =
-                        statusConfigLocal[
-                          status as keyof typeof statusConfigLocal
-                        ];
-                      const count = statusCounts[status] || 0;
-                      const isActive = filter === status;
+                    {['all', 'todo', 'in-progress', 'done'].map(
+                      (status, idx) => {
+                        const statusConfigLocal = {
+                          all: { label: 'ALL', color: 'amber' },
+                          todo: { label: 'TODO', color: 'slate' },
+                          'in-progress': {
+                            label: 'IN_PROGRESS',
+                            color: 'blue',
+                          },
+                          done: { label: 'DONE', color: 'green' },
+                        };
+                        const config =
+                          statusConfigLocal[
+                            status as keyof typeof statusConfigLocal
+                          ];
+                        const count = statusCounts[status] || 0;
+                        const isActive = filter === status;
 
-                      return (
-                        <div key={status} className="flex items-center">
-                          <button
-                            onClick={() => setFilter(status)}
-                            className={`relative h-6 px-3 font-mono text-[10px] uppercase tracking-wider whitespace-nowrap transition-all duration-200 ${
-                              isActive
-                                ? config.color === 'amber'
-                                  ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-white shadow-md font-bold'
-                                  : config.color === 'blue'
-                                    ? 'bg-blue-500 text-white shadow-md font-bold'
-                                    : config.color === 'green'
-                                      ? 'bg-green-500 text-white shadow-md font-bold'
-                                      : 'bg-slate-600 text-white shadow-md font-bold'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                            }`}
-                          >
-                            <div className="flex items-center gap-1">
-                              {config.label}
-                              <span className="text-[9px] opacity-75">
-                                {count}
-                              </span>
-                            </div>
-                            {/* Progress indicator at bottom */}
-                            {count > 0 && (
-                              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-slate-300 dark:bg-slate-600">
-                                <div
-                                  className={`h-full transition-all duration-500 ${
-                                    isActive ? 'bg-white/50' : 'bg-slate-400 dark:bg-slate-500'
-                                  }`}
-                                  style={{
-                                    width: `${status === 'all' ? 100 : (statusCounts[status] / statusCounts.all) * 100}%`
-                                  }}
-                                />
+                        return (
+                          <div key={status} className="flex items-center">
+                            <button
+                              onClick={() => setFilter(status)}
+                              className={`relative h-6 px-3 font-mono text-[10px] uppercase tracking-wider whitespace-nowrap transition-all duration-200 ${
+                                isActive
+                                  ? config.color === 'amber'
+                                    ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-white shadow-md font-bold'
+                                    : config.color === 'blue'
+                                      ? 'bg-blue-500 text-white shadow-md font-bold'
+                                      : config.color === 'green'
+                                        ? 'bg-green-500 text-white shadow-md font-bold'
+                                        : 'bg-slate-600 text-white shadow-md font-bold'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1">
+                                {config.label}
+                                <span className="text-[9px] opacity-75">
+                                  {count}
+                                </span>
                               </div>
+                              {/* Progress indicator at bottom */}
+                              {count > 0 && (
+                                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-slate-300 dark:bg-slate-600">
+                                  <div
+                                    className={`h-full transition-all duration-500 ${
+                                      isActive
+                                        ? 'bg-white/50'
+                                        : 'bg-slate-400 dark:bg-slate-500'
+                                    }`}
+                                    style={{
+                                      width: `${status === 'all' ? 100 : (statusCounts[status] / statusCounts.all) * 100}%`,
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </button>
+                            {idx < 3 && (
+                              <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-600" />
                             )}
-                          </button>
-                          {idx < 3 && (
-                            <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-600" />
-                          )}
-                        </div>
-                      );
-                    })}
+                          </div>
+                        );
+                      },
+                    )}
                   </div>
                 </div>
 
@@ -1241,7 +1191,9 @@ export default function HomeClientPage() {
                   <div className="flex items-center">
                     <select
                       value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                      onChange={(e) =>
+                        setSortBy(e.target.value as typeof sortBy)
+                      }
                       className="h-6 px-2 font-mono text-[10px] uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-r border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-0 focus:bg-slate-200 dark:focus:bg-slate-700 transition-colors cursor-pointer"
                     >
                       <option value="createdAt">CREATED</option>
@@ -1464,24 +1416,6 @@ export default function HomeClientPage() {
         onClose={closeTaskPanel}
         onTaskUpdated={fetchTasks}
       />
-
-      {/* <TaskCompleteOverlay
-        show={showCompleteOverlay}
-        onComplete={() => setShowCompleteOverlay(false)}
-      /> */}
-
-      {/* 飛翔する粒子 */}
-      {particles.map((p) => (
-        <FlyingParticle
-          key={p.id}
-          startX={p.startX}
-          startY={p.startY}
-          targetX={p.targetX}
-          targetY={p.targetY}
-          colors={nextColors}
-          onArrive={handleParticleArrive}
-        />
-      ))}
     </div>
   );
 }

@@ -94,7 +94,15 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
           {/* Minimal header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Trophy size={14} className="text-amber-500" />
+              {efficiency === 100 && (
+                <motion.div
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 20 }}
+                >
+                  <Trophy size={14} className="text-amber-500" />
+                </motion.div>
+              )}
               <p className="font-mono text-xs font-black tracking-tight text-slate-800 dark:text-slate-100">
                 本日のタスク
               </p>
@@ -121,7 +129,7 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
               animate={{ width: `${efficiency}%` }}
               className={`h-full transition-all duration-1000 ${
                 efficiency === 100
-                  ? 'bg-linear-to-r from-blue-500 to-blue-400 shadow-[0_0_10px_#3b82f6]'
+                  ? 'bg-gradient-to-r from-green-500 to-green-400 shadow-[0_0_10px_#10b981]'
                   : efficiency >= 75
                     ? 'bg-blue-500/80'
                     : efficiency >= 50
@@ -161,6 +169,42 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                 </p>
                 <h3 className="flex items-center gap-2 font-mono text-sm font-black tracking-tighter text-slate-800 dark:text-slate-100">
                   TASK_PROGRESS_INDEX
+                  {efficiency === 100 && totalCount > 0 && (
+                    <>
+                      <motion.div
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ 
+                          scale: [1, 1.2, 1],
+                          rotate: 0
+                        }}
+                        transition={{ 
+                          scale: { repeat: Infinity, duration: 1.5 },
+                          rotate: { type: "spring", stiffness: 260, damping: 20 }
+                        }}
+                      >
+                        <Trophy
+                          size={16}
+                          className="text-amber-500"
+                        />
+                      </motion.div>
+                      <span className="inline-flex items-center gap-1 px-3 py-1 text-[11px] font-mono font-bold uppercase tracking-wider bg-green-500 text-white rounded-full shadow-md animate-slide-in">
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={3}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                        Completed!
+                      </span>
+                    </>
+                  )}
                 </h3>
               </div>
             </div>

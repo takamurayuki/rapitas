@@ -179,10 +179,11 @@ BehaviorScheduler.start();
 const PORT = parseInt(process.env.PORT || "3001", 10);
 app.listen({
   port: PORT,
+  hostname: "0.0.0.0", // IPv4 only - IPv6ゾンビソケットの干渉を回避
   idleTimeout: 30, // 30秒のアイドルタイムアウトでCLOSE_WAIT蓄積を防止
   reusePort: true, // TIME_WAIT状態のゾンビソケットがあってもバインド可能にする
 });
-console.log(`🚀 Rapitas backend running on http://localhost:${PORT}`);
+console.log(`🚀 Rapitas backend running on http://127.0.0.1:${PORT}`);
 
 // Orchestratorにサーバー停止コールバックを設定（グレースフルシャットダウン時にポートを正しく解放するため）
 orchestrator.setServerStopCallback(() => {

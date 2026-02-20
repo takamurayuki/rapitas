@@ -263,14 +263,12 @@ export class UserBehaviorService {
         .sort(([, a], [, b]) => b - a)[0]?.[0] || null;
 
       // 既存のサマリーを探す
-      const existingSummary = await prisma.userBehaviorSummary.findUnique({
+      const existingSummary = await prisma.userBehaviorSummary.findFirst({
         where: {
-          userId_periodType_periodStart_themeId: {
-            userId,
-            periodType,
-            periodStart,
-            themeId: themeId || 0,
-          }
+          userId,
+          periodType,
+          periodStart,
+          themeId: themeId ?? null,
         }
       });
 
@@ -301,7 +299,16 @@ export class UserBehaviorService {
             periodEnd,
             themeId,
             ...summaryData,
+          },
+        }).catch((e: any) => {
+          // Race condition: another process created the record between findFirst and create
+          if (e.code === 'P2002') {
+            return prisma.userBehaviorSummary.updateMany({
+              where: { userId, periodType, periodStart, themeId: themeId ?? null },
+              data: summaryData,
+            });
           }
+          throw e;
         });
       }
     }

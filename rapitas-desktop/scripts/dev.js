@@ -112,6 +112,58 @@ function isProcessRunning(pid) {
 }
 
 /**
+ * CLOSE_WAIT/FIN_WAIT_2 状態のゾンビソケットを所有するプロセスを検出・強制kill する
+ * IPv6ゾンビソケットが LISTENING 状態で残り続ける問題への対策
+ * PowerShell の Get-NetTCPConnection を使用して状態別にソケットを検出する
+ * @param {number} port
+ */
+function killZombieSocketOwners(port) {
+  try {
+    // PowerShell で CLOSE_WAIT/FIN_WAIT_2/TIME_WAIT のソケット所有PIDを取得
+    const psCommand = `Get-NetTCPConnection -LocalPort ${port} -ErrorAction SilentlyContinue | Where-Object { $_.State -in @('CloseWait','FinWait2','TimeWait') } | Select-Object -ExpandProperty OwningProcess -Unique`;
+    const result = execSync(
+      `powershell -NoProfile -Command "${psCommand}"`,
+      { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"], timeout: 10000 },
+    );
+    const pids = result
+      .trim()
+      .split("\n")
+      .map((line) => parseInt(line.trim()))
+      .filter((pid) => pid && pid > 0);
+
+    if (pids.length === 0) return;
+
+    console.log(
+      `  Found zombie socket owner(s) on port ${port}: PID ${pids.join(", ")}`,
+    );
+
+    for (const pid of pids) {
+      if (!isProcessRunning(pid)) {
+        console.log(`  PID ${pid} is already dead (orphaned socket).`);
+        continue;
+      }
+      try {
+        execSync(`taskkill /F /PID ${pid}`, { stdio: "pipe" });
+        console.log(`  Killed zombie socket owner PID ${pid}`);
+      } catch (err) {
+        const errMsg = err.message || err.stderr?.toString() || "";
+        if (
+          errMsg.includes("見つかりません") ||
+          errMsg.includes("not found") ||
+          errMsg.includes("not be found")
+        ) {
+          console.log(`  PID ${pid} already terminated.`);
+        } else {
+          console.log(`  Failed to kill PID ${pid}: ${errMsg}`);
+        }
+      }
+    }
+  } catch {
+    // PowerShell が使えない or ポートにソケットがない場合は無視
+  }
+}
+
+/**
  * 指定ポートを使用しているすべてのプロセスのPIDを取得する
  * LISTEN状態だけでなく、ESTABLISHED/TIME_WAIT等も含めて検出する
  * @param {number} port
@@ -152,6 +204,59 @@ function waitForPortRelease(port, timeoutMs = 10000) {
     }
     check();
   });
+}
+
+/**
+ * バックエンド起動後にヘルスチェックを行い、実際にリクエストが処理できるか確認する
+ * ゾンビソケットが残っていて接続が死んだソケットにルーティングされる場合を検出する
+ * @param {number} port
+ * @param {number} timeoutMs タイムアウト（ミリ秒）
+ * @returns {Promise<boolean>} バックエンドが応答したか
+ */
+async function waitForBackendReady(port, timeoutMs = 30000) {
+  const http = require("http");
+  const startTime = Date.now();
+  const pollInterval = 1000;
+
+  // 最初の2秒はバックエンドの起動を待つ
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  while (Date.now() - startTime < timeoutMs) {
+    try {
+      const ok = await new Promise((resolve) => {
+        const req = http.get(
+          {
+            hostname: "127.0.0.1", // IPv4明示（IPv6ゾンビソケット回避）
+            port: port,
+            path: "/tasks?limit=1",
+            timeout: 5000,
+          },
+          (res) => {
+            let body = "";
+            res.on("data", (chunk) => { body += chunk; });
+            res.on("end", () => {
+              resolve(res.statusCode >= 200 && res.statusCode < 500);
+            });
+          },
+        );
+        req.on("error", () => resolve(false));
+        req.on("timeout", () => {
+          req.destroy();
+          resolve(false);
+        });
+      });
+      if (ok) {
+        console.log(`  ✅ Backend health check passed (http://127.0.0.1:${port}/tasks)`);
+        return true;
+      }
+    } catch {
+      // リトライ
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  }
+
+  console.log(`  ⚠️  Backend health check timed out after ${timeoutMs / 1000}s`);
+  return false;
 }
 
 /**
@@ -237,6 +342,9 @@ async function tryGracefulShutdownViaHttp(port) {
  * @returns {Promise<number>} 使用するポート番号
  */
 async function ensurePortAvailable(port) {
+  // まず CLOSE_WAIT/FIN_WAIT_2 のゾンビソケット所有プロセスを先にkill
+  killZombieSocketOwners(port);
+
   if (!isPortListening(port)) return port;
 
   console.log(`  Port ${port} is in use, attempting cleanup...`);
@@ -1005,6 +1113,21 @@ async function main() {
   syncDatabaseAndGenerateClient();
   startBackend();
 
+  // バックエンドのヘルスチェック（ゾンビソケットへの接続を検出）
+  const backendReady = await waitForBackendReady(actualBackendPort);
+  if (!backendReady) {
+    console.log("  ⚠️  Backend not responding. Attempting zombie socket cleanup and restart...");
+    killZombieSocketOwners(actualBackendPort);
+    // ポートを再確保してリスタート
+    await stopBackendCompletely();
+    actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
+    startBackend();
+    const retryReady = await waitForBackendReady(actualBackendPort, 15000);
+    if (!retryReady) {
+      console.log("  ❌ Backend still not responding after retry. Continuing anyway...");
+    }
+  }
+
   // フロントエンドを起動
   frontend = spawn("pnpm", ["run", "dev"], {
     cwd: FRONTEND_DIR,
@@ -1106,6 +1229,8 @@ function cleanupSync() {
   ]);
 
   for (const port of portsToClean) {
+    // CLOSE_WAIT/FIN_WAIT_2 のゾンビソケット所有プロセスもkill
+    killZombieSocketOwners(port);
     if (isPortListening(port)) {
       console.log(`  Port ${port} still in use, force killing...`);
       forceKillAllOnPort(port);
