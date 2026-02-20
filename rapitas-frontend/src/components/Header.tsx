@@ -47,6 +47,7 @@ import {
   NotebookTabs,
   User,
   LogOut,
+  Package,
 } from 'lucide-react';
 import AppIcon from '@/components/AppIcon';
 import GlobalPomodoroWidget from '@/feature/tasks/pomodoro/GlobalPomodoroWidget';
@@ -483,6 +484,11 @@ export default function Header() {
               label: 'メトリクス',
               icon: BarChart3,
             },
+            {
+              href: '/agents/versions',
+              label: 'バージョン管理',
+              icon: Package,
+            },
           ],
         },
         {
@@ -498,19 +504,31 @@ export default function Header() {
       ],
     },
     {
-      href: '/settings/general',
-      label: '全体設定',
+      href: '#',
+      label: '設定',
       icon: Settings,
-    },
-    {
-      href: '/settings',
-      label: 'APIキー設定',
-      icon: Key,
-    },
-    {
-      href: '/settings/shortcuts',
-      label: 'ショートカット設定',
-      icon: Keyboard,
+      children: [
+        {
+          href: '/settings/general',
+          label: '全体設定',
+          icon: Settings,
+        },
+        {
+          href: '/settings',
+          label: 'APIキー設定',
+          icon: Key,
+        },
+        {
+          href: '/settings/cli-tools',
+          label: 'CLIツール管理',
+          icon: Package,
+        },
+        {
+          href: '/settings/shortcuts',
+          label: 'ショートカット設定',
+          icon: Keyboard,
+        },
+      ],
     },
   ];
 
@@ -929,32 +947,6 @@ export default function Header() {
               {/* 通知ベル */}
               <NotificationBell />
 
-              {/* ノート・AIモーダルボタン */}
-              <button
-                onClick={() => {
-                  if (modalState.isOpen) {
-                    closeModal();
-                  } else {
-                    openModal();
-                  }
-                }}
-                className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors relative"
-                title={
-                  modalState.isOpen
-                    ? 'ノート・AIを閉じる'
-                    : 'ノート・AIを開く (Ctrl+E)'
-                }
-              >
-                {modalState.activeTab === 'ai' ? (
-                  <Sparkles className="w-5 h-5" />
-                ) : (
-                  <NotebookTabs className="w-5 h-5" />
-                )}
-                {modalState.isOpen && (
-                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-indigo-500 rounded-full" />
-                )}
-              </button>
-
               {/* ユーザーメニュー（認証時のみ表示） */}
               {isAuthenticated && user && (
                 <div className="relative" ref={userMenuRef}>
@@ -1005,6 +997,29 @@ export default function Header() {
                 </button>
                 {isMoreMenuOpen && (
                   <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-50">
+                    {/* ノート・AI */}
+                    <button
+                      onClick={() => {
+                        if (modalState.isOpen) {
+                          closeModal();
+                        } else {
+                          openModal();
+                        }
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                    >
+                      {modalState.activeTab === 'ai' ? (
+                        <Sparkles className="w-4 h-4" />
+                      ) : (
+                        <NotebookTabs className="w-4 h-4" />
+                      )}
+                      <span>
+                        {modalState.isOpen
+                          ? 'ノート・AIを閉じる'
+                          : 'ノート・AI (Ctrl+E)'}
+                      </span>
+                    </button>
                     {/* ダークモード切り替え */}
                     <button
                       onClick={() => {
