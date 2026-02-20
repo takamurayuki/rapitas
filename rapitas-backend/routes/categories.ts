@@ -281,11 +281,8 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
   // Reorder categories
   .patch(
     "/reorder",
-    async ({ 
- body }: {
-      body: { orders: Array<{ id: number; sortOrder: number }> }
-    }) => {
-      const { orders  } = body as any;
+    async (context) => {
+      const { orders } = context.body as { orders: Array<{ id: number; sortOrder: number }> };
 
       await Promise.all(
         orders.map(({ id, sortOrder }) =>
@@ -297,5 +294,15 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
       );
 
       return { success: true };
+    },
+    {
+      body: t.Object({
+        orders: t.Array(
+          t.Object({
+            id: t.Number(),
+            sortOrder: t.Number(),
+          })
+        ),
+      }),
     }
   );

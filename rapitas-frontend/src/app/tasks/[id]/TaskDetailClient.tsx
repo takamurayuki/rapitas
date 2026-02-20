@@ -69,6 +69,7 @@ import { preloadTaskDetails } from '@/lib/task-api';
 import { cacheManager } from '@/lib/cache-utils';
 import { recordTaskAccess } from '@/lib/cache-warmup';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { requireAuth } from '@/contexts/AuthContext';
 
 const API_BASE = API_BASE_URL;
 
@@ -78,7 +79,7 @@ interface TaskDetailClientProps {
   onClose?: () => void;
 }
 
-export default function TaskDetailClient({
+function TaskDetailClient({
   taskId: propTaskId,
   onTaskUpdated,
 }: TaskDetailClientProps = {}) {
@@ -1761,3 +1762,6 @@ export default function TaskDetailClient({
     </div>
   );
 }
+
+// 認証が必要なコンポーネントとしてエクスポート
+export default requireAuth(TaskDetailClient);

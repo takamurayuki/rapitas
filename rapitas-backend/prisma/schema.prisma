@@ -533,9 +533,14 @@ model AIAgentConfig {
   apiKeyEncrypted String?
   endpoint        String?
   modelId         String?
+  version         String?   // エージェントのバージョン (e.g., "1.0.0")
+  latestVersion   String?   // 利用可能な最新バージョン
   isDefault       Boolean   @default(false)
   isActive        Boolean   @default(true)
+  isInstalled     Boolean   @default(true)  // インストール済みかどうか
+  installPath     String?   // インストールパス
   capabilities    String    @default("{}") // JSON stored as string
+  metadata        String    @default("{}") // バージョン固有のメタデータ (JSON)
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
   executions              AgentExecution[]
@@ -881,5 +886,52 @@ model AgentConfigAuditLog {
 
   @@index([agentConfigId])
   @@index([createdAt])
+}
+
+// User認証システム
+model User {
+  id                Int       @id @default(autoincrement())
+  username          String    @unique
+  email             String?   @unique
+  passwordHash      String?   // bcryptでハッシュ化されたパスワード (Google OAuth時はnull)
+  displayName       String?
+  role              String    @default("user") // admin, user
+  isActive          Boolean   @default(true)
+  emailVerified     Boolean   @default(false)
+  lastLoginAt       DateTime?
+  passwordResetToken String?
+  passwordResetExpiresAt DateTime?
+  // Google OAuth関連フィールド
+  provider          String    @default("local") // "local" or "google"
+  providerId        String?   // Google User ID
+  googleId          String?   @unique // Google固有のユーザーID
+  avatar            String?   // プロフィール画像URL
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  sessions          UserSession[]
+
+  @@index([username])
+  @@index([email])
+  @@index([googleId])
+}
+
+// ユーザーセッション管理（JWT Token管理）
+model UserSession {
+  id              Int       @id @default(autoincrement())
+  userId          Int
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionToken    String    @unique // JWT token or session identifier
+  refreshToken    String?   @unique // リフレッシュトークン
+  expiresAt       DateTime  // セッション有効期限
+  lastAccessedAt  DateTime  @default(now())
+  ipAddress       String?
+  userAgent       String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([sessionToken])
+  @@index([expiresAt])
 }
 

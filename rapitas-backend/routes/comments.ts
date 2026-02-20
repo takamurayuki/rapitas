@@ -31,9 +31,8 @@ async function getCommentWithLinks(commentId: number) {
 
 export const commentsRoutes = new Elysia()
   // Get comments for a task (with replies and links)
-  .get("/tasks/:id/comments", async (context: any) => {
-      const { params  } = context;
-    const taskId = parseInt(params.id);
+  .get("/tasks/:id/comments", async (context) => {
+    const taskId = parseInt(context.params.id);
     if (isNaN(taskId)) {
       throw new ValidationError("無効なタスクIDです");
     }
@@ -82,20 +81,15 @@ export const commentsRoutes = new Elysia()
   // Create comment for a task (supports replies with parentId)
   .post(
     "/tasks/:id/comments",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { id: string };
-      body: { content: string; parentId?: number };
-    }) => {
+    async (context) => {
+      const params = context.params as { id: string };
+      const body = context.body as { content: string; parentId?: number };
       const taskId = parseInt(params.id);
       if (isNaN(taskId)) {
         throw new ValidationError("無効なタスクIDです");
       }
 
-      const { content, parentId  } = body as any;
+      const { content, parentId } = body;
 
       // 親コメントが指定されている場合、存在確認
       if (parentId !== undefined) {
@@ -132,14 +126,9 @@ export const commentsRoutes = new Elysia()
   // Update comment
   .patch(
     "/comments/:id",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { id: string };
-      body: { content: string };
-    }) => {
+    async (context) => {
+      const params = context.params as { id: string };
+      const body = context.body as { content: string };
       const commentId = parseInt(params.id);
       if (isNaN(commentId)) {
         throw new ValidationError("無効なコメントIDです");
@@ -153,7 +142,7 @@ export const commentsRoutes = new Elysia()
         throw new NotFoundError("コメントが見つかりません");
       }
 
-      const { content  } = body as any;
+      const { content  } = body;
       return await prisma.comment.update({
         where: { id: commentId },
         data: { content },
@@ -167,8 +156,8 @@ export const commentsRoutes = new Elysia()
   )
 
   // Delete comment
-  .delete("/comments/:id", async (context: any) => {
-      const { params  } = context;
+  .delete("/comments/:id", async (context) => {
+    const params = context.params as { id: string };
     const commentId = parseInt(params.id);
     if (isNaN(commentId)) {
       throw new ValidationError("無効なコメントIDです");
@@ -194,20 +183,13 @@ export const commentsRoutes = new Elysia()
   // Create a link between two comments
   .post(
     "/comments/:id/links",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { id: string };
-      body: { toCommentId: number; label?: string };
-    }) => {
-      const fromCommentId = parseInt(params.id);
+    async (context) => {
+      const fromCommentId = parseInt(context.params.id);
       if (isNaN(fromCommentId)) {
         throw new ValidationError("無効なコメントIDです");
       }
 
-      const { toCommentId, label  } = body as any;
+      const { toCommentId, label  } = context.body as { toCommentId: number; label?: string };
 
       // Cannot link to self
       if (fromCommentId === toCommentId) {
@@ -304,14 +286,10 @@ export const commentsRoutes = new Elysia()
   // Update a link label
   .patch(
     "/comment-links/:id",
-    async ({ 
+    async (context) => {
+      const params = context.params as { id: string };
+      const body = context.body as { label?: string | null };
 
-      params,
-      body,
-    }: {
-      params: { id: string };
-      body: { label?: string | null };
-    }) => {
       const linkId = parseInt(params.id);
       if (isNaN(linkId)) {
         throw new ValidationError("無効なリンクIDです");

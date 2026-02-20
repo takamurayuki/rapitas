@@ -45,3 +45,6 @@ export { rateLimitRoutes } from "./rate-limits";
 export { paidLeaveRoutes } from "./paid-leave";
 export { urlMetadataRoutes } from "./url-metadata";
 export { batchRoutes } from "./batch";
+export { agentMetricsRouter } from "./agent-metrics";
+export { agentVersionManagementRoutes } from "./agent-version-management";
+export { authRoutes } from "./auth";

@@ -43,10 +43,11 @@ import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { useAppModeStore } from '@/stores/appModeStore';
+import { requireAuth } from '@/contexts/AuthContext';
 
 const API_BASE = API_BASE_URL;
 
-export default function NewTaskClient() {
+function NewTaskClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
@@ -872,3 +873,6 @@ export default function NewTaskClient() {
     </div>
   );
 }
+
+// 認証が必要なコンポーネントとしてエクスポート
+export default requireAuth(NewTaskClient);

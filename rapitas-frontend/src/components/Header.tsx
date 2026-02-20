@@ -45,6 +45,8 @@ import {
   Loader2,
   Sparkles,
   NotebookTabs,
+  User,
+  LogOut,
 } from 'lucide-react';
 import AppIcon from '@/components/AppIcon';
 import GlobalPomodoroWidget from '@/feature/tasks/pomodoro/GlobalPomodoroWidget';
@@ -56,6 +58,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { useShortcutStore, type ShortcutId } from '@/stores/shortcutStore';
 import { useAppModeStore, type AppMode } from '@/stores/appModeStore';
 import { useNoteStore } from '@/stores/noteStore';
+import { useAuth } from '@/contexts/AuthContext';
 
 type NavItem = {
   href: string;
@@ -126,6 +129,7 @@ export default function Header() {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [isTauriEnv, setIsTauriEnv] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
   const [restartConfirmDialog, setRestartConfirmDialog] = useState<{
     open: boolean;
@@ -133,7 +137,9 @@ export default function Header() {
   }>({ open: false, activeExecutions: 0 });
 
   const { isDarkMode, mounted: darkModeMounted, toggleTheme } = useDarkMode();
+  const { user, isAuthenticated, logout } = useAuth();
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const shortcutBindings = useShortcutStore((state) => state.shortcuts);
   const appMode = useAppModeStore((state) => state.mode);
@@ -204,6 +210,13 @@ export default function Header() {
       // ステータス取得に失敗した場合は確認ダイアログなしで再起動
       executeRestart();
     }
+  };
+
+  // ログアウトハンドラ
+  const handleLogout = async () => {
+    setIsUserMenuOpen(false);
+    await logout();
+    router.push('/auth/login');
   };
 
   // Tauri環境かどうかを判定
@@ -303,6 +316,26 @@ export default function Header() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isMoreMenuOpen]);
+
+  // ユーザーメニュー外をクリックしたら閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    if (isUserMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isUserMenuOpen]);
 
   // showHeader=true の場合はタスク詳細ページでもヘッダーを表示
   if (hideHeader || (isTaskDetailPage && !showHeader)) {
@@ -436,9 +469,21 @@ export default function Header() {
           ],
         },
         {
-          href: '/agents',
-          label: 'エージェント管理',
+          href: '#',
+          label: 'エージェント',
           icon: Bot,
+          children: [
+            {
+              href: '/agents',
+              label: 'エージェント管理',
+              icon: Settings,
+            },
+            {
+              href: '/agents/metrics',
+              label: 'メトリクス',
+              icon: BarChart3,
+            },
+          ],
         },
         {
           href: '/approvals',
@@ -909,6 +954,44 @@ export default function Header() {
                   <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-indigo-500 rounded-full" />
                 )}
               </button>
+
+              {/* ユーザーメニュー（認証時のみ表示） */}
+              {isAuthenticated && user && (
+                <div className="relative" ref={userMenuRef}>
+                  <button
+                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                    className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                    aria-label="ユーザーメニュー"
+                    title={`${user.username} - ユーザーメニュー`}
+                  >
+                    <User className="w-5 h-5" />
+                  </button>
+                  {isUserMenuOpen && (
+                    <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-50">
+                      {/* ユーザー情報 */}
+                      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
+                        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                          {user.username}
+                        </p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {user.email}
+                        </p>
+                        <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
+                          {user.role === 'admin' ? '管理者' : 'ユーザー'}
+                        </p>
+                      </div>
+                      {/* ログアウト */}
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>ログアウト</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* 三点リーダーメニュー */}
               <div className="relative" ref={moreMenuRef}>

@@ -48,10 +48,11 @@ import { useTaskSorting } from '@/hooks/useTaskSorting';
 import { useLocalStorageState } from '@/hooks/useLocalStorageState';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useTaskAutoSync } from '@/hooks/useTaskAutoSync';
+import { requireAuth } from '@/contexts/AuthContext';
 
 const API_BASE = API_BASE_URL;
 
-export default function HomeClientPage() {
+function HomeClientPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchQuery = searchParams.get('search') || '';
@@ -1419,3 +1420,6 @@ export default function HomeClientPage() {
     </div>
   );
 }
+
+// 認証が必要なコンポーネントとしてエクスポート
+export default requireAuth(HomeClientPage);

@@ -23,6 +23,7 @@ import {
   GeminiIcon,
 } from '@/components/icons/ProviderIcons';
 import { UsageRateLimitGraph } from '@/components/UsageRateLimitGraph';
+import { requireAuth } from '@/contexts/AuthContext';
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
   claude: 'Claude',
@@ -144,7 +145,7 @@ function setCachedData<T>(key: string, data: T): void {
   }
 }
 
-export default function SettingsPage() {
+function SettingsPage() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -763,3 +764,6 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+// 認証が必要なコンポーネントとしてエクスポート
+export default requireAuth(SettingsPage);

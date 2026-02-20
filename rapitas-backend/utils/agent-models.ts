@@ -54,10 +54,13 @@ async function getClaudeCodeModels(): Promise<ModelInfo[]> {
       description: m.description,
     }));
   } catch (error) {
-    // Fallback to known models
+    // Fallback to known models (using latest official model IDs)
     return [
+      { value: "claude-opus-4-6", label: "Claude Opus 4.6", description: "最も高性能なモデル（最新）" },
+      { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", description: "高速で実用的なモデル（最新）" },
+      { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5", description: "軽量で高速なモデル（最新）" },
       { value: "claude-sonnet-4-20250514", label: "Claude Sonnet 4", description: "高速で実用的なモデル" },
-      { value: "claude-opus-4-20250514", label: "Claude Opus 4", description: "最も高性能なモデル" },
+      { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet", description: "バランスの取れたモデル" },
     ];
   }
 }
@@ -88,13 +91,13 @@ async function getAnthropicAPIModels(): Promise<ModelInfo[]> {
     // Ignore error and use fallback
   }
 
-  // Fallback to known models
+  // Fallback to known models (using latest official model IDs)
   return [
-    { value: "claude-opus-4-20250514", label: "Claude Opus 4", description: "最も高性能なモデル" },
+    { value: "claude-opus-4-6", label: "Claude Opus 4.6", description: "最も高性能なモデル（最新）" },
+    { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", description: "高速で実用的なモデル（最新）" },
+    { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5", description: "軽量で高速なモデル（最新）" },
     { value: "claude-sonnet-4-20250514", label: "Claude Sonnet 4", description: "高速で実用的なモデル" },
-    { value: "claude-haiku-4-20250514", label: "Claude Haiku 4", description: "軽量で高速なモデル" },
     { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet", description: "バランスの取れたモデル" },
-    { value: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku", description: "軽量モデル" },
   ];
 }
 

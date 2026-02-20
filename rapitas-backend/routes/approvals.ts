@@ -201,17 +201,11 @@ export const approvalsRoutes = new Elysia({ prefix: "/approvals" })
   // Approve request
   .post(
     "/:id/approve",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { id: string };
-      body: { selectedSubtasks?: number[] };
-    }) => {
-      const { id  } = params as any;
-      const approvalId = parseInt(id);
-      const { selectedSubtasks  } = body as any;
+    async (context) => {
+      const params = context.params as { id: string };
+      const body = context.body as { selectedSubtasks?: number[] };
+      const approvalId = parseInt(params.id);
+      const { selectedSubtasks } = body;
 
       const approval = await prisma.approvalRequest.findUnique({
         where: { id: approvalId },
@@ -513,16 +507,11 @@ Task ID: ${task.id}
   // Reject request
   .post(
     "/:id/reject",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { id: string };
-      body: { reason?: string };
-    }) => {
-      const { id  } = params as any;
-      const { reason  } = body as any;
+    async (context) => {
+      const params = context.params as { id: string };
+      const body = context.body as { reason?: string };
+      const { id  } = params;
+      const { reason  } = body;
 
       const approval = await prisma.approvalRequest.findUnique({
         where: { id: parseInt(id) },
@@ -578,16 +567,11 @@ Task ID: ${task.id}
   // Approve code review (commit + create PR)
   .post(
     "/:id/approve-code-review",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { id: string };
-      body: { commitMessage: string; baseBranch?: string };
-    }) => {
-      const { id  } = params as any;
-      const { commitMessage, baseBranch = "main"  } = body as any;
+    async (context) => {
+      const params = context.params as { id: string };
+      const body = context.body as { commitMessage: string; baseBranch?: string };
+      const { id } = params;
+      const { commitMessage, baseBranch = "main" } = body;
 
       const approval = await prisma.approvalRequest.findUnique({
         where: { id: parseInt(id) },
@@ -681,16 +665,9 @@ Task ID: ${task.id}
   // Reject code review (discard changes)
   .post(
     "/:id/reject-code-review",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { id: string };
-      body: { reason?: string };
-    }) => {
-      const { id  } = params as any;
-      const { reason  } = body as any;
+    async (context) => {
+      const { id } = context.params as any;
+      const { reason } = context.body as any;
 
       const approval = await prisma.approvalRequest.findUnique({
         where: { id: parseInt(id) },
@@ -753,19 +730,14 @@ Task ID: ${task.id}
   // Request changes (send feedback and re-execute)
   .post(
     "/:id/request-changes",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { id: string };
-      body: {
+    async (context) => {
+      const params = context.params as { id: string };
+      const body = context.body as {
         feedback: string;
         comments: { file?: string; content: string; type: string }[];
       };
-    }) => {
-      const { id  } = params as any;
-      const { feedback, comments  } = body as any;
+      const { id } = params;
+      const { feedback, comments } = body;
 
       const approval = await prisma.approvalRequest.findUnique({
         where: { id: parseInt(id) },

@@ -356,12 +356,25 @@ export default function AgentsPage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ヘッダー */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-            AIエージェント管理
-          </h1>
-          <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-            利用可能なエージェントタイプを選択し、設定を管理します
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                AIエージェント管理
+              </h1>
+              <p className="text-zinc-500 dark:text-zinc-400 mt-1">
+                利用可能なエージェントタイプを選択し、設定を管理します
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/agents/metrics"
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                <Activity className="w-4 h-4" />
+                メトリクス
+              </Link>
+            </div>
+          </div>
         </div>
 
         {/* エラー・成功表示 */}

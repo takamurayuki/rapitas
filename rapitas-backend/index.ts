@@ -49,6 +49,9 @@ import {
   paidLeaveRoutes,
   urlMetadataRoutes,
   batchRoutes,
+  agentMetricsRouter,
+  agentVersionManagementRoutes,
+  authRoutes,
 } from "./routes";
 
 // Import shared database client
@@ -170,6 +173,9 @@ app.use(rateLimitRoutes);
 app.use(paidLeaveRoutes);
 app.use(urlMetadataRoutes);
 app.use(batchRoutes);
+app.use(agentMetricsRouter);
+app.use(agentVersionManagementRoutes);
+app.use(authRoutes);
 
 // Start behavior scheduler
 import { BehaviorScheduler } from "./src/services/behaviorScheduler";
