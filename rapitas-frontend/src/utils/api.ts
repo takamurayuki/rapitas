@@ -24,6 +24,7 @@ export async function fetchWithRetry(
   init?: RequestInit,
   maxRetries = 3,
   retryDelayMs = 300,
+  timeoutMs = 5000,
 ): Promise<Response> {
   let lastError: Error | undefined;
   const url =
@@ -35,9 +36,33 @@ export async function fetchWithRetry(
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      return await fetch(input, init);
+      console.log(`[fetchWithRetry] Attempting ${attempt + 1}/${maxRetries} for ${url}`);
+
+      // タイムアウト処理のためのAbortController
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      const response = await fetch(input, {
+        ...init,
+        signal: controller.signal,
+      });
+
+      // タイムアウトをクリア
+      clearTimeout(timeoutId);
+
+      // HTTPステータスエラーの場合もエラーとして扱う
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+      }
+
+      console.log(`[fetchWithRetry] Success for ${url}`);
+      return response;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
+
+      // エラーの種類を識別
+      const isTimeoutError = lastError.name === 'AbortError' || lastError.message.includes('aborted');
+      const isNetworkError = lastError.name === 'TypeError' && lastError.message.includes('Failed to fetch');
 
       // ネットワークエラーの場合、より詳細なログを出力
       console.error(
@@ -46,6 +71,8 @@ export async function fetchWithRetry(
           message: lastError.message,
           type: lastError.name,
           stack: lastError.stack,
+          isTimeout: isTimeoutError,
+          isNetworkError: isNetworkError,
         },
       );
 

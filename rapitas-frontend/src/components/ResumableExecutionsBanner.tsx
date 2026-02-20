@@ -96,6 +96,7 @@ export function ResumableExecutionsBanner() {
         undefined,
         2,
         500,
+        5000, // 5秒タイムアウト
       );
       if (res.ok) {
         const data: ResumableExecution[] = await res.json();
@@ -118,6 +119,13 @@ export function ResumableExecutionsBanner() {
       }
     } catch (error) {
       console.error('Failed to fetch resumable executions:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : 'Unknown',
+        stack: error instanceof Error ? error.stack : undefined,
+        cause: error instanceof Error ? error.cause : undefined,
+      });
+
       // ネットワークエラーの場合は接続エラーとして記録
       setConnectionError(
         error instanceof Error ? error : new Error(String(error)),
