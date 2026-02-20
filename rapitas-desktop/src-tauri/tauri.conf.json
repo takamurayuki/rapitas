@@ -57,7 +57,8 @@
         ]
       },
       "appimage": {
-        "bundleMediaFramework": true
+        "bundleMediaFramework": true,
+        "files": {}
       }
     },
     "windows": {

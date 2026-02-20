@@ -92,7 +92,15 @@ jobs:
             libxcb-shape0-dev \
             libxcb-xfixes0-dev \
             libfuse2 \
-            file
+            file \
+            desktop-file-utils \
+            wget \
+            curl \
+            ca-certificates \
+            zsync \
+            squashfs-tools \
+            libc6-dev \
+            libgcc-s1
 
       - name: Install pnpm
         run: npm install -g pnpm@latest
@@ -425,6 +433,30 @@ jobs:
           export NO_SANDBOX=1
           echo "NO_SANDBOX=1" >> $GITHUB_ENV
 
+          # Set up linuxdeploy environment variables
+          export LINUXDEPLOY_OUTPUT_VERSION=continuous
+          echo "LINUXDEPLOY_OUTPUT_VERSION=continuous" >> $GITHUB_ENV
+
+          # Skip problematic plugins that might cause linuxdeploy to fail
+          export LINUXDEPLOY_PLUGIN_APPIMAGE_ARGS="--no-appstream"
+          echo "LINUXDEPLOY_PLUGIN_APPIMAGE_ARGS=--no-appstream" >> $GITHUB_ENV
+
+          # Additional environment variables for linuxdeploy
+          export LINUXDEPLOY_ALLOW_MISSING_DEPENDENCIES=1
+          echo "LINUXDEPLOY_ALLOW_MISSING_DEPENDENCIES=1" >> $GITHUB_ENV
+
+          export DISABLE_COPYRIGHT_FILES_DEPLOYMENT=1
+          echo "DISABLE_COPYRIGHT_FILES_DEPLOYMENT=1" >> $GITHUB_ENV
+
+          export LINUXDEPLOY_VERBOSITY=3
+          echo "LINUXDEPLOY_VERBOSITY=3" >> $GITHUB_ENV
+
+          # Set TMPDIR to avoid /tmp space issues
+          export TMPDIR="/tmp/appimage-build"
+          echo "TMPDIR=/tmp/appimage-build" >> $GITHUB_ENV
+          mkdir -p "/tmp/appimage-build"
+          chmod -R 755 "/tmp/appimage-build"
+
           # Ensure all downloaded AppImage tools have execute permissions
           if [ -d "$HOME/.cache/tauri" ]; then
             echo "Setting execute permissions for cached AppImage tools..."
@@ -432,6 +464,15 @@ jobs:
             find "$HOME/.cache/tauri" -name "linuxdeploy*" -type f -exec chmod +x {} \;
             find "$HOME/.cache/tauri" -name "AppRun*" -type f -exec chmod +x {} \;
           fi
+
+          # Create temporary directories for AppImage creation
+          mkdir -p /tmp/AppDir
+          chmod -R 755 /tmp/AppDir
+
+          # Pre-create directories to avoid permission issues
+          mkdir -p /tmp/appimage-build/AppDir
+          mkdir -p /tmp/appimage-build/usr/bin
+          chmod -R 755 /tmp/appimage-build
 
           echo "AppImage environment setup complete"
 
@@ -446,6 +487,9 @@ jobs:
           DATABASE_URL: "postgresql://user:password@localhost:5432/rapitas?schema=public"  # Valid dummy URL for CI
           TARGET: ${{ matrix.target }}  # Pass target to build scripts
           APPIMAGE_EXTRACT_AND_RUN: 1  # Allow AppImages to run in Docker/CI environments
+          NO_SANDBOX: 1  # Disable sandboxing for AppImage tools
+          LINUXDEPLOY_OUTPUT_VERSION: continuous  # Use continuous output version
+          LINUXDEPLOY_PLUGIN_APPIMAGE_ARGS: "--no-appstream"  # Skip AppStream validation
 
       - name: List build artifacts
         working-directory: rapitas-desktop
