@@ -158,6 +158,7 @@ fn get_browser_from_registry() -> Result<String, String> {
 }
 
 #[cfg(not(target_os = "windows"))]
+#[allow(dead_code)]
 pub fn launch_browser_with_size(
     url: &str,
     _x: i32,

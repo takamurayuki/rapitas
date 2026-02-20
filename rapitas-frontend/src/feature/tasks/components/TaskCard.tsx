@@ -15,6 +15,7 @@ import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
 import { CardLightSweep, useProgressColors } from './TaskCompletionAnimation';
 import { prefetch } from '@/lib/api-client';
+import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
 
 interface TaskCardProps {
   task: Task;
@@ -191,32 +192,12 @@ const TaskCard = memo(function TaskCard({
       >
         {/* 左: チェックボックス/ステータス */}
         {isSelectionMode ? (
-          <div className="relative">
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={() => onToggleSelect?.(task.id)}
-              onClick={(e) => e.stopPropagation()}
-              className="w-5 h-5 rounded-md border-2 border-slate-300 dark:border-slate-600 text-purple-600 dark:text-purple-500 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:ring-offset-0 cursor-pointer transition-all duration-200 hover:border-purple-500 dark:hover:border-purple-400 hover:shadow-md checked:bg-purple-600 checked:border-purple-600 dark:checked:bg-purple-500 dark:checked:border-purple-500 checked:hover:bg-purple-700 dark:checked:hover:bg-purple-600"
-              style={{
-                backgroundImage: isSelected ? 'none' : undefined,
-                backgroundColor: isSelected ? 'rgb(147 51 234)' : undefined,
-              }}
-            />
-            {isSelected && (
-              <svg
-                className="absolute top-1 left-1 w-3 h-3 text-white pointer-events-none"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            )}
-          </div>
+          <ModernCheckbox
+            checked={isSelected || false}
+            onChange={() => onToggleSelect?.(task.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="mr-1"
+          />
         ) : (
           <div
             className={`flex items-center justify-center w-7 h-7 rounded-md ${
