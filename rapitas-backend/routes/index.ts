@@ -48,3 +48,4 @@ export { batchRoutes } from "./batch";
 export { agentMetricsRouter } from "./agent-metrics";
 export { agentVersionManagementRoutes } from "./agent-version-management";
 export { authRoutes } from "./auth";
+export { cliToolsManagementRoutes } from "./cli-tools-management";

@@ -52,6 +52,7 @@ import {
   agentMetricsRouter,
   agentVersionManagementRoutes,
   authRoutes,
+  cliToolsManagementRoutes,
 } from "./routes";
 
 // Import shared database client
@@ -176,6 +177,7 @@ app.use(batchRoutes);
 app.use(agentMetricsRouter);
 app.use(agentVersionManagementRoutes);
 app.use(authRoutes);
+app.use(cliToolsManagementRoutes);
 
 // Start behavior scheduler
 import { BehaviorScheduler } from "./src/services/behaviorScheduler";
