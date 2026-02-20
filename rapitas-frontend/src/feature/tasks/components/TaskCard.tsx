@@ -160,8 +160,12 @@ const TaskCard = memo(function TaskCard({
       data-task-card
       onMouseEnter={handleMouseEnter}
       className={`group relative rounded-lg border-l-4 border-t border-r border-b transition-all duration-300 ease-out hover:duration-200 ${
-        currentStatus.borderColor
-      } ${`border-zinc-200 dark:border-zinc-800 ${currentStatus.bgColor} dark:bg-indigo-dark-900 hover:shadow-xl hover:scale-[1.02] hover:-translate-y-0.5 hover:border-opacity-80 dark:hover:shadow-2xl dark:hover:shadow-black/30`}`}
+        isSelected
+          ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-400 dark:border-purple-600 shadow-lg shadow-purple-200/50 dark:shadow-purple-900/50'
+          : `${currentStatus.borderColor} border-zinc-200 dark:border-zinc-800 ${currentStatus.bgColor} dark:bg-indigo-dark-900`
+      } ${
+        !isSelected ? 'hover:shadow-xl hover:scale-[1.02] hover:-translate-y-0.5 hover:border-opacity-80 dark:hover:shadow-2xl dark:hover:shadow-black/30' : ''
+      }`}
     >
       {/* カードライトスイープエフェクト */}
       <CardLightSweep
@@ -187,13 +191,32 @@ const TaskCard = memo(function TaskCard({
       >
         {/* 左: チェックボックス/ステータス */}
         {isSelectionMode ? (
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={() => onToggleSelect?.(task.id)}
-            onClick={(e) => e.stopPropagation()}
-            className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-purple-600 focus:ring-purple-500 cursor-pointer"
-          />
+          <div className="relative">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => onToggleSelect?.(task.id)}
+              onClick={(e) => e.stopPropagation()}
+              className="w-5 h-5 rounded-md border-2 border-slate-300 dark:border-slate-600 text-purple-600 dark:text-purple-500 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:ring-offset-0 cursor-pointer transition-all duration-200 hover:border-purple-500 dark:hover:border-purple-400 hover:shadow-md checked:bg-purple-600 checked:border-purple-600 dark:checked:bg-purple-500 dark:checked:border-purple-500 checked:hover:bg-purple-700 dark:checked:hover:bg-purple-600"
+              style={{
+                backgroundImage: isSelected ? 'none' : undefined,
+                backgroundColor: isSelected ? 'rgb(147 51 234)' : undefined,
+              }}
+            />
+            {isSelected && (
+              <svg
+                className="absolute top-1 left-1 w-3 h-3 text-white pointer-events-none"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
+          </div>
         ) : (
           <div
             className={`flex items-center justify-center w-7 h-7 rounded-md ${
@@ -387,22 +410,22 @@ const TaskCard = memo(function TaskCard({
               onTaskClick(task.id);
               setShowContextMenu(false);
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm font-mono text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             <Edit className="w-4 h-4" />
             編集
           </button>
           <button
             onClick={duplicateTask}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm font-mono text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             <Copy className="w-4 h-4" />
             複製
           </button>
-          <div className="my-1 border-t border-zinc-200 dark:border-zinc-700" />
+          <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
           <button
             onClick={deleteTask}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm font-mono text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
             <Trash2 className="w-4 h-4" />
             削除

@@ -608,227 +608,287 @@ export default function HomeClientPage() {
           </div>
 
           {/* 右側: アクションボタン */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {/* バルク操作ボタン（選択時のみ表示） */}
             {isSelectionMode && selectedTasks.size > 0 && (
               <>
+                {/* 選択数の表示 */}
+                <div className="flex items-center px-3 py-1.5 bg-white dark:bg-slate-900/50 rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm">
+                  <svg
+                    className="w-4 h-4 text-purple-600 dark:text-purple-400 mr-1.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                    />
+                  </svg>
+                  <span className="font-mono text-sm font-bold text-purple-700 dark:text-purple-300">
+                    {selectedTasks.size}
+                  </span>
+                  <span className="font-mono text-xs text-purple-600 dark:text-purple-400 ml-1">
+                    件選択
+                  </span>
+                </div>
+
                 {/* ステータス変更ボタングループ */}
-                <div className="flex items-center gap-1 bg-white dark:bg-zinc-800 rounded-md shadow-sm p-1 border border-zinc-200 dark:border-zinc-700">
-                  {['todo', 'in-progress', 'done'].map((status, idx, arr) => {
+                <div className="relative flex items-center gap-1 px-3 py-1 bg-white dark:bg-slate-900/50 rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 mr-2">
+                    CHANGE STATUS:
+                  </span>
+                  {['todo', 'in-progress', 'done'].map((status, idx) => {
                     const config =
                       statusConfig[status as keyof typeof statusConfig];
-                    const colorClasses =
+                    const textColorClasses =
                       status === 'todo'
-                        ? 'bg-zinc-50 dark:bg-zinc-700/50 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
+                        ? 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
                         : status === 'in-progress'
-                          ? 'bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                          : 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400';
+                          ? 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300'
+                          : 'text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300';
 
-                    const isLast = idx === arr.length - 1;
+                    const bgHoverClasses =
+                      status === 'todo'
+                        ? 'hover:bg-zinc-100 dark:hover:bg-zinc-900/30'
+                        : status === 'in-progress'
+                          ? 'hover:bg-blue-100 dark:hover:bg-blue-900/30'
+                          : 'hover:bg-green-100 dark:hover:bg-green-900/30';
+
                     return (
                       <React.Fragment key={status}>
+                        {idx > 0 && (
+                          <div className="w-[1px] h-5 bg-slate-300 dark:bg-slate-600" />
+                        )}
                         <button
                           onClick={() => bulkUpdateStatus(status)}
-                          className={`px-2.5 py-1.5 rounded text-xs font-medium transition-all flex items-center gap-1 ${colorClasses}`}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-all cursor-pointer ${textColorClasses} ${bgHoverClasses}`}
                           title={`${config.label}に変更`}
                         >
                           <span className="w-3.5 h-3.5">
                             {renderStatusIcon(status)}
                           </span>
-                          <span>{config.label}</span>
+                          <span className="font-mono text-xs font-black tracking-tight">{config.label}</span>
                         </button>
-                        {!isLast && (
-                          <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
-                        )}
                       </React.Fragment>
                     );
                   })}
                 </div>
-
-                <div className="w-px h-7 bg-zinc-300 dark:bg-zinc-600"></div>
               </>
             )}
 
             {/* メインアクションボタン */}
-            <div className="flex items-center gap-1 bg-white dark:bg-zinc-800 rounded-md shadow-md p-1 border border-zinc-200 dark:border-zinc-700">
+            <div className="flex items-center gap-2">
               {!isSelectionMode && (
                 <>
-                  <button
-                    onClick={() => setIsQuickAdding(!isQuickAdding)}
-                    className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
-                      isQuickAdding
-                        ? 'bg-green-500 dark:bg-green-600 text-white shadow-sm'
-                        : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/30'
-                    }`}
-                    title="クイック追加 (Ctrl+Q)"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  {/* クイックボタン */}
+                  <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-green-500 dark:hover:border-green-400">
+                    <button
+                      onClick={() => setIsQuickAdding(!isQuickAdding)}
+                      className={`flex items-center gap-2 transition-all cursor-pointer ${
+                        isQuickAdding
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'
+                      }`}
+                      title="クイック追加 (Ctrl+Q)"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2.5}
-                        d="M12 4v16m8-8H4"
-                      />
-                    </svg>
-                    <span>クイック</span>
-                  </button>
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2.5}
+                          d="M12 4v16m8-8H4"
+                        />
+                      </svg>
+                      <span className="font-mono text-xs font-black tracking-tight">クイック</span>
+                    </button>
+                  </div>
 
-                  <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
-
-                  <button
-                    onClick={() => {
-                      const themeParam = themeFilter || defaultTheme?.id;
-                      router.push(
-                        `/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`,
-                      );
-                    }}
-                    className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30 rounded text-xs transition-all flex items-center gap-1.5"
-                    title="新規タスク (Ctrl+N)"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  {/* 新規ボタン */}
+                  <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400">
+                    <button
+                      onClick={() => {
+                        const themeParam = themeFilter || defaultTheme?.id;
+                        router.push(
+                          `/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`,
+                        );
+                      }}
+                      className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-all cursor-pointer"
+                      title="新規タスク (Ctrl+N)"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
-                    <span>新規</span>
-                  </button>
-
-                  <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                      <span className="font-mono text-xs font-black tracking-tight">新規</span>
+                    </button>
+                  </div>
                 </>
               )}
 
-              {/* 全選択ボタン（選択モード時のみ表示、一括ボタンの左に配置） */}
+              {/* 選択モード時のアクションボタン */}
               {isSelectionMode && (
                 <>
-                  <button
-                    onClick={() => {
-                      if (selectedTasks.size === paginatedTasks.length) {
-                        setSelectedTasks(new Set());
-                      } else {
-                        setSelectedTasks(
-                          new Set(paginatedTasks.map((t) => t.id)),
-                        );
+                  {/* 全選択/全解除ボタン */}
+                  <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400">
+                    <button
+                      onClick={() => {
+                        if (selectedTasks.size === paginatedTasks.length) {
+                          setSelectedTasks(new Set());
+                        } else {
+                          setSelectedTasks(
+                            new Set(paginatedTasks.map((t) => t.id)),
+                          );
+                        }
+                      }}
+                      className={`flex items-center gap-2 transition-all cursor-pointer ${
+                        selectedTasks.size === paginatedTasks.length && paginatedTasks.length > 0
+                          ? 'text-blue-600 dark:text-blue-400'
+                          : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300'
+                      }`}
+                      title={
+                        selectedTasks.size === paginatedTasks.length
+                          ? '全解除'
+                          : '全選択'
                       }
-                    }}
-                    className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
-                      selectedTasks.size === paginatedTasks.length &&
-                      paginatedTasks.length > 0
-                        ? 'bg-blue-500 dark:bg-blue-600 text-white shadow-sm'
-                        : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30'
-                    }`}
-                    title={
-                      selectedTasks.size === paginatedTasks.length
-                        ? '全解除'
-                        : '全選択'
-                    }
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
                     >
-                      {selectedTasks.size === paginatedTasks.length &&
-                      paginatedTasks.length > 0 ? (
-                        /* 全解除: 四角から外れるアイコン */
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        {selectedTasks.size === paginatedTasks.length &&
+                        paginatedTasks.length > 0 ? (
+                          /* 全解除: 四角から外れるアイコン */
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        ) : (
+                          /* 全選択: ダブルチェックマークアイコン */
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        )}
+                      </svg>
+                      <span className="font-mono text-xs font-black tracking-tight">
+                        {selectedTasks.size === paginatedTasks.length &&
+                        paginatedTasks.length > 0
+                          ? '全解除'
+                          : '全選択'}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* 削除ボタン（選択されたタスクがある場合のみ表示） */}
+                  {selectedTasks.size > 0 && (
+                    <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400">
+                      <button
+                        onClick={bulkDelete}
+                        className="flex items-center gap-2 transition-all cursor-pointer text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                        title="選択したタスクを削除"
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                        <span className="font-mono text-xs font-black tracking-tight">削除</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* 選択モード解除ボタン */}
+                  <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-slate-500 dark:hover:border-slate-400">
+                    <button
+                      onClick={() => {
+                        setIsSelectionMode(false);
+                        setSelectedTasks(new Set());
+                      }}
+                      className="flex items-center gap-2 transition-all cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                      title="選択モードを解除"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={2}
                           d="M6 18L18 6M6 6l12 12"
                         />
-                      ) : (
-                        /* 全選択: ダブルチェックマークアイコン */
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      )}
-                    </svg>
-                    <span>
-                      {selectedTasks.size === paginatedTasks.length &&
-                      paginatedTasks.length > 0
-                        ? '全解除'
-                        : '全選択'}
-                    </span>
-                  </button>
-
-                  <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
+                      </svg>
+                      <span className="font-mono text-xs font-black tracking-tight">解除</span>
+                    </button>
+                  </div>
                 </>
               )}
 
-              <button
-                onClick={() => {
-                  setIsSelectionMode(!isSelectionMode);
-                  setSelectedTasks(new Set());
-                }}
-                className={`px-3 py-1.5 rounded text-xs transition-all flex items-center gap-1.5 ${
-                  isSelectionMode
-                    ? 'bg-purple-500 dark:bg-purple-600 text-white shadow-sm'
-                    : 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/30'
-                }`}
-                title="一括選択モード (Ctrl+S)"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+              {/* 一括ボタン */}
+              <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-purple-500 dark:hover:border-purple-400">
+                <button
+                  onClick={() => {
+                    setIsSelectionMode(!isSelectionMode);
+                    setSelectedTasks(new Set());
+                  }}
+                  className={`flex items-center gap-2 transition-all cursor-pointer ${
+                    isSelectionMode
+                      ? 'text-purple-600 dark:text-purple-400'
+                      : 'text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300'
+                  }`}
+                  title="一括選択モード (Ctrl+S)"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-                  />
-                </svg>
-                <span>
-                  {isSelectionMode ? `選択中 (${selectedTasks.size})` : '一括'}
-                </span>
-              </button>
-
-              {isSelectionMode && selectedTasks.size > 0 && (
-                <>
-                  <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-700"></div>
-
-                  {/* 削除ボタン */}
-                  <button
-                    onClick={bulkDelete}
-                    className="px-3 py-1.5 bg-red-500 dark:bg-red-600 text-white rounded hover:bg-red-600 dark:hover:bg-red-700 text-xs transition-all hover:shadow-md flex items-center gap-1.5 shadow-sm"
-                    title="選択したタスクを削除"
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    <svg
-                      className="w-3.5 h-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                    削除
-                  </button>
-                </>
-              )}
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                    />
+                  </svg>
+                  <span className="font-mono text-xs font-black tracking-tight">
+                    {isSelectionMode ? `選択中 (${selectedTasks.size})` : '一括'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -865,10 +925,10 @@ export default function HomeClientPage() {
 
         {/* 統合フィルターバー（アコーディオン） - カテゴリとテーマが読み込まれたら常に表示 */}
         {categories.length > 0 && !isSelectionMode && !isQuickAdding && (
-          <div className="mb-4 bg-white dark:bg-indigo-dark-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+          <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 hover:border-amber-500/50 mb-4">
             {/* カテゴリタブ */}
             {categories.length > 0 && (
-              <div className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700 scrollbar-track-transparent">
+              <div className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent bg-slate-50 dark:bg-slate-800/50">
                 {categories
                   .filter((cat) => {
                     if (appMode === 'all') return true;
@@ -904,13 +964,12 @@ export default function HomeClientPage() {
                             }
                           }
                         }}
-                        className={`relative flex items-center gap-1.5 px-4 py-2 text-xs font-medium transition-all whitespace-nowrap shrink-0 border-b-2 ${
+                        className={`relative flex items-center gap-1.5 px-4 py-2 font-mono text-[11px] uppercase tracking-wider transition-all whitespace-nowrap shrink-0 border-r ${
                           isActive
-                            ? 'bg-black/5 dark:bg-white/5'
-                            : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-black/2 dark:hover:bg-white/2 border-transparent'
-                        }`}
+                            ? 'bg-slate-100 dark:bg-slate-700/50 font-bold'
+                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/30'
+                        } border-slate-200 dark:border-slate-700`}
                         style={{
-                          borderBottomColor: isActive ? cat.color : undefined,
                           color: isActive ? cat.color : undefined,
                         }}
                       >
@@ -925,16 +984,9 @@ export default function HomeClientPage() {
               </div>
             )}
 
-            {/* カテゴリとテーマの区切り線 */}
-            {categories.length > 0 && (
-              <div className="mx-3">
-                <div className="border-t border-zinc-100 dark:border-zinc-800/80"></div>
-              </div>
-            )}
-
             {/* テーマタブ */}
-            <div className="flex items-center gap-2 px-1 py-1.5">
-              <div className="flex items-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700 scrollbar-track-transparent flex-1">
+            <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent flex-1">
                 {(() => {
                   const filteredThemes = themes.filter((theme) => {
                     if (categoryFilter === null) return true;
@@ -942,14 +994,14 @@ export default function HomeClientPage() {
                   });
                   if (filteredThemes.length === 0 && categoryFilter !== null) {
                     return (
-                      <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 py-0.5 px-1">
-                        <span>このカテゴリにはテーマがありません。</span>
+                      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 py-1 px-1">
+                        <span>NO_THEMES_FOUND</span>
                         <button
                           onClick={() => router.push('/themes')}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded font-mono text-[10px] uppercase tracking-wider bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 dark:hover:bg-amber-500/30 transition-colors"
                         >
                           <Plus className="w-3 h-3" />
-                          テーマを追加
+                          ADD_THEME
                         </button>
                       </div>
                     );
@@ -964,10 +1016,10 @@ export default function HomeClientPage() {
                         onClick={() => {
                           setThemeFilter(theme.id);
                         }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                        className={`flex items-center gap-1.5 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider transition-all whitespace-nowrap shrink-0 rounded-sm ${
                           isActive
-                            ? 'shadow-sm'
-                            : 'border border-zinc-300 dark:border-zinc-700 hover:border-current'
+                            ? 'shadow-lg font-bold text-white dark:text-white'
+                            : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
                         }`}
                         style={{
                           backgroundColor: isActive ? theme.color : undefined,
@@ -988,10 +1040,10 @@ export default function HomeClientPage() {
               {/* アコーディオントグル */}
               <button
                 onClick={() => setIsFilterExpanded(!isFilterExpanded)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider transition-all shrink-0 ${
                   isFilterExpanded
-                    ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200'
-                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                    ? 'bg-amber-500 text-white shadow-md'
+                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-600'
                 }`}
               >
                 <svg
@@ -1007,7 +1059,7 @@ export default function HomeClientPage() {
                     d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
                   />
                 </svg>
-                <span className="hidden sm:inline">フィルター</span>
+                <span className="hidden sm:inline">FILTER</span>
                 <ChevronDown
                   className={`w-3.5 h-3.5 transition-transform duration-200 ${isFilterExpanded ? 'rotate-180' : ''}`}
                 />
@@ -1020,185 +1072,206 @@ export default function HomeClientPage() {
                 isFilterExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
               }`}
             >
-              <div className="flex flex-wrap items-center gap-4 px-3 py-2.5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
+              <div className="flex flex-wrap items-center gap-4 px-3 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30">
                 {/* ステータス */}
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
-                    ステータス:
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                    STATUS:
                   </span>
-                  <div className="flex items-center gap-1">
-                    {['all', 'todo', 'in-progress', 'done'].map((status) => {
+                  <div className="flex items-center">
+                    {['all', 'todo', 'in-progress', 'done'].map((status, idx) => {
                       const statusConfigLocal = {
-                        all: { label: 'すべて', color: 'theme' },
-                        todo: { label: '未着手', color: 'zinc' },
-                        'in-progress': { label: '進行中', color: 'blue' },
-                        done: { label: '完了', color: 'green' },
+                        all: { label: 'ALL', color: 'amber' },
+                        todo: { label: 'TODO', color: 'slate' },
+                        'in-progress': { label: 'IN_PROGRESS', color: 'blue' },
+                        done: { label: 'DONE', color: 'green' },
                       };
                       const config =
                         statusConfigLocal[
                           status as keyof typeof statusConfigLocal
                         ];
                       const count = statusCounts[status] || 0;
+                      const isActive = filter === status;
 
                       return (
-                        <button
-                          key={status}
-                          onClick={() => setFilter(status)}
-                          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-all duration-200 ${
-                            filter === status
-                              ? config.color === 'theme'
-                                ? 'text-white shadow-md'
-                                : config.color === 'blue'
-                                  ? 'bg-blue-600 text-white shadow-md'
-                                  : config.color === 'green'
-                                    ? 'bg-green-600 text-white shadow-md'
-                                    : 'bg-zinc-600 text-white shadow-md'
-                              : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700'
-                          }`}
-                          style={{
-                            backgroundColor:
-                              filter === status && config.color === 'theme'
-                                ? '#6366F1'
-                                : undefined,
-                          }}
-                        >
-                          {config.label}
-                          <span className="text-[10px] opacity-75">
-                            ({count})
-                          </span>
-                        </button>
+                        <div key={status} className="flex items-center">
+                          <button
+                            onClick={() => setFilter(status)}
+                            className={`relative h-6 px-3 font-mono text-[10px] uppercase tracking-wider whitespace-nowrap transition-all duration-200 ${
+                              isActive
+                                ? config.color === 'amber'
+                                  ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-white shadow-md font-bold'
+                                  : config.color === 'blue'
+                                    ? 'bg-blue-500 text-white shadow-md font-bold'
+                                    : config.color === 'green'
+                                      ? 'bg-green-500 text-white shadow-md font-bold'
+                                      : 'bg-slate-600 text-white shadow-md font-bold'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1">
+                              {config.label}
+                              <span className="text-[9px] opacity-75">
+                                {count}
+                              </span>
+                            </div>
+                            {/* Progress indicator at bottom */}
+                            {count > 0 && (
+                              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-slate-300 dark:bg-slate-600">
+                                <div
+                                  className={`h-full transition-all duration-500 ${
+                                    isActive ? 'bg-white/50' : 'bg-slate-400 dark:bg-slate-500'
+                                  }`}
+                                  style={{
+                                    width: `${status === 'all' ? 100 : (statusCounts[status] / statusCounts.all) * 100}%`
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </button>
+                          {idx < 3 && (
+                            <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-600" />
+                          )}
+                        </div>
                       );
                     })}
                   </div>
                 </div>
 
                 {/* 区切り線 */}
-                <div className="w-px h-6 bg-zinc-300 dark:bg-zinc-700"></div>
+                <div className="w-[1px] h-6 bg-slate-300 dark:bg-slate-600"></div>
 
                 {/* 優先度 */}
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
-                    優先度:
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                    PRIORITY:
                   </span>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center">
                     {[
                       {
                         value: '',
-                        label: 'すべて',
+                        label: 'ALL',
                         icon: null,
                         iconColor: '',
-                        bgColor: '',
-                        isThemeColor: true,
+                        bgColor: 'amber',
                       },
                       {
                         value: 'urgent',
-                        label: '緊急',
-                        icon: <ChevronsUp className="w-3.5 h-3.5" />,
+                        label: 'URGENT',
+                        icon: <ChevronsUp className="w-3 h-3" />,
                         iconColor: 'text-red-500',
-                        bgColor: 'bg-red-500',
+                        bgColor: 'red',
                       },
                       {
                         value: 'high',
-                        label: '高',
-                        icon: <ChevronUp className="w-3.5 h-3.5" />,
+                        label: 'HIGH',
+                        icon: <ChevronUp className="w-3 h-3" />,
                         iconColor: 'text-orange-500',
-                        bgColor: 'bg-orange-500',
+                        bgColor: 'orange',
                       },
                       {
                         value: 'medium',
-                        label: '中',
-                        icon: <ChevronsUpDown className="w-3.5 h-3.5" />,
+                        label: 'MEDIUM',
+                        icon: <ChevronsUpDown className="w-3 h-3" />,
                         iconColor: 'text-blue-500',
-                        bgColor: 'bg-blue-500',
+                        bgColor: 'blue',
                       },
                       {
                         value: 'low',
-                        label: '低',
-                        icon: <ChevronDown className="w-3.5 h-3.5" />,
-                        iconColor: 'text-zinc-400',
-                        bgColor: 'bg-zinc-500',
+                        label: 'LOW',
+                        icon: <ChevronDown className="w-3 h-3" />,
+                        iconColor: 'text-slate-400',
+                        bgColor: 'slate',
                       },
-                    ].map((priority) => (
-                      <button
-                        key={priority.value}
-                        onClick={() =>
-                          setPriorityFilter(
-                            priority.value
-                              ? (priority.value as Priority)
-                              : null,
-                          )
-                        }
-                        className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all duration-200 whitespace-nowrap focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
-                          (priorityFilter || '') === priority.value
-                            ? `${priority.bgColor} text-white shadow-md`
-                            : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700'
-                        }`}
-                        style={{
-                          backgroundColor:
-                            (priorityFilter || '') === priority.value &&
-                            'isThemeColor' in priority &&
-                            priority.isThemeColor
-                              ? '#6366F1'
-                              : undefined,
-                        }}
-                      >
-                        {priority.icon && (
-                          <span
-                            className={
-                              (priorityFilter || '') === priority.value
-                                ? 'text-white'
-                                : priority.iconColor
-                            }
-                          >
-                            {priority.icon}
-                          </span>
+                    ].map((priority, idx) => (
+                      <div key={priority.value} className="flex items-center">
+                        <button
+                          onClick={() =>
+                            setPriorityFilter(
+                              priority.value
+                                ? (priority.value as Priority)
+                                : null,
+                            )
+                          }
+                          className={`h-6 px-2.5 font-mono text-[10px] uppercase tracking-wider transition-all duration-200 whitespace-nowrap focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
+                            (priorityFilter || '') === priority.value
+                              ? priority.bgColor === 'amber'
+                                ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-white shadow-md font-bold'
+                                : priority.bgColor === 'red'
+                                  ? 'bg-red-500 text-white shadow-md font-bold'
+                                  : priority.bgColor === 'orange'
+                                    ? 'bg-orange-500 text-white shadow-md font-bold'
+                                    : priority.bgColor === 'blue'
+                                      ? 'bg-blue-500 text-white shadow-md font-bold'
+                                      : 'bg-slate-600 text-white shadow-md font-bold'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1">
+                            {priority.icon && (
+                              <span
+                                className={
+                                  (priorityFilter || '') === priority.value
+                                    ? 'text-white'
+                                    : priority.iconColor
+                                }
+                              >
+                                {priority.icon}
+                              </span>
+                            )}
+                            {priority.label}
+                          </div>
+                        </button>
+                        {idx < 4 && (
+                          <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-600" />
                         )}
-                        {priority.label}
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </div>
 
                 {/* 区切り線 */}
-                <div className="w-px h-6 bg-zinc-300 dark:bg-zinc-700"></div>
+                <div className="w-[1px] h-6 bg-slate-300 dark:bg-slate-600"></div>
 
                 {/* ソート */}
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
-                    並び:
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                    SORT:
                   </span>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                    className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 text-zinc-700 dark:text-zinc-200 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-nowrap"
-                  >
-                    <option value="createdAt">作成日時</option>
-                    <option value="title">タイトル</option>
-                    <option value="priority">優先度</option>
-                  </select>
-                  <button
-                    onClick={() =>
-                      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))
-                    }
-                    className="p-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0"
-                    title={sortOrder === 'asc' ? '昇順' : '降順'}
-                  >
-                    <svg
-                      className={`w-3.5 h-3.5 text-zinc-700 dark:text-zinc-300 transition-transform ${
-                        sortOrder === 'desc' ? 'rotate-180' : ''
-                      }`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  <div className="flex items-center">
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                      className="h-6 px-2 font-mono text-[10px] uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-r border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-0 focus:bg-slate-200 dark:focus:bg-slate-700 transition-colors cursor-pointer"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M7 11l5-5m0 0l5 5m-5-5v12"
-                      />
-                    </svg>
-                  </button>
+                      <option value="createdAt">CREATED</option>
+                      <option value="title">TITLE</option>
+                      <option value="priority">PRIORITY</option>
+                    </select>
+                    <button
+                      onClick={() =>
+                        setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))
+                      }
+                      className="h-6 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+                      title={sortOrder === 'asc' ? 'ASC' : 'DESC'}
+                    >
+                      <svg
+                        className={`w-3.5 h-3.5 text-slate-700 dark:text-slate-300 transition-transform ${
+                          sortOrder === 'desc' ? 'rotate-180' : ''
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M7 11l5-5m0 0l5 5m-5-5v12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1209,18 +1282,27 @@ export default function HomeClientPage() {
         {initialDataLoading && !taskCacheInitialized ? (
           <div className="animate-pulse space-y-4">
             {/* 統合フィルターUIスケルトン（アコーディオン） */}
-            <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
+            <div className="border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
+              {/* カテゴリ選択スケルトン */}
+              <div className="flex items-center bg-slate-50 dark:bg-slate-800/50">
+                {[1, 2, 3].map((i, idx) => (
+                  <div
+                    key={i}
+                    className={`h-9 w-24 bg-slate-200 dark:bg-slate-700 ${idx < 2 ? 'border-r border-slate-300 dark:border-slate-600' : ''}`}
+                  />
+                ))}
+              </div>
               {/* テーマ選択スケルトン */}
-              <div className="flex items-center gap-2 px-3 py-2.5">
+              <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-200 dark:border-slate-700">
                 <div className="flex items-center gap-2 flex-1">
                   {[1, 2, 3, 4].map((i) => (
                     <div
                       key={i}
-                      className="h-8 w-20 bg-zinc-200 dark:bg-zinc-700 rounded-lg"
+                      className="h-6 w-20 bg-slate-200 dark:bg-slate-700"
                     />
                   ))}
                 </div>
-                <div className="h-8 w-24 bg-zinc-200 dark:bg-zinc-700 rounded-lg" />
+                <div className="h-6 w-20 bg-slate-200 dark:bg-slate-700" />
               </div>
             </div>
 
