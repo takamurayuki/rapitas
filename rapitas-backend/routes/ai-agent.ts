@@ -1266,7 +1266,7 @@ export const aiAgentRoutes = new Elysia()
     });
 
     if (!agent) {
-      context.status(404);
+      context.set.status = 404;
       return { success: false, error: "Agent not found" };
     }
 
@@ -1397,7 +1397,7 @@ export const aiAgentRoutes = new Elysia()
     });
 
     if (!task) {
-      context.status(404);
+      context.set.status = 404;
       return { error: "Task not found" };
     }
 
