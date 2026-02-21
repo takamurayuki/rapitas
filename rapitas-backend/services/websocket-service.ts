@@ -1,6 +1,4 @@
-// @ts-nocheck - WebSocket plugin has type compatibility issues with Elysia 1.4.x
 import { Elysia, t } from "elysia";
-import { websocket, type ElysiaWS } from "@elysiajs/websocket";
 import { prisma } from "../config";
 import { cacheService } from "./cache-service";
 
@@ -374,9 +372,8 @@ export const notifyDataChange = {
 
 // WebSocketルート
 export const websocketRoutes = new Elysia()
-  .use(websocket())
   .ws("/ws", {
-    async message(ws: ElysiaWS, message: string | ArrayBuffer) {
+    async message(ws, message) {
       const clientId = (ws as any).id || `client-${Date.now()}`;
 
       try {
@@ -399,7 +396,7 @@ export const websocketRoutes = new Elysia()
       }
     },
 
-    open(ws: ElysiaWS) {
+    open(ws) {
       const clientId = (ws as any).id || `client-${Date.now()}`;
       wsManager.addClient(clientId, ws as any, (ws as any).data);
 
@@ -410,7 +407,7 @@ export const websocketRoutes = new Elysia()
       }));
     },
 
-    close(ws: ElysiaWS) {
+    close(ws) {
       const clientId = (ws as any).id;
       if (clientId) {
         wsManager.removeClient(clientId);

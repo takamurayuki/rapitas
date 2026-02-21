@@ -21,8 +21,7 @@
   "exclude": [
     "node_modules/**/*",
     "**/*.d.ts",
-    "global.d.ts",
-    "services/websocket-service.ts"
+    "global.d.ts"
   ],
   "include": [
     "**/*.ts",
