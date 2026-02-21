@@ -38,8 +38,8 @@ export const executionLogsRoutes = new Elysia()
   /**
    * 特定の実行IDのログファイルを取得
    */
-  .get("/api/execution-logs/:executionId", async ({ 
- params, query, set }: { params: { executionId: string }; query: { format?: string }; set: { status: number; headers: Record<string, string> } }) => {
+  .get("/api/execution-logs/:executionId", async (context: any) => {
+    const { params, query, set } = context;
     const executionId = Number(params.executionId);
     if (isNaN(executionId)) {
       set.status = 400;

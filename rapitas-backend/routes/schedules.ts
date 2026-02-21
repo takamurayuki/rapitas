@@ -39,11 +39,9 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   // Create schedule event
   .post(
     "/",
-    async ({ 
-
-      body,
-    }: {
-      body: {
+    async (context) => {
+      const { body } = context;
+      const data = body as {
         title: string;
         description?: string;
         startAt: string;
@@ -55,23 +53,23 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
         type?: string;
         userId?: string;
       };
-    }) => {
-      if (!body.title?.trim()) throw new ValidationError("Title is required");
-      if (!body.startAt)
+
+      if (!data.title?.trim()) throw new ValidationError("Title is required");
+      if (!data.startAt)
         throw new ValidationError("Start date/time is required");
 
       return await prisma.scheduleEvent.create({
         data: {
-          title: body.title.trim(),
-          description: body.description?.trim() || null,
-          startAt: new Date(body.startAt),
-          endAt: body.endAt ? new Date(body.endAt) : null,
-          isAllDay: body.isAllDay ?? false,
-          color: body.color || "#6366F1",
-          reminderMinutes: body.reminderMinutes ?? null,
-          taskId: body.taskId ?? null,
-          type: (body.type as "GENERAL" | "MEETING" | "TASK" | "REMINDER" | "OTHER") || "GENERAL",
-          userId: body.userId || "default",
+          title: data.title.trim(),
+          description: data.description?.trim() || null,
+          startAt: new Date(data.startAt),
+          endAt: data.endAt ? new Date(data.endAt) : null,
+          isAllDay: data.isAllDay ?? false,
+          color: data.color || "#6366F1",
+          reminderMinutes: data.reminderMinutes ?? null,
+          taskId: data.taskId ?? null,
+          type: (data.type === "PAID_LEAVE" ? "PAID_LEAVE" : "GENERAL"),
+          userId: data.userId || "default",
         },
       });
     },
@@ -80,13 +78,9 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   // Update schedule event
   .patch(
     "/:id",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { id: string };
-      body: {
+    async (context) => {
+      const { params, body } = context;
+      const data_input = body as {
         title?: string;
         description?: string | null;
         startAt?: string;
@@ -99,7 +93,7 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
         type?: string;
         userId?: string;
       };
-    }) => {
+
       const id = parseInt(params.id);
       if (isNaN(id)) throw new ValidationError("Invalid ID");
 
@@ -107,20 +101,20 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
       if (!existing) throw new NotFoundError("Schedule event not found");
 
       const data: Record<string, unknown> = {};
-      if (body.title !== undefined) data.title = body.title.trim();
-      if (body.description !== undefined) data.description = body.description;
-      if (body.startAt !== undefined) data.startAt = new Date(body.startAt);
-      if (body.endAt !== undefined)
-        data.endAt = body.endAt ? new Date(body.endAt) : null;
-      if (body.isAllDay !== undefined) data.isAllDay = body.isAllDay;
-      if (body.color !== undefined) data.color = body.color;
-      if (body.reminderMinutes !== undefined)
-        data.reminderMinutes = body.reminderMinutes;
-      if (body.reminderSentAt !== undefined)
-        data.reminderSentAt = body.reminderSentAt
-          ? new Date(body.reminderSentAt)
+      if (data_input.title !== undefined) data.title = data_input.title.trim();
+      if (data_input.description !== undefined) data.description = data_input.description;
+      if (data_input.startAt !== undefined) data.startAt = new Date(data_input.startAt);
+      if (data_input.endAt !== undefined)
+        data.endAt = data_input.endAt ? new Date(data_input.endAt) : null;
+      if (data_input.isAllDay !== undefined) data.isAllDay = data_input.isAllDay;
+      if (data_input.color !== undefined) data.color = data_input.color;
+      if (data_input.reminderMinutes !== undefined)
+        data.reminderMinutes = data_input.reminderMinutes;
+      if (data_input.reminderSentAt !== undefined)
+        data.reminderSentAt = data_input.reminderSentAt
+          ? new Date(data_input.reminderSentAt)
           : null;
-      if (body.taskId !== undefined) data.taskId = body.taskId;
+      if (data_input.taskId !== undefined) data.taskId = data_input.taskId;
 
       return await prisma.scheduleEvent.update({
         where: { id },

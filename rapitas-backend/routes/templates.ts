@@ -73,19 +73,9 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
 
   .post(
     "/",
-    async ({ 
-
-      body,
-    }: {
-      body: {
-        name: string;
-        description?: string;
-        category: string;
-        templateData: unknown;
-        themeId?: number;
-      };
-    }) => {
-      const { name, description, category, templateData, themeId  } = body as any;
+    async (context) => {
+      const { body } = context;
+      const { name, description, category, templateData, themeId } = body as any;
       return await prisma.taskTemplate.create({
         data: {
           name,
@@ -120,16 +110,10 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
   // タスクからテンプレートを作成
   .post(
     "/from-task/:taskId",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { taskId: string };
-      body: { name: string; description?: string; category: string };
-    }) => {
+    async (context) => {
+      const { params, body } = context;
       const taskId = parseInt(params.taskId);
-      const { name, description, category  } = body as any;
+      const { name, description, category } = body as any;
 
       // タスクを取得（サブタスク含む）
       const task = await prisma.task.findUnique({
@@ -214,22 +198,10 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
   // テンプレートからタスク作成
   .post(
     "/:id/apply",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { id: string };
-      body?: {
-        themeId?: number;
-        projectId?: number;
-        milestoneId?: number;
-        title?: string;
-        dueDate?: string;
-      };
-    }) => {
+    async (context) => {
+      const { params, body } = context;
       const id = parseInt(params.id);
-      const { themeId, projectId, milestoneId, title: customTitle, dueDate } = body || {};
+      const { themeId, projectId, milestoneId, title: customTitle, dueDate } = (body as any) || {};
 
       const template = await prisma.taskTemplate.findUnique({
         where: { id },

@@ -21,7 +21,7 @@ const GOOGLE_SCOPES = [
 export const authRoutes = new Elysia({ prefix: '/auth' })
   .post('/register', async ({ body, set, cookie: { sessionToken } }) => {
     try {
-      const { username, email, password } = body;
+      const { username, email, password } = body as { username: string; email: string; password: string };
 
       // Check if user already exists
       const existingUser = await prisma.user.findFirst({
@@ -104,7 +104,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
 
   .post('/login', async ({ body, set, cookie: { sessionToken } }) => {
     try {
-      const { username, password } = body;
+      const { username, password } = body as { username: string; password: string };
 
       // Find user
       const user = await prisma.user.findFirst({
@@ -320,9 +320,15 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       }
 
       // Delete the specified session (only if it belongs to current user)
+      const sessionIdNum = parseInt(sessionId);
+      if (isNaN(sessionIdNum)) {
+        set.status = 400;
+        return { success: false, message: 'Invalid session ID' };
+      }
+
       const result = await prisma.userSession.deleteMany({
         where: {
-          id: sessionId,
+          id: sessionIdNum,
           userId: currentSession.user.id
         }
       });

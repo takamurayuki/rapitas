@@ -12,7 +12,10 @@ export type AuditAction =
   | "delete"
   | "api_key_set"
   | "api_key_delete"
-  | "test_connection";
+  | "test_connection"
+  | "update_version"
+  | "install"
+  | "uninstall";
 
 export interface AuditLogEntry {
   agentConfigId: number;

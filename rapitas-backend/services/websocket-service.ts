@@ -224,7 +224,7 @@ const webSocketHandlers = {
       where: { id: parseInt(data.taskId) },
       include: {
         project: true,
-        labels: { include: { label: true } },
+        taskLabels: { include: { label: true } },
         _count: { select: { comments: true, timeEntries: true } },
       },
     });
@@ -305,7 +305,8 @@ export const notifyDataChange = {
         where: { id: taskId },
         include: {
           project: true,
-          labels: { include: { label: true } },
+          theme: { include: { category: true } },
+          taskLabels: { include: { label: true } },
           _count: { select: { comments: true, timeEntries: true } },
         },
       });
@@ -318,13 +319,15 @@ export const notifyDataChange = {
           timestamp: new Date().toISOString(),
         });
 
-        // カテゴリルームにも通知
-        wsManager.sendToRoom(`category:${task.categoryId}`, {
-          type: "category-task-updated",
-          taskId,
-          changeType,
-          timestamp: new Date().toISOString(),
-        });
+        // カテゴリルームにも通知（themeのcategoryIdがある場合のみ）
+        if (task.theme?.categoryId) {
+          wsManager.sendToRoom(`category:${task.theme.categoryId}`, {
+            type: "category-task-updated",
+            taskId,
+            changeType,
+            timestamp: new Date().toISOString(),
+          });
+        }
       }
     }
 

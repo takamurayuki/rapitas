@@ -116,8 +116,7 @@ export const resourcesRoutes = new Elysia()
   // Get resources for a task
   .get(
     "/tasks/:id/resources",
-    async (context: any) => {
-      const { params  } = context;
+    async ({ params }) => {
       const id = parseInt(params.id);
       if (isNaN(id)) throw new ValidationError("無効なIDです");
 
@@ -131,18 +130,7 @@ export const resourcesRoutes = new Elysia()
   // Create URL-based resource
   .post(
     "/resources",
-    async ({ 
-
-      body,
-    }: {
-      body: {
-        taskId?: number;
-        title: string;
-        url?: string;
-        type: string;
-        description?: string;
-      };
-    }) => {
+    async ({ body }) => {
       const { taskId, title, url, type, description  } = body as any;
       return await prisma.resource.create({
         data: {
@@ -168,18 +156,9 @@ export const resourcesRoutes = new Elysia()
   // Upload file resource
   .post(
     "/resources/upload",
-    async ({ 
-
-      body,
-    }: {
-      body: {
-        taskId?: string;
-        file: File;
-        title?: string;
-        description?: string;
-      };
-    }) => {
-      const { taskId: taskIdStr, file, title, description  } = body as any;
+    async (context: any) => {
+      const { body } = context;
+      const { taskId: taskIdStr, file, title, description  } = body;
 
       // Validate file exists
       if (!file || !(file instanceof File)) {
@@ -236,27 +215,20 @@ export const resourcesRoutes = new Elysia()
           ...(description && { description }),
         },
       });
-    },
-    {
-      type: "formdata",
-    },
+    }
   )
 
   // Upload file from path (for Tauri drag-drop)
   .post(
     "/resources/upload-from-path",
-    async ({ 
-
-      body,
-    }: {
-      body: {
+    async (context) => {
+      const { body } = context;
+      const { taskId, filePath: sourcePath, title, description } = body as {
         taskId: number;
         filePath: string;
         title?: string;
         description?: string;
       };
-    }) => {
-      const { taskId, filePath: sourcePath, title, description  } = body as any;
 
       // Validate source file exists
       if (!existsSync(sourcePath)) {
@@ -325,15 +297,9 @@ export const resourcesRoutes = new Elysia()
   // Serve uploaded file (inline - for viewing)
   .get(
     "/resources/file/:filename",
-    async ({ 
-
-      params,
-      set,
-    }: {
-      params: { filename: string };
-      set: { headers: Record<string, string> };
-    }) => {
-      const { filename  } = params as any;
+    async (context) => {
+      const { params, set } = context;
+      const { filename } = params;
       const filePath = join(UPLOAD_DIR, filename);
 
       if (!existsSync(filePath)) {
@@ -372,15 +338,9 @@ export const resourcesRoutes = new Elysia()
   // Download uploaded file (attachment - for downloading)
   .get(
     "/resources/download/:filename",
-    async ({ 
-
-      params,
-      set,
-    }: {
-      params: { filename: string };
-      set: { headers: Record<string, string> };
-    }) => {
-      const { filename  } = params as any;
+    async (context) => {
+      const { params, set } = context;
+      const { filename } = params;
       const filePath = join(UPLOAD_DIR, filename);
 
       if (!existsSync(filePath)) {

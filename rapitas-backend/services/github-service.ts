@@ -759,7 +759,7 @@ export class GitHubService {
           title: issue.title,
           body: issue.body,
           state: issue.state,
-          labels: issue.labels,
+          labels: JSON.stringify(issue.labels),
           authorLogin: issue.authorLogin,
           url: issue.url,
           lastSyncedAt: new Date(),
@@ -770,7 +770,7 @@ export class GitHubService {
           title: issue.title,
           body: issue.body,
           state: issue.state,
-          labels: issue.labels,
+          labels: JSON.stringify(issue.labels),
           authorLogin: issue.authorLogin,
           url: issue.url,
           lastSyncedAt: new Date(),
@@ -891,11 +891,11 @@ export class GitHubService {
           title: review.state === "approved" ? "PR承認" : "PR変更リクエスト",
           message: `${review.user.login}が PR #${pull_request.number} を${review.state === "approved" ? "承認" : "レビュー"}しました`,
           link: pull_request.html_url,
-          metadata: {
+          metadata: JSON.stringify({
             prNumber: pull_request.number,
             repo,
             reviewer: review.user.login,
-          },
+          }),
         },
       });
     }
@@ -949,7 +949,7 @@ export class GitHubService {
           title: issue.title,
           body: issue.body,
           state: issue.state,
-          labels: issue.labels.map((l: { name: string }) => l.name),
+          labels: JSON.stringify(issue.labels.map((l: { name: string }) => l.name)),
           lastSyncedAt: new Date(),
         },
         create: {
@@ -958,7 +958,7 @@ export class GitHubService {
           title: issue.title,
           body: issue.body,
           state: issue.state,
-          labels: issue.labels.map((l: { name: string }) => l.name),
+          labels: JSON.stringify(issue.labels.map((l: { name: string }) => l.name)),
           authorLogin: issue.user.login,
           url: issue.html_url,
           lastSyncedAt: new Date(),

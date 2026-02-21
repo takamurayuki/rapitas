@@ -280,23 +280,9 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   // Update settings
   .patch(
     "/",
-    async ({ 
- body, set }: {
-      body: {
-        developerModeDefault?: boolean;
-        aiTaskAnalysisDefault?: boolean;
-        autoResumeInterruptedTasks?: boolean;
-        autoExecuteAfterCreate?: boolean;
-        autoGenerateTitle?: boolean;
-        autoGenerateTitleDelay?: number;
-        autoCreateAfterTitleGeneration?: boolean;
-        defaultAiProvider?: string;
-        defaultCategoryId?: number | null;
-        activeMode?: string;
-      };
-      set: { status?: number };
-    }) => {
-      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, autoExecuteAfterCreate, autoGenerateTitle, autoGenerateTitleDelay, autoCreateAfterTitleGeneration, defaultAiProvider, defaultCategoryId, activeMode  } = body as any;
+    async (context) => {
+      const { body, set } = context;
+      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, autoExecuteAfterCreate, autoGenerateTitle, autoGenerateTitleDelay, autoCreateAfterTitleGeneration, defaultAiProvider, defaultCategoryId, activeMode } = body as any;
 
       try {
         let settings = await prisma.userSettings.findFirst();

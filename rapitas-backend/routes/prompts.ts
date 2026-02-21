@@ -11,8 +11,7 @@ import { getLabelsArray, toJsonString } from "../utils/db-helpers";
 
 export const promptsRoutes = new Elysia()
   // タスクのプロンプト一覧取得
-  .get("/tasks/:id/prompts", async (context: any) => {
-      const { params  } = context;
+  .get("/tasks/:id/prompts", async ({ params }) => {
     const taskIdNum = parseInt(params.id);
 
     // タスクと子タスクを取得
@@ -56,22 +55,8 @@ export const promptsRoutes = new Elysia()
   // プロンプト作成
   .post(
     "/tasks/:id/prompts",
-    async ({ 
-
-      params,
-      body,
-      set,
-    }: {
-      params: { id: string };
-      body: {
-        name?: string;
-        optimizedPrompt: string;
-        structuredSections?: unknown;
-        qualityScore?: number;
-        originalDescription?: string;
-      };
-      set: { status?: number };
-    }) => {
+    async (context: any) => {
+      const { params, body, set } = context;
       const taskIdNum = parseInt(params.id);
       const { name, optimizedPrompt, structuredSections, qualityScore, originalDescription  } = body as any;
 
@@ -99,16 +84,7 @@ export const promptsRoutes = new Elysia()
   // プロンプト更新
   .patch(
     "/prompts/:id",
-    async ({ 
-
-      params,
-      body,
-      set,
-    }: {
-      params: { id: string };
-      body: { name?: string; optimizedPrompt?: string; isActive?: boolean };
-      set: { status?: number };
-    }) => {
+    async ({ params, body, set }: any) => {
       const promptId = parseInt(params.id);
       const { name, optimizedPrompt, isActive  } = body as any;
 

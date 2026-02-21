@@ -39,33 +39,9 @@ export const taskAnalysisConfigRoutes = new Elysia({
   // タスク分析設定の作成または更新（upsert）
   .put(
     "/:taskId",
-    async ({ 
-
-      params,
-      body,
-      set,
-    }: {
-      params: { taskId: string };
-      body: {
-        analysisDepth?: string;
-        maxSubtasks?: number;
-        priorityStrategy?: string;
-        includeEstimates?: boolean;
-        includeDependencies?: boolean;
-        includeTips?: boolean;
-        agentConfigId?: number | null;
-        modelOverride?: string | null;
-        maxTokens?: number | null;
-        temperature?: number | null;
-        promptStrategy?: string;
-        customPromptTemplate?: string | null;
-        contextInstructions?: string | null;
-        autoApproveSubtasks?: boolean;
-        autoOptimizePrompt?: boolean;
-        notifyOnComplete?: boolean;
-      };
-      set: { status: number };
-    }) => {
+    async (context) => {
+      const { params, body: rawBody, set } = context;
+      const body = rawBody as any;
       const taskId = parseInt(params.taskId);
 
       // タスクの存在確認
@@ -167,33 +143,9 @@ export const taskAnalysisConfigRoutes = new Elysia({
   // タスク分析設定の部分更新
   .patch(
     "/:taskId",
-    async ({ 
-
-      params,
-      body,
-      set,
-    }: {
-      params: { taskId: string };
-      body: {
-        analysisDepth?: string;
-        maxSubtasks?: number;
-        priorityStrategy?: string;
-        includeEstimates?: boolean;
-        includeDependencies?: boolean;
-        includeTips?: boolean;
-        agentConfigId?: number | null;
-        modelOverride?: string | null;
-        maxTokens?: number | null;
-        temperature?: number | null;
-        promptStrategy?: string;
-        customPromptTemplate?: string | null;
-        contextInstructions?: string | null;
-        autoApproveSubtasks?: boolean;
-        autoOptimizePrompt?: boolean;
-        notifyOnComplete?: boolean;
-      };
-      set: { status: number };
-    }) => {
+    async (context) => {
+      const { params, body: rawBody, set } = context;
+      const body = rawBody as any;
       const taskId = parseInt(params.taskId);
 
       const existing = await prisma.taskAnalysisConfig.findUnique({

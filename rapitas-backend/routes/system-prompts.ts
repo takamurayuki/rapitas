@@ -199,21 +199,15 @@ export const systemPromptsRoutes = new Elysia()
   // システムプロンプト作成
   .post(
     "/system-prompts",
-    async ({ 
-
-      body,
-      set,
-    }: {
-      body: {
+    async (context) => {
+      const { body, set } = context;
+      const { key, name, description, content, category } = body as {
         key: string;
         name: string;
         description?: string;
         content: string;
         category?: string;
       };
-      set: { status?: number };
-    }) => {
-      const { key, name, description, content, category  } = body as any;
 
       if (!key || !name || !content) {
         set.status = 400;
@@ -247,22 +241,8 @@ export const systemPromptsRoutes = new Elysia()
   // システムプロンプト更新
   .patch(
     "/system-prompts/:key",
-    async ({ 
-
-      params,
-      body,
-      set,
-    }: {
-      params: { key: string };
-      body: {
-        name?: string;
-        description?: string;
-        content?: string;
-        category?: string;
-        isActive?: boolean;
-      };
-      set: { status?: number };
-    }) => {
+    async (context) => {
+      const { params, body, set } = context;
       const existing = await prisma.systemPrompt.findUnique({
         where: { key: params.key },
       });
@@ -272,7 +252,13 @@ export const systemPromptsRoutes = new Elysia()
         return { error: "システムプロンプトが見つかりません" };
       }
 
-      const { name, description, content, category, isActive  } = body as any;
+      const { name, description, content, category, isActive } = body as {
+        name?: string;
+        description?: string;
+        content?: string;
+        category?: string;
+        isActive?: boolean;
+      };
 
       const updated = await prisma.systemPrompt.update({
         where: { key: params.key },

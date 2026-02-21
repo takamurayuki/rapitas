@@ -38,14 +38,8 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
   // 開発者モード有効化
   .post(
     "/enable/:taskId",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { taskId: string };
-      body: { autoApprove?: boolean; maxSubtasks?: number; priority?: string };
-    }) => {
+    async (context) => {
+      const { params, body } = context;
       const taskId = parseInt(params.taskId);
       const { autoApprove, maxSubtasks, priority  } = body as any;
 
@@ -104,19 +98,8 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
   // 開発者モード設定更新
   .patch(
     "/config/:taskId",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { taskId: string };
-      body: {
-        autoApprove?: boolean;
-        notifyInApp?: boolean;
-        maxSubtasks?: number;
-        priority?: string;
-      };
-    }) => {
+    async (context: any) => {
+      const { params, body } = context;
       const taskId = parseInt(params.taskId);
       const { autoApprove, notifyInApp, maxSubtasks, priority  } = body as any;
 
@@ -332,16 +315,8 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
   // プロンプト最適化API
   .post(
     "/optimize-prompt/:taskId",
-    async ({ 
-
-      params,
-      body,
-      set,
-    }: {
-      params: { taskId: string };
-      body: { clarificationAnswers?: Record<string, string>; savePrompt?: boolean };
-      set: { status?: number };
-    }) => {
+    async (context: any) => {
+      const { params, body, set } = context;
       const taskId = parseInt(params.taskId);
       const { clarificationAnswers, savePrompt } = body || {};
 
@@ -471,33 +446,8 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
   // 最適化プロンプトをエージェント実行用フォーマットに変換
   .post(
     "/format-prompt/:taskId",
-    async ({ 
-
-      params,
-      body,
-      set,
-    }: {
-      params: { taskId: string };
-      body: {
-        optimizedResult: {
-          optimizedPrompt: string;
-          structuredSections: {
-            objective: string;
-            context: string;
-            requirements: string[];
-            constraints: string[];
-            deliverables: string[];
-            technicalDetails?: string;
-          };
-          promptQuality: {
-            score: number;
-            issues: string[];
-            suggestions: string[];
-          };
-        };
-      };
-      set: { status?: number };
-    }) => {
+    async (context: any) => {
+      const { params, body, set } = context;
       const taskId = parseInt(params.taskId);
       const { optimizedResult  } = body as any;
 
@@ -547,15 +497,9 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
   // ブランチ名生成API
   .post(
     "/generate-branch-name",
-    async ({ 
-
-      body,
-      set,
-    }: {
-      body: { title: string; description?: string };
-      set: { status?: number };
-    }) => {
-      const { title, description  } = body as any;
+    async (context: any) => {
+      const { body, set } = context;
+      const { title, description } = body || {};
 
       if (!title) {
         set.status = 400;
@@ -620,14 +564,8 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
   // タスク説明からタイトル自動生成
   .post(
     "/generate-title",
-    async ({ 
-
-      body,
-      set,
-    }: {
-      body: { description: string };
-      set: { status?: number };
-    }) => {
+    async (context: any) => {
+      const { body, set } = context;
       const { description  } = body as any;
 
       if (!description || !description.trim()) {

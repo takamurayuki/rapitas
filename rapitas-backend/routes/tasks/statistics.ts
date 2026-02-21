@@ -20,9 +20,9 @@ export const taskStatisticsRoutes = new Elysia({ prefix: "/tasks" })
           _count: true,
         }),
 
-        // カテゴリ別集計
+        // プロジェクト別集計（カテゴリの代わり）
         prisma.task.groupBy({
-          by: ["categoryId"],
+          by: ["projectId"],
           _count: true,
         }),
 
@@ -48,7 +48,7 @@ export const taskStatisticsRoutes = new Elysia({ prefix: "/tasks" })
         byCategory: byCategory.reduce(
           (acc, item) => ({
             ...acc,
-            [item.categoryId]: item._count,
+            [item.projectId || "none"]: item._count,
           }),
           {} as Record<string, number>
         ),
@@ -86,7 +86,7 @@ export const taskStatisticsRoutes = new Elysia({ prefix: "/tasks" })
           title: true,
           status: true,
           priority: true,
-          categoryId: true,
+          projectId: true,
           updatedAt: true,
         },
       });

@@ -172,11 +172,9 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
   // Reorder themes
   .patch(
     "/reorder",
-    async ({ 
- body }: {
-      body: { orders: Array<{ id: number; sortOrder: number }> }
-    }) => {
-      const { orders  } = body as any;
+    async (context) => {
+      const { body } = context;
+      const { orders } = body as any;
 
       await Promise.all(
         orders.map(({ id, sortOrder }) =>

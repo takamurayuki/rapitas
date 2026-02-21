@@ -240,14 +240,8 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   // Update favorite directory
   .patch(
     "/favorites/:id",
-    async ({ 
-
-      params,
-      body,
-    }: {
-      params: { id: string };
-      body: { name?: string };
-    }) => {
+    async (context: any) => {
+      const { params, body } = context;
       const id = parseInt(params.id);
       const { name  } = body as any;
 

@@ -26,25 +26,25 @@ const stubResponse = {
 
 // タスク関連のスタブエンドポイント
 app.get("/tasks", () => stubResponse);
-app.get("/tasks/:id", ({ params: { id } }: { params: { id: string } }) => ({
+app.get("/tasks/:id", (context) => ({
   ...stubResponse,
-  id,
+  id: context.params.id,
   title: "Stub Task",
 }));
 
 // テーマ関連のスタブエンドポイント
 app.get("/themes", () => stubResponse);
-app.get("/themes/:id", ({ params: { id } }: { params: { id: string } }) => ({
+app.get("/themes/:id", (context) => ({
   ...stubResponse,
-  id,
+  id: context.params.id,
   name: "Stub Theme",
 }));
 
 // プロジェクト関連のスタブエンドポイント
 app.get("/projects", () => stubResponse);
-app.get("/projects/:id", ({ params: { id } }: { params: { id: string } }) => ({
+app.get("/projects/:id", (context) => ({
   ...stubResponse,
-  id,
+  id: context.params.id,
   name: "Stub Project",
 }));
 
@@ -60,7 +60,8 @@ app.get("/settings", () => ({
 }));
 
 // SSEスタブエンドポイント
-app.get("/sse", ({ set }) => {
+app.get("/sse", (context) => {
+  const { set } = context;
   set.headers["Content-Type"] = "text/event-stream";
   set.headers["Cache-Control"] = "no-cache";
   set.headers["Connection"] = "keep-alive";
@@ -74,7 +75,11 @@ app.get("/sse", ({ set }) => {
       },
     }),
     {
-      headers: set.headers,
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
     },
   );
 });
@@ -89,7 +94,7 @@ app.onError(({ code, error }) => {
     };
   }
   return {
-    error: error.message,
+    error: error instanceof Error ? error.message : String(error),
     stub: true,
   };
 });

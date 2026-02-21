@@ -6,8 +6,19 @@ import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
 import { logAgentConfigChange } from "../utils/agent-audit-log";
 
+// 型定義
+interface VersionInfo {
+  version: string;
+  releaseDate: string;
+  description: string;
+  features: string[];
+  breaking: boolean;
+  downloadUrl: string;
+  fileSize: string;
+}
+
 // シミュレーション用のエージェント利用可能バージョン情報
-const AVAILABLE_AGENT_VERSIONS = {
+const AVAILABLE_AGENT_VERSIONS: Record<string, Record<string, VersionInfo>> = {
   "claude-code": {
     "2.1.0": {
       version: "2.1.0",
@@ -90,7 +101,7 @@ export const agentVersionManagementRoutes = new Elysia()
 
       const agentsWithVersions = agents.map(agent => {
         const availableVersions = AVAILABLE_AGENT_VERSIONS[agent.agentType as keyof typeof AVAILABLE_AGENT_VERSIONS] || {};
-        const versionList = Object.values(availableVersions).sort((a, b) =>
+        const versionList = (Object.values(availableVersions) as VersionInfo[]).sort((a, b) =>
           new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime()
         );
 
@@ -214,17 +225,17 @@ export const agentVersionManagementRoutes = new Elysia()
       });
 
       // 変更ログを記録
-      await logAgentConfigChange(
-        agentId,
-        "update_version",
-        {
+      await logAgentConfigChange({
+        agentConfigId: agentId,
+        action: "update_version",
+        changeDetails: {
           from: previousVersion,
           to: targetVersion,
           versionInfo: targetVersionInfo
         },
-        { version: previousVersion },
-        { version: targetVersion }
-      );
+        previousValues: { version: previousVersion },
+        newValues: { version: targetVersion }
+      });
 
       return {
         success: true,
@@ -288,16 +299,16 @@ export const agentVersionManagementRoutes = new Elysia()
       });
 
       // 変更ログを記録
-      await logAgentConfigChange(
-        agentId,
-        "install",
-        {
+      await logAgentConfigChange({
+        agentConfigId: agentId,
+        action: "install",
+        changeDetails: {
           version: latestVersion,
           installPath: updatedAgent.installPath
         },
-        { isInstalled: false },
-        { isInstalled: true }
-      );
+        previousValues: { isInstalled: false },
+        newValues: { isInstalled: true }
+      });
 
       return {
         success: true,
@@ -355,24 +366,24 @@ export const agentVersionManagementRoutes = new Elysia()
       });
 
       // 変更ログを記録
-      await logAgentConfigChange(
-        agentId,
-        "uninstall",
-        {
+      await logAgentConfigChange({
+        agentConfigId: agentId,
+        action: "uninstall",
+        changeDetails: {
           previousVersion,
           previousPath
         },
-        {
+        previousValues: {
           isInstalled: true,
           version: previousVersion,
           installPath: previousPath
         },
-        {
+        newValues: {
           isInstalled: false,
           version: null,
           installPath: null
         }
-      );
+      });
 
       return {
         success: true,

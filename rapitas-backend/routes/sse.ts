@@ -7,7 +7,8 @@ import { realtimeService } from "../services/realtime-service";
 
 export const sseRoutes = new Elysia({ prefix: "/events" })
   // Stream all events
-  .get("/stream", ({ set }: { set: { headers: Record<string, string> } }) => {
+  .get("/stream", (context) => {
+    const { set } = context;
     set.headers = {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
@@ -66,17 +67,10 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
   // Subscribe to specific channel
   .get(
     "/subscribe/:channel",
-    ({
-      params,
-      query,
-      set,
-    }: {
-      params: { channel: string };
-      query: { lastEventId?: string };
-      set: { headers: Record<string, string> };
-    }) => {
-      const { channel  } = params as any;
-      const { lastEventId  } = query as any;
+    (context) => {
+      const { params, query, set } = context;
+      const { channel } = params;
+      const { lastEventId } = query;
 
       set.headers = {
         "Content-Type": "text/event-stream",
