@@ -44,7 +44,7 @@ fn main() {
     let mut found = false;
 
     // First try the generic name that matches tauri.conf.json
-    let generic_path = PathBuf::from("binaries").join(&generic_binary_name);
+    let generic_path = PathBuf::from("binaries").join(generic_binary_name);
     if generic_path.exists() {
         println!(
             "cargo:rustc-env=RAPITAS_BACKEND_PATH={}",
