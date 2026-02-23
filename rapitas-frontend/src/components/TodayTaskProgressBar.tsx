@@ -1,5 +1,5 @@
 'use client';
-import React, { memo, useState, useEffect } from 'react';
+import React, { memo, useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cpu, Activity, Award, Zap, Trophy } from 'lucide-react';
 
@@ -16,9 +16,17 @@ const PROGRESS_MESSAGES = [
 ];
 
 // --- Fabulous Golden Particle ---
-const GoldParticle = ({ x, y }: { x: number; y: number }) => {
-  const angle = Math.random() * Math.PI * 2;
-  const distance = 30 + Math.random() * 50;
+const GoldParticle = ({
+  x,
+  y,
+  angle,
+  distance,
+}: {
+  x: number;
+  y: number;
+  angle: number;
+  distance: number;
+}) => {
   return (
     <motion.div
       initial={{ x: 0, y: 0, scale: 0, rotate: 0 }}
@@ -38,9 +46,7 @@ const GoldParticle = ({ x, y }: { x: number; y: number }) => {
 };
 
 // --- Cynical Reward Popup ---
-const CynicalPopup = ({ x, y }: { x: number; y: number }) => {
-  const msg =
-    PROGRESS_MESSAGES[Math.floor(Math.random() * PROGRESS_MESSAGES.length)];
+const CynicalPopup = ({ x, y, msg }: { x: number; y: number; msg: string }) => {
   return (
     <motion.div
       initial={{ opacity: 0, y: 0, x: -20 }}
@@ -63,7 +69,7 @@ interface TodayTaskProgressBarProps {
 
 const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
   ({ completedCount, totalCount, className = '', compact = false }) => {
-    const [previousCompleted, setPreviousCompleted] = useState(completedCount);
+    const previousCompletedRef = useRef(completedCount);
     const [showEffects, setShowEffects] = useState(false);
     const [systemCritical, setSystemCritical] = useState(false);
 
@@ -71,20 +77,49 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
     const efficiency = Math.floor(progress * 100);
 
     useEffect(() => {
-      if (completedCount > previousCompleted) {
-        setShowEffects(true);
-        setTimeout(() => setShowEffects(false), 1200);
+      if (completedCount > previousCompletedRef.current) {
+        // Use setTimeout with 0 delay to move setState out of synchronous effect execution
+        const showTimer = setTimeout(() => setShowEffects(true), 0);
+        const hideTimer = setTimeout(() => setShowEffects(false), 1200);
+        previousCompletedRef.current = completedCount;
+        return () => {
+          clearTimeout(showTimer);
+          clearTimeout(hideTimer);
+        };
       }
-      setPreviousCompleted(completedCount);
-    }, [completedCount, previousCompleted]);
+      previousCompletedRef.current = completedCount;
+    }, [completedCount]);
 
     useEffect(() => {
       if (efficiency === 100 && totalCount > 0) {
-        setSystemCritical(true);
-        const timer = setTimeout(() => setSystemCritical(false), 4000);
-        return () => clearTimeout(timer);
+        // Use setTimeout with 0 delay to move setState out of synchronous effect execution
+        const showTimer = setTimeout(() => setSystemCritical(true), 0);
+        const hideTimer = setTimeout(() => setSystemCritical(false), 4000);
+        return () => {
+          clearTimeout(showTimer);
+          clearTimeout(hideTimer);
+        };
       }
     }, [efficiency, totalCount]);
+
+    // Pre-generate random values using useState with lazy initialization (only runs once on mount)
+    const [particleData] = useState(() =>
+      Array.from({ length: 8 }, () => ({
+        angle: Math.random() * Math.PI * 2,
+        distance: 30 + Math.random() * 50,
+      }))
+    );
+
+    const [popupMsg] = useState(() =>
+      PROGRESS_MESSAGES[Math.floor(Math.random() * PROGRESS_MESSAGES.length)]
+    );
+
+    const [rainEffectData] = useState(() =>
+      Array.from({ length: 20 }, () => ({
+        x: (Math.random() - 0.5) * 800,
+        text: Math.random() > 0.5 ? '1010101' : 'TASK_COMPLETE',
+      }))
+    );
 
     if (compact) {
       return (
@@ -292,10 +327,16 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
           <AnimatePresence>
             {showEffects && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                {[...Array(8)].map((_, i) => (
-                  <GoldParticle key={i} x={50} y={40} />
+                {particleData.map((data, i) => (
+                  <GoldParticle
+                    key={i}
+                    x={50}
+                    y={40}
+                    angle={data.angle}
+                    distance={data.distance}
+                  />
                 ))}
-                <CynicalPopup x={50} y={40} />
+                <CynicalPopup x={50} y={40} msg={popupMsg} />
               </div>
             )}
           </AnimatePresence>
@@ -329,19 +370,19 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                 </motion.div>
 
                 {/* Rain of Gold */}
-                {[...Array(20)].map((_, i) => (
+                {rainEffectData.map((data, i) => (
                   <motion.div
                     key={i}
                     initial={{
                       y: -100,
-                      x: (Math.random() - 0.5) * 800,
+                      x: data.x,
                       opacity: 1,
                     }}
                     animate={{ y: 800, opacity: 0 }}
                     transition={{ duration: 2, delay: i * 0.1, ease: 'linear' }}
                     className="absolute font-mono text-[8px] text-amber-500/40"
                   >
-                    {Math.random() > 0.5 ? '1010101' : 'TASK_COMPLETE'}
+                    {data.text}
                   </motion.div>
                 ))}
               </div>

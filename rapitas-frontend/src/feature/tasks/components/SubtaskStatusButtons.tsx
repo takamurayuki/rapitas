@@ -11,6 +11,7 @@ interface SubtaskStatusButtonsProps {
   taskId: number;
   currentStatus: string;
   onTaskUpdated?: () => void;
+  onStatusChange?: (taskId: number, newStatus: string) => void;
   size?: 'sm' | 'md';
 }
 
@@ -18,20 +19,42 @@ export default function SubtaskStatusButtons({
   taskId,
   currentStatus,
   onTaskUpdated,
+  onStatusChange,
   size = 'sm',
 }: SubtaskStatusButtonsProps) {
   const handleStatusChange = async (newStatus: string) => {
+    // 楽観的UI更新：即座にUI状態を更新
+    if (onStatusChange) {
+      onStatusChange(taskId, newStatus);
+    }
+
     try {
       const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (response.ok && onTaskUpdated) {
-        onTaskUpdated();
+
+      if (response.ok) {
+        // 成功時：最終的な同期のためonTaskUpdatedを呼び出し
+        if (onTaskUpdated) {
+          onTaskUpdated();
+        }
+      } else {
+        console.error('API Error:', response.status, response.statusText);
+        // エラー時：元の状態に戻す
+        if (onStatusChange) {
+          onStatusChange(taskId, currentStatus);
+        }
+        throw new Error(`Status update failed: ${response.status}`);
       }
     } catch (error) {
       console.error('Failed to update subtask status:', error);
+
+      // エラー時：元の状態に戻す（ネットワークエラーなど）
+      if (onStatusChange) {
+        onStatusChange(taskId, currentStatus);
+      }
     }
   };
 

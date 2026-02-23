@@ -81,9 +81,11 @@ export function useWindowResize({
 // パフォーマンス監視用のフック
 export function useResizePerformance() {
   const frameCountRef = useRef(0);
-  const lastTimeRef = useRef(performance.now());
+  const lastTimeRef = useRef(0);
 
   useEffect(() => {
+    // Initialize timing on mount
+    lastTimeRef.current = performance.now();
     let animationFrameId: number;
 
     const measureFPS = () => {

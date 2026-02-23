@@ -24,7 +24,7 @@ const meta = {
           <div className="mb-8 border-l-4 border-amber-600 py-2 pl-6">
             <h1 className="font-mono text-2xl font-black tracking-tighter text-slate-100">
               PROGRESS_BAR_STORIES{' '}
-              <span className="text-amber-500">// STORYBOOK</span>
+              <span className="text-amber-500">{/* STORYBOOK */}</span>
             </h1>
           </div>
           <div className="space-y-8">
@@ -121,9 +121,8 @@ export const HighEfficiency: Story = {
 };
 
 // インタラクティブストーリー（タスクを完了させてアニメーションを確認）
-export const Interactive: any = {
-  render: () => {
-    const [completedCount, setCompletedCount] = useState(2);
+const InteractiveComponent = () => {
+  const [completedCount, setCompletedCount] = useState(2);
     const totalCount = 10;
 
     const incrementCompleted = () => {
@@ -201,7 +200,10 @@ export const Interactive: any = {
         </div>
       </div>
     );
-  },
+};
+
+export const Interactive: StoryObj<typeof TodayTaskProgressBar> = {
+  render: () => <InteractiveComponent />,
   parameters: {
     docs: {
       description: {

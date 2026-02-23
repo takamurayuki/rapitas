@@ -14,7 +14,7 @@ export default function TodayTaskProgressBarExample() {
       <div className="relative z-10 mx-auto max-w-4xl space-y-8">
         <div className="mb-8 border-l-4 border-amber-600 py-2 pl-6">
           <h1 className="mb-4 font-mono text-3xl font-black tracking-tighter text-slate-800 dark:text-slate-100">
-            TODAY_TASK_PROGRESS_BAR <span className="text-amber-500">// EXAMPLES</span>
+            TODAY_TASK_PROGRESS_BAR <span className="text-amber-500">{/* EXAMPLES */}</span>
           </h1>
         </div>
 

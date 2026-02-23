@@ -125,10 +125,16 @@ export const ErrorAnalysisPanel: React.FC<ErrorAnalysisPanelProps> = ({
   }, []);
 
   useEffect(() => {
-    refreshSummary();
-    const interval = setInterval(refreshSummary, 5000);
+    // Initial load and periodic refresh
+    const updateSummary = () => {
+      const newSummary = errorAnalysisService.getErrorSummary();
+      setSummary(newSummary);
+    };
+
+    updateSummary(); // Initial load
+    const interval = setInterval(updateSummary, 5000);
     return () => clearInterval(interval);
-  }, [refreshSummary]);
+  }, []); // Empty deps - only runs on mount/unmount
 
   const toggleErrorExpansion = (errorId: string) => {
     setExpandedErrors((prev) => {

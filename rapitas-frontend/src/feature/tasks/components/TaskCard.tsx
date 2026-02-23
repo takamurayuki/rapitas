@@ -55,12 +55,46 @@ const TaskCard = memo(function TaskCard({
   const { showToast } = useToast();
   const prefetchedRef = useRef(false);
 
+  // サブタスクの状態をローカルで管理
+  const [localSubtasks, setLocalSubtasks] = useState(task.subtasks || []);
+
+  // taskプロップが変更されたときにlocalSubtasksを更新
+  useEffect(() => {
+    setLocalSubtasks(task.subtasks || []);
+  }, [task.subtasks]);
+
+  // サブタスクのステータス変更ハンドラー
+  const handleSubtaskStatusChange = (subtaskId: number, newStatus: string) => {
+    // 楽観的UI更新：即座にローカル状態を更新
+    setLocalSubtasks((prevSubtasks) =>
+      prevSubtasks.map((subtask) =>
+        subtask.id === subtaskId
+          ? { ...subtask, status: newStatus as Status }
+          : subtask
+      )
+    );
+
+    // 親コンポーネントのonStatusChangeを呼び出し（APIリクエスト）
+    onStatusChange(subtaskId, newStatus as Status);
+  };
+
+  // サブタスクのステータス変更失敗時のロールバック
+  const rollbackSubtaskStatus = (subtaskId: number, originalStatus: string) => {
+    setLocalSubtasks((prevSubtasks) =>
+      prevSubtasks.map((subtask) =>
+        subtask.id === subtaskId
+          ? { ...subtask, status: originalStatus as Status }
+          : subtask
+      )
+    );
+  };
+
   const currentStatus =
     statusConfig[task.status as keyof typeof statusConfig] || statusConfig.todo;
-  const completionRate = task.subtasks?.length
+  const completionRate = localSubtasks.length
     ? Math.round(
-        (task.subtasks.filter((s) => s.status === 'done').length /
-          task.subtasks.length) *
+        (localSubtasks.filter((s) => s.status === 'done').length /
+          localSubtasks.length) *
           100,
       )
     : null;
@@ -235,7 +269,7 @@ const TaskCard = memo(function TaskCard({
               })}
             </span>
 
-            {task.subtasks && task.subtasks.length > 0 && (
+            {localSubtasks.length > 0 && (
               <>
                 <span className="text-zinc-300 dark:text-zinc-700">•</span>
                 <button
@@ -260,8 +294,8 @@ const TaskCard = memo(function TaskCard({
                       d="M9 5l7 7-7 7"
                     />
                   </svg>
-                  {task.subtasks.filter((s) => s.status === 'done').length}/
-                  {task.subtasks.length}
+                  {localSubtasks.filter((s) => s.status === 'done').length}/
+                  {localSubtasks.length}
                 </button>
               </>
             )}
@@ -315,8 +349,7 @@ const TaskCard = memo(function TaskCard({
           </div>
 
           {/* プログレスバー */}
-          {task.subtasks &&
-            task.subtasks.length > 0 &&
+          {localSubtasks.length > 0 &&
             completionRate !== null && (
               <div className="mt-1.5 h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                 <div
@@ -415,17 +448,17 @@ const TaskCard = memo(function TaskCard({
       )}
 
       {/* サブタスク展開エリア */}
-      {expandedSubtasks && task.subtasks && task.subtasks.length > 0 && (
+      {expandedSubtasks && localSubtasks.length > 0 && (
         <div
           className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-indigo-dark-900/50 p-3"
           onClick={(e) => e.stopPropagation()}
         >
-          {task.subtasks.map((subtask, index) => {
+          {localSubtasks.map((subtask, index) => {
             const subtaskStatus =
               statusConfig[subtask.status as keyof typeof statusConfig] ||
               statusConfig.todo;
             const isFirst = index === 0;
-            const isLast = index === task.subtasks!.length - 1;
+            const isLast = index === localSubtasks.length - 1;
             const roundedClass =
               isFirst && isLast
                 ? 'rounded-md'
@@ -467,6 +500,7 @@ const TaskCard = memo(function TaskCard({
                   taskId={subtask.id}
                   currentStatus={subtask.status}
                   onTaskUpdated={onTaskUpdated}
+                  onStatusChange={handleSubtaskStatusChange}
                   size="sm"
                 />
               </div>
