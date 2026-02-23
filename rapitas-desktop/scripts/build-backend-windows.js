@@ -19,10 +19,12 @@ const BUN_VERSION = '1.1.42';
 const platform = process.platform;
 const arch = process.arch;
 
-// Tauriが期待するバイナリ名のフォーマット: Windows では <sidecar-name>.exe-<target-triple>.exe
+// Tauriが期待するバイナリ名のフォーマット
+// NOTE: 拡張子は最後に1回だけ！tauri.conf.jsonの"externalBin"はプラットフォーム非依存の名前を指定
+// Tauriが自動で.exeを追加するため、ここでは拡張子なしで保存
 const targetTriple = getTargetTriple();
 const outputName = platform === 'win32'
-  ? `rapitas-backend.exe-${targetTriple}.exe`
+  ? `rapitas-backend-${targetTriple}`  // 拡張子なし - Tauriが.exeを追加
   : `rapitas-backend-${targetTriple}`;
 
 function getTargetTriple() {
@@ -127,7 +129,12 @@ async function main() {
 
     // Step 2: バックエンドをスタンドアロン実行可能ファイルとしてビルド
     console.log('\nStep 2: Building backend as standalone executable...');
-    const outputPath = path.join(OUTPUT_DIR, outputName);
+
+    // 一時ビルド先（.exe付き）
+    const tempOutputPath = path.join(BACKEND_DIR, 'rapitas-backend.exe');
+
+    // 最終的な配置先（.exeなし - Tauriが自動追加）
+    const finalOutputPath = path.join(OUTPUT_DIR, outputName);
 
     // エントリーポイントファイルを作成（Bunの実行ファイル用）
     const entryContent = `
@@ -137,8 +144,8 @@ import "./index.ts";
     const entryPath = path.join(BACKEND_DIR, 'tauri-entry.ts');
     fs.writeFileSync(entryPath, entryContent);
 
-    // Bunでコンパイル
-    execSync(`"${bunPath}" build ${entryPath} --compile --target=bun-windows-x64 --outfile "${outputPath}"`, {
+    // Bunでコンパイル（.exe付きで出力）
+    execSync(`"${bunPath}" build ${entryPath} --compile --target=bun-windows-x64 --outfile "${tempOutputPath}"`, {
       stdio: 'inherit',
       cwd: BACKEND_DIR,
       env: {
@@ -148,20 +155,31 @@ import "./index.ts";
       }
     });
 
+    // ファイルを最終的な場所にコピー（拡張子なしの名前で）
+    fs.copyFileSync(tempOutputPath, finalOutputPath);
+
     // 一時ファイルを削除
     fs.unlinkSync(entryPath);
+    fs.unlinkSync(tempOutputPath);
+
+    // 汎用名でもコピー（開発用フォールバック）
+    const genericPath = path.join(OUTPUT_DIR, 'rapitas-backend');
+    fs.copyFileSync(finalOutputPath, genericPath);
 
     console.log('\nBackend build complete!');
-    console.log(`Output: ${outputPath}`);
-    console.log(`Size: ${(fs.statSync(outputPath).size / 1024 / 1024).toFixed(2)} MB`);
+    console.log(`Platform-specific: ${finalOutputPath}`);
+    console.log(`Generic fallback: ${genericPath}`);
+    console.log(`Size: ${(fs.statSync(finalOutputPath).size / 1024 / 1024).toFixed(2)} MB`);
 
   } catch (error) {
     console.error('Failed to build backend:', error.message);
 
     // エラーが発生した場合、ダミーファイルを作成してビルドを続行
     console.log('\nCreating dummy backend for CI/CD continuation...');
-    const outputPath = path.join(OUTPUT_DIR, outputName);
-    fs.writeFileSync(outputPath, 'Dummy backend - build failed');
+    const dummyPath = path.join(OUTPUT_DIR, outputName);
+    const dummyGenericPath = path.join(OUTPUT_DIR, 'rapitas-backend');
+    fs.writeFileSync(dummyPath, 'Dummy backend - build failed');
+    fs.writeFileSync(dummyGenericPath, 'Dummy backend - build failed');
 
     // ダミーでもビルドは続行させる
     console.log('Dummy backend created to allow CI/CD to continue.');

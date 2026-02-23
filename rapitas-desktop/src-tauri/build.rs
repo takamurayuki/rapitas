@@ -24,21 +24,24 @@ fn main() {
 
     // In CI/CD, we ensure both generic and platform-specific binaries exist
     // Prioritize the generic name that matches tauri.conf.json
-    let generic_binary_name = match target_os.as_str() {
-        "windows" => "rapitas-backend.exe",
-        _ => "rapitas-backend",
-    };
+    // NOTE: For Windows, use name WITHOUT .exe - Tauri adds it during bundling
+    let generic_binary_name = "rapitas-backend";
 
     let alt_binary_name = format!(
         "rapitas-backend-{}-{}-{}",
         target_arch, target_os, target_env
     );
-    let alternative_names: Vec<&str> = match target_os.as_str() {
+    // Alternative names to check (for backwards compatibility)
+    let alternative_names: Vec<String> = match target_os.as_str() {
         "windows" => vec![
-            generic_binary_name,
-            "rapitas-backend-x86_64-pc-windows-msvc.exe",
+            "rapitas-backend".to_string(),
+            "rapitas-backend.exe".to_string(),  // Old naming scheme
+            "rapitas-backend-x86_64-pc-windows-msvc.exe".to_string(),
         ],
-        _ => vec![generic_binary_name, &alt_binary_name],
+        _ => vec![
+            "rapitas-backend".to_string(),
+            alt_binary_name.clone(),
+        ],
     };
 
     let mut found = false;

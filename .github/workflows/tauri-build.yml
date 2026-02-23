@@ -164,10 +164,11 @@ jobs:
 
           # Copy with platform-specific naming for Tauri sidecar
           if ("${{ matrix.target }}" -eq "x86_64-pc-windows-msvc") {
-            # Windows uses special naming: <name>.exe-<target>.exe
-            Copy-Item rapitas-backend.exe ../rapitas-desktop/src-tauri/binaries/rapitas-backend.exe-x86_64-pc-windows-msvc.exe
-            # IMPORTANT: Also copy as generic name that matches tauri.conf.json
-            Copy-Item rapitas-backend.exe ../rapitas-desktop/src-tauri/binaries/rapitas-backend.exe
+            # Windows: Copy WITHOUT .exe extension - Tauri will add it automatically during bundling
+            # This prevents double .exe extension (rapitas-backend.exe.exe)
+            Copy-Item rapitas-backend.exe ../rapitas-desktop/src-tauri/binaries/rapitas-backend-x86_64-pc-windows-msvc.exe
+            # IMPORTANT: Copy as generic name WITHOUT .exe extension (matches tauri.conf.json)
+            Copy-Item rapitas-backend.exe ../rapitas-desktop/src-tauri/binaries/rapitas-backend
           }
 
           echo "Backend binary copied to Tauri binaries directory"
