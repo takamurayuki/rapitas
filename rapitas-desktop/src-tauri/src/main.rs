@@ -28,14 +28,96 @@ mod release {
     pub fn setup_sidecar(app: &tauri::App) {
         let shell = app.shell();
 
-        // サイドカーコマンドを作成（PostgreSQLモードで起動）
-        let sidecar = shell
-            .sidecar("rapitas-backend")
-            .expect("failed to create sidecar command")
+        // プラットフォーム別のバックエンドファイル名を取得
+        let backend_filename = if cfg!(target_os = "windows") {
+            "rapitas-backend.exe"
+        } else if cfg!(target_os = "macos") {
+            "rapitas-backend"
+        } else {
+            "rapitas-backend"
+        };
+
+        // リソースディレクトリまたはアプリディレクトリからバックエンドexeを探す
+        // 開発モード: src-tauri/binaries/rapitas-backend-*.exe
+        // リリースモード: $INSTDIR/binaries/rapitas-backend-*.exe
+        let resource_path = {
+            // まず、リソースディレクトリ（開発モード）を確認
+            let dev_resource_dir = app
+                .path()
+                .resource_dir()
+                .expect("failed to get resource dir")
+                .join("binaries");
+
+            println!("[Backend] Checking dev resources: {:?}", dev_resource_dir);
+
+            let mut backend_path = None;
+
+            if dev_resource_dir.exists() {
+                if let Ok(entries) = std::fs::read_dir(&dev_resource_dir) {
+                    backend_path = entries
+                        .filter_map(|e| e.ok())
+                        .map(|e| e.path())
+                        .find(|p| {
+                            p.file_name()
+                                .and_then(|n| n.to_str())
+                                .map(|n| n.starts_with("rapitas-backend") && n.ends_with(if cfg!(windows) { ".exe" } else { "" }))
+                                .unwrap_or(false)
+                        });
+                }
+            }
+
+            // リリースモード: アプリディレクトリの binaries サブディレクトリを確認
+            if backend_path.is_none() {
+                let app_dir = std::env::current_exe()
+                    .expect("failed to get current exe path")
+                    .parent()
+                    .expect("failed to get parent dir")
+                    .to_path_buf();
+
+                let release_binaries_dir = app_dir.join("binaries");
+                println!("[Backend] Checking release binaries: {:?}", release_binaries_dir);
+
+                if release_binaries_dir.exists() {
+                    if let Ok(entries) = std::fs::read_dir(&release_binaries_dir) {
+                        backend_path = entries
+                            .filter_map(|e| e.ok())
+                            .map(|e| e.path())
+                            .find(|p| {
+                                p.file_name()
+                                    .and_then(|n| n.to_str())
+                                    .map(|n| n.starts_with("rapitas-backend") && n.ends_with(if cfg!(windows) { ".exe" } else { "" }))
+                                    .unwrap_or(false)
+                            });
+                    }
+                }
+            }
+
+            backend_path.expect("Backend executable not found in resources or app directory")
+        };
+
+        println!("[Backend] Found backend: {:?}", resource_path);
+
+        // バックエンドをアプリデータディレクトリにコピー
+        let app_data_dir = app
+            .path()
+            .app_data_dir()
+            .expect("failed to get app data dir");
+
+        std::fs::create_dir_all(&app_data_dir).ok();
+
+        let backend_path = app_data_dir.join(backend_filename);
+
+        // リソースをコピー（更新時に上書き）
+        std::fs::copy(&resource_path, &backend_path)
+            .expect("failed to copy backend executable");
+        println!("[Backend] Copied to: {:?}", backend_path);
+
+        // バックエンドを起動
+        let backend_command = shell
+            .command(backend_path.to_string_lossy().to_string())
             .env("TAURI_BUILD", "true");
 
-        // サイドカーを起動
-        let (mut rx, child) = sidecar.spawn().expect("failed to spawn sidecar");
+        let (mut rx, child) = backend_command.spawn().expect("failed to spawn backend");
 
         // 状態にchildを保存（後でクリーンアップ用）
         let state = app.state::<Mutex<BackendState>>();
@@ -63,7 +145,7 @@ mod release {
             }
         });
 
-        println!("Backend sidecar started successfully!");
+        println!("Backend started successfully!");
     }
 
     pub fn kill_backend(app: &tauri::AppHandle) {
@@ -71,7 +153,7 @@ mod release {
         let mut guard = state.lock().unwrap();
         if let Some(child) = guard.child.take() {
             let _ = child.kill();
-            println!("Backend sidecar stopped.");
+            println!("Backend stopped.");
         }
     }
 }

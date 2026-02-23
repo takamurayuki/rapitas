@@ -2651,7 +2651,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "rapitas-desktop"
+name = "rapitas"
 version = "1.0.0"
 dependencies = [
  "open",

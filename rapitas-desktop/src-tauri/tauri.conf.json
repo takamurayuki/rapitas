@@ -70,8 +70,11 @@
         "installMode": "both"
       }
     },
-    "externalBin": ["binaries/rapitas-backend"],
-    "resources": ["Rapitas.desktop"]
+    "externalBin": [],
+    "resources": [
+      "Rapitas.desktop",
+      "binaries/rapitas-backend-*.exe"
+    ]
   },
   "plugins": {
     "shell": {
