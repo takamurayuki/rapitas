@@ -82,42 +82,32 @@ if (!config.bundle) {
   config.bundle = {};
 }
 
-// Remove resources configuration - it causes build errors on macOS
-// The resources will be handled differently
-config.bundle.resources = [];
+// Use resources instead of externalBin to embed backend in app directory
+// This approach hides the backend executable from users
+config.bundle.externalBin = [];
+config.bundle.resources = [
+  'binaries/rapitas-backend-*.exe',
+  'binaries/rapitas-backend-*'
+];
 
-// Set externalBin to include the generic binary file to match tauri.conf.json
-// The CI workflow ensures both platform-specific and generic names exist
-const genericBinaryName = isWindows ? 'rapitas-backend.exe' : 'rapitas-backend';
-const genericBinaryPath = path.join(binariesDir, genericBinaryName);
+console.log('Configured backend as resources (embedded in app directory)');
+console.log('Resources configuration:', config.bundle.resources);
 
-if (fs.existsSync(genericBinaryPath)) {
-  config.bundle.externalBin = [`binaries/${genericBinaryName}`];
-  console.log(`Set externalBin to include generic binary: ${genericBinaryName}`);
-} else if (fs.existsSync(binaryPath)) {
-  // Fallback to platform-specific name if generic doesn't exist
-  config.bundle.externalBin = [`binaries/${binaryName}`];
-  console.log(`Set externalBin to include platform-specific binary: ${binaryName}`);
-} else {
-  // Check for any existing backend binary
-  let foundBinary = null;
-  if (fs.existsSync(binariesDir)) {
-    const files = fs.readdirSync(binariesDir);
-    foundBinary = files.find(f => f.startsWith('rapitas-backend') && !f.includes('placeholder'));
-  }
+// Verify that at least one backend binary exists
+let foundBinary = null;
+if (fs.existsSync(binariesDir)) {
+  const files = fs.readdirSync(binariesDir);
+  foundBinary = files.find(f => f.startsWith('rapitas-backend') && !f.includes('placeholder'));
 
   if (foundBinary) {
-    config.bundle.externalBin = [`binaries/${foundBinary}`];
-    console.log(`Using alternative binary: ${foundBinary}`);
+    console.log(`Found backend binary: ${foundBinary}`);
   } else {
     console.warn(`Warning: No backend binary found in ${binariesDir}`);
-    console.warn(`Expected binary name: ${binaryName}`);
 
     // In CI/CD, create a placeholder to allow build to proceed
     if (process.env.CI) {
       console.log('CI environment detected - creating placeholder binary');
-      // Create an empty placeholder file to prevent build failure
-      const placeholderName = isWindows ? 'rapitas-backend-placeholder.exe' : 'rapitas-backend-placeholder';
+      const placeholderName = isWindows ? 'rapitas-backend-x86_64-pc-windows-msvc.exe' : `rapitas-backend-${target}`;
       const placeholderPath = path.join(binariesDir, placeholderName);
 
       if (!fs.existsSync(binariesDir)) {
@@ -131,7 +121,6 @@ if (fs.existsSync(genericBinaryPath)) {
         fs.chmodSync(placeholderPath, 0o755);
       }
 
-      config.bundle.externalBin = [`binaries/${placeholderName}`];
       console.log(`Created placeholder binary: ${placeholderPath}`);
     } else {
       console.error('No backend binary found and not in CI environment');

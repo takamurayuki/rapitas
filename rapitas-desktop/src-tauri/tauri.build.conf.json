@@ -8,7 +8,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "externalBin": []
+    "externalBin": [],
+    "resources": [
+      "binaries/rapitas-backend-*.exe",
+      "binaries/rapitas-backend-*"
+    ]
   },
   "plugins": {
     "shell": {
