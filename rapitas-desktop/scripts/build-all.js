@@ -111,7 +111,12 @@ try {
   execSync('pnpm run build:tauri', {
     cwd: FRONTEND_DIR,
     stdio: 'inherit',
-    shell: true
+    shell: true,
+    env: {
+      ...process.env,
+      // Tauri向けビルドでは常にlocalhostのバックエンドを使用
+      NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:3001'
+    }
   });
   console.log('Frontend build complete.\n');
 
