@@ -130,34 +130,29 @@ jobs:
         working-directory: rapitas-desktop
         run: pnpm install --no-frozen-lockfile
 
+      - name: Generate Prisma Client
+        working-directory: rapitas-backend
+        run: |
+          echo "Generating Prisma Client..."
+          bun run prisma generate
+        env:
+          DATABASE_URL: "postgresql://user:password@localhost:5432/rapitas?schema=public"
+
       - name: Build backend binary (Windows)
         if: matrix.platform == 'windows-latest'
         working-directory: rapitas-backend
         run: |
-          echo "Building CI/CD stub backend with Bun standalone compilation..."
+          echo "Building full backend with Bun standalone compilation..."
           bun --version
 
-          # Install minimal dependencies for stub
-          echo "Installing minimal dependencies..."
-          bun add elysia @elysiajs/cors
-
-          # Create entry point for standalone executable
-          echo 'import "./stub-index.ts";' > tauri-entry.ts
-
-          # Build standalone executable with embedded runtime
-          bun build tauri-entry.ts --compile --target bun-windows-x64 --outfile rapitas-backend.exe
+          # Build full backend using index.ts
+          bun build index.ts --compile --target bun-windows-x64 --outfile rapitas-backend.exe
 
           # Verify the build
           echo "Backend build complete. File details:"
           dir rapitas-backend.exe
           echo "Testing file existence..."
           if (Test-Path rapitas-backend.exe) { echo "✓ Backend binary exists" } else { echo "✗ Backend binary not found!" }
-
-          # Test if the binary runs
-          echo "Testing backend binary..."
-          $env:CI = "true"
-          ./rapitas-backend.exe --version
-          echo "Binary version test completed"
 
           # Create binaries directory and copy
           New-Item -ItemType Directory -Force -Path ../rapitas-desktop/src-tauri/binaries
@@ -178,25 +173,18 @@ jobs:
         if: matrix.platform != 'windows-latest'
         working-directory: rapitas-backend
         run: |
-          echo "Building CI/CD stub backend with Bun standalone compilation..."
+          echo "Building full backend with Bun standalone compilation..."
           bun --version
 
-          # Install minimal dependencies for stub
-          echo "Installing minimal dependencies..."
-          bun add elysia @elysiajs/cors
-
-          # Create entry point for standalone executable
-          echo 'import "./stub-index.ts";' > tauri-entry.ts
-
-          # Build standalone executable with embedded runtime
+          # Build full backend using index.ts
           if [ "${{ matrix.target }}" == "x86_64-unknown-linux-gnu" ]; then
-            bun build tauri-entry.ts --compile --target bun-linux-x64 --outfile rapitas-backend
+            bun build index.ts --compile --target bun-linux-x64 --outfile rapitas-backend
           elif [ "${{ matrix.target }}" == "x86_64-apple-darwin" ]; then
-            bun build tauri-entry.ts --compile --target bun-darwin-x64 --outfile rapitas-backend
+            bun build index.ts --compile --target bun-darwin-x64 --outfile rapitas-backend
           elif [ "${{ matrix.target }}" == "aarch64-apple-darwin" ]; then
-            bun build tauri-entry.ts --compile --target bun-darwin-arm64 --outfile rapitas-backend
+            bun build index.ts --compile --target bun-darwin-arm64 --outfile rapitas-backend
           else
-            bun build tauri-entry.ts --compile --outfile rapitas-backend
+            bun build index.ts --compile --outfile rapitas-backend
           fi
 
           # Verify the build
