@@ -50,13 +50,28 @@ app.get("/projects/:id", (context) => ({
 
 // 設定関連のスタブエンドポイント
 app.get("/settings", () => ({
-  autoResumeInterruptedTasks: false,
+  autoResumeInterruptedTasks: false, // 自動再開を無効化（スタブ環境では不要）
   enableDeveloperMode: false,
   enableAgentExecution: false,
   enableParallelExecution: false,
   maxParallelExecutions: 1,
   autoRetryOnRateLimit: false,
   rateLimitRetryDelay: 5,
+}));
+
+// エージェント実行関連のスタブエンドポイント
+app.get("/agents/resumable-executions", () => []); // 再開可能な実行はなし
+
+app.post("/agents/executions/:id/resume", (context) => ({
+  success: false,
+  message: "Stub backend: execution resume not available",
+  executionId: context.params.id,
+}));
+
+app.post("/agents/executions/:id/acknowledge", (context) => ({
+  success: true,
+  message: "Acknowledged (stub)",
+  executionId: context.params.id,
 }));
 
 // SSEスタブエンドポイント
