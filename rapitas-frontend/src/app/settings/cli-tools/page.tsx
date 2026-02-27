@@ -9,16 +9,14 @@ import {
   Loader2,
   ExternalLink,
   RefreshCcw,
-  Settings,
   Key,
   Package,
   Monitor,
   Eye,
   EyeOff,
   Play,
-  Square,
   Copy,
-  X
+  X,
 } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { API_BASE_URL } from '@/utils/api';
@@ -67,17 +65,25 @@ function CLIToolsPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [actionStates, setActionStates] = useState<Record<string, {
-    isInstalling: boolean;
-    isUpdating: boolean;
-    isAuthenticating: boolean;
-    showCommand: boolean;
-  }>>({});
+  const [actionStates, setActionStates] = useState<
+    Record<
+      string,
+      {
+        isInstalling: boolean;
+        isUpdating: boolean;
+        isAuthenticating: boolean;
+        showCommand: boolean;
+      }
+    >
+  >({});
 
-  const updateActionState = (toolId: string, updates: Partial<typeof actionStates[string]>) => {
-    setActionStates(prev => ({
+  const updateActionState = (
+    toolId: string,
+    updates: Partial<(typeof actionStates)[string]>,
+  ) => {
+    setActionStates((prev) => ({
       ...prev,
-      [toolId]: { ...prev[toolId], ...updates }
+      [toolId]: { ...prev[toolId], ...updates },
     }));
   };
 
@@ -99,7 +105,7 @@ function CLIToolsPage() {
             isInstalling: false,
             isUpdating: false,
             isAuthenticating: false,
-            showCommand: false
+            showCommand: false,
           };
         });
         setActionStates(initialStates);
@@ -107,7 +113,9 @@ function CLIToolsPage() {
         throw new Error(data.error || 'Unknown error');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch CLI tools');
+      setError(
+        err instanceof Error ? err.message : 'Failed to fetch CLI tools',
+      );
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -120,9 +128,12 @@ function CLIToolsPage() {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/cli-tools/${toolId}/install`, {
-        method: 'POST'
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/cli-tools/${toolId}/install`,
+        {
+          method: 'POST',
+        },
+      );
       const data = await response.json();
 
       if (data.success) {
@@ -145,9 +156,12 @@ function CLIToolsPage() {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/cli-tools/${toolId}/update`, {
-        method: 'POST'
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/cli-tools/${toolId}/update`,
+        {
+          method: 'POST',
+        },
+      );
       const data = await response.json();
 
       if (data.success) {
@@ -173,7 +187,7 @@ function CLIToolsPage() {
       const response = await fetch(`${API_BASE_URL}/cli-tools/${toolId}/auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ interactive: false })
+        body: JSON.stringify({ interactive: false }),
       });
       const data = await response.json();
 
@@ -181,7 +195,9 @@ function CLIToolsPage() {
         if (data.data.isAuthenticated) {
           setSuccessMessage(`${data.data.tool.name} is already authenticated`);
         } else {
-          setError(`${data.data.tool.name} requires authentication. ${data.data.message}`);
+          setError(
+            `${data.data.tool.name} requires authentication. ${data.data.message}`,
+          );
         }
         setTimeout(() => {
           setSuccessMessage(null);
@@ -192,7 +208,9 @@ function CLIToolsPage() {
         throw new Error(data.error || 'Authentication check failed');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Authentication check failed');
+      setError(
+        err instanceof Error ? err.message : 'Authentication check failed',
+      );
     } finally {
       updateActionState(toolId, { isAuthenticating: false });
     }
@@ -208,17 +226,20 @@ function CLIToolsPage() {
     isOpen: false,
     tool: null,
     command: null,
-    step: 'command'
+    step: 'command',
   });
 
   // 認証コマンドを取得してモーダル表示
   const showAuthModal = async (tool: CLITool) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/cli-tools/${tool.id}/auth`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ interactive: true })
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/cli-tools/${tool.id}/auth`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ interactive: true }),
+        },
+      );
       const data = await response.json();
 
       if (data.success && data.data.interactive) {
@@ -226,11 +247,13 @@ function CLIToolsPage() {
           isOpen: true,
           tool: tool,
           command: data.data.command,
-          step: 'command'
+          step: 'command',
         });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to get auth command');
+      setError(
+        err instanceof Error ? err.message : 'Failed to get auth command',
+      );
     }
   };
 
@@ -252,29 +275,38 @@ function CLIToolsPage() {
     updateActionState(authModal.tool.id, { isAuthenticating: true });
 
     try {
-      const response = await fetch(`${API_BASE_URL}/cli-tools/${authModal.tool.id}/auth`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ interactive: false })
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/cli-tools/${authModal.tool.id}/auth`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ interactive: false }),
+        },
+      );
       const data = await response.json();
 
       if (data.success) {
         if (data.data.isAuthenticated) {
-          setAuthModal(prev => ({ ...prev, step: 'completed' }));
+          setAuthModal((prev) => ({ ...prev, step: 'completed' }));
           await fetchTools(); // Refresh tool status
           // 3秒後に自動的にモーダルを閉じる
           setTimeout(() => {
             closeAuthModal();
           }, 3000);
         } else {
-          setError(`${authModal.tool.name}の認証が完了していません。ターミナルでコマンドを実行してください。`);
+          setError(
+            `${authModal.tool.name}の認証が完了していません。ターミナルでコマンドを実行してください。`,
+          );
         }
       } else {
         throw new Error(data.error || 'Authentication verification failed');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Authentication verification failed');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Authentication verification failed',
+      );
     } finally {
       updateActionState(authModal.tool.id, { isAuthenticating: false });
     }
@@ -285,7 +317,7 @@ function CLIToolsPage() {
       isOpen: false,
       tool: null,
       command: null,
-      step: 'command'
+      step: 'command',
     });
   };
 
@@ -304,29 +336,36 @@ function CLIToolsPage() {
       return {
         icon: <AlertCircle className="w-4 h-4 text-amber-500" />,
         label: '未インストール',
-        className: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+        className:
+          'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
       };
     } else if (tool.isAuthenticated) {
       return {
         icon: <CheckCircle className="w-4 h-4 text-green-500" />,
         label: '認証済み',
-        className: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+        className:
+          'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
       };
     } else {
       return {
         icon: <AlertCircle className="w-4 h-4 text-blue-500" />,
         label: 'インストール済み',
-        className: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+        className:
+          'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
       };
     }
   };
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
-      case 'ai': return <Monitor className="w-5 h-5" />;
-      case 'development': return <Package className="w-5 h-5" />;
-      case 'utility': return <Terminal className="w-5 h-5" />;
-      default: return <Terminal className="w-5 h-5" />;
+      case 'ai':
+        return <Monitor className="w-5 h-5" />;
+      case 'development':
+        return <Package className="w-5 h-5" />;
+      case 'utility':
+        return <Terminal className="w-5 h-5" />;
+      default:
+        return <Terminal className="w-5 h-5" />;
     }
   };
 
@@ -356,7 +395,9 @@ function CLIToolsPage() {
           disabled={isRefreshing}
           className="flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg transition-colors disabled:opacity-50"
         >
-          <RefreshCcw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <RefreshCcw
+            className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}
+          />
           更新
         </button>
       </div>
@@ -389,8 +430,12 @@ function CLIToolsPage() {
                 <Package className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">総ツール数</p>
-                <p className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">{summary.total}</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  総ツール数
+                </p>
+                <p className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                  {summary.total}
+                </p>
               </div>
             </div>
           </div>
@@ -400,8 +445,12 @@ function CLIToolsPage() {
                 <Download className="w-4 h-4 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">インストール済み</p>
-                <p className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">{summary.installed}</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  インストール済み
+                </p>
+                <p className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                  {summary.installed}
+                </p>
               </div>
             </div>
           </div>
@@ -411,8 +460,12 @@ function CLIToolsPage() {
                 <Key className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">認証済み</p>
-                <p className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">{summary.authenticated}</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  認証済み
+                </p>
+                <p className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                  {summary.authenticated}
+                </p>
               </div>
             </div>
           </div>
@@ -422,8 +475,12 @@ function CLIToolsPage() {
                 <RefreshCcw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">更新可能</p>
-                <p className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">{summary.needsUpdate}</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  更新可能
+                </p>
+                <p className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                  {summary.needsUpdate}
+                </p>
               </div>
             </div>
           </div>
@@ -438,7 +495,7 @@ function CLIToolsPage() {
             isInstalling: false,
             isUpdating: false,
             isAuthenticating: false,
-            showCommand: false
+            showCommand: false,
           };
 
           return (
@@ -457,7 +514,9 @@ function CLIToolsPage() {
                         <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                           {tool.name}
                         </h3>
-                        <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${statusDisplay.className}`}>
+                        <span
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${statusDisplay.className}`}
+                        >
                           {statusDisplay.icon}
                           {statusDisplay.label}
                         </span>
@@ -471,7 +530,9 @@ function CLIToolsPage() {
                         <div className="flex flex-wrap items-center gap-4 mb-3">
                           {tool.version && (
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-zinc-500 dark:text-zinc-400">バージョン:</span>
+                              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                バージョン:
+                              </span>
                               <code className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded text-xs font-mono">
                                 {tool.version}
                               </code>
@@ -479,7 +540,9 @@ function CLIToolsPage() {
                           )}
                           {tool.installPath && (
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-zinc-500 dark:text-zinc-400">パス:</span>
+                              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                パス:
+                              </span>
                               <code className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded text-xs font-mono truncate max-w-xs">
                                 {tool.installPath}
                               </code>
@@ -492,12 +555,22 @@ function CLIToolsPage() {
                       <div className="flex flex-wrap items-center gap-4">
                         {tool.installCommand && (
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-zinc-500 dark:text-zinc-400">インストール:</span>
+                            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                              インストール:
+                            </span>
                             <button
-                              onClick={() => updateActionState(tool.id, { showCommand: !actionState.showCommand })}
+                              onClick={() =>
+                                updateActionState(tool.id, {
+                                  showCommand: !actionState.showCommand,
+                                })
+                              }
                               className="flex items-center gap-1 px-2 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded text-xs transition-colors"
                             >
-                              {actionState.showCommand ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                              {actionState.showCommand ? (
+                                <EyeOff className="w-3 h-3" />
+                              ) : (
+                                <Eye className="w-3 h-3" />
+                              )}
                               {actionState.showCommand ? 'Hide' : 'Show'}
                             </button>
                           </div>
@@ -573,7 +646,11 @@ function CLIToolsPage() {
 
                         {tool.authCommand && (
                           <button
-                            onClick={() => tool.isAuthenticated ? checkAuthentication(tool.id) : showAuthModal(tool)}
+                            onClick={() =>
+                              tool.isAuthenticated
+                                ? checkAuthentication(tool.id)
+                                : showAuthModal(tool)
+                            }
                             disabled={actionState.isAuthenticating}
                             className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 ${
                               tool.isAuthenticated
@@ -638,7 +715,9 @@ function CLIToolsPage() {
                           認証コマンド
                         </span>
                         <button
-                          onClick={() => copyToClipboard(authModal.command || '')}
+                          onClick={() =>
+                            copyToClipboard(authModal.command || '')
+                          }
                           className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
                         >
                           <Copy className="w-3 h-3" />
@@ -662,10 +741,15 @@ function CLIToolsPage() {
                         </h4>
                         <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
                           <li>1. 上記のコマンドをコピーしてください</li>
-                          <li>2. ターミナル（コマンドプロンプトまたはPowerShell）を開いてください</li>
+                          <li>
+                            2.
+                            ターミナル（コマンドプロンプトまたはPowerShell）を開いてください
+                          </li>
                           <li>3. コマンドを貼り付けて実行してください</li>
                           <li>4. ブラウザで認証プロセスを完了してください</li>
-                          <li>5. 下記の「認証確認」ボタンをクリックしてください</li>
+                          <li>
+                            5. 下記の「認証確認」ボタンをクリックしてください
+                          </li>
                         </ol>
                       </div>
                     </div>
@@ -680,7 +764,9 @@ function CLIToolsPage() {
                     </button>
                     <div className="flex gap-3">
                       <button
-                        onClick={() => setAuthModal(prev => ({ ...prev, step: 'verify' }))}
+                        onClick={() =>
+                          setAuthModal((prev) => ({ ...prev, step: 'verify' }))
+                        }
                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                       >
                         <Play className="w-4 h-4" />
@@ -703,9 +789,11 @@ function CLIToolsPage() {
 
                     <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
                       <div className="flex items-start gap-2">
-                        <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                        <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                         <div className="text-sm text-amber-800 dark:text-amber-200">
-                          <p className="mb-1">認証が完了していない場合は、以下を確認してください：</p>
+                          <p className="mb-1">
+                            認証が完了していない場合は、以下を確認してください：
+                          </p>
                           <ul className="text-xs space-y-1 ml-2">
                             <li>• ターミナルでコマンドを正しく実行したか</li>
                             <li>• ブラウザでの認証プロセスを完了したか</li>
@@ -718,7 +806,9 @@ function CLIToolsPage() {
 
                   <div className="flex items-center justify-between">
                     <button
-                      onClick={() => setAuthModal(prev => ({ ...prev, step: 'command' }))}
+                      onClick={() =>
+                        setAuthModal((prev) => ({ ...prev, step: 'command' }))
+                      }
                       className="px-4 py-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                     >
                       戻る
@@ -732,7 +822,9 @@ function CLIToolsPage() {
                       </button>
                       <button
                         onClick={verifyAuthentication}
-                        disabled={actionStates[authModal.tool.id]?.isAuthenticating}
+                        disabled={
+                          actionStates[authModal.tool.id]?.isAuthenticating
+                        }
                         className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
                       >
                         {actionStates[authModal.tool.id]?.isAuthenticating ? (
@@ -757,7 +849,8 @@ function CLIToolsPage() {
                       認証が完了しました！
                     </h3>
                     <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                      {authModal.tool.name}の認証が正常に完了しました。CLIツールをご利用いただけます。
+                      {authModal.tool.name}
+                      の認証が正常に完了しました。CLIツールをご利用いただけます。
                     </p>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
                       このダイアログは3秒後に自動的に閉じます

@@ -652,7 +652,7 @@ function HomeClientPage() {
                     return (
                       <React.Fragment key={status}>
                         {idx > 0 && (
-                          <div className="w-[1px] h-5 bg-slate-300 dark:bg-slate-600" />
+                          <div className="w-px h-5 bg-slate-300 dark:bg-slate-600" />
                         )}
                         <button
                           onClick={() => bulkUpdateStatus(status)}
@@ -1090,7 +1090,7 @@ function HomeClientPage() {
                                 className={`relative h-6 px-3 font-mono text-[10px] uppercase tracking-wider whitespace-nowrap transition-all duration-200 ${
                                   isActive
                                     ? config.color === 'amber'
-                                      ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-white shadow-md font-bold'
+                                      ? 'bg-linear-to-r from-amber-500 to-amber-400 text-white shadow-md font-bold'
                                       : config.color === 'blue'
                                         ? 'bg-blue-500 text-white shadow-md font-bold'
                                         : config.color === 'green'
@@ -1107,7 +1107,7 @@ function HomeClientPage() {
                                 </div>
                                 {/* Progress indicator at bottom */}
                                 {count > 0 && (
-                                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-slate-300 dark:bg-slate-600">
+                                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-300 dark:bg-slate-600">
                                     <div
                                       className={`h-full transition-all duration-500 ${
                                         isActive
@@ -1122,7 +1122,7 @@ function HomeClientPage() {
                                 )}
                               </button>
                               {idx < 3 && (
-                                <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-600" />
+                                <div className="w-px h-4 bg-slate-300 dark:bg-slate-600" />
                               )}
                             </div>
                           );
@@ -1132,7 +1132,7 @@ function HomeClientPage() {
                   </div>
 
                   {/* 区切り線 */}
-                  <div className="w-[1px] h-6 bg-slate-300 dark:bg-slate-600"></div>
+                  <div className="w-px h-6 bg-slate-300 dark:bg-slate-600"></div>
 
                   {/* 優先度 */}
                   <div className="flex items-center gap-2">
@@ -1189,7 +1189,7 @@ function HomeClientPage() {
                             className={`h-6 px-2.5 font-mono text-[10px] uppercase tracking-wider transition-all duration-200 whitespace-nowrap focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
                               (priorityFilter || '') === priority.value
                                 ? priority.bgColor === 'amber'
-                                  ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-white shadow-md font-bold'
+                                  ? 'bg-linear-to-r from-amber-500 to-amber-400 text-white shadow-md font-bold'
                                   : priority.bgColor === 'red'
                                     ? 'bg-red-500 text-white shadow-md font-bold'
                                     : priority.bgColor === 'orange'
@@ -1216,7 +1216,7 @@ function HomeClientPage() {
                             </div>
                           </button>
                           {idx < 4 && (
-                            <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-600" />
+                            <div className="w-px h-4 bg-slate-300 dark:bg-slate-600" />
                           )}
                         </div>
                       ))}
@@ -1224,7 +1224,7 @@ function HomeClientPage() {
                   </div>
 
                   {/* 区切り線 */}
-                  <div className="w-[1px] h-6 bg-slate-300 dark:bg-slate-600"></div>
+                  <div className="w-px h-6 bg-slate-300 dark:bg-slate-600"></div>
 
                   {/* ソート */}
                   <div className="flex items-center gap-2">

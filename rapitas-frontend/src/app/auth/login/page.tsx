@@ -72,7 +72,7 @@ export default function LoginPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
     // エラーをクリア
     if (error) setError(null);
   };
@@ -97,7 +97,7 @@ export default function LoginPage() {
   // ローディング中の表示
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-white dark:from-zinc-900 dark:to-zinc-800 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-indigo-50 to-white dark:from-zinc-900 dark:to-zinc-800 px-4">
         <div className="w-full max-w-md space-y-8">
           {/* ヘッダースケルトン */}
           <div className="text-center">
@@ -125,7 +125,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-white dark:from-zinc-900 dark:to-zinc-800 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-indigo-50 to-white dark:from-zinc-900 dark:to-zinc-800 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         {/* ヘッダー */}
         <div className="text-center">
@@ -165,7 +165,10 @@ export default function LoginPage() {
 
             {/* ユーザー名 */}
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <label
+                htmlFor="username"
+                className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
                 ユーザー名
               </label>
               <div className="mt-1 relative">
@@ -188,7 +191,10 @@ export default function LoginPage() {
 
             {/* パスワード */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
                 パスワード
               </label>
               <div className="mt-1 relative">
@@ -247,7 +253,9 @@ export default function LoginPage() {
                 <div className="w-full border-t border-zinc-300 dark:border-zinc-600" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">または</span>
+                <span className="px-2 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
+                  または
+                </span>
               </div>
             </div>
 

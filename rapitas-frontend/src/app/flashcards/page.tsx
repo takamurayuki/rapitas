@@ -713,7 +713,7 @@ export default function FlashcardsPage() {
               </div>
               <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
                 <p className="text-sm text-blue-700 dark:text-blue-300 flex items-start gap-2">
-                  <Sparkles className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <Sparkles className="w-4 h-4 mt-0.5 shrink-0" />
                   デッキ作成後、AIが学習内容に最適なフラッシュカードを自動生成できます
                 </p>
               </div>

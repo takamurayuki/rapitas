@@ -347,7 +347,7 @@ export default function AgentsPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-5rem)] overflow-auto bg-[var(--background)] scrollbar-thin">
+    <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ヘッダー */}
         <div className="mb-6">

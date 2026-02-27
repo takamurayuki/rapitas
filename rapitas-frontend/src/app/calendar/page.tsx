@@ -625,7 +625,7 @@ export default function CalendarPage() {
                           >
                             {/* 空セルの日付ヘッダー相当 */}
                             <div className="w-full px-1 py-0.5 bg-zinc-200/50 dark:bg-zinc-800/90">
-                              <div className="w-[20px] h-[20px]" />
+                              <div className="w-5 h-5" />
                             </div>
                             <div className="w-full border-b border-zinc-200/50 dark:border-zinc-700/30" />
                             <div className="w-full aspect-square bg-[repeating-linear-gradient(135deg,transparent,transparent_4px,rgba(0,0,0,0.03)_4px,rgba(0,0,0,0.03)_5px)] dark:bg-[repeating-linear-gradient(135deg,transparent,transparent_4px,rgba(255,255,255,0.02)_4px,rgba(255,255,255,0.02)_5px)]" />
@@ -671,7 +671,7 @@ export default function CalendarPage() {
                             }`}
                           >
                             <div
-                              className={`flex items-center justify-center w-[20px] h-[20px] rounded-sm shrink-0 ${
+                              className={`flex items-center justify-center w-5 h-5 rounded-sm shrink-0 ${
                                 today ? 'bg-indigo-500' : ''
                               }`}
                             >

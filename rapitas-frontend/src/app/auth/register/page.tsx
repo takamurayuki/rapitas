@@ -3,7 +3,16 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Eye, EyeOff, UserPlus, User, Lock, Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
+import {
+  Eye,
+  EyeOff,
+  UserPlus,
+  User,
+  Lock,
+  Mail,
+  AlertCircle,
+  CheckCircle2,
+} from 'lucide-react';
 import Link from 'next/link';
 
 // Google アイコンコンポーネント
@@ -117,7 +126,7 @@ export default function RegisterPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
     // エラーをクリア
     if (error) setError(null);
   };
@@ -142,7 +151,7 @@ export default function RegisterPage() {
   // ローディング中の表示
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-white dark:from-zinc-900 dark:to-zinc-800 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-indigo-50 to-white dark:from-zinc-900 dark:to-zinc-800 px-4">
         <div className="w-full max-w-md space-y-8">
           {/* ヘッダースケルトン */}
           <div className="text-center">
@@ -155,7 +164,9 @@ export default function RegisterPage() {
             <div className="space-y-4">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i}>
-                  <div className={`h-4 bg-zinc-200 dark:bg-zinc-700 rounded mb-2 animate-pulse ${i === 1 ? 'w-20' : i === 2 ? 'w-16' : i === 3 ? 'w-20' : 'w-28'}`} />
+                  <div
+                    className={`h-4 bg-zinc-200 dark:bg-zinc-700 rounded mb-2 animate-pulse ${i === 1 ? 'w-20' : i === 2 ? 'w-16' : i === 3 ? 'w-20' : 'w-28'}`}
+                  />
                   <div className="h-12 w-full bg-zinc-200 dark:bg-zinc-700 rounded-lg animate-pulse" />
                 </div>
               ))}
@@ -168,12 +179,16 @@ export default function RegisterPage() {
   }
 
   const isPasswordValid = Object.values(passwordStrength).every(Boolean);
-  const isFormValid = formData.username && formData.email && formData.password &&
-                     formData.confirmPassword && isPasswordValid &&
-                     formData.password === formData.confirmPassword;
+  const isFormValid =
+    formData.username &&
+    formData.email &&
+    formData.password &&
+    formData.confirmPassword &&
+    isPasswordValid &&
+    formData.password === formData.confirmPassword;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-white dark:from-zinc-900 dark:to-zinc-800 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-indigo-50 to-white dark:from-zinc-900 dark:to-zinc-800 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         {/* ヘッダー */}
         <div className="text-center">
@@ -239,16 +254,20 @@ export default function RegisterPage() {
                 <div className="w-full border-t border-zinc-300 dark:border-zinc-600" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">または</span>
+                <span className="px-2 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
+                  または
+                </span>
               </div>
             </div>
           </div>
 
           <form className="space-y-6 mt-6" onSubmit={handleSubmit}>
-
             {/* ユーザー名 */}
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <label
+                htmlFor="username"
+                className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
                 ユーザー名
               </label>
               <div className="mt-1 relative">
@@ -271,7 +290,10 @@ export default function RegisterPage() {
 
             {/* メールアドレス */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
                 メールアドレス
               </label>
               <div className="mt-1 relative">
@@ -294,7 +316,10 @@ export default function RegisterPage() {
 
             {/* パスワード */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
                 パスワード
               </label>
               <div className="mt-1 relative">
@@ -328,7 +353,9 @@ export default function RegisterPage() {
               {/* パスワード強度表示 */}
               {formData.password && (
                 <div className="mt-2 space-y-1">
-                  <div className="text-xs text-zinc-600 dark:text-zinc-400">パスワード要件:</div>
+                  <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                    パスワード要件:
+                  </div>
                   <div className="space-y-1">
                     {[
                       { key: 'length', label: '8文字以上' },
@@ -338,12 +365,22 @@ export default function RegisterPage() {
                       { key: 'special', label: '特殊文字を含む' },
                     ].map(({ key, label }) => (
                       <div key={key} className="flex items-center text-xs">
-                        {passwordStrength[key as keyof typeof passwordStrength] ? (
+                        {passwordStrength[
+                          key as keyof typeof passwordStrength
+                        ] ? (
                           <CheckCircle2 className="h-3 w-3 text-green-500 mr-1" />
                         ) : (
                           <div className="h-3 w-3 rounded-full border border-zinc-400 mr-1" />
                         )}
-                        <span className={passwordStrength[key as keyof typeof passwordStrength] ? 'text-green-600 dark:text-green-400' : 'text-zinc-500'}>
+                        <span
+                          className={
+                            passwordStrength[
+                              key as keyof typeof passwordStrength
+                            ]
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-zinc-500'
+                          }
+                        >
                           {label}
                         </span>
                       </div>
@@ -355,7 +392,10 @@ export default function RegisterPage() {
 
             {/* パスワード確認 */}
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <label
+                htmlFor="confirmPassword"
+                className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
                 パスワード確認
               </label>
               <div className="mt-1 relative">
@@ -385,11 +425,12 @@ export default function RegisterPage() {
                   )}
                 </button>
               </div>
-              {formData.confirmPassword && formData.password !== formData.confirmPassword && (
-                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                  パスワードが一致しません
-                </p>
-              )}
+              {formData.confirmPassword &&
+                formData.password !== formData.confirmPassword && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                    パスワードが一致しません
+                  </p>
+                )}
             </div>
 
             {/* 登録ボタン */}
