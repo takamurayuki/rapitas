@@ -504,7 +504,13 @@ export const TaskListSkeleton = ({
 
 // タスクカードのみのスケルトン（フィルターUIなし、ラッパーなし）
 export const TaskCardsSkeleton = ({ count = 4 }: { count?: number }) => {
-  const cardVariations = generateTaskCardVariations().slice(0, count);
+  const baseVariations = generateTaskCardVariations();
+  // 必要な数まで基本パターンを繰り返す
+  const cardVariations = Array.from({ length: count }, (_, i) => ({
+    ...baseVariations[i % baseVariations.length],
+    id: i + 1,
+    delay: i * 50, // スタッガード（階段状）アニメーション
+  }));
 
   return (
     <div className="space-y-3 animate-skeleton-fade-in">
@@ -583,17 +589,6 @@ export const TaskCardsSkeleton = ({ count = 4 }: { count?: number }) => {
                   </>
                 )}
               </div>
-
-              {card.hasSubtasks && card.progressType && (
-                <div className="mt-1.5 h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-700 ease-out ${card.progressType}`}
-                    style={{
-                      animationDelay: `${card.delay + 500}ms`,
-                    }}
-                  />
-                </div>
-              )}
             </div>
 
             {/* 右: クイックアクション */}
