@@ -28,6 +28,8 @@ import {
   ChevronsUp,
   FolderKanban,
   Plus,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { getIconComponent } from '@/components/category/IconData';
 import { API_BASE_URL } from '@/utils/api';
@@ -93,6 +95,12 @@ function HomeClientPage() {
 
   // プログレスリング用ref
   const progressRingRef = useRef<HTMLDivElement>(null);
+
+  // テーマスクロール制御用
+  const themeScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [isScrollNeeded, setIsScrollNeeded] = useState(false);
 
   // ソート
   const [sortBy, setSortBy] = useState<'createdAt' | 'priority' | 'title'>(
@@ -389,6 +397,63 @@ function HomeClientPage() {
       showToast('一括削除に失敗しました', 'error');
     }
   };
+
+  // テーマスクロール制御関数
+  const checkThemeScrollPosition = useCallback(() => {
+    const scrollElement = themeScrollRef.current;
+    if (!scrollElement) return;
+
+    const { scrollLeft, scrollWidth, clientWidth } = scrollElement;
+    const needsScroll = scrollWidth > clientWidth;
+
+    setIsScrollNeeded(needsScroll);
+    setCanScrollLeft(needsScroll && scrollLeft > 0);
+    setCanScrollRight(
+      needsScroll && scrollLeft < scrollWidth - clientWidth - 1,
+    );
+  }, []);
+
+  const scrollThemeLeft = useCallback(() => {
+    const scrollElement = themeScrollRef.current;
+    if (!scrollElement) return;
+
+    scrollElement.scrollBy({
+      left: -200,
+      behavior: 'smooth',
+    });
+  }, []);
+
+  const scrollThemeRight = useCallback(() => {
+    const scrollElement = themeScrollRef.current;
+    if (!scrollElement) return;
+
+    scrollElement.scrollBy({
+      left: 200,
+      behavior: 'smooth',
+    });
+  }, []);
+
+  // テーマ変更時にスクロール位置をチェック
+  useEffect(() => {
+    checkThemeScrollPosition();
+
+    const scrollElement = themeScrollRef.current;
+    if (scrollElement) {
+      const handleScroll = () => checkThemeScrollPosition();
+      scrollElement.addEventListener('scroll', handleScroll);
+
+      // ResizeObserverでサイズ変更も監視
+      const resizeObserver = new ResizeObserver(() =>
+        checkThemeScrollPosition(),
+      );
+      resizeObserver.observe(scrollElement);
+
+      return () => {
+        scrollElement.removeEventListener('scroll', handleScroll);
+        resizeObserver.disconnect();
+      };
+    }
+  }, [themes, categoryFilter, checkThemeScrollPosition]);
 
   // キーボードショートカット
   useEffect(() => {
@@ -967,7 +1032,26 @@ function HomeClientPage() {
 
               {/* テーマタブ */}
               <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-200 dark:border-slate-700">
-                <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent flex-1">
+                {/* 左スクロールボタン */}
+                {isScrollNeeded && (
+                  <button
+                    onClick={scrollThemeLeft}
+                    disabled={!canScrollLeft}
+                    className={`shrink-0 flex items-center justify-center w-8 h-8 rounded-lg transition-all ${
+                      canScrollLeft
+                        ? 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300'
+                        : 'bg-slate-50 dark:bg-slate-800/50 text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                    }`}
+                    aria-label="左にスクロール"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                )}
+
+                <div
+                  ref={themeScrollRef}
+                  className="flex items-center gap-2 overflow-x-auto scroll-smooth flex-1 theme-scroll-hidden"
+                >
                   {(() => {
                     const filteredThemes = themes.filter((theme) => {
                       if (categoryFilter === null) return true;
@@ -1020,6 +1104,22 @@ function HomeClientPage() {
                     });
                   })()}
                 </div>
+
+                {/* 右スクロールボタン */}
+                {isScrollNeeded && (
+                  <button
+                    onClick={scrollThemeRight}
+                    disabled={!canScrollRight}
+                    className={`shrink-0 flex items-center justify-center w-8 h-8 rounded-lg transition-all ${
+                      canScrollRight
+                        ? 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300'
+                        : 'bg-slate-50 dark:bg-slate-800/50 text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                    }`}
+                    aria-label="右にスクロール"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                )}
 
                 {/* アコーディオントグル */}
                 <button

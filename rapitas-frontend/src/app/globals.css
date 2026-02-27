@@ -1053,3 +1053,13 @@ iframe:not([src='']) + .iframe-loading {
 .animate-skeleton-fade-in {
   animation: skeletonFadeIn 0.3s ease-out forwards;
 }
+
+/* テーマスクロールエリア用のスクロールバー非表示 */
+.theme-scroll-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+.theme-scroll-hidden {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;  /* Firefox */
+}
