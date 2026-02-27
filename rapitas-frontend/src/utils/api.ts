@@ -36,7 +36,7 @@ export async function fetchWithRetry(
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      console.log(`[fetchWithRetry] Attempting ${attempt + 1}/${maxRetries} for ${url}`);
+      console.debug(`[fetchWithRetry] Attempting ${attempt + 1}/${maxRetries} for ${url}`);
 
       // タイムアウト処理のためのAbortController
       const controller = new AbortController();
@@ -55,7 +55,7 @@ export async function fetchWithRetry(
         throw new Error(`HTTP ${response.status} ${response.statusText}`);
       }
 
-      console.log(`[fetchWithRetry] Success for ${url}`);
+      console.debug(`[fetchWithRetry] Success for ${url}`);
       return response;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -64,17 +64,34 @@ export async function fetchWithRetry(
       const isTimeoutError = lastError.name === 'AbortError' || lastError.message.includes('aborted');
       const isNetworkError = lastError.name === 'TypeError' && lastError.message.includes('Failed to fetch');
 
-      // ネットワークエラーの場合、より詳細なログを出力
-      console.error(
-        `[fetchWithRetry] Attempt ${attempt + 1}/${maxRetries} failed for ${url}:`,
-        {
-          message: lastError.message,
-          type: lastError.name,
-          stack: lastError.stack,
-          isTimeout: isTimeoutError,
-          isNetworkError: isNetworkError,
-        },
-      );
+      // ログレベルを適切に設定
+      const isLastAttempt = attempt === maxRetries - 1;
+
+      if (isLastAttempt) {
+        // 最後のリトライでも失敗した場合のみエラーレベル
+        console.error(
+          `[fetchWithRetry] Final attempt ${attempt + 1}/${maxRetries} failed for ${url}:`,
+          {
+            message: lastError.message,
+            type: lastError.name,
+            stack: lastError.stack,
+            isTimeout: isTimeoutError,
+            isNetworkError: isNetworkError,
+          },
+        );
+      } else if (isNetworkError || isTimeoutError) {
+        // ネットワークエラーやタイムアウトはサーバー再起動中など正常な状況
+        console.debug(
+          `[fetchWithRetry] Attempt ${attempt + 1}/${maxRetries} failed for ${url} (retrying):`,
+          lastError.message,
+        );
+      } else {
+        // HTTPエラーなど、その他のエラーは警告レベル
+        console.warn(
+          `[fetchWithRetry] Attempt ${attempt + 1}/${maxRetries} failed for ${url} (retrying):`,
+          lastError.message,
+        );
+      }
 
       // 最後のリトライでなければ短い待機後にリトライ
       if (attempt < maxRetries - 1) {
