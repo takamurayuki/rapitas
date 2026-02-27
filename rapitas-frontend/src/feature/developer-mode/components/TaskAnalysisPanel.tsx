@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { TaskAnalysisResult, SubtaskProposal, Priority } from '@/types';
 import { priorityColors, priorityLabels } from '@/types';
+import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
 
 type TaskAnalysisPanelProps = {
   isAnalyzing: boolean;
@@ -135,19 +136,15 @@ export function TaskAnalysisPanel({
     return (
       <div className="bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-xl p-8 border border-zinc-200 dark:border-zinc-700">
         <div className="flex flex-col items-center justify-center gap-4">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-              <Brain className="w-8 h-8 text-violet-600 dark:text-violet-400" />
-            </div>
-            <Loader2 className="absolute -top-1 -right-1 w-6 h-6 text-violet-500 animate-spin" />
+          <SkeletonBlock className="w-16 h-16 rounded-full" />
+          <div className="text-center space-y-2">
+            <SkeletonBlock className="h-5 w-32 mx-auto" />
+            <SkeletonBlock className="h-4 w-48 mx-auto" />
           </div>
-          <div className="text-center">
-            <p className="font-medium text-zinc-900 dark:text-zinc-50">
-              タスクを分析中...
-            </p>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-              AIがサブタスクを考えています
-            </p>
+          <div className="w-full space-y-3 mt-4">
+            <SkeletonBlock className="h-4 w-full" />
+            <SkeletonBlock className="h-4 w-3/4" />
+            <SkeletonBlock className="h-4 w-5/6" />
           </div>
         </div>
       </div>

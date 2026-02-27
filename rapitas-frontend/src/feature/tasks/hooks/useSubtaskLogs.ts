@@ -33,6 +33,8 @@ interface UseSubtaskLogsOptions {
   pollingInterval?: number;
   /** 自動更新を有効にするか */
   autoRefresh?: boolean;
+  /** 並列実行セッションの状態 */
+  sessionStatus?: 'pending' | 'scheduled' | 'running' | 'completed' | 'failed' | 'cancelled' | 'blocked';
 }
 
 interface UseSubtaskLogsReturn {
@@ -56,6 +58,7 @@ export function useSubtaskLogs({
   subtasks,
   pollingInterval = 3000,
   autoRefresh = true,
+  sessionStatus,
 }: UseSubtaskLogsOptions): UseSubtaskLogsReturn {
   const [subtaskLogs, setSubtaskLogs] = useState<Map<number, SubtaskLogState>>(
     new Map(),
@@ -186,15 +189,64 @@ export function useSubtaskLogs({
     });
   }, []);
 
+  // セッション完了時のローディング状態クリア
+  useEffect(() => {
+    const isCompleted = sessionStatus === 'completed' || sessionStatus === 'failed' || sessionStatus === 'cancelled';
+
+    if (isCompleted) {
+      // 完了時は全サブタスクのローディング状態を確実に解除
+      setSubtaskLogs((prev) => {
+        const newMap = new Map(prev);
+        prev.forEach((state, taskId) => {
+          newMap.set(taskId, { ...state, isLoading: false });
+        });
+        return newMap;
+      });
+
+      // グローバルローディング状態も解除
+      setIsLoading(false);
+    }
+  }, [sessionStatus]);
+
   // 自動更新（ポーリング）
   useEffect(() => {
     if (!autoRefresh || !sessionId) return;
 
-    // 初回取得
-    fetchAllLogs();
+    // 実行が完了している場合は最後に一度だけログを取得してポーリング停止
+    const isCompleted = sessionStatus === 'completed' || sessionStatus === 'failed' || sessionStatus === 'cancelled';
 
-    // ポーリング開始
-    pollingIntervalRef.current = setInterval(fetchAllLogs, pollingInterval);
+    if (isCompleted) {
+      // 最終的なログを取得（非同期で実行してローディング状態を適切に管理）
+      fetchAllLogs().finally(() => {
+        // ログ取得完了後、ローディング状態を確実に解除
+        setIsLoading(false);
+        setSubtaskLogs((prev) => {
+          const newMap = new Map(prev);
+          prev.forEach((state, taskId) => {
+            newMap.set(taskId, { ...state, isLoading: false });
+          });
+          return newMap;
+        });
+      });
+
+      // ポーリングが動いていれば停止
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // 実行中の場合のみポーリング開始
+    if (sessionStatus === 'running' || sessionStatus === 'scheduled') {
+      // 初回取得
+      fetchAllLogs();
+
+      // ポーリング開始
+      if (!pollingIntervalRef.current) {
+        pollingIntervalRef.current = setInterval(fetchAllLogs, pollingInterval);
+      }
+    }
 
     return () => {
       if (pollingIntervalRef.current) {
@@ -202,7 +254,7 @@ export function useSubtaskLogs({
         pollingIntervalRef.current = null;
       }
     };
-  }, [autoRefresh, sessionId, pollingInterval, fetchAllLogs]);
+  }, [autoRefresh, sessionId, pollingInterval, fetchAllLogs, sessionStatus]);
 
   // クリーンアップ
   useEffect(() => {

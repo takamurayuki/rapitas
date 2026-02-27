@@ -299,4 +299,125 @@ export const statisticsRoutes = new Elysia({ prefix: "/statistics" })
         projectId: t.Optional(t.String()),
       }),
     }
+  )
+
+  // バーンアップチャートデータ
+  .get(
+    "/burnup",
+    async ({
+      query,
+    }: {
+      query: { days?: string; themeId?: string; projectId?: string };
+    }) => {
+      const daysNum = query.days ? parseInt(query.days) : 14;
+      const themeId = query.themeId ? parseInt(query.themeId) : undefined;
+      const projectId = query.projectId ? parseInt(query.projectId) : undefined;
+
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - daysNum);
+      startDate.setHours(0, 0, 0, 0);
+
+      const endDate = new Date();
+      endDate.setHours(23, 59, 59, 999);
+
+      // フィルター条件を構築
+      const whereBase = {
+        parentId: null,
+        ...(themeId && { themeId }),
+        ...(projectId && { projectId }),
+      };
+
+      // 期間中に完了したタスク
+      const tasksCompletedInPeriod = await prisma.task.findMany({
+        where: {
+          ...whereBase,
+          status: "done",
+          completedAt: { gte: startDate, lte: endDate },
+        },
+        select: { id: true, completedAt: true },
+        orderBy: { completedAt: "asc" },
+      });
+
+      // 期間中に作成されたタスク
+      const tasksCreatedInPeriod = await prisma.task.findMany({
+        where: {
+          ...whereBase,
+          createdAt: { gt: startDate, lte: endDate },
+        },
+        select: { id: true, createdAt: true },
+      });
+
+      // 現在の残りタスク数
+      const currentRemaining = await prisma.task.count({
+        where: {
+          ...whereBase,
+          status: { not: "done" },
+        },
+      });
+
+      // 日別データを構築
+      const dailyData: {
+        date: string;
+        completed: number; // その日の完了数
+        cumulativeCompleted: number; // 累積完了数
+        added: number; // その日の追加数
+      }[] = [];
+
+      let cumulativeCompleted = 0;
+
+      for (let i = 0; i <= daysNum; i++) {
+        const date = new Date(startDate);
+        date.setDate(date.getDate() + i);
+        const dateStr = date.toISOString().split("T")[0];
+
+        // この日に完了したタスク数
+        const completedToday = tasksCompletedInPeriod.filter((t: typeof tasksCompletedInPeriod[number]) => {
+          if (!t.completedAt) return false;
+          const completed = t.completedAt.toISOString().split("T")[0];
+          return completed === dateStr;
+        }).length;
+
+        // この日に追加されたタスク数
+        const addedToday = tasksCreatedInPeriod.filter((t: typeof tasksCreatedInPeriod[number]) => {
+          const created = t.createdAt.toISOString().split("T")[0];
+          return created === dateStr;
+        }).length;
+
+        cumulativeCompleted += completedToday;
+
+        dailyData.push({
+          date: dateStr,
+          completed: completedToday,
+          cumulativeCompleted,
+          added: addedToday,
+        });
+      }
+
+      // 集計情報
+      const totalCompleted = tasksCompletedInPeriod.length;
+      const totalAdded = tasksCreatedInPeriod.length;
+
+      return {
+        period: {
+          start: startDate.toISOString().split("T")[0],
+          end: endDate.toISOString().split("T")[0],
+          days: daysNum,
+        },
+        summary: {
+          totalCompleted,
+          totalAdded,
+          currentRemaining,
+          velocity: Math.round((totalCompleted / daysNum) * 10) / 10,
+          cumulativeCompleted,
+        },
+        dailyData,
+      };
+    },
+    {
+      query: t.Object({
+        days: t.Optional(t.String()),
+        themeId: t.Optional(t.String()),
+        projectId: t.Optional(t.String()),
+      }),
+    }
   );

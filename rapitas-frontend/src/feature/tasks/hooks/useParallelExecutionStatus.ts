@@ -579,6 +579,19 @@ export function useParallelExecutionStatus({
     if (sessionState?.status === 'completed' || sessionState?.status === 'failed' || sessionState?.status === 'cancelled') {
       // 終了状態になったらストアから削除
       removeExecutingTask(taskId);
+
+      // SSE接続も確実に切断
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+        setIsConnected(false);
+      }
+
+      // ポーリングも停止
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
     }
   }, [sessionState?.status, removeExecutingTask, taskId]);
 

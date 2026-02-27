@@ -5,7 +5,7 @@ import { Bot, AlertCircle, Loader2, RotateCcw, Zap, Bug } from 'lucide-react';
 import type { UserSettings } from '@/types';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { LoadingSpinner, SkeletonBlock } from '@/components/ui/LoadingSpinner';
 import { ErrorAnalysisPanel } from '@/feature/developer-mode/components/ErrorAnalysisPanel';
 import { useErrorCapture } from '@/feature/developer-mode/hooks/useErrorCapture';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -448,7 +448,7 @@ export default function DeveloperModeSettingsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {isSavingAutoResume && (
-                    <Loader2 className="w-4 h-4 text-violet-500 animate-spin" />
+                    <SkeletonBlock className="w-4 h-4 rounded" />
                   )}
                   <button
                     onClick={toggleAutoResume}

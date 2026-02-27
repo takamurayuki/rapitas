@@ -12,7 +12,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
-import BurndownChart from '@/components/BurndownChart';
+import BurnupChart from '@/components/BurnupChart';
 
 export default function ReportsPage() {
   const [report, setReport] = useState<WeeklyReport | null>(null);
@@ -223,8 +223,8 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* バーンダウンチャート */}
-      <BurndownChart className="mb-6" />
+      {/* バーンアップチャート */}
+      <BurnupChart className="mb-6" />
 
       {/* 科目別内訳 */}
       {report.subjectBreakdown.length > 0 && (

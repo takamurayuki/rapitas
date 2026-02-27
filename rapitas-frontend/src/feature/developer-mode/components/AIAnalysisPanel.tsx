@@ -36,6 +36,7 @@ import {
 import type { DeveloperModeConfig, TaskAnalysisResult } from '@/types';
 import { DependencyTree } from './DependencyTree';
 import { API_BASE_URL } from '@/utils/api';
+import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
 
 // TaskAnalysisResult is imported from @/types
 
@@ -652,11 +653,16 @@ export function AIAnalysisPanel({
             {activeTab === 'analysis' && (
               <div className="space-y-4">
                 {isAnalyzing ? (
-                  <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
-                    <Loader2 className="w-5 h-5 text-violet-500 animate-spin" />
-                    <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                      タスクを分析中...
-                    </span>
+                  <div className="p-4 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg space-y-3">
+                    <div className="flex items-center gap-3">
+                      <SkeletonBlock className="w-5 h-5 rounded" />
+                      <SkeletonBlock className="h-4 w-32" />
+                    </div>
+                    <div className="space-y-2">
+                      <SkeletonBlock className="h-4 w-full" />
+                      <SkeletonBlock className="h-4 w-3/4" />
+                      <SkeletonBlock className="h-4 w-5/6" />
+                    </div>
                   </div>
                 ) : analysisError ? (
                   <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">

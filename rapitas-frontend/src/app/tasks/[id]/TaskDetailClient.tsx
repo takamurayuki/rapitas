@@ -247,8 +247,9 @@ function TaskDetailClient({
   const { subtaskLogs, refreshLogs: refreshSubtaskLogs } = useSubtaskLogs({
     sessionId: parallelSessionId,
     subtasks: subtasksForLogs,
-    autoRefresh: isParallelExecutionRunning,
+    autoRefresh: true,
     pollingInterval: 2000,
+    sessionStatus: parallelSessionState?.status,
   });
 
   useEffect(() => {
@@ -498,9 +499,9 @@ function TaskDetailClient({
     }
   };
 
-  const handleAddComment = async (content?: string, parentId?: number) => {
+  const handleAddComment = async (content?: string, parentId?: number): Promise<number | null> => {
     const commentContent = content || newComment;
-    if (!commentContent.trim()) return;
+    if (!commentContent.trim()) return null;
 
     try {
       setIsAddingComment(true);
@@ -511,6 +512,8 @@ function TaskDetailClient({
       });
 
       if (res.ok) {
+        const newCommentData = await res.json();
+
         // コメント一覧を再取得してツリー構造を更新
         const commentsRes = await fetch(
           `${API_BASE}/tasks/${resolvedTaskId}/comments`,
@@ -522,9 +525,15 @@ function TaskDetailClient({
         if (!content) {
           setNewComment('');
         }
+
+        // 作成されたコメントのIDを返す
+        return newCommentData.id;
       }
+
+      return null;
     } catch (err) {
       console.error('Failed to add comment:', err);
+      return null;
     } finally {
       setIsAddingComment(false);
     }

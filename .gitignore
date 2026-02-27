@@ -4,3 +4,5 @@ target
 uploads
 .env
 nul
+public
+migrations

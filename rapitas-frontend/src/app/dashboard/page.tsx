@@ -11,7 +11,7 @@ import {
   Award,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
-import BurndownChart from '@/components/BurndownChart';
+import BurnupChart from '@/components/BurnupChart';
 import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
 
 type OverviewStats = {
@@ -360,9 +360,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* バーンダウンチャート */}
+      {/* バーンアップチャート */}
       <div className="mt-4">
-        <BurndownChart days={14} />
+        <BurnupChart days={14} />
       </div>
     </div>
   );

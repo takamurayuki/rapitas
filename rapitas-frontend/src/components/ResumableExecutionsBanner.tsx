@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { usePathname } from 'next/navigation';
 import {
   Play,
   X,
@@ -17,6 +18,7 @@ import {
 import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
 import { useBackendHealth } from '@/hooks/use-backend-health';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { useTaskDetailVisibilityStore } from '@/stores/taskDetailVisibilityStore';
 
 // セッション中に自動再開が実行済みかどうかを追跡するグローバルフラグ
 const AUTO_RESUME_SESSION_KEY = 'rapitas_auto_resume_triggered';
@@ -38,6 +40,8 @@ type ResumableExecution = {
 };
 
 export function ResumableExecutionsBanner() {
+  const pathname = usePathname();
+
   const [executions, setExecutions] = useState<ResumableExecution[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -61,6 +65,11 @@ export function ResumableExecutionsBanner() {
   // グローバルストアの実行中タスク数を監視
   const executingTasksSize = useExecutionStateStore(
     (state) => state.executingTasks.size,
+  );
+
+  // タスク詳細表示状態を監視
+  const isTaskDetailVisible = useTaskDetailVisibilityStore(
+    (state) => state.isTaskDetailVisible,
   );
 
   // バックエンドから自動再開設定を取得
@@ -411,11 +420,16 @@ export function ResumableExecutionsBanner() {
     (e) => e.status === 'interrupted',
   ).length;
 
-  // Don't show if loading, dismissed, or (no executions and no error)
+  // タスク詳細ページかどうかを判定（/tasks/[id] パターン）
+  const isTaskDetailPage = /^\/tasks\/\d+/.test(pathname);
+
+  // Don't show if loading, dismissed, (no executions and no error), on task detail page, or task detail panel is visible
   if (
     isLoading ||
     isDismissed ||
-    (executions.length === 0 && !connectionError)
+    (executions.length === 0 && !connectionError) ||
+    isTaskDetailPage ||
+    isTaskDetailVisible
   ) {
     return null;
   }

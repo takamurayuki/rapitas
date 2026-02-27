@@ -357,9 +357,18 @@ async function ensurePortAvailable(port) {
     );
   }
 
-  // バックエンドポートの場合、まずグレースフルシャットダウンを試行
-  if (port === BACKEND_PORT) {
-    console.log(`  Attempting graceful shutdown on port ${port}...`);
+  // バックエンドポートの場合、まずエージェント実行中かチェック
+  if (port === BACKEND_PORT && isPortListening(port)) {
+    console.log(`  Checking if agent is active on port ${port}...`);
+    const agentActive = await isAgentExecutionActive();
+    if (agentActive) {
+      console.log(`  ⚠️  Agent execution detected on port ${port}!`);
+      console.log(`  → Cannot shutdown active agent session. Exiting to prevent disruption.`);
+      console.log(`  → Please wait for agent to complete or restart after agent finishes.`);
+      process.exit(1);
+    }
+
+    console.log(`  No active agent detected. Attempting graceful shutdown on port ${port}...`);
     const shutdownRequested = await tryGracefulShutdownViaHttp(port);
     if (shutdownRequested) {
       // シャットダウンAPIはリスニングソケットを即座に閉じるので、短時間で解放されるはず
@@ -375,6 +384,9 @@ async function ensurePortAvailable(port) {
     } else {
       console.log(`  Graceful shutdown API not available, will force kill.`);
     }
+  } else if (port === BACKEND_PORT) {
+    // ポートがリスニング状態でない場合、バックエンドが動いていない
+    console.log(`  Backend port ${port} is not in use, can start safely.`);
   }
 
   // リトライ付きで確実にプロセスを停止（ツリーkill）

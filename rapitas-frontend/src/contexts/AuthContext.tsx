@@ -268,8 +268,12 @@ export function requireAuth<P extends {}>(WrappedComponent: React.ComponentType<
 
     if (isLoading) {
       return (
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
+        <div className="flex items-center justify-center min-h-screen bg-background">
+          <div className="flex flex-col items-center space-y-4">
+            {/* Simple spinner for authentication check */}
+            <div className="w-8 h-8 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin" />
+            <div className="text-sm text-zinc-500 dark:text-zinc-400">認証を確認中...</div>
+          </div>
         </div>
       );
     }

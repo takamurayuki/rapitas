@@ -1008,3 +1008,48 @@ iframe:not([src='']) + .iframe-loading {
 .animate-slide-in {
   animation: animate-slide-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
+
+/* スケルトンローダー用のシマー効果アニメーション */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* スケルトンローダー用のパルス効果（強化版） */
+@keyframes skeletonPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* スケルトンローダーのスムーズなフェードイン */
+@keyframes skeletonFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* スケルトンローダー用ユーティリティクラス */
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+.animate-skeleton-pulse {
+  animation: skeletonPulse 2s ease-in-out infinite;
+}
+
+.animate-skeleton-fade-in {
+  animation: skeletonFadeIn 0.3s ease-out forwards;
+}

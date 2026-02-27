@@ -97,8 +97,29 @@ export default function LoginPage() {
   // ローディング中の表示
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-white dark:from-zinc-900 dark:to-zinc-800">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-white dark:from-zinc-900 dark:to-zinc-800 px-4">
+        <div className="w-full max-w-md space-y-8">
+          {/* ヘッダースケルトン */}
+          <div className="text-center">
+            <div className="h-8 w-32 bg-zinc-200 dark:bg-zinc-700 rounded mx-auto mb-2 animate-pulse" />
+            <div className="h-4 w-48 bg-zinc-200 dark:bg-zinc-700 rounded mx-auto animate-pulse" />
+          </div>
+
+          {/* フォームスケルトン */}
+          <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-2xl p-8 space-y-6">
+            <div className="space-y-4">
+              <div>
+                <div className="h-4 w-16 bg-zinc-200 dark:bg-zinc-700 rounded mb-2 animate-pulse" />
+                <div className="h-12 w-full bg-zinc-200 dark:bg-zinc-700 rounded-lg animate-pulse" />
+              </div>
+              <div>
+                <div className="h-4 w-20 bg-zinc-200 dark:bg-zinc-700 rounded mb-2 animate-pulse" />
+                <div className="h-12 w-full bg-zinc-200 dark:bg-zinc-700 rounded-lg animate-pulse" />
+              </div>
+            </div>
+            <div className="h-12 w-full bg-zinc-200 dark:bg-zinc-700 rounded-lg animate-pulse" />
+          </div>
+        </div>
       </div>
     );
   }

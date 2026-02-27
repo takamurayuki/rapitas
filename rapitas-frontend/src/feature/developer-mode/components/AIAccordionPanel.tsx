@@ -53,6 +53,7 @@ import { SubtaskLogTabs } from './SubtaskLogTabs';
 import { API_BASE_URL } from '@/utils/api';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
 
 // TaskAnalysisResult is imported from @/types
 
@@ -818,7 +819,7 @@ export function AIAccordionPanel({
               タスク分析・最適化
             </span>
             {analysisStatusIcon === 'loading' && (
-              <Loader2 className="w-3 h-3 text-violet-500 animate-spin" />
+              <SkeletonBlock className="w-3 h-3 rounded" />
             )}
             {analysisStatusIcon === 'success' && (
               <CheckCircle2 className="w-3 h-3 text-green-500" />
@@ -886,10 +887,8 @@ export function AIAccordionPanel({
               <div id="subtasks-panel" role="tabpanel" className="space-y-2">
                 {isAnalyzing ? (
                   <div className="flex items-center gap-2 p-2.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
-                    <Loader2 className="w-3.5 h-3.5 text-violet-500 animate-spin" />
-                    <span className="text-xs text-zinc-600 dark:text-zinc-400">
-                      タスクを分析中...
-                    </span>
+                    <SkeletonBlock className="w-3.5 h-3.5 rounded" />
+                    <SkeletonBlock className="h-3 w-24" />
                   </div>
                 ) : analysisError ? (
                   <div className="flex items-center gap-2 p-2.5 bg-red-50 dark:bg-red-900/20 rounded-lg">

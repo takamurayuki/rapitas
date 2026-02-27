@@ -1,45 +1,44 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
-import { TrendingDown, Calendar, Target, Zap } from 'lucide-react';
+import { TrendingUp, Calendar, Target, Zap, Award } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import type { Theme } from '@/types';
 
-type BurndownData = {
+type BurnupData = {
   period: {
     start: string;
     end: string;
     days: number;
   };
   summary: {
-    initialTasks: number;
-    totalAdded: number;
     totalCompleted: number;
+    totalAdded: number;
     currentRemaining: number;
     velocity: number;
+    cumulativeCompleted: number;
   };
   dailyData: {
     date: string;
-    remaining: number;
-    ideal: number;
-    completed: number;
+    completed: number; // その日の完了数
+    cumulativeCompleted: number; // 累積完了数
     added: number;
   }[];
 };
 
-type BurndownChartProps = {
+type BurnupChartProps = {
   themeId?: number;
   projectId?: number;
   days?: number;
   className?: string;
 };
 
-export default function BurndownChart({
+export default function BurnupChart({
   themeId,
   projectId,
   days = 14,
   className = '',
-}: BurndownChartProps) {
-  const [data, setData] = useState<BurndownData | null>(null);
+}: BurnupChartProps) {
+  const [data, setData] = useState<BurnupData | null>(null);
   const [loading, setLoading] = useState(true);
   const [themes, setThemes] = useState<Theme[]>([]);
   const [selectedThemeId, setSelectedThemeId] = useState<number | undefined>(
@@ -68,14 +67,15 @@ export default function BurndownChart({
           params.append('themeId', selectedThemeId.toString());
         if (projectId) params.append('projectId', projectId.toString());
 
+        // バーンアップ用のAPIエンドポイントを使用
         const res = await fetch(
-          `${API_BASE_URL}/statistics/burndown?${params}`,
+          `${API_BASE_URL}/statistics/burnup?${params}`,
         );
         if (res.ok) {
           setData(await res.json());
         }
       } catch (e) {
-        console.error('Failed to fetch burndown data:', e);
+        console.error('Failed to fetch burnup data:', e);
       } finally {
         setLoading(false);
       }
@@ -93,8 +93,10 @@ export default function BurndownChart({
     const chartWidth = width - padding.left - padding.right;
     const chartHeight = height - padding.top - padding.bottom;
 
+    // バーンアップでは累積完了数の最大値を基準に
     const maxValue = Math.max(
-      ...data.dailyData.map((d) => Math.max(d.remaining, d.ideal)),
+      ...data.dailyData.map((d) => d.cumulativeCompleted),
+      data.summary.cumulativeCompleted,
       1,
     );
 
@@ -103,19 +105,26 @@ export default function BurndownChart({
     const yScale = (value: number) =>
       padding.top + chartHeight - (value / maxValue) * chartHeight;
 
-    // パスを生成
-    const idealPath = data.dailyData
-      .map((d, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(d.ideal)}`)
-      .join(' ');
-
-    const actualPath = data.dailyData
+    // 累積完了数のパスを生成（右肩上がり）
+    const completedPath = data.dailyData
       .map(
-        (d, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(d.remaining)}`,
+        (d, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(d.cumulativeCompleted)}`,
       )
       .join(' ');
 
-    // 実績線の下を塗りつぶすためのエリアパス
-    const areaPath = `${actualPath} L ${xScale(data.dailyData.length - 1)} ${padding.top + chartHeight} L ${padding.left} ${padding.top + chartHeight} Z`;
+    // 理想的な進捗ライン（期間全体でのタスク追加を考慮した線形増加）
+    const idealEndValue = data.summary.cumulativeCompleted;
+    const idealPath = data.dailyData
+      .map(
+        (d, i) => {
+          const idealValue = (idealEndValue / (data.dailyData.length - 1)) * i;
+          return `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(idealValue)}`;
+        }
+      )
+      .join(' ');
+
+    // 累積完了数の下を塗りつぶすためのエリアパス（成果の可視化）
+    const areaPath = `${completedPath} L ${xScale(data.dailyData.length - 1)} ${padding.top + chartHeight} L ${padding.left} ${padding.top + chartHeight} Z`;
 
     // Y軸のグリッド線
     const yGridLines = [];
@@ -136,7 +145,7 @@ export default function BurndownChart({
       xScale,
       yScale,
       idealPath,
-      actualPath,
+      completedPath,
       areaPath,
       yGridLines,
     };
@@ -174,21 +183,15 @@ export default function BurndownChart({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5">
-              <TrendingDown className="w-4 h-4 text-blue-500" />
+              <TrendingUp className="w-4 h-4 text-emerald-500" />
               <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-50">
-                バーンダウン
+                バーンアップ
               </h2>
             </div>
             {/* インラインサマリー */}
             <div className="hidden sm:flex items-center gap-3 text-xs">
-              <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
-                <Target className="w-3 h-3" />残
-                <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                  {summary.currentRemaining}
-                </span>
-              </span>
               <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                <Zap className="w-3 h-3" />
+                <Award className="w-3 h-3" />
                 完了
                 <span className="font-semibold">{summary.totalCompleted}</span>
               </span>
@@ -196,8 +199,14 @@ export default function BurndownChart({
                 <Calendar className="w-3 h-3" />
                 追加<span className="font-semibold">{summary.totalAdded}</span>
               </span>
+              <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
+                <Target className="w-3 h-3" />残
+                <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                  {summary.currentRemaining}
+                </span>
+              </span>
               <span className="flex items-center gap-1 text-violet-600 dark:text-violet-400">
-                <TrendingDown className="w-3 h-3" />
+                <Zap className="w-3 h-3" />
                 <span className="font-semibold">{summary.velocity}</span>/日
               </span>
             </div>
@@ -228,7 +237,7 @@ export default function BurndownChart({
                   onClick={() => setSelectedDays(d)}
                   className={`px-2 py-1 text-xs transition-colors ${
                     selectedDays === d
-                      ? 'bg-blue-500 text-white'
+                      ? 'bg-emerald-500 text-white'
                       : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                   }`}
                 >
@@ -240,17 +249,17 @@ export default function BurndownChart({
         </div>
         {/* モバイル用サマリー */}
         <div className="flex sm:hidden items-center gap-3 mt-2 text-xs">
-          <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
-            残
-            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-              {summary.currentRemaining}
-            </span>
-          </span>
           <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
             完了<span className="font-semibold">{summary.totalCompleted}</span>
           </span>
           <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
             追加<span className="font-semibold">{summary.totalAdded}</span>
+          </span>
+          <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
+            残
+            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+              {summary.currentRemaining}
+            </span>
           </span>
           <span className="flex items-center gap-1 text-violet-600 dark:text-violet-400">
             <span className="font-semibold">{summary.velocity}</span>/日
@@ -265,8 +274,8 @@ export default function BurndownChart({
           className="w-full h-auto"
         >
           {/* グリッド線 */}
-          {chartConfig.yGridLines.map(({ y, value }) => (
-            <g key={value}>
+          {chartConfig.yGridLines.map(({ y, value }, index) => (
+            <g key={`grid-${index}-${value}`}>
               <line
                 x1={chartConfig.padding.left}
                 y1={y}
@@ -313,10 +322,10 @@ export default function BurndownChart({
               );
             })}
 
-          {/* 実績エリア（塗りつぶし） */}
-          <path d={chartConfig.areaPath} fill="#3b82f6" fillOpacity={0.06} />
+          {/* 累積完了数エリア（塗りつぶし）- 成果の可視化 */}
+          <path d={chartConfig.areaPath} fill="#10b981" fillOpacity={0.1} />
 
-          {/* 理想線 */}
+          {/* 理想線（参考線として） */}
           <path
             d={chartConfig.idealPath}
             fill="none"
@@ -325,11 +334,11 @@ export default function BurndownChart({
             strokeDasharray="5 3"
           />
 
-          {/* 実績線 */}
+          {/* 実績線（累積完了数） - 右肩上がり */}
           <path
-            d={chartConfig.actualPath}
+            d={chartConfig.completedPath}
             fill="none"
-            stroke="#3b82f6"
+            stroke="#10b981"
             strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -346,16 +355,16 @@ export default function BurndownChart({
               <circle
                 key={d.date}
                 cx={chartConfig.xScale(i)}
-                cy={chartConfig.yScale(d.remaining)}
+                cy={chartConfig.yScale(d.cumulativeCompleted)}
                 r={3}
-                fill="#3b82f6"
+                fill="#10b981"
                 stroke="white"
                 strokeWidth={1.5}
                 className="cursor-pointer"
               >
                 <title>
-                  {new Date(d.date).toLocaleDateString('ja-JP')}: 残り
-                  {d.remaining}件
+                  {new Date(d.date).toLocaleDateString('ja-JP')}: 累積完了
+                  {d.cumulativeCompleted}件
                 </title>
               </circle>
             );
@@ -365,15 +374,15 @@ export default function BurndownChart({
         {/* 凡例 */}
         <div className="flex items-center justify-center gap-4 mt-1">
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-0.5 bg-blue-500 rounded" />
+            <div className="w-3 h-0.5 bg-emerald-500 rounded" />
             <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
-              実績
+              累積完了
             </span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 bg-zinc-400 rounded border-dashed" />
             <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
-              理想
+              理想ペース
             </span>
           </div>
         </div>

@@ -21,6 +21,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { SkeletonBlock } from './LoadingSpinner';
 
 type DirectoryEntry = {
   name: string;
@@ -863,8 +864,13 @@ export function DirectoryPicker({
                   className={`overflow-y-auto ${showFavorites && favorites.length > 0 ? 'h-40' : 'h-72'}`}
                 >
                   {isLoading ? (
-                    <div className="flex items-center justify-center h-full">
-                      <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+                    <div className="space-y-2 p-4">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <SkeletonBlock className="w-4 h-4 rounded" />
+                          <SkeletonBlock className={`h-4 ${i % 2 === 0 ? 'w-32' : 'w-24'}`} />
+                        </div>
+                      ))}
                     </div>
                   ) : error ? (
                     <div className="flex flex-col items-center justify-center h-full text-red-500 dark:text-red-400 p-4">

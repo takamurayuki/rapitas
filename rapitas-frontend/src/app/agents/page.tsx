@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import type { AIAgentConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { UsageRateLimitGraph } from '@/components/UsageRateLimitGraph';
 
 type RegisteredAgentType = {
@@ -346,10 +345,6 @@ export default function AgentsPage() {
       setDeletingId(null);
     }
   };
-
-  if (loading) {
-    return <LoadingSpinner />;
-  }
 
   return (
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-[var(--background)] scrollbar-thin">

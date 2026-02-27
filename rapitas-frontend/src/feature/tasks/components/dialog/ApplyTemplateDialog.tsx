@@ -15,6 +15,7 @@ import {
 import type { TaskTemplate, Theme } from '@/types';
 import { getIconComponent } from '@/components/category/IconData';
 import { API_BASE_URL } from '@/utils/api';
+import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
 
 type Props = {
   isOpen: boolean;
@@ -216,7 +217,29 @@ export default function ApplyTemplateDialog({
 
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-3 border-violet-200 border-t-violet-600 rounded-full animate-spin" />
+              <div className="space-y-4 w-full max-w-md">
+                <div className="flex items-center gap-3">
+                  <SkeletonBlock className="w-12 h-12 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <SkeletonBlock className="h-4 w-3/4" />
+                    <SkeletonBlock className="h-3 w-1/2" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <SkeletonBlock className="w-12 h-12 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <SkeletonBlock className="h-4 w-2/3" />
+                    <SkeletonBlock className="h-3 w-5/6" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <SkeletonBlock className="w-12 h-12 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <SkeletonBlock className="h-4 w-4/5" />
+                    <SkeletonBlock className="h-3 w-1/3" />
+                  </div>
+                </div>
+              </div>
             </div>
           ) : filteredTemplates.length === 0 ? (
             <div className="text-center py-12">

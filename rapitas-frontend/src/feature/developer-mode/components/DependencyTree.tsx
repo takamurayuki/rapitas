@@ -25,6 +25,7 @@ import {
   type SSERetryData,
 } from '@/hooks/use-sse';
 import { API_BASE_URL } from '@/utils/api';
+import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
 
 // Types
 type DependencyInfo = {
@@ -403,10 +404,8 @@ export function DependencyTree({ taskId }: Props) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <Loader2 className="w-5 h-5 text-violet-500 animate-spin" />
-          <span className="text-sm text-zinc-600 dark:text-zinc-400">
-            {progressMessage || '依存関係を分析中...'}
-          </span>
+          <SkeletonBlock className="w-5 h-5 rounded" />
+          <SkeletonBlock className="h-4 w-40" />
         </div>
         {useSSEMode && progress > 0 && (
           <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">

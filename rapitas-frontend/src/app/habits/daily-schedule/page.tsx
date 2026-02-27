@@ -87,8 +87,14 @@ function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
 function formatDuration(startTime: string, endTime: string): string {
   const start = timeToMinutes(startTime);
   let end = timeToMinutes(endTime);
-  if (end <= start) end += 1440;
-  const diff = end - start;
+
+  // 翌日にまたがる場合の処理
+  if (end <= start) {
+    end += 1440;
+  }
+
+  // ブロックの長さを24時間以内に制限
+  const diff = Math.min(end - start, 1440);
   const h = Math.floor(diff / 60);
   const m = diff % 60;
   if (h === 0) return `${m}分`;
@@ -387,17 +393,27 @@ export default function DailySchedulePage() {
     );
   };
 
-  // Calculate total scheduled time
+  // Calculate total scheduled time (各ブロックは24時間内に制限)
   const totalMinutes = blocks.reduce((sum, block) => {
     const start = timeToMinutes(block.startTime);
     let end = timeToMinutes(block.endTime);
-    if (end <= start) end += 1440;
-    return sum + (end - start);
+
+    // 翌日にまたがる場合の処理
+    if (end <= start) {
+      end += 1440; // 翌日として計算
+    }
+
+    // ブロック単体の長さを計算（最大24時間に制限）
+    const blockDuration = Math.min(end - start, 1440);
+    return sum + blockDuration;
   }, 0);
 
-  const totalHours = Math.floor(totalMinutes / 60);
-  const totalMins = totalMinutes % 60;
-  const coveragePercent = Math.round((totalMinutes / 1440) * 100);
+  // 合計時間を24時間以内に制限
+  const cappedTotalMinutes = Math.min(totalMinutes, 1440);
+
+  const totalHours = Math.floor(cappedTotalMinutes / 60);
+  const totalMins = cappedTotalMinutes % 60;
+  const coveragePercent = Math.round((cappedTotalMinutes / 1440) * 100);
 
   if (loading) {
     return <LoadingSpinner />;
@@ -655,8 +671,15 @@ export default function DailySchedulePage() {
                 const totalCatMin = catBlocks.reduce((sum, block) => {
                   const s = timeToMinutes(block.startTime);
                   let e = timeToMinutes(block.endTime);
-                  if (e <= s) e += 1440;
-                  return sum + (e - s);
+
+                  // 翌日にまたがる場合の処理
+                  if (e <= s) {
+                    e += 1440;
+                  }
+
+                  // ブロック単体の長さを計算（最大24時間に制限）
+                  const blockDuration = Math.min(e - s, 1440);
+                  return sum + blockDuration;
                 }, 0);
 
                 const h = Math.floor(totalCatMin / 60);

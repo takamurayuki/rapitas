@@ -20,6 +20,7 @@ import {
 import type { Priority, UserSettings } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import TaskSuggestionDetail from './TaskSuggestionDetail';
+import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
 
 type TaskSuggestion = {
   title: string;
@@ -291,10 +292,8 @@ export default function TaskSuggestions({
           {/* ローディング状態 */}
           {isAiLoading && (
             <div className="flex items-center gap-1 px-2 py-0.5">
-              <RefreshCw className="w-3 h-3 text-violet-500 dark:text-violet-400 animate-spin" />
-              <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
-                分析中...
-              </span>
+              <SkeletonBlock className="w-3 h-3 rounded" />
+              <SkeletonBlock className="w-12 h-3 rounded" />
             </div>
           )}
 

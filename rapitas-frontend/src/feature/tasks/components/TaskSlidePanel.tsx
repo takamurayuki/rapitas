@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import TaskDetailClient from '@/app/tasks/[id]/TaskDetailClient';
 import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
+import { useTaskDetailVisibilityStore } from '@/stores/taskDetailVisibilityStore';
 
 interface TaskSlidePanelProps {
   taskId: number | null;
@@ -24,9 +25,15 @@ export default function TaskSlidePanel({
   const closingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  // タスク詳細可視性ストア
+  const { showTaskDetail, hideTaskDetail } = useTaskDetailVisibilityStore();
+
   // 開く時: isVisibleをtrueに & スクロール位置をリセット
   useEffect(() => {
     if (isOpen && taskId) {
+      // タスク詳細が表示されることをストアに通知
+      showTaskDetail();
+
       // 次のレンダリングサイクルで設定
       const timer = setTimeout(() => {
         setIsAnimatingOut(false);
@@ -47,7 +54,7 @@ export default function TaskSlidePanel({
 
       return () => clearTimeout(timer);
     }
-  }, [isOpen, taskId]);
+  }, [isOpen, taskId, showTaskDetail]);
 
   // 閉じる時: アニメーション再生後にisVisibleをfalseに
   useEffect(() => {
@@ -58,11 +65,13 @@ export default function TaskSlidePanel({
         setIsVisible(false);
         setIsAnimatingOut(false);
         closingTimerRef.current = null;
+        // タスク詳細が非表示になることをストアに通知
+        hideTaskDetail();
       }, ANIMATION_DURATION);
 
       return () => clearTimeout(timer);
     }
-  }, [isOpen, isVisible, isAnimatingOut]);
+  }, [isOpen, isVisible, isAnimatingOut, hideTaskDetail]);
 
   // クリーンアップ
   useEffect(() => {

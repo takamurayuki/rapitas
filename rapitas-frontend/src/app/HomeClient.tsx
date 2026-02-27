@@ -31,24 +31,24 @@ import {
 } from 'lucide-react';
 import { getIconComponent } from '@/components/category/IconData';
 import { API_BASE_URL } from '@/utils/api';
-import { apiFetch, parallelFetch, prefetch } from '@/lib/api-client';
-import { fetchTaskStatistics, preloadTaskDetails } from '@/lib/task-api';
+import { apiFetch } from '@/lib/api-client';
+import { fetchTaskStatistics } from '@/lib/task-api';
 import { useExecutingTasksPolling } from '@/hooks/useExecutingTasksPolling';
 import TodayTaskProgressBar from '@/components/TodayTaskProgressBar';
 import { useAppModeStore } from '@/stores/appModeStore';
 import { useTaskCacheStore } from '@/stores/taskCacheStore';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
-import {
-  ProgressRing,
-  FlyingParticle,
-  useTaskCompletionAnimation,
-} from '@/feature/tasks/components/TaskCompletionAnimation';
+import { useTaskCompletionAnimation } from '@/feature/tasks/components/TaskCompletionAnimation';
 import { useFilteredTasks } from '@/hooks/useFilteredTasks';
 import { useTaskSorting } from '@/hooks/useTaskSorting';
 import { useLocalStorageState } from '@/hooks/useLocalStorageState';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useTaskAutoSync } from '@/hooks/useTaskAutoSync';
 import { requireAuth } from '@/contexts/AuthContext';
+import {
+  TaskCardsSkeleton,
+  EnhancedSkeletonBlock,
+} from '@/components/ui/LoadingSpinner';
 
 const API_BASE = API_BASE_URL;
 
@@ -72,7 +72,7 @@ function HomeClientPage() {
   );
   const [themes, setThemes] = useState<Theme[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [initialDataLoading, setInitialDataLoading] = useState(true);
+  const [filtersLoading, setFiltersLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useLocalStorageState<
     number | null
@@ -108,8 +108,11 @@ function HomeClientPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // フィルターアコーディオン（デフォルトで閉じる）
-  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+  // フィルターアコーディオン（状態を永続化）
+  const [isFilterExpanded, setIsFilterExpanded] = useLocalStorageState<boolean>(
+    'isFilterExpanded',
+    false,
+  );
 
   // グローバル設定（activeMode, defaultCategoryId）
   const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(
@@ -453,8 +456,6 @@ function HomeClientPage() {
     if (hasInitialized) return;
 
     const initialLoad = async () => {
-      setInitialDataLoading(true);
-
       // 並列リクエストを最適化
       const requests = {
         tasks: taskCacheInitialized ? fetchTaskUpdates() : fetchAllTasks(),
@@ -505,6 +506,9 @@ function HomeClientPage() {
         settingsResult.status === 'fulfilled'
           ? (settingsResult.value as UserSettings)
           : null;
+
+      // フィルター関連のデータが読み込まれたらローディングを終了
+      setFiltersLoading(false);
       // カテゴリフィルタが未設定の場合はデフォルトカテゴリを適用
       if (categoryFilter === null) {
         if (settings?.defaultCategoryId) {
@@ -514,11 +518,40 @@ function HomeClientPage() {
           setCategoryFilter(categoriesData[0].id);
         }
       }
-      setInitialDataLoading(false);
       setHasInitialized(true);
     };
     initialLoad();
   }, []); // 依存配列を空にして初回のみ実行
+
+  // フィルタースケルトンコンポーネント
+  const FilterSkeleton = () => (
+    <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 mb-4 animate-skeleton-fade-in">
+      {/* カテゴリタブ（水平スクロール） */}
+      <div className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent bg-slate-50 dark:bg-slate-800/50">
+        <div className="flex gap-2 px-3 py-2 min-w-max">
+          <EnhancedSkeletonBlock className="w-16 h-6 rounded-md" delay={0} />
+          <EnhancedSkeletonBlock className="w-20 h-6 rounded-md" delay={100} />
+          <EnhancedSkeletonBlock className="w-12 h-6 rounded-md" delay={200} />
+          <EnhancedSkeletonBlock className="w-18 h-6 rounded-md" delay={300} />
+          <EnhancedSkeletonBlock className="w-14 h-6 rounded-md" delay={400} />
+        </div>
+      </div>
+
+      {/* テーマタブ */}
+      <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-200 dark:border-slate-700">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent flex-1">
+          <EnhancedSkeletonBlock className="w-12 h-5 rounded-sm" delay={100} />
+          <EnhancedSkeletonBlock className="w-16 h-5 rounded-sm" delay={200} />
+          <EnhancedSkeletonBlock className="w-10 h-5 rounded-sm" delay={300} />
+          <EnhancedSkeletonBlock className="w-14 h-5 rounded-sm" delay={400} />
+        </div>
+        <EnhancedSkeletonBlock
+          className="w-12 h-6 rounded shrink-0"
+          delay={500}
+        />
+      </div>
+    </div>
+  );
 
   // activeModeが変わったとき、現在のカテゴリフィルタが非表示になったら最初の表示カテゴリに切り替え
   useEffect(() => {
@@ -867,425 +900,382 @@ function HomeClientPage() {
           </div>
         )}
 
-        {/* 統合フィルターバー（アコーディオン） - カテゴリとテーマが読み込まれたら常に表示 */}
-        {categories.length > 0 && !isSelectionMode && !isQuickAdding && (
-          <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 hover:border-amber-500/50 mb-4">
-            {/* カテゴリタブ */}
-            {categories.length > 0 && (
-              <div className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent bg-slate-50 dark:bg-slate-800/50">
-                {categories
-                  .filter((cat) => {
-                    if (appMode === 'all') return true;
-                    if (cat.mode === 'both') return true;
-                    return cat.mode === appMode;
-                  })
-                  .map((cat) => {
-                    const CatIcon =
-                      getIconComponent(cat.icon || '') || FolderKanban;
-                    const isActive = categoryFilter === cat.id;
-                    return (
-                      <button
-                        key={cat.id}
-                        onClick={() => {
-                          setCategoryFilter(cat.id);
-                          const themesInCategory = themes.filter(
-                            (t) => t.categoryId === cat.id,
-                          );
-                          if (themesInCategory.length === 0) {
-                            setThemeFilter(null);
-                          } else {
-                            const currentThemeInCategory =
-                              themesInCategory.find(
-                                (t) => t.id === themeFilter,
-                              );
-                            if (!currentThemeInCategory) {
-                              const defaultInCategory = themesInCategory.find(
-                                (t) => t.isDefault,
-                              );
-                              const targetTheme =
-                                defaultInCategory || themesInCategory[0];
-                              setThemeFilter(targetTheme.id);
-                            }
-                          }
-                        }}
-                        className={`relative flex items-center gap-1.5 px-4 py-2 font-mono text-[11px] uppercase tracking-wider transition-all whitespace-nowrap shrink-0 border-r ${
-                          isActive
-                            ? 'bg-slate-200 dark:bg-slate-600/70 font-bold border-b-2'
-                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/30'
-                        } border-slate-200 dark:border-slate-700`}
-                        style={{
-                          color: isActive ? cat.color : undefined,
-                          borderBottomColor: isActive ? cat.color : undefined,
-                        }}
-                      >
-                        <CatIcon className="w-3.5 h-3.5" />
-                        {cat.name}
-                        {globalSettings?.defaultCategoryId === cat.id && (
-                          <Star className="w-2.5 h-2.5 fill-current" />
-                        )}
-                      </button>
-                    );
-                  })}
-              </div>
-            )}
-
-            {/* テーマタブ */}
-            <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-200 dark:border-slate-700">
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent flex-1">
-                {(() => {
-                  const filteredThemes = themes.filter((theme) => {
-                    if (categoryFilter === null) return true;
-                    return theme.categoryId === categoryFilter;
-                  });
-                  if (filteredThemes.length === 0 && categoryFilter !== null) {
-                    return (
-                      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 py-1 px-1">
-                        <span>NO_THEMES_FOUND</span>
+        {/* 統合フィルターバー（アコーディオン） - 一括選択モード時は非表示 */}
+        {!isSelectionMode &&
+          (filtersLoading ? (
+            <FilterSkeleton />
+          ) : categories.length > 0 ? (
+            <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 hover:border-amber-500/50 mb-4">
+              {/* カテゴリタブ */}
+              {categories.length > 0 && (
+                <div className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent bg-slate-50 dark:bg-slate-800/50">
+                  {categories
+                    .filter((cat) => {
+                      if (appMode === 'all') return true;
+                      if (cat.mode === 'both') return true;
+                      return cat.mode === appMode;
+                    })
+                    .map((cat) => {
+                      const CatIcon =
+                        getIconComponent(cat.icon || '') || FolderKanban;
+                      const isActive = categoryFilter === cat.id;
+                      return (
                         <button
-                          onClick={() => router.push('/themes')}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded font-mono text-[10px] uppercase tracking-wider bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 dark:hover:bg-amber-500/30 transition-colors"
+                          key={cat.id}
+                          onClick={() => {
+                            setCategoryFilter(cat.id);
+                            const themesInCategory = themes.filter(
+                              (t) => t.categoryId === cat.id,
+                            );
+                            if (themesInCategory.length === 0) {
+                              setThemeFilter(null);
+                            } else {
+                              const currentThemeInCategory =
+                                themesInCategory.find(
+                                  (t) => t.id === themeFilter,
+                                );
+                              if (!currentThemeInCategory) {
+                                const defaultInCategory = themesInCategory.find(
+                                  (t) => t.isDefault,
+                                );
+                                const targetTheme =
+                                  defaultInCategory || themesInCategory[0];
+                                setThemeFilter(targetTheme.id);
+                              }
+                            }
+                          }}
+                          className={`relative flex items-center gap-1.5 px-4 py-2 font-mono text-[11px] uppercase tracking-wider transition-all whitespace-nowrap shrink-0 border-r ${
+                            isActive
+                              ? 'bg-slate-200 dark:bg-slate-600/70 font-bold border-b-2'
+                              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/30'
+                          } border-slate-200 dark:border-slate-700`}
+                          style={{
+                            color: isActive ? cat.color : undefined,
+                            borderBottomColor: isActive ? cat.color : undefined,
+                          }}
                         >
-                          <Plus className="w-3 h-3" />
-                          ADD_THEME
+                          <CatIcon className="w-3.5 h-3.5" />
+                          {cat.name}
+                          {globalSettings?.defaultCategoryId === cat.id && (
+                            <Star className="w-2.5 h-2.5 fill-current" />
+                          )}
                         </button>
-                      </div>
-                    );
-                  }
-                  return filteredThemes.map((theme) => {
-                    const IconComponent =
-                      getIconComponent(theme.icon || '') || SwatchBook;
-                    const isActive = themeFilter === theme.id;
-                    return (
-                      <button
-                        key={theme.id}
-                        onClick={() => {
-                          setThemeFilter(theme.id);
-                        }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 font-medium text-xs transition-all whitespace-nowrap shrink-0 rounded-sm ${
-                          isActive
-                            ? 'shadow-lg font-bold text-white dark:text-white'
-                            : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
-                        }`}
-                        style={{
-                          backgroundColor: isActive ? theme.color : undefined,
-                          color: isActive ? '#ffffff' : theme.color,
-                        }}
-                      >
-                        <IconComponent className="w-3.5 h-3.5" />
-                        {theme.name}
-                        {theme.isDefault && (
-                          <Star className="w-2.5 h-2.5 fill-current" />
-                        )}
-                      </button>
-                    );
-                  });
-                })()}
+                      );
+                    })}
+                </div>
+              )}
+
+              {/* テーマタブ */}
+              <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent flex-1">
+                  {(() => {
+                    const filteredThemes = themes.filter((theme) => {
+                      if (categoryFilter === null) return true;
+                      return theme.categoryId === categoryFilter;
+                    });
+                    if (
+                      filteredThemes.length === 0 &&
+                      categoryFilter !== null
+                    ) {
+                      return (
+                        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 py-1 px-1">
+                          <span>NO_THEMES_FOUND</span>
+                          <button
+                            onClick={() => router.push('/themes')}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded font-mono text-[10px] uppercase tracking-wider bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 dark:hover:bg-amber-500/30 transition-colors"
+                          >
+                            <Plus className="w-3 h-3" />
+                            ADD_THEME
+                          </button>
+                        </div>
+                      );
+                    }
+                    return filteredThemes.map((theme) => {
+                      const IconComponent =
+                        getIconComponent(theme.icon || '') || SwatchBook;
+                      const isActive = themeFilter === theme.id;
+                      return (
+                        <button
+                          key={theme.id}
+                          onClick={() => {
+                            setThemeFilter(theme.id);
+                          }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 font-medium text-xs transition-all whitespace-nowrap shrink-0 rounded-sm ${
+                            isActive
+                              ? 'shadow-lg font-bold text-white dark:text-white'
+                              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
+                          }`}
+                          style={{
+                            backgroundColor: isActive ? theme.color : undefined,
+                            color: isActive ? '#ffffff' : theme.color,
+                          }}
+                        >
+                          <IconComponent className="w-3.5 h-3.5" />
+                          {theme.name}
+                          {theme.isDefault && (
+                            <Star className="w-2.5 h-2.5 fill-current" />
+                          )}
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+
+                {/* アコーディオントグル */}
+                <button
+                  onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider transition-all shrink-0 ${
+                    isFilterExpanded
+                      ? 'bg-amber-500 text-white shadow-md'
+                      : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-600'
+                  }`}
+                >
+                  <svg
+                    className="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                    />
+                  </svg>
+                  <span className="hidden sm:inline">FILTER</span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${isFilterExpanded ? 'rotate-180' : ''}`}
+                  />
+                </button>
               </div>
 
-              {/* アコーディオントグル */}
-              <button
-                onClick={() => setIsFilterExpanded(!isFilterExpanded)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider transition-all shrink-0 ${
+              {/* フィルター・ソート（アコーディオンコンテンツ） */}
+              <div
+                className={`overflow-hidden transition-all duration-300 ease-out ${
                   isFilterExpanded
-                    ? 'bg-amber-500 text-white shadow-md'
-                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-600'
+                    ? 'max-h-96 opacity-100'
+                    : 'max-h-0 opacity-0'
                 }`}
               >
-                <svg
-                  className="w-3.5 h-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-                  />
-                </svg>
-                <span className="hidden sm:inline">FILTER</span>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 transition-transform duration-200 ${isFilterExpanded ? 'rotate-180' : ''}`}
-                />
-              </button>
-            </div>
+                <div className="flex flex-wrap items-center gap-4 px-3 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30">
+                  {/* ステータス */}
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                      STATUS:
+                    </span>
+                    <div className="flex items-center">
+                      {['all', 'todo', 'in-progress', 'done'].map(
+                        (status, idx) => {
+                          const statusConfigLocal = {
+                            all: { label: 'ALL', color: 'amber' },
+                            todo: { label: 'TODO', color: 'slate' },
+                            'in-progress': {
+                              label: 'IN_PROGRESS',
+                              color: 'blue',
+                            },
+                            done: { label: 'DONE', color: 'green' },
+                          };
+                          const config =
+                            statusConfigLocal[
+                              status as keyof typeof statusConfigLocal
+                            ];
+                          const count = statusCounts[status] || 0;
+                          const isActive = filter === status;
 
-            {/* フィルター・ソート（アコーディオンコンテンツ） */}
-            <div
-              className={`overflow-hidden transition-all duration-300 ease-out ${
-                isFilterExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-              }`}
-            >
-              <div className="flex flex-wrap items-center gap-4 px-3 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30">
-                {/* ステータス */}
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                    STATUS:
-                  </span>
-                  <div className="flex items-center">
-                    {['all', 'todo', 'in-progress', 'done'].map(
-                      (status, idx) => {
-                        const statusConfigLocal = {
-                          all: { label: 'ALL', color: 'amber' },
-                          todo: { label: 'TODO', color: 'slate' },
-                          'in-progress': {
-                            label: 'IN_PROGRESS',
-                            color: 'blue',
-                          },
-                          done: { label: 'DONE', color: 'green' },
-                        };
-                        const config =
-                          statusConfigLocal[
-                            status as keyof typeof statusConfigLocal
-                          ];
-                        const count = statusCounts[status] || 0;
-                        const isActive = filter === status;
-
-                        return (
-                          <div key={status} className="flex items-center">
-                            <button
-                              onClick={() => setFilter(status)}
-                              className={`relative h-6 px-3 font-mono text-[10px] uppercase tracking-wider whitespace-nowrap transition-all duration-200 ${
-                                isActive
-                                  ? config.color === 'amber'
-                                    ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-white shadow-md font-bold'
-                                    : config.color === 'blue'
-                                      ? 'bg-blue-500 text-white shadow-md font-bold'
-                                      : config.color === 'green'
-                                        ? 'bg-green-500 text-white shadow-md font-bold'
-                                        : 'bg-slate-600 text-white shadow-md font-bold'
-                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                              }`}
-                            >
-                              <div className="flex items-center gap-1">
-                                {config.label}
-                                <span className="text-[9px] opacity-75">
-                                  {count}
-                                </span>
-                              </div>
-                              {/* Progress indicator at bottom */}
-                              {count > 0 && (
-                                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-slate-300 dark:bg-slate-600">
-                                  <div
-                                    className={`h-full transition-all duration-500 ${
-                                      isActive
-                                        ? 'bg-white/50'
-                                        : 'bg-slate-400 dark:bg-slate-500'
-                                    }`}
-                                    style={{
-                                      width: `${status === 'all' ? 100 : (statusCounts[status] / statusCounts.all) * 100}%`,
-                                    }}
-                                  />
-                                </div>
-                              )}
-                            </button>
-                            {idx < 3 && (
-                              <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-600" />
-                            )}
-                          </div>
-                        );
-                      },
-                    )}
-                  </div>
-                </div>
-
-                {/* 区切り線 */}
-                <div className="w-[1px] h-6 bg-slate-300 dark:bg-slate-600"></div>
-
-                {/* 優先度 */}
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                    PRIORITY:
-                  </span>
-                  <div className="flex items-center">
-                    {[
-                      {
-                        value: '',
-                        label: 'ALL',
-                        icon: null,
-                        iconColor: '',
-                        bgColor: 'amber',
-                      },
-                      {
-                        value: 'urgent',
-                        label: 'URGENT',
-                        icon: <ChevronsUp className="w-3 h-3" />,
-                        iconColor: 'text-red-500',
-                        bgColor: 'red',
-                      },
-                      {
-                        value: 'high',
-                        label: 'HIGH',
-                        icon: <ChevronUp className="w-3 h-3" />,
-                        iconColor: 'text-orange-500',
-                        bgColor: 'orange',
-                      },
-                      {
-                        value: 'medium',
-                        label: 'MEDIUM',
-                        icon: <ChevronsUpDown className="w-3 h-3" />,
-                        iconColor: 'text-blue-500',
-                        bgColor: 'blue',
-                      },
-                      {
-                        value: 'low',
-                        label: 'LOW',
-                        icon: <ChevronDown className="w-3 h-3" />,
-                        iconColor: 'text-slate-400',
-                        bgColor: 'slate',
-                      },
-                    ].map((priority, idx) => (
-                      <div key={priority.value} className="flex items-center">
-                        <button
-                          onClick={() =>
-                            setPriorityFilter(
-                              priority.value
-                                ? (priority.value as Priority)
-                                : null,
-                            )
-                          }
-                          className={`h-6 px-2.5 font-mono text-[10px] uppercase tracking-wider transition-all duration-200 whitespace-nowrap focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
-                            (priorityFilter || '') === priority.value
-                              ? priority.bgColor === 'amber'
-                                ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-white shadow-md font-bold'
-                                : priority.bgColor === 'red'
-                                  ? 'bg-red-500 text-white shadow-md font-bold'
-                                  : priority.bgColor === 'orange'
-                                    ? 'bg-orange-500 text-white shadow-md font-bold'
-                                    : priority.bgColor === 'blue'
-                                      ? 'bg-blue-500 text-white shadow-md font-bold'
-                                      : 'bg-slate-600 text-white shadow-md font-bold'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                          }`}
-                        >
-                          <div className="flex items-center gap-1">
-                            {priority.icon && (
-                              <span
-                                className={
-                                  (priorityFilter || '') === priority.value
-                                    ? 'text-white'
-                                    : priority.iconColor
-                                }
+                          return (
+                            <div key={status} className="flex items-center">
+                              <button
+                                onClick={() => setFilter(status)}
+                                className={`relative h-6 px-3 font-mono text-[10px] uppercase tracking-wider whitespace-nowrap transition-all duration-200 ${
+                                  isActive
+                                    ? config.color === 'amber'
+                                      ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-white shadow-md font-bold'
+                                      : config.color === 'blue'
+                                        ? 'bg-blue-500 text-white shadow-md font-bold'
+                                        : config.color === 'green'
+                                          ? 'bg-green-500 text-white shadow-md font-bold'
+                                          : 'bg-slate-600 text-white shadow-md font-bold'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                }`}
                               >
-                                {priority.icon}
-                              </span>
-                            )}
-                            {priority.label}
-                          </div>
-                        </button>
-                        {idx < 4 && (
-                          <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-600" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 区切り線 */}
-                <div className="w-[1px] h-6 bg-slate-300 dark:bg-slate-600"></div>
-
-                {/* ソート */}
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                    SORT:
-                  </span>
-                  <div className="flex items-center">
-                    <select
-                      value={sortBy}
-                      onChange={(e) =>
-                        setSortBy(e.target.value as typeof sortBy)
-                      }
-                      className="h-6 px-2 font-mono text-[10px] uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-r border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-0 focus:bg-slate-200 dark:focus:bg-slate-700 transition-colors cursor-pointer"
-                    >
-                      <option value="createdAt">CREATED</option>
-                      <option value="title">TITLE</option>
-                      <option value="priority">PRIORITY</option>
-                    </select>
-                    <button
-                      onClick={() =>
-                        setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))
-                      }
-                      className="h-6 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0"
-                      title={sortOrder === 'asc' ? 'ASC' : 'DESC'}
-                    >
-                      <svg
-                        className={`w-3.5 h-3.5 text-slate-700 dark:text-slate-300 transition-transform ${
-                          sortOrder === 'desc' ? 'rotate-180' : ''
-                        }`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M7 11l5-5m0 0l5 5m-5-5v12"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 初回読み込み時のスケルトン表示 - taskCacheInitializedもチェックして既存データがある時はスケルトンを表示しない */}
-        {initialDataLoading && !taskCacheInitialized ? (
-          <div className="animate-pulse space-y-4">
-            {/* 統合フィルターUIスケルトン（アコーディオン） */}
-            <div className="border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
-              {/* カテゴリ選択スケルトン */}
-              <div className="flex items-center bg-slate-50 dark:bg-slate-800/50">
-                {[1, 2, 3].map((i, idx) => (
-                  <div
-                    key={i}
-                    className={`h-9 w-24 bg-slate-200 dark:bg-slate-700 ${idx < 2 ? 'border-r border-slate-300 dark:border-slate-600' : ''}`}
-                  />
-                ))}
-              </div>
-              {/* テーマ選択スケルトン */}
-              <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-200 dark:border-slate-700">
-                <div className="flex items-center gap-2 flex-1">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div
-                      key={i}
-                      className="h-6 w-20 bg-slate-200 dark:bg-slate-700"
-                    />
-                  ))}
-                </div>
-                <div className="h-6 w-20 bg-slate-200 dark:bg-slate-700" />
-              </div>
-            </div>
-
-            {/* タスクカードスケルトン */}
-            <div className="grid gap-3">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div
-                  key={i}
-                  className="bg-white dark:bg-indigo-dark-900 rounded-lg p-4 shadow-sm border border-zinc-200 dark:border-zinc-800"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-7 h-7 bg-zinc-200 dark:bg-zinc-700 rounded-md shrink-0" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-5 w-3/4 bg-zinc-200 dark:bg-zinc-700 rounded" />
-                      <div className="h-4 w-1/2 bg-zinc-200 dark:bg-zinc-700 rounded" />
+                                <div className="flex items-center gap-1">
+                                  {config.label}
+                                  <span className="text-[9px] opacity-75">
+                                    {count}
+                                  </span>
+                                </div>
+                                {/* Progress indicator at bottom */}
+                                {count > 0 && (
+                                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-slate-300 dark:bg-slate-600">
+                                    <div
+                                      className={`h-full transition-all duration-500 ${
+                                        isActive
+                                          ? 'bg-white/50'
+                                          : 'bg-slate-400 dark:bg-slate-500'
+                                      }`}
+                                      style={{
+                                        width: `${status === 'all' ? 100 : (statusCounts[status] / statusCounts.all) * 100}%`,
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                              </button>
+                              {idx < 3 && (
+                                <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-600" />
+                              )}
+                            </div>
+                          );
+                        },
+                      )}
                     </div>
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3].map((j) => (
-                        <div
-                          key={j}
-                          className="h-7 w-7 bg-zinc-200 dark:bg-zinc-700 rounded-md"
-                        />
+                  </div>
+
+                  {/* 区切り線 */}
+                  <div className="w-[1px] h-6 bg-slate-300 dark:bg-slate-600"></div>
+
+                  {/* 優先度 */}
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                      PRIORITY:
+                    </span>
+                    <div className="flex items-center">
+                      {[
+                        {
+                          value: '',
+                          label: 'ALL',
+                          icon: null,
+                          iconColor: '',
+                          bgColor: 'amber',
+                        },
+                        {
+                          value: 'urgent',
+                          label: 'URGENT',
+                          icon: <ChevronsUp className="w-3 h-3" />,
+                          iconColor: 'text-red-500',
+                          bgColor: 'red',
+                        },
+                        {
+                          value: 'high',
+                          label: 'HIGH',
+                          icon: <ChevronUp className="w-3 h-3" />,
+                          iconColor: 'text-orange-500',
+                          bgColor: 'orange',
+                        },
+                        {
+                          value: 'medium',
+                          label: 'MEDIUM',
+                          icon: <ChevronsUpDown className="w-3 h-3" />,
+                          iconColor: 'text-blue-500',
+                          bgColor: 'blue',
+                        },
+                        {
+                          value: 'low',
+                          label: 'LOW',
+                          icon: <ChevronDown className="w-3 h-3" />,
+                          iconColor: 'text-slate-400',
+                          bgColor: 'slate',
+                        },
+                      ].map((priority, idx) => (
+                        <div key={priority.value} className="flex items-center">
+                          <button
+                            onClick={() =>
+                              setPriorityFilter(
+                                priority.value
+                                  ? (priority.value as Priority)
+                                  : null,
+                              )
+                            }
+                            className={`h-6 px-2.5 font-mono text-[10px] uppercase tracking-wider transition-all duration-200 whitespace-nowrap focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
+                              (priorityFilter || '') === priority.value
+                                ? priority.bgColor === 'amber'
+                                  ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-white shadow-md font-bold'
+                                  : priority.bgColor === 'red'
+                                    ? 'bg-red-500 text-white shadow-md font-bold'
+                                    : priority.bgColor === 'orange'
+                                      ? 'bg-orange-500 text-white shadow-md font-bold'
+                                      : priority.bgColor === 'blue'
+                                        ? 'bg-blue-500 text-white shadow-md font-bold'
+                                        : 'bg-slate-600 text-white shadow-md font-bold'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1">
+                              {priority.icon && (
+                                <span
+                                  className={
+                                    (priorityFilter || '') === priority.value
+                                      ? 'text-white'
+                                      : priority.iconColor
+                                  }
+                                >
+                                  {priority.icon}
+                                </span>
+                              )}
+                              {priority.label}
+                            </div>
+                          </button>
+                          {idx < 4 && (
+                            <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-600" />
+                          )}
+                        </div>
                       ))}
                     </div>
                   </div>
+
+                  {/* 区切り線 */}
+                  <div className="w-[1px] h-6 bg-slate-300 dark:bg-slate-600"></div>
+
+                  {/* ソート */}
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                      SORT:
+                    </span>
+                    <div className="flex items-center">
+                      <select
+                        value={sortBy}
+                        onChange={(e) =>
+                          setSortBy(e.target.value as typeof sortBy)
+                        }
+                        className="h-6 px-2 font-mono text-[10px] uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-r border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-0 focus:bg-slate-200 dark:focus:bg-slate-700 transition-colors cursor-pointer"
+                      >
+                        <option value="createdAt">CREATED</option>
+                        <option value="title">TITLE</option>
+                        <option value="priority">PRIORITY</option>
+                      </select>
+                      <button
+                        onClick={() =>
+                          setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))
+                        }
+                        className="h-6 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+                        title={sortOrder === 'asc' ? 'ASC' : 'DESC'}
+                      >
+                        <svg
+                          className={`w-3.5 h-3.5 text-slate-700 dark:text-slate-300 transition-transform ${
+                            sortOrder === 'desc' ? 'rotate-180' : ''
+                          }`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M7 11l5-5m0 0l5 5m-5-5v12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
+          ) : null)}
+
+        {/* タスクリストの表示 */}
+        {taskCacheLoading && sortedTasks.length === 0 ? (
+          <TaskCardsSkeleton count={10} />
         ) : sortedTasks.length === 0 ? (
           <div className="text-center py-12 text-zinc-500 dark:text-zinc-400">
             {/* カテゴリにテーマがない場合 */}
@@ -1354,20 +1344,6 @@ function HomeClientPage() {
           </div>
         ) : (
           <>
-            {/* タスクデータが読み込み中の場合は追加で読み込み中表示を表示しつつ、既存データがあれば併用表示 */}
-            {taskCacheLoading &&
-              taskCacheInitialized &&
-              executingTasksSize > 0 && (
-                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                    <span className="text-sm text-blue-700 dark:text-blue-300">
-                      AIエージェント実行中のタスクを更新中...
-                    </span>
-                  </div>
-                </div>
-              )}
-
             <div className="grid gap-3">
               {paginatedTasks.map((task, index) => (
                 <div

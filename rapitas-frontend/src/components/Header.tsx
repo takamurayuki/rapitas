@@ -501,6 +501,11 @@ export default function Header() {
           label: 'プロンプト管理',
           icon: MessageSquare,
         },
+        {
+          href: '/claude-md-generator',
+          label: 'CLAUDE.md生成',
+          icon: Sparkles,
+        },
       ],
     },
     {
