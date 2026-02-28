@@ -79,7 +79,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
 
       if (!wasDisconnectedRef.current) {
         wasDisconnectedRef.current = true;
-        console.error(
+        console.warn(
           `[useBackendHealth] Backend health check failed: ${errorMessage}`,
           error,
         );

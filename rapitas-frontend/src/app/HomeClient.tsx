@@ -401,7 +401,13 @@ function HomeClientPage() {
   // テーマスクロール制御関数
   const checkThemeScrollPosition = useCallback(() => {
     const scrollElement = themeScrollRef.current;
-    if (!scrollElement) return;
+    if (!scrollElement) {
+      // 要素が見つからない場合は状態をリセット
+      setIsScrollNeeded(false);
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      return;
+    }
 
     const { scrollLeft, scrollWidth, clientWidth } = scrollElement;
     const needsScroll = scrollWidth > clientWidth;
@@ -435,7 +441,10 @@ function HomeClientPage() {
 
   // テーマ変更時にスクロール位置をチェック
   useEffect(() => {
-    checkThemeScrollPosition();
+    // データ読み込み後のDOM更新を待つため少し遅延させる
+    const timeoutId = setTimeout(() => {
+      checkThemeScrollPosition();
+    }, 0);
 
     const scrollElement = themeScrollRef.current;
     if (scrollElement) {
@@ -449,11 +458,34 @@ function HomeClientPage() {
       resizeObserver.observe(scrollElement);
 
       return () => {
+        clearTimeout(timeoutId);
         scrollElement.removeEventListener('scroll', handleScroll);
         resizeObserver.disconnect();
       };
     }
+
+    return () => clearTimeout(timeoutId);
   }, [themes, categoryFilter, checkThemeScrollPosition]);
+
+  // テーマの数が変更された時の追加チェック（データ読み込み完了対応）
+  useEffect(() => {
+    if (themes.length > 0) {
+      // DOM更新後に確実にチェック
+      const timeoutId = setTimeout(() => {
+        checkThemeScrollPosition();
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [themes.length, checkThemeScrollPosition]);
+
+  // コンポーネントマウント完了後の遅延チェック（ページ遷移対応）
+  useEffect(() => {
+    // マウント後少し時間をおいて確実にチェック
+    const timeoutId = setTimeout(() => {
+      checkThemeScrollPosition();
+    }, 200);
+    return () => clearTimeout(timeoutId);
+  }, [checkThemeScrollPosition]);
 
   // キーボードショートカット
   useEffect(() => {
