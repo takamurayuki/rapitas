@@ -2,9 +2,13 @@
 import { useEffect, useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import rehypeHighlight from 'rehype-highlight';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import {
+  oneDark,
+  oneLight,
+} from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useDarkMode } from '@/hooks/use-dark-mode';
 import { Copy, Check, List, ExternalLink } from 'lucide-react';
-import 'highlight.js/styles/github-dark.css';
 
 type MarkdownViewerProps = {
   content: string;
@@ -28,6 +32,7 @@ export default function MarkdownViewer({
   const [toc, setToc] = useState<TocItem[]>([]);
   const [showTocPanel, setShowTocPanel] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const { isDarkMode } = useDarkMode();
 
   useEffect(() => {
     setMounted(true);
@@ -129,7 +134,6 @@ export default function MarkdownViewer({
       >
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
-          rehypePlugins={[rehypeHighlight]}
           components={{
             // カスタムコンポーネントの定義
             h1: ({ children, ...props }) => {
@@ -236,7 +240,8 @@ export default function MarkdownViewer({
             ),
             code: ({ className, children, ...props }) => {
               const match = /language-(\w+)/.exec(className || '');
-              const isInline = !match;
+              const language = match ? match[1] : '';
+              const isInline = !className?.includes('language-');
 
               if (isInline) {
                 return (
@@ -249,45 +254,39 @@ export default function MarkdownViewer({
                 );
               }
 
-              return (
-                <code className={className} {...props}>
-                  {children}
-                </code>
-              );
-            },
-            pre: ({ children, ...props }: { children?: React.ReactNode }) => {
-              const codeElement =
-                children && typeof children === 'object' && 'props' in children
-                  ? ((children as React.ReactElement).props as {
-                      children?: React.ReactNode;
-                    })
-                  : null;
-              const codeContent = codeElement?.children?.toString() || '';
+              const codeString = String(children).replace(/\n$/, '');
               const codeId = `code-${Math.random().toString(36).substr(2, 9)}`;
 
               return (
                 <div className="relative group mb-4">
-                  <pre
-                    className="bg-zinc-900 dark:bg-zinc-950 rounded-lg p-4 overflow-x-auto"
-                    {...props}
+                  <SyntaxHighlighter
+                    style={isDarkMode ? oneDark : oneLight}
+                    language={language || 'text'}
+                    customStyle={{
+                      margin: 0,
+                      borderRadius: '0.5rem',
+                      fontSize: '0.875rem',
+                    }}
+                    showLineNumbers={false}
                   >
-                    {children}
-                  </pre>
-                  {codeContent && (
-                    <button
-                      onClick={() => handleCopyCode(codeContent, codeId)}
-                      className="absolute top-2 right-2 p-2 bg-zinc-800 dark:bg-zinc-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-zinc-700 dark:hover:bg-zinc-600"
-                      title="コードをコピー"
-                    >
-                      {copiedCode === codeId ? (
-                        <Check className="w-4 h-4 text-green-400" />
-                      ) : (
-                        <Copy className="w-4 h-4 text-zinc-300" />
-                      )}
-                    </button>
-                  )}
+                    {codeString}
+                  </SyntaxHighlighter>
+                  <button
+                    onClick={() => handleCopyCode(codeString, codeId)}
+                    className="absolute top-2 right-2 p-2 bg-zinc-800 dark:bg-zinc-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-zinc-700 dark:hover:bg-zinc-600"
+                    title="コードをコピー"
+                  >
+                    {copiedCode === codeId ? (
+                      <Check className="w-4 h-4 text-green-400" />
+                    ) : (
+                      <Copy className="w-4 h-4 text-zinc-300" />
+                    )}
+                  </button>
                 </div>
               );
+            },
+            pre: ({ children, ...props }: { children?: React.ReactNode }) => {
+              return <pre {...props}>{children}</pre>;
             },
             table: ({ children, ...props }) => (
               <div className="overflow-x-auto mb-4">
