@@ -252,6 +252,7 @@ export function AIAccordionPanel({
     waitingForInput: pollingWaitingForInput,
     question: pollingQuestion,
     questionType: pollingQuestionType,
+    sessionMode: pollingSessionMode,
     startPolling,
     stopPolling,
     clearLogs: clearPollingLogs,
@@ -1491,7 +1492,18 @@ export function AIAccordionPanel({
                   <div className="flex items-center gap-1.5 p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                     <span className="text-xs text-emerald-700 dark:text-emerald-300">
-                      実行完了
+                      {pollingSessionMode?.startsWith('workflow-')
+                        ? (() => {
+                            const labels: Record<string, string> = {
+                              'workflow-researcher': '調査フェーズ完了',
+                              'workflow-planner': '計画フェーズ完了',
+                              'workflow-reviewer': 'レビューフェーズ完了',
+                              'workflow-implementer': '実装フェーズ完了',
+                              'workflow-verifier': '検証フェーズ完了',
+                            };
+                            return labels[pollingSessionMode] || 'フェーズ完了';
+                          })()
+                        : '実行完了'}
                     </span>
                   </div>
                   {hasSubtasks && subtaskLogs && parallelSessionId ? (

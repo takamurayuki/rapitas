@@ -231,6 +231,46 @@ function TaskDetailClient({
     hasAnyFile: hasAnyWorkflowFile,
   } = useWorkflowFiles(taskId || null);
 
+  /**
+   * 時間管理ボタンのスタイルを状態に応じて取得する
+   */
+  const getTimerButtonStyle = () => {
+    const baseStyle = "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors text-zinc-700 dark:text-zinc-300 border";
+
+    if (isThisTaskTimer && pomodoroState.isTimerRunning) {
+      if (pomodoroState.isBreakTime) {
+        // 休憩中
+        return `${baseStyle} bg-green-50 dark:bg-green-950 border-green-300 dark:border-green-700 hover:bg-zinc-50 dark:hover:bg-zinc-700`;
+      } else if (pomodoroState.isPaused) {
+        // 一時停止中
+        return `${baseStyle} bg-orange-50 dark:bg-orange-950 border-orange-300 dark:border-orange-700 hover:bg-zinc-50 dark:hover:bg-zinc-700`;
+      } else {
+        // 実行中
+        return `${baseStyle} bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-700 hover:bg-zinc-50 dark:hover:bg-zinc-700`;
+      }
+    } else {
+      // 初期状態（編集ボタンと同じスタイル）
+      return `${baseStyle} bg-white dark:bg-indigo-dark-800 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700`;
+    }
+  };
+
+  /**
+   * 時間管理ボタンのアイコンを状態に応じて取得する
+   */
+  const getTimerIcon = () => {
+    if (isThisTaskTimer && pomodoroState.isTimerRunning) {
+      if (pomodoroState.isBreakTime) {
+        return <Coffee className="w-4 h-4" />;
+      } else if (pomodoroState.isPaused) {
+        return <Pause className="w-4 h-4" />;
+      } else {
+        return <Hourglass className="w-4 h-4 animate-pulse" />;
+      }
+    } else {
+      return <Timer className="w-4 h-4" />;
+    }
+  };
+
   // ワークフローステータスの同期
   useEffect(() => {
     if (workflowStatus && workflowStatus !== currentWorkflowStatus) {
@@ -1071,30 +1111,13 @@ function TaskDetailClient({
             {!isEditing && (
               <button
                 onClick={() => setShowPomodoroModal(true)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl transition-all ${
-                  isThisTaskTimer && pomodoroState.isTimerRunning
-                    ? pomodoroState.isBreakTime
-                      ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                      : pomodoroState.isPaused
-                        ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-orange-300 border border-orange-200 dark:border-amber-800'
-                        : 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
-                    : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:border-gray-300 dark:hover:border-gray-700'
-                }`}
+                className={getTimerButtonStyle()}
+                title={`${task?.title} - 時間管理`}
               >
-                {isThisTaskTimer && pomodoroState.isTimerRunning ? (
-                  pomodoroState.isBreakTime ? (
-                    <Coffee className="w-4 h-4" />
-                  ) : pomodoroState.isPaused ? (
-                    <Pause className="w-4 h-4" />
-                  ) : (
-                    <Hourglass className="w-4 h-4 animate-pulse" />
-                  )
-                ) : (
-                  <Timer className="w-4 h-4" />
-                )}
-                時間管理
+                {getTimerIcon()}
+                <span>時間管理</span>
                 {isThisTaskTimer && pomodoroState.isTimerRunning && (
-                  <span className="font-mono tabular-nums text-xs bg-white/50 dark:bg-black/20 px-2 py-0.5 rounded-md">
+                  <span className="text-xs font-mono tabular-nums">
                     {formatTime(getRemainingTime(pomodoroState))}
                   </span>
                 )}

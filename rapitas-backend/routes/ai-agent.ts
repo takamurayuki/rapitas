@@ -1652,29 +1652,32 @@ export const aiAgentRoutes = new Elysia()
           // ワークフローステータスに基づいてタスクステータスを決定
           const currentTask = await prisma.task.findUnique({ where: { id: taskIdNum } });
           const wfStatus = currentTask?.workflowStatus;
-          if (wfStatus === 'plan_created' || wfStatus === 'research_done') {
-            // 承認待ちフェーズではdoneにしない
+          if (wfStatus === 'plan_created' || wfStatus === 'research_done' || wfStatus === 'verify_done') {
+            // 承認待ち・確認待ちフェーズではdoneにしない
             await prisma.task.update({
               where: { id: taskIdNum },
               data: { status: "in-progress" },
             });
             console.log(`[API] Task ${taskIdNum} kept as in-progress (workflow: ${wfStatus})`);
-          } else if (wfStatus === 'in_progress') {
-            // 実装中はそのまま維持
-            console.log(`[API] Task ${taskIdNum} kept as in-progress (workflow: in_progress)`);
+          } else if (wfStatus === 'in_progress' || wfStatus === 'plan_approved') {
+            // 実装中・承認済みはそのまま維持
+            console.log(`[API] Task ${taskIdNum} kept as in-progress (workflow: ${wfStatus})`);
           } else if (wfStatus === 'completed') {
             await prisma.task.update({
               where: { id: taskIdNum },
               data: { status: "done", completedAt: new Date() },
             });
             console.log(`[API] Updated task ${taskIdNum} status to 'done' (workflow completed)`);
-          } else {
-            // ワークフロー未使用タスクは従来通り
+          } else if (!wfStatus || wfStatus === 'draft') {
+            // ワークフロー未使用タスク、または初期状態は従来通り
             await prisma.task.update({
               where: { id: taskIdNum },
               data: { status: "done", completedAt: new Date() },
             });
             console.log(`[API] Updated task ${taskIdNum} status to 'done'`);
+          } else {
+            // 未知のワークフローステータス: 安全のためin-progressを維持
+            console.log(`[API] Task ${taskIdNum} kept as in-progress (unknown workflow status: ${wfStatus})`);
           }
 
           // セッションのステータスも完了に更新
@@ -2106,6 +2109,7 @@ export const aiAgentRoutes = new Elysia()
       return {
         sessionId: latestSession.id,
         sessionStatus: latestSession.status,
+        sessionMode: latestSession.mode || null,
         executionId: latestExecution?.id,
         executionStatus: latestExecution?.status,
         output: latestExecution?.output,
@@ -2255,7 +2259,7 @@ export const aiAgentRoutes = new Elysia()
             // ワークフローステータスに基づいてタスクステータスを決定
             const currentTask = await prisma.task.findUnique({ where: { id: taskId } });
             const wfStatus = currentTask?.workflowStatus;
-            if (wfStatus && ['plan_created', 'research_done'].includes(wfStatus)) {
+            if (wfStatus && ['plan_created', 'research_done', 'verify_done'].includes(wfStatus)) {
               await prisma.task.update({
                 where: { id: taskId },
                 data: { status: "in-progress" },
@@ -2263,21 +2267,30 @@ export const aiAgentRoutes = new Elysia()
                 console.error(`[agent-respond] Failed to update task ${taskId} status:`, e);
               });
               console.log(`[agent-respond] Task ${taskId} kept as in-progress (workflow: ${wfStatus})`);
-            } else if (wfStatus === 'in_progress') {
-              console.log(`[agent-respond] Task ${taskId} kept as in-progress (workflow: in_progress)`);
-            } else {
+            } else if (wfStatus && ['in_progress', 'plan_approved'].includes(wfStatus)) {
+              console.log(`[agent-respond] Task ${taskId} kept as in-progress (workflow: ${wfStatus})`);
+            } else if (wfStatus === 'completed') {
               await prisma.task
                 .update({
                   where: { id: taskId },
-                  data: {
-                    status: "done",
-                    completedAt: new Date(),
-                  },
+                  data: { status: "done", completedAt: new Date() },
+                })
+                .catch((e: unknown) => {
+                  console.error(`[agent-respond] Failed to update task ${taskId} status:`, e);
+                });
+              console.log(`[agent-respond] Updated task ${taskId} status to 'done' (workflow completed)`);
+            } else if (!wfStatus || wfStatus === 'draft') {
+              await prisma.task
+                .update({
+                  where: { id: taskId },
+                  data: { status: "done", completedAt: new Date() },
                 })
                 .catch((e: unknown) => {
                   console.error(`[agent-respond] Failed to update task ${taskId} status:`, e);
                 });
               console.log(`[agent-respond] Updated task ${taskId} status to 'done'`);
+            } else {
+              console.log(`[agent-respond] Task ${taskId} kept as in-progress (unknown workflow status: ${wfStatus})`);
             }
 
             // セッションのステータスも完了に更新
@@ -3171,17 +3184,29 @@ export const aiAgentRoutes = new Elysia()
             // ワークフローステータスに基づいてタスクステータスを決定
             const currentTask = await prisma.task.findUnique({ where: { id: task.id } });
             const wfStatus = currentTask?.workflowStatus;
-            if (wfStatus && ['plan_created', 'research_done'].includes(wfStatus)) {
+            if (wfStatus && ['plan_created', 'research_done', 'verify_done'].includes(wfStatus)) {
+              // 承認待ち・確認待ちフェーズではdoneにしない
               await prisma.task.update({ where: { id: task.id }, data: { status: "in-progress" } });
               console.log(`[resume] Task ${task.id} kept as in-progress (workflow: ${wfStatus})`);
-            } else if (wfStatus === 'in_progress') {
-              console.log(`[resume] Task ${task.id} kept as in-progress (workflow: in_progress)`);
-            } else {
+            } else if (wfStatus === 'in_progress' || wfStatus === 'plan_approved') {
+              // 実装中・承認済みはそのまま維持
+              console.log(`[resume] Task ${task.id} kept as in-progress (workflow: ${wfStatus})`);
+            } else if (wfStatus === 'completed') {
               await prisma.task.update({
                 where: { id: task.id },
                 data: { status: "done", completedAt: new Date() },
               });
               console.log(`[resume] Updated task ${task.id} status to 'done'`);
+            } else if (!wfStatus || wfStatus === 'draft') {
+              // ワークフロー未使用タスク
+              await prisma.task.update({
+                where: { id: task.id },
+                data: { status: "done", completedAt: new Date() },
+              });
+              console.log(`[resume] Updated task ${task.id} status to 'done'`);
+            } else {
+              // 未知のワークフローステータス: 安全のためin-progressを維持
+              console.log(`[resume] Task ${task.id} kept as in-progress (unknown workflow: ${wfStatus})`);
             }
 
             // セッションのステータスも完了に更新
@@ -3696,13 +3721,24 @@ export const aiAgentRoutes = new Elysia()
             // ワークフローステータスに基づいてタスクステータスを決定
             const currentTask = await prisma.task.findUnique({ where: { id: taskId } });
             const wfStatus = currentTask?.workflowStatus;
-            if (wfStatus && ['plan_created', 'research_done'].includes(wfStatus)) {
+            if (wfStatus && ['plan_created', 'research_done', 'verify_done'].includes(wfStatus)) {
+              // 承認待ち・確認待ちフェーズではdoneにしない
               await prisma.task.update({ where: { id: taskId }, data: { status: "in-progress" } });
-            } else if (wfStatus !== 'in_progress') {
+            } else if (wfStatus === 'in_progress' || wfStatus === 'plan_approved') {
+              // 実装中・承認済みはそのまま維持
+            } else if (wfStatus === 'completed') {
               await prisma.task.update({
                 where: { id: taskId },
                 data: { status: "done", completedAt: new Date() },
               });
+            } else if (!wfStatus || wfStatus === 'draft') {
+              // ワークフロー未使用タスク
+              await prisma.task.update({
+                where: { id: taskId },
+                data: { status: "done", completedAt: new Date() },
+              });
+            } else {
+              // 未知のワークフローステータス: 安全のためin-progressを維持
             }
 
             // セッションのステータスも完了に更新

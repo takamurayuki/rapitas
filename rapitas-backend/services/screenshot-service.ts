@@ -799,11 +799,26 @@ function runScreenshotWorker(
     const workerPath = join(import.meta.dir, "screenshot-worker.cjs");
     const child = spawn("node", [workerPath], {
       stdio: ["pipe", "pipe", "pipe"],
+      // Windows: 子プロセスとそのサブプロセス（Chromium等）を独立したプロセスグループで起動しない
+      // これにより、child.kill() で確実にクリーンアップできる
+      windowsHide: true,
     });
 
     let stdout = "";
     let stderr = "";
     let resolved = false;
+
+    const cleanup = () => {
+      try {
+        // パイプを明示的に破棄してリソースリークを防止
+        child.stdout?.removeAllListeners();
+        child.stderr?.removeAllListeners();
+        child.removeAllListeners();
+        if (!child.killed) {
+          child.kill('SIGKILL');
+        }
+      } catch {}
+    };
 
     child.stdout.on("data", (data: Buffer) => {
       stdout += data.toString();
@@ -819,12 +834,13 @@ function runScreenshotWorker(
     child.on("close", (code: number | null) => {
       if (resolved) return;
       resolved = true;
-      if (code !== 0) {
+      if (code !== 0 && code !== null) {
         console.error(`[ScreenshotService] Worker exited with code ${code}`);
       }
 
       // NDJSON 形式でパース（1行1結果）
       const results = parseNdjson(stdout);
+      cleanup();
       resolve(results);
     });
 
@@ -832,6 +848,7 @@ function runScreenshotWorker(
       if (resolved) return;
       resolved = true;
       console.error("[ScreenshotService] Failed to spawn worker:", err.message);
+      cleanup();
       resolve([]);
     });
 
@@ -845,14 +862,12 @@ function runScreenshotWorker(
     setTimeout(() => {
       if (resolved) return;
       resolved = true;
-      try {
-        child.kill();
-      } catch {}
       // タイムアウト時も途中結果を返す（NDJSON で逐次出力されている分を回収）
       const partialResults = parseNdjson(stdout);
       console.error(
         `[ScreenshotService] Worker timed out after ${timeoutMs / 1000}s, recovered ${partialResults.length} screenshot(s)`,
       );
+      cleanup();
       resolve(partialResults);
     }, timeoutMs);
   });
@@ -863,6 +878,27 @@ function runScreenshotWorker(
  * Bun 互換性のため Node.js サブプロセスで実行
  */
 export async function captureScreenshots(
+  options: ScreenshotOptions = {},
+): Promise<ScreenshotResult[]> {
+  // スクリーンショット撮影全体のセーフティタイムアウト（90秒）
+  const SAFETY_TIMEOUT_MS = 90000;
+  const safetyPromise = new Promise<ScreenshotResult[]>((resolve) => {
+    setTimeout(() => {
+      console.error(`[ScreenshotService] captureScreenshots safety timeout (${SAFETY_TIMEOUT_MS / 1000}s) - returning empty results`);
+      resolve([]);
+    }, SAFETY_TIMEOUT_MS);
+  });
+
+  try {
+    const resultPromise = captureScreenshotsImpl(options);
+    return await Promise.race([resultPromise, safetyPromise]);
+  } catch (err) {
+    console.error('[ScreenshotService] captureScreenshots error:', err);
+    return [];
+  }
+}
+
+async function captureScreenshotsImpl(
   options: ScreenshotOptions = {},
 ): Promise<ScreenshotResult[]> {
   const {

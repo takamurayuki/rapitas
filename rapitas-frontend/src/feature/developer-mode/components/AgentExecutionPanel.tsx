@@ -133,6 +133,7 @@ export function AgentExecutionPanel({
     question: pollingQuestion,
     questionType: pollingQuestionType,
     questionTimeout: pollingQuestionTimeout,
+    sessionMode: pollingSessionMode,
     startPolling,
     stopPolling,
     clearLogs: clearPollingLogs,
@@ -705,6 +706,38 @@ export function AgentExecutionPanel({
     );
   }
 
+  // ワークフローフェーズの完了メッセージ
+  const workflowPhaseInfo = pollingSessionMode?.startsWith('workflow-') ? (() => {
+    const phaseMap: Record<string, { title: string; message: string; nextAction: string }> = {
+      'workflow-researcher': {
+        title: '調査フェーズ完了',
+        message: 'リサーチャーによる調査が完了しました。',
+        nextAction: '次は計画フェーズを実行してください。',
+      },
+      'workflow-planner': {
+        title: '計画フェーズ完了',
+        message: 'プランナーによる計画作成が完了しました。',
+        nextAction: 'ワークフロータブで計画内容を確認し、承認してください。',
+      },
+      'workflow-reviewer': {
+        title: 'レビューフェーズ完了',
+        message: 'レビュアーによるレビューが完了しました。',
+        nextAction: 'ワークフロータブで計画内容を確認し、承認してください。',
+      },
+      'workflow-implementer': {
+        title: '実装フェーズ完了',
+        message: '実装者による実装が完了しました。',
+        nextAction: '次は検証フェーズを実行してください。',
+      },
+      'workflow-verifier': {
+        title: '検証フェーズ完了',
+        message: '検証者による検証が完了しました。',
+        nextAction: 'ワークフロータブで検証結果を確認し、問題なければ完了にしてください。',
+      },
+    };
+    return phaseMap[pollingSessionMode] || null;
+  })() : null;
+
   // 実行完了（成功）
   if (isCompleted && executionResult?.success) {
     return (
@@ -717,13 +750,13 @@ export function AgentExecutionPanel({
               </div>
               <div className="flex-1">
                 <h3 className="font-bold text-lg text-zinc-900 dark:text-zinc-50">
-                  実行完了
+                  {workflowPhaseInfo?.title || '実行完了'}
                 </h3>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                  AIエージェントによる実行が完了しました。
+                  {workflowPhaseInfo?.message || 'AIエージェントによる実行が完了しました。'}
                 </p>
                 <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-2">
-                  承認ページでコードレビューを行い、変更をコミットしてください。
+                  {workflowPhaseInfo?.nextAction || '承認ページでコードレビューを行い、変更をコミットしてください。'}
                 </p>
               </div>
               <div className="flex items-center gap-2">

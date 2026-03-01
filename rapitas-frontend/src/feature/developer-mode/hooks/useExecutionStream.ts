@@ -56,6 +56,8 @@ export type ExecutionStreamState = {
   questionType?: QuestionType;
   /** 質問タイムアウト情報（質問待ち状態の場合のみ） */
   questionTimeout?: QuestionTimeoutInfo;
+  /** セッションのモード（workflow-researcher等） */
+  sessionMode?: string | null;
 };
 
 // SSEは現在無効化（ポーリングをメインで使用）
@@ -509,17 +511,31 @@ export function useExecutionPolling(taskId: number | null) {
             if (shouldAddLog) {
               hasAddedFinalLogRef.current = true;
             }
+            // ワークフローフェーズの場合はフェーズ固有の完了メッセージを表示
+            const sessionMode = data.sessionMode as string | null;
+            let completionMessage = '\n[完了] 実行が完了しました。\n';
+            if (sessionMode?.startsWith('workflow-')) {
+              const WORKFLOW_PHASE_LABELS: Record<string, string> = {
+                'workflow-researcher': '[調査完了] リサーチフェーズが完了しました。次は計画フェーズを実行してください。',
+                'workflow-planner': '[計画作成完了] 計画フェーズが完了しました。計画内容を確認し、承認してください。',
+                'workflow-reviewer': '[レビュー完了] レビューフェーズが完了しました。計画内容を確認し、承認してください。',
+                'workflow-implementer': '[実装完了] 実装フェーズが完了しました。次は検証フェーズを実行してください。',
+                'workflow-verifier': '[検証完了] 検証フェーズが完了しました。検証結果を確認し、問題なければタスクを完了にしてください。',
+              };
+              completionMessage = '\n' + (WORKFLOW_PHASE_LABELS[sessionMode] || `[フェーズ完了] ${sessionMode}が完了しました。`) + '\n';
+            }
             setState((prev) => ({
               ...prev,
               isRunning: false,
               status: 'completed',
               waitingForInput: false,
               question: undefined,
+              sessionMode: sessionMode || prev.sessionMode,
               logs:
                 shouldAddLog && prev.logs.length > 0
-                  ? trimLogs([...prev.logs, '\n[完了] 実行が完了しました。\n'])
+                  ? trimLogs([...prev.logs, completionMessage])
                   : shouldAddLog
-                    ? ['[完了] 実行が完了しました。\n']
+                    ? [completionMessage]
                     : prev.logs,
             }));
             stopPolling();

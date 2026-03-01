@@ -547,15 +547,13 @@ function NewTaskClient() {
       {/* Header */}
       <div className="max-w-2xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
-          <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="font-mono text-xs font-black tracking-tight">戻る</span>
-            </button>
-          </div>
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-sm font-medium">戻る</span>
+          </button>
           <div className="flex items-center gap-2">
             <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${
               appliedTemplate
@@ -625,31 +623,21 @@ function NewTaskClient() {
               >
                 <div className="flex items-center gap-1">
                   {priorityOptions.map((opt) => (
-                    <div
+                    <button
                       key={opt.value}
-                      className={`relative overflow-hidden border transition-all duration-300 shadow-sm ${
+                      type="button"
+                      onClick={() => setPriority(opt.value)}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
                         priority === opt.value
-                          ? `border-slate-500 dark:border-slate-400 ${opt.bgColor}`
-                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-500 dark:hover:border-slate-400'
-                      } px-3 py-2`}
+                          ? `${opt.bgColor} text-white shadow-md`
+                          : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700'
+                      }`}
                     >
-                      <button
-                        type="button"
-                        onClick={() => setPriority(opt.value)}
-                        className={`flex items-center gap-2 transition-all cursor-pointer ${
-                          priority === opt.value
-                            ? 'text-white'
-                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                        }`}
-                      >
-                        <span className={priority === opt.value ? 'text-white' : opt.iconColor}>
-                          {opt.icon}
-                        </span>
-                        <span className="font-mono text-xs font-black tracking-tight">
-                          {opt.label}
-                        </span>
-                      </button>
-                    </div>
+                      <span className={priority === opt.value ? 'text-white' : opt.iconColor}>
+                        {opt.icon}
+                      </span>
+                      {opt.label}
+                    </button>
                   ))}
                 </div>
               </FieldItem>
@@ -726,24 +714,20 @@ function NewTaskClient() {
             icon={<FileText className="w-3.5 h-3.5" />}
             defaultExpanded={true}
             headerExtra={
-              <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${(!description.trim() || isGeneratingTitle) ? 'opacity-50 cursor-not-allowed' : 'hover:border-violet-500 dark:hover:border-violet-400'}`}>
-                <button
-                  type="button"
-                  onClick={() => handleGenerateTitle(false)}
-                  disabled={!description.trim() || isGeneratingTitle}
-                  className={`flex items-center gap-2 transition-all ${(!description.trim() || isGeneratingTitle) ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 cursor-pointer'}`}
-                  title="説明からタイトルを自動生成"
-                >
-                  {isGeneratingTitle ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="w-4 h-4" />
-                  )}
-                  <span className="font-mono text-xs font-black tracking-tight">
-                    タイトル生成
-                  </span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => handleGenerateTitle(false)}
+                disabled={!description.trim() || isGeneratingTitle}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-900 disabled:opacity-40 disabled:cursor-not-allowed"
+                title="説明からタイトルを自動生成"
+              >
+                {isGeneratingTitle ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4" />
+                )}
+                <span>タイトル生成</span>
+              </button>
             }
           >
             <textarea

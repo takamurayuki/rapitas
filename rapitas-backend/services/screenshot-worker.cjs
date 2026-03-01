@@ -52,6 +52,13 @@ async function launchBrowser(executablePath) {
 }
 
 async function main() {
+  // ワーカー全体のセーフティタイムアウト（120秒で強制終了）
+  const safetyTimer = setTimeout(() => {
+    process.stderr.write(`[ScreenshotWorker] Safety timeout reached (120s), force exiting.\n`);
+    process.exit(2);
+  }, 120000);
+  safetyTimer.unref(); // このタイマーがプロセスの終了を妨げないようにする
+
   // stdin からオプションを読み取り
   let inputData = "";
   for await (const chunk of process.stdin) {
@@ -173,7 +180,13 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  process.stderr.write(`[ScreenshotWorker] Fatal error: ${err.message}\n`);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    // 正常終了: 全リソースが解放されたことを確認してから終了
+    process.stderr.write(`[ScreenshotWorker] Finished successfully, exiting.\n`);
+    process.exit(0);
+  })
+  .catch((err) => {
+    process.stderr.write(`[ScreenshotWorker] Fatal error: ${err.message}\n`);
+    process.exit(1);
+  });

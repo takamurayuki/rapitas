@@ -71,7 +71,8 @@ const LogEntry = memo<{
         ? 'text-emerald-400 font-semibold'
         : log.includes('[実行開始]') ||
             log.includes('[継続]') ||
-            log.includes('[完了]')
+            log.includes('[完了]') ||
+            log.includes('フェーズ完了]')
           ? 'text-blue-400'
           : /^\[.+?\]/.test(log.trimStart())
             ? 'text-cyan-400'
