@@ -13,6 +13,11 @@ type RateLimitInfo = {
   limit: number;
   period: string;
   resetAt?: Date;
+  isMockData: boolean;
+  dataSource: 'api' | 'estimated' | 'mock';
+  lastUpdated: Date;
+  reliability: 'high' | 'medium' | 'low';
+  errorMessage?: string;
 };
 
 // OpenAI API Response Types
@@ -71,6 +76,11 @@ export const rateLimitRoutes = new Elysia({ prefix: "/rate-limits" })
           limit: 50000,
           period: "月次",
           resetAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // 15 days from now
+          isMockData: true,
+          dataSource: 'mock',
+          lastUpdated: new Date(),
+          reliability: 'low',
+          errorMessage: "Claude APIは使用量情報を提供していないため、推定データを表示しています"
         });
       }
 
@@ -103,9 +113,14 @@ export const rateLimitRoutes = new Elysia({ prefix: "/rate-limits" })
               limit: subscription.hard_limit_usd ? subscription.hard_limit_usd * 100 : 12000, // Convert to cents
               period: "月次",
               resetAt: subscription.access_until ? new Date(subscription.access_until * 1000) : undefined,
+              isMockData: false,
+              dataSource: 'api',
+              lastUpdated: new Date(),
+              reliability: 'high'
             });
           } else {
-            // Mock data if API fails
+            // API failed - provide mock data with appropriate flags
+            const statusText = subscriptionRes.status === 401 ? "認証エラー" : `API呼び出しエラー (${subscriptionRes.status})`;
             rateLimits.push({
               provider: "chatgpt",
               plan: "Pay as you go",
@@ -113,10 +128,15 @@ export const rateLimitRoutes = new Elysia({ prefix: "/rate-limits" })
               limit: 12000,
               period: "月次",
               resetAt: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000),
+              isMockData: true,
+              dataSource: 'mock',
+              lastUpdated: new Date(),
+              reliability: 'low',
+              errorMessage: `OpenAI APIからのデータ取得に失敗しました (${statusText})。モックデータを表示しています。`
             });
           }
-        } catch {
-          // Mock data on error
+        } catch (error) {
+          // Mock data on error with detailed error information
           rateLimits.push({
             provider: "chatgpt",
             plan: "Pay as you go",
@@ -124,6 +144,11 @@ export const rateLimitRoutes = new Elysia({ prefix: "/rate-limits" })
             limit: 12000,
             period: "月次",
             resetAt: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000),
+            isMockData: true,
+            dataSource: 'mock',
+            lastUpdated: new Date(),
+            reliability: 'low',
+            errorMessage: `OpenAI APIとの接続に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}。モックデータを表示しています。`
           });
         }
       }
@@ -140,6 +165,11 @@ export const rateLimitRoutes = new Elysia({ prefix: "/rate-limits" })
           limit: 1500,
           period: "日次",
           resetAt: new Date(Date.now() + 12 * 60 * 60 * 1000), // 12 hours from now
+          isMockData: true,
+          dataSource: 'mock',
+          lastUpdated: new Date(),
+          reliability: 'low',
+          errorMessage: "Gemini APIは使用量情報を提供していないため、推定データを表示しています"
         });
       }
     } catch (error) {

@@ -11,9 +11,9 @@ type UseBackendHealthOptions = {
   /** 切断検知後のリトライ間隔（ミリ秒）。デフォルト: 2000 */
   retryIntervalMs?: number;
   /** 再接続時に呼ばれるコールバック */
-  onReconnect?: () => void;
+  onReconnectAction?: () => void;
   /** 切断時に呼ばれるコールバック */
-  onDisconnect?: () => void;
+  onDisconnectAction?: () => void;
 };
 
 /**
@@ -24,22 +24,22 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
   const {
     intervalMs = 5000,
     retryIntervalMs = 2000,
-    onReconnect,
-    onDisconnect,
+    onReconnectAction,
+    onDisconnectAction,
   } = options;
 
   const [status, setStatus] = useState<BackendHealthStatus>('checking');
   const wasDisconnectedRef = useRef(false);
-  const onReconnectRef = useRef(onReconnect);
-  const onDisconnectRef = useRef(onDisconnect);
+  const onReconnectRef = useRef(onReconnectAction);
+  const onDisconnectRef = useRef(onDisconnectAction);
 
   useEffect(() => {
-    onReconnectRef.current = onReconnect;
-  }, [onReconnect]);
+    onReconnectRef.current = onReconnectAction;
+  }, [onReconnectAction]);
 
   useEffect(() => {
-    onDisconnectRef.current = onDisconnect;
-  }, [onDisconnect]);
+    onDisconnectRef.current = onDisconnectAction;
+  }, [onDisconnectAction]);
 
   const checkHealth = useCallback(async () => {
     try {

@@ -13,7 +13,7 @@ import {
 export type { ButtonVariant, ButtonSize };
 
 type Props = {
-  onClick?: () => void;
+  onClickAction?: () => void;
   children?: React.ReactNode;
   className?: string;
   title?: string;
@@ -28,7 +28,7 @@ type Props = {
 };
 
 export default function Button({
-  onClick,
+  onClickAction,
   children,
   className = '',
   title,
@@ -64,7 +64,7 @@ export default function Button({
   return (
     <button
       type={type}
-      onClick={onClick}
+      onClick={onClickAction}
       title={title}
       disabled={disabled || loading}
       className={`${base} ${variantStyles[variant]} ${buttonSizeStyles[size]} ${disabledStyles} ${widthStyle} ${className}`}
