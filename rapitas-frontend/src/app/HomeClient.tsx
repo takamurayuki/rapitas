@@ -20,12 +20,12 @@ import {
   renderStatusIcon,
 } from '@/feature/tasks/config/StatusConfig';
 import {
+  priorityConfig,
+} from '@/feature/tasks/components/PriorityIcon';
+import {
   SwatchBook,
   Star,
   ChevronDown,
-  ChevronsUpDown,
-  ChevronUp,
-  ChevronsUp,
   FolderKanban,
   Plus,
   ChevronLeft,
@@ -1197,21 +1197,15 @@ function HomeClientPage() {
                       STATUS:
                     </span>
                     <div className="flex items-center">
-                      {['all', 'todo', 'in-progress', 'done'].map(
-                        (status, idx) => {
-                          const statusConfigLocal = {
-                            all: { label: 'ALL', color: 'amber' },
-                            todo: { label: 'TODO', color: 'slate' },
-                            'in-progress': {
-                              label: 'IN_PROGRESS',
-                              color: 'blue',
-                            },
-                            done: { label: 'DONE', color: 'green' },
-                          };
-                          const config =
-                            statusConfigLocal[
-                              status as keyof typeof statusConfigLocal
-                            ];
+                      {[
+                        { value: 'all', label: '全て', color: 'amber' },
+                        { value: 'todo', label: statusConfig.todo.label, color: 'slate' },
+                        { value: 'in-progress', label: statusConfig['in-progress'].label, color: 'blue' },
+                        { value: 'done', label: statusConfig.done.label, color: 'green' },
+                      ].map(
+                        (statusItem, idx) => {
+                          const status = statusItem.value;
+                          const config = statusItem;
                           const count = statusCounts[status] || 0;
                           const isActive = filter === status;
 
@@ -1275,39 +1269,18 @@ function HomeClientPage() {
                       {[
                         {
                           value: '',
-                          label: 'ALL',
+                          label: '全て',
                           icon: null,
                           iconColor: '',
                           bgColor: 'amber',
                         },
-                        {
-                          value: 'urgent',
-                          label: 'URGENT',
-                          icon: <ChevronsUp className="w-3 h-3" />,
-                          iconColor: 'text-red-500',
-                          bgColor: 'red',
-                        },
-                        {
-                          value: 'high',
-                          label: 'HIGH',
-                          icon: <ChevronUp className="w-3 h-3" />,
-                          iconColor: 'text-orange-500',
-                          bgColor: 'orange',
-                        },
-                        {
-                          value: 'medium',
-                          label: 'MEDIUM',
-                          icon: <ChevronsUpDown className="w-3 h-3" />,
-                          iconColor: 'text-blue-500',
-                          bgColor: 'blue',
-                        },
-                        {
-                          value: 'low',
-                          label: 'LOW',
-                          icon: <ChevronDown className="w-3 h-3" />,
-                          iconColor: 'text-slate-400',
-                          bgColor: 'slate',
-                        },
+                        ...(Object.entries(priorityConfig) as Array<[keyof typeof priorityConfig, typeof priorityConfig[keyof typeof priorityConfig]]>).map(([key, config]) => ({
+                          value: key,
+                          label: config.title,
+                          icon: <config.Icon className="w-3 h-3" />,
+                          iconColor: config.color,
+                          bgColor: key === 'urgent' ? 'red' : key === 'high' ? 'orange' : key === 'medium' ? 'blue' : 'slate',
+                        })),
                       ].map((priority, idx) => (
                         <div key={priority.value} className="flex items-center">
                           <button

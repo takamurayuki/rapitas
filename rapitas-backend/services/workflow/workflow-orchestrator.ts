@@ -373,23 +373,34 @@ export class WorkflowOrchestrator {
     const currentWfStatus = updatedTask?.workflowStatus || 'draft';
 
     // ファイルが保存されたか確認
+    // CLIエージェントがcurl等でワークフローAPIを呼んでファイル保存した場合、
+    // git diffには反映されないためagentが「コード変更なし」と判定して失敗扱いにすることがある。
+    // ファイルが実際に存在すればワークフローとしては成功とみなす。
+    let effectiveSuccess = result.success;
     if (transition.outputFile) {
       const fileContent = await readWorkflowFile(workflowDir, transition.outputFile);
-      if (fileContent && currentWfStatus !== transition.nextStatus) {
-        // ファイルは存在するがステータスが更新されていない場合、手動で更新
-        await prisma.task.update({
-          where: { id: taskId },
-          data: { workflowStatus: transition.nextStatus },
-        });
+      if (fileContent) {
+        if (currentWfStatus !== transition.nextStatus) {
+          // ファイルは存在するがステータスが更新されていない場合、手動で更新
+          await prisma.task.update({
+            where: { id: taskId },
+            data: { workflowStatus: transition.nextStatus },
+          });
+        }
+        // ファイルが保存されていれば、エージェントの成否に関わらずワークフローとしては成功
+        if (!effectiveSuccess) {
+          console.log(`[WorkflowOrchestrator] Agent reported failure but ${transition.outputFile}.md exists, treating as success`);
+          effectiveSuccess = true;
+        }
       }
     }
 
     return {
-      success: result.success,
+      success: effectiveSuccess,
       role: transition.role,
       status: transition.nextStatus,
       output: result.output,
-      error: result.success ? undefined : result.errorMessage,
+      error: effectiveSuccess ? undefined : result.errorMessage,
     };
   }
 

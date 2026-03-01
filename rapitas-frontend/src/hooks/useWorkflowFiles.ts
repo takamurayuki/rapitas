@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { WorkflowFile, WorkflowFileType, WorkflowStatus, WorkflowPathInfo } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 
@@ -17,11 +17,15 @@ export function useWorkflowFiles(taskId: number | null) {
   const [workflowPath, setWorkflowPath] = useState<WorkflowPathInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isInitialFetch = useRef(true);
 
   const fetchFiles = useCallback(async () => {
     if (!taskId) return;
 
-    setIsLoading(true);
+    // 初回取得時のみローディング表示（refetch時は前のデータを保持したまま更新）
+    if (isInitialFetch.current) {
+      setIsLoading(true);
+    }
     setError(null);
 
     try {
@@ -42,10 +46,16 @@ export function useWorkflowFiles(taskId: number | null) {
       setError(err instanceof Error ? err.message : 'ワークフローファイルの取得に失敗しました');
     } finally {
       setIsLoading(false);
+      isInitialFetch.current = false;
     }
   }, [taskId]);
 
+  // taskIdが変わった場合はinitial fetchに戻す
   useEffect(() => {
+    isInitialFetch.current = true;
+    setFiles(null);
+    setWorkflowStatus(null);
+    setWorkflowPath(null);
     fetchFiles();
   }, [fetchFiles]);
 

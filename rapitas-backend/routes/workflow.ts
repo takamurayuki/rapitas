@@ -229,10 +229,27 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         },
       });
 
+      // 承認された場合、自動的に実装フェーズを開始する
+      if (parsedBody.approved) {
+        try {
+          const { WorkflowOrchestrator } = await import('../services/workflow/workflow-orchestrator');
+          const orchestrator = WorkflowOrchestrator.getInstance();
+          // 非同期で実装フェーズを開始（レスポンスを待たない）
+          orchestrator.advanceWorkflow(taskId).then((result) => {
+            console.log(`[Workflow] Auto-advance after approval for task ${taskId}:`, result.success ? 'success' : result.error);
+          }).catch((err) => {
+            console.error(`[Workflow] Auto-advance after approval failed for task ${taskId}:`, err);
+          });
+        } catch (err) {
+          console.error('[Workflow] Failed to auto-advance after approval:', err);
+        }
+      }
+
       return {
         success: true,
         task: updatedTask,
         workflowStatus: newStatus,
+        autoAdvance: parsedBody.approved, // フロントエンドにauto-advanceが開始されたことを通知
       };
     } catch (err) {
       console.error('Error approving plan:', err);

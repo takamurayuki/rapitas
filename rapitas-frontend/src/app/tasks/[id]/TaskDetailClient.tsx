@@ -129,6 +129,7 @@ function TaskDetailClient({
   const containerRef = useRef<HTMLDivElement>(null);
   const skeletonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skeletonStartRef = useRef<number>(Date.now());
+  const taskLoadedRef = useRef(false);
 
   // 編集フォーム用の状態
   const [editTitle, setEditTitle] = useState('');
@@ -289,6 +290,7 @@ function TaskDetailClient({
     }
     refetchWorkflowFiles();
     setShowPlanApprovalModal(false);
+    // 承認された場合、バックエンドが自動的に実装フェーズを開始する（approve-planエンドポイント内でadvanceが呼ばれる）
   };
 
   const handleWorkflowComplete = async () => {
@@ -359,15 +361,20 @@ function TaskDetailClient({
   useEffect(() => {
     const SKELETON_MIN_DURATION = 400; // スケルトン最低表示時間(ms)
 
+    const isInitialLoad = !taskLoadedRef.current;
     const fetchTask = async () => {
       try {
-        setLoading(true);
-        setShowSkeleton(true);
-        skeletonStartRef.current = Date.now();
+        // 初回ロード時のみスケルトン/ローディングを表示（再取得時はちらつき防止のため表示しない）
+        if (isInitialLoad) {
+          setLoading(true);
+          setShowSkeleton(true);
+          skeletonStartRef.current = Date.now();
+        }
         const data = await apiFetch<Task>(`/tasks/${resolvedTaskId}`, {
           cacheTime: 24 * 60 * 60 * 1000, // 24時間キャッシュ
         });
         setTask(data);
+        taskLoadedRef.current = true;
 
         // タスクアクセスを記録（次回起動時のウォームアップ用）
         if (resolvedTaskId) {
@@ -379,16 +386,18 @@ function TaskDetailClient({
       } catch (err) {
         setError(err instanceof Error ? err.message : 'タスクの取得に失敗しました');
       } finally {
-        setLoading(false);
-        // スケルトン最低表示時間を保証
-        const elapsed = Date.now() - skeletonStartRef.current;
-        const remaining = SKELETON_MIN_DURATION - elapsed;
-        if (remaining > 0) {
-          skeletonTimerRef.current = setTimeout(() => {
+        if (isInitialLoad) {
+          setLoading(false);
+          // スケルトン最低表示時間を保証
+          const elapsed = Date.now() - skeletonStartRef.current;
+          const remaining = SKELETON_MIN_DURATION - elapsed;
+          if (remaining > 0) {
+            skeletonTimerRef.current = setTimeout(() => {
+              setShowSkeleton(false);
+            }, remaining);
+          } else {
             setShowSkeleton(false);
-          }, remaining);
-        } else {
-          setShowSkeleton(false);
+          }
         }
       }
     };
@@ -1495,9 +1504,7 @@ function TaskDetailClient({
                         size="sm"
                       />
                     </div>
-                    {isWorkflowLoading && (
-                      <Loader2 className="h-4 w-4 text-zinc-400 animate-spin" />
-                    )}
+                    <Loader2 className={`h-4 w-4 text-zinc-400 animate-spin transition-opacity ${isWorkflowLoading ? 'opacity-100' : 'opacity-0'}`} />
                   </div>
                   {currentWorkflowStatus && (
                     <div className="mt-3">
@@ -1513,7 +1520,6 @@ function TaskDetailClient({
                   onCompleteRequest={handleWorkflowComplete}
                   onStatusChange={(newStatus) => {
                     setCurrentWorkflowStatus(newStatus);
-                    refetchWorkflowFiles();
                     if (onTaskUpdated) onTaskUpdated();
                   }}
                 />

@@ -186,6 +186,13 @@ export default function WorkflowViewer({
     }
   }, [fetchedStatus, workflowStatus, stopPolling]);
 
+  // plan_approved になったらバックエンドが自動advanceするので、ポーリング開始
+  useEffect(() => {
+    if (effectiveStatus === 'plan_approved' && !pollingRef.current) {
+      startPolling(3000);
+    }
+  }, [effectiveStatus, startPolling]);
+
   const activeFile = useMemo(() => {
     if (!files) return null;
     return files[activeTab];
@@ -427,7 +434,7 @@ export default function WorkflowViewer({
 
       {/* コンテンツエリア */}
       <div className="p-5">
-        {isLoading ? (
+        {isLoading && !files ? (
           <div className="flex items-center justify-center h-32">
             <Loader2 className="h-5 w-5 text-zinc-400 animate-spin mr-2" />
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
