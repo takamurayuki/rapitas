@@ -70,6 +70,14 @@ import { cacheManager } from '@/lib/cache-utils';
 import { recordTaskAccess } from '@/lib/cache-warmup';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
 import { requireAuth } from '@/contexts/AuthContext';
+import type { WorkflowStatus } from '@/types';
+import WorkflowViewer from '@/components/workflow/WorkflowViewer';
+import PlanApprovalModal from '@/components/workflow/PlanApprovalModal';
+import WorkflowStatusIndicator, {
+  WorkflowProgress,
+} from '@/components/workflow/WorkflowStatusIndicator';
+import { useWorkflowFiles } from '@/hooks/useWorkflowFiles';
+import { Loader2 } from 'lucide-react';
 
 const API_BASE = API_BASE_URL;
 
@@ -208,6 +216,62 @@ function TaskDetailClient({
   const [pendingApprovalId, setPendingApprovalId] = useState<number | null>(
     null,
   );
+
+  // ワークフロー関連の状態
+  const [showPlanApprovalModal, setShowPlanApprovalModal] = useState(false);
+  const [currentWorkflowStatus, setCurrentWorkflowStatus] =
+    useState<WorkflowStatus | null>(null);
+
+  const {
+    files: workflowFiles,
+    workflowStatus,
+    isLoading: isWorkflowLoading,
+    error: workflowError,
+    refetch: refetchWorkflowFiles,
+    hasAnyFile: hasAnyWorkflowFile,
+  } = useWorkflowFiles(taskId || null);
+
+  // ワークフローステータスの同期
+  useEffect(() => {
+    if (workflowStatus && workflowStatus !== currentWorkflowStatus) {
+      setCurrentWorkflowStatus(workflowStatus);
+    }
+  }, [workflowStatus]);
+
+  const handlePlanApprovalRequest = () => {
+    setShowPlanApprovalModal(true);
+  };
+
+  const handleApprovalComplete = (approved: boolean, newStatus?: string) => {
+    if (approved && newStatus) {
+      setCurrentWorkflowStatus(newStatus as WorkflowStatus);
+      if (onTaskUpdated) onTaskUpdated();
+    }
+    refetchWorkflowFiles();
+    setShowPlanApprovalModal(false);
+  };
+
+  const handleWorkflowComplete = async () => {
+    if (!taskId) return;
+    try {
+      const response = await fetch(
+        `${API_BASE}/workflow/tasks/${taskId}/status`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'completed' }),
+        },
+      );
+      const data = await response.json();
+      if (data.success) {
+        setCurrentWorkflowStatus('completed');
+        refetchWorkflowFiles();
+        if (onTaskUpdated) onTaskUpdated();
+      }
+    } catch (err) {
+      console.error('Error completing workflow:', err);
+    }
+  };
 
   // グローバル設定の状態
   const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(
@@ -1039,13 +1103,17 @@ function TaskDetailClient({
 
             {!isEditing ? (
               <>
-                <Button
-                  onClick={startEditing}
-                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl hover:border-gray-300 dark:hover:border-gray-700 transition-all"
-                >
-                  <Pencil className="w-4 h-4" />
-                  編集
-                </Button>
+                <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400">
+                  <button
+                    onClick={startEditing}
+                    className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-all cursor-pointer"
+                  >
+                    <Pencil className="w-4 h-4" />
+                    <span className="font-mono text-xs font-black tracking-tight">
+                      編集
+                    </span>
+                  </button>
+                </div>
                 <DropdownMenu
                   items={[
                     {
@@ -1069,19 +1137,28 @@ function TaskDetailClient({
               </>
             ) : (
               <>
-                <button
-                  onClick={saveTask}
-                  className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg transition-colors"
-                >
-                  <Save className="w-4 h-4" />
-                  保存
-                </button>
-                <button
-                  onClick={cancelEditing}
-                  className="px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"
-                >
-                  キャンセル
-                </button>
+                <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-green-500 dark:hover:border-green-400">
+                  <button
+                    onClick={saveTask}
+                    className="flex items-center gap-2 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-all cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span className="font-mono text-xs font-black tracking-tight">
+                      保存
+                    </span>
+                  </button>
+                </div>
+                <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400">
+                  <button
+                    onClick={cancelEditing}
+                    className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                    <span className="font-mono text-xs font-black tracking-tight">
+                      キャンセル
+                    </span>
+                  </button>
+                </div>
               </>
             )}
           </div>
@@ -1381,6 +1458,55 @@ function TaskDetailClient({
               </div>
             )}
 
+            {/* Workflow Section - 開発テーマのみ表示 */}
+            {task.theme?.isDevelopment === true && (
+              <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden mb-6">
+                <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                        ワークフロー
+                      </h3>
+                      <WorkflowStatusIndicator
+                        status={currentWorkflowStatus}
+                        size="sm"
+                      />
+                    </div>
+                    {isWorkflowLoading && (
+                      <Loader2 className="h-4 w-4 text-zinc-400 animate-spin" />
+                    )}
+                  </div>
+                  {currentWorkflowStatus && (
+                    <div className="mt-3">
+                      <WorkflowProgress currentStatus={currentWorkflowStatus} />
+                    </div>
+                  )}
+                </div>
+
+                <WorkflowViewer
+                  taskId={taskId}
+                  workflowStatus={currentWorkflowStatus}
+                  onPlanApprovalRequest={handlePlanApprovalRequest}
+                  onCompleteRequest={handleWorkflowComplete}
+                  onStatusChange={(newStatus) => {
+                    setCurrentWorkflowStatus(newStatus);
+                    refetchWorkflowFiles();
+                    if (onTaskUpdated) onTaskUpdated();
+                  }}
+                />
+
+                {workflowError && (
+                  <div className="px-4 pb-4">
+                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                      <p className="text-sm text-red-700 dark:text-red-300">
+                        {workflowError}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Subtasks Section (AI生成含む) - アコーディオン表示 */}
             {task.subtasks && task.subtasks.length > 0 && (
               <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden mb-6">
@@ -1463,31 +1589,39 @@ function TaskDetailClient({
                               : '全選択'}
                           </button>
                           {selectedSubtaskIds.size > 0 && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowSubtaskDeleteConfirm('selected');
-                              }}
-                              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              {selectedSubtaskIds.size}件削除
-                            </button>
+                            <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowSubtaskDeleteConfirm('selected');
+                                }}
+                                className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all cursor-pointer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                <span className="font-mono text-xs font-black tracking-tight">
+                                  {selectedSubtaskIds.size}件削除
+                                </span>
+                              </button>
+                            </div>
                           )}
                         </>
                       )}
                       {/* 一括削除ボタン */}
                       {!isSubtaskSelectionMode && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowSubtaskDeleteConfirm('all');
-                          }}
-                          className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          全削除
-                        </button>
+                        <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowSubtaskDeleteConfirm('all');
+                            }}
+                            className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span className="font-mono text-xs font-black tracking-tight">
+                              全削除
+                            </span>
+                          </button>
+                        </div>
                       )}
                       {/* アコーディオントグル */}
                       <button
@@ -1514,22 +1648,32 @@ function TaskDetailClient({
                         : `選択した${selectedSubtaskIds.size}件のサブタスクを削除しますか？この操作は取り消せません。`}
                     </p>
                     <div className="flex gap-2">
-                      <button
-                        onClick={
-                          showSubtaskDeleteConfirm === 'all'
-                            ? handleDeleteAllSubtasks
-                            : handleDeleteSelectedSubtasks
-                        }
-                        className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-                      >
-                        削除する
-                      </button>
-                      <button
-                        onClick={() => setShowSubtaskDeleteConfirm(null)}
-                        className="px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                      >
-                        キャンセル
-                      </button>
+                      <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400">
+                        <button
+                          onClick={
+                            showSubtaskDeleteConfirm === 'all'
+                              ? handleDeleteAllSubtasks
+                              : handleDeleteSelectedSubtasks
+                          }
+                          className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span className="font-mono text-xs font-black tracking-tight">
+                            削除する
+                          </span>
+                        </button>
+                      </div>
+                      <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400">
+                        <button
+                          onClick={() => setShowSubtaskDeleteConfirm(null)}
+                          className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                          <span className="font-mono text-xs font-black tracking-tight">
+                            キャンセル
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1568,21 +1712,29 @@ function TaskDetailClient({
                               rows={3}
                             />
                             <div className="flex items-center gap-2">
-                              <button
-                                onClick={saveSubtaskEdit}
-                                disabled={!editingSubtaskTitle.trim()}
-                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                              >
-                                <Check className="w-4 h-4" />
-                                保存
-                              </button>
-                              <button
-                                onClick={cancelEditingSubtask}
-                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors"
-                              >
-                                <X className="w-4 h-4" />
-                                キャンセル
-                              </button>
+                              <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!editingSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-green-500 dark:hover:border-green-400'}`}>
+                                <button
+                                  onClick={saveSubtaskEdit}
+                                  disabled={!editingSubtaskTitle.trim()}
+                                  className={`flex items-center gap-2 transition-all ${!editingSubtaskTitle.trim() ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 cursor-pointer'}`}
+                                >
+                                  <Check className="w-4 h-4" />
+                                  <span className="font-mono text-xs font-black tracking-tight">
+                                    保存
+                                  </span>
+                                </button>
+                              </div>
+                              <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400">
+                                <button
+                                  onClick={cancelEditingSubtask}
+                                  className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
+                                >
+                                  <X className="w-4 h-4" />
+                                  <span className="font-mono text-xs font-black tracking-tight">
+                                    キャンセル
+                                  </span>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ) : (
@@ -1669,13 +1821,15 @@ function TaskDetailClient({
                                 },
                               )}
                               {/* 編集ボタン */}
-                              <button
-                                onClick={() => startEditingSubtask(subtask)}
-                                className="w-6 h-6 rounded flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-                                title="編集"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 shadow-sm transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400">
+                                <button
+                                  onClick={() => startEditingSubtask(subtask)}
+                                  className="flex items-center justify-center text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-all cursor-pointer"
+                                  title="編集"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -1766,6 +1920,17 @@ function TaskDetailClient({
             // テンプレート保存成功時の通知（任意）
             alert('テンプレートとして保存しました');
           }}
+        />
+      )}
+
+      {/* Plan Approval Modal */}
+      {workflowFiles?.plan && (
+        <PlanApprovalModal
+          isOpen={showPlanApprovalModal}
+          onClose={() => setShowPlanApprovalModal(false)}
+          taskId={taskId}
+          planFile={workflowFiles.plan}
+          onApprovalComplete={handleApprovalComplete}
         />
       )}
     </div>

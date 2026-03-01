@@ -115,7 +115,8 @@ model Task {
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
   userBehaviors         UserBehavior[]
-  workingDirectory      String? 
+  workingDirectory      String?
+  workflowStatus        String?
 }
 
 model TimeEntry {
@@ -546,6 +547,7 @@ model AIAgentConfig {
   executions              AgentExecution[]
   taskAnalysisConfigs     TaskAnalysisConfig[]
   agentExecutionConfigs   AgentExecutionConfig[]
+  workflowRoles           WorkflowRoleConfig[]
 }
 
 model AgentExecution {
@@ -933,5 +935,18 @@ model UserSession {
   @@index([userId])
   @@index([sessionToken])
   @@index([expiresAt])
+}
+
+model WorkflowRoleConfig {
+  id              Int            @id @default(autoincrement())
+  role            String         @unique
+  agentConfigId   Int?
+  agentConfig     AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
+  modelId         String?
+  systemPromptKey String?
+  isEnabled       Boolean        @default(true)
+  metadata        String         @default("{}")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 }
 

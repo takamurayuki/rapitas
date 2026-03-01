@@ -1281,9 +1281,22 @@ export class ClaudeCodeAgent extends BaseAgent {
     const analysis = task.analysisInfo;
 
     if (!analysis) {
-      // 分析結果がない場合は従来通りの単純なプロンプト（計画モード禁止の指示を付加）
+      // 分析結果がない場合は従来通りの単純なプロンプト（ワークフロー指示を付加）
       const basePrompt = task.description || task.title;
-      return `${basePrompt}\n\n重要: 計画モード（EnterPlanMode）は使用せず、直接コードの実装を行ってください。計画を立てるだけで終わらず、必ずファイルの作成・編集まで完了させてください。`;
+      const workflowInstructions = [
+        `\n\n## ワークフロー手順`,
+        `以下の手順でタスクを実行してください：`,
+        `1. 調査 → research.md保存`,
+        `2. 不明点があれば question.md保存 + AskUserQuestion`,
+        `3. plan.md作成・保存 → **承認待ちのため実装停止**`,
+        `4. 承認後に実装`,
+        `5. verify.md保存`,
+        ``,
+        `**ファイル保存API**: \`curl -X PUT http://localhost:3001/workflow/tasks/${task.id}/files/{research|question|plan|verify} -H 'Content-Type: application/json' -d '{"content":"..."}\`\``,
+        ``,
+        `重要: 計画モード（EnterPlanMode）は使用せず、直接コードの実装を行ってください。計画を立てるだけで終わらず、必ずファイルの作成・編集まで完了させてください。`,
+      ].join('\n');
+      return basePrompt + workflowInstructions;
     }
 
     // 優先度のマッピング
@@ -1372,6 +1385,34 @@ export class ClaudeCodeAgent extends BaseAgent {
       }
       sections.push("");
     }
+
+    // ワークフロー指示
+    sections.push("## ワークフロー手順");
+    sections.push("以下の手順でワークフローファイルを作成しながらタスクを実行してください：");
+    sections.push("");
+    sections.push("1. **調査**: コードベースを調査し、結果をresearch.mdとして保存");
+    sections.push("2. **質問**: 不明点があればquestion.mdとして保存し、AskUserQuestionで質問。不明点がなければスキップ");
+    sections.push("3. **計画**: 調査結果と回答を反映してplan.mdを作成・保存。**plan.md保存後は承認を待つため、ここで実装を停止してください**");
+    sections.push("4. **実装**: ユーザーが計画を承認した後に実装を行う（この段階では質問しない）");
+    sections.push("5. **検証**: 実装結果をverify.mdとして保存");
+    sections.push("");
+    sections.push("### ワークフローファイルの保存方法");
+    sections.push("**重要**: ワークフローファイルは必ず以下のAPIを使って保存してください。直接ファイルシステムにmkdir/Write等で作成しないでください。");
+    sections.push("");
+    sections.push("```bash");
+    sections.push(`# research.md を保存`);
+    sections.push(`curl -X PUT http://localhost:3001/workflow/tasks/${task.id}/files/research -H 'Content-Type: application/json' -d '{"content":"# 調査結果\\n..."}'`);
+    sections.push("");
+    sections.push(`# question.md を保存`);
+    sections.push(`curl -X PUT http://localhost:3001/workflow/tasks/${task.id}/files/question -H 'Content-Type: application/json' -d '{"content":"# 不明点\\n..."}'`);
+    sections.push("");
+    sections.push(`# plan.md を保存`);
+    sections.push(`curl -X PUT http://localhost:3001/workflow/tasks/${task.id}/files/plan -H 'Content-Type: application/json' -d '{"content":"# 実装計画\\n..."}'`);
+    sections.push("");
+    sections.push(`# verify.md を保存`);
+    sections.push(`curl -X PUT http://localhost:3001/workflow/tasks/${task.id}/files/verify -H 'Content-Type: application/json' -d '{"content":"# 検証レポート\\n..."}'`);
+    sections.push("```");
+    sections.push("");
 
     // 実行指示
     sections.push("## 実行指示");

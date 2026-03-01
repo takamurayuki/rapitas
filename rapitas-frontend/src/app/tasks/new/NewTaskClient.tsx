@@ -547,38 +547,52 @@ function NewTaskClient() {
       {/* Header */}
       <div className="max-w-2xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-medium">戻る</span>
-          </button>
+          <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400">
+            <button
+              onClick={() => router.back()}
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="font-mono text-xs font-black tracking-tight">戻る</span>
+            </button>
+          </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowTemplateDialog(true)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                appliedTemplate
-                  ? 'bg-blue-100 dark:bg-blue-900/50 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-700'
-                  : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-violet-400 dark:hover:border-violet-600 hover:text-violet-600 dark:hover:text-violet-400'
-              }`}
-            >
-              <FileStack className="w-4 h-4" />
-              {appliedTemplate ? appliedTemplate.name : 'テンプレート'}
-            </button>
-            <button
-              onClick={(e) => handleSubmit(e)}
-              disabled={!title.trim() || isSubmitting}
-              className="px-5 py-2 bg-blue-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:bg-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isSubmitting ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <Plus className="w-4 h-4" />
-              )}
-              作成
-            </button>
+            <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${
+              appliedTemplate
+                ? 'border-purple-500 dark:border-purple-400'
+                : 'hover:border-purple-500 dark:hover:border-purple-400'
+            }`}>
+              <button
+                type="button"
+                onClick={() => setShowTemplateDialog(true)}
+                className={`flex items-center gap-2 transition-all cursor-pointer ${
+                  appliedTemplate
+                    ? 'text-purple-700 dark:text-purple-300'
+                    : 'text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300'
+                }`}
+              >
+                <FileStack className="w-4 h-4" />
+                <span className="font-mono text-xs font-black tracking-tight">
+                  {appliedTemplate ? appliedTemplate.name : 'テンプレート'}
+                </span>
+              </button>
+            </div>
+            <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${(!title.trim() || isSubmitting) ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'}`}>
+              <button
+                onClick={(e) => handleSubmit(e)}
+                disabled={!title.trim() || isSubmitting}
+                className={`flex items-center gap-2 transition-all ${(!title.trim() || isSubmitting) ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer'}`}
+              >
+                {isSubmitting ? (
+                  <div className="w-4 h-4 border-2 border-slate-300 dark:border-slate-600 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4" />
+                )}
+                <span className="font-mono text-xs font-black tracking-tight">
+                  作成
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -611,25 +625,31 @@ function NewTaskClient() {
               >
                 <div className="flex items-center gap-1">
                   {priorityOptions.map((opt) => (
-                    <button
+                    <div
                       key={opt.value}
-                      type="button"
-                      onClick={() => setPriority(opt.value)}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                      className={`relative overflow-hidden border transition-all duration-300 shadow-sm ${
                         priority === opt.value
-                          ? `${opt.bgColor} text-white shadow-md`
-                          : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700'
-                      }`}
+                          ? `border-slate-500 dark:border-slate-400 ${opt.bgColor}`
+                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-500 dark:hover:border-slate-400'
+                      } px-3 py-2`}
                     >
-                      <span
-                        className={
-                          priority === opt.value ? 'text-white' : opt.iconColor
-                        }
+                      <button
+                        type="button"
+                        onClick={() => setPriority(opt.value)}
+                        className={`flex items-center gap-2 transition-all cursor-pointer ${
+                          priority === opt.value
+                            ? 'text-white'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                        }`}
                       >
-                        {opt.icon}
-                      </span>
-                      {opt.label}
-                    </button>
+                        <span className={priority === opt.value ? 'text-white' : opt.iconColor}>
+                          {opt.icon}
+                        </span>
+                        <span className="font-mono text-xs font-black tracking-tight">
+                          {opt.label}
+                        </span>
+                      </button>
+                    </div>
                   ))}
                 </div>
               </FieldItem>
@@ -706,20 +726,24 @@ function NewTaskClient() {
             icon={<FileText className="w-3.5 h-3.5" />}
             defaultExpanded={true}
             headerExtra={
-              <button
-                type="button"
-                onClick={() => handleGenerateTitle(false)}
-                disabled={!description.trim() || isGeneratingTitle}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-900 disabled:opacity-40 disabled:cursor-not-allowed"
-                title="説明からタイトルを自動生成"
-              >
-                {isGeneratingTitle ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Sparkles className="w-3.5 h-3.5" />
-                )}
-                タイトル生成
-              </button>
+              <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${(!description.trim() || isGeneratingTitle) ? 'opacity-50 cursor-not-allowed' : 'hover:border-violet-500 dark:hover:border-violet-400'}`}>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateTitle(false)}
+                  disabled={!description.trim() || isGeneratingTitle}
+                  className={`flex items-center gap-2 transition-all ${(!description.trim() || isGeneratingTitle) ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 cursor-pointer'}`}
+                  title="説明からタイトルを自動生成"
+                >
+                  {isGeneratingTitle ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                  <span className="font-mono text-xs font-black tracking-tight">
+                    タイトル生成
+                  </span>
+                </button>
+              </div>
             }
           >
             <textarea
@@ -849,14 +873,16 @@ function NewTaskClient() {
                   placeholder="サブタスクを追加..."
                   className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 />
-                <button
-                  type="button"
-                  onClick={addSubtask}
-                  disabled={!newSubtaskTitle.trim()}
-                  className="px-3 py-2 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900 transition-colors disabled:opacity-50"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
+                <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!newSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'}`}>
+                  <button
+                    type="button"
+                    onClick={addSubtask}
+                    disabled={!newSubtaskTitle.trim()}
+                    className={`flex items-center justify-center transition-all ${!newSubtaskTitle.trim() ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer'}`}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           </CompactAccordionGroup>

@@ -71,6 +71,61 @@ export type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
 export type Status = 'todo' | 'in-progress' | 'done';
 
+// ワークフロー関連の型
+export type WorkflowStatus =
+  | 'draft'
+  | 'research_done'
+  | 'plan_created'
+  | 'plan_approved'
+  | 'in_progress'
+  | 'verify_done'
+  | 'completed';
+
+export type WorkflowFileType = 'research' | 'question' | 'plan' | 'verify';
+
+export type WorkflowFile = {
+  type: WorkflowFileType;
+  exists: boolean;
+  content?: string;
+  lastModified?: string;
+  size?: number;
+};
+
+export type WorkflowFilesResponse = {
+  research: WorkflowFile;
+  question: WorkflowFile;
+  plan: WorkflowFile;
+  verify: WorkflowFile;
+  workflowStatus: WorkflowStatus | null;
+  path: WorkflowPathInfo;
+};
+
+export type WorkflowPathInfo = {
+  taskId: number;
+  categoryId: number | null;
+  themeId: number | null;
+  dir: string;
+};
+
+export type WorkflowRole = 'researcher' | 'planner' | 'reviewer' | 'implementer' | 'verifier';
+
+export type WorkflowRoleConfig = {
+  id: number;
+  role: WorkflowRole;
+  agentConfigId: number | null;
+  agentConfig?: {
+    id: number;
+    agentType: string;
+    name: string;
+    modelId: string | null;
+    isActive: boolean;
+  } | null;
+  modelId: string | null;
+  systemPromptKey: string | null;
+  isEnabled: boolean;
+  metadata: string;
+};
+
 export type Label = {
   id: number;
   name: string;
@@ -205,6 +260,7 @@ export type Task = {
   developerModeConfig?: DeveloperModeConfig | null;
   taskAnalysisConfig?: TaskAnalysisConfig | null;
   agentExecutionConfig?: AgentExecutionConfig | null;
+  workflowStatus?: WorkflowStatus | null;
   createdAt: string;
   updatedAt: string;
 };

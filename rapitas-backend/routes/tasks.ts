@@ -1492,10 +1492,17 @@ ${existingTaskList}
         )
         .then(async (result) => {
           if (result.success) {
-            await prisma.task.update({
-              where: { id: taskId },
-              data: { status: "done", completedAt: new Date() },
-            });
+            // ワークフローステータスに基づいてタスクステータスを決定
+            const currentTask = await prisma.task.findUnique({ where: { id: taskId } });
+            const wfStatus = currentTask?.workflowStatus;
+            if (wfStatus && ['plan_created', 'research_done'].includes(wfStatus)) {
+              await prisma.task.update({ where: { id: taskId }, data: { status: "in-progress" } });
+            } else if (wfStatus !== 'in_progress') {
+              await prisma.task.update({
+                where: { id: taskId },
+                data: { status: "done", completedAt: new Date() },
+              });
+            }
             await prisma.agentSession.update({
               where: { id: session.id },
               data: { status: "completed", completedAt: new Date() },
@@ -1654,10 +1661,17 @@ ${existingTaskList}
         )
         .then(async (result) => {
           if (result.success) {
-            await prisma.task.update({
-              where: { id: taskId },
-              data: { status: "done", completedAt: new Date() },
-            });
+            // ワークフローステータスに基づいてタスクステータスを決定
+            const currentTask2 = await prisma.task.findUnique({ where: { id: taskId } });
+            const wfStatus2 = currentTask2?.workflowStatus;
+            if (wfStatus2 && ['plan_created', 'research_done'].includes(wfStatus2)) {
+              await prisma.task.update({ where: { id: taskId }, data: { status: "in-progress" } });
+            } else if (wfStatus2 !== 'in_progress') {
+              await prisma.task.update({
+                where: { id: taskId },
+                data: { status: "done", completedAt: new Date() },
+              });
+            }
             await prisma.agentSession.update({
               where: { id: targetSessionId },
               data: { status: "completed", completedAt: new Date() },

@@ -13,29 +13,12 @@ import {
   Activity,
   AlertTriangle,
   Globe,
-  Code,
-  Search,
   Trash2,
-  Save,
 } from 'lucide-react';
 import type { AIAgentConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { UsageRateLimitGraph } from '@/components/UsageRateLimitGraph';
-
-type RegisteredAgentType = {
-  type: string;
-  name: string;
-  description?: string;
-  capabilities?: {
-    codeGeneration?: boolean;
-    codeReview?: boolean;
-    taskAnalysis?: boolean;
-    fileOperations?: boolean;
-    terminalAccess?: boolean;
-    gitOperations?: boolean;
-    webSearch?: boolean;
-  };
-};
+import WorkflowRolesConfig from '@/components/workflow/WorkflowRolesConfig';
 
 type ModelOption = {
   value: string;
@@ -83,10 +66,6 @@ function setCachedData<T>(key: string, data: T): void {
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
-  const [agentTypes, setAgentTypes] = useState<{
-    registered: RegisteredAgentType[];
-    available: string[];
-  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -94,49 +73,29 @@ export default function AgentsPage() {
   const [availableModels, setAvailableModels] = useState<
     Record<string, ModelOption[]>
   >({});
-  const [developmentAgent, setDevelopmentAgent] = useState<{
-    type: string;
-    model: string;
-  }>({ type: '', model: '' });
-  const [reviewAgent, setReviewAgent] = useState<{
-    type: string;
-    model: string;
-  }>({ type: '', model: '' });
-  const [savingDevelopmentAgent, setSavingDevelopmentAgent] = useState(false);
-  const [savingReviewAgent, setSavingReviewAgent] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
       // Check cache first
       const cachedAgents = getCachedData<AIAgentConfig[]>(CACHE_KEYS.agents);
-      const cachedTypes = getCachedData<typeof agentTypes>(
-        CACHE_KEYS.agentTypes,
-      );
       const cachedModels = getCachedData<Record<string, ModelOption[]>>(
         CACHE_KEYS.models,
       );
 
-      if (cachedAgents && cachedTypes && cachedModels) {
+      if (cachedAgents && cachedModels) {
         setAgents(cachedAgents);
-        setAgentTypes(cachedTypes);
         setAvailableModels(cachedModels);
         setLoading(false);
 
         // Fetch in background to update cache
         Promise.all([
           fetch(`${API_BASE_URL}/agents/all`),
-          fetch(`${API_BASE_URL}/agents/types`),
           fetch(`${API_BASE_URL}/agents/models`),
-        ]).then(async ([agentsRes, typesRes, modelsRes]) => {
+        ]).then(async ([agentsRes, modelsRes]) => {
           if (agentsRes.ok) {
             const agentsData = await agentsRes.json();
             setAgents(agentsData);
             setCachedData(CACHE_KEYS.agents, agentsData);
-          }
-          if (typesRes.ok) {
-            const typesData = await typesRes.json();
-            setAgentTypes(typesData);
-            setCachedData(CACHE_KEYS.agentTypes, typesData);
           }
           if (modelsRes.ok) {
             const modelsData = await modelsRes.json();
@@ -147,9 +106,8 @@ export default function AgentsPage() {
         return;
       }
 
-      const [agentsRes, typesRes, modelsRes] = await Promise.all([
+      const [agentsRes, modelsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/agents/all`),
-        fetch(`${API_BASE_URL}/agents/types`),
         fetch(`${API_BASE_URL}/agents/models`),
       ]);
 
@@ -157,11 +115,6 @@ export default function AgentsPage() {
         const agentsData = await agentsRes.json();
         setAgents(agentsData);
         setCachedData(CACHE_KEYS.agents, agentsData);
-      }
-      if (typesRes.ok) {
-        const typesData = await typesRes.json();
-        setAgentTypes(typesData);
-        setCachedData(CACHE_KEYS.agentTypes, typesData);
       }
       if (modelsRes.ok) {
         const modelsData = await modelsRes.json();
@@ -178,30 +131,6 @@ export default function AgentsPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  useEffect(() => {
-    // Set default agent selections based on current agents
-    const developmentAgentConfig = agents.find(
-      (a) => a.isActive && a.agentType === 'claude-code',
-    );
-    const reviewAgentConfig = agents.find(
-      (a) => a.isActive && a.capabilities?.codeReview,
-    );
-
-    if (developmentAgentConfig) {
-      setDevelopmentAgent({
-        type: developmentAgentConfig.agentType,
-        model: developmentAgentConfig.modelId || '',
-      });
-    }
-
-    if (reviewAgentConfig) {
-      setReviewAgent({
-        type: reviewAgentConfig.agentType,
-        model: reviewAgentConfig.modelId || '',
-      });
-    }
-  }, [agents]);
 
   const getAgentTypeInfo = (type: string) => {
     const typeInfo: Record<
@@ -261,62 +190,6 @@ export default function AgentsPage() {
     );
   };
 
-  const handleSaveDevelopmentAgent = async () => {
-    if (!developmentAgent.type) return;
-
-    setSavingDevelopmentAgent(true);
-    setError(null);
-    setSuccessMessage(null);
-    try {
-      const res = await fetch(`${API_BASE_URL}/agents/development`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(developmentAgent),
-      });
-      if (!res.ok) {
-        throw new Error('開発エージェントの設定に失敗しました');
-      }
-      setSuccessMessage('開発エージェントの設定を保存しました');
-      // Clear cache to ensure fresh data
-      localStorage.removeItem(CACHE_KEYS.agents);
-      await fetchData();
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました');
-    } finally {
-      setSavingDevelopmentAgent(false);
-    }
-  };
-
-  const handleSaveReviewAgent = async () => {
-    if (!reviewAgent.type) return;
-
-    setSavingReviewAgent(true);
-    setError(null);
-    setSuccessMessage(null);
-    try {
-      const res = await fetch(`${API_BASE_URL}/agents/review`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reviewAgent),
-      });
-      if (!res.ok) {
-        throw new Error('レビューエージェントの設定に失敗しました');
-      }
-      setSuccessMessage('レビューエージェントの設定を保存しました');
-      // Clear cache to ensure fresh data
-      localStorage.removeItem(CACHE_KEYS.agents);
-      await fetchData();
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました');
-    } finally {
-      setSavingReviewAgent(false);
-    }
-  };
-
   const handleDeleteAgent = async (agentId: number) => {
     const agent = agents.find((a) => a.id === agentId);
     if (!agent) return;
@@ -334,10 +207,8 @@ export default function AgentsPage() {
         throw new Error('エージェントの削除に失敗しました');
       }
       setSuccessMessage(`エージェント「${agent.name}」を削除しました`);
-      // Clear cache to ensure fresh data
       localStorage.removeItem(CACHE_KEYS.agents);
       await fetchData();
-      // Clear success message after 3 seconds
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました');
@@ -357,7 +228,7 @@ export default function AgentsPage() {
                 AIエージェント管理
               </h1>
               <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-                利用可能なエージェントタイプを選択し、設定を管理します
+                ワークフローの各フェーズにAIエージェントを割り当て、協調開発を管理します
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -406,192 +277,19 @@ export default function AgentsPage() {
           <UsageRateLimitGraph />
         </div>
 
-        {/* エージェント設定 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* 開発エージェント設定 */}
-          <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-                <Code className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
-                  開発エージェント
-                </h3>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  コード生成・実装用のエージェント
-                </p>
-              </div>
+        {/* ワークフローロール設定 */}
+        <div className="mb-8">
+          <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+            <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700">
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                ワークフローロール設定
+              </h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                各フェーズを担当するAIエージェントとモデルを設定します。成果物（Markdown）をバトンとして渡し、複数のAIが協調して開発を進めます。
+              </p>
             </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  エージェントタイプ
-                </label>
-                <select
-                  value={developmentAgent.type}
-                  onChange={(e) =>
-                    setDevelopmentAgent({
-                      ...developmentAgent,
-                      type: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                >
-                  <option value="">選択してください</option>
-                  {agentTypes?.registered.map((type) => (
-                    <option key={type.type} value={type.type}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {developmentAgent.type &&
-                availableModels[developmentAgent.type] && (
-                  <div>
-                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                      モデル
-                    </label>
-                    <select
-                      value={developmentAgent.model}
-                      onChange={(e) =>
-                        setDevelopmentAgent({
-                          ...developmentAgent,
-                          model: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    >
-                      <option value="">選択してください</option>
-                      {availableModels[developmentAgent.type].map((model) => (
-                        <option key={model.value} value={model.value}>
-                          {model.label}{' '}
-                          {model.description && `- ${model.description}`}
-                        </option>
-                      ))}
-                    </select>
-                    {developmentAgent.type === 'codex' &&
-                      developmentAgent.model === 'gpt-4o' && (
-                        <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
-                          注意:
-                          ChatGPTアカウントではgpt-4oは使用できません。gpt-4-turboまたはgpt-3.5-turboを推奨します。
-                        </p>
-                      )}
-                  </div>
-                )}
-
-              <button
-                onClick={handleSaveDevelopmentAgent}
-                disabled={
-                  !developmentAgent.type ||
-                  !developmentAgent.model ||
-                  savingDevelopmentAgent
-                }
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-              >
-                {savingDevelopmentAgent ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    保存中...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    保存
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* レビュー用エージェント設定 */}
-          <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2.5 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
-                <Search className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
-                  レビュー用エージェント
-                </h3>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  コードレビュー・分析用のエージェント
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  エージェントタイプ
-                </label>
-                <select
-                  value={reviewAgent.type}
-                  onChange={(e) =>
-                    setReviewAgent({ ...reviewAgent, type: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                >
-                  <option value="">選択してください</option>
-                  {agentTypes?.registered.map((type) => (
-                    <option key={type.type} value={type.type}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {reviewAgent.type && availableModels[reviewAgent.type] && (
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    モデル
-                  </label>
-                  <select
-                    value={reviewAgent.model}
-                    onChange={(e) =>
-                      setReviewAgent({ ...reviewAgent, model: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    <option value="">選択してください</option>
-                    {availableModels[reviewAgent.type].map((model) => (
-                      <option key={model.value} value={model.value}>
-                        {model.label}{' '}
-                        {model.description && `- ${model.description}`}
-                      </option>
-                    ))}
-                  </select>
-                  {reviewAgent.type === 'codex' &&
-                    reviewAgent.model === 'gpt-4o' && (
-                      <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
-                        注意:
-                        ChatGPTアカウントではgpt-4oは使用できません。gpt-4-turboまたはgpt-3.5-turboを推奨します。
-                      </p>
-                    )}
-                </div>
-              )}
-
-              <button
-                onClick={handleSaveReviewAgent}
-                disabled={
-                  !reviewAgent.type || !reviewAgent.model || savingReviewAgent
-                }
-                className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-              >
-                {savingReviewAgent ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    保存中...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    保存
-                  </>
-                )}
-              </button>
+            <div className="p-6">
+              <WorkflowRolesConfig agents={agents} availableModels={availableModels} />
             </div>
           </div>
         </div>
@@ -599,7 +297,7 @@ export default function AgentsPage() {
         {/* 利用可能なエージェント一覧 */}
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
-            利用可能なエージェント
+            登録済みエージェント
           </h2>
           <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
             <div className="overflow-x-auto">
@@ -704,7 +402,7 @@ export default function AgentsPage() {
         {/* 使い方ガイド */}
         <div className="p-6 bg-linear-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
-            AIエージェントの使い方
+            ワークフローの使い方
           </h2>
           <div className="grid gap-4 md:grid-cols-3">
             <div className="flex gap-3">
@@ -713,10 +411,10 @@ export default function AgentsPage() {
               </div>
               <div>
                 <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
-                  エージェントを選択
+                  ロールを設定
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  使いたいエージェントを有効化し、デフォルトに設定
+                  各フェーズにAIエージェントとモデルを割り当て
                 </p>
               </div>
             </div>
@@ -726,10 +424,10 @@ export default function AgentsPage() {
               </div>
               <div>
                 <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
-                  開発者モードを有効化
+                  タスクで開始
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  タスクのAI駆動開発モードをONにします
+                  タスク詳細でワークフローを開始し、各フェーズを実行
                 </p>
               </div>
             </div>
@@ -739,10 +437,10 @@ export default function AgentsPage() {
               </div>
               <div>
                 <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
-                  実行を開始
+                  承認して完了
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  「AIで実行」ボタンで実行。エージェントは実行時にも切替可能
+                  計画を承認し実装、検証後にタスクを完了
                 </p>
               </div>
             </div>
