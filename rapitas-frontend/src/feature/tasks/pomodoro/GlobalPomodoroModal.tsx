@@ -22,11 +22,15 @@ import { API_BASE_URL } from '@/utils/api';
 interface GlobalPomodoroModalProps {
   isOpen: boolean;
   onClose: () => void;
+  taskId?: number;
+  taskTitle?: string;
 }
 
 export default function GlobalPomodoroModal({
   isOpen,
   onClose,
+  taskId: propTaskId,
+  taskTitle: propTaskTitle,
 }: GlobalPomodoroModalProps) {
   const state = usePomodoroStore();
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
@@ -48,8 +52,9 @@ export default function GlobalPomodoroModal({
 
   // タスクのtime entriesとタスクデータを取得
   useEffect(() => {
-    if (state.taskId && isOpen) {
-      fetch(`${API_BASE_URL}/tasks/${state.taskId}/time-entries`)
+    const currentTaskId = propTaskId || state.taskId;
+    if (currentTaskId && isOpen) {
+      fetch(`${API_BASE_URL}/tasks/${currentTaskId}/time-entries`)
         .then((res) => {
           if (!res.ok) return [];
           return res.json();
@@ -57,7 +62,7 @@ export default function GlobalPomodoroModal({
         .then((data) => setTimeEntries(data))
         .catch((err) => console.error('Failed to fetch time entries:', err));
 
-      fetch(`${API_BASE_URL}/tasks/${state.taskId}`)
+      fetch(`${API_BASE_URL}/tasks/${currentTaskId}`)
         .then((res) => {
           if (!res.ok) {
             // タスクが見つからない場合はタイマーを停止してモーダルを閉じる
@@ -78,15 +83,22 @@ export default function GlobalPomodoroModal({
         })
         .catch((err) => console.error('Failed to fetch task:', err));
     }
-  }, [state.taskId, isOpen, state.stopTimer, onClose]);
+  }, [propTaskId, state.taskId, isOpen, state.stopTimer, onClose]);
 
   if (!isOpen) return null;
-  if (!state.isTimerRunning || !state.taskId || !state.taskTitle) return null;
   if (!mounted) return null;
 
+  // taskIdとtaskTitleを決定（props優先、fallbackでstore）
+  const currentTaskId = propTaskId || state.taskId;
+  const currentTaskTitle = propTaskTitle || state.taskTitle;
+
+  // タスク情報が不足している場合は表示しない
+  if (!currentTaskId || !currentTaskTitle) return null;
+
   const handleUpdate = () => {
-    if (state.taskId) {
-      fetch(`${API_BASE_URL}/tasks/${state.taskId}/time-entries`)
+    const currentTaskId = propTaskId || state.taskId;
+    if (currentTaskId) {
+      fetch(`${API_BASE_URL}/tasks/${currentTaskId}/time-entries`)
         .then((res) => {
           if (!res.ok) return [];
           return res.json();
@@ -94,7 +106,7 @@ export default function GlobalPomodoroModal({
         .then((data) => setTimeEntries(data))
         .catch((err) => console.error('Failed to fetch time entries:', err));
 
-      fetch(`${API_BASE_URL}/tasks/${state.taskId}`)
+      fetch(`${API_BASE_URL}/tasks/${currentTaskId}`)
         .then((res) => {
           if (!res.ok) {
             // タスクが見つからない場合はタイマーを停止してモーダルを閉じる
@@ -146,11 +158,11 @@ export default function GlobalPomodoroModal({
         {/* タスク名 */}
         <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
           <Link
-            href={getTaskDetailPath(state.taskId)}
+            href={getTaskDetailPath(currentTaskId)}
             className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5 min-w-0"
             onClick={onClose}
           >
-            <span className="truncate">{state.taskTitle}</span>
+            <span className="truncate">{currentTaskTitle}</span>
             <ExternalLink className="w-3.5 h-3.5 shrink-0" />
           </Link>
         </div>
@@ -158,8 +170,8 @@ export default function GlobalPomodoroModal({
         {/* タイマー */}
         <div className="p-4">
           <PomodoroTimer
-            taskId={state.taskId}
-            taskTitle={state.taskTitle}
+            taskId={currentTaskId}
+            taskTitle={currentTaskTitle}
             showTaskTitle={false}
             estimatedHours={taskData?.estimatedHours}
             actualHours={taskData?.actualHours}

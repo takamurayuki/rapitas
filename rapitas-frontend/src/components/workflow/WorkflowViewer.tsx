@@ -179,12 +179,19 @@ export default function WorkflowViewer({
     }
   }, [taskId, refetch, startPolling]);
 
-  // ステータスが変わったらポーリング停止
+  // ステータスが進行したらポーリング停止してrefetch
+  const prevFetchedStatusRef = useRef<WorkflowStatus | null>(null);
   useEffect(() => {
-    if (fetchedStatus && fetchedStatus !== workflowStatus && pollingRef.current) {
+    if (fetchedStatus && fetchedStatus !== prevFetchedStatusRef.current && pollingRef.current) {
+      prevFetchedStatusRef.current = fetchedStatus;
+      // ステータスが変わった = フェーズ完了。ポーリング停止してファイル内容を最新化
       stopPolling();
+      refetch();
     }
-  }, [fetchedStatus, workflowStatus, stopPolling]);
+    if (fetchedStatus && !prevFetchedStatusRef.current) {
+      prevFetchedStatusRef.current = fetchedStatus;
+    }
+  }, [fetchedStatus, stopPolling, refetch]);
 
   // plan_approved になったらバックエンドが自動advanceするので、ポーリング開始
   useEffect(() => {

@@ -93,6 +93,21 @@ export class WorkflowOrchestrator {
   }
 
   /**
+   * タスクのAgentSession作成に必要なDeveloperModeConfigを取得/作成する
+   */
+  private async getOrCreateDevConfig(taskId: number) {
+    let devConfig = await prisma.developerModeConfig.findUnique({
+      where: { taskId },
+    });
+    if (!devConfig) {
+      devConfig = await prisma.developerModeConfig.create({
+        data: { taskId, isEnabled: true },
+      });
+    }
+    return devConfig;
+  }
+
+  /**
    * ワークフローの次のフェーズを実行する
    */
   async advanceWorkflow(taskId: number): Promise<WorkflowAdvanceResult> {
@@ -243,7 +258,7 @@ export class WorkflowOrchestrator {
 
     switch (role) {
       case 'researcher': {
-        return `${taskInfo}\n\n上記のタスクについてコードベースを調査し、research.mdを作成してください。`;
+        return `${taskInfo}\n\n上記のタスクについてコードベースを調査してください。\n\n調査項目:\n- 既存コードの構造と依存関係\n- 変更が必要なファイルの特定\n- 類似実装の有無\n- リスクと影響範囲の評価\n\n調査結果をresearch.mdとしてMarkdown形式でまとめてください。`;
       }
 
       case 'planner': {
@@ -252,7 +267,7 @@ export class WorkflowOrchestrator {
         if (research) {
           ctx += `\n\n# リサーチャーの調査結果 (research.md)\n\n${research}`;
         }
-        ctx += '\n\n上記の調査結果を基に、plan.mdを作成してください。';
+        ctx += '\n\n上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。';
         return ctx;
       }
 
@@ -266,7 +281,7 @@ export class WorkflowOrchestrator {
         if (plan) {
           ctx += `\n\n# 実装計画 (plan.md)\n\n${plan}`;
         }
-        ctx += '\n\n上記の計画をレビューし、リスク・不明点・改善提案をquestion.mdとして作成してください。';
+        ctx += '\n\n上記の計画をレビューし、リスク・不明点・改善提案をquestion.mdとしてMarkdown形式で作成してください。5つ以上の指摘事項を含めてください。';
         return ctx;
       }
 
@@ -284,7 +299,7 @@ export class WorkflowOrchestrator {
         if (question) {
           ctx += `\n\n# レビュー指摘事項 (question.md)\n\n${question}`;
         }
-        ctx += '\n\n上記の計画に従って実装を完了してください。';
+        ctx += '\n\n上記の計画に従って実装を完了してください。計画に記載されたファイルの作成・編集を行い、コードを実装してください。';
         return ctx;
       }
 
@@ -308,7 +323,7 @@ export class WorkflowOrchestrator {
         } catch {
           // git diffが失敗しても続行
         }
-        ctx += '\n\n上記の計画と実装結果を検証し、verify.mdを作成してください。';
+        ctx += '\n\n上記の計画と実装結果を検証し、verify.mdとしてMarkdown形式でレポートを作成してください。\n\n計画チェックリストの消化状況、テスト結果、品質メトリクスを含めてください。';
         return ctx;
       }
 
@@ -331,26 +346,38 @@ export class WorkflowOrchestrator {
   ): Promise<WorkflowAdvanceResult> {
     const orchestrator = AgentOrchestrator.getInstance(prisma);
 
-    // セッション作成
+    // セッション作成（DeveloperModeConfigが必要）
+    const devConfig = await this.getOrCreateDevConfig(taskId);
     const session = await prisma.agentSession.create({
       data: {
-        taskId,
+        configId: devConfig.id,
         mode: `workflow-${transition.role}`,
         status: 'active',
       },
     });
 
-    // ワークフローファイルAPI指示を含むプロンプトを構築
+    // ワークフローディレクトリを事前に作成（エージェントがWriteツールで書き込めるよう）
+    await mkdir(workflowDir, { recursive: true });
+
+    // ワークフローファイルの保存先パスを構築
+    const outputFilePath = transition.outputFile
+      ? join(workflowDir, `${transition.outputFile}.md`).replace(/\\/g, '/')
+      : null;
+
+    // プロンプトを構築
     let fullPrompt = '';
     if (systemPrompt) {
       fullPrompt += `## システム指示\n${systemPrompt}\n\n`;
     }
     fullPrompt += context;
 
-    // CLIエージェントにはファイル保存API指示を追加
-    if (transition.outputFile) {
-      fullPrompt += `\n\n## ファイル保存方法\n以下のAPIを使用して${transition.outputFile}.mdを保存してください：\n`;
-      fullPrompt += `\`\`\`bash\ncurl -X PUT http://localhost:3001/workflow/tasks/${taskId}/files/${transition.outputFile} -H 'Content-Type: application/json' -d '{"content":"<Markdownの内容>"}'\n\`\`\``;
+    // CLIエージェントにはファイルの直接書き込みを指示（Writeツール使用）
+    if (outputFilePath) {
+      fullPrompt += `\n\n## 重要: 結果ファイルの保存\n`;
+      fullPrompt += `調査・分析が完了したら、結果を以下のファイルパスにMarkdown形式で書き込んでください。\n`;
+      fullPrompt += `必ずWriteツールを使用してファイルを作成してください。\n\n`;
+      fullPrompt += `**保存先**: \`${outputFilePath}\`\n\n`;
+      fullPrompt += `ファイルの保存は必須です。計画や分析の出力だけでなく、必ず上記パスにファイルを書き込んでから完了してください。`;
     }
 
     const result = await orchestrator.executeTask(
@@ -368,20 +395,28 @@ export class WorkflowOrchestrator {
       },
     );
 
-    // ワークフローステータス更新（CLIエージェントがAPI経由でファイル保存した場合は自動更新済みの可能性あり）
+    // ワークフローステータス更新
     const updatedTask = await prisma.task.findUnique({ where: { id: taskId } });
     const currentWfStatus = updatedTask?.workflowStatus || 'draft';
 
-    // ファイルが保存されたか確認
-    // CLIエージェントがcurl等でワークフローAPIを呼んでファイル保存した場合、
-    // git diffには反映されないためagentが「コード変更なし」と判定して失敗扱いにすることがある。
-    // ファイルが実際に存在すればワークフローとしては成功とみなす。
     let effectiveSuccess = result.success;
     if (transition.outputFile) {
-      const fileContent = await readWorkflowFile(workflowDir, transition.outputFile);
+      let fileContent = await readWorkflowFile(workflowDir, transition.outputFile);
+
+      // フォールバック: エージェントがWriteツールでファイル保存しなかった場合、
+      // エージェントの出力からMarkdownコンテンツを抽出してファイルに保存する
+      if (!fileContent && result.output && result.output.trim().length > 100) {
+        console.log(`[WorkflowOrchestrator] ${transition.outputFile}.md not found, extracting content from agent output (${result.output.length} chars)`);
+        const extractedContent = this.extractMarkdownFromOutput(result.output, transition.outputFile);
+        if (extractedContent) {
+          await writeWorkflowFile(workflowDir, transition.outputFile, extractedContent);
+          fileContent = extractedContent;
+          console.log(`[WorkflowOrchestrator] Saved extracted content to ${transition.outputFile}.md (${extractedContent.length} chars)`);
+        }
+      }
+
       if (fileContent) {
         if (currentWfStatus !== transition.nextStatus) {
-          // ファイルは存在するがステータスが更新されていない場合、手動で更新
           await prisma.task.update({
             where: { id: taskId },
             data: { workflowStatus: transition.nextStatus },
@@ -423,10 +458,11 @@ export class WorkflowOrchestrator {
     transition: RoleTransition,
     workflowDir: string,
   ): Promise<WorkflowAdvanceResult> {
-    // セッション作成
+    // セッション作成（DeveloperModeConfigが必要）
+    const devConfig = await this.getOrCreateDevConfig(taskId);
     const session = await prisma.agentSession.create({
       data: {
-        taskId,
+        configId: devConfig.id,
         mode: `workflow-${transition.role}`,
         status: 'active',
       },
@@ -598,5 +634,51 @@ export class WorkflowOrchestrator {
       // 暗号化されていない場合はそのまま返す
       return encrypted;
     }
+  }
+
+  /**
+   * エージェント出力からMarkdownコンテンツを抽出する
+   * CLIエージェントの出力にはツール呼び出しログ等が含まれるため、
+   * 実際のMarkdownコンテンツ部分を抽出する。
+   */
+  private extractMarkdownFromOutput(output: string, fileType: string): string | null {
+    // ツール呼び出しログを除去（[Tool: ...] や [Result: ...] 等のパターン）
+    const lines = output.split('\n');
+    const contentLines: string[] = [];
+    let inToolBlock = false;
+
+    for (const line of lines) {
+      // ツール呼び出しの開始/終了を検出
+      if (line.match(/^\[Tool:\s/)) {
+        inToolBlock = true;
+        continue;
+      }
+      if (line.match(/^\[Result:\s/) || line.match(/^\[完了\]/) || line.match(/^\[フェーズ完了\]/)) {
+        inToolBlock = false;
+        continue;
+      }
+      // ステータス行をスキップ
+      if (line.match(/^⏺|^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/)) {
+        continue;
+      }
+      if (!inToolBlock) {
+        contentLines.push(line);
+      }
+    }
+
+    const content = contentLines.join('\n').trim();
+
+    // Markdownとして妥当かチェック（見出しやリスト等が含まれるか）
+    if (content.length < 50) return null;
+    if (!content.match(/^#+\s|^\-\s|^\*\s|^\d+\.\s/m)) {
+      // Markdown構造が見つからない場合、出力全体をそのまま使用
+      // （エージェントがMarkdownを出力したがツールログがなかった場合）
+      if (output.trim().length > 100 && output.match(/^#+\s|^\-\s|^\*\s/m)) {
+        return output.trim();
+      }
+      return null;
+    }
+
+    return content;
   }
 }

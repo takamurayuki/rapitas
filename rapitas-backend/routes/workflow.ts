@@ -310,7 +310,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
   })
 
   // ワークフローの次のフェーズを実行
-  .post('/workflow/tasks/:taskId/advance', async ({ params, set }: { params: { taskId: string }; set: { status: number } }) => {
+  .post('/workflow/tasks/:taskId/advance', async ({ params, set }) => {
     try {
       const taskId = parseInt(params.taskId);
       if (isNaN(taskId)) {

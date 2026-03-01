@@ -1876,6 +1876,8 @@ function TaskDetailClient({
       <GlobalPomodoroModal
         isOpen={showPomodoroModal}
         onClose={() => setShowPomodoroModal(false)}
+        taskId={task?.id}
+        taskTitle={task?.title}
       />
 
       {/* Developer Mode Config Modal */}

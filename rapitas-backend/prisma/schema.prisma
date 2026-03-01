@@ -444,6 +444,7 @@ model AgentSession {
   configId          Int
   config            DeveloperModeConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
   status            String    @default("pending")
+  mode              String?   // セッションモード: "workflow-researcher", "workflow-planner" etc.
   startedAt         DateTime?
   completedAt       DateTime?
   lastActivityAt    DateTime  @default(now())
