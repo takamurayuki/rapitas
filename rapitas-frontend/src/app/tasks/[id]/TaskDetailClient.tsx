@@ -47,7 +47,7 @@ import { SubtaskTitleIndicator } from '@/feature/tasks/components/SubtaskExecuti
 import { useParallelExecutionStatus } from '@/feature/tasks/hooks/useParallelExecutionStatus';
 import { useSubtaskLogs } from '@/feature/tasks/hooks/useSubtaskLogs';
 import { getTaskDetailPath } from '@/utils/tauri';
-import PomodoroTimer from '@/feature/tasks/components/PomodoroTimer';
+import GlobalPomodoroModal from '@/feature/tasks/pomodoro/GlobalPomodoroModal';
 import Button from '@/components/ui/button/Button';
 import {
   usePomodoro,
@@ -1872,61 +1872,11 @@ function TaskDetailClient({
         )}
       </div>
 
-      {/* Pomodoro Modal */}
-      {!isEditing && task && (
-        <div
-          className={`fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity ${showPomodoroModal ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-          onClick={() => setShowPomodoroModal(false)}
-        >
-          <div
-            className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-4xl max-h-[90vh] overflow-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 bg-white dark:bg-indigo-dark-900 border-b border-zinc-200 dark:border-zinc-800 p-5 flex items-center hover:border-gray-300 dark:hover:border-gray-700 justify-between">
-              <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-                <Timer className="w-5 h-5 text-blue-500" />
-                時間管理
-              </h2>
-              <button
-                onClick={() => setShowPomodoroModal(false)}
-                className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-            <div className="p-6">
-              <PomodoroTimer
-                taskId={task.id}
-                taskTitle={task.title}
-                estimatedHours={task.estimatedHours ?? undefined}
-                actualHours={task.actualHours ?? undefined}
-                timeEntries={timeEntries}
-                onUpdate={() => {
-                  fetch(`${API_BASE}/tasks/${resolvedTaskId}`)
-                    .then((res) => res.json())
-                    .then((data) => setTask(data));
-                  fetch(`${API_BASE}/tasks/${resolvedTaskId}/time-entries`)
-                    .then((res) => res.json())
-                    .then((data) => setTimeEntries(data));
-                }}
-                showTaskTitle={false}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Global Pomodoro Modal */}
+      <GlobalPomodoroModal
+        isOpen={showPomodoroModal}
+        onClose={() => setShowPomodoroModal(false)}
+      />
 
       {/* Developer Mode Config Modal */}
       <DeveloperModeConfigModal
