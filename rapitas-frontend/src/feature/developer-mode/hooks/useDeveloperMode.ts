@@ -455,13 +455,7 @@ export function useDeveloperMode(taskId: number) {
             if (parseResult.success) {
               data = parseResult.data;
             } else {
-              console.error('[useDeveloperMode] JSON parse failed:', parseResult.error);
-              console.error('[useDeveloperMode] Response text:', responseText);
-
-              // Check for specific error patterns
-              if (parseResult.error?.includes('Database query error')) {
-                throw new Error('データベースクエリエラーが発生しました。');
-              }
+              console.warn('[useDeveloperMode] JSON parse failed:', parseResult.error);
 
               // If response is empty, it might be still processing
               if (!responseText || responseText.trim() === '') {
@@ -470,39 +464,24 @@ export function useDeveloperMode(taskId: number) {
                 );
               }
 
-              // If it's clearly an error message, use it as is
-              if (responseText.trim().startsWith('Error:') || responseText.trim().startsWith('Invalid')) {
+              // Map known error patterns to user-friendly messages
+              if (parseResult.error?.includes('Database query error')) {
+                data = { error: 'データベースクエリエラーが発生しました。しばらくしてから再度お試しください。' };
+              } else if (responseText.trim().startsWith('Error:') || responseText.trim().startsWith('Invalid')) {
                 data = { error: responseText.trim() };
               } else {
                 data = { error: 'サーバーの応答形式が正しくありません。' };
               }
             }
           } catch (textErr) {
-            console.error(
+            console.warn(
               '[useDeveloperMode] Failed to read response:',
               textErr,
             );
-            // Wait a bit and retry once
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            try {
-              const retryText = await res.clone().text();
-              const retryParseResult = safeJsonParse(retryText);
-
-              if (retryParseResult.success) {
-                data = retryParseResult.data;
-              } else {
-                data = {
-                  error:
-                    'サーバーとの通信中にエラーが発生しました。再度お試しください。',
-                };
-              }
-            } catch (retryErr) {
-              console.error('[useDeveloperMode] Retry also failed:', retryErr);
-              data = {
-                error:
-                  'サーバーとの通信中にエラーが発生しました。再度お試しください。',
-              };
-            }
+            data = {
+              error:
+                'サーバーとの通信中にエラーが発生しました。再度お試しください。',
+            };
           }
 
           if (res.ok) {
@@ -558,13 +537,7 @@ export function useDeveloperMode(taskId: number) {
             if (parseResult.success) {
               data = parseResult.data;
             } else {
-              console.error('[useDeveloperMode] JSON parse failed:', parseResult.error);
-              console.error('[useDeveloperMode] Response text:', responseText);
-
-              // Check for specific error patterns
-              if (parseResult.error?.includes('Database query error')) {
-                throw new Error('データベースクエリエラーが発生しました。');
-              }
+              console.warn('[useDeveloperMode] JSON parse failed:', parseResult.error);
 
               // If response is empty, it might be still processing
               if (!responseText || responseText.trim() === '') {
@@ -573,39 +546,24 @@ export function useDeveloperMode(taskId: number) {
                 );
               }
 
-              // If it's clearly an error message, use it as is
-              if (responseText.trim().startsWith('Error:') || responseText.trim().startsWith('Invalid')) {
+              // Map known error patterns to user-friendly messages
+              if (parseResult.error?.includes('Database query error')) {
+                data = { error: 'データベースクエリエラーが発生しました。しばらくしてから再度お試しください。' };
+              } else if (responseText.trim().startsWith('Error:') || responseText.trim().startsWith('Invalid')) {
                 data = { error: responseText.trim() };
               } else {
                 data = { error: 'サーバーの応答形式が正しくありません。' };
               }
             }
           } catch (textErr) {
-            console.error(
+            console.warn(
               '[useDeveloperMode] Failed to read response:',
               textErr,
             );
-            // Wait a bit and retry once
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            try {
-              const retryText = await res.clone().text();
-              const retryParseResult = safeJsonParse(retryText);
-
-              if (retryParseResult.success) {
-                data = retryParseResult.data;
-              } else {
-                data = {
-                  error:
-                    'サーバーとの通信中にエラーが発生しました。再度お試しください。',
-                };
-              }
-            } catch (retryErr) {
-              console.error('[useDeveloperMode] Retry also failed:', retryErr);
-              data = {
-                error:
-                  'サーバーとの通信中にエラーが発生しました。再度お試しください。',
-              };
-            }
+            data = {
+              error:
+                'サーバーとの通信中にエラーが発生しました。再度お試しください。',
+            };
           }
 
           if (res.ok) {
