@@ -95,6 +95,7 @@ model Task {
   examGoalId            Int?
   examGoal              ExamGoal?     @relation(fields: [examGoalId], references: [id], onDelete: SetNull)
   timeEntries           TimeEntry[]
+  pomodoroSessions      PomodoroSession[]
   comments              Comment[]
   activityLogs          ActivityLog[]
   taskLabels            TaskLabel[]
@@ -117,6 +118,10 @@ model Task {
   userBehaviors         UserBehavior[]
   workingDirectory      String?
   workflowStatus        String?
+  // ワークフロー柔軟化システム関連フィールド
+  workflowMode          String?   @default("comprehensive") // "lightweight", "standard", "comprehensive"
+  complexityScore       Float?    // 自動判定による複雑度スコア (0-100)
+  workflowModeOverride  Boolean   @default(false) // 手動でモード変更されたかどうか
 }
 
 model TimeEntry {
@@ -130,6 +135,26 @@ model TimeEntry {
   endedAt       DateTime
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model PomodoroSession {
+  id              Int       @id @default(autoincrement())
+  taskId          Int?
+  task            Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  status          String    @default("active") // active, paused, completed, cancelled
+  type            String    @default("work")   // work, short_break, long_break
+  duration        Int       // total duration in seconds
+  elapsed         Int       @default(0)        // elapsed seconds before current active period
+  startedAt       DateTime  @default(now())
+  pausedAt        DateTime?
+  completedAt     DateTime?
+  completedPomodoros Int    @default(0)         // count of completed work sessions in series
+  note            String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status])
+  @@index([taskId])
 }
 
 model Comment {
@@ -524,6 +549,7 @@ model UserSettings {
   chatgptDefaultModel         String?
   geminiDefaultModel          String?
   defaultAiProvider           String?   @default("claude")
+  autoApprovePlan             Boolean   @default(false) // plan.md保存時に自動承認するか
   createdAt                   DateTime  @default(now())
   updatedAt                   DateTime  @updatedAt
 }
@@ -829,12 +855,19 @@ model ScheduleEvent {
   taskId          Int?
   type            ScheduleEventType @default(GENERAL) // スケジュールタイプ
   userId          String    @default("default") // ユーザーID（将来のマルチユーザー対応）
+  // 繰り返しイベント対応
+  recurrenceRule  String?   // RRULE形式: "FREQ=WEEKLY;BYDAY=MO,WE,FR"
+  recurrenceEnd   DateTime? // 繰り返し終了日
+  parentEventId   Int?      // 繰り返し元の親イベントID
+  isRecurrenceException Boolean @default(false) // 個別編集された繰り返しインスタンス
+  originalDate    DateTime? // 元の繰り返し日付（例外の場合）
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@index([type])
   @@index([userId])
   @@index([startAt])
+  @@index([parentEventId])
 }
 
 // 有給残日数管理
@@ -949,5 +982,24 @@ model WorkflowRoleConfig {
   metadata        String         @default("{}")
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+}
+
+// ワークフローモード設定（モード別ステップ定義）
+model WorkflowModeConfig {
+  id              Int       @id @default(autoincrement())
+  mode            String    @unique // "lightweight", "standard", "comprehensive"
+  name            String    // 表示名（例: "軽量", "標準", "詳細"）
+  description     String?   // モードの説明
+  stepDefinitions String    // JSON: ステップ定義 [{"status": "draft", "role": "implementer", "nextStatus": "in_progress"}]
+  estimatedTime   Int       @default(60) // 予想実行時間（分）
+  isDefault       Boolean   @default(false)
+  isEnabled       Boolean   @default(true)
+  complexityMin   Float     @default(0)   // このモードが適用される複雑度の最小値
+  complexityMax   Float     @default(100) // このモードが適用される複雑度の最大値
+  autoSelectRules String    @default("{}") // JSON: 自動選択ルール
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([mode])
 }
 

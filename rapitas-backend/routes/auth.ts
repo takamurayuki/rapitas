@@ -1,10 +1,35 @@
 import { Elysia, t } from 'elysia';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { google } from 'googleapis';
 
-const prisma = new PrismaClient();
+// Simple in-memory rate limiter for auth endpoints
+const authAttempts = new Map<string, { count: number; resetAt: number }>();
+const AUTH_RATE_LIMIT = 5; // max attempts
+const AUTH_RATE_WINDOW = 60 * 1000; // 1 minute window
+
+function checkAuthRateLimit(identifier: string): boolean {
+  const now = Date.now();
+  const entry = authAttempts.get(identifier);
+  if (!entry || now > entry.resetAt) {
+    authAttempts.set(identifier, { count: 1, resetAt: now + AUTH_RATE_WINDOW });
+    return true;
+  }
+  if (entry.count >= AUTH_RATE_LIMIT) {
+    return false;
+  }
+  entry.count++;
+  return true;
+}
+
+// Cleanup old entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of authAttempts) {
+    if (now > entry.resetAt) authAttempts.delete(key);
+  }
+}, 5 * 60 * 1000);
 
 // Google OAuth2 configuration
 const oauth2Client = new google.auth.OAuth2(
@@ -19,8 +44,14 @@ const GOOGLE_SCOPES = [
 ];
 
 export const authRoutes = new Elysia({ prefix: '/auth' })
-  .post('/register', async ({ body, set, cookie: { sessionToken } }) => {
+  .post('/register', async ({ body, set, cookie: { sessionToken }, request }) => {
     try {
+      const clientIp = request.headers.get('x-forwarded-for') || 'unknown';
+      if (!checkAuthRateLimit(`register:${clientIp}`)) {
+        set.status = 429;
+        return { success: false, message: 'Too many registration attempts. Please try again later.' };
+      }
+
       const { username, email, password } = body as { username: string; email: string; password: string };
 
       // Check if user already exists
@@ -102,8 +133,14 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
     })
   })
 
-  .post('/login', async ({ body, set, cookie: { sessionToken } }) => {
+  .post('/login', async ({ body, set, cookie: { sessionToken }, request }) => {
     try {
+      const clientIp = request.headers.get('x-forwarded-for') || 'unknown';
+      if (!checkAuthRateLimit(`login:${clientIp}`)) {
+        set.status = 429;
+        return { success: false, message: 'Too many login attempts. Please try again later.' };
+      }
+
       const { username, password } = body as { username: string; password: string };
 
       // Find user
@@ -346,8 +383,29 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
     }
   })
 
-  .get('/cleanup-sessions', async ({ set }) => {
+  .post('/cleanup-sessions', async ({ cookie: { sessionToken }, set }) => {
     try {
+      const token = sessionToken.value;
+
+      if (!token) {
+        set.status = 401;
+        return { success: false, message: 'Authentication required' };
+      }
+
+      // Verify the caller is authenticated
+      const currentSession = await prisma.userSession.findFirst({
+        where: {
+          sessionToken: token,
+          expiresAt: { gt: new Date() }
+        },
+        include: { user: true }
+      });
+
+      if (!currentSession || currentSession.user.role !== 'admin') {
+        set.status = 403;
+        return { success: false, message: 'Admin access required' };
+      }
+
       // Clean up expired sessions
       const result = await prisma.userSession.deleteMany({
         where: {

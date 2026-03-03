@@ -55,6 +55,8 @@ import {
   cliToolsManagementRoutes,
   workflowRoutes,
   workflowRolesRoutes,
+  pomodoroRoutes,
+  searchRoutes,
 } from "./routes";
 
 // Import shared database client
@@ -72,7 +74,14 @@ await ensureDatabaseConnection();
 const app = new Elysia();
 
 // Apply middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',')
+    : ['http://localhost:3000', 'http://127.0.0.1:3000', 'tauri://localhost'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+}));
 
 // Ensure all responses are JSON formatted
 app.onBeforeHandle(({ set }) => {
@@ -182,6 +191,8 @@ app.use(authRoutes);
 app.use(cliToolsManagementRoutes);
 app.use(workflowRoutes);
 app.use(workflowRolesRoutes);
+app.use(pomodoroRoutes);
+app.use(searchRoutes);
 
 // Start behavior scheduler
 import { BehaviorScheduler } from "./src/services/behaviorScheduler";

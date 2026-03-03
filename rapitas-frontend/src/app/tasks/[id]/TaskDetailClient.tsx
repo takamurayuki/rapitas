@@ -287,6 +287,34 @@ function TaskDetailClient({
     if (approved && newStatus) {
       setCurrentWorkflowStatus(newStatus as WorkflowStatus);
       if (onTaskUpdated) onTaskUpdated();
+
+      // 承認後にバックエンドがエージェントを起動するまで待機し、実行状態を復元する
+      let attempts = 0;
+      const maxAttempts = 10; // 最大10回試行（20秒）
+
+      const tryRestoreExecution = async () => {
+        attempts++;
+        try {
+          const result = await restoreExecutionState();
+          if (result && result.status === 'running') {
+            console.log('[TaskDetailClient] Execution state restored after approval');
+            return; // 復元成功、リトライ停止
+          }
+
+          // 実行状態が見つからない場合、最大試行回数まで再試行
+          if (attempts < maxAttempts) {
+            setTimeout(tryRestoreExecution, 2000); // 2秒後に再試行
+          }
+        } catch (err) {
+          console.warn('[TaskDetailClient] Failed to restore execution state:', err);
+          if (attempts < maxAttempts) {
+            setTimeout(tryRestoreExecution, 2000); // エラー時も再試行
+          }
+        }
+      };
+
+      // 承認後、少し待ってから実行状態復元を試行
+      setTimeout(tryRestoreExecution, 1000);
     }
     refetchWorkflowFiles();
     setShowPlanApprovalModal(false);
@@ -1516,12 +1544,27 @@ function TaskDetailClient({
                 <WorkflowViewer
                   taskId={taskId}
                   workflowStatus={currentWorkflowStatus}
+                  workflowMode={task?.workflowMode}
+                  complexityScore={task?.complexityScore}
+                  workflowModeOverride={task?.workflowModeOverride ?? undefined}
                   onPlanApprovalRequest={handlePlanApprovalRequest}
                   onCompleteRequest={handleWorkflowComplete}
                   onStatusChange={(newStatus) => {
                     setCurrentWorkflowStatus(newStatus);
                     if (onTaskUpdated) onTaskUpdated();
                   }}
+                  onWorkflowModeChange={(mode, isOverride) => {
+                    // ワークフローモード変更時の処理
+                    if (task) {
+                      setTask({
+                        ...task,
+                        workflowMode: mode,
+                        workflowModeOverride: isOverride
+                      });
+                      if (onTaskUpdated) onTaskUpdated();
+                    }
+                  }}
+                  showWorkflowMode={true}
                 />
 
                 {workflowError && (

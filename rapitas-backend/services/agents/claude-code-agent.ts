@@ -1294,7 +1294,12 @@ export class ClaudeCodeAgent extends BaseAgent {
         ``,
         `**ファイル保存API**: \`curl -X PUT http://localhost:3001/workflow/tasks/${task.id}/files/{research|question|plan|verify} -H 'Content-Type: application/json' -d '{"content":"..."}\`\``,
         ``,
-        `重要: 計画モード（EnterPlanMode）は使用せず、直接コードの実装を行ってください。計画を立てるだけで終わらず、必ずファイルの作成・編集まで完了させてください。`,
+        `**重要事項**:`,
+        `- 計画モード（EnterPlanMode）は使用せず、直接コードの実装を行ってください。計画を立てるだけで終わらず、必ずファイルの作成・編集まで完了させてください。`,
+        `- **プロジェクトルートには絶対にファイルを作成しないでください。一時ファイルも例外ではありません。**`,
+        `- すべてのワークフロー関連ファイル（research/question/plan/verify）は上記のAPI経由で保存してください。`,
+        `- WriteツールやBashツール(mkdir/echo)を使ったプロジェクトルートでのファイル作成は禁止です。`,
+        `- **implementation_*.md、temp_*.md、*_content.json等の一時ファイルも作成しないでください。**`,
       ].join('\n');
       return basePrompt + workflowInstructions;
     }
@@ -1399,6 +1404,11 @@ export class ClaudeCodeAgent extends BaseAgent {
     sections.push("### ワークフローファイルの保存方法");
     sections.push("**重要**: ワークフローファイルは必ず以下のAPIを使って保存してください。直接ファイルシステムにmkdir/Write等で作成しないでください。");
     sections.push("");
+    sections.push("**禁止事項**:");
+    sections.push("- **プロジェクトルートには絶対にファイルを作成しないでください。一時ファイルも例外ではありません。**");
+    sections.push("- WriteツールやBashツール(mkdir/echo)を使ったプロジェクトルートでのファイル作成は禁止です。");
+    sections.push("- **implementation_*.md、temp_*.md、*_content.json等の一時ファイルも作成しないでください。**");
+    sections.push("");
     sections.push("```bash");
     sections.push(`# research.md を保存`);
     sections.push(`curl -X PUT http://localhost:3001/workflow/tasks/${task.id}/files/research -H 'Content-Type: application/json' -d '{"content":"# 調査結果\\n..."}'`);
@@ -1428,6 +1438,15 @@ export class ClaudeCodeAgent extends BaseAgent {
     );
     sections.push(
       "- 計画を立てるだけで終わらず、必ずファイルの作成・編集まで完了させてください。",
+    );
+    sections.push(
+      "- **プロジェクトルートには絶対にファイルを作成しないでください。**",
+    );
+    sections.push(
+      "- 一時ファイルも含め、すべてのワークフロー関連ファイルは上記のAPI経由で保存してください。",
+    );
+    sections.push(
+      "- WriteツールやBashツール(mkdir/echo)を使ったファイル作成は禁止です。",
     );
     sections.push(
       "- Write、Edit等のツールを使って実際にコードを変更してください。",

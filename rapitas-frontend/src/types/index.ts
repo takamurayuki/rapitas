@@ -81,6 +81,8 @@ export type WorkflowStatus =
   | 'verify_done'
   | 'completed';
 
+export type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
+
 export type WorkflowFileType = 'research' | 'question' | 'plan' | 'verify';
 
 export type WorkflowFile = {
@@ -261,6 +263,9 @@ export type Task = {
   taskAnalysisConfig?: TaskAnalysisConfig | null;
   agentExecutionConfig?: AgentExecutionConfig | null;
   workflowStatus?: WorkflowStatus | null;
+  workflowMode?: WorkflowMode | null;
+  complexityScore?: number | null;
+  workflowModeOverride?: boolean | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -695,6 +700,7 @@ export type UserSettings = {
   autoGenerateTitleDelay: number;
   autoCreateAfterTitleGeneration: boolean;
   autoFetchTaskSuggestions: boolean;
+  autoApprovePlan: boolean;
   defaultCategoryId?: number | null;
   activeMode: ActiveMode;
   claudeApiKeyConfigured?: boolean;

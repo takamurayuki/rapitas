@@ -173,21 +173,39 @@ async function callClaude(
     messages.find((m) => m.role === "system")?.content ||
     undefined;
 
-  const response = await client.messages.create({
-    model,
-    max_tokens: maxTokens,
-    ...(systemContent ? { system: systemContent } : {}),
-    messages: chatMessages,
-  });
+  // リトライ（529 Overloaded / 429 Rate Limit 対応）
+  const MAX_RETRIES = 3;
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await client.messages.create({
+        model,
+        max_tokens: maxTokens,
+        ...(systemContent ? { system: systemContent } : {}),
+        messages: chatMessages,
+      });
 
-  const textBlock = response.content.find(
-    (c: { type: string }) => c.type === "text",
-  );
-  const content = textBlock && textBlock.type === "text" ? textBlock.text : "";
-  const tokensUsed =
-    (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0);
+      const textBlock = response.content.find(
+        (c: { type: string }) => c.type === "text",
+      );
+      const content = textBlock && textBlock.type === "text" ? textBlock.text : "";
+      const tokensUsed =
+        (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0);
 
-  return { content, tokensUsed };
+      return { content, tokensUsed };
+    } catch (error: unknown) {
+      lastError = error;
+      const status = (error as { status?: number }).status;
+      const isRetryable = status === 429 || status === 529 || (status !== undefined && status >= 500);
+      if (!isRetryable || attempt === MAX_RETRIES) {
+        throw error;
+      }
+      const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+      console.warn(`Claude API error (status ${status}), retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  throw lastError;
 }
 
 /**
@@ -302,6 +320,15 @@ function formatApiError(error: unknown, provider: AIProvider): string {
 
   if (isAuthError) {
     return `${PROVIDER_NAMES[provider]} APIキーが無効です。設定画面で正しいAPIキーを再設定してください。`;
+  }
+
+  const isOverloaded =
+    message.includes("529") ||
+    message.includes("overloaded") ||
+    message.includes("Overloaded");
+
+  if (isOverloaded) {
+    return `${PROVIDER_NAMES[provider]} APIが現在混雑しています。しばらく待ってから再度お試しください。`;
   }
 
   const isQuotaError =

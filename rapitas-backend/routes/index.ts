@@ -51,3 +51,5 @@ export { authRoutes } from "./auth";
 export { cliToolsManagementRoutes } from "./cli-tools-management";
 export { workflowRoutes } from "./workflow";
 export { workflowRolesRoutes } from "./workflow-roles";
+export { pomodoroRoutes } from "./pomodoro";
+export { searchRoutes } from "./search";

@@ -14,6 +14,8 @@ import {
 import { UserBehaviorService } from "../src/services/userBehaviorService";
 import { orchestrator } from "./approvals";
 import { toJsonString } from "../utils/db-helpers";
+import { checkAchievements } from "../services/achievement-checker";
+import { notifyTaskCompleted } from "../services/notification-service";
 
 export const tasksRoutes = new Elysia({ prefix: "/tasks" })
   // Search task titles for autocomplete
@@ -1118,6 +1120,9 @@ ${existingTaskList}
           await UserBehaviorService.recordTaskStarted(taskId, updatedTask);
         } else if (status === "done" && currentTask?.status !== "done") {
           await UserBehaviorService.recordTaskCompleted(taskId, updatedTask);
+          // 実績自動チェック + 通知（非同期、ブロックしない）
+          checkAchievements("task.completed").catch(() => {});
+          notifyTaskCompleted(taskId, updatedTask.title).catch(() => {});
         }
       }
 

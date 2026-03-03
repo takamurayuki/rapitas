@@ -4,14 +4,16 @@
  * CLIエージェント（claude-code, gemini, codex）は既存のAgentOrchestrator経由で実行し、
  * APIエージェント（anthropic-api, openai等）は直接API呼び出しでテキスト出力を取得→ファイル保存を代行する。
  */
-import { readFile, writeFile, mkdir, stat } from 'fs/promises';
+import { readFile, writeFile, mkdir, stat, readdir, unlink } from 'fs/promises';
 import { join } from 'path';
 import { prisma } from '../../config';
 import { AgentOrchestrator } from '../agents/agent-orchestrator';
+import { sanitizeMarkdownContent } from '../../utils/mojibake-detector';
 
-type WorkflowRole = 'researcher' | 'planner' | 'reviewer' | 'implementer' | 'verifier';
+type WorkflowRole = 'researcher' | 'planner' | 'reviewer' | 'implementer' | 'verifier' | 'auto_verifier';
 type WorkflowFileType = 'research' | 'question' | 'plan' | 'verify';
 type WorkflowStatus = 'draft' | 'research_done' | 'plan_created' | 'plan_approved' | 'in_progress' | 'verify_done' | 'completed';
+type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
 
 interface RoleTransition {
   role: WorkflowRole;
@@ -19,13 +21,31 @@ interface RoleTransition {
   nextStatus: WorkflowStatus;
 }
 
-const STATUS_TO_ROLE: Record<string, RoleTransition> = {
+// 詳細モード (comprehensive) - 既存の5ステップワークフロー
+const COMPREHENSIVE_MODE: Record<string, RoleTransition> = {
   'draft':         { role: 'researcher',   outputFile: 'research', nextStatus: 'research_done' },
   'research_done': { role: 'planner',      outputFile: 'plan',     nextStatus: 'plan_created' },
   'plan_created':  { role: 'reviewer',     outputFile: 'question', nextStatus: 'plan_created' }, // status stays
   'plan_approved': { role: 'implementer',  outputFile: null,       nextStatus: 'in_progress' },
   'in_progress':   { role: 'verifier',     outputFile: 'verify',   nextStatus: 'verify_done' },
 };
+
+// 標準モード (standard) - 4ステップワークフロー
+const STANDARD_MODE: Record<string, RoleTransition> = {
+  'draft':         { role: 'planner',      outputFile: 'plan',     nextStatus: 'plan_created' },
+  'plan_created':  { role: 'reviewer',     outputFile: 'question', nextStatus: 'plan_created' }, // status stays
+  'plan_approved': { role: 'implementer',  outputFile: null,       nextStatus: 'in_progress' },
+  'in_progress':   { role: 'verifier',     outputFile: 'verify',   nextStatus: 'verify_done' },
+};
+
+// 軽量モード (lightweight) - 2ステップワークフロー
+const LIGHTWEIGHT_MODE: Record<string, RoleTransition> = {
+  'draft':         { role: 'implementer',  outputFile: null,       nextStatus: 'in_progress' },
+  'in_progress':   { role: 'auto_verifier', outputFile: 'verify', nextStatus: 'verify_done' },
+};
+
+// 後方互換性のため既存のSTATUS_TO_ROLEを詳細モードとして保持
+const STATUS_TO_ROLE = COMPREHENSIVE_MODE;
 
 const CLI_AGENT_TYPES = new Set(['claude-code', 'codex', 'gemini']);
 
@@ -78,8 +98,15 @@ async function readWorkflowFile(dir: string, fileType: WorkflowFileType): Promis
  */
 async function writeWorkflowFile(dir: string, fileType: WorkflowFileType, content: string): Promise<void> {
   await mkdir(dir, { recursive: true });
+
+  // 文字化け検出・修正処理
+  const sanitizeResult = sanitizeMarkdownContent(content);
+  if (sanitizeResult.wasFixed) {
+    console.log(`[WorkflowOrchestrator] Fixed mojibake in ${fileType}.md:`, sanitizeResult.issues);
+  }
+
   const filePath = join(dir, `${fileType}.md`);
-  await writeFile(filePath, content, 'utf-8');
+  await writeFile(filePath, sanitizeResult.content, 'utf-8');
 }
 
 export class WorkflowOrchestrator {
@@ -120,9 +147,26 @@ export class WorkflowOrchestrator {
       return { success: false, role: 'researcher', status: 'draft', error: 'タスクが見つかりません' };
     }
 
+    // ワークフローモードに基づいて適切な遷移マップを選択
+    const workflowMode = (task.workflowMode as WorkflowMode) || 'comprehensive';
+    let modeTransitions: Record<string, RoleTransition>;
+
+    switch (workflowMode) {
+      case 'lightweight':
+        modeTransitions = LIGHTWEIGHT_MODE;
+        break;
+      case 'standard':
+        modeTransitions = STANDARD_MODE;
+        break;
+      case 'comprehensive':
+      default:
+        modeTransitions = COMPREHENSIVE_MODE;
+        break;
+    }
+
     // 現在のステータスから次のロールを決定
     const currentStatus = (task.workflowStatus as string) || 'draft';
-    const transition = STATUS_TO_ROLE[currentStatus];
+    const transition = modeTransitions[currentStatus];
     if (!transition) {
       return {
         success: false,
@@ -371,13 +415,19 @@ export class WorkflowOrchestrator {
     }
     fullPrompt += context;
 
-    // CLIエージェントにはファイルの直接書き込みを指示（Writeツール使用）
+    // CLIエージェントにはAPI経由でのファイル保存を指示
     if (outputFilePath) {
       fullPrompt += `\n\n## 重要: 結果ファイルの保存\n`;
-      fullPrompt += `調査・分析が完了したら、結果を以下のファイルパスにMarkdown形式で書き込んでください。\n`;
-      fullPrompt += `必ずWriteツールを使用してファイルを作成してください。\n\n`;
-      fullPrompt += `**保存先**: \`${outputFilePath}\`\n\n`;
-      fullPrompt += `ファイルの保存は必須です。計画や分析の出力だけでなく、必ず上記パスにファイルを書き込んでから完了してください。`;
+      fullPrompt += `調査・分析が完了したら、結果を以下のAPI経由で保存してください。\n`;
+      fullPrompt += `**プロジェクトルートには絶対にファイルを作成しないでください。**\n\n`;
+      fullPrompt += `**API保存コマンド**:\n`;
+      fullPrompt += `\`\`\`bash\n`;
+      fullPrompt += `curl -X PUT http://localhost:3001/workflow/tasks/${taskId}/files/${transition.outputFile} \\\n`;
+      fullPrompt += `  -H 'Content-Type: application/json' \\\n`;
+      fullPrompt += `  -d '{"content":"# ファイル内容をここに記述"}'`;
+      fullPrompt += `\n\`\`\`\n\n`;
+      fullPrompt += `**禁止事項**: Write、mkdir、echo等によるプロジェクトルートへの直接ファイル作成は厳禁です。\n`;
+      fullPrompt += `必ず上記APIコマンドを使用してファイル保存を行ってから完了してください。`;
     }
 
     const result = await orchestrator.executeTask(
@@ -428,6 +478,14 @@ export class WorkflowOrchestrator {
           effectiveSuccess = true;
         }
       }
+    }
+
+    // クリーンアップ処理: プロジェクトルートの残存ワークフロー関連ファイルを削除
+    try {
+      await this.cleanupRootWorkflowFiles(taskId);
+    } catch (cleanupError) {
+      console.warn('[WorkflowOrchestrator] Cleanup warning:', cleanupError);
+      // クリーンアップエラーはワークフローの成否に影響しない
     }
 
     return {
@@ -633,6 +691,72 @@ export class WorkflowOrchestrator {
     } catch {
       // 暗号化されていない場合はそのまま返す
       return encrypted;
+    }
+  }
+
+  /**
+   * プロジェクトルートの残存ワークフロー関連ファイルを削除する
+   */
+  private async cleanupRootWorkflowFiles(taskId: number): Promise<void> {
+    const fs = await import('fs');
+    const path = await import('path');
+
+    // プロジェクトルートパス
+    const projectRoot = process.cwd();
+
+    // 削除対象のファイルパターン
+    const workflowPatterns = [
+      /^.*research.*\.md$/i,
+      /^.*plan.*\.md$/i,
+      /^.*verify.*\.md$/i,
+      /^.*question.*\.md$/i,
+      /^.*implementation.*\.md$/i,
+      /^.*temp.*\.md$/i,
+      /^.*research.*\.json$/i,
+      /^.*verify.*\.json$/i,
+      'implementation_verify.md',
+      'temp_research.md',
+      'research_content.json',
+      'verify_content.md',
+      'API_OPTIMIZATION_GUIDE.md',
+      'SCREENSHOT_OPTIMIZATION_CHANGES.md'
+    ];
+
+    try {
+      const files = await fs.promises.readdir(projectRoot);
+
+      for (const file of files) {
+        const filePath = path.join(projectRoot, file);
+        const stat = await fs.promises.stat(filePath);
+
+        // ディレクトリは除外
+        if (stat.isDirectory()) continue;
+
+        // パターンマッチング
+        let shouldDelete = false;
+
+        for (const pattern of workflowPatterns) {
+          if (typeof pattern === 'string') {
+            if (file === pattern) {
+              shouldDelete = true;
+              break;
+            }
+          } else if (pattern instanceof RegExp) {
+            if (pattern.test(file)) {
+              shouldDelete = true;
+              break;
+            }
+          }
+        }
+
+        if (shouldDelete) {
+          console.log(`[WorkflowOrchestrator] Cleaning up root file: ${file}`);
+          await fs.promises.unlink(filePath);
+        }
+      }
+    } catch (error) {
+      console.warn(`[WorkflowOrchestrator] Cleanup error: ${error}`);
+      // エラーは投げずに警告のみ
     }
   }
 

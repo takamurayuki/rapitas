@@ -30,6 +30,12 @@ export const aiChatRoutes = new Elysia()
         return { error: "メッセージが必要です" };
       }
 
+      // AI入力サイズ制限（100KB）
+      if (message.length > 100_000) {
+        set.status = 400;
+        return { error: "メッセージが長すぎます（最大100,000文字）" };
+      }
+
       const aiProvider = (provider || "claude") as AIProvider;
 
       try {
@@ -80,6 +86,12 @@ export const aiChatRoutes = new Elysia()
       if (!message || message.trim() === "") {
         set.status = 400;
         return { error: "メッセージが必要です" };
+      }
+
+      // AI入力サイズ制限（100KB）
+      if (message.length > 100_000) {
+        set.status = 400;
+        return { error: "メッセージが長すぎます（最大100,000文字）" };
       }
 
       const aiProvider = (provider || "claude") as AIProvider;

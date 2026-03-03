@@ -28,6 +28,7 @@ import type {
   TaskTemplate,
   UserSettings,
   Category,
+  WorkflowMode,
 } from '@/types';
 import LabelSelector from '@/feature/tasks/components/LabelSelector';
 import TaskTitleAutocomplete from '@/feature/tasks/components/TaskTitleAutocomplete';
@@ -44,6 +45,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { useAppModeStore } from '@/stores/appModeStore';
 import { requireAuth } from '@/contexts/AuthContext';
+import CompactWorkflowSelector from '@/components/workflow/CompactWorkflowSelector';
 
 const API_BASE = API_BASE_URL;
 
@@ -64,6 +66,10 @@ function NewTaskClient() {
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
   const [estimatedHours, setEstimatedHours] = useState('');
   const [dueDate, setDueDate] = useState('');
+
+  // ワークフローモード関連
+  const [workflowMode, setWorkflowMode] = useState<WorkflowMode>('comprehensive');
+  const [isWorkflowModeOverride, setIsWorkflowModeOverride] = useState<boolean>(false);
 
   // データ
   const [themes, setThemes] = useState<Theme[]>([]);
@@ -332,6 +338,8 @@ function NewTaskClient() {
         labelIds: selectedLabelIds.length > 0 ? selectedLabelIds : undefined,
         estimatedHours: estimatedHours ? parseFloat(estimatedHours) : undefined,
         dueDate: dueDate || undefined,
+        workflowMode: workflowMode,
+        workflowModeOverride: isWorkflowModeOverride,
       };
 
       console.log('[NewTaskClient] Creating task with data:', taskData);
@@ -428,6 +436,8 @@ function NewTaskClient() {
             ? parseFloat(estimatedHours)
             : undefined,
           dueDate: dueDate || undefined,
+          workflowMode: workflowMode,
+          workflowModeOverride: isWorkflowModeOverride,
         }),
       });
 
@@ -867,6 +877,36 @@ function NewTaskClient() {
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
+              </div>
+            </div>
+          </CompactAccordionGroup>
+
+          {/* Workflow Mode Section - Collapsible */}
+          <CompactAccordionGroup
+            title="ワークフローモード"
+            icon={<Settings2 className="w-3.5 h-3.5" />}
+            defaultExpanded={false}
+            className="border-b-0"
+          >
+            <div className="space-y-3">
+              <CompactWorkflowSelector
+                taskId={0} // 新規タスクなのでID=0
+                currentMode={workflowMode}
+                isOverridden={isWorkflowModeOverride}
+                complexityScore={null} // 新規タスクなのでスコアなし
+                onModeChange={(mode, isOverride) => {
+                  setWorkflowMode(mode);
+                  setIsWorkflowModeOverride(isOverride);
+                }}
+                disabled={false}
+                showAnalyzeButton={false} // 新規タスクなので分析ボタンは非表示
+              />
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  <strong>ワークフローモードについて:</strong> タスクの複雑さに応じて、実行手順を調整できます。
+                  軽量モードは簡単な修正、標準モードは通常の機能開発、詳細モードは大規模な変更に適しています。
+                  タスク作成後に自動分析で最適なモードが提案されます。
+                </p>
               </div>
             </div>
           </CompactAccordionGroup>

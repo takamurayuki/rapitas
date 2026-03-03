@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type {
@@ -19,9 +19,7 @@ import {
   statusConfig,
   renderStatusIcon,
 } from '@/feature/tasks/config/StatusConfig';
-import {
-  priorityConfig,
-} from '@/feature/tasks/components/PriorityIcon';
+import { priorityConfig } from '@/feature/tasks/components/PriorityIcon';
 import {
   SwatchBook,
   Star,
@@ -47,6 +45,7 @@ import { useLocalStorageState } from '@/hooks/useLocalStorageState';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useTaskAutoSync } from '@/hooks/useTaskAutoSync';
 import { requireAuth } from '@/contexts/AuthContext';
+import { useFilterDataStore } from '@/stores/filterDataStore';
 import {
   TaskCardsSkeleton,
   EnhancedSkeletonBlock,
@@ -72,9 +71,18 @@ function HomeClientPage() {
   const executingTasksSize = useExecutionStateStore(
     (s) => s.executingTasks.size,
   );
-  const [themes, setThemes] = useState<Theme[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [filtersLoading, setFiltersLoading] = useState(true);
+  // フィルターデータストアから状態を取得
+  const {
+    categories,
+    themes,
+    isLoading: filtersLoading,
+    isInitialized: filtersInitialized,
+    error: filtersError,
+    initializeData: initializeFilterData,
+    refreshData: refreshFilterData,
+    shouldBackgroundRefresh,
+    backgroundRefresh,
+  } = useFilterDataStore();
   const [filter, setFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useLocalStorageState<
     number | null
@@ -194,47 +202,30 @@ function HomeClientPage() {
     progressRingRef as React.RefObject<HTMLDivElement>,
   );
 
-  const fetchCategories = async () => {
-    try {
-      const data = await apiFetch<Category[]>('/categories', {
-        cacheTime: 300000,
-      }); // 5分キャッシュ
-      setCategories(data);
-      return data;
-    } catch (e) {
-      console.error(e);
-      return [] as Category[];
-    }
-  };
+  // テーマ関連の初期設定を行う関数（データ取得は filterDataStore が担当）
+  const setupThemeDefaults = useCallback(() => {
+    if (themes.length === 0) return;
 
-  const fetchThemes = useCallback(async () => {
-    try {
-      const data = await apiFetch<Theme[]>('/themes', { cacheTime: 300000 }); // 5分キャッシュ
-      setThemes(data);
-      // グローバルデフォルトテーマを設定（クイック追加等で使用）
-      const firstDefaultTheme = data.find((t: Theme) => t.isDefault);
-      if (firstDefaultTheme) {
-        setDefaultTheme(firstDefaultTheme);
-      }
-      // テーマフィルターが未設定の場合、カテゴリに応じたデフォルトテーマを選択
-      if (themeFilter === null && categoryFilter !== null) {
-        const themesInCategory = data.filter(
-          (t: Theme) => t.categoryId === categoryFilter,
-        );
-        if (themesInCategory.length > 0) {
-          const defaultInCategory = themesInCategory.find(
-            (t: Theme) => t.isDefault,
-          );
-          const targetTheme = defaultInCategory || themesInCategory[0];
-          setThemeFilter(targetTheme.id);
-        }
-      }
-      return data;
-    } catch (e) {
-      console.error(e);
-      return [];
+    // グローバルデフォルトテーマを設定（クイック追加等で使用）
+    const firstDefaultTheme = themes.find((t: Theme) => t.isDefault);
+    if (firstDefaultTheme) {
+      setDefaultTheme(firstDefaultTheme);
     }
-  }, [categoryFilter, themeFilter, setThemeFilter]);
+
+    // テーマフィルターが未設定の場合、カテゴリに応じたデフォルトテーマを選択
+    if (themeFilter === null && categoryFilter !== null) {
+      const themesInCategory = themes.filter(
+        (t: Theme) => t.categoryId === categoryFilter,
+      );
+      if (themesInCategory.length > 0) {
+        const defaultInCategory = themesInCategory.find(
+          (t: Theme) => t.isDefault,
+        );
+        const targetTheme = defaultInCategory || themesInCategory[0];
+        setThemeFilter(targetTheme.id);
+      }
+    }
+  }, [themes, categoryFilter, themeFilter, setThemeFilter]);
 
   const updateStatus = async (
     id: number,
@@ -556,8 +547,7 @@ function HomeClientPage() {
       // 並列リクエストを最適化
       const requests = {
         tasks: taskCacheInitialized ? fetchTaskUpdates() : fetchAllTasks(),
-        themes: fetchThemes(),
-        categories: fetchCategories(),
+        filterData: initializeFilterData(),
         settings: fetchGlobalSettings(),
         statistics: fetchTaskStatistics(),
       };
@@ -587,32 +577,21 @@ function HomeClientPage() {
         }));
       }
 
-      const [
-        taskResult,
-        themeResult,
-        categoriesResult,
-        settingsResult,
-        statsResult,
-      ] = results;
+      const [taskResult, filterDataResult, settingsResult, statsResult] =
+        results;
 
-      const categoriesData =
-        categoriesResult.status === 'fulfilled'
-          ? (categoriesResult.value as Category[])
-          : [];
       const settings =
         settingsResult.status === 'fulfilled'
           ? (settingsResult.value as UserSettings)
           : null;
 
-      // フィルター関連のデータが読み込まれたらローディングを終了
-      setFiltersLoading(false);
       // カテゴリフィルタが未設定の場合はデフォルトカテゴリを適用
       if (categoryFilter === null) {
         if (settings?.defaultCategoryId) {
           setCategoryFilter(settings.defaultCategoryId);
-        } else if (categoriesData && categoriesData.length > 0) {
+        } else if (categories && categories.length > 0) {
           // defaultCategoryIdも未設定の場合は最初のカテゴリにフォールバック
-          setCategoryFilter(categoriesData[0].id);
+          setCategoryFilter(categories[0].id);
         }
       }
       setHasInitialized(true);
@@ -620,7 +599,49 @@ function HomeClientPage() {
     initialLoad();
   }, []); // 依存配列を空にして初回のみ実行
 
-  // フィルタースケルトンコンポーネント
+  // テーマデータが更新された時にデフォルト設定を実行
+  useEffect(() => {
+    if (themes.length > 0) {
+      setupThemeDefaults();
+    }
+  }, [themes, setupThemeDefaults]);
+
+  // バックグラウンド更新チェック（5分ごと）
+  useEffect(() => {
+    const checkBackgroundRefresh = () => {
+      if (shouldBackgroundRefresh()) {
+        console.log('[HomeClient] Triggering background filter data refresh');
+        backgroundRefresh();
+      }
+    };
+
+    // 初回チェック（1分後）
+    const initialTimeout = setTimeout(checkBackgroundRefresh, 60000);
+
+    // 定期チェック（5分ごと）
+    const interval = setInterval(checkBackgroundRefresh, 5 * 60 * 1000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, [shouldBackgroundRefresh, backgroundRefresh]);
+
+  // フィルタリング計算の最適化
+  const visibleCategories = useMemo(() => {
+    return categories.filter((cat) => {
+      if (appMode === 'all') return true;
+      if (cat.mode === 'both') return true;
+      return cat.mode === appMode;
+    });
+  }, [categories, appMode]);
+
+  const visibleThemes = useMemo(() => {
+    if (categoryFilter === null) return themes;
+    return themes.filter((theme) => theme.categoryId === categoryFilter);
+  }, [themes, categoryFilter]);
+
+  // フィルタースケルトン・エラー表示コンポーネント
   const FilterSkeleton = () => (
     <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 mb-4 animate-skeleton-fade-in">
       {/* カテゴリタブ（水平スクロール） */}
@@ -650,14 +671,30 @@ function HomeClientPage() {
     </div>
   );
 
+  // フィルターエラー表示コンポーネント
+  const FilterError = ({ error }: { error: string }) => (
+    <div className="relative overflow-hidden border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 shadow-sm transition-all duration-300 mb-4">
+      <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className="text-red-600 dark:text-red-400">⚠️</div>
+          <span className="text-sm text-red-700 dark:text-red-300">
+            フィルターデータの読み込みに失敗しました: {error}
+          </span>
+        </div>
+        <button
+          onClick={() => refreshFilterData(true)}
+          className="px-3 py-1 text-xs bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-700 transition-colors"
+        >
+          再試行
+        </button>
+      </div>
+    </div>
+  );
+
   // activeModeが変わったとき、現在のカテゴリフィルタが非表示になったら最初の表示カテゴリに切り替え
   useEffect(() => {
-    if (categories.length === 0) return;
-    const visibleCategories = categories.filter((cat) => {
-      if (appMode === 'all') return true;
-      if (cat.mode === 'both') return true;
-      return cat.mode === appMode;
-    });
+    if (visibleCategories.length === 0) return;
+
     if (categoryFilter !== null) {
       const isVisible = visibleCategories.some((c) => c.id === categoryFilter);
       if (!isVisible && visibleCategories.length > 0) {
@@ -676,14 +713,7 @@ function HomeClientPage() {
         }
       }
     }
-  }, [
-    appMode,
-    categories,
-    categoryFilter,
-    setCategoryFilter,
-    themes,
-    setThemeFilter,
-  ]);
+  }, [visibleCategories, categoryFilter, themes, setThemeFilter]);
 
   // フィルター変更時にページを1に戻す
   useEffect(() => {
@@ -999,7 +1029,9 @@ function HomeClientPage() {
 
         {/* 統合フィルターバー（アコーディオン） - 一括選択モード時は非表示 */}
         {!isSelectionMode &&
-          (filtersLoading ? (
+          (filtersError ? (
+            <FilterError error={filtersError} />
+          ) : filtersLoading ? (
             <FilterSkeleton />
           ) : categories.length > 0 ? (
             <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 hover:border-amber-500/50 mb-4">
@@ -1199,61 +1231,71 @@ function HomeClientPage() {
                     <div className="flex items-center">
                       {[
                         { value: 'all', label: '全て', color: 'amber' },
-                        { value: 'todo', label: statusConfig.todo.label, color: 'slate' },
-                        { value: 'in-progress', label: statusConfig['in-progress'].label, color: 'blue' },
-                        { value: 'done', label: statusConfig.done.label, color: 'green' },
-                      ].map(
-                        (statusItem, idx) => {
-                          const status = statusItem.value;
-                          const config = statusItem;
-                          const count = statusCounts[status] || 0;
-                          const isActive = filter === status;
-
-                          return (
-                            <div key={status} className="flex items-center">
-                              <button
-                                onClick={() => setFilter(status)}
-                                className={`relative h-6 px-3 font-mono text-[10px] uppercase tracking-wider whitespace-nowrap transition-all duration-200 ${
-                                  isActive
-                                    ? config.color === 'amber'
-                                      ? 'bg-linear-to-r from-amber-500 to-amber-400 text-white shadow-md font-bold'
-                                      : config.color === 'blue'
-                                        ? 'bg-blue-500 text-white shadow-md font-bold'
-                                        : config.color === 'green'
-                                          ? 'bg-green-500 text-white shadow-md font-bold'
-                                          : 'bg-slate-600 text-white shadow-md font-bold'
-                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                                }`}
-                              >
-                                <div className="flex items-center gap-1">
-                                  {config.label}
-                                  <span className="text-[9px] opacity-75">
-                                    {count}
-                                  </span>
-                                </div>
-                                {/* Progress indicator at bottom */}
-                                {count > 0 && (
-                                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-300 dark:bg-slate-600">
-                                    <div
-                                      className={`h-full transition-all duration-500 ${
-                                        isActive
-                                          ? 'bg-white/50'
-                                          : 'bg-slate-400 dark:bg-slate-500'
-                                      }`}
-                                      style={{
-                                        width: `${status === 'all' ? 100 : (statusCounts[status] / statusCounts.all) * 100}%`,
-                                      }}
-                                    />
-                                  </div>
-                                )}
-                              </button>
-                              {idx < 3 && (
-                                <div className="w-px h-4 bg-slate-300 dark:bg-slate-600" />
-                              )}
-                            </div>
-                          );
+                        {
+                          value: 'todo',
+                          label: statusConfig.todo.label,
+                          color: 'slate',
                         },
-                      )}
+                        {
+                          value: 'in-progress',
+                          label: statusConfig['in-progress'].label,
+                          color: 'blue',
+                        },
+                        {
+                          value: 'done',
+                          label: statusConfig.done.label,
+                          color: 'green',
+                        },
+                      ].map((statusItem, idx) => {
+                        const status = statusItem.value;
+                        const config = statusItem;
+                        const count = statusCounts[status] || 0;
+                        const isActive = filter === status;
+
+                        return (
+                          <div key={status} className="flex items-center">
+                            <button
+                              onClick={() => setFilter(status)}
+                              className={`relative h-6 px-3 font-mono text-[10px] uppercase tracking-wider whitespace-nowrap transition-all duration-200 ${
+                                isActive
+                                  ? config.color === 'amber'
+                                    ? 'bg-linear-to-r from-amber-500 to-amber-400 text-white shadow-md font-bold'
+                                    : config.color === 'blue'
+                                      ? 'bg-blue-500 text-white shadow-md font-bold'
+                                      : config.color === 'green'
+                                        ? 'bg-green-500 text-white shadow-md font-bold'
+                                        : 'bg-slate-600 text-white shadow-md font-bold'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1">
+                                {config.label}
+                                <span className="text-[9px] opacity-75">
+                                  {count}
+                                </span>
+                              </div>
+                              {/* Progress indicator at bottom */}
+                              {count > 0 && (
+                                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-300 dark:bg-slate-600">
+                                  <div
+                                    className={`h-full transition-all duration-500 ${
+                                      isActive
+                                        ? 'bg-white/50'
+                                        : 'bg-slate-400 dark:bg-slate-500'
+                                    }`}
+                                    style={{
+                                      width: `${status === 'all' ? 100 : (statusCounts[status] / statusCounts.all) * 100}%`,
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </button>
+                            {idx < 3 && (
+                              <div className="w-px h-4 bg-slate-300 dark:bg-slate-600" />
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -1274,12 +1316,26 @@ function HomeClientPage() {
                           iconColor: '',
                           bgColor: 'amber',
                         },
-                        ...(Object.entries(priorityConfig) as Array<[keyof typeof priorityConfig, typeof priorityConfig[keyof typeof priorityConfig]]>).map(([key, config]) => ({
+                        ...(
+                          Object.entries(priorityConfig) as Array<
+                            [
+                              keyof typeof priorityConfig,
+                              (typeof priorityConfig)[keyof typeof priorityConfig],
+                            ]
+                          >
+                        ).map(([key, config]) => ({
                           value: key,
                           label: config.title,
                           icon: <config.Icon className="w-3 h-3" />,
                           iconColor: config.color,
-                          bgColor: key === 'urgent' ? 'red' : key === 'high' ? 'orange' : key === 'medium' ? 'blue' : 'slate',
+                          bgColor:
+                            key === 'urgent'
+                              ? 'red'
+                              : key === 'high'
+                                ? 'orange'
+                                : key === 'medium'
+                                  ? 'blue'
+                                  : 'slate',
                         })),
                       ].map((priority, idx) => (
                         <div key={priority.value} className="flex items-center">

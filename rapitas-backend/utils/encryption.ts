@@ -5,9 +5,15 @@
 
 import crypto from "crypto";
 
-// 暗号化キーは環境変数から取得、設定されていない場合はランダム生成（本番環境では必ず設定すること）
-const ENCRYPTION_KEY =
-  process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString("hex");
+// 暗号化キーは環境変数から必ず取得。未設定時は起動拒否（セキュリティ要件）
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+if (!ENCRYPTION_KEY) {
+  throw new Error(
+    "ENCRYPTION_KEY environment variable is not set. " +
+    "Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\" " +
+    "and set it in your .env file."
+  );
+}
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;

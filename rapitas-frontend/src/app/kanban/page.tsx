@@ -12,12 +12,14 @@ import {
   type DraggableStateSnapshot,
 } from '@hello-pangea/dnd';
 import TaskSlidePanel from '@/feature/tasks/components/TaskSlidePanel';
+import { ExecutionBorderAnimation } from '@/feature/tasks/components/TaskCard';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { useTaskDetailVisibilityStore } from '@/stores/taskDetailVisibilityStore';
 import { API_BASE_URL } from '@/utils/api';
 import { useExecutingTasksPolling } from '@/hooks/useExecutingTasksPolling';
 import { useTaskCacheStore } from '@/stores/taskCacheStore';
 import { useTaskAutoSync } from '@/hooks/useTaskAutoSync';
+import { useExecutionStateStore } from '@/stores/executionStateStore';
 import {
   ExternalLink,
   Flag,
@@ -72,6 +74,7 @@ export default function KanbanPage() {
   const fetchAllTasks = useTaskCacheStore((s) => s.fetchAll);
   const fetchTaskUpdates = useTaskCacheStore((s) => s.fetchUpdates);
   const updateTaskLocally = useTaskCacheStore((s) => s.updateTaskLocally);
+  const getExecutingTaskStatus = useExecutionStateStore((s) => s.getExecutingTaskStatus);
   const [loading, setLoading] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -306,6 +309,31 @@ export default function KanbanPage() {
   const getTasksByStatus = (status: string) =>
     filteredTasks.filter((t) => t.status === status && !t.parentId);
 
+  // 実行状態に応じたクラス名とバッジ情報を取得
+  const getKanbanExecutionClasses = (taskId: number) => {
+    const executionStatus = getExecutingTaskStatus(taskId);
+    switch (executionStatus) {
+      case 'running':
+        return {
+          cardClass: 'execution-pulse-blue',
+          borderColor: 'blue' as const,
+          badgeClass: 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300',
+          dotClass: 'bg-blue-500',
+          label: '実行中',
+        };
+      case 'waiting_for_input':
+        return {
+          cardClass: 'execution-pulse-amber',
+          borderColor: 'amber' as const,
+          badgeClass: 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300',
+          dotClass: 'bg-amber-500',
+          label: '入力待ち',
+        };
+      default:
+        return null;
+    }
+  };
+
   // 週の表示文字列を生成
   const getWeekDisplayText = () => {
     const start = currentWeekRange.start.toLocaleDateString('ja-JP', {
@@ -503,7 +531,9 @@ export default function KanbanPage() {
                               {(
                                 provided: DraggableProvided,
                                 snapshot: DraggableStateSnapshot,
-                              ) => (
+                              ) => {
+                                const executionClasses = getKanbanExecutionClasses(task.id);
+                                return (
                                 <div
                                   ref={provided.innerRef}
                                   {...provided.draggableProps}
@@ -513,22 +543,42 @@ export default function KanbanPage() {
                                     snapshot.isDragging
                                       ? 'shadow-lg border-blue-500'
                                       : 'border-zinc-200 dark:border-zinc-700 hover:shadow-md hover:border-blue-400 dark:hover:border-blue-600'
+                                  } ${
+                                    executionClasses?.cardClass || ''
                                   }`}
                                 >
+                                  {/* 実行中ボーダーアニメーション */}
+                                  {executionClasses && (
+                                    <ExecutionBorderAnimation color={executionClasses.borderColor} />
+                                  )}
                                   <div className="flex items-start justify-between gap-2 mb-2">
                                     <h3 className="flex-1 text-sm font-medium text-zinc-900 dark:text-zinc-50">
                                       {task.title}
                                     </h3>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        openTaskInPage(task.id);
-                                      }}
-                                      className="text-zinc-500 hover:text-blue-600 dark:text-zinc-400 dark:hover:text-blue-400 transition-colors"
-                                      title="ページで開く"
-                                    >
-                                      <ExternalLink className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                      {/* 実行状態バッジ */}
+                                      {executionClasses && (
+                                        <div
+                                          className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${executionClasses.badgeClass}`}
+                                          title={`タスクが${executionClasses.label}です`}
+                                        >
+                                          <div
+                                            className={`w-1.5 h-1.5 rounded-full execution-dot-pulse ${executionClasses.dotClass}`}
+                                          />
+                                          <span>{executionClasses.label}</span>
+                                        </div>
+                                      )}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openTaskInPage(task.id);
+                                        }}
+                                        className="text-zinc-500 hover:text-blue-600 dark:text-zinc-400 dark:hover:text-blue-400 transition-colors"
+                                        title="ページで開く"
+                                      >
+                                        <ExternalLink className="w-4 h-4" />
+                                      </button>
+                                    </div>
                                   </div>
 
                                   {/* メタ情報 */}
@@ -644,7 +694,8 @@ export default function KanbanPage() {
                                     </div>
                                   )}
                                 </div>
-                              )}
+                                );
+                              }}
                             </Draggable>
                           ))}
                         </div>

@@ -8,7 +8,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "noImplicitAny": false,
-    "strictNullChecks": false,
+    "strictNullChecks": false, // TODO: Enable after fixing 260+ pre-existing TS errors (missing imports in ai-agent.ts, agent-execution-service.ts)
     "strictFunctionTypes": false,
     "strictBindCallApply": false,
     "strictPropertyInitialization": false,

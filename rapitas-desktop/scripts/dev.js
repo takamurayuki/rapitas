@@ -1014,6 +1014,42 @@ function startFileWatcher() {
 
   let pendingChanges = [];
 
+  // 延期リスタート管理
+  let hasDeferredChanges = false;
+  let deferredPrismaChange = false;
+  let deferredFiles = [];
+  let deferCheckInterval = null;
+
+  function startDeferredCheckInterval() {
+    if (deferCheckInterval) return;
+    deferCheckInterval = setInterval(async () => {
+      if (!hasDeferredChanges) {
+        clearInterval(deferCheckInterval);
+        deferCheckInterval = null;
+        return;
+      }
+      const agentActive = await isAgentExecutionActive();
+      if (!agentActive) {
+        clearInterval(deferCheckInterval);
+        deferCheckInterval = null;
+        const uniqueFiles = [...new Set(deferredFiles)].join(", ");
+        console.log(`\n🔄 Agent finished. Applying deferred changes: ${uniqueFiles}`);
+        const needsPrismaRestart = deferredPrismaChange;
+        hasDeferredChanges = false;
+        deferredPrismaChange = false;
+        deferredFiles = [];
+        if (needsPrismaRestart) {
+          console.log("  Prisma schema changed, performing full restart with DB sync...");
+          await restartBackend().catch((err) => {
+            console.error("❌ Full restart failed:", err.message || err);
+          });
+        } else {
+          await hotRestartBackend();
+        }
+      }
+    }, 5000);
+  }
+
   function handleChange(filename) {
     if (!filename) return;
     // リスタート中 or クールダウン中（3秒）はイベントを無視
@@ -1037,12 +1073,15 @@ function startFileWatcher() {
       const uniqueFiles = [...new Set(changes)].join(", ");
       console.log(`\n📁 File change detected: ${uniqueFiles}`);
 
-      // エージェント実行中はリスタートを抑制
+      // エージェント実行中はリスタートを延期し、完了後に自動リスタート
       const agentActive = await isAgentExecutionActive();
       if (agentActive) {
-        console.log(
-          "  ⏸️  Agent execution in progress, deferring restart. Changes will apply on next restart.",
-        );
+        hasDeferredChanges = true;
+        if (pendingPrismaRestart) deferredPrismaChange = true;
+        deferredFiles.push(...changes);
+        pendingPrismaRestart = false;
+        console.log(`  ⏸️  Agent active, deferring restart (${deferredFiles.length} files queued)`);
+        startDeferredCheckInterval();
         return;
       }
 

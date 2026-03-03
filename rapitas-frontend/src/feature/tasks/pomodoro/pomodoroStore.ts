@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { API_BASE_URL } from '@/utils/api';
 
 export type PomodoroStatus = 'idle' | 'work' | 'shortBreak' | 'longBreak';
 
@@ -259,6 +260,10 @@ export const usePomodoroStore = create<PomodoroState>()(
         set(newState);
         broadcastState(newState);
         startTimerInterval();
+
+        // バックエンド同期
+        const settings = get().settings;
+        syncPomodoroToBackend.start(taskId, settings.pomodoroDuration, 'work');
       },
 
       pauseTimer: () => {
@@ -273,6 +278,10 @@ export const usePomodoroStore = create<PomodoroState>()(
 
       stopTimer: () => {
         stopTimerInterval();
+
+        // バックエンド同期（停止=キャンセル）
+        syncPomodoroToBackend.cancel();
+
         const newState = {
           taskId: null,
           taskTitle: null,
@@ -293,12 +302,22 @@ export const usePomodoroStore = create<PomodoroState>()(
 
       takeBreak: () => {
         const state = get();
+        const newCount = state.pomodoroCount + 1;
+        const isLongBreak = newCount % 4 === 0;
+        const breakType = isLongBreak ? 'long_break' : 'short_break';
+        const breakDuration = isLongBreak
+          ? state.settings.longBreakDuration
+          : state.settings.shortBreakDuration;
+
         set({
-          pomodoroCount: state.pomodoroCount + 1,
+          pomodoroCount: newCount,
           isBreakTime: true,
           pomodoroSeconds: 0,
           showBreakDialog: false,
         });
+
+        // バックエンド同期: 休憩セッション開始
+        syncPomodoroToBackend.start(state.taskId, breakDuration, breakType);
       },
 
       skipBreak: () => {
@@ -350,6 +369,18 @@ export const usePomodoroStore = create<PomodoroState>()(
             if (settings.soundEnabled) {
               playNotificationSound('work', settings.soundVolume);
             }
+
+            // デスクトップ通知
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              new Notification('ポモドーロ完了！', {
+                body: `${state.taskTitle || 'タスク'} — 休憩を取りましょう`,
+                icon: '/favicon.ico',
+              });
+            }
+
+            // バックエンド同期
+            syncPomodoroToBackend.complete(state.pomodoroCount + 1);
+
             set({
               pomodoroSeconds: pomodoroDuration,
               workSeconds: newWorkSeconds,
@@ -376,6 +407,15 @@ export const usePomodoroStore = create<PomodoroState>()(
             if (settings.soundEnabled) {
               playNotificationSound('break', settings.soundVolume);
             }
+
+            // デスクトップ通知
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              new Notification('休憩終了！', {
+                body: '作業を再開しましょう',
+                icon: '/favicon.ico',
+              });
+            }
+
             set({
               pomodoroSeconds: breakDuration,
               showBreakEndDialog: true,
@@ -462,6 +502,42 @@ export {
   DEFAULT_SHORT_BREAK,
   DEFAULT_LONG_BREAK,
   DEFAULT_SETTINGS,
+};
+
+// バックエンドとのポモドーロセッション同期（fire-and-forget）
+const syncPomodoroToBackend = {
+  start: (taskId: number | null, duration: number, type: 'work' | 'short_break' | 'long_break' = 'work') => {
+    fetch(`${API_BASE_URL}/pomodoro/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId, duration, type }),
+    }).catch(() => {});
+  },
+  complete: (completedPomodoros: number) => {
+    fetch(`${API_BASE_URL}/pomodoro/active`)
+      .then(res => res.json())
+      .then((data: { session?: { id: number } }) => {
+        if (data.session?.id) {
+          return fetch(`${API_BASE_URL}/pomodoro/sessions/${data.session.id}/complete`, {
+            method: 'POST',
+          });
+        }
+      })
+      .catch(() => {});
+    void completedPomodoros;
+  },
+  cancel: () => {
+    fetch(`${API_BASE_URL}/pomodoro/active`)
+      .then(res => res.json())
+      .then((data: { session?: { id: number } }) => {
+        if (data.session?.id) {
+          return fetch(`${API_BASE_URL}/pomodoro/sessions/${data.session.id}/cancel`, {
+            method: 'POST',
+          });
+        }
+      })
+      .catch(() => {});
+  },
 };
 
 // BroadcastChannelのリスナーを設定（クライアントサイドのみ）

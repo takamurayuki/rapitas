@@ -17,6 +17,8 @@ interface ExecutionStateStore {
   clearAll: () => void;
   /** 指定タスクが実行中かどうか */
   isTaskExecuting: (taskId: number) => boolean;
+  /** 指定タスクの実行状態を取得 */
+  getExecutingTaskStatus: (taskId: number) => 'running' | 'waiting_for_input' | null;
 }
 
 export const useExecutionStateStore = create<ExecutionStateStore>()(
@@ -38,6 +40,14 @@ export const useExecutionStateStore = create<ExecutionStateStore>()(
     isTaskExecuting: (taskId) => {
       const task = get().executingTasks.get(taskId);
       return task?.status === 'running' || task?.status === 'waiting_for_input';
+    },
+    getExecutingTaskStatus: (taskId) => {
+      const task = get().executingTasks.get(taskId);
+      if (!task) return null;
+      if (task.status === 'running' || task.status === 'waiting_for_input') {
+        return task.status;
+      }
+      return null;
     },
   }),
 );

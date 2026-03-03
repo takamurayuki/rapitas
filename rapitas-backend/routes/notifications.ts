@@ -4,8 +4,57 @@
 import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
 import { ValidationError, NotFoundError } from "../middleware/error-handler";
+import { realtimeService } from "../services/realtime-service";
 
 export const notificationsRoutes = new Elysia({ prefix: "/notifications" })
+  // SSEストリーム（リアルタイム通知配信）
+  .get("/stream", ({ set }) => {
+    set.headers["Content-Type"] = "text/event-stream";
+    set.headers["Cache-Control"] = "no-cache";
+    set.headers["Connection"] = "keep-alive";
+    set.headers["Access-Control-Allow-Origin"] = "*";
+
+    const stream = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        const clientId = realtimeService.registerClient(
+          {
+            write: (data: string) => {
+              try {
+                controller.enqueue(encoder.encode(data));
+              } catch {
+                // stream closed
+              }
+            },
+          },
+          ["notifications"]
+        );
+
+        realtimeService.registerStreamController(clientId, controller);
+
+        // 初期の未読数を送信
+        prisma.notification
+          .count({ where: { isRead: false } })
+          .then((count) => {
+            try {
+              const msg = `event: init\ndata: ${JSON.stringify({ unreadCount: count })}\n\n`;
+              controller.enqueue(encoder.encode(msg));
+            } catch {
+              // ignore
+            }
+          })
+          .catch(() => {});
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  })
   // Get notifications list
   .get("/", async (context: any) => {
       const { query  } = context;

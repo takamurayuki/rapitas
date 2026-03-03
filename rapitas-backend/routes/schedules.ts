@@ -4,24 +4,106 @@
 import { Elysia, t } from "elysia";
 import { prisma } from "../config/database";
 import { ValidationError, NotFoundError } from "../middleware/error-handler";
+import { parseRRule, expandRecurrence, RECURRENCE_PRESETS } from "../services/recurrence-service";
 
 export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   // Get all schedule events (with optional date range filter)
+  // 繰り返しイベントを仮想展開して返す
   .get("/", async (context: any) => {
       const { query  } = context;
     const { from, to  } = query as any;
 
-    const where: Record<string, unknown> = {};
+    const rangeStart = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const rangeEnd = to ? new Date(to) : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+
+    // 通常イベント（繰り返しなし）を取得
+    const where: Record<string, unknown> = {
+      recurrenceRule: null,
+      parentEventId: null,
+    };
     if (from || to) {
       where.startAt = {};
       if (from) (where.startAt as Record<string, unknown>).gte = new Date(from);
       if (to) (where.startAt as Record<string, unknown>).lte = new Date(to);
     }
 
-    return await prisma.scheduleEvent.findMany({
+    const normalEvents = await prisma.scheduleEvent.findMany({
       where,
       orderBy: { startAt: "asc" },
     });
+
+    // 繰り返しイベント（親）を取得
+    const recurringEvents = await prisma.scheduleEvent.findMany({
+      where: {
+        recurrenceRule: { not: null },
+        parentEventId: null,
+      },
+    });
+
+    // 繰り返しの例外（個別編集されたインスタンス）を取得
+    const exceptions = await prisma.scheduleEvent.findMany({
+      where: {
+        isRecurrenceException: true,
+        startAt: { gte: rangeStart, lte: rangeEnd },
+      },
+    });
+
+    const exceptionDates = new Set(
+      exceptions.map((e) =>
+        `${e.parentEventId}:${e.originalDate?.toISOString().split("T")[0]}`
+      )
+    );
+
+    // 繰り返しイベントを展開
+    const expandedEvents: typeof normalEvents = [];
+
+    for (const event of recurringEvents) {
+      if (!event.recurrenceRule) continue;
+
+      try {
+        const rule = parseRRule(event.recurrenceRule);
+        const occurrences = expandRecurrence(
+          event.startAt,
+          rule,
+          rangeStart,
+          rangeEnd,
+          event.recurrenceEnd,
+        );
+
+        for (const date of occurrences) {
+          const dateKey = `${event.id}:${date.toISOString().split("T")[0]}`;
+
+          // 例外インスタンスがある場合はスキップ（代わりに例外が表示される）
+          if (exceptionDates.has(dateKey)) continue;
+
+          // 仮想インスタンスを生成
+          const duration = event.endAt
+            ? event.endAt.getTime() - event.startAt.getTime()
+            : 0;
+
+          expandedEvents.push({
+            ...event,
+            id: event.id * 10000 + Math.floor(date.getTime() / 86400000) % 10000, // 仮想ID
+            startAt: date,
+            endAt: duration > 0 ? new Date(date.getTime() + duration) : null,
+            parentEventId: event.id,
+          });
+        }
+      } catch (e) {
+        console.error(`Failed to expand recurrence for event ${event.id}:`, e);
+      }
+    }
+
+    // 全イベントをマージしてソート
+    const allEvents = [...normalEvents, ...expandedEvents, ...exceptions]
+      .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+
+    return allEvents;
+  })
+
+  // 繰り返しプリセット一覧
+  .get("/recurrence-presets", () => {
+    return RECURRENCE_PRESETS;
   })
 
   // Get single schedule event
@@ -52,6 +134,8 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
         taskId?: number | null;
         type?: string;
         userId?: string;
+        recurrenceRule?: string | null;
+        recurrenceEnd?: string | null;
       };
 
       if (!data.title?.trim()) throw new ValidationError("Title is required");
@@ -70,6 +154,8 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
           taskId: data.taskId ?? null,
           type: (data.type === "PAID_LEAVE" ? "PAID_LEAVE" : "GENERAL"),
           userId: data.userId || "default",
+          recurrenceRule: data.recurrenceRule || null,
+          recurrenceEnd: data.recurrenceEnd ? new Date(data.recurrenceEnd) : null,
         },
       });
     },
@@ -134,6 +220,60 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
 
     await prisma.scheduleEvent.delete({ where: { id } });
     return { success: true, id };
+  })
+
+  // 繰り返しイベントの個別インスタンスを編集（この回のみ）
+  .post("/:id/exception", async (context) => {
+    const { params, body } = context;
+    const parentId = parseInt(params.id);
+    if (isNaN(parentId)) throw new ValidationError("Invalid ID");
+
+    const data = body as {
+      originalDate: string; // 元の繰り返し日付
+      title?: string;
+      description?: string;
+      startAt?: string;
+      endAt?: string;
+      color?: string;
+    };
+
+    const parent = await prisma.scheduleEvent.findUnique({ where: { id: parentId } });
+    if (!parent) throw new NotFoundError("Parent event not found");
+
+    // 例外インスタンスを作成
+    return await prisma.scheduleEvent.create({
+      data: {
+        title: data.title || parent.title,
+        description: data.description ?? parent.description,
+        startAt: data.startAt ? new Date(data.startAt) : new Date(data.originalDate),
+        endAt: data.endAt ? new Date(data.endAt) : parent.endAt,
+        isAllDay: parent.isAllDay,
+        color: data.color || parent.color,
+        reminderMinutes: parent.reminderMinutes,
+        taskId: parent.taskId,
+        type: parent.type,
+        userId: parent.userId,
+        parentEventId: parentId,
+        isRecurrenceException: true,
+        originalDate: new Date(data.originalDate),
+      },
+    });
+  })
+
+  // 繰り返しイベントの以降全てを削除（recurrenceEndを更新）
+  .post("/:id/stop-recurrence", async (context) => {
+    const { params, body } = context;
+    const id = parseInt(params.id);
+    if (isNaN(id)) throw new ValidationError("Invalid ID");
+
+    const data = body as { stopDate: string };
+
+    return await prisma.scheduleEvent.update({
+      where: { id },
+      data: {
+        recurrenceEnd: new Date(data.stopDate),
+      },
+    });
   })
 
   // Get upcoming reminders (events with unsent reminders that are due)

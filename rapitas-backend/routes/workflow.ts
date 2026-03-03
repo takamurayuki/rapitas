@@ -6,6 +6,8 @@ import { Elysia } from 'elysia';
 import { readFile, writeFile, mkdir, stat } from 'fs/promises';
 import { join } from 'path';
 import { prisma } from '../config';
+import { sanitizeMarkdownContent } from '../utils/mojibake-detector';
+import { analyzeTaskComplexity, getWorkflowModeConfig, type TaskComplexityInput } from '../services/workflow/complexity-analyzer';
 
 const VALID_FILE_TYPES = ['research', 'question', 'plan', 'verify'] as const;
 type WorkflowFileType = (typeof VALID_FILE_TYPES)[number];
@@ -145,9 +147,16 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       // ディレクトリ作成（再帰的）
       await mkdir(dir, { recursive: true });
 
+      // 文字化け検出・修正処理
+      const sanitizeResult = sanitizeMarkdownContent(parsedBody.content);
+      const mojibakeFixed = sanitizeResult.wasFixed;
+      if (sanitizeResult.wasFixed) {
+        console.log(`[Workflow API] Fixed mojibake in ${fileType}.md for task ${taskId}:`, sanitizeResult.issues);
+      }
+
       // ファイル書き込み
       const filePath = join(dir, `${fileType}.md`);
-      await writeFile(filePath, parsedBody.content, 'utf-8');
+      await writeFile(filePath, sanitizeResult.content, 'utf-8');
 
       // workflowStatus の自動更新
       let newStatus: string | undefined;
@@ -167,11 +176,54 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         });
       }
 
+      // plan.md保存時、autoApprovePlanが有効なら自動承認
+      let autoApproved = false;
+      if (fileType === 'plan' && newStatus === 'plan_created') {
+        const userSettings = await prisma.userSettings.findFirst();
+        if (userSettings?.autoApprovePlan) {
+          // 自動承認: plan_approved に遷移
+          await prisma.task.update({
+            where: { id: taskId },
+            data: { workflowStatus: 'plan_approved', updatedAt: new Date() },
+          });
+          newStatus = 'plan_approved';
+          autoApproved = true;
+
+          // ActivityLog に自動承認を記録
+          await prisma.activityLog.create({
+            data: {
+              taskId,
+              action: 'plan_auto_approved',
+              metadata: JSON.stringify({
+                previousStatus: 'plan_created',
+                newStatus: 'plan_approved',
+                reason: 'autoApprovePlan setting enabled',
+              }),
+              createdAt: new Date(),
+            },
+          });
+
+          // 自動的に実装フェーズを開始
+          try {
+            const { WorkflowOrchestrator } = await import('../services/workflow/workflow-orchestrator');
+            const orchestrator = WorkflowOrchestrator.getInstance();
+            orchestrator.advanceWorkflow(taskId).then((result) => {
+              console.log(`[Workflow] Auto-advance after auto-approval for task ${taskId}:`, result.success ? 'success' : result.error);
+            }).catch((err) => {
+              console.error(`[Workflow] Auto-advance after auto-approval failed for task ${taskId}:`, err);
+            });
+          } catch (err) {
+            console.error('[Workflow] Failed to auto-advance after auto-approval:', err);
+          }
+        }
+      }
+
       return {
         success: true,
         fileType,
         path: filePath,
         workflowStatus: newStatus || currentStatus,
+        autoApproved,
       };
     } catch (err) {
       console.error('Error saving workflow file:', err);
@@ -356,5 +408,143 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       console.error('Error advancing workflow:', err);
       set.status = 500;
       return { error: 'Failed to advance workflow' };
+    }
+  })
+
+  // ワークフローモード手動設定
+  .post('/tasks/:taskId/set-mode', async ({ params, body, set }) => {
+    try {
+      const taskId = parseInt(params.taskId);
+      if (isNaN(taskId)) {
+        set.status = 400;
+        return { error: 'Invalid task ID' };
+      }
+
+      const parsedBody = body as { mode: 'lightweight' | 'standard' | 'comprehensive'; override?: boolean };
+      const validModes = ['lightweight', 'standard', 'comprehensive'];
+
+      if (!parsedBody?.mode || !validModes.includes(parsedBody.mode)) {
+        set.status = 400;
+        return { error: `Invalid mode. Must be one of: ${validModes.join(', ')}` };
+      }
+
+      const task = await prisma.task.findUnique({ where: { id: taskId } });
+      if (!task) {
+        set.status = 404;
+        return { error: 'Task not found' };
+      }
+
+      const updatedTask = await prisma.task.update({
+        where: { id: taskId },
+        data: {
+          workflowMode: parsedBody.mode,
+          workflowModeOverride: parsedBody.override ?? true,
+          updatedAt: new Date(),
+        },
+      });
+
+      // ActivityLog に記録
+      await prisma.activityLog.create({
+        data: {
+          taskId,
+          action: 'workflow_mode_changed',
+          metadata: JSON.stringify({
+            previousMode: task.workflowMode,
+            newMode: parsedBody.mode,
+            isOverride: parsedBody.override ?? true,
+          }),
+          createdAt: new Date(),
+        },
+      });
+
+      return {
+        success: true,
+        taskId,
+        workflowMode: parsedBody.mode,
+        override: parsedBody.override ?? true,
+        task: updatedTask,
+      };
+    } catch (err) {
+      console.error('Error setting workflow mode:', err);
+      set.status = 500;
+      return { error: 'Failed to set workflow mode' };
+    }
+  })
+
+  // タスク複雑度自動分析
+  .get('/tasks/:taskId/analyze-complexity', async ({ params, set }) => {
+    try {
+      const taskId = parseInt(params.taskId);
+      if (isNaN(taskId)) {
+        set.status = 400;
+        return { error: 'Invalid task ID' };
+      }
+
+      const task = await prisma.task.findUnique({
+        where: { id: taskId },
+        include: {
+          theme: true,
+          taskLabels: {
+            include: { label: true }
+          }
+        }
+      });
+
+      if (!task) {
+        set.status = 404;
+        return { error: 'Task not found' };
+      }
+
+      // TaskComplexityInput を構築
+      const complexityInput: TaskComplexityInput = {
+        title: task.title,
+        description: task.description,
+        estimatedHours: task.estimatedHours,
+        labels: task.taskLabels.map(tl => tl.label.name),
+        priority: task.priority,
+        themeId: task.themeId,
+      };
+
+      // 複雑度分析を実行
+      const analysisResult = analyzeTaskComplexity(complexityInput);
+
+      // 結果をデータベースに保存（複雑度スコアとワークフローモード）
+      const updatedTask = await prisma.task.update({
+        where: { id: taskId },
+        data: {
+          complexityScore: analysisResult.complexityScore,
+          workflowMode: task.workflowModeOverride ? task.workflowMode : analysisResult.recommendedMode,
+          updatedAt: new Date(),
+        },
+      });
+
+      return {
+        success: true,
+        taskId,
+        analysis: analysisResult,
+        appliedMode: updatedTask.workflowMode,
+        wasOverridden: !!task.workflowModeOverride,
+      };
+    } catch (err) {
+      console.error('Error analyzing task complexity:', err);
+      set.status = 500;
+      return { error: 'Failed to analyze task complexity' };
+    }
+  })
+
+  // 利用可能なワークフローモード一覧取得
+  .get('/modes', async ({ set }) => {
+    try {
+      const modeConfig = getWorkflowModeConfig();
+
+      return {
+        success: true,
+        modes: modeConfig,
+        defaultMode: 'comprehensive',
+      };
+    } catch (err) {
+      console.error('Error fetching workflow modes:', err);
+      set.status = 500;
+      return { error: 'Failed to fetch workflow modes' };
     }
   });

@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Terminal,
   ChevronRight,
+  ShieldCheck,
 } from 'lucide-react';
 import type { UserSettings, ApiProvider } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
@@ -314,6 +315,30 @@ function SettingsPage() {
           prev ? { ...prev, defaultAiProvider: provider } : prev,
         );
         setSuccessMessage('デフォルトAIプロバイダーを保存しました');
+        setTimeout(() => setSuccessMessage(null), 3000);
+        // Clear cache to ensure fresh data
+        localStorage.removeItem(CACHE_KEYS.settings);
+      } else {
+        throw new Error('保存に失敗しました');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
+    }
+  };
+
+  const saveWorkflowSettings = async (autoApprovePlan: boolean) => {
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoApprovePlan }),
+      });
+      if (res.ok) {
+        setSettings((prev) =>
+          prev ? { ...prev, autoApprovePlan } : prev,
+        );
+        setSuccessMessage('ワークフロー設定を保存しました');
         setTimeout(() => setSuccessMessage(null), 3000);
         // Clear cache to ensure fresh data
         localStorage.removeItem(CACHE_KEYS.settings);
@@ -759,6 +784,55 @@ function SettingsPage() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+        </div>
+
+        {/* ワークフロー設定 */}
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="w-5 h-5 text-zinc-400" />
+              <div>
+                <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  ワークフロー設定
+                </h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  AIエージェントのワークフロー動作を管理
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                  計画の自動承認
+                </h3>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                  AIエージェントが作成した計画（plan.md）を自動的に承認し、実装フェーズに移行します
+                </p>
+              </div>
+              <button
+                onClick={() =>
+                  saveWorkflowSettings(!settings?.autoApprovePlan)
+                }
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 ${
+                  settings?.autoApprovePlan
+                    ? 'bg-violet-500'
+                    : 'bg-zinc-300 dark:bg-zinc-600'
+                }`}
+                role="switch"
+                aria-checked={settings?.autoApprovePlan ?? false}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    settings?.autoApprovePlan
+                      ? 'translate-x-5'
+                      : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
           </div>
         </div>

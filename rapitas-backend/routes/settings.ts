@@ -282,7 +282,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
     "/",
     async (context) => {
       const { body, set } = context;
-      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, autoExecuteAfterCreate, autoGenerateTitle, autoGenerateTitleDelay, autoCreateAfterTitleGeneration, defaultAiProvider, defaultCategoryId, activeMode } = body as any;
+      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, autoExecuteAfterCreate, autoGenerateTitle, autoGenerateTitleDelay, autoCreateAfterTitleGeneration, autoApprovePlan, defaultAiProvider, defaultCategoryId, activeMode } = body as any;
 
       try {
         let settings = await prisma.userSettings.findFirst();
@@ -296,6 +296,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
               autoGenerateTitle: autoGenerateTitle ?? false,
               ...(autoGenerateTitleDelay !== undefined && { autoGenerateTitleDelay }),
               autoCreateAfterTitleGeneration: autoCreateAfterTitleGeneration ?? false,
+              autoApprovePlan: autoApprovePlan ?? false,
               ...(defaultCategoryId !== undefined && { defaultCategoryId }),
               ...(activeMode !== undefined && { activeMode }),
             },
@@ -311,6 +312,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
               ...(autoGenerateTitle !== undefined && { autoGenerateTitle }),
               ...(autoGenerateTitleDelay !== undefined && { autoGenerateTitleDelay }),
               ...(autoCreateAfterTitleGeneration !== undefined && { autoCreateAfterTitleGeneration }),
+              ...(autoApprovePlan !== undefined && { autoApprovePlan }),
               ...(defaultAiProvider !== undefined && { defaultAiProvider }),
               ...(defaultCategoryId !== undefined && { defaultCategoryId }),
               ...(activeMode !== undefined && { activeMode }),
@@ -337,6 +339,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
         autoGenerateTitle: t.Optional(t.Boolean()),
         autoGenerateTitleDelay: t.Optional(t.Number()),
         autoCreateAfterTitleGeneration: t.Optional(t.Boolean()),
+        autoApprovePlan: t.Optional(t.Boolean()),
         defaultAiProvider: t.Optional(t.String()),
         defaultCategoryId: t.Optional(t.Union([t.Number(), t.Null()])),
         activeMode: t.Optional(t.String()),
