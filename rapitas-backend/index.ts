@@ -88,15 +88,7 @@ app.onBeforeHandle(({ set }) => {
   set.headers['Content-Type'] = 'application/json; charset=utf-8';
 });
 
-// Handle all errors and ensure JSON response
-app.onError(({ error, set }) => {
-  // Set JSON content type for error responses
-  set.headers['Content-Type'] = 'application/json; charset=utf-8';
-
-  // Let the errorHandler middleware handle the actual error
-  return;
-});
-
+// Apply error handler middleware (ensures JSON error responses)
 app.use(errorHandler);
 
 // Swagger documentation

@@ -31,6 +31,8 @@ export type WorkerOutputMessage =
   | WorkerQuestionDetected
   | WorkerToolTracking
   | WorkerRawOutput
+  | WorkerArtifactsParsed
+  | WorkerCommitsParsed
   | WorkerParseComplete
   | WorkerError;
 
@@ -93,6 +95,16 @@ export type WorkerRawOutput = {
   displayOutput: string;
 };
 
+export type WorkerArtifactsParsed = {
+  type: "artifacts-parsed";
+  data: { artifacts: ParsedArtifact[] };
+};
+
+export type WorkerCommitsParsed = {
+  type: "commits-parsed";
+  data: { commits: ParsedCommit[] };
+};
+
 export type WorkerParseComplete = {
   type: "parse-complete";
   /** 未処理の残りバッファ */
@@ -116,4 +128,9 @@ export type ParsedArtifact = {
 
 export type ParsedCommit = {
   hash: string;
+  message: string;
+  branch: string;
+  filesChanged: number;
+  additions: number;
+  deletions: number;
 };

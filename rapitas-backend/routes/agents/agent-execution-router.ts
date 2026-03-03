@@ -112,13 +112,20 @@ export const agentExecutionRouter = new Elysia()
         attachments,
       } = body;
 
-      const task = await prisma.task.findUnique({
-        where: { id: taskIdNum },
-        include: {
-          developerModeConfig: true,
-          theme: true,
-        },
-      });
+      let task;
+      try {
+        task = await prisma.task.findUnique({
+          where: { id: taskIdNum },
+          include: {
+            developerModeConfig: true,
+            theme: true,
+          },
+        });
+      } catch (dbError) {
+        console.error(`[API] Database error fetching task ${taskIdNum}:`, dbError);
+        context.set.status = 500;
+        return { error: "データベースクエリエラーが発生しました", details: dbError instanceof Error ? dbError.message : String(dbError) };
+      }
 
       if (!task) {
         context.set.status = 404;
@@ -135,92 +142,102 @@ export const agentExecutionRouter = new Elysia()
       }
 
       let developerModeConfig = task.developerModeConfig;
-      if (!developerModeConfig) {
-        developerModeConfig = await prisma.developerModeConfig.create({
-          data: {
-            taskId: taskIdNum,
-            isEnabled: true,
-          },
-        });
-      }
-
-      // 継続実行の場合は既存のセッションを使用、なければ新規作成
       let session;
-      if (sessionId) {
-        // 既存のセッションを取得して検証
-        const existingSession = await prisma.agentSession.findUnique({
-          where: { id: sessionId },
-        });
-        if (!existingSession) {
-          context.set.status = 404;
-          return { error: "Session not found" };
+      let finalBranchName = branchName;
+
+      try {
+        if (!developerModeConfig) {
+          developerModeConfig = await prisma.developerModeConfig.create({
+            data: {
+              taskId: taskIdNum,
+              isEnabled: true,
+            },
+          });
         }
-        if (existingSession.configId !== developerModeConfig.id) {
-          context.set.status = 400;
-          return { error: "Session does not belong to this task" };
+
+        // 継続実行の場合は既存のセッションを使用、なければ新規作成
+        if (sessionId) {
+          // 既存のセッションを取得して検証
+          const existingSession = await prisma.agentSession.findUnique({
+            where: { id: sessionId },
+          });
+          if (!existingSession) {
+            context.set.status = 404;
+            return { error: "Session not found" };
+          }
+          if (existingSession.configId !== developerModeConfig.id) {
+            context.set.status = 400;
+            return { error: "Session does not belong to this task" };
+          }
+          // セッションを再利用
+          session = existingSession;
+          console.log(
+            `[API] Continuing execution with existing session ${sessionId}`,
+          );
+        } else {
+          // 新規セッション作成
+          session = await prisma.agentSession.create({
+            data: {
+              configId: developerModeConfig.id,
+              status: "pending",
+            },
+          });
+          console.log(`[API] Created new session ${session.id}`);
         }
-        // セッションを再利用
-        session = existingSession;
-        console.log(
-          `[API] Continuing execution with existing session ${sessionId}`,
+
+        // ブランチ名の自動生成または手動指定
+        if (!finalBranchName) {
+          try {
+            finalBranchName = await generateBranchName(task.title, task.description || undefined);
+            console.log(`[API] Generated branch name: ${finalBranchName} for task ${taskIdNum}`);
+          } catch (error) {
+            console.error(`[API] Branch name generation failed for task ${taskIdNum}:`, error);
+            finalBranchName = `feature/task-${taskIdNum}-auto-generated`;
+          }
+        }
+
+        // ブランチを作成またはチェックアウト
+        const branchCreated = await orchestrator.createBranch(
+          workDir,
+          finalBranchName,
         );
-      } else {
-        // 新規セッション作成
-        session = await prisma.agentSession.create({
+        if (!branchCreated) {
+          return { error: "Failed to create branch", branchName: finalBranchName };
+        }
+
+        // セッションにブランチ名を保存
+        session = await prisma.agentSession.update({
+          where: { id: session.id },
+          data: { branchName: finalBranchName },
+        });
+
+        await prisma.notification.create({
           data: {
-            configId: developerModeConfig.id,
-            status: "pending",
+            type: "agent_execution_started",
+            title: "エージェント実行開始",
+            message: `「${task.title}」の自動実行を開始しました`,
+            link: `/tasks/${taskIdNum}`,
+            metadata: toJsonString({ sessionId: session.id, taskId: taskIdNum }),
           },
         });
-        console.log(`[API] Created new session ${session.id}`);
+
+        // タスクのステータスを「進行中」に更新
+        await prisma.task.update({
+          where: { id: taskIdNum },
+          data: {
+            status: "in-progress",
+            startedAt: task.startedAt || new Date(),
+          },
+        });
+        console.log(`[API] Updated task ${taskIdNum} status to 'in-progress'`);
+      } catch (dbError) {
+        console.error(`[API] Database error during execution setup for task ${taskIdNum}:`, dbError);
+        context.set.status = 500;
+        return {
+          error: "データベースクエリエラーが発生しました",
+          details: dbError instanceof Error ? dbError.message : String(dbError),
+        };
       }
-
-      // ブランチ名の自動生成または手動指定
-      let finalBranchName = branchName;
-      if (!finalBranchName) {
-        try {
-          finalBranchName = await generateBranchName(task.title, task.description || undefined);
-          console.log(`[API] Generated branch name: ${finalBranchName} for task ${taskIdNum}`);
-        } catch (error) {
-          console.error(`[API] Branch name generation failed for task ${taskIdNum}:`, error);
-          finalBranchName = `feature/task-${taskIdNum}-auto-generated`;
-        }
-      }
-
-      // ブランチを作成またはチェックアウト
-      const branchCreated = await orchestrator.createBranch(
-        workDir,
-        finalBranchName,
-      );
-      if (!branchCreated) {
-        return { error: "Failed to create branch", branchName: finalBranchName };
-      }
-
-      // セッションにブランチ名を保存
-      session = await prisma.agentSession.update({
-        where: { id: session.id },
-        data: { branchName: finalBranchName },
-      });
-
-      await prisma.notification.create({
-        data: {
-          type: "agent_execution_started",
-          title: "エージェント実行開始",
-          message: `「${task.title}」の自動実行を開始しました`,
-          link: `/tasks/${taskIdNum}`,
-          metadata: toJsonString({ sessionId: session.id, taskId: taskIdNum }),
-        },
-      });
-
-      // タスクのステータスを「進行中」に更新
-      await prisma.task.update({
-        where: { id: taskIdNum },
-        data: {
-          status: "in-progress",
-          startedAt: task.startedAt || new Date(),
-        },
-      });
-      console.log(`[API] Updated task ${taskIdNum} status to 'in-progress'`);
 
       let fullInstruction: string;
       if (optimizedPrompt) {

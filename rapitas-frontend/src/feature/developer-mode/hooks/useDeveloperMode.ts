@@ -25,39 +25,37 @@ function safeJsonParse(text: string): { success: boolean; data?: any; error?: st
 
   const trimmed = text.trim();
 
-  // Check for common error message patterns
+  // Check if it looks like JSON first (most common case)
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    // Check if JSON appears complete (basic bracket matching)
+    if (trimmed.startsWith('{') && !trimmed.endsWith('}')) {
+      return { success: false, error: 'Incomplete JSON object detected' };
+    }
+    if (trimmed.startsWith('[') && !trimmed.endsWith(']')) {
+      return { success: false, error: 'Incomplete JSON array detected' };
+    }
+
+    try {
+      const data = JSON.parse(trimmed);
+      return { success: true, data };
+    } catch (error) {
+      return {
+        success: false,
+        error: `JSON parse failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
+  // Non-JSON response - detect specific error patterns
   if (trimmed.startsWith('Invalid `prisma') || trimmed.startsWith('Invalid `p')) {
     return { success: false, error: 'Database query error detected' };
   }
 
-  // Check if response looks like an error message (not JSON)
   if (trimmed.startsWith('Error:') || trimmed.startsWith('ERROR:')) {
     return { success: false, error: trimmed };
   }
 
-  // More strict JSON validation
-  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
-    return { success: false, error: 'Response is not JSON format' };
-  }
-
-  // Check if JSON appears complete (basic bracket matching for objects)
-  if (trimmed.startsWith('{') && !trimmed.endsWith('}')) {
-    return { success: false, error: 'Incomplete JSON object detected' };
-  }
-
-  if (trimmed.startsWith('[') && !trimmed.endsWith(']')) {
-    return { success: false, error: 'Incomplete JSON array detected' };
-  }
-
-  try {
-    const data = JSON.parse(trimmed);
-    return { success: true, data };
-  } catch (error) {
-    return {
-      success: false,
-      error: `JSON parse failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-    };
-  }
+  return { success: false, error: 'Response is not JSON format' };
 }
 
 export function useDeveloperMode(taskId: number) {
@@ -513,7 +511,7 @@ export function useDeveloperMode(taskId: number) {
               sessionId: data.sessionId,
               message: data.message || '継続実行を開始しました',
             });
-            setExecutionStatus('completed');
+            setExecutionStatus('running');
             // グローバルストアに実行中タスクを記録
             setExecutingTask({
               taskId,
@@ -616,7 +614,7 @@ export function useDeveloperMode(taskId: number) {
               sessionId: data.sessionId,
               message: data.message || 'エージェント実行を開始しました',
             });
-            setExecutionStatus('completed');
+            setExecutionStatus('running');
             // グローバルストアに実行中タスクを記録
             setExecutingTask({
               taskId,

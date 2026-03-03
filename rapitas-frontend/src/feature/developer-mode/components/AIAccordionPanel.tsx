@@ -660,15 +660,16 @@ export function AIAccordionPanel({
       // ログ表示を継続
       setShowLogs(true);
       setExpandedSection('execution');
+      // 旧ポーリングを停止して残留ステータスをクリア
+      stopPolling();
       // 既存のセッションIDで実行を再開
       setSessionId(result.sessionId);
-      // ポーリングを再開（ログを保持）
-      // 少し遅延を入れて、バックエンドの継続実行処理が開始されるのを待つ
-      setTimeout(() => {
-        startPolling({
-          preserveLogs: true,
-        });
-      }, 500);
+      // ポーリングを即座に再開（ログを保持）
+      // startPolling内で即座にstatus='running'を設定し、旧completedステータスを上書きする
+      // terminalGraceMs(デフォルト2000ms)がバックエンドの処理開始を待つ
+      startPolling({
+        preserveLogs: true,
+      });
     }
   };
 
@@ -716,7 +717,8 @@ export function AIAccordionPanel({
   const isCompleted = finalStatus === 'completed' && !isWaitingForInput;
   const isCancelled = finalStatus === 'cancelled';
   const isFailed =
-    finalStatus === 'failed' || executionError || pollingError || sseError;
+    !isCompleted &&
+    (finalStatus === 'failed' || executionError || pollingError || sseError);
   // 中断判定: 復元した実行が interrupted だった場合（ログがあり、executionResultがある）
   const isInterrupted =
     !isCompleted &&
@@ -1374,7 +1376,7 @@ export function AIAccordionPanel({
                 </>
               )}
               {/* エラー: リセット + 再試行 */}
-              {isFailed && !isRunning && (
+              {isFailed && !isRunning && !isCompleted && (
                 <>
                   <button
                     onClick={(e) => {

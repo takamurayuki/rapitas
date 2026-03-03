@@ -473,10 +473,11 @@ self.onmessage = (event: MessageEvent<WorkerInputMessage>) => {
       }
 
       case "terminate":
-        // Worker終了
+        // Worker終了（メインスレッドからworker.terminate()で停止される）
         lineBuffer = "";
         activeTools.clear();
-        self.close();
+        // Bun Workerではself.close()が存在しないため、状態リセットのみ
+        process.exit(0);
         break;
     }
   } catch (error) {
