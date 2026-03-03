@@ -138,6 +138,7 @@ type Props = {
     question?: string;
   } | null>;
   onStopExecution?: () => void;
+  onExecutionComplete?: () => void;
   // 並列実行関連
   subtasks?: Task[];
   onStartParallelExecution?: (config?: {
@@ -191,6 +192,7 @@ export function AIAccordionPanel({
   onReset,
   onRestoreExecutionState,
   onStopExecution,
+  onExecutionComplete,
   // 並列実行関連
   subtasks,
   onStartParallelExecution,
@@ -455,18 +457,25 @@ export function AIAccordionPanel({
     }
   }, [isExecuting, isPollingRunning, startPolling, isRestoring]);
 
-  // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新
-  // ただし、キャンセルは handleStopExecution で既に処理されているため、completed と failed のみ処理
+  // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新（一度だけ）
+  const handledTerminalStatusRef = useRef<string | null>(null);
   useEffect(() => {
-    if (pollingStatus === 'completed' || pollingStatus === 'failed') {
-      // 親コンポーネントの状態を更新して実行完了を通知
-      if (onStopExecution) {
-        onStopExecution();
-      }
-      // グローバルストアから実行中タスクを除去
+    // 同じ terminal ステータスを二度処理しない
+    if (handledTerminalStatusRef.current === pollingStatus) return;
+
+    if (pollingStatus === 'completed') {
+      handledTerminalStatusRef.current = pollingStatus;
+      onExecutionComplete?.();
       removeExecutingTask(taskId);
+    } else if (pollingStatus === 'failed' || pollingStatus === 'cancelled') {
+      handledTerminalStatusRef.current = pollingStatus;
+      onStopExecution?.();
+      removeExecutingTask(taskId);
+    } else {
+      // running / waiting_for_input 等に戻ったらリセット
+      handledTerminalStatusRef.current = null;
     }
-  }, [pollingStatus, onStopExecution, removeExecutingTask, taskId]);
+  }, [pollingStatus, onStopExecution, onExecutionComplete, removeExecutingTask, taskId]);
 
   // サブタスクが存在するかどうか
   const hasSubtasks = subtasks && subtasks.length > 0;

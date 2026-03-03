@@ -307,17 +307,20 @@ export function AgentExecutionPanel({
     }
   }, [isExecuting, isPollingRunning, startPolling]);
 
-  // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新
+  // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新（一度だけ）
+  const handledTerminalStatusRef = useRef<string | null>(null);
   useEffect(() => {
+    if (handledTerminalStatusRef.current === pollingStatus) return;
+
     if (
       pollingStatus === 'completed' ||
       pollingStatus === 'failed' ||
       pollingStatus === 'cancelled'
     ) {
-      // 親コンポーネントの状態を更新して実行完了を通知
-      if (onExecutionComplete) {
-        onExecutionComplete();
-      }
+      handledTerminalStatusRef.current = pollingStatus;
+      onExecutionComplete?.();
+    } else {
+      handledTerminalStatusRef.current = null;
     }
   }, [pollingStatus, onExecutionComplete]);
 

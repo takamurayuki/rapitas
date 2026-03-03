@@ -4,6 +4,41 @@
 @import '../styles/note-editor-enhanced.css';
 @plugin "@tailwindcss/typography";
 
+@keyframes ai-glow-blue {
+  0%,
+  100% {
+    box-shadow:
+      0 0 6px rgba(59, 130, 246, 0.15),
+      0 0 0 1px rgba(59, 130, 246, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 20px rgba(59, 130, 246, 0.4),
+      0 0 0 1px rgba(59, 130, 246, 0.6);
+  }
+}
+
+@keyframes ai-glow-amber {
+  0%,
+  100% {
+    box-shadow:
+      0 0 6px rgba(245, 158, 11, 0.15),
+      0 0 0 1px rgba(245, 158, 11, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 20px rgba(245, 158, 11, 0.4),
+      0 0 0 1px rgba(245, 158, 11, 0.6);
+  }
+}
+
+.ai-glow-blue {
+  animation: ai-glow-blue 2.5s ease-in-out infinite;
+}
+.ai-glow-amber {
+  animation: ai-glow-amber 2.5s ease-in-out infinite;
+}
+
 @keyframes animate-execution-border {
   from {
     stroke-dashoffset: 0;

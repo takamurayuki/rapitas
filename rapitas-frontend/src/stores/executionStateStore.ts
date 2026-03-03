@@ -26,12 +26,17 @@ export const useExecutionStateStore = create<ExecutionStateStore>()(
     executingTasks: new Map(),
     setExecutingTask: (task) =>
       set((state) => {
+        const existing = state.executingTasks.get(task.taskId);
+        if (existing && existing.status === task.status && existing.sessionId === task.sessionId) {
+          return state;
+        }
         const newMap = new Map(state.executingTasks);
         newMap.set(task.taskId, task);
         return { executingTasks: newMap };
       }),
     removeExecutingTask: (taskId) =>
       set((state) => {
+        if (!state.executingTasks.has(taskId)) return state;
         const newMap = new Map(state.executingTasks);
         newMap.delete(taskId);
         return { executingTasks: newMap };

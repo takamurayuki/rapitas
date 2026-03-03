@@ -645,6 +645,16 @@ export const agentExecutionRouter = new Elysia()
         return { error: "No execution found" };
       }
 
+      // ステータスチェック: waiting_for_input でなければ応答不可
+      if (latestExecution.status === "running") {
+        return { error: "Execution is already running" };
+      }
+      if (latestExecution.status !== "waiting_for_input") {
+        return {
+          error: `Execution is not waiting for input: ${latestExecution.status}`,
+        };
+      }
+
       // オーケストレーターでロックを取得（他のプロセスと競合防止）
       if (
         !orchestrator.tryAcquireContinuationLock(
@@ -657,42 +667,38 @@ export const agentExecutionRouter = new Elysia()
         };
       }
 
-      try {
-        // タイムアウトキャンセルを試行
-        orchestrator.cancelQuestionTimeout(latestExecution.id);
-        console.log(
-          `[agent-respond] Cancelled timeout for execution ${latestExecution.id}`,
-        );
+      // タイムアウトキャンセルを試行
+      orchestrator.cancelQuestionTimeout(latestExecution.id);
+      console.log(
+        `[agent-respond] Cancelled timeout for execution ${latestExecution.id}`,
+      );
 
-        const workingDirectory =
-          config.task.theme?.workingDirectory || process.cwd();
+      const workingDirectory =
+        config.task.theme?.workingDirectory || process.cwd();
 
-        // 応答を送信
-        const result = await orchestrator.executeContinuation(
-          latestExecution.id,
-          response,
-          {
-            sessionId: session.id,
-            taskId,
-            workingDirectory,
-          },
-        );
+      // 応答を送信（ロック取得済みなので executeContinuationWithLock を使用）
+      // executeContinuationWithLock が finally でロックを解放する
+      const result = await orchestrator.executeContinuationWithLock(
+        latestExecution.id,
+        response,
+        {
+          sessionId: session.id,
+          taskId,
+          workingDirectory,
+        },
+      );
 
-        if (result.success) {
-          return {
-            success: true,
-            message: "Response sent successfully",
-            executionId: latestExecution.id,
-          };
-        } else {
-          return {
-            error: result.errorMessage || "Failed to send response",
-            executionId: latestExecution.id,
-          };
-        }
-      } finally {
-        // ロックを解放
-        orchestrator.releaseContinuationLock(latestExecution.id);
+      if (result.success) {
+        return {
+          success: true,
+          message: "Response sent successfully",
+          executionId: latestExecution.id,
+        };
+      } else {
+        return {
+          error: result.errorMessage || "Failed to send response",
+          executionId: latestExecution.id,
+        };
       }
     },
     {

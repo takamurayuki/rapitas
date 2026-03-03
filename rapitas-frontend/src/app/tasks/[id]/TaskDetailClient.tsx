@@ -585,6 +585,13 @@ function TaskDetailClient({
       // AIアシスタントパネルを表示
       setShowAIAssistant(true);
       // エージェント実行を開始
+      // 楽観的UI更新: エージェント実行開始時にタスクステータスをin-progressに設定
+      if (task && task.status !== 'in-progress') {
+        setTask((prev) => {
+          if (!prev) return prev;
+          return { ...prev, status: 'in-progress' };
+        });
+      }
       executeAgent();
       // URLからautoExecuteパラメータを除去（リロード時の再実行防止）
       const newParams = new URLSearchParams(searchParams.toString());
@@ -1468,6 +1475,13 @@ function TaskDetailClient({
                             console.log(
                               '[TaskDetail] Auto-executing agent after analysis',
                             );
+                            // 楽観的UI更新: エージェント実行開始時にタスクステータスをin-progressに設定
+                            if (task && task.status !== 'in-progress') {
+                              setTask((prev) => {
+                                if (!prev) return prev;
+                                return { ...prev, status: 'in-progress' };
+                              });
+                            }
                             await executeAgent({
                               useTaskAnalysis: true,
                               optimizedPrompt: optimizedPrompt || undefined,
@@ -1502,10 +1516,25 @@ function TaskDetailClient({
                   agentConfigId={agentConfigId}
                   agents={agents}
                   onAgentChange={setAgentConfigId}
-                  onExecute={executeAgent}
+                  onExecute={async (options) => {
+                    // 楽観的UI更新: エージェント実行開始時にタスクステータスをin-progressに設定
+                    if (task && task.status !== 'in-progress') {
+                      setTask((prev) => {
+                        if (!prev) return prev;
+                        return { ...prev, status: 'in-progress' };
+                      });
+                    }
+
+                    const result = await executeAgent(options);
+                    return result;
+                  }}
                   onReset={resetExecutionState}
                   onRestoreExecutionState={restoreExecutionState}
                   onStopExecution={setExecutionCancelled}
+                  onExecutionComplete={async () => {
+                    // 実行完了時にタスクを再フェッチして最新ステータスを反映
+                    await refetchTask();
+                  }}
                   // 並列実行関連
                   subtasks={task.subtasks}
                   onStartParallelExecution={startSession}
