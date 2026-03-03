@@ -1065,17 +1065,17 @@ export function AgentExecutionPanel({
                 <div>
                   <label className="flex text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 items-center gap-2">
                     <GitBranch className="w-4 h-4" />
-                    作業ブランチ名（任意）
+                    作業ブランチ名（空欄で自動生成）
                   </label>
                   <input
                     type="text"
                     value={branchName}
                     onChange={(e) => setBranchName(e.target.value)}
-                    placeholder={`例: feature/task-${Date.now()}`}
+                    placeholder="AIが自動で適切なブランチ名を生成します"
                     className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 transition-all"
                   />
                   <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    指定しない場合、自動でフィーチャーブランチが作成されます。
+                    指定しない場合、AIがタスク内容を基に適切なブランチ名を自動生成します。
                   </p>
                 </div>
               </div>

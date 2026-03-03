@@ -7,36 +7,47 @@
 @keyframes ai-glow-blue {
   0%,
   100% {
+    outline: 1.5px solid rgba(59, 130, 246, 0.4);
+    outline-offset: 0px;
     box-shadow:
-      0 0 6px rgba(59, 130, 246, 0.15),
-      0 0 0 1px rgba(59, 130, 246, 0.2);
+      0 0 0 0px rgba(59, 130, 246, 0),
+      inset 0 0 0 0px rgba(59, 130, 246, 0);
   }
   50% {
+    outline: 1.5px solid rgba(96, 165, 250, 0.9);
+    outline-offset: 2px;
     box-shadow:
-      0 0 20px rgba(59, 130, 246, 0.4),
-      0 0 0 1px rgba(59, 130, 246, 0.6);
+      0 0 12px 2px rgba(59, 130, 246, 0.3),
+      0 0 24px 4px rgba(59, 130, 246, 0.1),
+      inset 0 0 8px 0px rgba(59, 130, 246, 0.05);
   }
 }
 
 @keyframes ai-glow-amber {
   0%,
   100% {
+    outline: 1.5px solid rgba(245, 158, 11, 0.4);
+    outline-offset: 0px;
     box-shadow:
-      0 0 6px rgba(245, 158, 11, 0.15),
-      0 0 0 1px rgba(245, 158, 11, 0.2);
+      0 0 0 0px rgba(245, 158, 11, 0),
+      inset 0 0 0 0px rgba(245, 158, 11, 0);
   }
   50% {
+    outline: 1.5px solid rgba(251, 191, 36, 0.9);
+    outline-offset: 2px;
     box-shadow:
-      0 0 20px rgba(245, 158, 11, 0.4),
-      0 0 0 1px rgba(245, 158, 11, 0.6);
+      0 0 12px 2px rgba(245, 158, 11, 0.3),
+      0 0 24px 4px rgba(245, 158, 11, 0.1),
+      inset 0 0 8px 0px rgba(245, 158, 11, 0.05);
   }
 }
 
 .ai-glow-blue {
-  animation: ai-glow-blue 2.5s ease-in-out infinite;
+  animation: ai-glow-blue 2s ease-in-out infinite;
 }
+
 .ai-glow-amber {
-  animation: ai-glow-amber 2.5s ease-in-out infinite;
+  animation: ai-glow-amber 2s ease-in-out infinite;
 }
 
 @keyframes animate-execution-border {

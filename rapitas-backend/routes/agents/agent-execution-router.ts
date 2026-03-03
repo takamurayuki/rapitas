@@ -12,6 +12,7 @@ import {
   sanitizeScreenshots,
 } from "../../utils/agent-response-cleaner";
 import { captureScreenshotsForDiff } from "../../services/screenshot-service";
+import { generateBranchName } from "../../utils/branch-name-generator";
 import type { ExecutionWithExtras } from "../../types/agent-execution-types";
 import type { ScreenshotResult } from "../../services/screenshot-service";
 
@@ -119,15 +120,32 @@ export const agentExecutionRouter = new Elysia()
         console.log(`[API] Created new session ${session.id}`);
       }
 
-      if (branchName) {
-        const branchCreated = await orchestrator.createBranch(
-          workDir,
-          branchName,
-        );
-        if (!branchCreated) {
-          return { error: "Failed to create branch", branchName };
+      // ブランチ名の自動生成または手動指定
+      let finalBranchName = branchName;
+      if (!finalBranchName) {
+        try {
+          finalBranchName = await generateBranchName(task.title, task.description || undefined);
+          console.log(`[API] Generated branch name: ${finalBranchName} for task ${taskIdNum}`);
+        } catch (error) {
+          console.error(`[API] Branch name generation failed for task ${taskIdNum}:`, error);
+          finalBranchName = `feature/task-${taskIdNum}-auto-generated`;
         }
       }
+
+      // ブランチを作成またはチェックアウト
+      const branchCreated = await orchestrator.createBranch(
+        workDir,
+        finalBranchName,
+      );
+      if (!branchCreated) {
+        return { error: "Failed to create branch", branchName: finalBranchName };
+      }
+
+      // セッションにブランチ名を保存
+      session = await prisma.agentSession.update({
+        where: { id: session.id },
+        data: { branchName: finalBranchName },
+      });
 
       await prisma.notification.create({
         data: {
@@ -936,6 +954,36 @@ export const agentExecutionRouter = new Elysia()
         // 前回の実行情報を取得
         const previousExecution = session.agentExecutions[0];
         const workingDirectory = task.theme?.workingDirectory || process.cwd();
+
+        // セッションのブランチ名を取得し、必要に応じてチェックアウト
+        if (session.branchName) {
+          try {
+            const branchCreated = await orchestrator.createBranch(
+              workingDirectory,
+              session.branchName,
+            );
+            if (!branchCreated) {
+              console.error(
+                `[continue-execution] Failed to checkout branch ${session.branchName} for task ${taskId}`,
+              );
+              // ブランチチェックアウト失敗は警告のみで継続
+            } else {
+              console.log(
+                `[continue-execution] Checked out branch ${session.branchName} for task ${taskId}`,
+              );
+            }
+          } catch (error) {
+            console.error(
+              `[continue-execution] Branch checkout error for task ${taskId}:`,
+              error,
+            );
+            // ブランチチェックアウト失敗は警告のみで継続
+          }
+        } else {
+          console.log(
+            `[continue-execution] No branch name stored in session ${targetSessionId}`,
+          );
+        }
 
         // セッションを再開状態に更新
         await prisma.agentSession.update({
