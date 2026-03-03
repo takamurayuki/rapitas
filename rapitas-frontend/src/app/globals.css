@@ -4,6 +4,13 @@
 @import '../styles/note-editor-enhanced.css';
 @plugin "@tailwindcss/typography";
 
+/* CSS変数をアニメーション可能にする宣言 */
+@property --border-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
 /* ノートホバーサイドバー用のアニメーション */
 @keyframes slideIn {
   from {
@@ -240,6 +247,176 @@ html {
 
 .status-card-pulse {
   animation: statusCardPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* CSS カスタムプロパティ定義（回転ボーダー用） */
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* 回転ボーダーアニメーション */
+@keyframes border-rotate {
+  0% {
+    --border-angle: 0deg;
+  }
+  100% {
+    --border-angle: 360deg;
+  }
+}
+
+/* 実行中タスクの青回転ボーダー */
+@keyframes execution-pulse-blue {
+  0% {
+    --border-angle: 0deg;
+  }
+  100% {
+    --border-angle: 360deg;
+  }
+}
+
+/* 待機中タスクのアンバー回転ボーダー */
+@keyframes execution-pulse-amber {
+  0% {
+    --border-angle: 0deg;
+  }
+  100% {
+    --border-angle: 360deg;
+  }
+}
+
+/* ステータスバッジのドットパルス */
+@keyframes execution-dot-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+/* ダークモード対応のCSS変数 */
+:root {
+  --card-bg-light: white;
+  --card-bg-dark: #1a2236;
+}
+
+.dark {
+  --card-bg-color: var(--card-bg-dark);
+}
+
+:root:not(.dark) {
+  --card-bg-color: var(--card-bg-light);
+}
+
+.execution-pulse-blue {
+  position: relative;
+  animation: execution-pulse-blue 2.5s linear infinite;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+}
+
+.execution-pulse-blue::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  padding: 3px;
+  background: conic-gradient(
+    from var(--border-angle),
+    transparent 0%,
+    transparent 2%,
+    rgba(59, 130, 246, 0.3) 5%,
+    rgba(59, 130, 246, 1) 8%,
+    rgba(147, 197, 253, 1) 10%,
+    rgba(59, 130, 246, 1) 12%,
+    rgba(59, 130, 246, 0.3) 15%,
+    transparent 18%,
+    transparent 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  z-index: -1;
+}
+
+.execution-pulse-blue::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--card-bg-color);
+  z-index: -2;
+}
+
+.execution-pulse-amber {
+  position: relative;
+  animation: execution-pulse-amber 2.5s linear infinite;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
+}
+
+.execution-pulse-amber::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  padding: 3px;
+  background: conic-gradient(
+    from var(--border-angle),
+    transparent 0%,
+    transparent 2%,
+    rgba(245, 158, 11, 0.3) 5%,
+    rgba(245, 158, 11, 1) 8%,
+    rgba(251, 191, 36, 1) 10%,
+    rgba(245, 158, 11, 1) 12%,
+    rgba(245, 158, 11, 0.3) 15%,
+    transparent 18%,
+    transparent 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  z-index: -1;
+}
+
+.execution-pulse-amber::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--card-bg-color);
+  z-index: -2;
+}
+
+.execution-dot-pulse {
+  animation: execution-dot-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* prefers-reduced-motion対応 */
+@media (prefers-reduced-motion: reduce) {
+  .execution-pulse-blue,
+  .execution-pulse-amber,
+  .execution-dot-pulse {
+    animation: none;
+  }
+
+  .execution-pulse-blue {
+    border-color: rgba(59, 130, 246, 1);
+    box-shadow:
+      0 0 0 2px rgba(59, 130, 246, 0.4),
+      0 0 8px rgba(59, 130, 246, 0.2);
+  }
+
+  .execution-pulse-amber {
+    border-color: rgba(245, 158, 11, 1);
+    box-shadow:
+      0 0 0 2px rgba(245, 158, 11, 0.4),
+      0 0 8px rgba(245, 158, 11, 0.2);
+  }
 }
 
 /* Floating AI Menu アニメーション */
