@@ -6,7 +6,11 @@ import { PrismaClient, Task, AgentExecution, AgentSession } from "@prisma/client
 import { ParallelExecutor } from "../services/parallel-execution/parallel-executor";
 import { orchestrator } from "../routes/approvals";
 import type { TaskPriority } from "../services/parallel-execution/types";
-import type { AgentExecutionWithExtras, ExecutionRequest, ExecutionResult } from "../types/agent-execution-types";
+import type {
+  ExecutionRequest,
+  ExecutionResult,
+  AgentExecutionWithExtras
+} from "../types/agent-execution-types";
 
 export class AgentExecutionService {
   private prisma: PrismaClient;
@@ -45,12 +49,7 @@ export class AgentExecutionService {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
       include: {
-        category: true,
-        theme: true,
-        workflowFiles: true,
-        attachments: {
-          include: { file: true }
-        }
+        theme: true
       }
     });
 
@@ -62,13 +61,13 @@ export class AgentExecutionService {
     const session = await this.getOrCreateSession(sessionId, agentConfigId);
 
     // 実行前の状態チェック
-    await this.checkExecutionPreconditions(taskId, session.id);
+    await this.checkExecutionPreconditions(session.id);
 
     // エージェント設定を取得
-    const agentConfig = await this.getAgentConfig(agentConfigId || session.agentConfigId);
+    const agentConfig = await this.getAgentConfig(agentConfigId || session.configId);
 
     // 実行データベースエントリを作成
-    const execution = await this.createExecution(taskId, session.id, agentConfig.id);
+    const execution = await this.createExecution(session.id, agentConfig.id);
 
     try {
       // 実行をオーケストレーターに委譲
@@ -82,11 +81,9 @@ export class AgentExecutionService {
           context: task.executionInstructions || undefined,
         },
         {
+          taskId,
           sessionId: session.id,
-          executionId: execution.id,
-          agentType: agentConfig.agentType,
-          priority: this.determinePriority(task),
-          attachments: attachments || [],
+          agentConfigId: agentConfig.id,
         }
       );
 
@@ -102,8 +99,7 @@ export class AgentExecutionService {
         where: { id: execution.id },
         data: {
           status: "error",
-          error: error instanceof Error ? error.message : "実行開始エラー",
-          updatedAt: new Date()
+          errorMessage: error instanceof Error ? error.message : "実行開始エラー",
         }
       });
 
@@ -116,7 +112,7 @@ export class AgentExecutionService {
    */
   private async getOrCreateSession(
     sessionId?: number,
-    agentConfigId?: number
+    configId?: number
   ): Promise<AgentSession> {
     if (sessionId) {
       const existingSession = await this.prisma.agentSession.findUnique({
@@ -131,13 +127,13 @@ export class AgentExecutionService {
     }
 
     // 新規セッション作成
-    if (!agentConfigId) {
-      throw new Error("新規セッション作成にはagentConfigIdが必要です");
+    if (!configId) {
+      throw new Error("新規セッション作成にはconfigIdが必要です");
     }
 
     return await this.prisma.agentSession.create({
       data: {
-        agentConfigId,
+        configId,
         startedAt: new Date(),
       }
     });
@@ -161,18 +157,17 @@ export class AgentExecutionService {
   /**
    * 実行前の条件チェック
    */
-  private async checkExecutionPreconditions(taskId: number, sessionId: number): Promise<void> {
+  private async checkExecutionPreconditions(sessionId: number): Promise<void> {
     // 既に実行中の処理があるかチェック
     const runningExecution = await this.prisma.agentExecution.findFirst({
       where: {
-        taskId,
         sessionId,
         status: { in: ["running", "pending", "waiting_for_input"] }
       }
     });
 
     if (runningExecution) {
-      throw new Error("このタスクは既に実行中です");
+      throw new Error("この実行セッションは既に実行中です");
     }
   }
 
@@ -180,15 +175,14 @@ export class AgentExecutionService {
    * 実行エントリを作成
    */
   private async createExecution(
-    taskId: number,
     sessionId: number,
     agentConfigId: number
   ): Promise<AgentExecution> {
     return await this.prisma.agentExecution.create({
       data: {
-        taskId,
         sessionId,
         agentConfigId,
+        command: `Agent execution`,
         status: "pending",
         startedAt: new Date(),
       }
@@ -241,8 +235,7 @@ export class AgentExecutionService {
         where: { id: executionId },
         data: {
           status: "cancelled",
-          endedAt: new Date(),
-          updatedAt: new Date()
+          completedAt: new Date(),
         }
       });
 
@@ -271,8 +264,7 @@ export class AgentExecutionService {
       },
       data: {
         status: "cancelled",
-        endedAt: new Date(),
-        updatedAt: new Date()
+        completedAt: new Date()
       }
     });
 
@@ -280,7 +272,7 @@ export class AgentExecutionService {
     await this.prisma.agentSession.update({
       where: { id: sessionId },
       data: {
-        endedAt: new Date(),
+        completedAt: new Date(),
         status: "completed"
       }
     });
@@ -296,9 +288,7 @@ export class AgentExecutionService {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
       include: {
-        category: true,
         theme: true,
-        workflowFiles: true
       }
     });
 
@@ -309,8 +299,12 @@ export class AgentExecutionService {
     // 既存の実行を検索
     const previousExecution = await this.prisma.agentExecution.findFirst({
       where: {
-        taskId,
-        ...(options?.sessionId ? { sessionId: options.sessionId } : {})
+        ...(options?.sessionId ? { sessionId: options.sessionId } : {}),
+        session: {
+          config: {
+            taskId: taskId
+          }
+        }
       },
       orderBy: { startedAt: "desc" },
       include: { agentConfig: true }
@@ -328,9 +322,9 @@ export class AgentExecutionService {
     // 新しい実行エントリを作成
     const newExecution = await this.prisma.agentExecution.create({
       data: {
-        taskId,
         sessionId: previousExecution.sessionId,
         agentConfigId: previousExecution.agentConfigId,
+        command: "continue_task",
         status: "pending",
         startedAt: new Date(),
       }
@@ -360,9 +354,6 @@ export class AgentExecutionService {
         },
         {
           sessionId: previousExecution.sessionId,
-          executionId: newExecution.id,
-          agentType: previousExecution.agentConfig.agentType,
-          priority: this.determinePriority(task),
         }
       );
 
@@ -377,8 +368,7 @@ export class AgentExecutionService {
         where: { id: newExecution.id },
         data: {
           status: "error",
-          error: error instanceof Error ? error.message : "継続実行エラー",
-          updatedAt: new Date()
+          errorMessage: error instanceof Error ? error.message : "継続実行エラー"
         }
       });
 
@@ -393,15 +383,9 @@ export class AgentExecutionService {
     return await this.prisma.agentExecution.findUnique({
       where: { id: executionId },
       include: {
-        task: {
-          include: {
-            category: true,
-            theme: true
-          }
-        },
         agentConfig: true,
         session: true,
-        logs: {
+        executionLogs: {
           orderBy: { timestamp: "asc" }
         }
       }
@@ -413,18 +397,18 @@ export class AgentExecutionService {
    */
   async getLatestExecution(taskId: number): Promise<AgentExecutionWithExtras | null> {
     return await this.prisma.agentExecution.findFirst({
-      where: { taskId },
+      where: {
+        session: {
+          config: {
+            taskId: taskId
+          }
+        }
+      },
       orderBy: { startedAt: "desc" },
       include: {
-        task: {
-          include: {
-            category: true,
-            theme: true
-          }
-        },
         agentConfig: true,
         session: true,
-        logs: {
+        executionLogs: {
           orderBy: { timestamp: "asc" },
           take: 10
         }
@@ -441,12 +425,6 @@ export class AgentExecutionService {
         status: { in: ["running", "pending", "waiting_for_input"] }
       },
       include: {
-        task: {
-          include: {
-            category: true,
-            theme: true
-          }
-        },
         agentConfig: true,
         session: true
       },
@@ -459,7 +437,13 @@ export class AgentExecutionService {
    */
   async resetExecutionState(taskId: number): Promise<void> {
     const latestExecution = await this.prisma.agentExecution.findFirst({
-      where: { taskId },
+      where: {
+        session: {
+          config: {
+            taskId: taskId
+          }
+        }
+      },
       orderBy: { startedAt: "desc" }
     });
 
@@ -477,8 +461,7 @@ export class AgentExecutionService {
       where: { id: latestExecution.id },
       data: {
         status: "cancelled",
-        endedAt: new Date(),
-        updatedAt: new Date()
+        completedAt: new Date()
       }
     });
 
@@ -495,19 +478,13 @@ export class AgentExecutionService {
     return await this.prisma.agentExecution.findMany({
       where: {
         status: "interrupted",
-        endedAt: { gt: new Date(Date.now() - 24 * 60 * 60 * 1000) } // 24時間以内
+        completedAt: { gt: new Date(Date.now() - 24 * 60 * 60 * 1000) } // 24時間以内
       },
       include: {
-        task: {
-          include: {
-            category: true,
-            theme: true
-          }
-        },
         agentConfig: true,
         session: true
       },
-      orderBy: { endedAt: "desc" }
+      orderBy: { completedAt: "desc" }
     });
   }
 
@@ -518,19 +495,13 @@ export class AgentExecutionService {
     return await this.prisma.agentExecution.findMany({
       where: {
         status: { in: ["interrupted", "error", "cancelled"] },
-        endedAt: { gt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } // 1週間以内
+        completedAt: { gt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } // 1週間以内
       },
       include: {
-        task: {
-          include: {
-            category: true,
-            theme: true
-          }
-        },
         agentConfig: true,
         session: true
       },
-      orderBy: { endedAt: "desc" }
+      orderBy: { completedAt: "desc" }
     });
   }
 }

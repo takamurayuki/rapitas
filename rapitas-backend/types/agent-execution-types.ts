@@ -70,13 +70,34 @@ export type RealtimeEventType =
   | "pr_review_requested";
 
 /**
- * AgentExecutionの拡張型（DBに存在するがPrismaの型定義にない追加フィールド）
+ * 実行リクエスト型
  */
-export interface ExecutionWithExtras extends AgentExecution {
-  question?: string | null;
-  questionType?: QuestionType | null;
-  questionDetails?: string | null;
-  claudeSessionId?: string | null;
+export interface ExecutionRequest {
+  agentConfigId?: number;
+  useTaskAnalysis?: boolean;
+  optimizedPrompt?: string;
+  sessionId?: number;
+  attachments?: any[];
+}
+
+/**
+ * 実行結果型
+ */
+export interface ExecutionResult {
+  success: boolean;
+  executionId: number;
+  sessionId: number;
+  message: string;
+}
+
+/**
+ * AgentExecutionの拡張型（関連データを含む）
+ */
+export interface AgentExecutionWithExtras extends AgentExecution {
+  session?: any;
+  agentConfig?: any;
+  executionLogs?: any[];
+  gitCommits?: any[];
 }
 
 /**

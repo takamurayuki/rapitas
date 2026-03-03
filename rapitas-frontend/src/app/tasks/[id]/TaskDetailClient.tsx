@@ -1576,6 +1576,7 @@ function TaskDetailClient({
                   workflowMode={task?.workflowMode}
                   complexityScore={task?.complexityScore}
                   workflowModeOverride={task?.workflowModeOverride ?? undefined}
+                  autoApprovePlan={task?.autoApprovePlan ?? false}
                   onPlanApprovalRequest={handlePlanApprovalRequest}
                   onCompleteRequest={handleWorkflowComplete}
                   onStatusChange={(newStatus) => {
@@ -1591,6 +1592,30 @@ function TaskDetailClient({
                         workflowModeOverride: isOverride
                       });
                       if (onTaskUpdated) onTaskUpdated();
+                    }
+                  }}
+                  onAutoApprovePlanChange={async (value) => {
+                    // autoApprovePlan変更時の処理
+                    if (!task) return;
+
+                    try {
+                      const response = await fetch(`${API_BASE}/tasks/${taskId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ autoApprovePlan: value }),
+                      });
+
+                      if (response.ok) {
+                        setTask({
+                          ...task,
+                          autoApprovePlan: value,
+                        });
+                        if (onTaskUpdated) onTaskUpdated();
+                      } else {
+                        console.error('Failed to update autoApprovePlan setting');
+                      }
+                    } catch (error) {
+                      console.error('Error updating autoApprovePlan setting:', error);
                     }
                   }}
                   showWorkflowMode={true}

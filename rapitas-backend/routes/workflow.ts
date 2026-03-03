@@ -180,7 +180,13 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       let autoApproved = false;
       if (fileType === 'plan' && newStatus === 'plan_created') {
         const userSettings = await prisma.userSettings.findFirst();
-        if (userSettings?.autoApprovePlan) {
+        const task = await prisma.task.findUnique({
+          where: { id: taskId },
+          select: { autoApprovePlan: true }
+        });
+
+        // タスクレベルまたはグローバルのいずれかがtrueなら自動承認
+        if (task?.autoApprovePlan || userSettings?.autoApprovePlan) {
           // 自動承認: plan_approved に遷移
           await prisma.task.update({
             where: { id: taskId },
@@ -190,6 +196,10 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
           autoApproved = true;
 
           // ActivityLog に自動承認を記録
+          const approvalReason = task?.autoApprovePlan
+            ? 'task-level autoApprovePlan setting enabled'
+            : 'global autoApprovePlan setting enabled';
+
           await prisma.activityLog.create({
             data: {
               taskId,
@@ -197,7 +207,9 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
               metadata: JSON.stringify({
                 previousStatus: 'plan_created',
                 newStatus: 'plan_approved',
-                reason: 'autoApprovePlan setting enabled',
+                reason: approvalReason,
+                taskLevelSetting: task?.autoApprovePlan || false,
+                globalLevelSetting: userSettings?.autoApprovePlan || false,
               }),
               createdAt: new Date(),
             },

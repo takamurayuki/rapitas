@@ -25,12 +25,12 @@ ${taskDescription ? `タスク説明: "${taskDescription}"` : ''}
 ブランチ名のみを回答してください（例: feature/add-user-authentication）
     `.trim();
 
-    const response = await sendAIMessage(prompt, {
+    const response = await sendAIMessage({
+      messages: [{ role: 'user', content: prompt }],
       maxTokens: 100,
-      temperature: 0.3, // より一貫性のある出力のため低めに設定
     });
 
-    let branchName = response.trim();
+    let branchName = response.content.trim();
 
     // 前後の引用符を削除
     if ((branchName.startsWith('"') && branchName.endsWith('"')) ||

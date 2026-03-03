@@ -488,13 +488,28 @@ export class WorkflowOrchestrator {
       // クリーンアップエラーはワークフローの成否に影響しない
     }
 
-    return {
+    const finalResult = {
       success: effectiveSuccess,
       role: transition.role,
       status: transition.nextStatus,
       output: result.output,
       error: effectiveSuccess ? undefined : result.errorMessage,
     };
+
+    // implementer完了後は自動的に検証フェーズを実行
+    if (effectiveSuccess && transition.role === 'implementer') {
+      console.log('[WorkflowOrchestrator] Implementer completed successfully, automatically starting verifier...');
+      try {
+        // 非同期で検証フェーズを開始（レスポンスは即座に返す）
+        setTimeout(async () => {
+          await this.advanceWorkflow(taskId);
+        }, 1000); // 1秒後に実行（DBの更新が確実に完了するまで待機）
+      } catch (error) {
+        console.error('[WorkflowOrchestrator] Failed to auto-advance to verifier:', error);
+      }
+    }
+
+    return finalResult;
   }
 
   /**
@@ -585,13 +600,28 @@ export class WorkflowOrchestrator {
         data: { status: 'completed', completedAt: new Date() },
       });
 
-      return {
+      const finalResult = {
         success: true,
         role: transition.role,
         status: transition.nextStatus,
         output: output.substring(0, 2000), // レスポンスは先頭2000文字まで
         executionId: execution.id,
       };
+
+      // implementer完了後は自動的に検証フェーズを実行
+      if (transition.role === 'implementer') {
+        console.log('[WorkflowOrchestrator] Implementer completed successfully, automatically starting verifier...');
+        try {
+          // 非同期で検証フェーズを開始（レスポンスは即座に返す）
+          setTimeout(async () => {
+            await this.advanceWorkflow(taskId);
+          }, 1000); // 1秒後に実行（DBの更新が確実に完了するまで待機）
+        } catch (error) {
+          console.error('[WorkflowOrchestrator] Failed to auto-advance to verifier:', error);
+        }
+      }
+
+      return finalResult;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
 

@@ -4,115 +4,14 @@
 @import '../styles/note-editor-enhanced.css';
 @plugin "@tailwindcss/typography";
 
-@keyframes ai-glow-blue {
+/* アイコンの外枠に沿って線が回転するアニメーション */
+@keyframes icon-outer-border-spin {
   0% {
-    outline: 1px solid rgba(59, 130, 246, 0.15);
-    outline-offset: 0px;
-    box-shadow: 0 0 6px 1px rgba(59, 130, 246, 0.08);
-  }
-  15% {
-    outline: 1.2px solid rgba(96, 165, 250, 0.4);
-    outline-offset: 0.8px;
-    box-shadow: 0 0 10px 2px rgba(59, 130, 246, 0.15);
-  }
-  30% {
-    outline: 1.4px solid rgba(96, 165, 250, 0.6);
-    outline-offset: 1.5px;
-    box-shadow:
-      0 0 16px 3px rgba(59, 130, 246, 0.22),
-      0 0 32px 6px rgba(59, 130, 246, 0.07);
-  }
-  45% {
-    outline: 1.6px solid rgba(147, 197, 253, 0.85);
-    outline-offset: 2.5px;
-    box-shadow:
-      0 0 22px 5px rgba(59, 130, 246, 0.32),
-      0 0 48px 10px rgba(59, 130, 246, 0.1),
-      inset 0 0 14px rgba(96, 165, 250, 0.05);
-  }
-  60% {
-    outline: 1.4px solid rgba(96, 165, 250, 0.6);
-    outline-offset: 1.5px;
-    box-shadow:
-      0 0 16px 3px rgba(59, 130, 246, 0.22),
-      0 0 32px 6px rgba(59, 130, 246, 0.07);
-  }
-  75% {
-    outline: 1.2px solid rgba(96, 165, 250, 0.4);
-    outline-offset: 0.8px;
-    box-shadow: 0 0 10px 2px rgba(59, 130, 246, 0.15);
-  }
-  100% {
-    outline: 1px solid rgba(59, 130, 246, 0.15);
-    outline-offset: 0px;
-    box-shadow: 0 0 6px 1px rgba(59, 130, 246, 0.08);
-  }
-}
-
-@keyframes ai-glow-amber {
-  0% {
-    outline: 1px solid rgba(245, 158, 11, 0.15);
-    outline-offset: 0px;
-    box-shadow: 0 0 6px 1px rgba(245, 158, 11, 0.08);
-  }
-  15% {
-    outline: 1.2px solid rgba(251, 191, 36, 0.4);
-    outline-offset: 0.8px;
-    box-shadow: 0 0 10px 2px rgba(245, 158, 11, 0.15);
-  }
-  30% {
-    outline: 1.5px solid rgba(251, 191, 36, 0.6);
-    outline-offset: 1.5px;
-    box-shadow:
-      0 0 16px 3px rgba(245, 158, 11, 0.22),
-      0 0 32px 6px rgba(245, 158, 11, 0.07);
-  }
-  50% {
-    outline: 2px solid rgba(253, 211, 77, 0.85);
-    outline-offset: 2.5px;
-    box-shadow:
-      0 0 22px 5px rgba(245, 158, 11, 0.32),
-      0 0 48px 10px rgba(245, 158, 11, 0.1),
-      inset 0 0 14px rgba(251, 191, 36, 0.05);
-  }
-  70% {
-    outline: 1.5px solid rgba(251, 191, 36, 0.6);
-    outline-offset: 1.5px;
-    box-shadow:
-      0 0 16px 3px rgba(245, 158, 11, 0.22),
-      0 0 32px 6px rgba(245, 158, 11, 0.07);
-  }
-  85% {
-    outline: 1.2px solid rgba(251, 191, 36, 0.4);
-    outline-offset: 0.8px;
-    box-shadow: 0 0 10px 2px rgba(245, 158, 11, 0.15);
-  }
-  100% {
-    outline: 1px solid rgba(245, 158, 11, 0.15);
-    outline-offset: 0px;
-    box-shadow: 0 0 6px 1px rgba(245, 158, 11, 0.08);
-  }
-}
-
-.ai-glow-blue {
-  animation: ai-glow-blue 5s ease-in-out infinite;
-}
-
-.ai-glow-amber {
-  animation: ai-glow-amber 3.5s ease-in-out infinite;
-}
-
-@keyframes animate-execution-border {
-  from {
     stroke-dashoffset: 0;
   }
-  to {
-    stroke-dashoffset: -2500; /* perimeterより十分大きい値で一周させる */
+  100% {
+    stroke-dashoffset: -107.96; /* 外枠の正確な周囲長: 直線64 + 2πr(r=7) = 64 + 43.96 */
   }
-}
-
-.animate-execution-border {
-  animation: animate-execution-border 3s linear infinite;
 }
 
 .execution-border-rect {

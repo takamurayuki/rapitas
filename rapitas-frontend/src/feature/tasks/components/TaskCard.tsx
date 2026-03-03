@@ -274,65 +274,6 @@ const TaskCard = memo(function TaskCard({
         colors={sweepColors}
       />
 
-      {/* 回転ボーダーアニメーション（実行中のみ表示） */}
-      {/* {executionClasses && (
-        <svg
-          style={{
-            position: 'absolute',
-            top: '-2px',
-            left: '-2px',
-            width: 'calc(100% + 4px)',
-            height: 'calc(100% + 4px)',
-            zIndex: 1,
-            pointerEvents: 'none',
-          }}
-        >
-          <defs>
-            <linearGradient
-              id="comet-gradient-blue"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="0%"
-              gradientTransform="rotate(45)"
-            >
-              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
-              <stop offset="25%" stopColor="#60a5fa" stopOpacity="0.4" />
-              <stop offset="50%" stopColor="#3b82f6" stopOpacity="0.6" />
-              <stop offset="75%" stopColor="#60a5fa" stopOpacity="0.8" />
-              <stop offset="100%" stopColor="#3b82f6" stopOpacity="1" />
-            </linearGradient>
-            <linearGradient
-              id="comet-gradient-amber"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="0%"
-              gradientTransform="rotate(45)"
-            >
-              <stop offset="25%" stopColor="#fbbf24" stopOpacity="0.2" />
-              <stop offset="50%" stopColor="#f59e0b" stopOpacity="0.6" />
-              <stop offset="75%" stopColor="#fbbf24" stopOpacity="0.8" />
-              <stop offset="100%" stopColor="#f59e0b" stopOpacity="1" />
-            </linearGradient>
-          </defs>
-          <rect
-            x="1"
-            y="1"
-            width="calc(100% - 2px)"
-            height="calc(100% - 2px)"
-            rx="13"
-            ry="13"
-            fill="none"
-            stroke={`url(#comet-gradient-${executionClasses.borderColor})`}
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeDasharray={`${perimeter / 4} ${perimeter * 3}`}
-            className="animate-execution-border"
-          />
-        </svg>
-      )} */}
-
       <div
         className="relative z-10 flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all duration-300 ease-out hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 rounded-t-lg"
         onClick={() => {
@@ -360,20 +301,55 @@ const TaskCard = memo(function TaskCard({
           />
         ) : (
           <div
-            className={`flex items-center justify-center w-7 h-7 rounded-md ${
+            className={`relative flex items-center justify-center w-7 h-7 rounded-md ${
               isWaitingForInput ? waitingAmberConfig.color : currentStatus.color
             } ${
               isWaitingForInput
                 ? waitingAmberConfig.bgColor
                 : currentStatus.bgColor
-            } border-2 ${(isWaitingForInput
-              ? waitingAmberConfig.borderColor
-              : currentStatus.borderColor
-            ).replace('border-l-', 'border-')} shrink-0`}
+            } ${
+              executionStatus
+                ? ''
+                : `border-2 ${(isWaitingForInput
+                    ? waitingAmberConfig.borderColor
+                    : currentStatus.borderColor
+                  ).replace('border-l-', 'border-')}`
+            } shrink-0`}
             title={
               isWaitingForInput ? waitingAmberConfig.label : currentStatus.label
             }
           >
+            {/* 実行中/待機中の外枠回転ボーダー */}
+            {(executionStatus === 'running' ||
+              executionStatus === 'waiting_for_input') && (
+              <svg
+                className="absolute -inset-0.5 w-[calc(100%+4px)] h-[calc(100%+4px)] pointer-events-none"
+                viewBox="0 0 32 32"
+                fill="none"
+              >
+                <rect
+                  x="1"
+                  y="1"
+                  width="30"
+                  height="30"
+                  rx="7"
+                  stroke={
+                    executionStatus === 'waiting_for_input'
+                      ? '#f59e0b'
+                      : '#3b82f6'
+                  }
+                  strokeWidth="2"
+                  strokeDasharray="20 87.96"
+                  strokeLinecap="round"
+                  fill="none"
+                  style={{
+                    animation: 'icon-outer-border-spin 1.5s linear infinite',
+                    willChange: 'stroke-dashoffset',
+                    transform: 'translateZ(0)',
+                  }}
+                />
+              </svg>
+            )}
             {renderStatusIcon(isWaitingForInput ? 'in-progress' : task.status)}
           </div>
         )}

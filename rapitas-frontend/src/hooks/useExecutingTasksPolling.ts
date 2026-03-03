@@ -112,16 +112,18 @@ export function useExecutingTasksPolling(options?: {
       }
 
       // 前回は実行中だったが、今回は含まれていないタスクを除去
+      let hasRemovedTasks = false;
       for (const prevId of knownTaskIdsRef.current) {
         if (!currentExecutingIds.has(prevId)) {
           removeExecutingTask(prevId);
+          hasRemovedTasks = true;
         }
       }
 
       knownTaskIdsRef.current = currentExecutingIds;
 
-      // 実行中タスクがある場合は、サイレントモードでタスク更新
-      if (currentExecutingIds.size > 0) {
+      // 実行中タスクがある場合、またはタスクが完了した場合は、サイレントモードでタスク更新
+      if (currentExecutingIds.size > 0 || hasRemovedTasks) {
         fetchTaskUpdates(true); // silent mode
       }
 

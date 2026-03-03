@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Bot, AlertCircle, Loader2, RotateCcw, Zap, Bug } from 'lucide-react';
+import { Bot, AlertCircle, Loader2, RotateCcw, Zap, Bug, ShieldCheck } from 'lucide-react';
 import type { UserSettings } from '@/types';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
@@ -470,6 +470,53 @@ export default function DeveloperModeSettingsPage() {
                     />
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ワークフロー設定 */}
+          <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden mt-8">
+            <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-center gap-3">
+                <ShieldCheck className="w-5 h-5 text-violet-500" />
+                <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  ワークフロー設定
+                </h2>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                    計画の自動承認
+                  </h3>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                    AIエージェントが作成した計画（plan.md）を自動的に承認し、実装フェーズに移行します
+                  </p>
+                </div>
+                <button
+                  onClick={() =>
+                    updateSettings({
+                      autoApprovePlan: !settings?.autoApprovePlan,
+                    })
+                  }
+                  disabled={isSaving}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    settings?.autoApprovePlan
+                      ? 'bg-violet-500'
+                      : 'bg-zinc-300 dark:bg-zinc-600'
+                  }`}
+                  role="switch"
+                  aria-checked={settings?.autoApprovePlan ?? false}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      settings?.autoApprovePlan
+                        ? 'translate-x-5'
+                        : 'translate-x-0'
+                    }`}
+                  />
+                </button>
               </div>
             </div>
           </div>

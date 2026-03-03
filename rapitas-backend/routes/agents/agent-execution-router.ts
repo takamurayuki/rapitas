@@ -13,10 +13,65 @@ import {
 } from "../../utils/agent-response-cleaner";
 import { captureScreenshotsForDiff } from "../../services/screenshot-service";
 import { generateBranchName } from "../../utils/branch-name-generator";
-import type { ExecutionWithExtras } from "../../types/agent-execution-types";
+import type { AgentExecutionWithExtras } from "../../types/agent-execution-types";
 import type { ScreenshotResult } from "../../services/screenshot-service";
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads";
+
+/**
+ * セッションステータス更新のリトライ処理付きヘルパー関数
+ * @param sessionId - セッションID
+ * @param status - 更新後のステータス
+ * @param logPrefix - ログのプレフィックス
+ * @param maxRetries - 最大リトライ回数（デフォルト3回）
+ */
+async function updateSessionStatusWithRetry(
+  sessionId: number,
+  status: "completed" | "failed",
+  logPrefix: string = "",
+  maxRetries: number = 3
+): Promise<void> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await prisma.agentSession.update({
+        where: { id: sessionId },
+        data: {
+          status,
+          completedAt: new Date(),
+          ...(status === "failed" && { errorMessage: "Execution failed" }),
+        },
+      });
+
+      // 成功した場合
+      if (attempt > 1) {
+        console.log(
+          `${logPrefix} Session ${sessionId} status updated to ${status} on attempt ${attempt}`
+        );
+      }
+      return;
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `${logPrefix} Failed to update session ${sessionId} status (attempt ${attempt}/${maxRetries}):`,
+        error
+      );
+
+      // 最後の試行でない場合は少し待つ
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+  }
+
+  // 全ての試行が失敗した場合
+  console.error(
+    `${logPrefix} Failed to update session ${sessionId} status after ${maxRetries} attempts. Last error:`,
+    lastError
+  );
+  // エラーを再投げせず、処理を継続（従来の動作と同様）
+}
 
 export const agentExecutionRouter = new Elysia()
   // Execute agent on task
@@ -382,21 +437,13 @@ export const agentExecutionRouter = new Elysia()
               );
             }
 
-            // セッションのステータスも完了に更新
-            await prisma.agentSession
-              .update({
-                where: { id: session.id },
-                data: {
-                  status: "completed",
-                  completedAt: new Date(),
-                },
-              })
-              .catch((e: unknown) => {
-                console.error(
-                  `[API] Failed to update session ${session.id} status:`,
-                  e,
-                );
-              });
+            // セッションのステータスも完了に更新（リトライ付き）
+            await updateSessionStatusWithRetry(
+              session.id,
+              "completed",
+              "[API]",
+              3
+            );
 
             const diff = await orchestrator.getFullGitDiff(workDir);
             const structuredDiff = await orchestrator.getDiff(workDir);
@@ -558,7 +605,7 @@ export const agentExecutionRouter = new Elysia()
         const latestSession = config.agentSessions[0];
         const latestExecution = latestSession.agentExecutions[0];
         const execExtras = latestExecution as typeof latestExecution &
-          ExecutionWithExtras;
+          AgentExecutionWithExtras;
 
         const isWaitingForInput = latestExecution?.status === "waiting_for_input";
         const questionText = execExtras?.question || null;
@@ -909,13 +956,13 @@ export const agentExecutionRouter = new Elysia()
           return { error: "Task not found" };
         }
 
-        // セッションIDが指定されていない場合は最新の完了済みセッションを取得
+        // セッションIDが指定されていない場合は最新の完了済みまたは失敗済みセッションを取得
         let targetSessionId = sessionId;
         if (!targetSessionId && task.developerModeConfig) {
           const latestSession = await prisma.agentSession.findFirst({
             where: {
               configId: task.developerModeConfig.id,
-              status: "completed",
+              status: { in: ["completed", "failed"] },
             },
             orderBy: { createdAt: "desc" },
           });
@@ -946,9 +993,17 @@ export const agentExecutionRouter = new Elysia()
           return { error: "Session not found" };
         }
 
-        if (session.status !== "completed") {
+        // completed または failed のセッションから継続実行を許可
+        // failed: 前回の継続実行が失敗した場合でもリトライ可能にする
+        // running: レースコンディション（実行完了後、セッションステータス更新前）に対応
+        if (!["completed", "failed", "running"].includes(session.status)) {
           context.set.status = 400;
-          return { error: "Can only continue from completed sessions" };
+          return { error: "Can only continue from completed or failed sessions" };
+        }
+        if (session.status === "running") {
+          console.warn(
+            `[continue-execution] Session ${targetSessionId} is still in 'running' state (possible race condition), proceeding anyway`,
+          );
         }
 
         // 前回の実行情報を取得
@@ -1080,21 +1135,13 @@ export const agentExecutionRouter = new Elysia()
                 });
               }
 
-              // セッションのステータスも完了に更新
-              await prisma.agentSession
-                .update({
-                  where: { id: targetSessionId },
-                  data: {
-                    status: "completed",
-                    completedAt: new Date(),
-                  },
-                })
-                .catch((e: unknown) => {
-                  console.error(
-                    `[continue-execution] Failed to update session ${targetSessionId} status:`,
-                    e,
-                  );
-                });
+              // セッションのステータスも完了に更新（リトライ付き）
+              await updateSessionStatusWithRetry(
+                targetSessionId,
+                "completed",
+                "[continue-execution]",
+                3
+              );
 
               console.log(`[continue-execution] Completed task ${taskId}`);
             } else {

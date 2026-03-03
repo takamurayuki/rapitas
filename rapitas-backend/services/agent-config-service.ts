@@ -361,7 +361,7 @@ export class AgentConfigService {
 
     // APIキーフォーマットの検証
     const validationResult = validateApiKeyFormat(agent.agentType, apiKey);
-    if (!validationResult.isValid) {
+    if (!validationResult.valid) {
       throw new Error(`Invalid API key format: ${validationResult.message}`);
     }
 
@@ -446,23 +446,24 @@ export class AgentConfigService {
       // 基本的な検証
       const basicValidation = validateAgentConfig(
         agentType,
-        apiKey,
-        endpoint,
-        modelId,
-        additionalConfig
+        {
+          endpoint,
+          modelId,
+          additionalConfig
+        }
       );
 
-      if (!basicValidation.isValid) {
+      if (!basicValidation.valid) {
         errors.push({
           field: 'config',
-          message: basicValidation.message || 'Invalid configuration'
+          message: basicValidation.errors.join(', ') || 'Invalid configuration'
         });
       }
 
       // APIキーフォーマットの検証
       if (apiKey) {
         const apiKeyValidation = validateApiKeyFormat(agentType, apiKey);
-        if (!apiKeyValidation.isValid) {
+        if (!apiKeyValidation.valid) {
           errors.push({
             field: 'apiKey',
             message: apiKeyValidation.message || 'Invalid API key format'

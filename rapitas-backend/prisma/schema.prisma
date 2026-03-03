@@ -122,6 +122,7 @@ model Task {
   workflowMode          String?   @default("comprehensive") // "lightweight", "standard", "comprehensive"
   complexityScore       Float?    // 自動判定による複雑度スコア (0-100)
   workflowModeOverride  Boolean   @default(false) // 手動でモード変更されたかどうか
+  autoApprovePlan       Boolean   @default(false) // タスクレベルでplan.mdを自動承認するか
 }
 
 model TimeEntry {

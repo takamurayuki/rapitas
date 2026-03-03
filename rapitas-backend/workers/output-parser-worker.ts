@@ -1,0 +1,490 @@
+/**
+ * 出力パース処理専用Workerスレッド
+ *
+ * Claude CLI のstdout出力を解析し、JSONパース・アーティファクト抽出・
+ * コミット検出・質問検出を実行してメインスレッドに結果を送信する
+ */
+
+declare var self: Worker;
+
+import { detectQuestionFromToolCall } from "../services/agents/question-detection";
+
+// ==================== 型定義 ====================
+
+export type QuestionCategory = "clarification" | "confirmation" | "selection";
+
+export type QuestionDetectionMethod = "tool_call" | "key_based" | "none";
+
+interface QuestionDetails {
+  category: QuestionCategory;
+  detectionMethod: QuestionDetectionMethod;
+  questionText: string;
+  options?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+interface WaitingQuestionState {
+  questionKey: string;
+  questionType: QuestionDetectionMethod;
+  questionDetails: QuestionDetails;
+  timestamp: Date;
+  timeoutSeconds: number;
+}
+
+interface ToolInfo {
+  name: string;
+  startTime: number;
+  info: string;
+}
+
+interface AgentArtifact {
+  type: "file" | "diff";
+  name: string;
+  content: string;
+  path?: string;
+}
+
+interface GitCommitInfo {
+  hash: string;
+  message: string;
+  branch: string;
+  filesChanged: number;
+  additions: number;
+  deletions: number;
+}
+
+// ==================== メッセージプロトコル ====================
+
+// 入力メッセージ型
+type WorkerInputMessage =
+  | { type: "configure"; config: { logPrefix?: string; timeoutSeconds: number } }
+  | { type: "parse-chunk"; data: string }
+  | { type: "parse-complete"; outputBuffer: string }
+  | { type: "terminate" };
+
+// 出力メッセージ型
+type WorkerOutputMessage =
+  | { type: "system-event"; data: { sessionId?: string; error?: string } }
+  | { type: "assistant-message"; data: { text: string; tools: Array<{ name: string; id: string; info: string }> } }
+  | { type: "user-message"; data: { toolResults: Array<{ id: string; name: string; duration: number; isError: boolean }> } }
+  | { type: "result"; data: { duration?: number; cost?: number; sessionId?: string } }
+  | { type: "question-detected"; data: WaitingQuestionState & { questionText: string } }
+  | { type: "artifacts-parsed"; data: { artifacts: AgentArtifact[] } }
+  | { type: "commits-parsed"; data: { commits: GitCommitInfo[] } }
+  | { type: "tool-tracking"; data: { hasFileModifyingTools: boolean; toolName: string } }
+  | { type: "error"; error: string };
+
+// ==================== Worker内部状態 ====================
+
+let lineBuffer = "";
+const activeTools = new Map<string, ToolInfo>();
+const FILE_MODIFYING_TOOLS = new Set(["Write", "Edit", "NotebookEdit"]);
+let config: { logPrefix?: string; timeoutSeconds: number } = { timeoutSeconds: 300 };
+
+// ==================== アーティファクト・コミットパース ====================
+
+function parseArtifacts(output: string): AgentArtifact[] {
+  const artifacts: AgentArtifact[] = [];
+
+  // ファイル作成/編集のパターンを検出
+  const filePatterns = [
+    /(?:Created|Modified|Wrote to|Writing to)[:\s]+([^\n]+)/gi,
+    /File: ([^\n]+)/gi,
+  ];
+
+  for (const pattern of filePatterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(output)) !== null) {
+      const captured = match[1];
+      if (!captured) continue;
+      const filePath = captured.trim();
+      if (filePath && !filePath.includes("...")) {
+        artifacts.push({
+          type: "file",
+          name: filePath.split("/").pop() || filePath,
+          content: "",
+          path: filePath,
+        });
+      }
+    }
+  }
+
+  // diff出力を検出
+  const diffPattern = /```diff\n([\s\S]*?)```/g;
+  let diffMatch;
+  while ((diffMatch = diffPattern.exec(output)) !== null) {
+    artifacts.push({
+      type: "diff",
+      name: "changes.diff",
+      content: diffMatch[1] || "",
+    });
+  }
+
+  return artifacts;
+}
+
+function parseCommits(output: string): GitCommitInfo[] {
+  const commits: GitCommitInfo[] = [];
+
+  const commitPattern = /(?:Committed|commit)\s+([a-f0-9]{7,40})/gi;
+  let match;
+  while ((match = commitPattern.exec(output)) !== null) {
+    commits.push({
+      hash: match[1] || "",
+      message: "",
+      branch: "",
+      filesChanged: 0,
+      additions: 0,
+      deletions: 0,
+    });
+  }
+
+  return commits;
+}
+
+interface WorkerToolUse {
+  id: string;
+  name: string;
+  info: string;
+  isFileModifying: boolean;
+}
+
+interface WorkerToolResult {
+  toolUseId: string;
+  isError: boolean;
+}
+
+// ==================== ツール情報フォーマット ====================
+
+function formatToolInfo(
+  toolName: string,
+  input: Record<string, unknown> | undefined,
+): string {
+  if (!input) return "";
+
+  try {
+    switch (toolName) {
+      case "Read":
+      case "Write":
+      case "Edit":
+        return input.file_path
+          ? `-> ${String(input.file_path).split(/[/\\]/).pop()}`
+          : "";
+      case "Glob":
+      case "Grep":
+        return input.pattern ? `pattern: ${input.pattern}` : "";
+      case "Bash": {
+        const cmd = String(input.command || "");
+        return cmd.length > 50 ? `$ ${cmd.substring(0, 50)}...` : `$ ${cmd}`;
+      }
+      case "Task":
+        return input.description ? String(input.description) : "";
+      case "WebFetch":
+        return input.url ? `-> ${String(input.url).substring(0, 40)}...` : "";
+      case "WebSearch":
+        return input.query ? `"${input.query}"` : "";
+      case "LSP":
+        return input.operation ? String(input.operation) : "";
+      default: {
+        const firstKey = Object.keys(input)[0];
+        if (firstKey && input[firstKey]) {
+          const val = String(input[firstKey]);
+          return val.length > 40 ? `${val.substring(0, 40)}...` : val;
+        }
+        return "";
+      }
+    }
+  } catch {
+    return "";
+  }
+}
+
+// ==================== JSON行パース ====================
+
+function processLine(line: string): void {
+  const trimmed = line.trim();
+  if (!trimmed) return;
+
+  try {
+    const json = JSON.parse(trimmed);
+    const prefix = config.logPrefix || "[Worker]";
+
+    switch (json.type) {
+      case "assistant":
+        processAssistantMessage(json, prefix);
+        break;
+      case "user":
+        processUserMessage(json);
+        break;
+      case "result":
+        processResultEvent(json);
+        break;
+      case "system":
+        processSystemEvent(json, prefix);
+        break;
+      default:
+        // Unknown event type - log only
+        break;
+    }
+  } catch {
+    // JSONパース失敗: 不要な行をフィルタリング
+    if (
+      !trimmed ||
+      /^Active code page:/i.test(trimmed) ||
+      /^現在のコード ページ:/i.test(trimmed) ||
+      /^chcp\s/i.test(trimmed)
+    ) {
+      return;
+    }
+    // 非JSON行をそのまま出力
+    postResult({
+      type: "raw-output",
+      displayOutput: line + "\n",
+    });
+  }
+}
+
+function processAssistantMessage(json: any, prefix: string): void {
+  let displayOutput = "";
+  const toolUses: WorkerToolUse[] = [];
+  let hasFileModifying = false;
+
+  if (json.message?.content) {
+    for (const block of json.message.content) {
+      if (block.type === "text" && block.text) {
+        displayOutput += block.text;
+      } else if (block.type === "tool_use") {
+        if (block.name === "AskUserQuestion") {
+          // AskUserQuestion検出
+          const detectionResult = detectQuestionFromToolCall(
+            block.name,
+            block.input,
+            config.timeoutSeconds,
+          );
+
+          displayOutput += `\n[質問] ${detectionResult.questionText}\n`;
+
+          postResult({
+            type: "question-detected",
+            detectionResult,
+            displayOutput: `\n[質問] ${detectionResult.questionText}\n`,
+          });
+        } else {
+          // 通常のツール呼び出し
+          const toolInfo = formatToolInfo(block.name, block.input);
+          displayOutput += `\n[Tool: ${block.name}] ${toolInfo}\n`;
+
+          if (FILE_MODIFYING_TOOLS.has(block.name)) {
+            hasFileModifying = true;
+          }
+
+          if (block.id) {
+            activeTools.set(block.id, {
+              name: block.name,
+              startTime: Date.now(),
+              info: toolInfo,
+            });
+
+            toolUses.push({
+              id: block.id,
+              name: block.name,
+              info: toolInfo,
+              isFileModifying: FILE_MODIFYING_TOOLS.has(block.name),
+            });
+          }
+        }
+      }
+    }
+  }
+
+  if (hasFileModifying) {
+    postResult({
+      type: "tool-tracking",
+      hasFileModifyingToolCalls: true,
+    });
+  }
+
+  if (displayOutput) {
+    postResult({
+      type: "assistant-message",
+      displayOutput,
+      toolUses,
+    });
+  }
+}
+
+function processUserMessage(json: any): void {
+  let displayOutput = "";
+  const toolResults: WorkerToolResult[] = [];
+
+  if (json.message?.content) {
+    for (const block of json.message.content) {
+      if (block.type === "tool_result") {
+        const toolId = block.tool_use_id;
+        const activeTool = toolId ? activeTools.get(toolId) : undefined;
+
+        if (activeTool) {
+          const duration = ((Date.now() - activeTool.startTime) / 1000).toFixed(1);
+          if (block.is_error) {
+            displayOutput += `[Tool Error: ${activeTool.name}] (${duration}s)\n`;
+          } else {
+            displayOutput += `[Tool Done: ${activeTool.name}] (${duration}s)\n`;
+          }
+          activeTools.delete(toolId);
+        } else {
+          const toolIdShort = toolId ? `ID: ${toolId.substring(0, 8)}...` : "";
+          if (block.is_error) {
+            displayOutput += `[Tool Error ${toolIdShort}]\n`;
+          } else {
+            displayOutput += `[Tool Done ${toolIdShort}]\n`;
+          }
+        }
+
+        toolResults.push({
+          toolUseId: toolId || "",
+          isError: !!block.is_error,
+        });
+      }
+    }
+  }
+
+  if (displayOutput) {
+    postResult({
+      type: "user-message",
+      displayOutput,
+      toolResults,
+    });
+  }
+}
+
+function processResultEvent(json: any): void {
+  let displayOutput = "";
+
+  if (json.result !== undefined) {
+    const duration = json.duration_ms
+      ? ` (${(json.duration_ms / 1000).toFixed(1)}s)`
+      : "";
+    const cost = json.cost_usd ? ` $${json.cost_usd.toFixed(4)}` : "";
+    displayOutput += `\n[Result: ${json.subtype || "completed"}${duration}${cost}]\n`;
+    if (json.result && typeof json.result === "string") {
+      displayOutput += json.result + "\n";
+    }
+  }
+
+  postResult({
+    type: "result-event",
+    displayOutput,
+    subtype: json.subtype,
+    durationMs: json.duration_ms,
+    costUsd: json.cost_usd,
+    result: typeof json.result === "string" ? json.result : undefined,
+  });
+}
+
+function processSystemEvent(json: any, prefix: string): void {
+  let displayOutput = "";
+  let sessionId: string | undefined;
+  let sessionMismatchWarning: string | undefined;
+
+  if (json.subtype === "init" && json.session_id) {
+    sessionId = json.session_id;
+  }
+
+  if (json.subtype === "error") {
+    const errorMsg =
+      typeof json.message === "string"
+        ? json.message
+        : json.error || "unknown";
+    displayOutput = `[System Error: ${errorMsg}]\n`;
+  } else {
+    displayOutput = `[System: ${json.subtype || "info"}]\n`;
+  }
+
+  postResult({
+    type: "system-event",
+    subtype: json.subtype || "info",
+    sessionId,
+    errorMessage: json.subtype === "error"
+      ? (typeof json.message === "string" ? json.message : json.error)
+      : undefined,
+    displayOutput,
+    sessionMismatchWarning,
+  });
+}
+
+// ==================== メインメッセージハンドラ ====================
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function postResult(msg: any): void {
+  self.postMessage(msg);
+}
+
+self.onmessage = (event: MessageEvent<WorkerInputMessage>) => {
+  const msg = event.data;
+
+  try {
+    switch (msg.type) {
+      case "configure":
+        config = msg.config;
+        break;
+
+      case "parse-chunk": {
+        // チャンクをバッファに追加し、完全な行を処理
+        lineBuffer += msg.data;
+        const lines = lineBuffer.split("\n");
+        lineBuffer = lines.pop() || ""; // 最後の不完全な行を保持
+
+        for (const line of lines) {
+          processLine(line);
+        }
+        break;
+      }
+
+      case "parse-complete": {
+        // 残りのバッファをフラッシュ
+        if (lineBuffer.trim()) {
+          processLine(lineBuffer);
+        }
+
+        // outputBufferからアーティファクト・コミットをパース
+        const artifacts = msg.outputBuffer ? parseArtifacts(msg.outputBuffer) : [];
+        const commits = msg.outputBuffer ? parseCommits(msg.outputBuffer) : [];
+
+        if (artifacts.length > 0) {
+          postResult({
+            type: "artifacts-parsed",
+            data: { artifacts },
+          });
+        }
+        if (commits.length > 0) {
+          postResult({
+            type: "commits-parsed",
+            data: { commits },
+          });
+        }
+
+        postResult({
+          type: "parse-complete",
+          remainingBuffer: lineBuffer,
+        });
+        lineBuffer = "";
+        activeTools.clear();
+        break;
+      }
+
+      case "terminate":
+        // Worker終了
+        lineBuffer = "";
+        activeTools.clear();
+        self.close();
+        break;
+    }
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    postResult({
+      type: "error",
+      message: err.message,
+      stack: err.stack,
+    });
+  }
+};
