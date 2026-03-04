@@ -3,6 +3,10 @@
  * エージェントのイベントを管理・配信する
  */
 
+import { createLogger } from '../../../config/logger';
+
+const log = createLogger('agent-event-emitter');
+
 import type {
   AgentEvent,
   AgentEventType,
@@ -167,7 +171,7 @@ export class AgentEventEmitter {
       try {
         await listener.handler(event);
       } catch (error) {
-        console.error(`Event handler error for ${event.type}:`, error);
+        log.error({ err: error }, `Event handler error for ${event.type}`);
       }
 
       if (listener.once) {
@@ -189,7 +193,7 @@ export class AgentEventEmitter {
       try {
         await listener.handler(event);
       } catch (error) {
-        console.error(`All-event handler error:`, error);
+        log.error({ err: error }, `All-event handler error`);
       }
 
       if (listener.once) {

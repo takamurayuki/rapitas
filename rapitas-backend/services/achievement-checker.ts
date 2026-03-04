@@ -4,6 +4,9 @@
  */
 import { prisma } from "../config/database";
 import { notifyAchievementUnlocked } from "./notification-service";
+import { createLogger } from '../config/logger';
+
+const log = createLogger('achievement-checker');
 
 type AchievementEvent =
   | "task.completed"
@@ -60,12 +63,12 @@ export async function checkAchievements(event: AchievementEvent): Promise<void> 
           // 通知送信
           await notifyAchievementUnlocked(achievement.name, achievement.icon);
 
-          console.log(`[Achievement] Unlocked: ${achievement.name}`);
+          log.info(`[Achievement] Unlocked: ${achievement.name}`);
         }
       }
     }
   } catch (error) {
-    console.error("[Achievement] Check failed:", error);
+    log.error({ err: error }, "[Achievement] Check failed");
   }
 }
 

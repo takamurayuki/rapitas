@@ -3,6 +3,9 @@
  * Centralized error handling for the API
  */
 import { Elysia } from "elysia";
+import { createLogger } from "../config/logger";
+
+const log = createLogger("error-handler");
 
 /**
  * Custom application error class
@@ -116,7 +119,7 @@ export const errorHandler = new Elysia({ name: "error-handler" }).onError(
 
     // Prisma related errors (all types)
     if (isPrismaError(error)) {
-      console.error("[Prisma Error]", error);
+      log.error({ err: error }, "Prisma Error");
       set.status = 400;
       return {
         error: "データベースクエリエラー",
@@ -125,7 +128,7 @@ export const errorHandler = new Elysia({ name: "error-handler" }).onError(
     }
 
     // Generic server error
-    console.error("[Error]", error);
+    log.error({ err: error }, "Unhandled error");
     set.status = 500;
 
     // Ensure error response is always JSON
@@ -148,12 +151,10 @@ export const errorHandler = new Elysia({ name: "error-handler" }).onError(
  */
 export function setupGlobalErrorHandlers(): void {
   process.on("uncaughtException", (error) => {
-    console.error("[FATAL] Uncaught Exception:", error);
-    console.error("[FATAL] Stack:", error.stack);
+    log.fatal({ err: error }, "Uncaught Exception");
   });
 
   process.on("unhandledRejection", (reason, promise) => {
-    console.error("[FATAL] Unhandled Rejection at:", promise);
-    console.error("[FATAL] Reason:", reason);
+    log.fatal({ reason, promise }, "Unhandled Rejection");
   });
 }

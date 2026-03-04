@@ -6,6 +6,9 @@
 import { writeFile, mkdir, readdir, stat, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
+import { createLogger } from '../../config/logger';
+
+const log = createLogger('execution-file-logger');
 
 /**
  * ログイベントの種別
@@ -146,7 +149,7 @@ export class ExecutionFileLogger {
       }
       this.initialized = true;
     } catch (e) {
-      console.error(`[ExecutionFileLogger] Failed to create log directory: ${e}`);
+      log.error({ err: e }, `[ExecutionFileLogger] Failed to create log directory`);
     }
   }
 
@@ -199,13 +202,13 @@ export class ExecutionFileLogger {
       switch (level) {
         case "ERROR":
         case "FATAL":
-          console.error(`${prefix} ${message}`);
+          log.error(`${prefix} ${message}`);
           break;
         case "WARN":
-          console.warn(`${prefix} ${message}`);
+          log.warn(`${prefix} ${message}`);
           break;
         default:
-          console.log(`${prefix} ${message}`);
+          log.info(`${prefix} ${message}`);
       }
     }
   }
@@ -358,7 +361,7 @@ export class ExecutionFileLogger {
 
       return this.logFilePath;
     } catch (e) {
-      console.error(`[ExecutionFileLogger] Failed to write log file: ${e}`);
+      log.error({ err: e }, `[ExecutionFileLogger] Failed to write log file`);
       return null;
     }
   }

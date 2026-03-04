@@ -4,6 +4,9 @@
  */
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:search");
 
 type SearchResultItem = {
   id: number;
@@ -226,7 +229,7 @@ export const searchRoutes = new Elysia({ prefix: "/search" })
           offset,
         };
       } catch (error) {
-        console.error("Search error:", error);
+        log.error({ err: error }, "Search error");
         set.status = 500;
         return { success: false, error: "検索に失敗しました" };
       }
@@ -260,7 +263,7 @@ export const searchRoutes = new Elysia({ prefix: "/search" })
         })),
       };
     } catch (error) {
-      console.error("Search suggest error:", error);
+      log.error({ err: error }, "Search suggest error");
       set.status = 500;
       return { success: false, error: "サジェスト取得に失敗しました" };
     }

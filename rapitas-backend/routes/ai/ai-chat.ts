@@ -10,6 +10,9 @@ import {
   type AIProvider,
   type AIMessage,
 } from "../../utils/ai-client";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:ai-chat");
 
 export const aiChatRoutes = new Elysia()
   // AIチャット（非ストリーミング）
@@ -60,7 +63,7 @@ export const aiChatRoutes = new Elysia()
 
         return { success: true, message: response.content };
       } catch (error: unknown) {
-        console.error("AI Chat Error:", error);
+        log.error({ err: error }, "AI Chat Error");
         set.status = 500;
         return {
           error:
@@ -132,7 +135,7 @@ export const aiChatRoutes = new Elysia()
           },
         });
       } catch (error: unknown) {
-        console.error("AI Chat Stream Error:", error);
+        log.error({ err: error }, "AI Chat Stream Error");
         set.status = 500;
         return {
           error:

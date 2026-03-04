@@ -4,6 +4,9 @@
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
 import { decrypt } from "../../utils/encryption";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:flashcards");
 
 // Claude API Response Types
 interface ClaudeAPIResponse {
@@ -218,7 +221,7 @@ export const flashcardsRoutes = new Elysia()
         try {
           apiKey = decrypt(settings.claudeApiKeyEncrypted);
         } catch (error) {
-          console.error("Failed to decrypt API key:", error);
+          log.error({ err: error }, "Failed to decrypt API key");
           return { error: "Failed to decrypt API key" };
         }
       } else {
@@ -320,7 +323,7 @@ Output in the following JSON format:
           cards: createdCards,
         };
       } catch (error) {
-        console.error("Error generating flashcards:", error);
+        log.error({ err: error }, "Error generating flashcards");
         return {
           error: "Failed to generate flashcards",
           details: error instanceof Error ? error.message : "Unknown error",

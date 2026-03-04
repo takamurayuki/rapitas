@@ -9,6 +9,9 @@
 
 import { readFileSync, readdirSync, statSync, writeFileSync, existsSync } from "fs";
 import { join, extname, relative, basename, dirname } from "path";
+import { createLogger } from '../config/logger';
+
+const log = createLogger('analyze-codebase');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -824,34 +827,34 @@ ${scoring.suggestions.length > 0 ? scoring.suggestions.map((s) => `- ${s}`).join
 
 async function main() {
   const startTime = Date.now();
-  console.log("Rapitas Codebase Analysis - Starting...");
-  console.log(`Project root: ${PROJECT_ROOT}`);
+  log.info("Rapitas Codebase Analysis - Starting...");
+  log.info(`Project root: ${PROJECT_ROOT}`);
 
   // Walk all files
-  console.log("Scanning files...");
+  log.info("Scanning files...");
   const files = walkDir(PROJECT_ROOT);
-  console.log(`Found ${files.length} files`);
+  log.info(`Found ${files.length} files`);
 
   // Collect all metrics
-  console.log("Collecting code metrics...");
+  log.info("Collecting code metrics...");
   const codeMetrics = collectCodeMetrics(files);
 
-  console.log("Collecting architecture metrics...");
+  log.info("Collecting architecture metrics...");
   const architecture = collectArchitectureMetrics(files);
 
-  console.log("Collecting quality metrics...");
+  log.info("Collecting quality metrics...");
   const quality = collectQualityMetrics(files);
 
-  console.log("Collecting AI/agent metrics...");
+  log.info("Collecting AI/agent metrics...");
   const aiAgent = collectAIAgentMetrics(files);
 
-  console.log("Collecting dependency metrics...");
+  log.info("Collecting dependency metrics...");
   const deps = collectDependencyMetrics();
 
-  console.log("Collecting feature completeness...");
+  log.info("Collecting feature completeness...");
   const featureCompleteness = collectFeatureCompleteness(files, architecture);
 
-  console.log("Computing scores...");
+  log.info("Computing scores...");
   const scoring = computeScoring(quality, featureCompleteness, architecture, codeMetrics);
 
   const executionTimeMs = Date.now() - startTime;
@@ -872,29 +875,29 @@ async function main() {
   };
 
   // Generate outputs
-  console.log("Generating outputs...");
+  log.info("Generating outputs...");
   const jsonPath = join(PROJECT_ROOT, "analysis-result.json");
   const mdPath = join(PROJECT_ROOT, "analysis-report.md");
 
   writeFileSync(jsonPath, JSON.stringify(result, null, 2), "utf-8");
-  console.log(`JSON output: ${jsonPath}`);
+  log.info(`JSON output: ${jsonPath}`);
 
   const report = generateMarkdownReport(result);
   writeFileSync(mdPath, report, "utf-8");
-  console.log(`Markdown report: ${mdPath}`);
+  log.info(`Markdown report: ${mdPath}`);
 
   // Summary
-  console.log("\n=== Analysis Complete ===");
-  console.log(`Total files: ${codeMetrics.totalFiles}`);
-  console.log(`Total lines: ${codeMetrics.totalLines.toLocaleString()}`);
-  console.log(`Endpoints: ${architecture.backend.endpoints.length}`);
-  console.log(`Prisma models: ${architecture.prisma.modelCount}`);
-  console.log(`Quality score: ${scoring.qualityScore}/100`);
-  console.log(`Feature coverage: ${scoring.featureCoverageScore}/100`);
-  console.log(`Execution time: ${executionTimeMs}ms`);
+  log.info("=== Analysis Complete ===");
+  log.info(`Total files: ${codeMetrics.totalFiles}`);
+  log.info(`Total lines: ${codeMetrics.totalLines.toLocaleString()}`);
+  log.info(`Endpoints: ${architecture.backend.endpoints.length}`);
+  log.info(`Prisma models: ${architecture.prisma.modelCount}`);
+  log.info(`Quality score: ${scoring.qualityScore}/100`);
+  log.info(`Feature coverage: ${scoring.featureCoverageScore}/100`);
+  log.info(`Execution time: ${executionTimeMs}ms`);
 }
 
 main().catch((err) => {
-  console.error("Analysis failed:", err);
+  log.error({ err }, "Analysis failed");
   process.exit(1);
 });

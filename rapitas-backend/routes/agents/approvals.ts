@@ -4,6 +4,9 @@
  */
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:approvals");
 import { createOrchestrator } from "../../services/agents/agent-orchestrator";
 import { GitHubService } from "../../services/github-service";
 import { realtimeService } from "../../services/realtime-service";
@@ -102,7 +105,7 @@ function parseApprovalJsonFields(approval: ApprovalWithChanges | null) {
   if (typeof proposedChanges === "string") {
     proposedChanges = fromJsonString(proposedChanges);
     if (proposedChanges === null) {
-      console.error(
+      log.error(
         `[approvals] Failed to parse proposedChanges for approval ${approval.id}`,
       );
       proposedChanges = {};
@@ -133,11 +136,11 @@ function parseApprovalJsonFields(approval: ApprovalWithChanges | null) {
   // スクリーンショットのデバッグログ
   const screenshots = parsed.proposedChanges?.screenshots as Array<{ url: string }> | undefined;
   if (screenshots && screenshots.length > 0) {
-    console.log(
+    log.info(
       `[approvals] Approval ${approval.id} has ${screenshots.length} screenshot(s): ${screenshots.map((s) => s.url).join(", ")}`,
     );
   } else {
-    console.log(
+    log.info(
       `[approvals] Approval ${approval.id} has no screenshots. Keys: ${Object.keys(parsed.proposedChanges || {}).join(", ")}`,
     );
   }
@@ -310,7 +313,7 @@ export const approvalsRoutes = new Elysia({ prefix: "/approvals" })
             }
           })
           .catch(async (error) => {
-            console.error("Agent execution failed:", error);
+            log.error({ err: error }, "Agent execution failed");
             await prisma.notification.create({
               data: {
                 type: "agent_error",
@@ -456,7 +459,7 @@ Task ID: ${task.id}
             // タイトルが重複する場合はスキップ
             const normalizedTitle = subtask.title.toLowerCase().trim();
             if (existingTitles.has(normalizedTitle)) {
-              console.log(`[approvals] Skipping duplicate subtask: ${subtask.title}`);
+              log.info(`[approvals] Skipping duplicate subtask: ${subtask.title}`);
               continue;
             }
             existingTitles.add(normalizedTitle);
@@ -656,7 +659,7 @@ Task ID: ${task.id}
           pr: prResult,
         };
       } catch (error) {
-        console.error("Code review approval failed:", error);
+        log.error({ err: error }, "Code review approval failed");
         return { error: error instanceof Error ? error.message : String(error) };
       }
     },
@@ -721,7 +724,7 @@ Task ID: ${task.id}
 
         return { success: true, reverted };
       } catch (error) {
-        console.error("Code review rejection failed:", error);
+        log.error({ err: error }, "Code review rejection failed");
         return { error: error instanceof Error ? error.message : String(error) };
       }
     },
@@ -890,10 +893,10 @@ ${previousImplementation}
                     agentOutput: result.output || "",
                   });
                   if (screenshots.length > 0) {
-                    console.log(`[approvals] Captured ${screenshots.length} screenshots for task ${task.id}: ${screenshots.map((s) => s.page).join(", ")}`);
+                    log.info(`[approvals] Captured ${screenshots.length} screenshots for task ${task.id}: ${screenshots.map((s) => s.page).join(", ")}`);
                   }
                 } catch (screenshotErr) {
-                  console.warn("[approvals] Screenshot capture failed (non-fatal):", screenshotErr);
+                  log.warn({ err: screenshotErr }, "[approvals] Screenshot capture failed (non-fatal)");
                 }
 
                 // path（ファイルシステムパス）を除外してフロントに安全なデータのみ保存
@@ -935,7 +938,7 @@ ${previousImplementation}
               }
             }
           })
-          .catch(console.error);
+          .catch((err) => log.error({ err }, "Async operation failed"));
 
         return {
           success: true,
@@ -943,7 +946,7 @@ ${previousImplementation}
           sessionId: session.id,
         };
       } catch (error) {
-        console.error("Request changes failed:", error);
+        log.error({ err: error }, "Request changes failed");
         return { error: error instanceof Error ? error.message : String(error) };
       }
     },
@@ -983,7 +986,7 @@ ${previousImplementation}
       const diff = await orchestrator.getDiff(workingDirectory);
       return { files: diff };
     } catch (error) {
-      console.error("Failed to get diff:", error);
+      log.error({ err: error }, "Failed to get diff");
       return { error: error instanceof Error ? error.message : String(error) };
     }
   })
@@ -1065,7 +1068,7 @@ ${previousImplementation}
                 });
               }
             })
-            .catch(console.error);
+            .catch((err) => log.error({ err }, "Async operation failed"));
 
           results.push({ id, success: true, autoExecutionStarted: true });
         } else if (approval.requestType === "subtask_creation") {
@@ -1084,7 +1087,7 @@ ${previousImplementation}
             // タイトルが重複する場合はスキップ
             const normalizedTitle = subtask.title.toLowerCase().trim();
             if (existingTitles.has(normalizedTitle)) {
-              console.log(`[approvals:bulk] Skipping duplicate subtask: ${subtask.title}`);
+              log.info(`[approvals:bulk] Skipping duplicate subtask: ${subtask.title}`);
               continue;
             }
             existingTitles.add(normalizedTitle);

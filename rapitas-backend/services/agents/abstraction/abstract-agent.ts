@@ -3,6 +3,10 @@
  * 全エージェント実装の基底クラス
  */
 
+import { createLogger } from '../../../config/logger';
+
+const pinoLog = createLogger('abstract-agent');
+
 import type {
   AgentProviderId,
   AgentState,
@@ -488,8 +492,12 @@ export abstract class AbstractAgent implements IAgent {
         this._logger[level](message, context);
       }
     } else {
-      const logMethod = level === 'error' ? console.error : console.log;
-      logMethod(`[${this._metadata.name}] [${level.toUpperCase()}] ${message}`, data || '');
+      const logMsg = `[${this._metadata.name}] [${level.toUpperCase()}] ${message}`;
+      if (level === 'error') {
+        pinoLog.error({ data }, logMsg);
+      } else {
+        pinoLog.info({ data }, logMsg);
+      }
     }
   }
 

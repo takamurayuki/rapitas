@@ -5,6 +5,9 @@ import { Elysia, t } from "elysia";
 import { getApiKeyForProvider } from "../../utils/ai-client";
 import { prisma } from "../../config/database";
 import { decrypt } from "../../utils/encryption";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:rate-limits");
 
 type RateLimitInfo = {
   provider: string;
@@ -173,7 +176,7 @@ export const rateLimitRoutes = new Elysia({ prefix: "/rate-limits" })
         });
       }
     } catch (error) {
-      console.error("Error fetching rate limits:", error);
+      log.error({ err: error }, "Error fetching rate limits");
     }
 
     return { rateLimits };

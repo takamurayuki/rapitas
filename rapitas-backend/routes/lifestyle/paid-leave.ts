@@ -1,6 +1,9 @@
 import { Elysia, t } from "elysia";
 import { PrismaClient } from "@prisma/client";
 import { createResponse, createErrorResponse } from "../../utils/response";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:paid-leave");
 
 const prisma = new PrismaClient();
 
@@ -94,7 +97,7 @@ export const paidLeaveRoutes = new Elysia({ prefix: "/paid-leave" })
 
       return createResponse(balance);
     } catch (error) {
-      console.error("Failed to get paid leave balance:", error);
+      log.error({ err: error }, "Failed to get paid leave balance");
       return createErrorResponse("Failed to get paid leave balance", 500);
     }
   }, {
@@ -150,7 +153,7 @@ export const paidLeaveRoutes = new Elysia({ prefix: "/paid-leave" })
 
       return createResponse(updatedBalance);
     } catch (error) {
-      console.error("Failed to update paid leave balance:", error);
+      log.error({ err: error }, "Failed to update paid leave balance");
       return createErrorResponse("Failed to update paid leave balance", 500);
     }
   }, {
@@ -208,7 +211,7 @@ export const paidLeaveRoutes = new Elysia({ prefix: "/paid-leave" })
 
       return createResponse(history);
     } catch (error) {
-      console.error("Failed to get paid leave history:", error);
+      log.error({ err: error }, "Failed to get paid leave history");
       return createErrorResponse("Failed to get paid leave history", 500);
     }
   }, {

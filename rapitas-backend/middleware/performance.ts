@@ -1,5 +1,8 @@
 import { Elysia } from "elysia";
 import { LRUCache } from "lru-cache";
+import { createLogger } from "../config/logger";
+
+const log = createLogger("performance");
 
 // メモリキャッシュの設定
 const cache = new LRUCache<string, { data: unknown; etag: string }>({
@@ -133,7 +136,7 @@ export const performanceMonitoring = new Elysia({ name: "performance-monitoring"
 
       // 遅いリクエストの警告
       if (totalTime > 1000) {
-        console.warn(`Slow request detected: ${path} took ${totalTime.toFixed(2)}ms (DB: ${metrics.dbQueryTime.toFixed(2)}ms in ${metrics.dbQueryCount} queries)`);
+        log.warn({ path, totalTimeMs: totalTime, dbTimeMs: metrics.dbQueryTime, dbQueryCount: metrics.dbQueryCount }, `Slow request detected: ${path} took ${totalTime.toFixed(2)}ms (DB: ${metrics.dbQueryTime.toFixed(2)}ms in ${metrics.dbQueryCount} queries)`);
       }
 
       metricsMap.delete(request);

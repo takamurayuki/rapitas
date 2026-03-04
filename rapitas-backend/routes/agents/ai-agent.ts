@@ -21,6 +21,9 @@
  */
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:ai-agent");
 import { toJsonString, fromJsonString } from "../../utils/db-helpers";
 import { ParallelExecutor } from "../../services/parallel-execution/parallel-executor";
 import type { TaskPriority } from "../../services/parallel-execution/types";
@@ -115,7 +118,7 @@ export const aiAgentRoutes = new Elysia()
       let apiKeyEncrypted: string | null = null;
       if (apiKey) {
         if (!isEncryptionKeyConfigured()) {
-          console.warn(
+          log.warn(
             "[agents] Encryption key not configured. API keys should be set via environment variables in production.",
           );
         }
@@ -206,7 +209,7 @@ export const aiAgentRoutes = new Elysia()
         apiKeyEncrypted = null;
       } else if (apiKey) {
         if (!isEncryptionKeyConfigured()) {
-          console.warn(
+          log.warn(
             "[agents] Encryption key not configured. API keys should be set via environment variables in production.",
           );
         }
@@ -318,10 +321,7 @@ export const aiAgentRoutes = new Elysia()
           maskedApiKey = maskApiKey(decryptedKey);
           hasApiKey = true;
         } catch (e) {
-          console.error(
-            `[agents] Failed to decrypt API key for agent ${id}:`,
-            e,
-          );
+          log.error({ err: e }, `[agents] Failed to decrypt API key for agent ${id}`);
           maskedApiKey = "*** (decryption failed)";
           hasApiKey = true;
         }
@@ -395,7 +395,7 @@ export const aiAgentRoutes = new Elysia()
       }
 
       if (!isEncryptionKeyConfigured()) {
-        console.warn(
+        log.warn(
           "[agents] Encryption key not configured. API keys should be set via environment variables in production.",
         );
       }
@@ -1162,7 +1162,7 @@ export const aiAgentRoutes = new Elysia()
       });
 
       const hasSubtasks = subtasks.length > 0;
-      console.log(
+      log.info(
         `[resume] Task ${task.id} has ${subtasks.length} in-progress subtasks`,
       );
 
@@ -1184,7 +1184,7 @@ export const aiAgentRoutes = new Elysia()
 
       // 進行中のサブタスクがある場合は並列実行
       if (hasSubtasks) {
-        console.log(
+        log.info(
           `[resume] Starting parallel execution for task ${task.id} with ${subtasks.length} in-progress subtasks`,
         );
 
@@ -1213,12 +1213,12 @@ export const aiAgentRoutes = new Elysia()
             workingDirectory,
           )
           .then(async (session) => {
-            console.log(
+            log.info(
               `[resume] Parallel execution session started: ${session.sessionId}`,
             );
           })
           .catch(async (error) => {
-            console.error("[resume] Parallel execution error:", error);
+            log.error({ err: error }, "[resume] Parallel execution error");
             await prisma.notification.create({
               data: {
                 type: "agent_error",
@@ -1248,7 +1248,7 @@ export const aiAgentRoutes = new Elysia()
           startedAt: new Date(),
         },
       });
-      console.log(`[resume] Updated task ${task.id} status to 'in-progress'`);
+      log.info(`[resume] Updated task ${task.id} status to 'in-progress'`);
 
       // サブタスクがない場合は通常の再開
       orchestrator
@@ -1272,14 +1272,14 @@ export const aiAgentRoutes = new Elysia()
                 where: { id: task.id },
                 data: { status: "in-progress" },
               });
-              console.log(
+              log.info(
                 `[resume] Task ${task.id} kept as in-progress (workflow: ${wfStatus})`,
               );
             } else if (
               wfStatus === "in_progress" ||
               wfStatus === "plan_approved"
             ) {
-              console.log(
+              log.info(
                 `[resume] Task ${task.id} kept as in-progress (workflow: ${wfStatus})`,
               );
             } else if (wfStatus === "completed") {
@@ -1287,7 +1287,7 @@ export const aiAgentRoutes = new Elysia()
                 where: { id: task.id },
                 data: { status: "done", completedAt: new Date() },
               });
-              console.log(
+              log.info(
                 `[resume] Updated task ${task.id} status to 'done'`,
               );
             } else if (!wfStatus || wfStatus === "draft") {
@@ -1295,11 +1295,11 @@ export const aiAgentRoutes = new Elysia()
                 where: { id: task.id },
                 data: { status: "done", completedAt: new Date() },
               });
-              console.log(
+              log.info(
                 `[resume] Updated task ${task.id} status to 'done'`,
               );
             } else {
-              console.log(
+              log.info(
                 `[resume] Task ${task.id} kept as in-progress (unknown workflow: ${wfStatus})`,
               );
             }
@@ -1331,21 +1331,18 @@ export const aiAgentRoutes = new Elysia()
                   agentOutput: result.output || "",
                 });
                 if (screenshots.length > 0) {
-                  console.log(
+                  log.info(
                     `[agent-resume] Captured ${screenshots.length} screenshots for task ${task.id}: ${screenshots.map((s) => s.page).join(", ")}`,
                   );
                 }
               } catch (screenshotErr) {
-                console.warn(
-                  "[agent-resume] Screenshot capture failed (non-fatal):",
-                  screenshotErr,
-                );
+                log.warn({ err: screenshotErr }, "[agent-resume] Screenshot capture failed (non-fatal)");
               }
 
               const screenshotData = sanitizeScreenshots(screenshots);
               const config = execution.session.config;
               if (config) {
-                console.log(
+                log.info(
                   `[agent-resume] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s) => s.url).join(", ")}`,
                 );
                 const approvalRequest = await prisma.approvalRequest.create({
@@ -1393,7 +1390,7 @@ export const aiAgentRoutes = new Elysia()
               });
             }
           } else if (result.waitingForInput) {
-            console.log(
+            log.info(
               `[resume] Task ${task.id} is waiting for input after resume`,
             );
           } else {
@@ -1402,7 +1399,7 @@ export const aiAgentRoutes = new Elysia()
               where: { id: task.id },
               data: { status: "todo" },
             });
-            console.log(
+            log.info(
               `[resume] Reverted task ${task.id} status to 'todo' due to failure`,
             );
 
@@ -1429,7 +1426,7 @@ export const aiAgentRoutes = new Elysia()
           }
         })
         .catch(async (error) => {
-          console.error("[resume] Resume execution error:", error);
+          log.error({ err: error }, "[resume] Resume execution error");
 
           await prisma.task
             .update({
@@ -1437,7 +1434,7 @@ export const aiAgentRoutes = new Elysia()
               data: { status: "todo" },
             })
             .catch(() => {});
-          console.log(
+          log.info(
             `[resume] Reverted task ${task.id} status to 'todo' due to error`,
           );
 
@@ -1471,7 +1468,7 @@ export const aiAgentRoutes = new Elysia()
           "中断された実行を再開しています。進捗はリアルタイムで確認できます。",
       };
     } catch (error) {
-      console.error("[resume] Error:", error);
+      log.error({ err: error }, "[resume] Error");
       return {
         success: false,
         error:
@@ -1519,11 +1516,10 @@ export const aiAgentRoutes = new Elysia()
     } catch (error) {
       const errObj = error as { code?: string; message?: string };
       if (errObj?.code === "P1001") {
-        console.warn("[executing-tasks] Database unreachable, skipping");
+        log.warn("[executing-tasks] Database unreachable, skipping");
       } else {
-        console.error(
-          "[executing-tasks] Error:",
-          error instanceof Error ? error.message : String(error),
+        log.error({ err: error },
+          "[executing-tasks] Error",
         );
       }
       return [];

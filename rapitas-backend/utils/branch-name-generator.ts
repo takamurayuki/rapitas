@@ -1,4 +1,7 @@
 import { sendAIMessage } from './ai-client';
+import { createLogger } from '../config/logger';
+
+const log = createLogger('branch-name-generator');
 
 /**
  * タスクの内容に基づいて適切なブランチ名をAIで生成する
@@ -47,7 +50,7 @@ ${taskDescription ? `タスク説明: "${taskDescription}"` : ''}
 
     return branchName;
   } catch (error) {
-    console.error('Error generating branch name with AI:', error);
+    log.error({ err: error }, 'Error generating branch name with AI');
     // フォールバック: タスクタイトルベースの命名
     return generateFallbackBranchName(taskTitle);
   }

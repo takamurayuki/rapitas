@@ -2,6 +2,9 @@
 import { setupGlobalErrorHandlers, errorHandler, performanceOptimization } from "./middleware";
 setupGlobalErrorHandlers();
 
+import { createLogger } from "./config/logger";
+const log = createLogger("server-optimized");
+
 import { Elysia, type Context } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { swagger } from "@elysiajs/swagger";
@@ -217,7 +220,7 @@ app.listen({
   idleTimeout: 30, // 30秒のアイドルタイムアウトでCLOSE_WAIT蓄積を防止
   reusePort: true, // TIME_WAIT状態のゾンビソケットがあってもバインド可能にする
 });
-console.log(`🚀 Rapitas backend (optimized) running on http://localhost:${PORT}`);
+log.info(`Rapitas backend (optimized) running on http://localhost:${PORT}`);
 
 // Orchestratorにサーバー停止コールバックを設定（グレースフルシャットダウン時にポートを正しく解放するため）
 orchestrator.setServerStopCallback(() => {
@@ -231,58 +234,58 @@ const handleProcessSignal = async (signal: string) => {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
-  console.log(`[Server] Received ${signal}, initiating graceful shutdown...`);
+  log.info(`Received ${signal}, initiating graceful shutdown...`);
 
   // 強制終了タイマー（8秒後に強制終了）
   const forceExitTimer = setTimeout(() => {
-    console.error("[Server] Graceful shutdown timeout, forcing exit...");
+    log.error("Graceful shutdown timeout, forcing exit...");
     process.exit(1);
   }, 8000);
 
   try {
     // Step 1: まずリスニングソケットを閉じる（新規接続を拒否）
-    console.log("[Server] Step 1: Stopping listener (no new connections)...");
+    log.info("Step 1: Stopping listener (no new connections)...");
     try {
       app.stop();
     } catch (error) {
-      console.error("[Server] Error stopping listener:", error);
+      log.error({ err: error }, "Error stopping listener");
     }
 
     // Step 2: WebSocketとSSE接続を全て閉じる
-    console.log("[Server] Step 2: Closing WebSocket and SSE connections...");
+    log.info("Step 2: Closing WebSocket and SSE connections...");
     wsManager.shutdown();
     const clientCount = realtimeService.getClientCount();
     realtimeService.shutdown();
-    console.log(`[Server] Closed ${clientCount} SSE client(s).`);
+    log.info({ clientCount }, `Closed ${clientCount} SSE client(s).`);
 
     // Step 3: 接続がドレインされるのを待つ
-    console.log("[Server] Step 3: Waiting for connections to drain...");
+    log.info("Step 3: Waiting for connections to drain...");
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // Step 4: キャッシュの統計を保存
-    console.log("[Server] Step 4: Saving cache statistics...");
+    log.info("Step 4: Saving cache statistics...");
     const cacheStats = cacheService.getStats();
-    console.log(`[Server] Cache statistics: ${JSON.stringify(cacheStats)}`);
+    log.info({ cacheStats }, "Cache statistics");
 
     // Step 5: データベース接続を閉じる
-    console.log("[Server] Step 5: Closing database connection...");
+    log.info("Step 5: Closing database connection...");
     try {
       await prisma.$disconnect();
-      console.log("[Server] Database connection closed.");
+      log.info("Database connection closed.");
     } catch (error) {
-      console.error("[Server] Error closing database connection:", error);
+      log.error({ err: error }, "Error closing database connection");
     }
 
     clearTimeout(forceExitTimer);
 
     // TCPスタックがソケットを解放する時間を確保
-    console.log("[Server] Waiting for socket cleanup...");
+    log.info("Waiting for socket cleanup...");
     setTimeout(() => {
-      console.log("[Server] Shutdown complete.");
+      log.info("Shutdown complete.");
       process.exit(0);
     }, 500);
   } catch (error) {
-    console.error("[Server] Error during shutdown:", error);
+    log.error({ err: error }, "Error during shutdown");
     clearTimeout(forceExitTimer);
     process.exit(1);
   }
@@ -297,7 +300,7 @@ const startupRecovery = async () => {
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
   // キャッシュのウォーミング
-  console.log("🔥 Warming up cache...");
+  log.info("Warming up cache...");
   await cacheService.warmup([
     {
       key: "categories",
@@ -319,8 +322,9 @@ const startupRecovery = async () => {
   const result = await orchestrator.recoverStaleExecutions();
 
   if (result.recoveredExecutions > 0) {
-    console.log(
-      `🔄 Startup recovery: ${result.recoveredExecutions} executions, ${result.updatedTasks} tasks, ${result.updatedSessions} sessions recovered`,
+    log.info(
+      { recoveredExecutions: result.recoveredExecutions, updatedTasks: result.updatedTasks, updatedSessions: result.updatedSessions },
+      `Startup recovery: ${result.recoveredExecutions} executions, ${result.updatedTasks} tasks, ${result.updatedSessions} sessions recovered`,
     );
   }
 
@@ -330,8 +334,9 @@ const startupRecovery = async () => {
       const settings = await prisma.userSettings.findFirst();
       if (settings?.autoResumeInterruptedTasks) {
         // 自動再開前にサーバーが安定するまで追加の待機
-        console.log(
-          `🔄 Auto-resume enabled. Waiting for server to stabilize before resuming ${result.interruptedExecutionIds.length} executions...`,
+        log.info(
+          { count: result.interruptedExecutionIds.length },
+          `Auto-resume enabled. Waiting for server to stabilize before resuming ${result.interruptedExecutionIds.length} executions...`,
         );
         await new Promise((resolve) => setTimeout(resolve, 3000));
 
@@ -351,18 +356,20 @@ const startupRecovery = async () => {
               error?: string;
             };
             if (data.success) {
-              console.log(
-                `✅ Auto-resumed execution ${executionId}: ${data.taskTitle || data.message}`,
+              log.info(
+                { executionId },
+                `Auto-resumed execution ${executionId}: ${data.taskTitle || data.message}`,
               );
             } else {
-              console.warn(
-                `⚠️ Failed to auto-resume execution ${executionId}: ${data.error}`,
+              log.warn(
+                { executionId, error: data.error },
+                `Failed to auto-resume execution ${executionId}: ${data.error}`,
               );
             }
           } catch (error) {
-            console.error(
-              `❌ Error auto-resuming execution ${executionId}:`,
-              error,
+            log.error(
+              { err: error, executionId },
+              `Error auto-resuming execution ${executionId}`,
             );
           }
         }
@@ -378,15 +385,15 @@ const startupRecovery = async () => {
             },
           })
           .catch((err: Error) => {
-            console.error("❌ Failed to create auto-resume notification:", err);
+            log.error({ err }, "Failed to create auto-resume notification");
           });
       }
     } catch (error) {
-      console.error("❌ Auto-resume check failed:", error);
+      log.error({ err: error }, "Auto-resume check failed");
     }
   }
 };
 
 startupRecovery().catch((error) => {
-  console.error("❌ Startup recovery failed:", error);
+  log.error({ err: error }, "Startup recovery failed");
 });

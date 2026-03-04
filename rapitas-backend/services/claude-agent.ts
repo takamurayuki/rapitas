@@ -5,6 +5,9 @@ import {
   type AIProvider,
   type AIMessage,
 } from "../utils/ai-client";
+import { createLogger } from '../config/logger';
+
+const log = createLogger('claude-agent');
 
 const prisma = new PrismaClient();
 
@@ -126,7 +129,7 @@ export async function analyzeTask(
 
     return { result, tokensUsed: response.tokensUsed };
   } catch (error) {
-    console.error("AI API error:", error);
+    log.error({ err: error }, "AI API error");
     throw error;
   }
 }
@@ -167,7 +170,7 @@ ${subtasks.map((st, i) => `${i + 1}. ${st.title}: ${st.description}`).join("\n")
 
     return { instructions: response.content, tokensUsed: response.tokensUsed };
   } catch (error) {
-    console.error("AI API error:", error);
+    log.error({ err: error }, "AI API error");
     throw error;
   }
 }
@@ -546,7 +549,7 @@ ${hasAnswers
 
     return { result, tokensUsed: response.tokensUsed };
   } catch (error) {
-    console.error("AI API error in generateOptimizedPrompt:", error);
+    log.error({ err: error }, "AI API error in generateOptimizedPrompt");
     throw error;
   }
 }

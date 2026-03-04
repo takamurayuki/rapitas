@@ -13,6 +13,9 @@ import {
   getStatistics,
   getHistory,
 } from "../../services/pomodoro-service";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:pomodoro");
 
 export const pomodoroRoutes = new Elysia({ prefix: "/pomodoro" })
   // アクティブセッション取得
@@ -21,7 +24,7 @@ export const pomodoroRoutes = new Elysia({ prefix: "/pomodoro" })
       const session = await getActiveSession();
       return { success: true, session };
     } catch (error) {
-      console.error("Get active pomodoro error:", error);
+      log.error({ err: error }, "Get active pomodoro error");
       set.status = 500;
       return { success: false, error: "アクティブセッションの取得に失敗しました" };
     }
@@ -46,7 +49,7 @@ export const pomodoroRoutes = new Elysia({ prefix: "/pomodoro" })
         });
         return { success: true, session };
       } catch (error) {
-        console.error("Start pomodoro error:", error);
+        log.error({ err: error }, "Start pomodoro error");
         set.status = 500;
         return { success: false, error: "ポモドーロの開始に失敗しました" };
       }
@@ -76,7 +79,7 @@ export const pomodoroRoutes = new Elysia({ prefix: "/pomodoro" })
       const session = await pausePomodoro(sessionId);
       return { success: true, session };
     } catch (error) {
-      console.error("Pause pomodoro error:", error);
+      log.error({ err: error }, "Pause pomodoro error");
       set.status = 400;
       return {
         success: false,
@@ -96,7 +99,7 @@ export const pomodoroRoutes = new Elysia({ prefix: "/pomodoro" })
       const session = await resumePomodoro(sessionId);
       return { success: true, session };
     } catch (error) {
-      console.error("Resume pomodoro error:", error);
+      log.error({ err: error }, "Resume pomodoro error");
       set.status = 400;
       return {
         success: false,
@@ -116,7 +119,7 @@ export const pomodoroRoutes = new Elysia({ prefix: "/pomodoro" })
       const result = await completePomodoro(sessionId);
       return { success: true, ...result };
     } catch (error) {
-      console.error("Complete pomodoro error:", error);
+      log.error({ err: error }, "Complete pomodoro error");
       set.status = 400;
       return {
         success: false,
@@ -136,7 +139,7 @@ export const pomodoroRoutes = new Elysia({ prefix: "/pomodoro" })
       const session = await cancelPomodoro(sessionId);
       return { success: true, session };
     } catch (error) {
-      console.error("Cancel pomodoro error:", error);
+      log.error({ err: error }, "Cancel pomodoro error");
       set.status = 400;
       return {
         success: false,
@@ -155,7 +158,7 @@ export const pomodoroRoutes = new Elysia({ prefix: "/pomodoro" })
       const stats = await getStatistics({ startDate, endDate, taskId });
       return { success: true, ...stats };
     } catch (error) {
-      console.error("Get pomodoro statistics error:", error);
+      log.error({ err: error }, "Get pomodoro statistics error");
       set.status = 500;
       return { success: false, error: "統計情報の取得に失敗しました" };
     }
@@ -170,7 +173,7 @@ export const pomodoroRoutes = new Elysia({ prefix: "/pomodoro" })
       const result = await getHistory({ limit, offset });
       return { success: true, ...result };
     } catch (error) {
-      console.error("Get pomodoro history error:", error);
+      log.error({ err: error }, "Get pomodoro history error");
       set.status = 500;
       return { success: false, error: "履歴の取得に失敗しました" };
     }

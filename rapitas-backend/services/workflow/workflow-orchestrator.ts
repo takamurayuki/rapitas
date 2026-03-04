@@ -9,6 +9,9 @@ import { join } from 'path';
 import { prisma } from '../../config';
 import { AgentOrchestrator } from '../agents/agent-orchestrator';
 import { sanitizeMarkdownContent } from '../../utils/mojibake-detector';
+import { createLogger } from '../../config/logger';
+
+const log = createLogger('workflow-orchestrator');
 
 type WorkflowRole = 'researcher' | 'planner' | 'reviewer' | 'implementer' | 'verifier' | 'auto_verifier';
 type WorkflowFileType = 'research' | 'question' | 'plan' | 'verify';
@@ -102,7 +105,7 @@ async function writeWorkflowFile(dir: string, fileType: WorkflowFileType, conten
   // 文字化け検出・修正処理
   const sanitizeResult = sanitizeMarkdownContent(content);
   if (sanitizeResult.wasFixed) {
-    console.log(`[WorkflowOrchestrator] Fixed mojibake in ${fileType}.md:`, sanitizeResult.issues);
+    log.info({ issues: sanitizeResult.issues }, `[WorkflowOrchestrator] Fixed mojibake in ${fileType}.md`);
   }
 
   const filePath = join(dir, `${fileType}.md`);
@@ -219,7 +222,7 @@ export class WorkflowOrchestrator {
     if (transition.outputFile) {
       const existingContent = await readWorkflowFile(workflowInfo.dir, transition.outputFile);
       if (existingContent) {
-        console.log(`[WorkflowOrchestrator] ${transition.outputFile}.md already exists for task ${taskId}, skipping agent execution`);
+        log.info(`[WorkflowOrchestrator] ${transition.outputFile}.md already exists for task ${taskId}, skipping agent execution`);
         // ステータスだけ進める
         await prisma.task.update({
           where: { id: taskId },
@@ -279,7 +282,7 @@ export class WorkflowOrchestrator {
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[WorkflowOrchestrator] Error in ${transition.role}:`, errorMessage);
+      log.error(`[WorkflowOrchestrator] Error in ${transition.role}: ${errorMessage}`);
       return {
         success: false,
         role: transition.role,
@@ -456,12 +459,12 @@ export class WorkflowOrchestrator {
       // フォールバック: エージェントがWriteツールでファイル保存しなかった場合、
       // エージェントの出力からMarkdownコンテンツを抽出してファイルに保存する
       if (!fileContent && result.output && result.output.trim().length > 100) {
-        console.log(`[WorkflowOrchestrator] ${transition.outputFile}.md not found, extracting content from agent output (${result.output.length} chars)`);
+        log.info(`[WorkflowOrchestrator] ${transition.outputFile}.md not found, extracting content from agent output (${result.output.length} chars)`);
         const extractedContent = this.extractMarkdownFromOutput(result.output, transition.outputFile);
         if (extractedContent) {
           await writeWorkflowFile(workflowDir, transition.outputFile, extractedContent);
           fileContent = extractedContent;
-          console.log(`[WorkflowOrchestrator] Saved extracted content to ${transition.outputFile}.md (${extractedContent.length} chars)`);
+          log.info(`[WorkflowOrchestrator] Saved extracted content to ${transition.outputFile}.md (${extractedContent.length} chars)`);
         }
       }
 
@@ -474,7 +477,7 @@ export class WorkflowOrchestrator {
         }
         // ファイルが保存されていれば、エージェントの成否に関わらずワークフローとしては成功
         if (!effectiveSuccess) {
-          console.log(`[WorkflowOrchestrator] Agent reported failure but ${transition.outputFile}.md exists, treating as success`);
+          log.info(`[WorkflowOrchestrator] Agent reported failure but ${transition.outputFile}.md exists, treating as success`);
           effectiveSuccess = true;
         }
       }
@@ -484,7 +487,7 @@ export class WorkflowOrchestrator {
     try {
       await this.cleanupRootWorkflowFiles(taskId);
     } catch (cleanupError) {
-      console.warn('[WorkflowOrchestrator] Cleanup warning:', cleanupError);
+      log.warn({ err: cleanupError }, '[WorkflowOrchestrator] Cleanup warning');
       // クリーンアップエラーはワークフローの成否に影響しない
     }
 
@@ -498,14 +501,14 @@ export class WorkflowOrchestrator {
 
     // implementer完了後は自動的に検証フェーズを実行
     if (effectiveSuccess && transition.role === 'implementer') {
-      console.log('[WorkflowOrchestrator] Implementer completed successfully, automatically starting verifier...');
+      log.info('[WorkflowOrchestrator] Implementer completed successfully, automatically starting verifier...');
       try {
         // 非同期で検証フェーズを開始（レスポンスは即座に返す）
         setTimeout(async () => {
           await this.advanceWorkflow(taskId);
         }, 1000); // 1秒後に実行（DBの更新が確実に完了するまで待機）
       } catch (error) {
-        console.error('[WorkflowOrchestrator] Failed to auto-advance to verifier:', error);
+        log.error({ err: error }, '[WorkflowOrchestrator] Failed to auto-advance to verifier');
       }
     }
 
@@ -610,14 +613,14 @@ export class WorkflowOrchestrator {
 
       // implementer完了後は自動的に検証フェーズを実行
       if (transition.role === 'implementer') {
-        console.log('[WorkflowOrchestrator] Implementer completed successfully, automatically starting verifier...');
+        log.info('[WorkflowOrchestrator] Implementer completed successfully, automatically starting verifier...');
         try {
           // 非同期で検証フェーズを開始（レスポンスは即座に返す）
           setTimeout(async () => {
             await this.advanceWorkflow(taskId);
           }, 1000); // 1秒後に実行（DBの更新が確実に完了するまで待機）
         } catch (error) {
-          console.error('[WorkflowOrchestrator] Failed to auto-advance to verifier:', error);
+          log.error({ err: error }, '[WorkflowOrchestrator] Failed to auto-advance to verifier');
         }
       }
 
@@ -780,12 +783,12 @@ export class WorkflowOrchestrator {
         }
 
         if (shouldDelete) {
-          console.log(`[WorkflowOrchestrator] Cleaning up root file: ${file}`);
+          log.info(`[WorkflowOrchestrator] Cleaning up root file: ${file}`);
           await fs.promises.unlink(filePath);
         }
       }
     } catch (error) {
-      console.warn(`[WorkflowOrchestrator] Cleanup error: ${error}`);
+      log.warn(`[WorkflowOrchestrator] Cleanup error: ${error}`);
       // エラーは投げずに警告のみ
     }
   }

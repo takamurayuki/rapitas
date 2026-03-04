@@ -31,6 +31,9 @@ import type {
   ParallelExecutionConfig,
 } from "./types";
 import type { AgentTask, AgentExecutionResult } from "../agents/base-agent";
+import { createLogger } from "../../config/logger";
+
+const logger = createLogger("sub-agent-controller");
 
 /**
  * 質問詳細情報
@@ -136,7 +139,7 @@ class SubAgent extends EventEmitter {
       this.logFilePath,
       `[${new Date().toISOString()}] Task ${this.config.taskId} started\n`,
     );
-    console.log(
+    logger.info(
       `[SubAgent ${this.config.agentId}] Log file: ${this.logFilePath}`,
     );
 
@@ -174,7 +177,7 @@ class SubAgent extends EventEmitter {
         // セッション再開の場合は --continue を使用
         if (task.resumeSessionId) {
           args.push("--continue");
-          console.log(
+          logger.info(
             `[SubAgent ${this.config.agentId}] Continuing session: ${task.resumeSessionId}`,
           );
         }
@@ -203,13 +206,13 @@ class SubAgent extends EventEmitter {
           finalArgs = args;
         }
 
-        console.log(
+        logger.info(
           `[SubAgent ${this.config.agentId}] Command: ${finalCommand}`,
         );
-        console.log(
+        logger.info(
           `[SubAgent ${this.config.agentId}] Working directory: ${this.config.workingDirectory}`,
         );
-        console.log(
+        logger.info(
           `[SubAgent ${this.config.agentId}] Prompt length: ${prompt.length} chars`,
         );
 
@@ -243,14 +246,14 @@ class SubAgent extends EventEmitter {
           this.process.stderr.setEncoding("utf8");
         }
 
-        console.log(
+        logger.info(
           `[SubAgent ${this.config.agentId}] Process spawned with PID: ${this.process.pid}`,
         );
 
         // stdinにプロンプトを書き込む（親タスクと同様）
         const writePromptToStdin = async () => {
           if (!this.process?.stdin) {
-            console.log(
+            logger.info(
               `[SubAgent ${this.config.agentId}] stdin is not available`,
             );
             return;
@@ -260,14 +263,14 @@ class SubAgent extends EventEmitter {
           const CHUNK_SIZE = 16384; // 16KB chunks
 
           stdin.on("error", (err) => {
-            console.error(
-              `[SubAgent ${this.config.agentId}] stdin error:`,
-              err,
+            logger.error(
+              { err },
+              `[SubAgent ${this.config.agentId}] stdin error`,
             );
           });
 
           const promptBuffer = Buffer.from(prompt, "utf8");
-          console.log(
+          logger.info(
             `[SubAgent ${this.config.agentId}] Writing ${promptBuffer.length} bytes to stdin`,
           );
 
@@ -286,15 +289,15 @@ class SubAgent extends EventEmitter {
           }
 
           stdin.end();
-          console.log(
+          logger.info(
             `[SubAgent ${this.config.agentId}] Prompt written to stdin`,
           );
         };
 
         writePromptToStdin().catch((err) => {
-          console.error(
-            `[SubAgent ${this.config.agentId}] Failed to write prompt:`,
-            err,
+          logger.error(
+            { err },
+            `[SubAgent ${this.config.agentId}] Failed to write prompt`,
           );
         });
 
@@ -311,7 +314,7 @@ class SubAgent extends EventEmitter {
 
           // 30秒ごとにステータスログを出力
           const idleTime = now - this.state.lastActivityAt.getTime();
-          console.log(
+          logger.info(
             `[SubAgent ${this.config.agentId}] Status: elapsed=${Math.floor(elapsedTime / 1000)}s, idle=${Math.floor(idleTime / 1000)}s, output=${this.outputBuffer.length} chars`,
           );
 
@@ -319,7 +322,7 @@ class SubAgent extends EventEmitter {
             isTimedOut = true;
             cleanup();
             if (this.process) {
-              console.log(
+              logger.info(
                 `[SubAgent ${this.config.agentId}] Max execution time exceeded (${Math.round(elapsedTime / 1000)}s), timing out...`,
               );
               this.appendToLogFile(
@@ -344,7 +347,7 @@ class SubAgent extends EventEmitter {
           if (!hasReceivedAnyOutput) {
             hasReceivedAnyOutput = true;
             const elapsedMs = Date.now() - startTime;
-            console.log(
+            logger.info(
               `[SubAgent ${this.config.agentId}] First stdout received after ${elapsedMs}ms`,
             );
           }
@@ -393,13 +396,13 @@ class SubAgent extends EventEmitter {
 
           // 質問が検出された場合は入力待ち状態（終了コードに関係なく）
           if (this.waitingForInput) {
-            console.log(
+            logger.info(
               `[SubAgent ${this.config.agentId}] Setting status to waiting_for_input (question detected)`,
             );
-            console.log(
+            logger.info(
               `[SubAgent ${this.config.agentId}] Question: ${this.detectedQuestion?.substring(0, 200)}`,
             );
-            console.log(
+            logger.info(
               `[SubAgent ${this.config.agentId}] Session ID for resume: ${this.claudeSessionId}`,
             );
             this.state.status = "waiting_for_input";
@@ -462,9 +465,9 @@ class SubAgent extends EventEmitter {
     try {
       appendFileSync(this.logFilePath, content);
     } catch (error) {
-      console.error(
-        `[SubAgent ${this.config.agentId}] Failed to write to log file:`,
-        error,
+      logger.error(
+        { err: error },
+        `[SubAgent ${this.config.agentId}] Failed to write to log file`,
       );
     }
   }
@@ -514,7 +517,7 @@ class SubAgent extends EventEmitter {
         // セッションIDを抽出
         if (json.session_id) {
           this.claudeSessionId = json.session_id;
-          console.log(
+          logger.info(
             `[SubAgent ${this.config.agentId}] Session ID: ${this.claudeSessionId}`,
           );
         }
@@ -538,12 +541,12 @@ class SubAgent extends EventEmitter {
                 } else if (block.type === "tool_use") {
                   // AskUserQuestionツールの検出（親タスクと同様の処理）
                   if (block.name === "AskUserQuestion") {
-                    console.log(
+                    logger.info(
                       `[SubAgent ${this.config.agentId}] AskUserQuestion tool detected!`,
                     );
-                    console.log(
-                      `[SubAgent ${this.config.agentId}] Tool input:`,
-                      JSON.stringify(block.input),
+                    logger.info(
+                      { toolInput: block.input },
+                      `[SubAgent ${this.config.agentId}] Tool input`,
                     );
 
                     // 質問情報を抽出
@@ -562,7 +565,7 @@ class SubAgent extends EventEmitter {
                     });
 
                     // プロセスを停止して入力待ち状態にする
-                    console.log(
+                    logger.info(
                       `[SubAgent ${this.config.agentId}] Stopping process to wait for user response`,
                     );
                     if (this.process && !this.process.killed) {
@@ -797,7 +800,7 @@ class SubAgent extends EventEmitter {
   private buildPrompt(task: AgentTask): string {
     // 最適化されたプロンプトが存在する場合はそれを優先使用
     if (task.optimizedPrompt) {
-      console.log(
+      logger.info(
         `[SubAgent ${this.config.agentId}] Using optimized prompt (${task.optimizedPrompt.length} chars)`,
       );
       return task.optimizedPrompt;
@@ -985,10 +988,10 @@ export class SubAgentController extends EventEmitter {
     this.agents.set(agentId, agent);
 
     const logFilePath = agent.getLogFilePath();
-    console.log(
+    logger.info(
       `[SubAgentController] Created agent ${agentId} for task ${taskId}`,
     );
-    console.log(`[SubAgentController] Log file: ${logFilePath}`);
+    logger.info(`[SubAgentController] Log file: ${logFilePath}`);
 
     return agentId;
   }
@@ -1089,7 +1092,7 @@ export class SubAgentController extends EventEmitter {
     const agent = this.agents.get(agentId);
     if (agent) {
       agent.stop();
-      console.log(`[SubAgentController] Stopped agent ${agentId}`);
+      logger.info(`[SubAgentController] Stopped agent ${agentId}`);
     }
   }
 
@@ -1101,7 +1104,7 @@ export class SubAgentController extends EventEmitter {
       agent.stop();
     }
     this.agents.clear();
-    console.log("[SubAgentController] Stopped all agents");
+    logger.info("[SubAgentController] Stopped all agents");
   }
 
   /**
@@ -1218,7 +1221,7 @@ export class SubAgentController extends EventEmitter {
     if (agent) {
       agent.stop();
       this.agents.delete(agentId);
-      console.log(`[SubAgentController] Removed agent ${agentId}`);
+      logger.info(`[SubAgentController] Removed agent ${agentId}`);
     }
   }
 

@@ -3,7 +3,10 @@
  * Version control, installation, and update management for CLI tools (Claude, OpenAI, Gemini)
  */
 import { Elysia, t } from "elysia";
+import { createLogger } from "../../config/logger";
 import { exec } from "child_process";
+
+const log = createLogger("routes:cli-tools");
 import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
@@ -119,7 +122,7 @@ async function getToolStatus(tool: CLITool): Promise<{
         });
         version = versionResult.stdout.trim() || versionResult.stderr.trim();
       } catch (error) {
-        console.warn(`Failed to get version for ${tool.id}:`, error);
+        log.warn({ err: error }, `Failed to get version for ${tool.id}`);
       }
     }
 
@@ -187,7 +190,7 @@ async function getLatestReleaseInfo(repoUrl: string): Promise<{
       downloadUrl: data.html_url,
     };
   } catch (error) {
-    console.warn("Failed to fetch release info:", error);
+    log.warn({ err: error }, "Failed to fetch release info");
     return null;
   }
 }
@@ -287,7 +290,7 @@ export const cliToolsManagementRoutes = new Elysia()
         },
       };
     } catch (error) {
-      console.error("[CLI Tools] Error fetching tools status:", error);
+      log.error({ err: error }, "[CLI Tools] Error fetching tools status");
       return {
         success: false,
         error: "Failed to fetch CLI tools status",
@@ -328,7 +331,7 @@ export const cliToolsManagementRoutes = new Elysia()
         },
       };
     } catch (error) {
-      console.error("[CLI Tools] Error fetching tool details:", error);
+      log.error({ err: error }, "[CLI Tools] Error fetching tool details");
       return {
         success: false,
         error: "Failed to fetch tool details",
@@ -360,7 +363,7 @@ export const cliToolsManagementRoutes = new Elysia()
       }
 
       // インストール実行
-      console.log(`[CLI Tools] Installing ${tool.name}...`);
+      log.info(`[CLI Tools] Installing ${tool.name}...`);
       const installResult = await execAsync(tool.installCommand, {
         timeout: 300000,
       }); // 5 minutes timeout
@@ -382,7 +385,7 @@ export const cliToolsManagementRoutes = new Elysia()
         },
       };
     } catch (error) {
-      console.error("[CLI Tools] Error installing tool:", error);
+      log.error({ err: error }, "[CLI Tools] Error installing tool");
       return {
         success: false,
         error: "Failed to install tool",
@@ -416,7 +419,7 @@ export const cliToolsManagementRoutes = new Elysia()
       const previousVersion = currentStatus.version;
 
       // 更新実行
-      console.log(`[CLI Tools] Updating ${tool.name}...`);
+      log.info(`[CLI Tools] Updating ${tool.name}...`);
       const updateResult = await execAsync(tool.updateCommand, {
         timeout: 300000,
       });
@@ -444,7 +447,7 @@ export const cliToolsManagementRoutes = new Elysia()
         },
       };
     } catch (error) {
-      console.error("[CLI Tools] Error updating tool:", error);
+      log.error({ err: error }, "[CLI Tools] Error updating tool");
       return {
         success: false,
         error: "Failed to update tool",
@@ -505,7 +508,7 @@ export const cliToolsManagementRoutes = new Elysia()
         };
       }
     } catch (error) {
-      console.error("[CLI Tools] Error checking authentication:", error);
+      log.error({ err: error }, "[CLI Tools] Error checking authentication");
       return {
         success: false,
         error: "Failed to check authentication",
@@ -537,7 +540,7 @@ export const cliToolsManagementRoutes = new Elysia()
         },
       };
     } catch (error) {
-      console.error("[CLI Tools] Error fetching installation guide:", error);
+      log.error({ err: error }, "[CLI Tools] Error fetching installation guide");
       return {
         success: false,
         error: "Failed to fetch installation guide",

@@ -35,6 +35,9 @@ import type {
   ExecutionLogEntry,
 } from "./types";
 import type { AgentTask, AgentExecutionResult } from "../agents/base-agent";
+import { createLogger } from "../../config/logger";
+
+const logger = createLogger("parallel-executor");
 
 /**
  * 並列実行イベント
@@ -126,7 +129,7 @@ async function withRetry<T>(
 
       // 指数バックオフ
       const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 100;
-      console.log(
+      logger.info(
         `[ParallelExecutor] DB operation failed, retrying in ${Math.round(delay)}ms (attempt ${attempt + 1}/${maxRetries})`,
       );
       await new Promise((resolve) => setTimeout(resolve, delay));
@@ -205,9 +208,9 @@ export class ParallelExecutor extends EventEmitter {
           },
         });
       } catch (error) {
-        console.error(
-          `[ParallelExecutor] Failed to save execution log:`,
-          error,
+        logger.error(
+          { err: error },
+          "[ParallelExecutor] Failed to save execution log",
         );
       }
 
@@ -278,24 +281,24 @@ export class ParallelExecutor extends EventEmitter {
   async analyzeDependencies(
     input: DependencyAnalysisInput,
   ): Promise<DependencyAnalysisResult> {
-    console.log(
+    logger.info(
       `[ParallelExecutor] Analyzing dependencies for parent task ${input.parentTaskId}`,
     );
-    console.log(`[ParallelExecutor] Subtasks: ${input.subtasks.length}`);
+    logger.info(`[ParallelExecutor] Subtasks: ${input.subtasks.length}`);
 
     const result = this.analyzer.analyze({
       ...input,
       config: this.config,
     });
 
-    console.log(`[ParallelExecutor] Analysis complete:`);
-    console.log(
+    logger.info(`[ParallelExecutor] Analysis complete:`);
+    logger.info(
       `[ParallelExecutor] - Parallel groups: ${result.plan.groups.length}`,
     );
-    console.log(
+    logger.info(
       `[ParallelExecutor] - Critical path length: ${result.treeMap.criticalPath.length}`,
     );
-    console.log(
+    logger.info(
       `[ParallelExecutor] - Parallel efficiency: ${result.plan.parallelEfficiency}%`,
     );
 
@@ -313,11 +316,11 @@ export class ParallelExecutor extends EventEmitter {
   ): Promise<ParallelExecutionSession> {
     const sessionId = `session-${parentTaskId}-${Date.now()}`;
 
-    console.log(`[ParallelExecutor] Starting session ${sessionId}`);
-    console.log(
+    logger.info(`[ParallelExecutor] Starting session ${sessionId}`);
+    logger.info(
       `[ParallelExecutor] Total tasks: ${plan.groups.flatMap((g) => g.taskIds).length}`,
     );
-    console.log(
+    logger.info(
       `[ParallelExecutor] Max concurrency: ${this.config.maxConcurrentAgents}`,
     );
 
@@ -381,7 +384,7 @@ export class ParallelExecutor extends EventEmitter {
     setImmediate(() => {
       this.executeNextBatch(sessionId, nodes, workingDirectory).catch(
         (error) => {
-          console.error(`[ParallelExecutor] Error in executeNextBatch:`, error);
+          logger.error({ err: error }, "[ParallelExecutor] Error in executeNextBatch");
           // エラー発生時はセッションを失敗状態にする
           const session = this.sessions.get(sessionId);
           if (session && session.status === "running") {
@@ -429,7 +432,7 @@ export class ParallelExecutor extends EventEmitter {
       return;
     }
 
-    console.log(
+    logger.info(
       `[ParallelExecutor] Executing batch of ${executableTasks.length} tasks`,
     );
 
@@ -442,7 +445,7 @@ export class ParallelExecutor extends EventEmitter {
 
       // スケジューラーでタスク開始
       if (!scheduler.startTask(taskId)) {
-        console.warn(`[ParallelExecutor] Failed to start task ${taskId}`);
+        logger.warn(`[ParallelExecutor] Failed to start task ${taskId}`);
         continue;
       }
 
@@ -467,7 +470,7 @@ export class ParallelExecutor extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (!session) return;
 
-    console.log(`[ParallelExecutor] Starting task ${taskId}: ${node.title}`);
+    logger.info(`[ParallelExecutor] Starting task ${taskId}: ${node.title}`);
 
     try {
       // AgentExecutionをDBに作成（ミューテックスとリトライで保護）
@@ -545,13 +548,13 @@ export class ParallelExecutor extends EventEmitter {
             data: { status: "in-progress" },
           });
         });
-        console.log(
+        logger.info(
           `[ParallelExecutor] Updated task ${taskId} status to 'in-progress'`,
         );
       } catch (error) {
-        console.error(
-          `[ParallelExecutor] Failed to update task status:`,
-          error,
+        logger.error(
+          { err: error },
+          "[ParallelExecutor] Failed to update task status",
         );
       } finally {
         dbMutex.release();
@@ -573,12 +576,12 @@ export class ParallelExecutor extends EventEmitter {
         });
         if (previousExecution?.claudeSessionId) {
           previousSessionId = previousExecution.claudeSessionId;
-          console.log(
+          logger.info(
             `[ParallelExecutor] Found previous session for task ${taskId}: ${previousSessionId}`,
           );
         }
       } catch (error) {
-        console.log(
+        logger.info(
           `[ParallelExecutor] No previous session found for task ${taskId}`,
         );
       }
@@ -617,7 +620,7 @@ export class ParallelExecutor extends EventEmitter {
             },
           });
         });
-        console.log(
+        logger.info(
           `[ParallelExecutor] Saved execution status for task ${taskId}: ${executionStatus}, claudeSessionId: ${result.claudeSessionId || "none"}`,
         );
       } finally {
@@ -626,10 +629,10 @@ export class ParallelExecutor extends EventEmitter {
 
       // 質問待ち状態の場合は特別な処理
       if (result.waitingForInput) {
-        console.log(
+        logger.info(
           `[ParallelExecutor] Task ${taskId} is waiting for user input`,
         );
-        console.log(
+        logger.info(
           `[ParallelExecutor] Question: ${result.question?.substring(0, 200)}`,
         );
 
@@ -642,13 +645,13 @@ export class ParallelExecutor extends EventEmitter {
               data: { status: "waiting" },
             });
           });
-          console.log(
+          logger.info(
             `[ParallelExecutor] Updated task ${taskId} status to 'waiting'`,
           );
         } catch (error) {
-          console.error(
-            `[ParallelExecutor] Failed to update task status:`,
-            error,
+          logger.error(
+            { err: error },
+            "[ParallelExecutor] Failed to update task status",
           );
         } finally {
           dbMutex.release();
@@ -681,7 +684,7 @@ export class ParallelExecutor extends EventEmitter {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      console.error(`[ParallelExecutor] Task ${taskId} failed:`, errorMessage);
+      logger.error({ errorMessage }, `[ParallelExecutor] Task ${taskId} failed`);
       this.handleTaskFailure(sessionId, taskId, errorMessage);
     }
   }
@@ -699,7 +702,7 @@ export class ParallelExecutor extends EventEmitter {
 
     if (!session || !scheduler) return;
 
-    console.log(`[ParallelExecutor] Task ${taskId} completed`);
+    logger.info(`[ParallelExecutor] Task ${taskId} completed`);
 
     // スケジューラーを更新
     scheduler.completeTask(taskId);
@@ -727,9 +730,9 @@ export class ParallelExecutor extends EventEmitter {
           },
         });
       });
-      console.log(`[ParallelExecutor] Updated task ${taskId} status to 'done'`);
+      logger.info(`[ParallelExecutor] Updated task ${taskId} status to 'done'`);
     } catch (error) {
-      console.error(`[ParallelExecutor] Failed to update task status:`, error);
+      logger.error({ err: error }, "[ParallelExecutor] Failed to update task status");
     } finally {
       dbMutex.release();
     }
@@ -782,7 +785,7 @@ export class ParallelExecutor extends EventEmitter {
 
     if (!session || !scheduler) return;
 
-    console.error(`[ParallelExecutor] Task ${taskId} failed: ${errorMessage}`);
+    logger.error(`[ParallelExecutor] Task ${taskId} failed: ${errorMessage}`);
 
     // スケジューラーを更新
     scheduler.failTask(taskId);
@@ -800,11 +803,11 @@ export class ParallelExecutor extends EventEmitter {
           data: { status: "todo" },
         });
       });
-      console.log(
+      logger.info(
         `[ParallelExecutor] Reverted task ${taskId} status to 'todo' due to failure`,
       );
     } catch (error) {
-      console.error(`[ParallelExecutor] Failed to update task status:`, error);
+      logger.error({ err: error }, "[ParallelExecutor] Failed to update task status");
     } finally {
       dbMutex.release();
     }
@@ -853,12 +856,12 @@ export class ParallelExecutor extends EventEmitter {
     session.status = success ? "completed" : "failed";
     session.completedAt = new Date();
 
-    console.log(`[ParallelExecutor] Session ${sessionId} ${session.status}`);
-    console.log(
+    logger.info(`[ParallelExecutor] Session ${sessionId} ${session.status}`);
+    logger.info(
       `[ParallelExecutor] - Completed: ${session.completedTasks.length}`,
     );
-    console.log(`[ParallelExecutor] - Failed: ${session.failedTasks.length}`);
-    console.log(
+    logger.info(`[ParallelExecutor] - Failed: ${session.failedTasks.length}`);
+    logger.info(
       `[ParallelExecutor] - Total time: ${session.totalExecutionTimeMs}ms`,
     );
 
@@ -882,7 +885,7 @@ export class ParallelExecutor extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (!session) return;
 
-    console.log(`[ParallelExecutor] Stopping session ${sessionId}`);
+    logger.info(`[ParallelExecutor] Stopping session ${sessionId}`);
 
     // すべてのアクティブなエージェントを停止
     for (const [agentId] of session.activeAgents) {

@@ -10,6 +10,9 @@ import { join, basename, relative } from "path";
 import { Dirent, existsSync, mkdirSync, readFileSync, readdirSync } from "fs";
 import { randomUUID } from "crypto";
 import { spawn } from "child_process";
+import { createLogger } from '../config/logger';
+
+const log = createLogger('screenshot-service');
 
 const SCREENSHOT_DIR = join(process.cwd(), "uploads", "screenshots");
 
@@ -835,7 +838,7 @@ function runScreenshotWorker(
       if (resolved) return;
       resolved = true;
       if (code !== 0 && code !== null) {
-        console.error(`[ScreenshotService] Worker exited with code ${code}`);
+        log.error(`[ScreenshotService] Worker exited with code ${code}`);
       }
 
       // NDJSON 形式でパース（1行1結果）
@@ -847,7 +850,7 @@ function runScreenshotWorker(
     child.on("error", (err: Error) => {
       if (resolved) return;
       resolved = true;
-      console.error("[ScreenshotService] Failed to spawn worker:", err.message);
+      log.error(`[ScreenshotService] Failed to spawn worker: ${err.message}`);
       cleanup();
       resolve([]);
     });
@@ -864,7 +867,7 @@ function runScreenshotWorker(
       resolved = true;
       // タイムアウト時も途中結果を返す（NDJSON で逐次出力されている分を回収）
       const partialResults = parseNdjson(stdout);
-      console.error(
+      log.error(
         `[ScreenshotService] Worker timed out after ${timeoutMs / 1000}s, recovered ${partialResults.length} screenshot(s)`,
       );
       cleanup();
@@ -884,7 +887,7 @@ export async function captureScreenshots(
   const SAFETY_TIMEOUT_MS = 90000;
   const safetyPromise = new Promise<ScreenshotResult[]>((resolve) => {
     setTimeout(() => {
-      console.error(`[ScreenshotService] captureScreenshots safety timeout (${SAFETY_TIMEOUT_MS / 1000}s) - returning empty results`);
+      log.error(`[ScreenshotService] captureScreenshots safety timeout (${SAFETY_TIMEOUT_MS / 1000}s) - returning empty results`);
       resolve([]);
     }, SAFETY_TIMEOUT_MS);
   });
@@ -893,7 +896,7 @@ export async function captureScreenshots(
     const resultPromise = captureScreenshotsImpl(options);
     return await Promise.race([resultPromise, safetyPromise]);
   } catch (err) {
-    console.error('[ScreenshotService] captureScreenshots error:', err);
+    log.error({ err }, '[ScreenshotService] captureScreenshots error');
     return [];
   }
 }
@@ -924,7 +927,7 @@ async function captureScreenshotsImpl(
 
   const targetPages = pages.slice(0, maxPages);
 
-  console.log(
+  log.info(
     `[ScreenshotService] Capturing ${targetPages.length} page(s) via Node.js worker`,
   );
 
@@ -945,7 +948,7 @@ async function captureScreenshotsImpl(
   const allResults: ScreenshotResult[] = [];
   for (let i = 0; i < targetPages.length; i += BATCH_SIZE) {
     const batch = targetPages.slice(i, i + BATCH_SIZE);
-    console.log(
+    log.info(
       `[ScreenshotService] Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(targetPages.length / BATCH_SIZE)}: ${batch.map((p) => p.path).join(", ")}`,
     );
     const results = await runScreenshotWorker({
@@ -972,7 +975,7 @@ export async function captureAllScreenshots(
 ): Promise<ScreenshotResult[]> {
   const workingDirectory = options.workingDirectory;
   if (!workingDirectory) {
-    console.error("[ScreenshotService] workingDirectory is required for captureAllScreenshots");
+    log.error("[ScreenshotService] workingDirectory is required for captureAllScreenshots");
     return [];
   }
 
@@ -981,20 +984,20 @@ export async function captureAllScreenshots(
   if (options.changedFiles && options.changedFiles.length > 0) {
     // diffベース: 変更ファイルから影響のあるページのみを対象にする
     if (!hasUIChanges(options.changedFiles, workingDirectory)) {
-      console.log("[ScreenshotService] captureAll: no UI changes detected, skipping.");
+      log.info("[ScreenshotService] captureAll: no UI changes detected, skipping.");
       return [];
     }
     targetPages = detectAffectedPages(options.changedFiles, workingDirectory);
     if (targetPages.length === 0) {
       targetPages = [{ path: "/", label: "home" }];
     }
-    console.log(
+    log.info(
       `[ScreenshotService] captureAll (diff-based): ${targetPages.length} affected page(s): ${targetPages.map((p) => p.path).join(", ")}`,
     );
   } else {
     // 全ページモード
     targetPages = detectAllPages(workingDirectory);
-    console.log(
+    log.info(
       `[ScreenshotService] captureAll: detected ${targetPages.length} page(s): ${targetPages.map((p) => p.path).join(", ")}`,
     );
   }
@@ -1068,12 +1071,12 @@ export async function captureScreenshotsForDiff(
   const changedFiles = structuredDiff.map((d) => d.filename);
   const workingDirectory = options?.workingDirectory;
 
-  console.log(
+  log.info(
     `[ScreenshotService] captureScreenshotsForDiff: ${changedFiles.length} changed file(s)`,
   );
 
   if (!hasUIChanges(changedFiles, workingDirectory)) {
-    console.log(
+    log.info(
       "[ScreenshotService] No UI changes detected, skipping screenshots.",
     );
     return [];
@@ -1081,7 +1084,7 @@ export async function captureScreenshotsForDiff(
 
   const pages = detectAffectedPages(changedFiles, workingDirectory);
 
-  console.log(
+  log.info(
     `[ScreenshotService] Detected ${pages.length} affected page(s) from diff: ${pages.map((p) => p.path).join(", ")}`,
   );
 
@@ -1109,12 +1112,12 @@ export async function captureScreenshotsForDiff(
   const maxPages = options?.maxPages || 3;
   const targetPages = pages.slice(0, maxPages);
   if (pages.length > maxPages) {
-    console.log(
+    log.info(
       `[ScreenshotService] Limiting screenshots from ${pages.length} to ${maxPages} pages`,
     );
   }
 
-  console.log(
+  log.info(
     `[ScreenshotService] Capturing ${targetPages.length} page(s): ${targetPages.map((p) => p.path).join(", ")}`,
   );
 

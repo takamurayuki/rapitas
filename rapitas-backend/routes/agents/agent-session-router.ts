@@ -1,5 +1,8 @@
 import { Elysia } from "elysia";
 import { prisma } from "../../config/database";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:agent-session");
 import { orchestrator } from "./approvals";
 import type { AgentExecutionWithExtras } from "../../types/agent-execution-types";
 
@@ -136,11 +139,10 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
     } catch (error) {
       const errObj = error as { code?: string; message?: string };
       if (errObj?.code === "P1001") {
-        console.warn("[resumable-executions] Database unreachable, skipping");
+        log.warn("[resumable-executions] Database unreachable, skipping");
       } else {
-        console.error(
-          "[resumable-executions] Error:",
-          error instanceof Error ? error.message : String(error),
+        log.error({ err: error },
+          "[resumable-executions] Error",
         );
       }
       return [];
@@ -194,7 +196,7 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
         },
       );
     } catch (error) {
-      console.error("[interrupted-executions] Error:", error);
+      log.error({ err: error }, "[interrupted-executions] Error");
       return [];
     }
   });

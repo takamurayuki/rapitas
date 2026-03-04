@@ -5,6 +5,9 @@
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
 import { logAgentConfigChange } from "../../utils/agent-audit-log";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:agent-version-management");
 
 // 型定義
 interface VersionInfo {
@@ -119,7 +122,7 @@ export const agentVersionManagementRoutes = new Elysia()
         data: agentsWithVersions
       };
     } catch (error) {
-      console.error("[Agent Version Management] Error fetching agent versions:", error);
+      log.error({ err: error }, "[Agent Version Management] Error fetching agent versions");
       return {
         success: false,
         error: "Failed to fetch agent versions",
@@ -170,7 +173,7 @@ export const agentVersionManagementRoutes = new Elysia()
         }
       };
     } catch (error) {
-      console.error("[Agent Version Management] Error fetching agent version details:", error);
+      log.error({ err: error }, "[Agent Version Management] Error fetching agent version details");
       return {
         success: false,
         error: "Failed to fetch agent version details",
@@ -247,7 +250,7 @@ export const agentVersionManagementRoutes = new Elysia()
       };
 
     } catch (error) {
-      console.error("[Agent Version Management] Error updating agent version:", error);
+      log.error({ err: error }, "[Agent Version Management] Error updating agent version");
       return {
         success: false,
         error: "Failed to update agent version",
@@ -319,7 +322,7 @@ export const agentVersionManagementRoutes = new Elysia()
       };
 
     } catch (error) {
-      console.error("[Agent Version Management] Error installing agent:", error);
+      log.error({ err: error }, "[Agent Version Management] Error installing agent");
       return {
         success: false,
         error: "Failed to install agent",
@@ -394,7 +397,7 @@ export const agentVersionManagementRoutes = new Elysia()
       };
 
     } catch (error) {
-      console.error("[Agent Version Management] Error uninstalling agent:", error);
+      log.error({ err: error }, "[Agent Version Management] Error uninstalling agent");
       return {
         success: false,
         error: "Failed to uninstall agent",
@@ -470,7 +473,7 @@ export const agentVersionManagementRoutes = new Elysia()
       };
 
     } catch (error) {
-      console.error("[Agent Version Management] Error fetching version history:", error);
+      log.error({ err: error }, "[Agent Version Management] Error fetching version history");
       return {
         success: false,
         error: "Failed to fetch version history",

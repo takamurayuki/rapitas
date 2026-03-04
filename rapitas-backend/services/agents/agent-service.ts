@@ -3,6 +3,10 @@
  * 複数のAIプロバイダーを統一的に管理・使用するためのファサード
  */
 
+import { createLogger } from '../../config/logger';
+
+const log = createLogger('agent-service');
+
 import type {
   AgentProviderId,
   AgentCapabilities,
@@ -125,7 +129,7 @@ export class AgentService {
     }
 
     this.initialized = true;
-    console.log('AgentService initialized');
+    log.info('AgentService initialized');
   }
 
   /**
@@ -390,7 +394,7 @@ export class AgentService {
     await this.registry.disposeAllAgents();
 
     this.initialized = false;
-    console.log('AgentService shut down');
+    log.info('AgentService shut down');
   }
 
   private async ensureInitialized(): Promise<void> {

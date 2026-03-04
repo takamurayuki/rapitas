@@ -34,6 +34,9 @@ import type {
   QuestionKey,
   QuestionWaitingState,
 } from "./question-detection";
+import { createLogger } from "../../config/logger";
+
+const logger = createLogger("gemini-cli-agent");
 
 export type GeminiCliAgentConfig = {
   workingDirectory?: string;
@@ -190,14 +193,14 @@ export class GeminiCliAgent extends BaseAgent {
     return new Promise((resolve) => {
       const prompt = this.buildStructuredPrompt(task);
 
-      console.log(
+      logger.info(
         `${this.logPrefix} Using ${task.analysisInfo ? "structured" : "simple"} prompt`,
       );
       if (task.analysisInfo) {
-        console.log(
+        logger.info(
           `${this.logPrefix} Analysis complexity: ${task.analysisInfo.complexity}`,
         );
-        console.log(
+        logger.info(
           `${this.logPrefix} Subtasks count: ${task.analysisInfo.subtasks?.length || 0}`,
         );
       }
@@ -231,7 +234,7 @@ export class GeminiCliAgent extends BaseAgent {
       const resumeId = this.config.checkpointId || task.resumeSessionId;
       if (resumeId) {
         args.push("--checkpoint", resumeId);
-        console.log(`${this.logPrefix} Resuming from checkpoint: ${resumeId}`);
+        logger.info(`${this.logPrefix} Resuming from checkpoint: ${resumeId}`);
       }
 
       // 許可するツール
@@ -249,14 +252,14 @@ export class GeminiCliAgent extends BaseAgent {
         process.env.GEMINI_CLI_PATH || (isWindows ? "gemini.cmd" : "gemini"),
       );
 
-      console.log(`${this.logPrefix} Platform: ${process.platform}`);
-      console.log(`${this.logPrefix} Gemini path: ${geminiPath}`);
-      console.log(`${this.logPrefix} Work directory: ${workDir}`);
-      console.log(`${this.logPrefix} ========================================`);
-      console.log(`${this.logPrefix} Timeout: ${timeout}ms`);
-      console.log(`${this.logPrefix} Args count: ${args.length}`);
-      console.log(`${this.logPrefix} Prompt length: ${prompt.length} chars`);
-      console.log(`${this.logPrefix} ========================================`);
+      logger.info(`${this.logPrefix} Platform: ${process.platform}`);
+      logger.info(`${this.logPrefix} Gemini path: ${geminiPath}`);
+      logger.info(`${this.logPrefix} Work directory: ${workDir}`);
+      logger.info(`${this.logPrefix} ========================================`);
+      logger.info(`${this.logPrefix} Timeout: ${timeout}ms`);
+      logger.info(`${this.logPrefix} Args count: ${args.length}`);
+      logger.info(`${this.logPrefix} Prompt length: ${prompt.length} chars`);
+      logger.info(`${this.logPrefix} ========================================`);
 
       this.emitOutput(`${this.logPrefix} Starting execution...\n`);
       this.emitOutput(`${this.logPrefix} Working directory: ${workDir}\n`);
@@ -266,8 +269,8 @@ export class GeminiCliAgent extends BaseAgent {
       );
 
       try {
-        console.log(`${this.logPrefix} Spawn command: ${geminiPath}`);
-        console.log(`${this.logPrefix} Args: ${args.join(" ")}`);
+        logger.info(`${this.logPrefix} Spawn command: ${geminiPath}`);
+        logger.info(`${this.logPrefix} Args: ${args.join(" ")}`);
 
         let finalCommand: string;
         let finalArgs: string[];
@@ -289,7 +292,7 @@ export class GeminiCliAgent extends BaseAgent {
           finalArgs = args;
         }
 
-        console.log(`${this.logPrefix} Final command: ${finalCommand.substring(0, 100)}...`);
+        logger.info(`${this.logPrefix} Final command: ${finalCommand.substring(0, 100)}...`);
 
         // 環境変数の準備
         const env: NodeJS.ProcessEnv = {
@@ -335,7 +338,7 @@ export class GeminiCliAgent extends BaseAgent {
           this.process.stderr.setEncoding("utf8");
         }
 
-        console.log(
+        logger.info(
           `${this.logPrefix} Process spawned with PID: ${this.process.pid}`,
         );
         this.emitOutput(`${this.logPrefix} Process PID: ${this.process.pid}\n`);
@@ -358,7 +361,7 @@ export class GeminiCliAgent extends BaseAgent {
           const totalElapsed = Date.now() - startTime;
 
           if (!hasReceivedAnyOutput && totalElapsed > INITIAL_OUTPUT_TIMEOUT) {
-            console.warn(
+            logger.warn(
               `${this.logPrefix} WARNING: No output received after ${Math.floor(totalElapsed / 1000)}s`,
             );
             this.emitOutput(
@@ -368,7 +371,7 @@ export class GeminiCliAgent extends BaseAgent {
           }
 
           if (idleTime > OUTPUT_IDLE_TIMEOUT && this.lineBuffer.trim()) {
-            console.log(
+            logger.info(
               `${this.logPrefix} Output idle for ${idleTime}ms, flushing lineBuffer`,
             );
             this.outputBuffer += this.lineBuffer + "\n";
@@ -377,7 +380,7 @@ export class GeminiCliAgent extends BaseAgent {
           }
 
           if (this.status === "running" && idleTime > 10000) {
-            console.log(
+            logger.info(
               `${this.logPrefix} Still running... Output idle: ${Math.floor(idleTime / 1000)}s`,
             );
           }
@@ -392,7 +395,7 @@ export class GeminiCliAgent extends BaseAgent {
             const timeSinceLastOutput = Date.now() - lastOutputTime;
 
             if (timeSinceLastOutput >= timeout) {
-              console.log(
+              logger.info(
                 `${this.logPrefix} TIMEOUT: No output for ${timeout / 1000}s`,
               );
               clearInterval(timeoutCheckInterval);
@@ -425,7 +428,7 @@ export class GeminiCliAgent extends BaseAgent {
           if (!hasReceivedAnyOutput) {
             hasReceivedAnyOutput = true;
             const elapsedMs = Date.now() - startTime;
-            console.log(
+            logger.info(
               `${this.logPrefix} First stdout received after ${elapsedMs}ms`,
             );
           }
@@ -440,7 +443,7 @@ export class GeminiCliAgent extends BaseAgent {
             try {
               const json = JSON.parse(line) as GeminiStreamEvent;
               const timestamp = new Date().toISOString();
-              console.log(
+              logger.info(
                 `${this.logPrefix} [${timestamp}] Event type: ${json.type}`,
               );
 
@@ -455,7 +458,7 @@ export class GeminiCliAgent extends BaseAgent {
                       } else if (block.type === "tool_use") {
                         // Gemini CLI の質問ツールを検出
                         if (block.name === "AskUserQuestion" || block.name === "ask_user" || block.name === "ask") {
-                          console.log(
+                          logger.info(
                             `${this.logPrefix} Question tool detected: ${block.name}`,
                           );
 
@@ -484,7 +487,7 @@ export class GeminiCliAgent extends BaseAgent {
                           displayOutput += `\n[質問] ${detectionResult.questionText}\n`;
 
                           // 質問検出時はプロセスを停止
-                          console.log(
+                          logger.info(
                             `${this.logPrefix} Stopping process to wait for user response`,
                           );
                           if (this.process && !this.process.killed) {
@@ -555,21 +558,21 @@ export class GeminiCliAgent extends BaseAgent {
                   // セッションIDとチェックポイントIDをキャプチャ
                   if (json.session_id) {
                     this.geminiSessionId = json.session_id;
-                    console.log(
+                    logger.info(
                       `${this.logPrefix} Session ID: ${this.geminiSessionId}`,
                     );
                   }
                   if (json.checkpoint_id) {
                     this.checkpointId = json.checkpoint_id;
-                    console.log(
+                    logger.info(
                       `${this.logPrefix} Checkpoint ID: ${this.checkpointId}`,
                     );
                   }
 
                   if (json.subtype === "error" || json.error) {
-                    console.error(
-                      `${this.logPrefix} System error:`,
-                      JSON.stringify(json),
+                    logger.error(
+                      { systemError: json },
+                      `${this.logPrefix} System error`,
                     );
                     displayOutput += `[System Error: ${json.error || json.subtype || "unknown"}]\n`;
                   } else if (json.subtype !== "init") {
@@ -578,9 +581,9 @@ export class GeminiCliAgent extends BaseAgent {
                   break;
 
                 default:
-                  console.log(
+                  logger.info(
+                    { rawLine: line.substring(0, 200) },
                     `${this.logPrefix} Unknown event type: ${json.type}`,
-                    line.substring(0, 200),
                   );
               }
 
@@ -597,12 +600,12 @@ export class GeminiCliAgent extends BaseAgent {
                 /^現在のコード ページ:/i.test(trimmedLine) ||
                 /^chcp\s/i.test(trimmedLine)
               ) {
-                console.log(
+                logger.info(
                   `${this.logPrefix} Filtered non-JSON output: ${trimmedLine.substring(0, 100)}`,
                 );
                 continue;
               }
-              console.log(
+              logger.info(
                 `${this.logPrefix} Raw output: ${line.substring(0, 200)}`,
               );
               this.outputBuffer += line + "\n";
@@ -615,7 +618,7 @@ export class GeminiCliAgent extends BaseAgent {
           const output = data.toString();
           this.errorBuffer += output;
           lastOutputTime = Date.now();
-          console.log(`${this.logPrefix} stderr: ${output.substring(0, 200)}`);
+          logger.info(`${this.logPrefix} stderr: ${output.substring(0, 200)}`);
           this.emitOutput(output, true);
         });
 
@@ -625,17 +628,17 @@ export class GeminiCliAgent extends BaseAgent {
           const executionTimeMs = Date.now() - startTime;
 
           if (this.lineBuffer.trim()) {
-            console.log(
+            logger.info(
               `${this.logPrefix} Processing remaining lineBuffer: ${this.lineBuffer.substring(0, 200)}`,
             );
             this.outputBuffer += this.lineBuffer + "\n";
             this.emitOutput(this.lineBuffer + "\n");
           }
 
-          console.log(
+          logger.info(
             `${this.logPrefix} Process closed with code: ${code}, time: ${executionTimeMs}ms`,
           );
-          console.log(
+          logger.info(
             `${this.logPrefix} Final output length: ${this.outputBuffer.length}`,
           );
 
@@ -667,7 +670,7 @@ export class GeminiCliAgent extends BaseAgent {
 
           if (hasQuestion) {
             this.status = "waiting_for_input";
-            console.log(
+            logger.info(
               `${this.logPrefix} Question detected: ${question.substring(0, 200)}`,
             );
             this.emitOutput(`\n${this.logPrefix} 回答を待っています...\n`);
@@ -725,7 +728,7 @@ export class GeminiCliAgent extends BaseAgent {
           cleanupTimeoutCheck();
           cleanupIdleCheck();
           this.status = "failed";
-          console.error(`${this.logPrefix} Process error:`, error);
+          logger.error({ err: error }, `${this.logPrefix} Process error`);
           this.emitOutput(`${this.logPrefix} Error: ${error.message}\n`, true);
 
           const errorParts: string[] = [];
@@ -748,7 +751,7 @@ export class GeminiCliAgent extends BaseAgent {
         this.status = "failed";
         const errorMessage =
           error instanceof Error ? error.message : String(error);
-        console.error(`${this.logPrefix} Spawn error:`, error);
+        logger.error({ err: error }, `${this.logPrefix} Spawn error`);
         resolve({
           success: false,
           output: "",
@@ -772,10 +775,10 @@ export class GeminiCliAgent extends BaseAgent {
           if (pid) {
             const { execSync } = require("child_process");
             execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
-            console.log(`${this.logPrefix} Process ${pid} killed via taskkill`);
+            logger.info(`${this.logPrefix} Process ${pid} killed via taskkill`);
           }
         } catch (e) {
-          console.error(`${this.logPrefix} taskkill failed:`, e);
+          logger.error({ err: e }, `${this.logPrefix} taskkill failed`);
           try {
             this.process.kill();
           } catch {}
@@ -862,11 +865,11 @@ export class GeminiCliAgent extends BaseAgent {
     // GEMINI_API_KEY は必須ではない（Google認証でも動作する）
     // ただし、プロジェクトでAPIキーを使用する設定の場合は警告
     if (this.config.apiKey) {
-      console.log(`${this.logPrefix} Using provided API key`);
+      logger.info(`${this.logPrefix} Using provided API key`);
     } else if (process.env.GEMINI_API_KEY) {
-      console.log(`${this.logPrefix} Using GEMINI_API_KEY from environment`);
+      logger.info(`${this.logPrefix} Using GEMINI_API_KEY from environment`);
     } else {
-      console.log(`${this.logPrefix} No API key provided - will use Google account authentication`);
+      logger.info(`${this.logPrefix} No API key provided - will use Google account authentication`);
     }
 
     // 作業ディレクトリの検証
@@ -898,7 +901,7 @@ export class GeminiCliAgent extends BaseAgent {
   private buildStructuredPrompt(task: AgentTask): string {
     // 最適化されたプロンプトがある場合はそれを使用
     if (task.optimizedPrompt) {
-      console.log(
+      logger.info(
         `${this.logPrefix} Using optimized prompt (${task.optimizedPrompt.length} chars)`,
       );
       return task.optimizedPrompt;

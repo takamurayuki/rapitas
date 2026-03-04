@@ -6,6 +6,9 @@ import { prisma } from "../../config/database";
 import { getApiKeyForProvider } from "../../utils/ai-client";
 import { encrypt, decrypt, maskApiKey } from "../../utils/encryption";
 import { systemSchemas } from "../../schemas/system.schema";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:settings");
 
 // Type definitions for request bodies
 interface UserSettingsUpdateBody {
@@ -202,7 +205,7 @@ async function fetchAvailableModels(): Promise<Record<string, Array<{ value: str
       models.gemini = FALLBACK_MODELS.gemini;
     }
   } catch (error) {
-    console.error("Error fetching dynamic models:", error);
+    log.error({ err: error }, "Error fetching dynamic models");
     // Return fallback models if anything fails
     return FALLBACK_MODELS;
   }
@@ -350,7 +353,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
 
         return settings;
       } catch (error: unknown) {
-        console.error("Settings update error:", error);
+        log.error({ err: error }, "Settings update error");
         set.status = 500;
         return {
           error: "設定の保存に失敗しました",

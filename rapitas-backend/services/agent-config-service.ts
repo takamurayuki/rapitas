@@ -4,7 +4,10 @@
  */
 
 import { prisma } from "../config/database";
+import { createLogger } from '../config/logger';
 import { toJsonString, fromJsonString } from "../utils/db-helpers";
+
+const log = createLogger('agent-config-service');
 import {
   encrypt,
   decrypt,
@@ -149,7 +152,7 @@ export class AgentConfigService {
     let apiKeyEncrypted: string | null = null;
     if (apiKey) {
       if (!isEncryptionKeyConfigured()) {
-        console.warn("[AgentConfigService] Encryption key not configured - storing API key as null");
+        log.warn("[AgentConfigService] Encryption key not configured - storing API key as null");
       } else {
         apiKeyEncrypted = encrypt(apiKey);
       }
@@ -182,7 +185,7 @@ export class AgentConfigService {
       },
     });
 
-    console.log(`[AgentConfigService] Created agent config: ${name} (${agentType})`);
+    log.info(`[AgentConfigService] Created agent config: ${name} (${agentType})`);
     return created;
   }
 
@@ -210,7 +213,7 @@ export class AgentConfigService {
         apiKeyEncrypted = null;
       } else {
         if (!isEncryptionKeyConfigured()) {
-          console.warn("[AgentConfigService] Encryption key not configured - not updating API key");
+          log.warn("[AgentConfigService] Encryption key not configured - not updating API key");
         } else {
           apiKeyEncrypted = encrypt(apiKey);
         }
@@ -245,7 +248,7 @@ export class AgentConfigService {
       });
     }
 
-    console.log(`[AgentConfigService] Updated agent config: ${updated.name} (${updated.agentType})`);
+    log.info(`[AgentConfigService] Updated agent config: ${updated.name} (${updated.agentType})`);
     return updated;
   }
 
@@ -272,7 +275,7 @@ export class AgentConfigService {
       },
     });
 
-    console.log(`[AgentConfigService] Toggled active state for agent: ${updated.name} -> ${updated.isActive}`);
+    log.info(`[AgentConfigService] Toggled active state for agent: ${updated.name} -> ${updated.isActive}`);
     return updated;
   }
 
@@ -301,7 +304,7 @@ export class AgentConfigService {
       },
     });
 
-    console.log(`[AgentConfigService] Deleted agent config: ${previous.name} (${previous.agentType})`);
+    log.info(`[AgentConfigService] Deleted agent config: ${previous.name} (${previous.agentType})`);
     return result;
   }
 
@@ -332,7 +335,7 @@ export class AgentConfigService {
       changeDetails: { isDefault: { from: false, to: true } },
     });
 
-    console.log(`[AgentConfigService] Set default agent: ${updated.name} (${updated.agentType})`);
+    log.info(`[AgentConfigService] Set default agent: ${updated.name} (${updated.agentType})`);
     return updated;
   }
 
@@ -381,7 +384,7 @@ export class AgentConfigService {
       },
     });
 
-    console.log(`[AgentConfigService] API key set for agent: ${agent.name} (${agent.agentType})`);
+    log.info(`[AgentConfigService] API key set for agent: ${agent.name} (${agent.agentType})`);
   }
 
   /**
@@ -404,7 +407,7 @@ export class AgentConfigService {
       action: "api_key_delete",
     });
 
-    console.log(`[AgentConfigService] API key deleted for agent: ${agent.name} (${agent.agentType})`);
+    log.info(`[AgentConfigService] API key deleted for agent: ${agent.name} (${agent.agentType})`);
   }
 
   /**
@@ -417,14 +420,14 @@ export class AgentConfigService {
     }
 
     if (!isEncryptionKeyConfigured()) {
-      console.warn(`[AgentConfigService] Cannot decrypt API key for agent ${id} - encryption key not configured`);
+      log.warn(`[AgentConfigService] Cannot decrypt API key for agent ${id} - encryption key not configured`);
       return null;
     }
 
     try {
       return decrypt(agent.apiKeyEncrypted);
     } catch (error) {
-      console.error(`[AgentConfigService] Failed to decrypt API key for agent ${id}:`, error);
+      log.error({ err: error }, `[AgentConfigService] Failed to decrypt API key for agent ${id}`);
       return null;
     }
   }
@@ -524,7 +527,7 @@ export class AgentConfigService {
     try {
       return fromJsonString(agent.capabilities) || {};
     } catch (error) {
-      console.warn(`[AgentConfigService] Failed to parse capabilities for agent ${id}:`, error);
+      log.warn({ err: error }, `[AgentConfigService] Failed to parse capabilities for agent ${id}`);
       return {};
     }
   }
@@ -557,7 +560,7 @@ export class AgentConfigService {
       },
     });
 
-    console.log(`[AgentConfigService] Updated capabilities for agent: ${updated.name}`);
+    log.info(`[AgentConfigService] Updated capabilities for agent: ${updated.name}`);
     return updated;
   }
 }

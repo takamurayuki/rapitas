@@ -21,8 +21,10 @@ import {
   type QuestionKey,
 } from "./question-detection";
 import { ExecutionFileLogger } from "./execution-file-logger";
+import { createLogger } from "../../config/logger";
 
 const execAsync = promisify(exec);
+const logger = createLogger("agent-orchestrator");
 
 // JSONフィールドを文字列に変換するヘルパー関数
 function toJsonString(value: unknown): string | null {
@@ -144,7 +146,7 @@ export class AgentOrchestrator {
    */
   private setupSignalHandlers(): void {
     const handleShutdown = async (signal: string) => {
-      console.log(
+      logger.info(
         `[Orchestrator] Received ${signal}, initiating graceful shutdown...`,
       );
       await this.gracefulShutdown();
@@ -156,18 +158,18 @@ export class AgentOrchestrator {
 
     // 未処理の例外やリジェクションでもシャットダウン
     process.on("uncaughtException", async (error) => {
-      console.error("[Orchestrator] Uncaught exception:", error);
+      logger.error({ err: error }, "[Orchestrator] Uncaught exception");
       await this.gracefulShutdown();
       process.exit(1);
     });
 
     process.on("unhandledRejection", async (reason) => {
-      console.error("[Orchestrator] Unhandled rejection:", reason);
+      logger.error({ err: reason }, "[Orchestrator] Unhandled rejection");
       // シャットダウンはしないが、実行中のエージェントの状態を保存
       await this.saveAllAgentStates();
     });
 
-    console.log(
+    logger.info(
       "[Orchestrator] Signal handlers registered for graceful shutdown",
     );
   }
@@ -181,12 +183,12 @@ export class AgentOrchestrator {
     skipServerStop?: boolean;
   }): Promise<void> {
     if (this.isShuttingDown) {
-      console.log("[Orchestrator] Shutdown already in progress, waiting...");
+      logger.info("[Orchestrator] Shutdown already in progress, waiting...");
       return this.shutdownPromise || Promise.resolve();
     }
 
     this.isShuttingDown = true;
-    console.log(
+    logger.info(
       `[Orchestrator] Starting graceful shutdown with ${this.activeAgents.size} active agents`,
     );
 
@@ -198,7 +200,7 @@ export class AgentOrchestrator {
         // 全ての質問タイムアウトをキャンセル
         for (const [executionId, timeoutInfo] of this.questionTimeouts) {
           clearTimeout(timeoutInfo.timeoutTimer);
-          console.log(
+          logger.info(
             `[Orchestrator] Cancelled question timeout for execution ${executionId}`,
           );
         }
@@ -211,7 +213,7 @@ export class AgentOrchestrator {
         const stopPromises = Array.from(this.activeAgents.entries()).map(
           async ([executionId, info]) => {
             try {
-              console.log(
+              logger.info(
                 `[Orchestrator] Stopping agent for execution ${executionId}...`,
               );
 
@@ -225,21 +227,21 @@ export class AgentOrchestrator {
 
               // 最終状態をDBに保存
               await this.saveAgentState(executionId, info, "interrupted");
-              console.log(
+              logger.info(
                 `[Orchestrator] Agent for execution ${executionId} stopped and state saved`,
               );
             } catch (error) {
-              console.error(
-                `[Orchestrator] Error stopping agent ${executionId}:`,
-                error,
+              logger.error(
+                { err: error, executionId },
+                `[Orchestrator] Error stopping agent`,
               );
               // エラーでも状態保存を試みる
               try {
                 await this.saveAgentState(executionId, info, "interrupted");
               } catch (saveError) {
-                console.error(
-                  `[Orchestrator] Failed to save state for ${executionId}:`,
-                  saveError,
+                logger.error(
+                  { err: saveError, executionId },
+                  `[Orchestrator] Failed to save state`,
                 );
               }
             }
@@ -257,9 +259,9 @@ export class AgentOrchestrator {
           ),
         ]);
 
-        console.log("[Orchestrator] Graceful shutdown completed");
+        logger.info("[Orchestrator] Graceful shutdown completed");
       } catch (error) {
-        console.error("[Orchestrator] Graceful shutdown error:", error);
+        logger.error({ err: error }, "[Orchestrator] Graceful shutdown error");
         // 強制的に状態を保存
         await this.saveAllAgentStates();
       } finally {
@@ -269,13 +271,13 @@ export class AgentOrchestrator {
         // サーバーのリスニングソケットを正しく閉じる（シャットダウンAPIからの呼び出し時はスキップ）
         if (this.serverStopCallback && !options?.skipServerStop) {
           try {
-            console.log("[Orchestrator] Stopping server listener...");
+            logger.info("[Orchestrator] Stopping server listener...");
             await this.serverStopCallback();
-            console.log("[Orchestrator] Server listener stopped");
+            logger.info("[Orchestrator] Server listener stopped");
           } catch (error) {
-            console.error(
-              "[Orchestrator] Failed to stop server listener:",
-              error,
+            logger.error(
+              { err: error },
+              "[Orchestrator] Failed to stop server listener",
             );
           }
         }
@@ -319,9 +321,9 @@ export class AgentOrchestrator {
         },
       });
     } catch (error) {
-      console.error(
-        `[Orchestrator] Failed to update session ${info.sessionId}:`,
-        error,
+      logger.error(
+        { err: error, sessionId: info.sessionId },
+        `[Orchestrator] Failed to update session`,
       );
     }
 
@@ -336,14 +338,14 @@ export class AgentOrchestrator {
           where: { id: info.taskId },
           data: { status: "todo" },
         });
-        console.log(
+        logger.info(
           `[Orchestrator] Task ${info.taskId} reverted to 'todo' during shutdown`,
         );
       }
     } catch (error) {
-      console.error(
-        `[Orchestrator] Failed to update task ${info.taskId}:`,
-        error,
+      logger.error(
+        { err: error, taskId: info.taskId },
+        `[Orchestrator] Failed to update task`,
       );
     }
   }
@@ -352,7 +354,7 @@ export class AgentOrchestrator {
    * 全てのアクティブなエージェントの状態を保存
    */
   private async saveAllAgentStates(): Promise<void> {
-    console.log(
+    logger.info(
       `[Orchestrator] Saving state for ${this.activeAgents.size} active agents...`,
     );
 
@@ -360,9 +362,9 @@ export class AgentOrchestrator {
       try {
         await this.saveAgentState(executionId, info, "interrupted");
       } catch (error) {
-        console.error(
-          `[Orchestrator] Failed to save state for execution ${executionId}:`,
-          error,
+        logger.error(
+          { err: error, executionId },
+          `[Orchestrator] Failed to save state for execution`,
         );
       }
     }
@@ -401,7 +403,7 @@ export class AgentOrchestrator {
     updatedSessions: number;
     interruptedExecutionIds: number[];
   }> {
-    console.log(
+    logger.info(
       "[Orchestrator] Starting startup recovery of stale executions...",
     );
 
@@ -440,7 +442,7 @@ export class AgentOrchestrator {
       });
 
       if (staleExecutions.length === 0) {
-        console.log(
+        logger.info(
           "[Orchestrator] No stale executions found. Recovery complete.",
         );
         return {
@@ -451,7 +453,7 @@ export class AgentOrchestrator {
         };
       }
 
-      console.log(
+      logger.info(
         `[Orchestrator] Found ${staleExecutions.length} stale executions to recover`,
       );
 
@@ -480,13 +482,13 @@ export class AgentOrchestrator {
             affectedTaskIds.add(taskId);
           }
 
-          console.log(
+          logger.info(
             `[Orchestrator] Execution ${exec.id} marked as interrupted`,
           );
         } catch (error) {
-          console.error(
-            `[Orchestrator] Failed to recover execution ${exec.id}:`,
-            error,
+          logger.error(
+            { err: error, executionId: exec.id },
+            `[Orchestrator] Failed to recover execution`,
           );
         }
       }
@@ -511,14 +513,14 @@ export class AgentOrchestrator {
               },
             });
             updatedSessions++;
-            console.log(
+            logger.info(
               `[Orchestrator] Session ${sessionId} marked as interrupted`,
             );
           }
         } catch (error) {
-          console.error(
-            `[Orchestrator] Failed to update session ${sessionId}:`,
-            error,
+          logger.error(
+            { err: error, sessionId },
+            `[Orchestrator] Failed to update session`,
           );
         }
       }
@@ -538,12 +540,12 @@ export class AgentOrchestrator {
               data: { status: "todo" },
             });
             updatedTasks++;
-            console.log(`[Orchestrator] Task ${taskId} reverted to 'todo'`);
+            logger.info(`[Orchestrator] Task ${taskId} reverted to 'todo'`);
           }
         } catch (error) {
-          console.error(
-            `[Orchestrator] Failed to update task ${taskId}:`,
-            error,
+          logger.error(
+            { err: error, taskId },
+            `[Orchestrator] Failed to update task`,
           );
         }
       }
@@ -565,18 +567,18 @@ export class AgentOrchestrator {
             },
           });
         } catch (error) {
-          console.error(
-            "[Orchestrator] Failed to create recovery notification:",
-            error,
+          logger.error(
+            { err: error },
+            "[Orchestrator] Failed to create recovery notification",
           );
         }
       }
 
-      console.log(
+      logger.info(
         `[Orchestrator] Recovery complete: ${recoveredExecutions} executions, ${updatedTasks} tasks, ${updatedSessions} sessions updated`,
       );
     } catch (error) {
-      console.error("[Orchestrator] Startup recovery failed:", error);
+      logger.error({ err: error }, "[Orchestrator] Startup recovery failed");
     }
 
     return {
@@ -609,11 +611,11 @@ export class AgentOrchestrator {
   async stopServer(): Promise<void> {
     if (this.serverStopCallback) {
       try {
-        console.log("[Orchestrator] Stopping server listener...");
+        logger.info("[Orchestrator] Stopping server listener...");
         await this.serverStopCallback();
-        console.log("[Orchestrator] Server listener stopped");
+        logger.info("[Orchestrator] Server listener stopped");
       } catch (error) {
-        console.error("[Orchestrator] Failed to stop server listener:", error);
+        logger.error({ err: error }, "[Orchestrator] Failed to stop server listener");
       }
     }
   }
@@ -677,9 +679,9 @@ export class AgentOrchestrator {
       try {
         decryptedApiKey = decrypt(dbConfig.apiKeyEncrypted);
       } catch (e) {
-        console.error(
-          `[Orchestrator] Failed to decrypt API key for agent ${dbConfig.id}:`,
-          e,
+        logger.error(
+          { err: e, agentId: dbConfig.id },
+          `[Orchestrator] Failed to decrypt API key for agent`,
         );
       }
     }
@@ -705,7 +707,7 @@ export class AgentOrchestrator {
       try {
         listener(event);
       } catch (error) {
-        console.error("Error in event listener:", error);
+        logger.error({ err: error }, "Error in event listener");
       }
     }
   }
@@ -730,12 +732,12 @@ export class AgentOrchestrator {
       questionKey?.timeout_seconds || DEFAULT_QUESTION_TIMEOUT_SECONDS;
     const timeoutMs = timeoutSeconds * 1000;
 
-    console.log(
+    logger.info(
       `[Orchestrator] Starting question timeout for execution ${executionId}: ${timeoutSeconds}s`,
     );
 
     const timeoutTimer = setTimeout(async () => {
-      console.log(
+      logger.info(
         `[Orchestrator] Question timeout triggered for execution ${executionId}`,
       );
       await this.handleQuestionTimeout(executionId, taskId);
@@ -773,7 +775,7 @@ export class AgentOrchestrator {
     if (timeoutInfo) {
       clearTimeout(timeoutInfo.timeoutTimer);
       this.questionTimeouts.delete(executionId);
-      console.log(
+      logger.info(
         `[Orchestrator] Question timeout cancelled for execution ${executionId}`,
       );
     }
@@ -789,7 +791,7 @@ export class AgentOrchestrator {
   ): boolean {
     const existingLock = this.continuationLocks.get(executionId);
     if (existingLock) {
-      console.log(
+      logger.info(
         `[Orchestrator] Continuation lock already held for execution ${executionId} by ${existingLock.source}`,
       );
       return false;
@@ -800,7 +802,7 @@ export class AgentOrchestrator {
       lockedAt: new Date(),
       source,
     });
-    console.log(
+    logger.info(
       `[Orchestrator] Continuation lock acquired for execution ${executionId} by ${source}`,
     );
     return true;
@@ -813,7 +815,7 @@ export class AgentOrchestrator {
     const lock = this.continuationLocks.get(executionId);
     if (lock) {
       this.continuationLocks.delete(executionId);
-      console.log(
+      logger.info(
         `[Orchestrator] Continuation lock released for execution ${executionId}`,
       );
     }
@@ -841,7 +843,7 @@ export class AgentOrchestrator {
 
       // ロックを取得（既に処理中なら早期リターン）
       if (!this.tryAcquireContinuationLock(executionId, "auto_timeout")) {
-        console.log(
+        logger.info(
           `[Orchestrator] Skipping timeout handling for execution ${executionId} - already being processed`,
         );
         return;
@@ -857,7 +859,7 @@ export class AgentOrchestrator {
         });
 
         if (!execution) {
-          console.log(
+          logger.info(
             `[Orchestrator] Execution ${executionId} not found for timeout handling`,
           );
           return;
@@ -865,7 +867,7 @@ export class AgentOrchestrator {
 
         // まだ waiting_for_input 状態かどうか確認
         if (execution.status !== "waiting_for_input") {
-          console.log(
+          logger.info(
             `[Orchestrator] Execution ${executionId} is no longer waiting for input (status: ${execution.status})`,
           );
           return;
@@ -877,7 +879,7 @@ export class AgentOrchestrator {
           data: { status: "running" },
         });
 
-        console.log(
+        logger.info(
           `[Orchestrator] Auto-continuing execution ${executionId} after timeout`,
         );
 
@@ -922,7 +924,7 @@ export class AgentOrchestrator {
                 completedAt: new Date(),
               },
             });
-            console.log(
+            logger.info(
               `[Orchestrator] Task ${taskId} updated to 'done' after timeout auto-continue`,
             );
 
@@ -935,9 +937,9 @@ export class AgentOrchestrator {
               },
             });
           } catch (updateError) {
-            console.error(
-              `[Orchestrator] Failed to update task/session status after timeout:`,
-              updateError,
+            logger.error(
+              { err: updateError },
+              `[Orchestrator] Failed to update task/session status after timeout`,
             );
           }
         } else if (!result.success && !result.waitingForInput) {
@@ -959,9 +961,9 @@ export class AgentOrchestrator {
               },
             });
           } catch (updateError) {
-            console.error(
-              `[Orchestrator] Failed to update task/session status after timeout failure:`,
-              updateError,
+            logger.error(
+              { err: updateError },
+              `[Orchestrator] Failed to update task/session status after timeout failure`,
             );
           }
         }
@@ -979,9 +981,9 @@ export class AgentOrchestrator {
         this.releaseContinuationLock(executionId);
       }
     } catch (error) {
-      console.error(
-        `[Orchestrator] Error handling question timeout for execution ${executionId}:`,
-        error,
+      logger.error(
+        { err: error, executionId },
+        `[Orchestrator] Error handling question timeout for execution`,
       );
     }
   }
@@ -1128,11 +1130,11 @@ export class AgentOrchestrator {
       if (defaultDbConfig) {
         agentConfig = this.buildAgentConfigFromDb(defaultDbConfig, options);
         resolvedAgentConfigId = defaultDbConfig.id;
-        console.log(
+        logger.info(
           `[Orchestrator] Using default agent from DB: ${defaultDbConfig.name} (type: ${defaultDbConfig.agentType})`,
         );
       } else {
-        console.log(
+        logger.info(
           `[Orchestrator] No default agent in DB, falling back to Claude Code`,
         );
       }
@@ -1207,12 +1209,12 @@ export class AgentOrchestrator {
 
     // 質問検出ハンドラを設定（質問が検出されたら即座にDBを更新）
     agent.setQuestionDetectedHandler(async (info) => {
-      console.log(`[Orchestrator] Question detected during streaming!`);
-      console.log(
+      logger.info(`[Orchestrator] Question detected during streaming!`);
+      logger.info(
         `[Orchestrator] Question: ${info.question.substring(0, 100)}`,
       );
-      console.log(`[Orchestrator] Question type: ${info.questionType}`);
-      console.log(
+      logger.info(`[Orchestrator] Question type: ${info.questionType}`);
+      logger.info(
         `[Orchestrator] Claude Session ID: ${info.claudeSessionId || "(なし)"}`,
       );
       fileLogger.logQuestionDetected(
@@ -1233,7 +1235,7 @@ export class AgentOrchestrator {
             claudeSessionId: info.claudeSessionId || null,
           },
         });
-        console.log(
+        logger.info(
           `[Orchestrator] DB updated to waiting_for_input for execution ${execution.id}`,
         );
 
@@ -1271,9 +1273,9 @@ export class AgentOrchestrator {
           timestamp: new Date(),
         });
       } catch (error) {
-        console.error(
-          `[Orchestrator] Failed to update DB on question detection:`,
-          error,
+        logger.error(
+          { err: error },
+          `[Orchestrator] Failed to update DB on question detection`,
         );
       }
     });
@@ -1311,7 +1313,7 @@ export class AgentOrchestrator {
           data: logEntries,
         });
       } catch (e) {
-        console.error("Failed to save log chunks:", e);
+        logger.error({ err: e }, "Failed to save log chunks");
         // 失敗した場合はチャンクを戻す（再試行のため）
         pendingLogChunks = [...chunksToSave, ...pendingLogChunks];
       } finally {
@@ -1354,7 +1356,7 @@ export class AgentOrchestrator {
             });
             lastDbUpdate = Date.now();
           } catch (e) {
-            console.error("Failed to save error output immediately:", e);
+            logger.error({ err: e }, "Failed to save error output immediately");
           }
         }
 
@@ -1362,7 +1364,7 @@ export class AgentOrchestrator {
           try {
             options.onOutput(output, isError);
           } catch (e) {
-            console.error("Error in onOutput callback:", e);
+            logger.error({ err: e }, "Error in onOutput callback");
           }
         }
 
@@ -1377,7 +1379,7 @@ export class AgentOrchestrator {
             timestamp: new Date(),
           });
         } catch (e) {
-          console.error("Error emitting event:", e);
+          logger.error({ err: e }, "Error emitting event");
         }
 
         // 定期的にDBを更新（ポーリング用）
@@ -1391,13 +1393,13 @@ export class AgentOrchestrator {
               data: { output: state.output },
             });
           } catch (e) {
-            console.error("Failed to update execution output:", e);
+            logger.error({ err: e }, "Failed to update execution output");
           } finally {
             pendingDbUpdate = false;
           }
         }
       } catch (e) {
-        console.error("Critical error in output handler:", e);
+        logger.error({ err: e }, "Critical error in output handler");
       }
     });
 
@@ -1437,14 +1439,14 @@ export class AgentOrchestrator {
 
         if (previousExecution?.output) {
           previousOutput = previousExecution.output;
-          console.log(
+          logger.info(
             `[Orchestrator] Previous execution output loaded for continuation (${previousOutput.length} chars)`,
           );
         }
       } catch (error) {
-        console.error(
-          "[Orchestrator] Failed to load previous execution output:",
-          error,
+        logger.error(
+          { err: error },
+          "[Orchestrator] Failed to load previous execution output",
         );
       }
     }
@@ -1481,21 +1483,21 @@ export class AgentOrchestrator {
 
       // 分析情報の有無をログ出力
       if (options.analysisInfo) {
-        console.log(`[Orchestrator] AI task analysis enabled`);
-        console.log(
+        logger.info(`[Orchestrator] AI task analysis enabled`);
+        logger.info(
           `[Orchestrator] Analysis summary: ${options.analysisInfo.summary?.substring(0, 100)}`,
         );
-        console.log(
+        logger.info(
           `[Orchestrator] Subtasks count: ${options.analysisInfo.subtasks?.length || 0}`,
         );
       } else {
-        console.log(`[Orchestrator] AI task analysis not provided`);
+        logger.info(`[Orchestrator] AI task analysis not provided`);
       }
 
       // エージェントを実行
       const result = await agent.execute(taskWithAnalysis);
 
-      console.log(
+      logger.info(
         `[Orchestrator] Execution result - success: ${result.success}, waitingForInput: ${result.waitingForInput}, questionType: ${result.questionType}, question: ${result.question?.substring(0, 100)}`,
       );
 
@@ -1504,7 +1506,7 @@ export class AgentOrchestrator {
       if (result.waitingForInput) {
         executionStatus = "waiting_for_input";
         state.status = "waiting_for_input";
-        console.log(`[Orchestrator] Setting status to waiting_for_input`);
+        logger.info(`[Orchestrator] Setting status to waiting_for_input`);
         fileLogger.logStatusChange(
           "running",
           "waiting_for_input",
@@ -1513,7 +1515,7 @@ export class AgentOrchestrator {
       } else if (result.success) {
         executionStatus = "completed";
         state.status = "completed";
-        console.log(`[Orchestrator] Setting status to completed`);
+        logger.info(`[Orchestrator] Setting status to completed`);
         fileLogger.logExecutionEnd("completed", {
           success: true,
           tokensUsed: result.tokensUsed,
@@ -1522,7 +1524,7 @@ export class AgentOrchestrator {
       } else {
         executionStatus = "failed";
         state.status = "failed";
-        console.log(`[Orchestrator] Setting status to failed`);
+        logger.info(`[Orchestrator] Setting status to failed`);
         fileLogger.logExecutionEnd("failed", {
           success: false,
           tokensUsed: result.tokensUsed,
@@ -1677,7 +1679,7 @@ export class AgentOrchestrator {
   ): Promise<AgentExecutionResult> {
     // ロックを取得（既に処理中なら早期リターン）
     if (!this.tryAcquireContinuationLock(executionId, "user_response")) {
-      console.log(
+      logger.info(
         `[Orchestrator] Skipping continuation for execution ${executionId} - already being processed`,
       );
       return {
@@ -1710,7 +1712,7 @@ export class AgentOrchestrator {
 
       // ステータスチェック: running の場合は既に処理中
       if (execution.status === "running") {
-        console.log(
+        logger.info(
           `[Orchestrator] Execution ${executionId} is already running, skipping continuation`,
         );
         return {
@@ -1721,7 +1723,7 @@ export class AgentOrchestrator {
       }
 
       if (execution.status !== "waiting_for_input") {
-        console.log(
+        logger.info(
           `[Orchestrator] Execution ${executionId} is not waiting for input (status: ${execution.status})`,
         );
         return {
@@ -1807,7 +1809,7 @@ export class AgentOrchestrator {
 
     // 保存されているClaudeセッションIDを取得
     const claudeSessionId = execution.claudeSessionId;
-    console.log(
+    logger.info(
       `[Orchestrator] Resuming execution with claudeSessionId: ${claudeSessionId}`,
     );
 
@@ -1833,9 +1835,9 @@ export class AgentOrchestrator {
           try {
             decryptedApiKey = decrypt(dbConfig.apiKeyEncrypted);
           } catch (e) {
-            console.error(
-              `[Orchestrator] Failed to decrypt API key for agent ${dbConfig.id}:`,
-              e,
+            logger.error(
+              { err: e, agentId: dbConfig.id },
+              `[Orchestrator] Failed to decrypt API key for agent`,
             );
           }
         }
@@ -1917,12 +1919,12 @@ export class AgentOrchestrator {
 
     // 質問検出ハンドラを設定（質問が検出されたら即座にDBを更新）
     agent.setQuestionDetectedHandler(async (info) => {
-      console.log(`[Orchestrator] Question detected during continuation!`);
-      console.log(
+      logger.info(`[Orchestrator] Question detected during continuation!`);
+      logger.info(
         `[Orchestrator] Question: ${info.question.substring(0, 100)}`,
       );
-      console.log(`[Orchestrator] Question type: ${info.questionType}`);
-      console.log(
+      logger.info(`[Orchestrator] Question type: ${info.questionType}`);
+      logger.info(
         `[Orchestrator] Claude Session ID: ${info.claudeSessionId || "(なし)"}`,
       );
       fileLogger.logQuestionDetected(
@@ -1944,7 +1946,7 @@ export class AgentOrchestrator {
               info.claudeSessionId || execution.claudeSessionId || null,
           },
         });
-        console.log(
+        logger.info(
           `[Orchestrator] DB updated to waiting_for_input for execution ${execution.id}`,
         );
 
@@ -1978,9 +1980,9 @@ export class AgentOrchestrator {
           timestamp: new Date(),
         });
       } catch (error) {
-        console.error(
-          `[Orchestrator] Failed to update DB on question detection:`,
-          error,
+        logger.error(
+          { err: error },
+          `[Orchestrator] Failed to update DB on question detection`,
         );
       }
     });
@@ -2025,7 +2027,7 @@ export class AgentOrchestrator {
           data: logEntries,
         });
       } catch (e) {
-        console.error("Failed to save log chunks:", e);
+        logger.error({ err: e }, "Failed to save log chunks");
         pendingLogChunks = [...chunksToSave, ...pendingLogChunks];
       } finally {
         pendingLogSave = false;
@@ -2071,7 +2073,7 @@ export class AgentOrchestrator {
             });
             lastDbUpdate = Date.now();
           } catch (e) {
-            console.error("Failed to save error output immediately:", e);
+            logger.error({ err: e }, "Failed to save error output immediately");
           }
         }
 
@@ -2079,7 +2081,7 @@ export class AgentOrchestrator {
           try {
             options.onOutput(output, isError);
           } catch (e) {
-            console.error("Error in onOutput callback:", e);
+            logger.error({ err: e }, "Error in onOutput callback");
           }
         }
 
@@ -2093,7 +2095,7 @@ export class AgentOrchestrator {
             timestamp: new Date(),
           });
         } catch (e) {
-          console.error("Error emitting event:", e);
+          logger.error({ err: e }, "Error emitting event");
         }
 
         const now = Date.now();
@@ -2106,13 +2108,13 @@ export class AgentOrchestrator {
               data: { output: state.output },
             });
           } catch (e) {
-            console.error("Failed to update execution output:", e);
+            logger.error({ err: e }, "Failed to update execution output");
           } finally {
             pendingDbUpdate = false;
           }
         }
       } catch (e) {
-        console.error("Critical error in output handler:", e);
+        logger.error({ err: e }, "Critical error in output handler");
       }
     });
 
@@ -2158,7 +2160,7 @@ export class AgentOrchestrator {
               result.errorMessage,
             )));
       if (isSessionResumeFailure) {
-        console.log(
+        logger.info(
           `[Orchestrator] Session resume failed (executionTime: ${result.executionTimeMs}ms, error: ${result.errorMessage?.substring(0, 100)}). Retrying --resume after delay...`,
         );
         fileLogger.logError(
@@ -2176,7 +2178,7 @@ export class AgentOrchestrator {
 
         // ハンドラを再設定（リトライ用）
         retryAgent.setQuestionDetectedHandler(async (info) => {
-          console.log(`[Orchestrator] Question detected during resume retry!`);
+          logger.info(`[Orchestrator] Question detected during resume retry!`);
           fileLogger.logQuestionDetected(
             info.question,
             info.questionType,
@@ -2217,9 +2219,9 @@ export class AgentOrchestrator {
               timestamp: new Date(),
             });
           } catch (error) {
-            console.error(
-              `[Orchestrator] Failed to update DB on question detection (resume retry):`,
-              error,
+            logger.error(
+              { err: error },
+              `[Orchestrator] Failed to update DB on question detection (resume retry)`,
             );
           }
         });
@@ -2246,7 +2248,7 @@ export class AgentOrchestrator {
               timestamp: new Date(),
             });
           } catch (e) {
-            console.error("Error emitting resume retry event:", e);
+            logger.error({ err: e }, "Error emitting resume retry event");
           }
         });
 
@@ -2281,7 +2283,7 @@ export class AgentOrchestrator {
           // リトライ成功
           result = retryResult;
         } else {
-          console.log(
+          logger.info(
             `[Orchestrator] --resume retry also failed. Attempting fallback with --continue...`,
           );
           fileLogger.logError(
@@ -2299,7 +2301,7 @@ export class AgentOrchestrator {
 
           // ハンドラを再設定
           fallbackAgent.setQuestionDetectedHandler(async (info) => {
-            console.log(
+            logger.info(
               `[Orchestrator] Question detected during continuation fallback!`,
             );
             fileLogger.logQuestionDetected(
@@ -2342,9 +2344,9 @@ export class AgentOrchestrator {
                 timestamp: new Date(),
               });
             } catch (error) {
-              console.error(
-                `[Orchestrator] Failed to update DB on question detection (fallback):`,
-                error,
+              logger.error(
+                { err: error },
+                `[Orchestrator] Failed to update DB on question detection (fallback)`,
               );
             }
           });
@@ -2373,7 +2375,7 @@ export class AgentOrchestrator {
                 timestamp: new Date(),
               });
             } catch (e) {
-              console.error("Error emitting fallback event:", e);
+              logger.error({ err: e }, "Error emitting fallback event");
             }
           });
 
@@ -2406,7 +2408,7 @@ export class AgentOrchestrator {
                   fallbackResult.errorMessage,
                 )));
           if (isContinueFallbackFailure) {
-            console.log(
+            logger.info(
               `[Orchestrator] --continue fallback also failed (executionTime: ${fallbackResult.executionTimeMs}ms). Attempting new session with context...`,
             );
             fileLogger.logError(
@@ -2425,7 +2427,7 @@ export class AgentOrchestrator {
 
             // ハンドラを再設定
             newAgent.setQuestionDetectedHandler(async (info) => {
-              console.log(
+              logger.info(
                 `[Orchestrator] Question detected during new session retry!`,
               );
               fileLogger.logQuestionDetected(
@@ -2472,9 +2474,9 @@ export class AgentOrchestrator {
                   timestamp: new Date(),
                 });
               } catch (error) {
-                console.error(
-                  `[Orchestrator] Failed to update DB on question detection (new session):`,
-                  error,
+                logger.error(
+                  { err: error },
+                  `[Orchestrator] Failed to update DB on question detection (new session)`,
                 );
               }
             });
@@ -2503,7 +2505,7 @@ export class AgentOrchestrator {
                   timestamp: new Date(),
                 });
               } catch (e) {
-                console.error("Error emitting new session event:", e);
+                logger.error({ err: e }, "Error emitting new session event");
               }
             });
 
@@ -2715,7 +2717,7 @@ export class AgentOrchestrator {
 
     const state = this.activeExecutions.get(executionId);
     if (!state) {
-      console.log(
+      logger.info(
         `[Orchestrator] stopExecution: No active execution found for ${executionId}`,
       );
       return false;
@@ -2723,7 +2725,7 @@ export class AgentOrchestrator {
 
     const agent = agentFactory.getAgent(state.agentId);
     if (!agent) {
-      console.log(
+      logger.info(
         `[Orchestrator] stopExecution: No agent found for ${state.agentId}`,
       );
       // エージェントが見つからなくてもDBとマップはクリーンアップ
@@ -2735,7 +2737,7 @@ export class AgentOrchestrator {
     try {
       await agent.stop();
     } catch (error) {
-      console.error(`[Orchestrator] Error stopping agent:`, error);
+      logger.error({ err: error }, `[Orchestrator] Error stopping agent`);
     }
 
     // 実行レコードを更新
@@ -2762,7 +2764,7 @@ export class AgentOrchestrator {
       timestamp: new Date(),
     });
 
-    console.log(
+    logger.info(
       `[Orchestrator] Execution ${executionId} stopped and cleaned up`,
     );
     return true;
@@ -2818,16 +2820,16 @@ export class AgentOrchestrator {
       task.theme?.workingDirectory || options.workingDirectory || process.cwd();
     const claudeSessionId = execution.claudeSessionId;
 
-    console.log(`[Orchestrator] Resuming interrupted execution ${executionId}`);
-    console.log(`[Orchestrator] Task: ${task.title} (ID: ${task.id})`);
-    console.log(
+    logger.info(`[Orchestrator] Resuming interrupted execution ${executionId}`);
+    logger.info(`[Orchestrator] Task: ${task.title} (ID: ${task.id})`);
+    logger.info(
       `[Orchestrator] Claude Session ID: ${claudeSessionId || "(なし - 新規セッションで開始)"}`,
     );
-    console.log(`[Orchestrator] Working Directory: ${workingDirectory}`);
+    logger.info(`[Orchestrator] Working Directory: ${workingDirectory}`);
 
     // セッションIDがない場合の警告
     if (!claudeSessionId) {
-      console.warn(
+      logger.warn(
         `[Orchestrator] WARNING: No Claude session ID found for execution ${executionId}. Starting as new session.`,
       );
     }
@@ -2874,9 +2876,9 @@ export class AgentOrchestrator {
           try {
             decryptedApiKey = decrypt(dbConfig.apiKeyEncrypted);
           } catch (e) {
-            console.error(
-              `[Orchestrator] Failed to decrypt API key for agent ${dbConfig.id}:`,
-              e,
+            logger.error(
+              { err: e, agentId: dbConfig.id },
+              `[Orchestrator] Failed to decrypt API key for agent`,
             );
           }
         }
@@ -2956,11 +2958,11 @@ export class AgentOrchestrator {
 
     // 質問検出ハンドラを設定
     agent.setQuestionDetectedHandler(async (info) => {
-      console.log(`[Orchestrator] Question detected during resume!`);
-      console.log(
+      logger.info(`[Orchestrator] Question detected during resume!`);
+      logger.info(
         `[Orchestrator] Question: ${info.question.substring(0, 100)}`,
       );
-      console.log(
+      logger.info(
         `[Orchestrator] Claude Session ID: ${info.claudeSessionId || "(なし)"}`,
       );
       fileLogger.logQuestionDetected(
@@ -3006,9 +3008,9 @@ export class AgentOrchestrator {
           timestamp: new Date(),
         });
       } catch (error) {
-        console.error(
-          `[Orchestrator] Failed to update DB on question detection:`,
-          error,
+        logger.error(
+          { err: error },
+          `[Orchestrator] Failed to update DB on question detection`,
         );
       }
     });
@@ -3053,7 +3055,7 @@ export class AgentOrchestrator {
           data: logEntries,
         });
       } catch (e) {
-        console.error("Failed to save log chunks:", e);
+        logger.error({ err: e }, "Failed to save log chunks");
         pendingLogChunks = [...chunksToSave, ...pendingLogChunks];
       } finally {
         pendingLogSave = false;
@@ -3096,7 +3098,7 @@ export class AgentOrchestrator {
             });
             lastDbUpdate = Date.now();
           } catch (e) {
-            console.error("Failed to save error output immediately:", e);
+            logger.error({ err: e }, "Failed to save error output immediately");
           }
         }
 
@@ -3104,7 +3106,7 @@ export class AgentOrchestrator {
           try {
             options.onOutput(output, isError);
           } catch (e) {
-            console.error("Error in onOutput callback:", e);
+            logger.error({ err: e }, "Error in onOutput callback");
           }
         }
 
@@ -3118,7 +3120,7 @@ export class AgentOrchestrator {
             timestamp: new Date(),
           });
         } catch (e) {
-          console.error("Error emitting event:", e);
+          logger.error({ err: e }, "Error emitting event");
         }
 
         const now = Date.now();
@@ -3131,13 +3133,13 @@ export class AgentOrchestrator {
               data: { output: state.output },
             });
           } catch (e) {
-            console.error("Failed to update execution output:", e);
+            logger.error({ err: e }, "Failed to update execution output");
           } finally {
             pendingDbUpdate = false;
           }
         }
       } catch (e) {
-        console.error("Critical error in output handler:", e);
+        logger.error({ err: e }, "Critical error in output handler");
       }
     });
 
@@ -3420,7 +3422,7 @@ ${errorMessage}
       });
       return stdout;
     } catch (error) {
-      console.error("Failed to get git diff:", error);
+      logger.error({ err: error }, "Failed to get git diff");
       return "";
     }
   }
@@ -3458,7 +3460,7 @@ ${errorMessage}
 
       return result || "No changes detected";
     } catch (error) {
-      console.error("Failed to get full git diff:", error);
+      logger.error({ err: error }, "Failed to get full git diff");
       return "";
     }
   }
@@ -3625,7 +3627,7 @@ ${errorMessage}
       await execAsync("git clean -fd", { cwd: workingDirectory });
       return true;
     } catch (error) {
-      console.error("Failed to revert changes:", error);
+      logger.error({ err: error }, "Failed to revert changes");
       return false;
     }
   }
@@ -3645,20 +3647,20 @@ ${errorMessage}
 
       if (stdout.trim()) {
         // 既存ブランチが存在する場合はチェックアウト
-        console.log(`[createBranch] Branch ${branchName} already exists, checking out`);
+        logger.info(`[createBranch] Branch ${branchName} already exists, checking out`);
         await execAsync(`git checkout ${branchName}`, {
           cwd: workingDirectory,
         });
       } else {
         // 新規ブランチを作成
-        console.log(`[createBranch] Creating new branch ${branchName}`);
+        logger.info(`[createBranch] Creating new branch ${branchName}`);
         await execAsync(`git checkout -b ${branchName}`, {
           cwd: workingDirectory,
         });
       }
       return true;
     } catch (error) {
-      console.error("Failed to create/checkout branch:", error);
+      logger.error({ err: error }, "Failed to create/checkout branch");
       return false;
     }
   }
@@ -3919,7 +3921,7 @@ ${errorMessage}
 
       return files;
     } catch (error) {
-      console.error("Failed to get diff:", error);
+      logger.error({ err: error }, "Failed to get diff");
       return [];
     }
   }

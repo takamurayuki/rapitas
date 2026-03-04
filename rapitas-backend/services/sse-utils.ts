@@ -3,6 +3,10 @@
  * リトライ機能とロールバック処理を含む
  */
 
+import { createLogger } from '../config/logger';
+
+const log = createLogger('sse-utils');
+
 // SSEイベントの型定義
 export type SSEEventType =
   | "start"
@@ -143,7 +147,7 @@ export class SSEStreamController {
       const message = formatSSEMessage(event);
       this.controller.enqueue(this.encoder.encode(message));
     } catch (error) {
-      console.error("SSE send error:", error);
+      log.error({ err: error }, "SSE send error");
     }
   }
 

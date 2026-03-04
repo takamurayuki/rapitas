@@ -5,6 +5,9 @@ import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
 import { ValidationError, NotFoundError } from "../../middleware/error-handler";
 import { parseRRule, expandRecurrence, RECURRENCE_PRESETS } from "../../services/recurrence-service";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:schedules");
 
 export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   // Get all schedule events (with optional date range filter)
@@ -90,7 +93,7 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
           });
         }
       } catch (e) {
-        console.error(`Failed to expand recurrence for event ${event.id}:`, e);
+        log.error({ err: e }, `Failed to expand recurrence for event ${event.id}`);
       }
     }
 
