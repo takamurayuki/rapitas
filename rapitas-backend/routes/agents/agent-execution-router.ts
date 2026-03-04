@@ -15,6 +15,7 @@ import { captureScreenshotsForDiff } from "../../services/screenshot-service";
 import { generateBranchName } from "../../utils/branch-name-generator";
 import type { AgentExecutionWithExtras } from "../../types/agent-execution-types";
 import type { ScreenshotResult } from "../../services/screenshot-service";
+import { analyzeTaskComplexity } from "../../services/workflow/complexity-analyzer";
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads";
 
@@ -132,14 +133,58 @@ export const agentExecutionRouter = new Elysia()
         return { error: "Task not found" };
       }
 
+      // 自動複雑度評価の実行
+      if (task.complexityScore === null && !task.workflowModeOverride) {
+        console.log(`[API] Auto-analyzing task complexity for task ${taskIdNum}`);
+        try {
+          const complexityInput = {
+            title: task.title,
+            description: task.description,
+            estimatedHours: task.estimatedHours,
+            labels: task.labels ? JSON.parse(task.labels) : [],
+            priority: task.priority,
+            themeId: task.themeId,
+          };
+
+          const analysisResult = analyzeTaskComplexity(complexityInput);
+
+          // DBに結果を保存
+          await prisma.task.update({
+            where: { id: taskIdNum },
+            data: {
+              complexityScore: analysisResult.complexityScore,
+              workflowMode: analysisResult.recommendedMode,
+            },
+          });
+
+          // taskオブジェクトも更新（後続の処理で使用）
+          task.complexityScore = analysisResult.complexityScore;
+          task.workflowMode = analysisResult.recommendedMode;
+
+          console.log(`[API] Task ${taskIdNum} complexity auto-evaluated: score=${analysisResult.complexityScore}, mode=${analysisResult.recommendedMode}`);
+        } catch (error) {
+          console.error(`[API] Failed to analyze task complexity for task ${taskIdNum}:`, error);
+          // エラーが発生してもタスク実行は継続（フォールバック）
+        }
+      } else if (task.workflowModeOverride) {
+        console.log(`[API] Task ${taskIdNum} has workflow mode override, skipping auto-complexity analysis`);
+      } else if (task.complexityScore !== null) {
+        console.log(`[API] Task ${taskIdNum} already has complexity score: ${task.complexityScore}, skipping analysis`);
+      }
+
+      // 開発プロジェクトのテーマに属さず、workingDirectoryも明示指定されていない場合は実行拒否
+      if (!task.theme?.isDevelopment && !workingDirectory) {
+        console.error(
+          `[API] Task ${taskIdNum} rejected: not in a development theme and no workingDirectory specified.`,
+        );
+        context.set.status = 400;
+        return {
+          error: "開発プロジェクトに設定されたテーマのタスクのみ実行できます。テーマの設定を確認してください。",
+        };
+      }
+
       const workDir =
         workingDirectory || task.theme?.workingDirectory || process.cwd();
-
-      if (!task.theme?.isDevelopment && !workingDirectory) {
-        console.warn(
-          `Task ${taskIdNum} is not in a development theme. Using current directory.`,
-        );
-      }
 
       let developerModeConfig = task.developerModeConfig;
       let session;
@@ -426,19 +471,16 @@ export const agentExecutionRouter = new Elysia()
               );
             } else if (
               wfStatus === "in_progress" ||
-              wfStatus === "plan_approved"
+              wfStatus === "plan_approved" ||
+              wfStatus === "completed"
             ) {
-              // 実装中・承認済みはそのまま維持
-              console.log(
-                `[API] Task ${taskIdNum} kept as in-progress (workflow: ${wfStatus})`,
-              );
-            } else if (wfStatus === "completed") {
+              // 実行が成功完了したらタスクをdoneに更新
               await prisma.task.update({
                 where: { id: taskIdNum },
                 data: { status: "done", completedAt: new Date() },
               });
               console.log(
-                `[API] Updated task ${taskIdNum} status to 'done' (workflow completed)`,
+                `[API] Updated task ${taskIdNum} status to 'done' (workflow: ${wfStatus})`,
               );
             } else if (!wfStatus || wfStatus === "draft") {
               // ワークフロー未使用タスク、または初期状態は従来通り
@@ -973,13 +1015,13 @@ export const agentExecutionRouter = new Elysia()
           return { error: "Task not found" };
         }
 
-        // セッションIDが指定されていない場合は最新の完了済みまたは失敗済みセッションを取得
+        // セッションIDが指定されていない場合は最新の完了済み/失敗/中断セッションを取得
         let targetSessionId = sessionId;
         if (!targetSessionId && task.developerModeConfig) {
           const latestSession = await prisma.agentSession.findFirst({
             where: {
               configId: task.developerModeConfig.id,
-              status: { in: ["completed", "failed"] },
+              status: { in: ["completed", "failed", "interrupted"] },
             },
             orderBy: { createdAt: "desc" },
           });
@@ -1010,17 +1052,19 @@ export const agentExecutionRouter = new Elysia()
           return { error: "Session not found" };
         }
 
-        // completed または failed のセッションから継続実行を許可
-        // failed: 前回の継続実行が失敗した場合でもリトライ可能にする
-        // running: レースコンディション（実行完了後、セッションステータス更新前）に対応
-        if (!["completed", "failed", "running"].includes(session.status)) {
-          context.set.status = 400;
-          return { error: "Can only continue from completed or failed sessions" };
-        }
-        if (session.status === "running") {
-          console.warn(
-            `[continue-execution] Session ${targetSessionId} is still in 'running' state (possible race condition), proceeding anyway`,
-          );
+        // セッションのステータスをログに出力（デバッグ用）
+        console.log(
+          `[continue-execution] Session ${targetSessionId} status: "${session.status}"`,
+        );
+
+        // 現在実行中のエージェントがある場合のみ拒否（二重実行防止）
+        const activeCount = orchestrator.getActiveExecutionCount();
+        const hasRunningExecution = session.agentExecutions.some(
+          (e: { status: string }) => e.status === "running" || e.status === "pending",
+        );
+        if (hasRunningExecution && activeCount > 0) {
+          context.set.status = 409;
+          return { error: "An execution is already running for this session" };
         }
 
         // 前回の実行情報を取得
@@ -1136,10 +1180,10 @@ export const agentExecutionRouter = new Elysia()
                 });
               } else if (
                 wfStatus === "in_progress" ||
-                wfStatus === "plan_approved"
+                wfStatus === "plan_approved" ||
+                wfStatus === "completed"
               ) {
-                // 実装中・承認済みはそのまま維持
-              } else if (wfStatus === "completed") {
+                // 実行が成功完了したらタスクをdoneに更新
                 await prisma.task.update({
                   where: { id: taskId },
                   data: { status: "done", completedAt: new Date() },

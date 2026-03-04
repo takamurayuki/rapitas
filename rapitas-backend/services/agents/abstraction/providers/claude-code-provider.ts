@@ -17,6 +17,27 @@ import type {
 import { createDefaultCapabilities } from '../index';
 import { ClaudeCodeAgentAdapter } from './claude-code-agent-adapter';
 
+function resolveCliPath(cliName: string): string {
+  if (process.platform !== 'win32') return cliName;
+  try {
+    const { execSync } = require('child_process');
+    const { existsSync } = require('fs');
+    const resolved = execSync(`where ${cliName}`, {
+      encoding: 'utf8',
+      timeout: 5000,
+      windowsHide: true,
+    })
+      .trim()
+      .split(/\r?\n/)[0];
+    if (resolved && existsSync(resolved)) {
+      return resolved;
+    }
+  } catch {
+    // フォールバック
+  }
+  return cliName;
+}
+
 /**
  * Claude Code Provider
  * Claude Code CLIを使用したエージェントを提供
@@ -69,7 +90,9 @@ export class ClaudeCodeProvider implements IAgentProvider {
 
       return new Promise((resolve) => {
         const isWindows = process.platform === 'win32';
-        const claudePath = process.env.CLAUDE_CODE_PATH || (isWindows ? 'claude.cmd' : 'claude');
+        const claudePath = resolveCliPath(
+          process.env.CLAUDE_CODE_PATH || (isWindows ? 'claude.cmd' : 'claude'),
+        );
 
         const proc = spawn(claudePath, ['--version'], { shell: true });
 

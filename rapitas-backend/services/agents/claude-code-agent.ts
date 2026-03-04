@@ -3,7 +3,7 @@
  * Claude Code CLIを子プロセスとして起動し、タスクを実行する
  */
 
-import { spawn, ChildProcess } from "child_process";
+import { spawn, ChildProcess, execSync } from "child_process";
 import { writeFileSync, unlinkSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -43,6 +43,30 @@ export type ClaudeCodeAgentConfig = {
   continueConversation?: boolean; // 前回の会話を継続するか
   resumeSessionId?: string; // --resumeで使用するセッションID
 };
+
+/**
+ * Windows環境でCLIコマンドの絶対パスを解決する。
+ * PATH解決に失敗した場合はフォールバックとして元のパスを返す。
+ */
+function resolveCliPath(cliName: string): string {
+  if (process.platform !== "win32") return cliName;
+  try {
+    const resolved = execSync(`where ${cliName}`, {
+      encoding: "utf8",
+      timeout: 5000,
+      windowsHide: true,
+    })
+      .trim()
+      .split(/\r?\n/)[0];
+    if (resolved && existsSync(resolved)) {
+      console.log(`[resolveCliPath] Resolved ${cliName} -> ${resolved}`);
+      return resolved;
+    }
+  } catch {
+    console.warn(`[resolveCliPath] Failed to resolve ${cliName}, using relative path`);
+  }
+  return cliName;
+}
 
 export class ClaudeCodeAgent extends BaseAgent {
   private process: ChildProcess | null = null;
@@ -227,10 +251,11 @@ export class ClaudeCodeAgent extends BaseAgent {
         args.push("--max-tokens", String(this.config.maxTokens));
       }
 
-      // Windowsでは.cmdファイルを使用
+      // Windowsでは.cmdファイルを使用（絶対パスに解決してPATH解決の問題を回避）
       const isWindows = process.platform === "win32";
-      const claudePath =
+      const baseClaudePath =
         process.env.CLAUDE_CODE_PATH || (isWindows ? "claude.cmd" : "claude");
+      const claudePath = resolveCliPath(baseClaudePath);
 
       console.log(`${this.logPrefix} Platform: ${process.platform}`);
       console.log(`${this.logPrefix} Claude path: ${claudePath}`);
@@ -279,7 +304,9 @@ export class ClaudeCodeAgent extends BaseAgent {
               return arg;
             })
             .join(" ");
-          finalCommand = `chcp 65001 >NUL 2>&1 && ${claudePath} ${argsString}`;
+          // 絶対パスにスペースが含まれる可能性があるためクォートで囲む
+          const quotedPath = claudePath.includes(" ") ? `"${claudePath}"` : claudePath;
+          finalCommand = `chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`;
           finalArgs = []; // 引数はコマンド文字列に含まれているので空
         } else {
           finalCommand = claudePath;
@@ -1156,8 +1183,9 @@ export class ClaudeCodeAgent extends BaseAgent {
   async isAvailable(): Promise<boolean> {
     return new Promise((resolve) => {
       const isWindows = process.platform === "win32";
-      const claudePath =
+      const baseClaudePath =
         process.env.CLAUDE_CODE_PATH || (isWindows ? "claude.cmd" : "claude");
+      const claudePath = resolveCliPath(baseClaudePath);
       const proc = spawn(claudePath, ["--version"], { shell: true });
 
       // 10秒タイムアウト

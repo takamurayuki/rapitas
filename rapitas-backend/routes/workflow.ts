@@ -8,6 +8,7 @@ import { join } from 'path';
 import { prisma } from '../config';
 import { sanitizeMarkdownContent } from '../utils/mojibake-detector';
 import { analyzeTaskComplexity, getWorkflowModeConfig, type TaskComplexityInput } from '../services/workflow/complexity-analyzer';
+import { AgentOrchestrator } from '../services/agents/agent-orchestrator';
 
 const VALID_FILE_TYPES = ['research', 'question', 'plan', 'verify'] as const;
 type WorkflowFileType = (typeof VALID_FILE_TYPES)[number];
@@ -68,6 +69,161 @@ async function getFileInfo(filePath: string, fileType: WorkflowFileType) {
       exists: false,
     };
   }
+}
+
+/**
+ * verify.md保存後の自動コミット・PR作成処理
+ */
+async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
+  const result: {
+    autoCommitResult?: { success: boolean; hash?: string; branch?: string; filesChanged?: number; error?: string };
+    autoPRResult?: { success: boolean; prUrl?: string; prNumber?: number; error?: string };
+  } = {};
+
+  try {
+    // AgentExecutionConfigを取得してautoCommit/autoCreatePRの設定を確認
+    const execConfig = await prisma.agentExecutionConfig.findUnique({
+      where: { taskId },
+    });
+
+    if (!execConfig || (!execConfig.autoCommit && !execConfig.autoCreatePR)) {
+      return result;
+    }
+
+    // タスクとworkingDirectoryの情報を取得
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        theme: true,
+        developerModeConfig: {
+          include: {
+            sessions: {
+              orderBy: { lastActivityAt: 'desc' },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+
+    if (!task) return result;
+
+    // workingDirectoryを解決: AgentExecutionConfig → theme → cwd
+    const workingDirectory =
+      execConfig.workingDirectory ||
+      task.theme?.workingDirectory ||
+      process.cwd();
+
+    // ブランチ名をAgentSessionから取得
+    const latestSession = task.developerModeConfig?.sessions?.[0];
+    const branchName = latestSession?.branchName;
+
+    const orchestrator = AgentOrchestrator.getInstance(prisma);
+
+    // autoCommitの処理
+    if (execConfig.autoCommit) {
+      try {
+        // ブランチが設定されている場合はチェックアウト
+        if (branchName) {
+          await orchestrator.createBranch(workingDirectory, branchName);
+        }
+
+        const commitMessage = `feat(task-${taskId}): ${task.title}`;
+        const commitResult = await orchestrator.createCommit(workingDirectory, commitMessage);
+        result.autoCommitResult = {
+          success: true,
+          hash: commitResult.hash,
+          branch: commitResult.branch,
+          filesChanged: commitResult.filesChanged,
+        };
+
+        console.log(`[Workflow] Auto-commit successful for task ${taskId}: ${commitResult.hash}`);
+
+        // ActivityLogに記録
+        await prisma.activityLog.create({
+          data: {
+            taskId,
+            action: 'auto_commit_created',
+            metadata: JSON.stringify({
+              hash: commitResult.hash,
+              branch: commitResult.branch,
+              filesChanged: commitResult.filesChanged,
+              additions: commitResult.additions,
+              deletions: commitResult.deletions,
+            }),
+            createdAt: new Date(),
+          },
+        });
+      } catch (commitError) {
+        console.error(`[Workflow] Auto-commit failed for task ${taskId}:`, commitError);
+        result.autoCommitResult = {
+          success: false,
+          error: commitError instanceof Error ? commitError.message : String(commitError),
+        };
+      }
+    }
+
+    // autoCreatePRの処理（autoCommitが成功した場合のみ）
+    if (execConfig.autoCreatePR && result.autoCommitResult?.success) {
+      try {
+        const prTitle = `[Task-${taskId}] ${task.title}`;
+        const prBody = `## Summary\n\nAuto-generated PR for Task #${taskId}: ${task.title}\n\n## Verification Report\n\n${verifyContent}\n\n---\n🤖 Generated automatically by Rapitas AI Agent`;
+
+        const prResult = await orchestrator.createPullRequest(
+          workingDirectory,
+          prTitle,
+          prBody,
+          'master',
+        );
+
+        result.autoPRResult = prResult;
+
+        if (prResult.success) {
+          console.log(`[Workflow] Auto-PR created for task ${taskId}: ${prResult.prUrl}`);
+
+          // ActivityLogに記録
+          await prisma.activityLog.create({
+            data: {
+              taskId,
+              action: 'auto_pr_created',
+              metadata: JSON.stringify({
+                prUrl: prResult.prUrl,
+                prNumber: prResult.prNumber,
+              }),
+              createdAt: new Date(),
+            },
+          });
+
+          // 通知を作成
+          await prisma.notification.create({
+            data: {
+              type: 'auto_pr_created',
+              title: '自動PR作成完了',
+              message: `タスク「${task.title}」のPRが自動作成されました: ${prResult.prUrl}`,
+              link: prResult.prUrl || `/tasks/${taskId}`,
+              metadata: JSON.stringify({
+                taskId,
+                prUrl: prResult.prUrl,
+                prNumber: prResult.prNumber,
+              }),
+            },
+          });
+        } else {
+          console.error(`[Workflow] Auto-PR creation failed for task ${taskId}:`, prResult.error);
+        }
+      } catch (prError) {
+        console.error(`[Workflow] Auto-PR failed for task ${taskId}:`, prError);
+        result.autoPRResult = {
+          success: false,
+          error: prError instanceof Error ? prError.message : String(prError),
+        };
+      }
+    }
+  } catch (error) {
+    console.error(`[Workflow] Auto-commit/PR process failed for task ${taskId}:`, error);
+  }
+
+  return result;
 }
 
 export const workflowRoutes = new Elysia({ prefix: '/workflow' })
@@ -162,18 +318,30 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       let newStatus: string | undefined;
       const currentStatus = resolved.task.workflowStatus;
 
+      console.log(`[Workflow] Processing fileType: ${fileType}, currentStatus: ${currentStatus}`);
+
       if (fileType === 'research' && (!currentStatus || currentStatus === 'draft')) {
+        console.log(`[Workflow] Research completed: setting newStatus to research_done`);
         newStatus = 'research_done';
       } else if (fileType === 'plan' && (!currentStatus || currentStatus === 'research_done')) {
         newStatus = 'plan_created';
+      } else if (fileType === 'verify') {
+        console.log(`[Workflow] Processing verify.md for task ${taskId}, currentStatus: ${currentStatus}`);
+        console.log(`[Workflow] Unconditionally setting newStatus to completed`);
+        newStatus = 'completed';
       }
-      // verify.mdの保存では自動的にcompletedにしない（ユーザーが明示的に完了ボタンを押す必要がある）
+
+      console.log(`[Workflow] newStatus after condition checks: ${newStatus}`);
 
       if (newStatus) {
+        console.log(`[Workflow] Updating workflowStatus to: ${newStatus}`);
         await prisma.task.update({
           where: { id: taskId },
           data: { workflowStatus: newStatus, updatedAt: new Date() },
         });
+        console.log(`[Workflow] workflowStatus updated successfully`);
+      } else {
+        console.log(`[Workflow] newStatus is falsy, skipping workflowStatus update`);
       }
 
       // plan.md保存時、autoApprovePlanが有効なら自動承認
@@ -230,13 +398,37 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         }
       }
 
-      return {
+      // verify.md保存時の自動コミット・PR作成
+      let autoCommitPRResult: Awaited<ReturnType<typeof performAutoCommitAndPR>> = {};
+      if (fileType === 'verify' && newStatus === 'completed') {
+        autoCommitPRResult = await performAutoCommitAndPR(taskId, sanitizeResult.content);
+      }
+
+      // レスポンス構築
+      const response: any = {
         success: true,
         fileType,
         path: filePath,
         workflowStatus: newStatus || currentStatus,
         autoApproved,
       };
+
+      // verify.mdファイル保存で完了した場合の追加情報
+      if (fileType === 'verify' && newStatus === 'completed') {
+        response.taskCompleted = true;
+        response.taskStatus = 'done';
+        response.completedAt = new Date().toISOString();
+
+        // 自動コミット・PR結果を含める
+        if (autoCommitPRResult.autoCommitResult) {
+          response.autoCommit = autoCommitPRResult.autoCommitResult;
+        }
+        if (autoCommitPRResult.autoPRResult) {
+          response.autoPR = autoCommitPRResult.autoPRResult;
+        }
+      }
+
+      return response;
     } catch (err) {
       console.error('Error saving workflow file:', err);
       set.status = 500;

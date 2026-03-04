@@ -3,7 +3,8 @@
  * 新しい抽象化レイヤーに対応したClaude Codeエージェントプロバイダー
  */
 
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
+import { existsSync } from 'fs';
 import type {
   AgentCapabilities,
   AgentProviderConfig,
@@ -80,10 +81,10 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
   async isAvailable(): Promise<boolean> {
     return new Promise((resolve) => {
       const isWindows = process.platform === 'win32';
-      const claudePath =
-        this.config.cliPath ||
+      const baseClaudePath = this.config.cliPath ||
         process.env.CLAUDE_CODE_PATH ||
         (isWindows ? 'claude.cmd' : 'claude');
+      const claudePath = resolveCliPath(baseClaudePath);
 
       const proc = spawn(claudePath, ['--version'], { shell: true });
 
@@ -256,10 +257,10 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
     return new Promise((resolve) => {
       const timeout = context.timeout || this.config.timeout || 900000;
       const isWindows = process.platform === 'win32';
-      const claudePath =
-        this.config.cliPath ||
+      const baseClaudePath = this.config.cliPath ||
         process.env.CLAUDE_CODE_PATH ||
         (isWindows ? 'claude.cmd' : 'claude');
+      const claudePath = resolveCliPath(baseClaudePath);
 
       const args: string[] = ['--print', '--verbose', '--output-format', 'stream-json'];
 
@@ -288,7 +289,8 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
 
       if (isWindows) {
         const argsString = args.join(' ');
-        finalCommand = `chcp 65001 >NUL 2>&1 && ${claudePath} ${argsString}`;
+        const quotedPath = claudePath.includes(' ') ? `"${claudePath}"` : claudePath;
+        finalCommand = `chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`;
         finalArgs = [];
       } else {
         finalCommand = claudePath;
@@ -555,6 +557,29 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
 }
 
 /**
+ * Windows環境でCLIコマンドの絶対パスを解決する。
+ * PATH解決に失敗した場合はフォールバックとして元のパスを返す。
+ */
+function resolveCliPath(cliName: string): string {
+  if (process.platform !== 'win32') return cliName;
+  try {
+    const resolved = execSync(`where ${cliName}`, {
+      encoding: 'utf8',
+      timeout: 5000,
+      windowsHide: true,
+    })
+      .trim()
+      .split(/\r?\n/)[0];
+    if (resolved && existsSync(resolved)) {
+      return resolved;
+    }
+  } catch {
+    // フォールバック
+  }
+  return cliName;
+}
+
+/**
  * Claude Code プロバイダー
  */
 export class ClaudeCodeProvider implements IAgentProvider {
@@ -596,10 +621,10 @@ export class ClaudeCodeProvider implements IAgentProvider {
   async isAvailable(): Promise<boolean> {
     return new Promise((resolve) => {
       const isWindows = process.platform === 'win32';
-      const claudePath =
-        this.defaultConfig.cliPath ||
+      const baseClaudePath = this.defaultConfig.cliPath ||
         process.env.CLAUDE_CODE_PATH ||
         (isWindows ? 'claude.cmd' : 'claude');
+      const claudePath = resolveCliPath(baseClaudePath);
 
       const proc = spawn(claudePath, ['--version'], { shell: true });
 

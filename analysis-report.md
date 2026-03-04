@@ -1,7 +1,7 @@
 # Rapitas Codebase Analysis Report
 
-> Generated: 2026-03-03T18:13:38.930Z
-> Execution time: 877ms
+> Generated: 2026-03-04T01:52:12.749Z
+> Execution time: 1485ms
 > Project root: `C:\Projects\rapitas`
 
 ---
@@ -11,31 +11,31 @@
 ### サマリ
 | 項目 | 値 |
 |------|-----|
-| 総ファイル数 | 676 |
-| 総コード行数 | 179,548 |
-| 総サイズ | 10.4 MB |
+| 総ファイル数 | 703 |
+| 総コード行数 | 181,171 |
+| 総サイズ | 10.5 MB |
 
 ### 拡張子別
 | 拡張子 | ファイル数 | 行数 | サイズ | 平均行数 |
 |--------|-----------|------|--------|----------|
-| .ts | 245 | 80,167 | 2.3 MB | 327 |
-| .tsx | 169 | 65,052 | 2.4 MB | 385 |
+| .ts | 247 | 80,655 | 2.4 MB | 327 |
+| .tsx | 169 | 65,211 | 2.4 MB | 386 |
 | .yaml | 4 | 13,219 | 437.0 KB | 3305 |
-| .md | 85 | 9,714 | 386.2 KB | 114 |
+| .md | 110 | 10,689 | 425.2 KB | 97 |
 | .json | 10 | 3,260 | 100.3 KB | 326 |
 | .js | 95 | 2,745 | 3.7 MB | 29 |
 | .css | 8 | 1,769 | 299.2 KB | 221 |
 | .yml | 8 | 1,246 | 40.2 KB | 156 |
 | .html | 42 | 1,211 | 760.6 KB | 29 |
-| .prisma | 1 | 1,007 | 39.4 KB | 1007 |
+| .prisma | 1 | 1,008 | 39.5 KB | 1008 |
 | .sql | 8 | 154 | 5.3 KB | 19 |
 | .toml | 1 | 4 | 131 B | 4 |
 
 ### ディレクトリ別
 | ディレクトリ | ファイル数 | 行数 | サイズ |
 |-------------|-----------|------|--------|
-| rapitas-frontend | 257 | 93,925 | 3.2 MB |
-| rapitas-backend | 259 | 72,045 | 2.2 MB |
+| rapitas-frontend | 257 | 94,043 | 3.2 MB |
+| rapitas-backend | 286 | 73,550 | 2.3 MB |
 | rapitas-desktop | 141 | 5,134 | 4.7 MB |
 | analysis-result.json | 1 | 3,007 | 93.3 KB |
 | .github | 9 | 1,441 | 47.4 KB |
@@ -56,21 +56,21 @@
 | 2 | `rapitas-backend\services\agents\agent-orchestrator.ts` | 3,883 | 126.3 KB |
 | 3 | `analysis-result.json` | 3,007 | 93.3 KB |
 | 4 | `rapitas-frontend\src\components\note\NoteEditor.tsx` | 2,998 | 105.2 KB |
-| 5 | `rapitas-frontend\src\components\category\IconData.ts` | 2,023 | 54.2 KB |
-| 6 | `rapitas-frontend\src\app\tasks\[id]\TaskDetailClient.tsx` | 1,995 | 81.8 KB |
-| 7 | `rapitas-backend\routes\tasks.ts` | 1,735 | 56.9 KB |
-| 8 | `rapitas-frontend\src\feature\developer-mode\components\AIAccordionPanel.tsx` | 1,694 | 69.8 KB |
-| 9 | `rapitas-backend\services\agents\claude-code-agent.ts` | 1,649 | 67.0 KB |
-| 10 | `rapitas-frontend\src\app\HomeClient.tsx` | 1,564 | 66.5 KB |
+| 5 | `rapitas-frontend\src\app\tasks\[id]\TaskDetailClient.tsx` | 2,036 | 83.8 KB |
+| 6 | `rapitas-frontend\src\components\category\IconData.ts` | 2,023 | 54.2 KB |
+| 7 | `rapitas-frontend\src\feature\developer-mode\components\AIAccordionPanel.tsx` | 1,696 | 70.0 KB |
+| 8 | `rapitas-backend\routes\tasks.ts` | 1,568 | 51.6 KB |
+| 9 | `rapitas-frontend\src\app\HomeClient.tsx` | 1,564 | 66.5 KB |
+| 10 | `rapitas-backend\services\agents\claude-code-agent.ts` | 1,551 | 61.5 KB |
 | 11 | `rapitas-frontend\src\feature\developer-mode\components\DeveloperModeConfig.tsx` | 1,518 | 53.8 KB |
 | 12 | `rapitas-backend\routes\ai-agent.ts` | 1,513 | 48.0 KB |
 | 13 | `rapitas-frontend\src\feature\developer-mode\components\AIAnalysisPanel.tsx` | 1,416 | 60.1 KB |
 | 14 | `rapitas-frontend\src\feature\tasks\components\MemoSection.tsx` | 1,403 | 50.9 KB |
-| 15 | `rapitas-desktop\scripts\dev.js` | 1,364 | 47.3 KB |
-| 16 | `rapitas-backend\routes\agents\agent-execution-router.ts` | 1,268 | 42.9 KB |
-| 17 | `rapitas-frontend\src\components\Header.tsx` | 1,249 | 46.4 KB |
+| 15 | `rapitas-backend\routes\agents\agent-execution-router.ts` | 1,371 | 47.3 KB |
+| 16 | `rapitas-desktop\scripts\dev.js` | 1,364 | 47.3 KB |
+| 17 | `rapitas-frontend\src\components\Header.tsx` | 1,256 | 46.7 KB |
 | 18 | `rapitas-backend\services\parallel-execution\sub-agent-controller.ts` | 1,247 | 38.0 KB |
-| 19 | `rapitas-frontend\src\types\index.ts` | 1,231 | 27.9 KB |
+| 19 | `rapitas-frontend\src\types\index.ts` | 1,232 | 27.9 KB |
 | 20 | `rapitas-frontend\src\app\themes\page.tsx` | 1,184 | 49.4 KB |
 
 ---
@@ -79,11 +79,11 @@
 
 ### Backend
 - **ルートファイル数**: 59
-- **検出エンドポイント数**: 358
+- **検出エンドポイント数**: 357
 - **サービス数**: 56
 
 <details>
-<summary>エンドポイント一覧 (358件)</summary>
+<summary>エンドポイント一覧 (357件)</summary>
 
 | メソッド | パス | ファイル |
 |----------|------|---------|
@@ -414,7 +414,6 @@
 | DELETE | `/tasks/:id/subtasks` | `rapitas-backend\routes\tasks.ts` |
 | POST | `/tasks/:id/subtasks/delete-selected` | `rapitas-backend\routes\tasks.ts` |
 | POST | `/tasks/:id/execute` | `rapitas-backend\routes\tasks.ts` |
-| POST | `/tasks/:id/continue-execution` | `rapitas-backend\routes\tasks.ts` |
 | GET | `/templates/` | `rapitas-backend\routes\templates.ts` |
 | GET | `/templates/categories` | `rapitas-backend\routes\templates.ts` |
 | GET | `/templates/:id` | `rapitas-backend\routes\templates.ts` |
@@ -523,7 +522,7 @@
 | Theme | 20 | 1 |
 | Project | 9 | 0 |
 | Milestone | 9 | 1 |
-| Task | 50 | 4 |
+| Task | 51 | 4 |
 | TimeEntry | 10 | 1 |
 | PomodoroSession | 14 | 1 |
 | Comment | 11 | 1 |
@@ -642,14 +641,14 @@
 | 指標 | 値 |
 |------|-----|
 | テストファイル数 | 10 |
-| ソースファイル数 | 404 |
+| ソースファイル数 | 406 |
 | テスト比率 | 0.02 (2.0%) |
-| `any`型使用数 | 428 |
-| TODO コメント | 75 |
+| `any`型使用数 | 433 |
+| TODO コメント | 73 |
 | FIXME コメント | 1 |
 | HACK コメント | 1 |
-| console.log 使用数 | 676 |
-| try/catch ブロック数 | 809 |
+| console.log 使用数 | 687 |
+| try/catch ブロック数 | 816 |
 
 ---
 
@@ -762,7 +761,7 @@
 | 機能カバレッジスコア | **81/100** |
 
 ### 強み
-- 豊富なAPIエンドポイント（358件）
+- 豊富なAPIエンドポイント（357件）
 - 充実したデータモデル（55モデル）
 - 多彩なフロントエンドページ（40ルート）
 - 再利用可能なカスタムフック（33個）
@@ -770,9 +769,9 @@
 
 ### 弱み
 - テストカバレッジが低い（テスト比率: 0.02）
-- any型の使用が多い（428箇所）
-- console.logが多い（676箇所）
-- 未解決のTODOが多い（75件）
+- any型の使用が多い（433箇所）
+- console.logが多い（687箇所）
+- 未解決のTODOが多い（73件）
 - 低カバレッジ機能エリア: 検索
 
 ### 改善提案

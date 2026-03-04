@@ -12,7 +12,8 @@
  * - GoogleSearch, Shell, ReadFile, WriteFile などのビルトインツール
  */
 
-import { spawn, ChildProcess } from "child_process";
+import { spawn, ChildProcess, execSync } from "child_process";
+import { existsSync } from "fs";
 import { BaseAgent } from "./base-agent";
 import type {
   AgentCapability,
@@ -73,6 +74,25 @@ type GeminiStreamEvent = {
   checkpoint_id?: string;
   error?: string;
 };
+
+function resolveCliPath(cliName: string): string {
+  if (process.platform !== "win32") return cliName;
+  try {
+    const resolved = execSync(`where ${cliName}`, {
+      encoding: "utf8",
+      timeout: 5000,
+      windowsHide: true,
+    })
+      .trim()
+      .split(/\r?\n/)[0];
+    if (resolved && existsSync(resolved)) {
+      return resolved;
+    }
+  } catch {
+    // フォールバック
+  }
+  return cliName;
+}
 
 export class GeminiCliAgent extends BaseAgent {
   private process: ChildProcess | null = null;
@@ -225,8 +245,9 @@ export class GeminiCliAgent extends BaseAgent {
       }
 
       const isWindows = process.platform === "win32";
-      const geminiPath =
-        process.env.GEMINI_CLI_PATH || (isWindows ? "gemini.cmd" : "gemini");
+      const geminiPath = resolveCliPath(
+        process.env.GEMINI_CLI_PATH || (isWindows ? "gemini.cmd" : "gemini"),
+      );
 
       console.log(`${this.logPrefix} Platform: ${process.platform}`);
       console.log(`${this.logPrefix} Gemini path: ${geminiPath}`);
@@ -260,7 +281,8 @@ export class GeminiCliAgent extends BaseAgent {
               return arg;
             })
             .join(" ");
-          finalCommand = `chcp 65001 >NUL 2>&1 && ${geminiPath} ${argsString}`;
+          const quotedPath = geminiPath.includes(" ") ? `"${geminiPath}"` : geminiPath;
+          finalCommand = `chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`;
           finalArgs = [];
         } else {
           finalCommand = geminiPath;
@@ -806,8 +828,9 @@ export class GeminiCliAgent extends BaseAgent {
   async isAvailable(): Promise<boolean> {
     return new Promise((resolve) => {
       const isWindows = process.platform === "win32";
-      const geminiPath =
-        process.env.GEMINI_CLI_PATH || (isWindows ? "gemini.cmd" : "gemini");
+      const geminiPath = resolveCliPath(
+        process.env.GEMINI_CLI_PATH || (isWindows ? "gemini.cmd" : "gemini"),
+      );
       const proc = spawn(geminiPath, ["--version"], { shell: true });
 
       const timeout = setTimeout(() => {
