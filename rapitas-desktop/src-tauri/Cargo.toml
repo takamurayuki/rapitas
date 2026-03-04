@@ -18,7 +18,7 @@ url = "2"
 open = "5"
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["winuser", "processthreadsapi", "psapi", "shellapi", "winreg"] }
+winapi = { version = "0.3", features = ["winuser", "processthreadsapi", "psapi", "shellapi", "winreg", "dwmapi"] }
 windows = { version = "0.58", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
 
 [features]

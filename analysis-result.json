@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generatedAt": "2026-03-04T07:56:59.037Z",
-    "executionTimeMs": 12465,
+    "generatedAt": "2026-03-04T08:20:45.574Z",
+    "executionTimeMs": 419,
     "projectRoot": "C:\\Projects\\rapitas"
   },
   "codeMetrics": {
@@ -10,14 +10,14 @@
         "extension": ".ts",
         "fileCount": 246,
         "totalLines": 81115,
-        "totalSize": 2500002,
+        "totalSize": 2500020,
         "avgLines": 330
       },
       {
         "extension": ".tsx",
         "fileCount": 169,
-        "totalLines": 65336,
-        "totalSize": 2483623,
+        "totalLines": 65347,
+        "totalSize": 2484088,
         "avgLines": 387
       },
       {
@@ -29,17 +29,17 @@
       },
       {
         "extension": ".md",
-        "fileCount": 158,
-        "totalLines": 12882,
-        "totalSize": 530549,
-        "avgLines": 82
+        "fileCount": 162,
+        "totalLines": 12949,
+        "totalSize": 535569,
+        "avgLines": 80
       },
       {
         "extension": ".json",
         "fileCount": 10,
-        "totalLines": 3255,
-        "totalSize": 102523,
-        "avgLines": 326
+        "totalLines": 3251,
+        "totalSize": 105562,
+        "avgLines": 325
       },
       {
         "extension": ".js",
@@ -105,12 +105,12 @@
       "analysis-report.md": {
         "files": 1,
         "lines": 803,
-        "size": 44009
+        "size": 46765
       },
       "analysis-result.json": {
         "files": 1,
-        "lines": 3002,
-        "size": 95338
+        "lines": 2998,
+        "size": 98377
       },
       "docs": {
         "files": 1,
@@ -138,9 +138,9 @@
         "size": 13941
       },
       "rapitas-backend": {
-        "files": 333,
-        "lines": 76315,
-        "size": 2498776
+        "files": 337,
+        "lines": 76382,
+        "size": 2501040
       },
       "rapitas-desktop": {
         "files": 141,
@@ -149,8 +149,8 @@
       },
       "rapitas-frontend": {
         "files": 257,
-        "lines": 94059,
-        "size": 3365256
+        "lines": 94070,
+        "size": 3365739
       },
       "README.md": {
         "files": 1,
@@ -171,8 +171,8 @@
       },
       {
         "path": "analysis-result.json",
-        "lines": 3002,
-        "size": 95338
+        "lines": 2998,
+        "size": 98377
       },
       {
         "path": "rapitas-frontend\\src\\components\\note\\NoteEditor.tsx",
@@ -231,8 +231,8 @@
       },
       {
         "path": "rapitas-frontend\\src\\feature\\tasks\\components\\MemoSection.tsx",
-        "lines": 1403,
-        "size": 53636
+        "lines": 1405,
+        "size": 53689
       },
       {
         "path": "rapitas-desktop\\scripts\\dev.js",
@@ -260,9 +260,9 @@
         "size": 24840
       }
     ],
-    "totalFiles": 749,
-    "totalLines": 183930,
-    "totalSize": 11094853
+    "totalFiles": 753,
+    "totalLines": 184004,
+    "totalSize": 11103395
   },
   "architecture": {
     "backend": {

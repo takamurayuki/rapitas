@@ -17,6 +17,7 @@ interface UserSettingsUpdateBody {
   autoGenerateTitleDelay?: number;
   autoCreateAfterTitleGeneration?: boolean;
   autoApprovePlan?: boolean;
+  autoComplexityAnalysis?: boolean;
   defaultAiProvider?: string;
   defaultCategoryId?: number | null;
   activeMode?: string;
@@ -307,7 +308,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   .patch(
     "/",
     async ({ body, set }) => {
-      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, autoExecuteAfterCreate, autoGenerateTitle, autoGenerateTitleDelay, autoCreateAfterTitleGeneration, autoApprovePlan, defaultAiProvider, defaultCategoryId, activeMode } = body as { developerModeDefault?: boolean; aiTaskAnalysisDefault?: boolean; autoResumeInterruptedTasks?: boolean; autoExecuteAfterCreate?: boolean; autoGenerateTitle?: boolean; autoGenerateTitleDelay?: number; autoCreateAfterTitleGeneration?: boolean; autoApprovePlan?: boolean; defaultAiProvider?: string; defaultCategoryId?: number; activeMode?: string };
+      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, autoExecuteAfterCreate, autoGenerateTitle, autoGenerateTitleDelay, autoCreateAfterTitleGeneration, autoApprovePlan, autoComplexityAnalysis, defaultAiProvider, defaultCategoryId, activeMode } = body as { developerModeDefault?: boolean; aiTaskAnalysisDefault?: boolean; autoResumeInterruptedTasks?: boolean; autoExecuteAfterCreate?: boolean; autoGenerateTitle?: boolean; autoGenerateTitleDelay?: number; autoCreateAfterTitleGeneration?: boolean; autoApprovePlan?: boolean; autoComplexityAnalysis?: boolean; defaultAiProvider?: string; defaultCategoryId?: number; activeMode?: string };
 
       try {
         let settings = await prisma.userSettings.findFirst();
@@ -322,6 +323,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
               ...(autoGenerateTitleDelay !== undefined && { autoGenerateTitleDelay }),
               autoCreateAfterTitleGeneration: autoCreateAfterTitleGeneration ?? false,
               autoApprovePlan: autoApprovePlan ?? false,
+              ...(autoComplexityAnalysis !== undefined && { autoComplexityAnalysis }),
               ...(defaultCategoryId !== undefined && { defaultCategoryId }),
               ...(activeMode !== undefined && { activeMode }),
             },
@@ -338,6 +340,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
               ...(autoGenerateTitleDelay !== undefined && { autoGenerateTitleDelay }),
               ...(autoCreateAfterTitleGeneration !== undefined && { autoCreateAfterTitleGeneration }),
               ...(autoApprovePlan !== undefined && { autoApprovePlan }),
+              ...(autoComplexityAnalysis !== undefined && { autoComplexityAnalysis }),
               ...(defaultAiProvider !== undefined && { defaultAiProvider }),
               ...(defaultCategoryId !== undefined && { defaultCategoryId }),
               ...(activeMode !== undefined && { activeMode }),

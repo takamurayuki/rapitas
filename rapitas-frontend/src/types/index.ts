@@ -671,6 +671,7 @@ export type UserSettings = {
   autoCreateAfterTitleGeneration: boolean;
   autoFetchTaskSuggestions: boolean;
   autoApprovePlan: boolean;
+  autoComplexityAnalysis: boolean;
   defaultCategoryId?: number | null;
   activeMode: ActiveMode;
   claudeApiKeyConfigured?: boolean;

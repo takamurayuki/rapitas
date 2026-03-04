@@ -82,14 +82,17 @@ pub fn split_screen_with_browser(
             ShowWindow(hwnd, SW_NORMAL);
             thread::sleep(Duration::from_millis(100));
 
-            // 左半分に配置（作業領域を考慮）
+            // 不可視ボーダーを取得して補正
+            let (bl, _bt, br, bb) = get_invisible_border(hwnd);
+
+            // 左半分に配置（作業領域＋不可視ボーダー補正）
             SetWindowPos(
                 hwnd,
                 std::ptr::null_mut(),
-                work_x,
+                work_x - bl,
                 work_y,
-                work_width / 2,
-                work_height,
+                work_width / 2 + bl + br,
+                work_height + bb,
                 SWP_NOZORDER | SWP_FRAMECHANGED,
             );
         }

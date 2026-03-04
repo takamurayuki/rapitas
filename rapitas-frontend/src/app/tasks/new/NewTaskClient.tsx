@@ -904,6 +904,7 @@ function NewTaskClient() {
                 currentMode={workflowMode}
                 isOverridden={isWorkflowModeOverride}
                 complexityScore={null} // 新規タスクなのでスコアなし
+                autoComplexityAnalysis={globalSettings?.autoComplexityAnalysis ?? false}
                 onModeChange={(mode, isOverride) => {
                   setWorkflowMode(mode);
                   setIsWorkflowModeOverride(isOverride);

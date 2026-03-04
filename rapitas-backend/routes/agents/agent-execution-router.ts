@@ -74,6 +74,121 @@ async function updateSessionStatusWithRetry(
   // エラーを再投げせず、処理を継続（従来の動作と同様）
 }
 
+/**
+ * 実行完了後のコードレビュー承認リクエスト作成（autoApprove対応）
+ * 通常実行と継続実行の両方から呼び出される共通処理
+ */
+async function createCodeReviewApproval(params: {
+  taskId: number;
+  taskTitle: string;
+  configId: number;
+  sessionId: number;
+  workDir: string;
+  branchName?: string;
+  resultOutput?: string;
+  executionTimeMs?: number;
+  logPrefix: string;
+}): Promise<void> {
+  const {
+    taskId,
+    taskTitle,
+    configId,
+    sessionId,
+    workDir,
+    branchName,
+    resultOutput,
+    executionTimeMs,
+    logPrefix,
+  } = params;
+
+  try {
+    const diff = await orchestrator.getFullGitDiff(workDir);
+    const structuredDiff = await orchestrator.getDiff(workDir);
+
+    if (diff && diff !== "No changes detected") {
+      const implementationSummary = cleanImplementationSummary(
+        resultOutput || "実装が完了しました。",
+      );
+
+      // UI変更がある場合はスクリーンショットを撮影
+      let screenshots: ScreenshotResult[] = [];
+      try {
+        screenshots = await captureScreenshotsForDiff(structuredDiff, {
+          workingDirectory: workDir,
+          agentOutput: resultOutput || "",
+        });
+        if (screenshots.length > 0) {
+          console.log(
+            `${logPrefix} Captured ${screenshots.length} screenshots for task ${taskId}: ${screenshots.map((s) => s.page).join(", ")}`,
+          );
+        }
+      } catch (screenshotErr) {
+        console.warn(
+          `${logPrefix} Screenshot capture failed (non-fatal):`,
+          screenshotErr,
+        );
+      }
+
+      const screenshotData = sanitizeScreenshots(screenshots);
+
+      // autoApprove設定を確認
+      const devConfig = await prisma.developerModeConfig.findUnique({
+        where: { id: configId },
+        select: { autoApprove: true },
+      });
+      const isAutoApprove = devConfig?.autoApprove === true;
+
+      try {
+        const approvalRequest = await prisma.approvalRequest.create({
+          data: {
+            configId,
+            requestType: "code_review",
+            title: `「${taskTitle}」のコードレビュー`,
+            description: implementationSummary,
+            status: isAutoApprove ? "approved" : "pending",
+            proposedChanges: toJsonString({
+              taskId,
+              sessionId,
+              workingDirectory: workDir,
+              branchName,
+              structuredDiff,
+              implementationSummary,
+              executionTimeMs,
+              screenshots: screenshotData,
+            }),
+            executionType: "code_review",
+            estimatedChanges: toJsonString({
+              filesChanged: structuredDiff.length,
+              summary: implementationSummary.substring(0, 500),
+            }),
+            ...(isAutoApprove && { approvedAt: new Date() }),
+          },
+        });
+
+        if (isAutoApprove) {
+          console.log(
+            `${logPrefix} Auto-approved code review for task ${taskId} (approval #${approvalRequest.id})`,
+          );
+        } else {
+          console.log(
+            `${logPrefix} Created code review approval #${approvalRequest.id} for task ${taskId}`,
+          );
+        }
+      } catch (approvalError) {
+        console.error(
+          `${logPrefix} Failed to create approval request for task ${taskId}:`,
+          approvalError,
+        );
+      }
+    }
+  } catch (diffError) {
+    console.error(
+      `${logPrefix} Failed to get diff for task ${taskId}:`,
+      diffError,
+    );
+  }
+}
+
 export const agentExecutionRouter = new Elysia()
   // Execute agent on task
   .post(
@@ -539,69 +654,18 @@ export const agentExecutionRouter = new Elysia()
               3
             );
 
-            const diff = await orchestrator.getFullGitDiff(workDir);
-            const structuredDiff = await orchestrator.getDiff(workDir);
-
-            if (diff && diff !== "No changes detected") {
-              const implementationSummary = cleanImplementationSummary(
-                result.output || "実装が完了しました。",
-              );
-
-              // UI変更がある場合はスクリーンショットを撮影
-              let screenshots: ScreenshotResult[] = [];
-              try {
-                screenshots = await captureScreenshotsForDiff(structuredDiff, {
-                  workingDirectory: workDir,
-                  agentOutput: result.output || "",
-                });
-                if (screenshots.length > 0) {
-                  console.log(
-                    `[API] Captured ${screenshots.length} screenshots for task ${taskIdNum}: ${screenshots.map((s) => s.page).join(", ")}`,
-                  );
-                }
-              } catch (screenshotErr) {
-                console.warn(
-                  "[API] Screenshot capture failed (non-fatal):",
-                  screenshotErr,
-                );
-              }
-
-              const screenshotData = sanitizeScreenshots(screenshots);
-              console.log(
-                `[API] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s) => s.url).join(", ")}`,
-              );
-
-              try {
-                const approvalRequest = await prisma.approvalRequest.create({
-                  data: {
-                    configId: developerModeConfig!.id,
-                    requestType: "code_review",
-                    title: `「${task.title}」のコードレビュー`,
-                    description: implementationSummary,
-                    proposedChanges: toJsonString({
-                      taskId: taskIdNum,
-                      sessionId: session.id,
-                      workingDirectory: workDir,
-                      branchName,
-                      structuredDiff,
-                      implementationSummary,
-                      executionTimeMs: result.executionTimeMs,
-                      screenshots: screenshotData,
-                    }),
-                    executionType: "code_review",
-                    estimatedChanges: toJsonString({
-                      filesChanged: structuredDiff.length,
-                      summary: implementationSummary.substring(0, 500),
-                    }),
-                  },
-                });
-              } catch (approvalError) {
-                console.error(
-                  `[API] Failed to create approval request for task ${taskIdNum}:`,
-                  approvalError,
-                );
-              }
-            }
+            // コードレビュー承認リクエスト作成（autoApprove対応）
+            await createCodeReviewApproval({
+              taskId: taskIdNum,
+              taskTitle: task.title,
+              configId: developerModeConfig!.id,
+              sessionId: session.id,
+              workDir,
+              branchName,
+              resultOutput: result.output,
+              executionTimeMs: result.executionTimeMs,
+              logPrefix: "[API]",
+            });
           } else {
             // エラーが発生した場合
             console.error(`[API] Execution failed for task ${taskIdNum}:`, result.errorMessage);
@@ -1345,6 +1409,21 @@ export const agentExecutionRouter = new Elysia()
                 "[continue-execution]",
                 3
               );
+
+              // コードレビュー承認リクエスト作成（autoApprove対応）
+              if (task.developerModeConfig) {
+                await createCodeReviewApproval({
+                  taskId,
+                  taskTitle: task.title,
+                  configId: task.developerModeConfig.id,
+                  sessionId: targetSessionId,
+                  workDir: workingDirectory,
+                  branchName: session.branchName || undefined,
+                  resultOutput: result.output,
+                  executionTimeMs: result.executionTimeMs,
+                  logPrefix: "[continue-execution]",
+                });
+              }
 
               console.log(`[continue-execution] Completed task ${taskId}`);
             } else {
