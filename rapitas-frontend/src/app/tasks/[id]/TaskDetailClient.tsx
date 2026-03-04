@@ -590,7 +590,7 @@ function TaskDetailClient({
         console.warn(
           `[TaskDetail] Skipping auto-execute for task ${taskId}: theme is not a development project`,
         );
-      } else {
+      } else if (!isExecuting) {
         // AIアシスタントパネルを表示
         setShowAIAssistant(true);
         // エージェント実行を開始
@@ -602,6 +602,10 @@ function TaskDetailClient({
           });
         }
         executeAgent();
+      } else {
+        console.warn(
+          `[TaskDetail] Skipping auto-execute for task ${taskId}: already executing`,
+        );
       }
       // URLからautoExecuteパラメータを除去（リロード時の再実行防止）
       const newParams = new URLSearchParams(searchParams.toString());
@@ -1482,21 +1486,26 @@ function TaskDetailClient({
                             );
                             startSession();
                           } else {
-                            console.log(
-                              '[TaskDetail] Auto-executing agent after analysis',
-                            );
-                            // 楽観的UI更新: エージェント実行開始時にタスクステータスをin-progressに設定
-                            if (task && task.status !== 'in-progress') {
-                              setTask((prev) => {
-                                if (!prev) return prev;
-                                return { ...prev, status: 'in-progress' };
+                            // 二重実行防止: 既に実行中なら実行しない
+                            if (isExecuting) {
+                              console.warn('[TaskDetail] Skipping auto-execute: already executing');
+                            } else {
+                              console.log(
+                                '[TaskDetail] Auto-executing agent after analysis',
+                              );
+                              // 楽観的UI更新: エージェント実行開始時にタスクステータスをin-progressに設定
+                              if (task && task.status !== 'in-progress') {
+                                setTask((prev) => {
+                                  if (!prev) return prev;
+                                  return { ...prev, status: 'in-progress' };
+                                });
+                              }
+                              await executeAgent({
+                                useTaskAnalysis: true,
+                                optimizedPrompt: optimizedPrompt || undefined,
+                                agentConfigId: agentConfigId ?? undefined,
                               });
                             }
-                            await executeAgent({
-                              useTaskAnalysis: true,
-                              optimizedPrompt: optimizedPrompt || undefined,
-                              agentConfigId: agentConfigId ?? undefined,
-                            });
                           }
                         }
                       } catch (err) {
@@ -1527,6 +1536,11 @@ function TaskDetailClient({
                   agents={agents}
                   onAgentChange={setAgentConfigId}
                   onExecute={async (options) => {
+                    // 二重実行防止: 既に実行中なら実行しない
+                    if (isExecuting) {
+                      console.warn('[TaskDetail] Skipping execute: already executing');
+                      return undefined;
+                    }
                     // 楽観的UI更新: エージェント実行開始時にタスクステータスをin-progressに設定
                     if (task && task.status !== 'in-progress') {
                       setTask((prev) => {
