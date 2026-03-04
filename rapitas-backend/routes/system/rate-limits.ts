@@ -2,9 +2,9 @@
  * Rate Limit API Routes
  */
 import { Elysia, t } from "elysia";
-import { getApiKeyForProvider } from "../utils/ai-client";
-import { prisma } from "../config/database";
-import { decrypt } from "../utils/encryption";
+import { getApiKeyForProvider } from "../../utils/ai-client";
+import { prisma } from "../../config/database";
+import { decrypt } from "../../utils/encryption";
 
 type RateLimitInfo = {
   provider: string;

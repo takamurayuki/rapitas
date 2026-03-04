@@ -2,9 +2,9 @@
  * Notifications API Routes
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { ValidationError, NotFoundError } from "../middleware/error-handler";
-import { realtimeService } from "../services/realtime-service";
+import { prisma } from "../../config/database";
+import { ValidationError, NotFoundError } from "../../middleware/error-handler";
+import { realtimeService } from "../../services/realtime-service";
 
 export const notificationsRoutes = new Elysia({ prefix: "/notifications" })
   // SSEストリーム（リアルタイム通知配信）

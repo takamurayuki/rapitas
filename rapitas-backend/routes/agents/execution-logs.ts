@@ -7,7 +7,7 @@ import { readFile } from "fs/promises";
 import {
   listExecutionLogFiles,
   getExecutionLogFile,
-} from "../services/agents/execution-file-logger";
+} from "../../services/agents/execution-file-logger";
 
 export const executionLogsRoutes = new Elysia()
   /**

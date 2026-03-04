@@ -3,8 +3,8 @@
  * Task comments endpoints with link support
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { ValidationError, NotFoundError } from "../middleware/error-handler";
+import { prisma } from "../../config/database";
+import { ValidationError, NotFoundError } from "../../middleware/error-handler";
 
 // Helper to get comment with links
 async function getCommentWithLinks(commentId: number) {

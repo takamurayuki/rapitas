@@ -47,7 +47,12 @@ function safeJsonParse(text: string): { success: boolean; data?: any; error?: st
   }
 
   // Non-JSON response - detect specific error patterns
-  if (trimmed.startsWith('Invalid `prisma') || trimmed.startsWith('Invalid `p')) {
+  if (
+    trimmed.startsWith('Invalid `prisma') ||
+    trimmed.startsWith('Invalid `p') ||
+    trimmed.includes('PrismaClient') ||
+    trimmed.includes('@prisma/client')
+  ) {
     return { success: false, error: 'Database query error detected' };
   }
 

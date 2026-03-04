@@ -2,9 +2,9 @@
  * User Settings API Routes
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { getApiKeyForProvider } from "../utils/ai-client";
-import { encrypt, decrypt, maskApiKey } from "../utils/encryption";
+import { prisma } from "../../config/database";
+import { getApiKeyForProvider } from "../../utils/ai-client";
+import { encrypt, decrypt, maskApiKey } from "../../utils/encryption";
 
 const PROVIDER_COLUMNS = {
   claude: "claudeApiKeyEncrypted",

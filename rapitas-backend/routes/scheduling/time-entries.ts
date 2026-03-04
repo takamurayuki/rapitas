@@ -3,8 +3,8 @@
  * Task time tracking endpoints
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { ValidationError } from "../middleware/error-handler";
+import { prisma } from "../../config/database";
+import { ValidationError } from "../../middleware/error-handler";
 
 export const timeEntriesRoutes = new Elysia()
   // Get time entries for a task

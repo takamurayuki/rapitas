@@ -2,7 +2,7 @@
  * Study Streak API Routes
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
+import { prisma } from "../../config/database";
 
 export const studyStreaksRoutes = new Elysia({ prefix: "/study-streaks" })
   .get("/", async (context: any) => {

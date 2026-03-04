@@ -3,7 +3,7 @@
  * 横断的な全文検索エンドポイント
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
+import { prisma } from "../../config/database";
 
 type SearchResultItem = {
   id: number;

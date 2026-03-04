@@ -3,7 +3,7 @@
  * エージェント実行設定の保存・取得API
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
+import { prisma } from "../../config/database";
 
 export const agentExecutionConfigRoutes = new Elysia({
   prefix: "/agent-execution-config",

@@ -2,7 +2,7 @@
  * Directory Browser & Favorites API Routes
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
+import { prisma } from "../../config/database";
 import * as fs from "fs";
 import * as path from "path";
 

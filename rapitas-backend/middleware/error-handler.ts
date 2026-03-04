@@ -68,6 +68,17 @@ function isPrismaError(error: unknown): boolean {
   if (message.includes("PrismaClientInitializationError")) return true;
   if (message.includes("PrismaClientValidationError")) return true;
 
+  // スタックトレースベースのフォールバック検出
+  const stack = error.stack || "";
+  if (stack.includes("@prisma/client")) return true;
+  if (stack.includes("PrismaClient")) return true;
+
+  // Prisma固有のエラーコードプロパティ（P2001-P2034等）
+  if ("code" in error && typeof (error as Record<string, unknown>).code === "string") {
+    const code = (error as Record<string, unknown>).code as string;
+    if (/^P\d{4}$/.test(code)) return true;
+  }
+
   return false;
 }
 

@@ -3,9 +3,9 @@
  * Handles label CRUD operations and task-label associations
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { labelSchema } from "../schemas/label.schema";
-import { NotFoundError, ValidationError } from "../middleware/error-handler";
+import { prisma } from "../../config/database";
+import { labelSchema } from "../../schemas/label.schema";
+import { NotFoundError, ValidationError } from "../../middleware/error-handler";
 
 export const labelsRoutes = new Elysia({ prefix: "/labels" })
   // Get all labels

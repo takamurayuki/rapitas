@@ -3,16 +3,16 @@
  * Task execution approval, code review, and subtask creation workflows
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { createOrchestrator } from "../services/agents/agent-orchestrator";
-import { GitHubService } from "../services/github-service";
-import { realtimeService } from "../services/realtime-service";
-import { toJsonString, fromJsonString } from "../utils/db-helpers";
-import type { SubtaskProposal } from "../services/claude-agent";
+import { prisma } from "../../config/database";
+import { createOrchestrator } from "../../services/agents/agent-orchestrator";
+import { GitHubService } from "../../services/github-service";
+import { realtimeService } from "../../services/realtime-service";
+import { toJsonString, fromJsonString } from "../../utils/db-helpers";
+import type { SubtaskProposal } from "../../services/claude-agent";
 import {
   captureScreenshotsForDiff,
   type ScreenshotResult,
-} from "../services/screenshot-service";
+} from "../../services/screenshot-service";
 
 // Create service instances
 const orchestrator = createOrchestrator(prisma);

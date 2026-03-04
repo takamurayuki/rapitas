@@ -11,7 +11,7 @@ import {
   detectProjectInfo,
   detectAllPages,
   type ScreenshotOptions,
-} from "../services/screenshot-service";
+} from "../../services/screenshot-service";
 
 const SCREENSHOT_DIR = join(process.cwd(), "uploads", "screenshots");
 

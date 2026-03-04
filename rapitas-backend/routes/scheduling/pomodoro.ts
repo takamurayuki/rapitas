@@ -12,7 +12,7 @@ import {
   cancelPomodoro,
   getStatistics,
   getHistory,
-} from "../services/pomodoro-service";
+} from "../../services/pomodoro-service";
 
 export const pomodoroRoutes = new Elysia({ prefix: "/pomodoro" })
   // アクティブセッション取得

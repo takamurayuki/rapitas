@@ -2,12 +2,12 @@
  * Prompts API Routes
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
+import { prisma } from "../../config/database";
 import {
   generateOptimizedPrompt,
-} from "../services/claude-agent";
-import { getDefaultProvider, getApiKeyForProvider } from "../utils/ai-client";
-import { getLabelsArray, toJsonString } from "../utils/db-helpers";
+} from "../../services/claude-agent";
+import { getDefaultProvider, getApiKeyForProvider } from "../../utils/ai-client";
+import { getLabelsArray, toJsonString } from "../../utils/db-helpers";
 
 export const promptsRoutes = new Elysia()
   // タスクのプロンプト一覧取得

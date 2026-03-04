@@ -42,8 +42,11 @@ import {
   ExecutionLogViewer,
   type ExecutionLogStatus,
 } from './ExecutionLogViewer';
+import { SubtaskLogTabs } from './SubtaskLogTabs';
 import { AgentSwitcher } from '@/components/ui/AgentSwitcher';
 import { API_BASE_URL } from '@/utils/api';
+import type { Task } from '@/types';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 
 type Props = {
   taskId: number;
@@ -77,6 +80,15 @@ type Props = {
   onStopExecution?: () => void;
   // 実行完了時のコールバック（親コンポーネントの状態更新用）
   onExecutionComplete?: () => void;
+  // サブタスク関連（タブ表示用）
+  subtasks?: Task[];
+  subtaskLogs?: Map<
+    number,
+    { logs: Array<{ timestamp: string; message: string; level: string }> }
+  >;
+  parallelSessionId?: string | null;
+  getSubtaskStatus?: (subtaskId: number) => ParallelExecutionStatus | undefined;
+  onRefreshSubtaskLogs?: (taskId?: number) => void;
 };
 
 export function AgentExecutionPanel({
@@ -95,6 +107,11 @@ export function AgentExecutionPanel({
   onRestoreExecutionState,
   onStopExecution,
   onExecutionComplete,
+  subtasks,
+  subtaskLogs,
+  parallelSessionId,
+  getSubtaskStatus,
+  onRefreshSubtaskLogs,
 }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
@@ -528,6 +545,9 @@ export function AgentExecutionPanel({
     sseStatus === 'running' ||
     isWaitingForInput;
 
+  // サブタスクタブ表示の判定
+  const hasSubtaskTabs = !!(subtasks && subtasks.length > 0 && subtaskLogs && parallelSessionId);
+
   // ExecutionLogViewer用のステータスを計算
   const logViewerStatus: ExecutionLogStatus = useMemo(() => {
     if (isRunning) return 'running';
@@ -536,6 +556,41 @@ export function AgentExecutionPanel({
     if (isFailed) return 'failed';
     return 'idle';
   }, [isRunning, isCancelled, isCompleted, isFailed]);
+
+  // ログ表示の共通レンダリング（サブタスクタブ or 通常ログ）
+  const renderLogs = (options: { running: boolean; maxHeight?: number; className?: string }) => {
+    if (hasSubtaskTabs) {
+      return (
+        <div className={options.className}>
+          <SubtaskLogTabs
+            subtasks={subtasks!}
+            getSubtaskStatus={getSubtaskStatus}
+            subtaskLogs={subtaskLogs!}
+            isRunning={options.running}
+            onRefreshLogs={onRefreshSubtaskLogs}
+            maxHeight={options.maxHeight ?? 256}
+          />
+        </div>
+      );
+    }
+
+    if (logs.length > 0) {
+      return (
+        <div className={options.className}>
+          <ExecutionLogViewer
+            logs={logs}
+            status={logViewerStatus}
+            isConnected={isSseConnected}
+            isRunning={options.running}
+            collapsible={false}
+            maxHeight={options.maxHeight ?? 256}
+          />
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   // 実行中の表示
   if (isRunning) {
@@ -699,20 +754,7 @@ export function AgentExecutionPanel({
           )}
 
           {/* ログ表示 */}
-
-          {/* ログを表示 */}
-          {logs.length > 0 && (
-            <div className="mx-6 mb-4">
-              <ExecutionLogViewer
-                logs={logs}
-                status={logViewerStatus}
-                isConnected={isSseConnected}
-                isRunning={isRunning}
-                collapsible={false}
-                maxHeight={256}
-              />
-            </div>
-          )}
+          {renderLogs({ running: true, className: 'mx-6 mb-4' })}
         </div>
       </>
     );
@@ -852,18 +894,7 @@ export function AgentExecutionPanel({
           </div>
 
           {/* ログ表示 */}
-          {logs.length > 0 && (
-            <div className="px-6 py-3 bg-emerald-100/50 dark:bg-emerald-900/20 border-t border-emerald-200 dark:border-emerald-800">
-              <ExecutionLogViewer
-                logs={logs}
-                status={logViewerStatus}
-                isConnected={isSseConnected}
-                isRunning={false}
-                collapsible={false}
-                maxHeight={256}
-              />
-            </div>
-          )}
+          {renderLogs({ running: false, className: 'px-6 py-3 bg-emerald-100/50 dark:bg-emerald-900/20 border-t border-emerald-200 dark:border-emerald-800' })}
         </div>
       </>
     );
@@ -898,18 +929,7 @@ export function AgentExecutionPanel({
           </div>
 
           {/* 停止時もログを表示 */}
-          {logs.length > 0 && (
-            <div className="px-6 py-3 bg-yellow-100/50 dark:bg-yellow-900/20 border-t border-yellow-200 dark:border-yellow-800">
-              <ExecutionLogViewer
-                logs={logs}
-                status={logViewerStatus}
-                isConnected={isSseConnected}
-                isRunning={false}
-                collapsible={false}
-                maxHeight={256}
-              />
-            </div>
-          )}
+          {renderLogs({ running: false, className: 'px-6 py-3 bg-yellow-100/50 dark:bg-yellow-900/20 border-t border-yellow-200 dark:border-yellow-800' })}
         </div>
       </>
     );
@@ -957,18 +977,7 @@ export function AgentExecutionPanel({
           </div>
 
           {/* エラー時もログを表示 */}
-          {logs.length > 0 && (
-            <div className="px-6 py-3 bg-red-100/50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800">
-              <ExecutionLogViewer
-                logs={logs}
-                status={logViewerStatus}
-                isConnected={isSseConnected}
-                isRunning={false}
-                collapsible={false}
-                maxHeight={256}
-              />
-            </div>
-          )}
+          {renderLogs({ running: false, className: 'px-6 py-3 bg-red-100/50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800' })}
         </div>
       </>
     );
@@ -1117,18 +1126,7 @@ export function AgentExecutionPanel({
             )}
 
             {/* ログ表示（初期/再実行待ち状態でも最新ログを継続表示） */}
-            {logs.length > 0 && (
-              <div className="mt-4">
-                <ExecutionLogViewer
-                  logs={logs}
-                  status={logViewerStatus}
-                  isConnected={isSseConnected}
-                  isRunning={isRunning}
-                  collapsible={false}
-                  maxHeight={256}
-                />
-              </div>
-            )}
+            {renderLogs({ running: !!isRunning, className: 'mt-4' })}
           </div>
         </>
       )}

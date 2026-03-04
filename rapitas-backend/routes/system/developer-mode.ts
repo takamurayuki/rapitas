@@ -2,7 +2,7 @@
  * Developer Mode API Routes
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
+import { prisma } from "../../config/database";
 import {
   analyzeTask,
   generateOptimizedPrompt,
@@ -10,9 +10,9 @@ import {
   generateBranchName,
   generateTaskTitle,
   type TaskAnalysisResult,
-} from "../services/claude-agent";
-import { getDefaultProvider, getApiKeyForProvider } from "../utils/ai-client";
-import { getLabelsArray, toJsonString, fromJsonString } from "../utils/db-helpers";
+} from "../../services/claude-agent";
+import { getDefaultProvider, getApiKeyForProvider } from "../../utils/ai-client";
+import { getLabelsArray, toJsonString, fromJsonString } from "../../utils/db-helpers";
 
 export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
   // 開発者モード設定取得

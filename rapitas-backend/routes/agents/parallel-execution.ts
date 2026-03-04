@@ -3,18 +3,18 @@
  * サブタスクの依存関係分析と並列実行のためのAPIエンドポイント
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
+import { prisma } from "../../config/database";
 import {
   createParallelExecutor,
   createDependencyAnalyzer,
   type DependencyAnalysisInput,
   type TaskPriority,
   type ParallelExecutionConfig,
-} from "../services/parallel-execution";
+} from "../../services/parallel-execution";
 import {
   SSEStreamController,
   getUserFriendlyErrorMessage,
-} from "../services/sse-utils";
+} from "../../services/sse-utils";
 
 // パラレル実行オーケストレーターのシングルトンインスタンス
 let parallelExecutor: ReturnType<typeof createParallelExecutor> | null = null;

@@ -3,8 +3,8 @@
  * Version control, installation, and update management for AI agents
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { logAgentConfigChange } from "../utils/agent-audit-log";
+import { prisma } from "../../config/database";
+import { logAgentConfigChange } from "../../utils/agent-audit-log";
 
 // 型定義
 interface VersionInfo {

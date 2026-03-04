@@ -1,6 +1,6 @@
 import { Elysia } from "elysia";
 import { prisma } from "../../config/database";
-import { orchestrator } from "../approvals";
+import { orchestrator } from "./approvals";
 import type { AgentExecutionWithExtras } from "../../types/agent-execution-types";
 
 /**

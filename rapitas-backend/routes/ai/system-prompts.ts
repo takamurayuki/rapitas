@@ -3,7 +3,7 @@
  * ハードコードされたプロンプトをDB管理するためのCRUDエンドポイント
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
+import { prisma } from "../../config/database";
 
 // デフォルトのシステムプロンプト定義
 const DEFAULT_SYSTEM_PROMPTS = [

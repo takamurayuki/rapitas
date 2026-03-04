@@ -2,9 +2,9 @@
  * Projects API Routes
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { projectSchema } from "../schemas/project.schema";
-import { ValidationError } from "../middleware/error-handler";
+import { prisma } from "../../config/database";
+import { projectSchema } from "../../schemas/project.schema";
+import { ValidationError } from "../../middleware/error-handler";
 
 export const projectsRoutes = new Elysia({ prefix: "/projects" })
   // Get all projects

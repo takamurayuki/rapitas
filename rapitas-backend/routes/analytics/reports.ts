@@ -2,7 +2,7 @@
  * Reports & Export API Routes
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
+import { prisma } from "../../config/database";
 
 export const reportsRoutes = new Elysia()
   // Weekly Report

@@ -3,7 +3,7 @@
  * Real-time event streaming endpoints
  */
 import { Elysia, t } from "elysia";
-import { realtimeService } from "../services/realtime-service";
+import { realtimeService } from "../../services/realtime-service";
 
 export const sseRoutes = new Elysia({ prefix: "/events" })
   // Stream all events

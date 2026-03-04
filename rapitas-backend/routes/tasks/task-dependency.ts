@@ -3,11 +3,11 @@
  * Provides task dependency analysis and visualization
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
+import { prisma } from "../../config/database";
 import {
   SSEStreamController,
   getUserFriendlyErrorMessage,
-} from "../services/sse-utils";
+} from "../../services/sse-utils";
 
 // Type definitions
 type SubtaskFileInfo = {

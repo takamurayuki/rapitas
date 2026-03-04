@@ -3,7 +3,7 @@
  * ワークフローの各フェーズ（調査・計画・レビュー・実装・検証）に割り当てるAIエージェントのロール設定API
  */
 import { Elysia } from 'elysia';
-import { prisma } from '../config';
+import { prisma } from '../../config';
 
 const VALID_ROLES = ['researcher', 'planner', 'reviewer', 'implementer', 'verifier', 'auto_verifier'] as const;
 type WorkflowRole = (typeof VALID_ROLES)[number];

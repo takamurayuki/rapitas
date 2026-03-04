@@ -3,13 +3,13 @@
  * 学習目標の作成、AI学習プラン生成、タスクへの適用
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
+import { prisma } from "../../config/database";
 import {
   sendAIMessage,
   getDefaultProvider,
   isAnyApiKeyConfigured,
   type AIMessage,
-} from "../utils/ai-client";
+} from "../../utils/ai-client";
 
 export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
   // 全学習目標を取得

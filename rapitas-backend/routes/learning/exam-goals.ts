@@ -2,8 +2,8 @@
  * Exam Goals API Routes
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { ValidationError } from "../middleware/error-handler";
+import { prisma } from "../../config/database";
+import { ValidationError } from "../../middleware/error-handler";
 
 export const examGoalsRoutes = new Elysia({ prefix: "/exam-goals" })
   .get("/", async () => {

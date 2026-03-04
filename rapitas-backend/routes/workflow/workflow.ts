@@ -5,10 +5,10 @@
 import { Elysia } from 'elysia';
 import { readFile, writeFile, mkdir, stat } from 'fs/promises';
 import { join } from 'path';
-import { prisma } from '../config';
-import { sanitizeMarkdownContent } from '../utils/mojibake-detector';
-import { analyzeTaskComplexity, getWorkflowModeConfig, type TaskComplexityInput } from '../services/workflow/complexity-analyzer';
-import { AgentOrchestrator } from '../services/agents/agent-orchestrator';
+import { prisma } from '../../config';
+import { sanitizeMarkdownContent } from '../../utils/mojibake-detector';
+import { analyzeTaskComplexity, getWorkflowModeConfig, type TaskComplexityInput } from '../../services/workflow/complexity-analyzer';
+import { AgentOrchestrator } from '../../services/agents/agent-orchestrator';
 
 const VALID_FILE_TYPES = ['research', 'question', 'plan', 'verify'] as const;
 type WorkflowFileType = (typeof VALID_FILE_TYPES)[number];
@@ -385,7 +385,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 
           // 自動的に実装フェーズを開始
           try {
-            const { WorkflowOrchestrator } = await import('../services/workflow/workflow-orchestrator');
+            const { WorkflowOrchestrator } = await import('../../services/workflow/workflow-orchestrator');
             const orchestrator = WorkflowOrchestrator.getInstance();
             orchestrator.advanceWorkflow(taskId).then((result) => {
               console.log(`[Workflow] Auto-advance after auto-approval for task ${taskId}:`, result.success ? 'success' : result.error);
@@ -488,7 +488,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       // 承認された場合、自動的に実装フェーズを開始する
       if (parsedBody.approved) {
         try {
-          const { WorkflowOrchestrator } = await import('../services/workflow/workflow-orchestrator');
+          const { WorkflowOrchestrator } = await import('../../services/workflow/workflow-orchestrator');
           const orchestrator = WorkflowOrchestrator.getInstance();
           // 非同期で実装フェーズを開始（レスポンスを待たない）
           orchestrator.advanceWorkflow(taskId).then((result) => {
@@ -574,7 +574,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         return { error: 'Invalid task ID' };
       }
 
-      const { WorkflowOrchestrator } = await import('../services/workflow/workflow-orchestrator');
+      const { WorkflowOrchestrator } = await import('../../services/workflow/workflow-orchestrator');
       const orchestrator = WorkflowOrchestrator.getInstance();
 
       // 非同期で実行開始（結果を待たずにレスポンスを返す）

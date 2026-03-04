@@ -9,7 +9,7 @@ import {
   getConfiguredProviders,
   type AIProvider,
   type AIMessage,
-} from "../utils/ai-client";
+} from "../../utils/ai-client";
 
 export const aiChatRoutes = new Elysia()
   // AIチャット（非ストリーミング）

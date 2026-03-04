@@ -2,7 +2,7 @@
  * Dashboard Statistics API Routes
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
+import { prisma } from "../../config/database";
 
 export const statisticsRoutes = new Elysia({ prefix: "/statistics" })
   .get("/overview", async () => {

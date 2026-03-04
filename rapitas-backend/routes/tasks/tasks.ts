@@ -3,19 +3,19 @@
  * Core task CRUD operations
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { AppError, ValidationError } from "../middleware/error-handler";
+import { prisma } from "../../config/database";
+import { AppError, ValidationError } from "../../middleware/error-handler";
 import {
   sendAIMessage,
   getDefaultProvider,
   isAnyApiKeyConfigured,
   type AIMessage,
-} from "../utils/ai-client";
-import { UserBehaviorService } from "../src/services/userBehaviorService";
-import { orchestrator } from "./approvals";
-import { toJsonString } from "../utils/db-helpers";
-import { checkAchievements } from "../services/achievement-checker";
-import { notifyTaskCompleted } from "../services/notification-service";
+} from "../../utils/ai-client";
+import { UserBehaviorService } from "../../src/services/userBehaviorService";
+import { orchestrator } from "../agents/approvals";
+import { toJsonString } from "../../utils/db-helpers";
+import { checkAchievements } from "../../services/achievement-checker";
+import { notifyTaskCompleted } from "../../services/notification-service";
 
 export const tasksRoutes = new Elysia({ prefix: "/tasks" })
   // Search task titles for autocomplete

@@ -1,5 +1,5 @@
 import { Elysia, t, type Context } from "elysia";
-import { prisma } from "../config";
+import { prisma } from "../../config";
 
 /**
  * バッチリクエスト処理

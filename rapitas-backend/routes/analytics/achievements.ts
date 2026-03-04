@@ -2,7 +2,7 @@
  * Achievements API Routes
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
+import { prisma } from "../../config/database";
 
 // 初期実績データ
 const ACHIEVEMENTS = [

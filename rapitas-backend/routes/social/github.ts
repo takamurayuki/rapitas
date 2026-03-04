@@ -3,8 +3,8 @@
  * GitHub repository integration, PR, and Issue management
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { GitHubService, type GitHubWebhookPayload } from "../services/github-service";
+import { prisma } from "../../config/database";
+import { GitHubService, type GitHubWebhookPayload } from "../../services/github-service";
 
 // Create GitHub service instance
 const githubService = new GitHubService(prisma);

@@ -1,5 +1,5 @@
 import { Elysia, type Context } from "elysia";
-import { prisma } from "../../config/database";
+import { prisma } from "../../../config/database";
 
 /**
  * タスク統計エンドポイント

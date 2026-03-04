@@ -3,7 +3,7 @@
  * タスク分析設定の保存・取得API
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
+import { prisma } from "../../config/database";
 
 export const taskAnalysisConfigRoutes = new Elysia({
   prefix: "/task-analysis-config",

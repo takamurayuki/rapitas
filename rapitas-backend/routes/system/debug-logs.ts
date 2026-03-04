@@ -8,8 +8,8 @@ import DebugLogAnalyzer, {
   LogLevel,
   LogAnalysisResult,
   AnalyzeOptions
-} from "../utils/debug-log-analyzer";
-import { LogParserFactory } from "../utils/debug-log-parsers";
+} from "../../utils/debug-log-analyzer";
+import { LogParserFactory } from "../../utils/debug-log-parsers";
 
 // デバッグログ解析ルーター
 export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })

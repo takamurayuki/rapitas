@@ -3,9 +3,9 @@
  * Handles theme CRUD operations and default theme management
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { themeSchema } from "../schemas/theme.schema";
-import { NotFoundError, ValidationError } from "../middleware/error-handler";
+import { prisma } from "../../config/database";
+import { themeSchema } from "../../schemas/theme.schema";
+import { NotFoundError, ValidationError } from "../../middleware/error-handler";
 
 export const themesRoutes = new Elysia({ prefix: "/themes" })
   // Get all themes

@@ -4,7 +4,7 @@
  */
 import { Elysia } from "elysia";
 import { prisma } from "../../config/database";
-import { orchestrator } from "../approvals";
+import { orchestrator } from "./approvals";
 import { isEncryptionKeyConfigured } from "../../utils/encryption";
 import { getAllAgentConfigSchemas } from "../../utils/agent-config-schema";
 import { realtimeService } from "../../services/realtime-service";

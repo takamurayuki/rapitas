@@ -2,8 +2,8 @@
  * Habits API Routes
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { checkAchievements } from "../services/achievement-checker";
+import { prisma } from "../../config/database";
+import { checkAchievements } from "../../services/achievement-checker";
 
 /**
  * ストリーク計算ロジック

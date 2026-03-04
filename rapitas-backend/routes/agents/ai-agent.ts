@@ -20,43 +20,43 @@
  * - 実行中タスク一覧
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config";
-import { toJsonString, fromJsonString } from "../utils/db-helpers";
-import { ParallelExecutor } from "../services/parallel-execution/parallel-executor";
-import type { TaskPriority } from "../services/parallel-execution/types";
+import { prisma } from "../../config";
+import { toJsonString, fromJsonString } from "../../utils/db-helpers";
+import { ParallelExecutor } from "../../services/parallel-execution/parallel-executor";
+import type { TaskPriority } from "../../services/parallel-execution/types";
 import { orchestrator } from "./approvals";
 import {
   encrypt,
   decrypt,
   maskApiKey,
   isEncryptionKeyConfigured,
-} from "../utils/encryption";
+} from "../../utils/encryption";
 import {
   logAgentConfigChange,
   calculateChanges,
-} from "../utils/agent-audit-log";
-import { agentFactory } from "../services/agents/agent-factory";
-import { getModelsForAgentType, getAllModels } from "../utils/agent-models";
+} from "../../utils/agent-audit-log";
+import { agentFactory } from "../../services/agents/agent-factory";
+import { getModelsForAgentType, getAllModels } from "../../utils/agent-models";
 import {
   validateApiKeyFormat,
   validateAgentConfig,
-} from "../utils/agent-config-schema";
+} from "../../utils/agent-config-schema";
 import {
   cleanImplementationSummary,
   sanitizeScreenshots,
-} from "../utils/agent-response-cleaner";
-import { captureScreenshotsForDiff } from "../services/screenshot-service";
-import type { ScreenshotResult } from "../services/screenshot-service";
+} from "../../utils/agent-response-cleaner";
+import { captureScreenshotsForDiff } from "../../services/screenshot-service";
+import type { ScreenshotResult } from "../../services/screenshot-service";
 
 // 機能別ルーターのインポート
-import { agentConfigRouter } from "./agents/agent-config-router";
-import { agentExecutionRouter } from "./agents/agent-execution-router";
-import { agentSessionRouter } from "./agents/agent-session-router";
+import { agentConfigRouter } from "./agent-config-router";
+import { agentExecutionRouter } from "./agent-execution-router";
+import { agentSessionRouter } from "./agent-session-router";
 import {
   agentAuditRouter,
   taskExecutionLogsRouter,
-} from "./agents/agent-audit-router";
-import { agentSystemRouter } from "./agents/agent-system-router";
+} from "./agent-audit-router";
+import { agentSystemRouter } from "./agent-system-router";
 
 // Parallel executor instance
 let parallelExecutor: ParallelExecutor | null = null;

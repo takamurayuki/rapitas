@@ -3,7 +3,7 @@
  * 一日の行動スケジュール（円グラフ表示用）
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
+import { prisma } from "../../config/database";
 
 export const dailyScheduleRoutes = new Elysia({ prefix: "/daily-schedule" })
   .get("/", async () => {

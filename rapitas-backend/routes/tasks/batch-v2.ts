@@ -1,8 +1,8 @@
 import { Elysia, t, type Context } from "elysia";
-import { prisma } from "../config";
-import { cacheService, CacheKeys } from "../services/cache-service";
-import { PrismaOptimizer, QueryOptimizers } from "../utils/prisma-optimization";
-import { performanceMonitoring } from "../middleware/performance";
+import { prisma } from "../../config";
+import { cacheService, CacheKeys } from "../../services/cache-service";
+import { PrismaOptimizer, QueryOptimizers } from "../../utils/prisma-optimization";
+import { performanceMonitoring } from "../../middleware/performance";
 
 // バッチ処理の結果型
 interface BatchResult {

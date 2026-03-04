@@ -3,8 +3,8 @@
  * Supports both URL-based resources and file uploads
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { ValidationError } from "../middleware/error-handler";
+import { prisma } from "../../config/database";
+import { ValidationError } from "../../middleware/error-handler";
 import { mkdir, writeFile, unlink, copyFile, stat } from "fs/promises";
 import { existsSync } from "fs";
 import { join, basename, extname } from "path";

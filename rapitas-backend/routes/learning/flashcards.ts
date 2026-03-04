@@ -2,8 +2,8 @@
  * Flashcards API Routes
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { decrypt } from "../utils/encryption";
+import { prisma } from "../../config/database";
+import { decrypt } from "../../utils/encryption";
 
 // Claude API Response Types
 interface ClaudeAPIResponse {

@@ -3,9 +3,9 @@
  * Handles category CRUD operations (top-level classification above themes)
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { categorySchema } from "../schemas/category.schema";
-import { NotFoundError, ValidationError } from "../middleware/error-handler";
+import { prisma } from "../../config/database";
+import { categorySchema } from "../../schemas/category.schema";
+import { NotFoundError, ValidationError } from "../../middleware/error-handler";
 
 // Default category definitions
 const DEFAULT_CATEGORIES = [

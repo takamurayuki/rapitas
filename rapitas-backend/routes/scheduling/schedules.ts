@@ -2,9 +2,9 @@
  * Schedule Events API Routes
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { ValidationError, NotFoundError } from "../middleware/error-handler";
-import { parseRRule, expandRecurrence, RECURRENCE_PRESETS } from "../services/recurrence-service";
+import { prisma } from "../../config/database";
+import { ValidationError, NotFoundError } from "../../middleware/error-handler";
+import { parseRRule, expandRecurrence, RECURRENCE_PRESETS } from "../../services/recurrence-service";
 
 export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   // Get all schedule events (with optional date range filter)

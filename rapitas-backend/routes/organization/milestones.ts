@@ -2,9 +2,9 @@
  * Milestones API Routes
  */
 import { Elysia, t } from "elysia";
-import { prisma } from "../config/database";
-import { milestoneSchema } from "../schemas/milestone.schema";
-import { ValidationError } from "../middleware/error-handler";
+import { prisma } from "../../config/database";
+import { milestoneSchema } from "../../schemas/milestone.schema";
+import { ValidationError } from "../../middleware/error-handler";
 
 export const milestonesRoutes = new Elysia({ prefix: "/milestones" })
   // Get all milestones

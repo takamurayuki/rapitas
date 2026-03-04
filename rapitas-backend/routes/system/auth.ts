@@ -1,5 +1,5 @@
 import { Elysia, t } from 'elysia';
-import { prisma } from '../config/database';
+import { prisma } from '../../config/database';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { google } from 'googleapis';
