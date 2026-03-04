@@ -1,24 +1,24 @@
 {
   "metadata": {
-    "generatedAt": "2026-03-04T01:52:12.749Z",
-    "executionTimeMs": 1485,
+    "generatedAt": "2026-03-04T07:56:59.037Z",
+    "executionTimeMs": 12465,
     "projectRoot": "C:\\Projects\\rapitas"
   },
   "codeMetrics": {
     "byExtension": [
       {
         "extension": ".ts",
-        "fileCount": 247,
-        "totalLines": 80655,
-        "totalSize": 2474487,
-        "avgLines": 327
+        "fileCount": 246,
+        "totalLines": 81115,
+        "totalSize": 2500002,
+        "avgLines": 330
       },
       {
         "extension": ".tsx",
         "fileCount": 169,
-        "totalLines": 65211,
-        "totalSize": 2475425,
-        "avgLines": 386
+        "totalLines": 65336,
+        "totalSize": 2483623,
+        "avgLines": 387
       },
       {
         "extension": ".yaml",
@@ -29,16 +29,16 @@
       },
       {
         "extension": ".md",
-        "fileCount": 110,
-        "totalLines": 10689,
-        "totalSize": 435451,
-        "avgLines": 97
+        "fileCount": 158,
+        "totalLines": 12882,
+        "totalSize": 530549,
+        "avgLines": 82
       },
       {
         "extension": ".json",
         "fileCount": 10,
-        "totalLines": 3260,
-        "totalSize": 102675,
+        "totalLines": 3255,
+        "totalSize": 102523,
         "avgLines": 326
       },
       {
@@ -64,17 +64,17 @@
       },
       {
         "extension": ".html",
-        "fileCount": 42,
-        "totalLines": 1211,
-        "totalSize": 778877,
+        "fileCount": 41,
+        "totalLines": 1195,
+        "totalSize": 778280,
         "avgLines": 29
       },
       {
         "extension": ".prisma",
         "fileCount": 1,
-        "totalLines": 1008,
-        "totalSize": 40482,
-        "avgLines": 1008
+        "totalLines": 1010,
+        "totalSize": 40580,
+        "avgLines": 1010
       },
       {
         "extension": ".sql",
@@ -104,13 +104,13 @@
       },
       "analysis-report.md": {
         "files": 1,
-        "lines": 804,
-        "size": 44086
+        "lines": 803,
+        "size": 44009
       },
       "analysis-result.json": {
         "files": 1,
-        "lines": 3007,
-        "size": 95490
+        "lines": 3002,
+        "size": 95338
       },
       "docs": {
         "files": 1,
@@ -138,9 +138,9 @@
         "size": 13941
       },
       "rapitas-backend": {
-        "files": 286,
-        "lines": 73550,
-        "size": 2376741
+        "files": 333,
+        "lines": 76315,
+        "size": 2498776
       },
       "rapitas-desktop": {
         "files": 141,
@@ -149,18 +149,13 @@
       },
       "rapitas-frontend": {
         "files": 257,
-        "lines": 94043,
-        "size": 3358305
+        "lines": 94059,
+        "size": 3365256
       },
       "README.md": {
         "files": 1,
         "lines": 473,
         "size": 14204
-      },
-      "test.html": {
-        "files": 1,
-        "lines": 16,
-        "size": 597
       }
     },
     "largestFiles": [
@@ -171,13 +166,13 @@
       },
       {
         "path": "rapitas-backend\\services\\agents\\agent-orchestrator.ts",
-        "lines": 3883,
-        "size": 129324
+        "lines": 3934,
+        "size": 130956
       },
       {
         "path": "analysis-result.json",
-        "lines": 3007,
-        "size": 95490
+        "lines": 3002,
+        "size": 95338
       },
       {
         "path": "rapitas-frontend\\src\\components\\note\\NoteEditor.tsx",
@@ -186,8 +181,8 @@
       },
       {
         "path": "rapitas-frontend\\src\\app\\tasks\\[id]\\TaskDetailClient.tsx",
-        "lines": 2036,
-        "size": 85810
+        "lines": 2044,
+        "size": 86120
       },
       {
         "path": "rapitas-frontend\\src\\components\\category\\IconData.ts",
@@ -200,9 +195,14 @@
         "size": 71700
       },
       {
-        "path": "rapitas-backend\\routes\\tasks.ts",
-        "lines": 1568,
-        "size": 52808
+        "path": "rapitas-backend\\routes\\tasks\\tasks.ts",
+        "lines": 1585,
+        "size": 53713
+      },
+      {
+        "path": "rapitas-backend\\services\\agents\\claude-code-agent.ts",
+        "lines": 1579,
+        "size": 64073
       },
       {
         "path": "rapitas-frontend\\src\\app\\HomeClient.tsx",
@@ -210,19 +210,19 @@
         "size": 68060
       },
       {
-        "path": "rapitas-backend\\services\\agents\\claude-code-agent.ts",
-        "lines": 1551,
-        "size": 62943
-      },
-      {
         "path": "rapitas-frontend\\src\\feature\\developer-mode\\components\\DeveloperModeConfig.tsx",
-        "lines": 1518,
-        "size": 55140
+        "lines": 1556,
+        "size": 58191
       },
       {
-        "path": "rapitas-backend\\routes\\ai-agent.ts",
-        "lines": 1513,
-        "size": 49163
+        "path": "rapitas-backend\\routes\\agents\\agent-execution-router.ts",
+        "lines": 1532,
+        "size": 55584
+      },
+      {
+        "path": "rapitas-backend\\routes\\agents\\ai-agent.ts",
+        "lines": 1532,
+        "size": 49773
       },
       {
         "path": "rapitas-frontend\\src\\feature\\developer-mode\\components\\AIAnalysisPanel.tsx",
@@ -232,12 +232,7 @@
       {
         "path": "rapitas-frontend\\src\\feature\\tasks\\components\\MemoSection.tsx",
         "lines": 1403,
-        "size": 52160
-      },
-      {
-        "path": "rapitas-backend\\routes\\agents\\agent-execution-router.ts",
-        "lines": 1371,
-        "size": 48402
+        "size": 53636
       },
       {
         "path": "rapitas-desktop\\scripts\\dev.js",
@@ -255,119 +250,24 @@
         "size": 38894
       },
       {
-        "path": "rapitas-frontend\\src\\types\\index.ts",
-        "lines": 1232,
-        "size": 28570
+        "path": "rapitas-frontend\\src\\app\\themes\\page.tsx",
+        "lines": 1190,
+        "size": 50837
       },
       {
-        "path": "rapitas-frontend\\src\\app\\themes\\page.tsx",
-        "lines": 1184,
-        "size": 50596
+        "path": "rapitas-frontend\\src\\app\\globals.css",
+        "lines": 1177,
+        "size": 24840
       }
     ],
-    "totalFiles": 703,
-    "totalLines": 181171,
-    "totalSize": 10966693
+    "totalFiles": 749,
+    "totalLines": 183930,
+    "totalSize": 11094853
   },
   "architecture": {
     "backend": {
-      "routeFiles": 59,
+      "routeFiles": 58,
       "endpoints": [
-        {
-          "method": "GET",
-          "path": "/achievements/",
-          "file": "rapitas-backend\\routes\\achievements.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/achievements/:key/unlock",
-          "file": "rapitas-backend\\routes\\achievements.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/achievements/check",
-          "file": "rapitas-backend\\routes\\achievements.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/agent-execution-config/:taskId",
-          "file": "rapitas-backend\\routes\\agent-execution-config.ts"
-        },
-        {
-          "method": "PUT",
-          "path": "/agent-execution-config/:taskId",
-          "file": "rapitas-backend\\routes\\agent-execution-config.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/agent-execution-config/:taskId",
-          "file": "rapitas-backend\\routes\\agent-execution-config.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/agent-execution-config/:taskId",
-          "file": "rapitas-backend\\routes\\agent-execution-config.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/agent-execution-config/defaults/values",
-          "file": "rapitas-backend\\routes\\agent-execution-config.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/agent-metrics/",
-          "file": "rapitas-backend\\routes\\agent-metrics.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/agent-metrics/overview",
-          "file": "rapitas-backend\\routes\\agent-metrics.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/agent-metrics/trends",
-          "file": "rapitas-backend\\routes\\agent-metrics.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/agent-metrics/performance",
-          "file": "rapitas-backend\\routes\\agent-metrics.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/agent-metrics/:agentId",
-          "file": "rapitas-backend\\routes\\agent-metrics.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/agents/versions",
-          "file": "rapitas-backend\\routes\\agent-version-management.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/agent-types/:agentType/versions",
-          "file": "rapitas-backend\\routes\\agent-version-management.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/agents/:id/update",
-          "file": "rapitas-backend\\routes\\agent-version-management.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/agents/:id/install",
-          "file": "rapitas-backend\\routes\\agent-version-management.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/agents/:id/uninstall",
-          "file": "rapitas-backend\\routes\\agent-version-management.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/agents/:id/version-history",
-          "file": "rapitas-backend\\routes\\agent-version-management.ts"
-        },
         {
           "method": "GET",
           "path": "/agents/:id/audit-logs",
@@ -424,6 +324,31 @@
           "file": "rapitas-backend\\routes\\agents\\agent-config-router.ts"
         },
         {
+          "method": "GET",
+          "path": "/agent-execution-config/:taskId",
+          "file": "rapitas-backend\\routes\\agents\\agent-execution-config.ts"
+        },
+        {
+          "method": "PUT",
+          "path": "/agent-execution-config/:taskId",
+          "file": "rapitas-backend\\routes\\agents\\agent-execution-config.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/agent-execution-config/:taskId",
+          "file": "rapitas-backend\\routes\\agents\\agent-execution-config.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/agent-execution-config/:taskId",
+          "file": "rapitas-backend\\routes\\agents\\agent-execution-config.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/agent-execution-config/defaults/values",
+          "file": "rapitas-backend\\routes\\agents\\agent-execution-config.ts"
+        },
+        {
           "method": "POST",
           "path": "/tasks/:id/execute",
           "file": "rapitas-backend\\routes\\agents\\agent-execution-router.ts"
@@ -452,6 +377,31 @@
           "method": "POST",
           "path": "/tasks/:id/reset-execution-state",
           "file": "rapitas-backend\\routes\\agents\\agent-execution-router.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/agent-metrics/",
+          "file": "rapitas-backend\\routes\\agents\\agent-metrics.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/agent-metrics/overview",
+          "file": "rapitas-backend\\routes\\agents\\agent-metrics.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/agent-metrics/trends",
+          "file": "rapitas-backend\\routes\\agents\\agent-metrics.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/agent-metrics/performance",
+          "file": "rapitas-backend\\routes\\agents\\agent-metrics.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/agent-metrics/:agentId",
+          "file": "rapitas-backend\\routes\\agents\\agent-metrics.ts"
         },
         {
           "method": "GET",
@@ -514,1314 +464,1414 @@
           "file": "rapitas-backend\\routes\\agents\\agent-system-router.ts"
         },
         {
+          "method": "GET",
+          "path": "/agents/versions",
+          "file": "rapitas-backend\\routes\\agents\\agent-version-management.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/agent-types/:agentType/versions",
+          "file": "rapitas-backend\\routes\\agents\\agent-version-management.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/agents/:id/update",
+          "file": "rapitas-backend\\routes\\agents\\agent-version-management.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/agents/:id/install",
+          "file": "rapitas-backend\\routes\\agents\\agent-version-management.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/agents/:id/uninstall",
+          "file": "rapitas-backend\\routes\\agents\\agent-version-management.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/agents/:id/version-history",
+          "file": "rapitas-backend\\routes\\agents\\agent-version-management.ts"
+        },
+        {
           "method": "POST",
           "path": "/agents",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "PATCH",
           "path": "/agents/:id",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "GET",
           "path": "/agents/:id",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "DELETE",
           "path": "/agents/:id",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "POST",
           "path": "/agents/:id/api-key",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "DELETE",
           "path": "/agents/:id/api-key",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "POST",
           "path": "/agents/:id/test",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "GET",
           "path": "/agents/types",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "GET",
           "path": "/agents/models",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "POST",
           "path": "/agents/development",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "POST",
           "path": "/agents/review",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "POST",
           "path": "/agents/validate-config",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "POST",
           "path": "/agents/:id/test-connection",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "POST",
           "path": "/agents/executions/:id/acknowledge",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "POST",
           "path": "/agents/executions/:id/resume",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "GET",
           "path": "/tasks/executing",
-          "file": "rapitas-backend\\routes\\ai-agent.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/ai/chat",
-          "file": "rapitas-backend\\routes\\ai-chat.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/ai/chat/stream",
-          "file": "rapitas-backend\\routes\\ai-chat.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/ai/providers",
-          "file": "rapitas-backend\\routes\\ai-chat.ts"
+          "file": "rapitas-backend\\routes\\agents\\ai-agent.ts"
         },
         {
           "method": "GET",
           "path": "/approvals/",
-          "file": "rapitas-backend\\routes\\approvals.ts"
+          "file": "rapitas-backend\\routes\\agents\\approvals.ts"
         },
         {
           "method": "GET",
           "path": "/approvals/:id",
-          "file": "rapitas-backend\\routes\\approvals.ts"
+          "file": "rapitas-backend\\routes\\agents\\approvals.ts"
         },
         {
           "method": "POST",
           "path": "/approvals/:id/approve",
-          "file": "rapitas-backend\\routes\\approvals.ts"
+          "file": "rapitas-backend\\routes\\agents\\approvals.ts"
         },
         {
           "method": "POST",
           "path": "/approvals/:id/reject",
-          "file": "rapitas-backend\\routes\\approvals.ts"
+          "file": "rapitas-backend\\routes\\agents\\approvals.ts"
         },
         {
           "method": "POST",
           "path": "/approvals/:id/approve-code-review",
-          "file": "rapitas-backend\\routes\\approvals.ts"
+          "file": "rapitas-backend\\routes\\agents\\approvals.ts"
         },
         {
           "method": "POST",
           "path": "/approvals/:id/reject-code-review",
-          "file": "rapitas-backend\\routes\\approvals.ts"
+          "file": "rapitas-backend\\routes\\agents\\approvals.ts"
         },
         {
           "method": "POST",
           "path": "/approvals/:id/request-changes",
-          "file": "rapitas-backend\\routes\\approvals.ts"
+          "file": "rapitas-backend\\routes\\agents\\approvals.ts"
         },
         {
           "method": "GET",
           "path": "/approvals/:id/diff",
-          "file": "rapitas-backend\\routes\\approvals.ts"
+          "file": "rapitas-backend\\routes\\agents\\approvals.ts"
         },
         {
           "method": "POST",
           "path": "/approvals/bulk-approve",
-          "file": "rapitas-backend\\routes\\approvals.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/auth/register",
-          "file": "rapitas-backend\\routes\\auth.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/authx-forwarded-for",
-          "file": "rapitas-backend\\routes\\auth.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/auth/login",
-          "file": "rapitas-backend\\routes\\auth.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/authx-forwarded-for",
-          "file": "rapitas-backend\\routes\\auth.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/auth/logout",
-          "file": "rapitas-backend\\routes\\auth.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/auth/me",
-          "file": "rapitas-backend\\routes\\auth.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/auth/sessions",
-          "file": "rapitas-backend\\routes\\auth.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/auth/sessions/:sessionId",
-          "file": "rapitas-backend\\routes\\auth.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/auth/cleanup-sessions",
-          "file": "rapitas-backend\\routes\\auth.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/auth/google/url",
-          "file": "rapitas-backend\\routes\\auth.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/auth/google",
-          "file": "rapitas-backend\\routes\\auth.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/auth/google/callback",
-          "file": "rapitas-backend\\routes\\auth.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/batch/v2/",
-          "file": "rapitas-backend\\routes\\batch-v2.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/batch/v2/stats",
-          "file": "rapitas-backend\\routes\\batch-v2.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/batch/",
-          "file": "rapitas-backend\\routes\\batch.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/batchthemeId",
-          "file": "rapitas-backend\\routes\\batch.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/batchstatus",
-          "file": "rapitas-backend\\routes\\batch.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/batchsince",
-          "file": "rapitas-backend\\routes\\batch.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/categories/seed-defaults",
-          "file": "rapitas-backend\\routes\\categories.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/categories/default-category",
-          "file": "rapitas-backend\\routes\\categories.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/categories/",
-          "file": "rapitas-backend\\routes\\categories.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/categories/:id",
-          "file": "rapitas-backend\\routes\\categories.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/categories/",
-          "file": "rapitas-backend\\routes\\categories.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/categories/:id",
-          "file": "rapitas-backend\\routes\\categories.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/categories/:id",
-          "file": "rapitas-backend\\routes\\categories.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/categories/:id/set-default",
-          "file": "rapitas-backend\\routes\\categories.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/categories/reorder",
-          "file": "rapitas-backend\\routes\\categories.ts"
+          "file": "rapitas-backend\\routes\\agents\\approvals.ts"
         },
         {
           "method": "GET",
           "path": "/cli-tools",
-          "file": "rapitas-backend\\routes\\cli-tools-management.ts"
+          "file": "rapitas-backend\\routes\\agents\\cli-tools-management.ts"
         },
         {
           "method": "GET",
           "path": "/cli-tools/:toolId",
-          "file": "rapitas-backend\\routes\\cli-tools-management.ts"
+          "file": "rapitas-backend\\routes\\agents\\cli-tools-management.ts"
         },
         {
           "method": "POST",
           "path": "/cli-tools/:toolId/install",
-          "file": "rapitas-backend\\routes\\cli-tools-management.ts"
+          "file": "rapitas-backend\\routes\\agents\\cli-tools-management.ts"
         },
         {
           "method": "POST",
           "path": "/cli-tools/:toolId/update",
-          "file": "rapitas-backend\\routes\\cli-tools-management.ts"
+          "file": "rapitas-backend\\routes\\agents\\cli-tools-management.ts"
         },
         {
           "method": "POST",
           "path": "/cli-tools/:toolId/auth",
-          "file": "rapitas-backend\\routes\\cli-tools-management.ts"
+          "file": "rapitas-backend\\routes\\agents\\cli-tools-management.ts"
         },
         {
           "method": "GET",
           "path": "/cli-tools/:toolId/install-guide",
-          "file": "rapitas-backend\\routes\\cli-tools-management.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/tasks/:id/comments",
-          "file": "rapitas-backend\\routes\\comments.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/tasks/:id/comments",
-          "file": "rapitas-backend\\routes\\comments.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/comments/:id",
-          "file": "rapitas-backend\\routes\\comments.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/comments/:id",
-          "file": "rapitas-backend\\routes\\comments.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/comments/:id/links",
-          "file": "rapitas-backend\\routes\\comments.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/comments/:id/links",
-          "file": "rapitas-backend\\routes\\comments.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/comment-links/:id",
-          "file": "rapitas-backend\\routes\\comments.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/comment-links/:id",
-          "file": "rapitas-backend\\routes\\comments.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/comments/search",
-          "file": "rapitas-backend\\routes\\comments.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/daily-schedule/",
-          "file": "rapitas-backend\\routes\\daily-schedule.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/daily-schedule/",
-          "file": "rapitas-backend\\routes\\daily-schedule.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/daily-schedule/:id",
-          "file": "rapitas-backend\\routes\\daily-schedule.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/daily-schedule/:id",
-          "file": "rapitas-backend\\routes\\daily-schedule.ts"
-        },
-        {
-          "method": "PUT",
-          "path": "/daily-schedule/bulk",
-          "file": "rapitas-backend\\routes\\daily-schedule.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/debug-logs/analyze",
-          "file": "rapitas-backend\\routes\\debug-logs.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/debug-logs/detect-type",
-          "file": "rapitas-backend\\routes\\debug-logs.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/debug-logs/analyze-stream",
-          "file": "rapitas-backend\\routes\\debug-logs.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/debug-logs/supported-types",
-          "file": "rapitas-backend\\routes\\debug-logs.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/developer-mode/config/:taskId",
-          "file": "rapitas-backend\\routes\\developer-mode.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/developer-mode/enable/:taskId",
-          "file": "rapitas-backend\\routes\\developer-mode.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/developer-mode/disable/:taskId",
-          "file": "rapitas-backend\\routes\\developer-mode.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/developer-mode/config/:taskId",
-          "file": "rapitas-backend\\routes\\developer-mode.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/developer-mode/analyze/:taskId",
-          "file": "rapitas-backend\\routes\\developer-mode.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/developer-mode/optimize-prompt/:taskId",
-          "file": "rapitas-backend\\routes\\developer-mode.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/developer-mode/format-prompt/:taskId",
-          "file": "rapitas-backend\\routes\\developer-mode.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/developer-mode/generate-branch-name",
-          "file": "rapitas-backend\\routes\\developer-mode.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/developer-mode/sessions/:taskId",
-          "file": "rapitas-backend\\routes\\developer-mode.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/developer-mode/generate-title",
-          "file": "rapitas-backend\\routes\\developer-mode.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/directories/browse",
-          "file": "rapitas-backend\\routes\\directories.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/directories/validate",
-          "file": "rapitas-backend\\routes\\directories.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/directories/favorites",
-          "file": "rapitas-backend\\routes\\directories.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/directories/favorites",
-          "file": "rapitas-backend\\routes\\directories.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/directories/favorites/:id",
-          "file": "rapitas-backend\\routes\\directories.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/directories/create",
-          "file": "rapitas-backend\\routes\\directories.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/directories/favorites/:id",
-          "file": "rapitas-backend\\routes\\directories.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/exam-goals/",
-          "file": "rapitas-backend\\routes\\exam-goals.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/exam-goals/:id",
-          "file": "rapitas-backend\\routes\\exam-goals.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/exam-goals/",
-          "file": "rapitas-backend\\routes\\exam-goals.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/exam-goals/:id",
-          "file": "rapitas-backend\\routes\\exam-goals.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/exam-goals/:id",
-          "file": "rapitas-backend\\routes\\exam-goals.ts"
+          "file": "rapitas-backend\\routes\\agents\\cli-tools-management.ts"
         },
         {
           "method": "GET",
           "path": "/api/execution-logs",
-          "file": "rapitas-backend\\routes\\execution-logs.ts"
+          "file": "rapitas-backend\\routes\\agents\\execution-logs.ts"
         },
         {
           "method": "GET",
           "path": "/api/execution-logs/:executionId",
-          "file": "rapitas-backend\\routes\\execution-logs.ts"
+          "file": "rapitas-backend\\routes\\agents\\execution-logs.ts"
         },
         {
           "method": "GET",
           "path": "/api/execution-logs/:executionId/download",
-          "file": "rapitas-backend\\routes\\execution-logs.ts"
+          "file": "rapitas-backend\\routes\\agents\\execution-logs.ts"
         },
         {
           "method": "GET",
           "path": "/api/execution-logs/:executionId/errors",
-          "file": "rapitas-backend\\routes\\execution-logs.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/flashcard-decks",
-          "file": "rapitas-backend\\routes\\flashcards.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/flashcard-decks/:id",
-          "file": "rapitas-backend\\routes\\flashcards.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/flashcard-decks",
-          "file": "rapitas-backend\\routes\\flashcards.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/flashcard-decks/:id",
-          "file": "rapitas-backend\\routes\\flashcards.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/flashcard-decks/:deckId/cards",
-          "file": "rapitas-backend\\routes\\flashcards.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/flashcards/:id",
-          "file": "rapitas-backend\\routes\\flashcards.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/flashcards/:id",
-          "file": "rapitas-backend\\routes\\flashcards.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/flashcards/:id/review",
-          "file": "rapitas-backend\\routes\\flashcards.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/flashcards/due",
-          "file": "rapitas-backend\\routes\\flashcards.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/flashcard-decks/:deckId/generate",
-          "file": "rapitas-backend\\routes\\flashcards.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/github/status",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/github/integrations",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/github/integrations",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/github/integrations/:id",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/github/integrations/:id",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/github/integrations/:id",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/github/integrations/:id/sync-prs",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/github/integrations/:id/sync-issues",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/github/integrations/:id/pull-requests",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/github/pull-requests/:id",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/github/pull-requests/:id/diff",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/github/pull-requests/:id/comments",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/github/pull-requests/:id/approve",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/github/pull-requests/:id/request-changes",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/github/integrations/:id/issues",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/github/issues/:id",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/github/issues/:id/comments",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/github/issues/:id/create-task",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/github/webhook",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/githubx-github-event",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/github/tasks/:id/create-github-issue",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/github/tasks/:id/link-github-pr/:prId",
-          "file": "rapitas-backend\\routes\\github.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/habits/",
-          "file": "rapitas-backend\\routes\\habits.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/habits/:id",
-          "file": "rapitas-backend\\routes\\habits.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/habits/streaks/all",
-          "file": "rapitas-backend\\routes\\habits.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/habits/",
-          "file": "rapitas-backend\\routes\\habits.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/habits/:id",
-          "file": "rapitas-backend\\routes\\habits.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/habits/:id",
-          "file": "rapitas-backend\\routes\\habits.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/habits/:id/log",
-          "file": "rapitas-backend\\routes\\habits.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/habits/:id/statistics",
-          "file": "rapitas-backend\\routes\\habits.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/labels/",
-          "file": "rapitas-backend\\routes\\labels.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/labels/:id",
-          "file": "rapitas-backend\\routes\\labels.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/labels/",
-          "file": "rapitas-backend\\routes\\labels.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/labels/:id",
-          "file": "rapitas-backend\\routes\\labels.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/labels/reorder",
-          "file": "rapitas-backend\\routes\\labels.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/labels/:id",
-          "file": "rapitas-backend\\routes\\labels.ts"
-        },
-        {
-          "method": "PUT",
-          "path": "/labels/tasks/:id/labels",
-          "file": "rapitas-backend\\routes\\labels.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/learning-goals/",
-          "file": "rapitas-backend\\routes\\learning-goals.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/learning-goals/:id",
-          "file": "rapitas-backend\\routes\\learning-goals.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/learning-goals/",
-          "file": "rapitas-backend\\routes\\learning-goals.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/learning-goals/:id",
-          "file": "rapitas-backend\\routes\\learning-goals.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/learning-goals/:id",
-          "file": "rapitas-backend\\routes\\learning-goals.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/learning-goals/:id/generate-plan",
-          "file": "rapitas-backend\\routes\\learning-goals.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/learning-goals/:id/apply",
-          "file": "rapitas-backend\\routes\\learning-goals.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/milestones/",
-          "file": "rapitas-backend\\routes\\milestones.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/milestones/:id",
-          "file": "rapitas-backend\\routes\\milestones.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/milestones/",
-          "file": "rapitas-backend\\routes\\milestones.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/milestones/:id",
-          "file": "rapitas-backend\\routes\\milestones.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/milestones/:id",
-          "file": "rapitas-backend\\routes\\milestones.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/notifications/stream",
-          "file": "rapitas-backend\\routes\\notifications.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/notifications/",
-          "file": "rapitas-backend\\routes\\notifications.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/notifications/unread-count",
-          "file": "rapitas-backend\\routes\\notifications.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/notifications/:id/read",
-          "file": "rapitas-backend\\routes\\notifications.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/notifications/mark-all-read",
-          "file": "rapitas-backend\\routes\\notifications.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/notifications/:id",
-          "file": "rapitas-backend\\routes\\notifications.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/notifications/",
-          "file": "rapitas-backend\\routes\\notifications.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/paid-leave/balance",
-          "file": "rapitas-backend\\routes\\paid-leave.ts"
-        },
-        {
-          "method": "PUT",
-          "path": "/paid-leave/balance",
-          "file": "rapitas-backend\\routes\\paid-leave.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/paid-leave/history",
-          "file": "rapitas-backend\\routes\\paid-leave.ts"
+          "file": "rapitas-backend\\routes\\agents\\execution-logs.ts"
         },
         {
           "method": "GET",
           "path": "/parallel/tasks/:id/analyze",
-          "file": "rapitas-backend\\routes\\parallel-execution.ts"
+          "file": "rapitas-backend\\routes\\agents\\parallel-execution.ts"
         },
         {
           "method": "GET",
           "path": "/parallel/tasks/:id/analyze/stream",
-          "file": "rapitas-backend\\routes\\parallel-execution.ts"
+          "file": "rapitas-backend\\routes\\agents\\parallel-execution.ts"
         },
         {
           "method": "POST",
           "path": "/parallel/tasks/:id/execute",
-          "file": "rapitas-backend\\routes\\parallel-execution.ts"
+          "file": "rapitas-backend\\routes\\agents\\parallel-execution.ts"
         },
         {
           "method": "GET",
           "path": "/parallel/sessions/:sessionId/status",
-          "file": "rapitas-backend\\routes\\parallel-execution.ts"
+          "file": "rapitas-backend\\routes\\agents\\parallel-execution.ts"
         },
         {
           "method": "POST",
           "path": "/parallel/sessions/:sessionId/stop",
-          "file": "rapitas-backend\\routes\\parallel-execution.ts"
+          "file": "rapitas-backend\\routes\\agents\\parallel-execution.ts"
         },
         {
           "method": "GET",
           "path": "/parallel/sessions/:sessionId/logs",
-          "file": "rapitas-backend\\routes\\parallel-execution.ts"
+          "file": "rapitas-backend\\routes\\agents\\parallel-execution.ts"
         },
         {
           "method": "GET",
           "path": "/parallel/sessions/:sessionId/logs/stream",
-          "file": "rapitas-backend\\routes\\parallel-execution.ts"
+          "file": "rapitas-backend\\routes\\agents\\parallel-execution.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/ai/chat",
+          "file": "rapitas-backend\\routes\\ai\\ai-chat.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/ai/chat/stream",
+          "file": "rapitas-backend\\routes\\ai\\ai-chat.ts"
         },
         {
           "method": "GET",
-          "path": "/pomodoro/active",
-          "file": "rapitas-backend\\routes\\pomodoro.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/pomodoro/start",
-          "file": "rapitas-backend\\routes\\pomodoro.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/pomodoro/sessions/:id/pause",
-          "file": "rapitas-backend\\routes\\pomodoro.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/pomodoro/sessions/:id/resume",
-          "file": "rapitas-backend\\routes\\pomodoro.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/pomodoro/sessions/:id/complete",
-          "file": "rapitas-backend\\routes\\pomodoro.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/pomodoro/sessions/:id/cancel",
-          "file": "rapitas-backend\\routes\\pomodoro.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/pomodoro/statistics",
-          "file": "rapitas-backend\\routes\\pomodoro.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/pomodoro/history",
-          "file": "rapitas-backend\\routes\\pomodoro.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/projects/",
-          "file": "rapitas-backend\\routes\\projects.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/projects/:id",
-          "file": "rapitas-backend\\routes\\projects.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/projects/",
-          "file": "rapitas-backend\\routes\\projects.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/projects/:id",
-          "file": "rapitas-backend\\routes\\projects.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/projects/:id",
-          "file": "rapitas-backend\\routes\\projects.ts"
+          "path": "/ai/providers",
+          "file": "rapitas-backend\\routes\\ai\\ai-chat.ts"
         },
         {
           "method": "GET",
           "path": "/tasks/:id/prompts",
-          "file": "rapitas-backend\\routes\\prompts.ts"
+          "file": "rapitas-backend\\routes\\ai\\prompts.ts"
         },
         {
           "method": "POST",
           "path": "/tasks/:id/prompts",
-          "file": "rapitas-backend\\routes\\prompts.ts"
+          "file": "rapitas-backend\\routes\\ai\\prompts.ts"
         },
         {
           "method": "PATCH",
           "path": "/prompts/:id",
-          "file": "rapitas-backend\\routes\\prompts.ts"
+          "file": "rapitas-backend\\routes\\ai\\prompts.ts"
         },
         {
           "method": "DELETE",
           "path": "/prompts/:id",
-          "file": "rapitas-backend\\routes\\prompts.ts"
+          "file": "rapitas-backend\\routes\\ai\\prompts.ts"
         },
         {
           "method": "POST",
           "path": "/tasks/:id/prompts/generate-all",
-          "file": "rapitas-backend\\routes\\prompts.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/rate-limits/",
-          "file": "rapitas-backend\\routes\\rate-limits.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/reports/weekly",
-          "file": "rapitas-backend\\routes\\reports.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/export/tasks",
-          "file": "rapitas-backend\\routes\\reports.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/tasks/:id/resources",
-          "file": "rapitas-backend\\routes\\resources.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/resources",
-          "file": "rapitas-backend\\routes\\resources.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/resources/upload",
-          "file": "rapitas-backend\\routes\\resources.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/resources/upload-from-path",
-          "file": "rapitas-backend\\routes\\resources.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/resources/file/:filename",
-          "file": "rapitas-backend\\routes\\resources.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/resources/download/:filename",
-          "file": "rapitas-backend\\routes\\resources.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/resources/:id",
-          "file": "rapitas-backend\\routes\\resources.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/schedules/",
-          "file": "rapitas-backend\\routes\\schedules.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/schedules/recurrence-presets",
-          "file": "rapitas-backend\\routes\\schedules.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/schedules/:id",
-          "file": "rapitas-backend\\routes\\schedules.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/schedules/",
-          "file": "rapitas-backend\\routes\\schedules.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/schedules/:id",
-          "file": "rapitas-backend\\routes\\schedules.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/schedules/:id",
-          "file": "rapitas-backend\\routes\\schedules.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/schedules/:id/exception",
-          "file": "rapitas-backend\\routes\\schedules.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/schedules/:id/stop-recurrence",
-          "file": "rapitas-backend\\routes\\schedules.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/schedules/reminders/pending",
-          "file": "rapitas-backend\\routes\\schedules.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/schedules/reminders/:id/sent",
-          "file": "rapitas-backend\\routes\\schedules.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/screenshots/:filename",
-          "file": "rapitas-backend\\routes\\screenshots.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/screenshots/capture",
-          "file": "rapitas-backend\\routes\\screenshots.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/screenshots/capture-all",
-          "file": "rapitas-backend\\routes\\screenshots.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/screenshots/detect-pages",
-          "file": "rapitas-backend\\routes\\screenshots.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/screenshots/detect-project",
-          "file": "rapitas-backend\\routes\\screenshots.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/search/",
-          "file": "rapitas-backend\\routes\\search.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/search/suggest",
-          "file": "rapitas-backend\\routes\\search.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/settings/",
-          "file": "rapitas-backend\\routes\\settings.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/settings/",
-          "file": "rapitas-backend\\routes\\settings.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/settings/api-status",
-          "file": "rapitas-backend\\routes\\settings.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/settings/api-key",
-          "file": "rapitas-backend\\routes\\settings.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/settings/api-keys",
-          "file": "rapitas-backend\\routes\\settings.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/settings/api-key",
-          "file": "rapitas-backend\\routes\\settings.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/settings/api-key/validate",
-          "file": "rapitas-backend\\routes\\settings.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/settings/api-key",
-          "file": "rapitas-backend\\routes\\settings.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/settings/models",
-          "file": "rapitas-backend\\routes\\settings.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/settings/model",
-          "file": "rapitas-backend\\routes\\settings.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/settings/model",
-          "file": "rapitas-backend\\routes\\settings.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/events/stream",
-          "file": "rapitas-backend\\routes\\sse.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/events/subscribe/:channel",
-          "file": "rapitas-backend\\routes\\sse.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/events/status",
-          "file": "rapitas-backend\\routes\\sse.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/statistics/overview",
-          "file": "rapitas-backend\\routes\\statistics.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/statistics/daily-study",
-          "file": "rapitas-backend\\routes\\statistics.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/statistics/subject-breakdown",
-          "file": "rapitas-backend\\routes\\statistics.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/statistics/burndown",
-          "file": "rapitas-backend\\routes\\statistics.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/statistics/burnup",
-          "file": "rapitas-backend\\routes\\statistics.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/study-streaks/",
-          "file": "rapitas-backend\\routes\\study-streaks.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/study-streaks/current",
-          "file": "rapitas-backend\\routes\\study-streaks.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/study-streaks/record",
-          "file": "rapitas-backend\\routes\\study-streaks.ts"
+          "file": "rapitas-backend\\routes\\ai\\prompts.ts"
         },
         {
           "method": "GET",
           "path": "/system-prompts",
-          "file": "rapitas-backend\\routes\\system-prompts.ts"
+          "file": "rapitas-backend\\routes\\ai\\system-prompts.ts"
         },
         {
           "method": "GET",
           "path": "/system-prompts/:key",
-          "file": "rapitas-backend\\routes\\system-prompts.ts"
+          "file": "rapitas-backend\\routes\\ai\\system-prompts.ts"
         },
         {
           "method": "POST",
           "path": "/system-prompts",
-          "file": "rapitas-backend\\routes\\system-prompts.ts"
+          "file": "rapitas-backend\\routes\\ai\\system-prompts.ts"
         },
         {
           "method": "PATCH",
           "path": "/system-prompts/:key",
-          "file": "rapitas-backend\\routes\\system-prompts.ts"
+          "file": "rapitas-backend\\routes\\ai\\system-prompts.ts"
         },
         {
           "method": "DELETE",
           "path": "/system-prompts/:key",
-          "file": "rapitas-backend\\routes\\system-prompts.ts"
+          "file": "rapitas-backend\\routes\\ai\\system-prompts.ts"
         },
         {
           "method": "POST",
           "path": "/system-prompts/:key/reset",
-          "file": "rapitas-backend\\routes\\system-prompts.ts"
+          "file": "rapitas-backend\\routes\\ai\\system-prompts.ts"
         },
         {
           "method": "POST",
           "path": "/system-prompts/seed",
-          "file": "rapitas-backend\\routes\\system-prompts.ts"
+          "file": "rapitas-backend\\routes\\ai\\system-prompts.ts"
         },
         {
           "method": "GET",
-          "path": "/task-analysis-config/:taskId",
-          "file": "rapitas-backend\\routes\\task-analysis-config.ts"
+          "path": "/achievements/",
+          "file": "rapitas-backend\\routes\\analytics\\achievements.ts"
         },
         {
-          "method": "PUT",
-          "path": "/task-analysis-config/:taskId",
-          "file": "rapitas-backend\\routes\\task-analysis-config.ts"
+          "method": "POST",
+          "path": "/achievements/:key/unlock",
+          "file": "rapitas-backend\\routes\\analytics\\achievements.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/achievements/check",
+          "file": "rapitas-backend\\routes\\analytics\\achievements.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/reports/weekly",
+          "file": "rapitas-backend\\routes\\analytics\\reports.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/export/tasks",
+          "file": "rapitas-backend\\routes\\analytics\\reports.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/statistics/overview",
+          "file": "rapitas-backend\\routes\\analytics\\statistics.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/statistics/daily-study",
+          "file": "rapitas-backend\\routes\\analytics\\statistics.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/statistics/subject-breakdown",
+          "file": "rapitas-backend\\routes\\analytics\\statistics.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/statistics/burndown",
+          "file": "rapitas-backend\\routes\\analytics\\statistics.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/statistics/burnup",
+          "file": "rapitas-backend\\routes\\analytics\\statistics.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/exam-goals/",
+          "file": "rapitas-backend\\routes\\learning\\exam-goals.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/exam-goals/:id",
+          "file": "rapitas-backend\\routes\\learning\\exam-goals.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/exam-goals/",
+          "file": "rapitas-backend\\routes\\learning\\exam-goals.ts"
         },
         {
           "method": "PATCH",
-          "path": "/task-analysis-config/:taskId",
-          "file": "rapitas-backend\\routes\\task-analysis-config.ts"
+          "path": "/exam-goals/:id",
+          "file": "rapitas-backend\\routes\\learning\\exam-goals.ts"
         },
         {
           "method": "DELETE",
-          "path": "/task-analysis-config/:taskId",
-          "file": "rapitas-backend\\routes\\task-analysis-config.ts"
+          "path": "/exam-goals/:id",
+          "file": "rapitas-backend\\routes\\learning\\exam-goals.ts"
         },
         {
           "method": "GET",
-          "path": "/task-analysis-config/defaults/values",
-          "file": "rapitas-backend\\routes\\task-analysis-config.ts"
+          "path": "/flashcard-decks",
+          "file": "rapitas-backend\\routes\\learning\\flashcards.ts"
         },
         {
           "method": "GET",
-          "path": "/tasks/:id/dependency-analysis",
-          "file": "rapitas-backend\\routes\\task-dependency.ts"
+          "path": "/flashcard-decks/:id",
+          "file": "rapitas-backend\\routes\\learning\\flashcards.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/flashcard-decks",
+          "file": "rapitas-backend\\routes\\learning\\flashcards.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/flashcard-decks/:id",
+          "file": "rapitas-backend\\routes\\learning\\flashcards.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/flashcard-decks/:deckId/cards",
+          "file": "rapitas-backend\\routes\\learning\\flashcards.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/flashcards/:id",
+          "file": "rapitas-backend\\routes\\learning\\flashcards.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/flashcards/:id",
+          "file": "rapitas-backend\\routes\\learning\\flashcards.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/flashcards/:id/review",
+          "file": "rapitas-backend\\routes\\learning\\flashcards.ts"
         },
         {
           "method": "GET",
-          "path": "/tasks/:id/dependency-analysis/stream",
-          "file": "rapitas-backend\\routes\\task-dependency.ts"
+          "path": "/flashcards/due",
+          "file": "rapitas-backend\\routes\\learning\\flashcards.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/flashcard-decks/:deckId/generate",
+          "file": "rapitas-backend\\routes\\learning\\flashcards.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/learning-goals/",
+          "file": "rapitas-backend\\routes\\learning\\learning-goals.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/learning-goals/:id",
+          "file": "rapitas-backend\\routes\\learning\\learning-goals.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/learning-goals/",
+          "file": "rapitas-backend\\routes\\learning\\learning-goals.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/learning-goals/:id",
+          "file": "rapitas-backend\\routes\\learning\\learning-goals.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/learning-goals/:id",
+          "file": "rapitas-backend\\routes\\learning\\learning-goals.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/learning-goals/:id/generate-plan",
+          "file": "rapitas-backend\\routes\\learning\\learning-goals.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/learning-goals/:id/apply",
+          "file": "rapitas-backend\\routes\\learning\\learning-goals.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/tasks/:id/resources",
+          "file": "rapitas-backend\\routes\\learning\\resources.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/resources",
+          "file": "rapitas-backend\\routes\\learning\\resources.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/resources/upload",
+          "file": "rapitas-backend\\routes\\learning\\resources.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/resources/upload-from-path",
+          "file": "rapitas-backend\\routes\\learning\\resources.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/resources/file/:filename",
+          "file": "rapitas-backend\\routes\\learning\\resources.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/resources/download/:filename",
+          "file": "rapitas-backend\\routes\\learning\\resources.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/resources/:id",
+          "file": "rapitas-backend\\routes\\learning\\resources.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/study-streaks/",
+          "file": "rapitas-backend\\routes\\learning\\study-streaks.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/study-streaks/current",
+          "file": "rapitas-backend\\routes\\learning\\study-streaks.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/study-streaks/record",
+          "file": "rapitas-backend\\routes\\learning\\study-streaks.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/habits/",
+          "file": "rapitas-backend\\routes\\lifestyle\\habits.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/habits/:id",
+          "file": "rapitas-backend\\routes\\lifestyle\\habits.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/habits/streaks/all",
+          "file": "rapitas-backend\\routes\\lifestyle\\habits.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/habits/",
+          "file": "rapitas-backend\\routes\\lifestyle\\habits.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/habits/:id",
+          "file": "rapitas-backend\\routes\\lifestyle\\habits.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/habits/:id",
+          "file": "rapitas-backend\\routes\\lifestyle\\habits.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/habits/:id/log",
+          "file": "rapitas-backend\\routes\\lifestyle\\habits.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/habits/:id/statistics",
+          "file": "rapitas-backend\\routes\\lifestyle\\habits.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/paid-leave/balance",
+          "file": "rapitas-backend\\routes\\lifestyle\\paid-leave.ts"
+        },
+        {
+          "method": "PUT",
+          "path": "/paid-leave/balance",
+          "file": "rapitas-backend\\routes\\lifestyle\\paid-leave.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/paid-leave/history",
+          "file": "rapitas-backend\\routes\\lifestyle\\paid-leave.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/categories/seed-defaults",
+          "file": "rapitas-backend\\routes\\organization\\categories.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/categories/default-category",
+          "file": "rapitas-backend\\routes\\organization\\categories.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/categories/",
+          "file": "rapitas-backend\\routes\\organization\\categories.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/categories/:id",
+          "file": "rapitas-backend\\routes\\organization\\categories.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/categories/",
+          "file": "rapitas-backend\\routes\\organization\\categories.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/categories/:id",
+          "file": "rapitas-backend\\routes\\organization\\categories.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/categories/:id",
+          "file": "rapitas-backend\\routes\\organization\\categories.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/categories/:id/set-default",
+          "file": "rapitas-backend\\routes\\organization\\categories.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/categories/reorder",
+          "file": "rapitas-backend\\routes\\organization\\categories.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/labels/",
+          "file": "rapitas-backend\\routes\\organization\\labels.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/labels/:id",
+          "file": "rapitas-backend\\routes\\organization\\labels.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/labels/",
+          "file": "rapitas-backend\\routes\\organization\\labels.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/labels/:id",
+          "file": "rapitas-backend\\routes\\organization\\labels.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/labels/reorder",
+          "file": "rapitas-backend\\routes\\organization\\labels.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/labels/:id",
+          "file": "rapitas-backend\\routes\\organization\\labels.ts"
+        },
+        {
+          "method": "PUT",
+          "path": "/labels/tasks/:id/labels",
+          "file": "rapitas-backend\\routes\\organization\\labels.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/milestones/",
+          "file": "rapitas-backend\\routes\\organization\\milestones.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/milestones/:id",
+          "file": "rapitas-backend\\routes\\organization\\milestones.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/milestones/",
+          "file": "rapitas-backend\\routes\\organization\\milestones.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/milestones/:id",
+          "file": "rapitas-backend\\routes\\organization\\milestones.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/milestones/:id",
+          "file": "rapitas-backend\\routes\\organization\\milestones.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/projects/",
+          "file": "rapitas-backend\\routes\\organization\\projects.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/projects/:id",
+          "file": "rapitas-backend\\routes\\organization\\projects.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/projects/",
+          "file": "rapitas-backend\\routes\\organization\\projects.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/projects/:id",
+          "file": "rapitas-backend\\routes\\organization\\projects.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/projects/:id",
+          "file": "rapitas-backend\\routes\\organization\\projects.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/templates/",
+          "file": "rapitas-backend\\routes\\organization\\templates.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/templates/categories",
+          "file": "rapitas-backend\\routes\\organization\\templates.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/templates/:id",
+          "file": "rapitas-backend\\routes\\organization\\templates.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/templates/",
+          "file": "rapitas-backend\\routes\\organization\\templates.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/templates/from-task/:taskId",
+          "file": "rapitas-backend\\routes\\organization\\templates.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/templates/:id",
+          "file": "rapitas-backend\\routes\\organization\\templates.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/templates/:id/apply",
+          "file": "rapitas-backend\\routes\\organization\\templates.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/themes/",
+          "file": "rapitas-backend\\routes\\organization\\themes.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/themes/default/get",
+          "file": "rapitas-backend\\routes\\organization\\themes.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/themes/:id",
+          "file": "rapitas-backend\\routes\\organization\\themes.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/themes/",
+          "file": "rapitas-backend\\routes\\organization\\themes.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/themes/:id",
+          "file": "rapitas-backend\\routes\\organization\\themes.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/themes/:id",
+          "file": "rapitas-backend\\routes\\organization\\themes.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/themes/reorder",
+          "file": "rapitas-backend\\routes\\organization\\themes.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/themes/:id/set-default",
+          "file": "rapitas-backend\\routes\\organization\\themes.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/daily-schedule/",
+          "file": "rapitas-backend\\routes\\scheduling\\daily-schedule.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/daily-schedule/",
+          "file": "rapitas-backend\\routes\\scheduling\\daily-schedule.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/daily-schedule/:id",
+          "file": "rapitas-backend\\routes\\scheduling\\daily-schedule.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/daily-schedule/:id",
+          "file": "rapitas-backend\\routes\\scheduling\\daily-schedule.ts"
+        },
+        {
+          "method": "PUT",
+          "path": "/daily-schedule/bulk",
+          "file": "rapitas-backend\\routes\\scheduling\\daily-schedule.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/pomodoro/active",
+          "file": "rapitas-backend\\routes\\scheduling\\pomodoro.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/pomodoro/start",
+          "file": "rapitas-backend\\routes\\scheduling\\pomodoro.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/pomodoro/sessions/:id/pause",
+          "file": "rapitas-backend\\routes\\scheduling\\pomodoro.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/pomodoro/sessions/:id/resume",
+          "file": "rapitas-backend\\routes\\scheduling\\pomodoro.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/pomodoro/sessions/:id/complete",
+          "file": "rapitas-backend\\routes\\scheduling\\pomodoro.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/pomodoro/sessions/:id/cancel",
+          "file": "rapitas-backend\\routes\\scheduling\\pomodoro.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/pomodoro/statistics",
+          "file": "rapitas-backend\\routes\\scheduling\\pomodoro.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/pomodoro/history",
+          "file": "rapitas-backend\\routes\\scheduling\\pomodoro.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/schedules/",
+          "file": "rapitas-backend\\routes\\scheduling\\schedules.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/schedules/recurrence-presets",
+          "file": "rapitas-backend\\routes\\scheduling\\schedules.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/schedules/:id",
+          "file": "rapitas-backend\\routes\\scheduling\\schedules.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/schedules/",
+          "file": "rapitas-backend\\routes\\scheduling\\schedules.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/schedules/:id",
+          "file": "rapitas-backend\\routes\\scheduling\\schedules.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/schedules/:id",
+          "file": "rapitas-backend\\routes\\scheduling\\schedules.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/schedules/:id/exception",
+          "file": "rapitas-backend\\routes\\scheduling\\schedules.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/schedules/:id/stop-recurrence",
+          "file": "rapitas-backend\\routes\\scheduling\\schedules.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/schedules/reminders/pending",
+          "file": "rapitas-backend\\routes\\scheduling\\schedules.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/schedules/reminders/:id/sent",
+          "file": "rapitas-backend\\routes\\scheduling\\schedules.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/tasks/:id/time-entries",
+          "file": "rapitas-backend\\routes\\scheduling\\time-entries.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/tasks/:id/time-entries",
+          "file": "rapitas-backend\\routes\\scheduling\\time-entries.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/tasks/:id/comments",
+          "file": "rapitas-backend\\routes\\social\\comments.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/tasks/:id/comments",
+          "file": "rapitas-backend\\routes\\social\\comments.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/comments/:id",
+          "file": "rapitas-backend\\routes\\social\\comments.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/comments/:id",
+          "file": "rapitas-backend\\routes\\social\\comments.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/comments/:id/links",
+          "file": "rapitas-backend\\routes\\social\\comments.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/comments/:id/links",
+          "file": "rapitas-backend\\routes\\social\\comments.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/comment-links/:id",
+          "file": "rapitas-backend\\routes\\social\\comments.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/comment-links/:id",
+          "file": "rapitas-backend\\routes\\social\\comments.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/comments/search",
+          "file": "rapitas-backend\\routes\\social\\comments.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/github/status",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/github/integrations",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/github/integrations",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/github/integrations/:id",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/github/integrations/:id",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/github/integrations/:id",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/github/integrations/:id/sync-prs",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/github/integrations/:id/sync-issues",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/github/integrations/:id/pull-requests",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/github/pull-requests/:id",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/github/pull-requests/:id/diff",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/github/pull-requests/:id/comments",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/github/pull-requests/:id/approve",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/github/pull-requests/:id/request-changes",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/github/integrations/:id/issues",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/github/issues/:id",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/github/issues/:id/comments",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/github/issues/:id/create-task",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/github/webhook",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/githubx-github-event",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/github/tasks/:id/create-github-issue",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/github/tasks/:id/link-github-pr/:prId",
+          "file": "rapitas-backend\\routes\\social\\github.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/auth/register",
+          "file": "rapitas-backend\\routes\\system\\auth.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/authx-forwarded-for",
+          "file": "rapitas-backend\\routes\\system\\auth.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/auth/login",
+          "file": "rapitas-backend\\routes\\system\\auth.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/authx-forwarded-for",
+          "file": "rapitas-backend\\routes\\system\\auth.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/auth/logout",
+          "file": "rapitas-backend\\routes\\system\\auth.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/auth/me",
+          "file": "rapitas-backend\\routes\\system\\auth.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/auth/sessions",
+          "file": "rapitas-backend\\routes\\system\\auth.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/auth/sessions/:sessionId",
+          "file": "rapitas-backend\\routes\\system\\auth.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/auth/cleanup-sessions",
+          "file": "rapitas-backend\\routes\\system\\auth.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/auth/google/url",
+          "file": "rapitas-backend\\routes\\system\\auth.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/auth/google",
+          "file": "rapitas-backend\\routes\\system\\auth.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/auth/google/callback",
+          "file": "rapitas-backend\\routes\\system\\auth.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/debug-logs/analyze",
+          "file": "rapitas-backend\\routes\\system\\debug-logs.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/debug-logs/detect-type",
+          "file": "rapitas-backend\\routes\\system\\debug-logs.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/debug-logs/analyze-stream",
+          "file": "rapitas-backend\\routes\\system\\debug-logs.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/debug-logs/supported-types",
+          "file": "rapitas-backend\\routes\\system\\debug-logs.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/developer-mode/config/:taskId",
+          "file": "rapitas-backend\\routes\\system\\developer-mode.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/developer-mode/enable/:taskId",
+          "file": "rapitas-backend\\routes\\system\\developer-mode.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/developer-mode/disable/:taskId",
+          "file": "rapitas-backend\\routes\\system\\developer-mode.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/developer-mode/config/:taskId",
+          "file": "rapitas-backend\\routes\\system\\developer-mode.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/developer-mode/analyze/:taskId",
+          "file": "rapitas-backend\\routes\\system\\developer-mode.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/developer-mode/optimize-prompt/:taskId",
+          "file": "rapitas-backend\\routes\\system\\developer-mode.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/developer-mode/format-prompt/:taskId",
+          "file": "rapitas-backend\\routes\\system\\developer-mode.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/developer-mode/generate-branch-name",
+          "file": "rapitas-backend\\routes\\system\\developer-mode.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/developer-mode/sessions/:taskId",
+          "file": "rapitas-backend\\routes\\system\\developer-mode.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/developer-mode/generate-title",
+          "file": "rapitas-backend\\routes\\system\\developer-mode.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/directories/browse",
+          "file": "rapitas-backend\\routes\\system\\directories.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/directories/validate",
+          "file": "rapitas-backend\\routes\\system\\directories.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/directories/favorites",
+          "file": "rapitas-backend\\routes\\system\\directories.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/directories/favorites",
+          "file": "rapitas-backend\\routes\\system\\directories.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/directories/favorites/:id",
+          "file": "rapitas-backend\\routes\\system\\directories.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/directories/create",
+          "file": "rapitas-backend\\routes\\system\\directories.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/directories/favorites/:id",
+          "file": "rapitas-backend\\routes\\system\\directories.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/notifications/stream",
+          "file": "rapitas-backend\\routes\\system\\notifications.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/notifications/",
+          "file": "rapitas-backend\\routes\\system\\notifications.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/notifications/unread-count",
+          "file": "rapitas-backend\\routes\\system\\notifications.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/notifications/:id/read",
+          "file": "rapitas-backend\\routes\\system\\notifications.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/notifications/mark-all-read",
+          "file": "rapitas-backend\\routes\\system\\notifications.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/notifications/:id",
+          "file": "rapitas-backend\\routes\\system\\notifications.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/notifications/",
+          "file": "rapitas-backend\\routes\\system\\notifications.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/rate-limits/",
+          "file": "rapitas-backend\\routes\\system\\rate-limits.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/screenshots/:filename",
+          "file": "rapitas-backend\\routes\\system\\screenshots.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/screenshots/capture",
+          "file": "rapitas-backend\\routes\\system\\screenshots.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/screenshots/capture-all",
+          "file": "rapitas-backend\\routes\\system\\screenshots.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/screenshots/detect-pages",
+          "file": "rapitas-backend\\routes\\system\\screenshots.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/screenshots/detect-project",
+          "file": "rapitas-backend\\routes\\system\\screenshots.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/search/",
+          "file": "rapitas-backend\\routes\\system\\search.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/search/suggest",
+          "file": "rapitas-backend\\routes\\system\\search.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/settings/",
+          "file": "rapitas-backend\\routes\\system\\settings.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/settings/",
+          "file": "rapitas-backend\\routes\\system\\settings.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/settings/api-status",
+          "file": "rapitas-backend\\routes\\system\\settings.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/settings/api-key",
+          "file": "rapitas-backend\\routes\\system\\settings.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/settings/api-keys",
+          "file": "rapitas-backend\\routes\\system\\settings.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/settings/api-key",
+          "file": "rapitas-backend\\routes\\system\\settings.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/settings/api-key/validate",
+          "file": "rapitas-backend\\routes\\system\\settings.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/settings/api-key",
+          "file": "rapitas-backend\\routes\\system\\settings.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/settings/models",
+          "file": "rapitas-backend\\routes\\system\\settings.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/settings/model",
+          "file": "rapitas-backend\\routes\\system\\settings.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/settings/model",
+          "file": "rapitas-backend\\routes\\system\\settings.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/events/stream",
+          "file": "rapitas-backend\\routes\\system\\sse.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/events/subscribe/:channel",
+          "file": "rapitas-backend\\routes\\system\\sse.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/events/status",
+          "file": "rapitas-backend\\routes\\system\\sse.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/url-metadata",
+          "file": "rapitas-backend\\routes\\system\\url-metadata.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/batch/v2/",
+          "file": "rapitas-backend\\routes\\tasks\\batch-v2.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/batch/v2/stats",
+          "file": "rapitas-backend\\routes\\tasks\\batch-v2.ts"
+        },
+        {
+          "method": "POST",
+          "path": "/batch/",
+          "file": "rapitas-backend\\routes\\tasks\\batch.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/batchthemeId",
+          "file": "rapitas-backend\\routes\\tasks\\batch.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/batchstatus",
+          "file": "rapitas-backend\\routes\\tasks\\batch.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/batchsince",
+          "file": "rapitas-backend\\routes\\tasks\\batch.ts"
         },
         {
           "method": "GET",
@@ -1835,228 +1885,173 @@
         },
         {
           "method": "GET",
+          "path": "/task-analysis-config/:taskId",
+          "file": "rapitas-backend\\routes\\tasks\\task-analysis-config.ts"
+        },
+        {
+          "method": "PUT",
+          "path": "/task-analysis-config/:taskId",
+          "file": "rapitas-backend\\routes\\tasks\\task-analysis-config.ts"
+        },
+        {
+          "method": "PATCH",
+          "path": "/task-analysis-config/:taskId",
+          "file": "rapitas-backend\\routes\\tasks\\task-analysis-config.ts"
+        },
+        {
+          "method": "DELETE",
+          "path": "/task-analysis-config/:taskId",
+          "file": "rapitas-backend\\routes\\tasks\\task-analysis-config.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/task-analysis-config/defaults/values",
+          "file": "rapitas-backend\\routes\\tasks\\task-analysis-config.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/tasks/:id/dependency-analysis",
+          "file": "rapitas-backend\\routes\\tasks\\task-dependency.ts"
+        },
+        {
+          "method": "GET",
+          "path": "/tasks/:id/dependency-analysis/stream",
+          "file": "rapitas-backend\\routes\\tasks\\task-dependency.ts"
+        },
+        {
+          "method": "GET",
           "path": "/tasks/search",
-          "file": "rapitas-backend\\routes\\tasks.ts"
+          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
           "method": "GET",
           "path": "/tasks/suggestions",
-          "file": "rapitas-backend\\routes\\tasks.ts"
+          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
           "method": "GET",
           "path": "/tasks/suggestions/ai",
-          "file": "rapitas-backend\\routes\\tasks.ts"
+          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
           "method": "GET",
           "path": "/tasks/suggestions/ai/cache",
-          "file": "rapitas-backend\\routes\\tasks.ts"
+          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
           "method": "DELETE",
           "path": "/tasks/suggestions/ai/cache",
-          "file": "rapitas-backend\\routes\\tasks.ts"
+          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
           "method": "GET",
           "path": "/tasks/",
-          "file": "rapitas-backend\\routes\\tasks.ts"
+          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
           "method": "GET",
           "path": "/tasks/:id",
-          "file": "rapitas-backend\\routes\\tasks.ts"
+          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
           "method": "POST",
           "path": "/tasks/",
-          "file": "rapitas-backend\\routes\\tasks.ts"
+          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
           "method": "PATCH",
           "path": "/tasks/:id",
-          "file": "rapitas-backend\\routes\\tasks.ts"
+          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
           "method": "DELETE",
           "path": "/tasks/:id",
-          "file": "rapitas-backend\\routes\\tasks.ts"
+          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
           "method": "POST",
           "path": "/tasks/:id/cleanup-duplicates",
-          "file": "rapitas-backend\\routes\\tasks.ts"
+          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
           "method": "POST",
           "path": "/tasks/cleanup-all-duplicates",
-          "file": "rapitas-backend\\routes\\tasks.ts"
+          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
           "method": "DELETE",
           "path": "/tasks/:id/subtasks",
-          "file": "rapitas-backend\\routes\\tasks.ts"
+          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
           "method": "POST",
           "path": "/tasks/:id/subtasks/delete-selected",
-          "file": "rapitas-backend\\routes\\tasks.ts"
+          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
           "method": "POST",
           "path": "/tasks/:id/execute",
-          "file": "rapitas-backend\\routes\\tasks.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/templates/",
-          "file": "rapitas-backend\\routes\\templates.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/templates/categories",
-          "file": "rapitas-backend\\routes\\templates.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/templates/:id",
-          "file": "rapitas-backend\\routes\\templates.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/templates/",
-          "file": "rapitas-backend\\routes\\templates.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/templates/from-task/:taskId",
-          "file": "rapitas-backend\\routes\\templates.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/templates/:id",
-          "file": "rapitas-backend\\routes\\templates.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/templates/:id/apply",
-          "file": "rapitas-backend\\routes\\templates.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/themes/",
-          "file": "rapitas-backend\\routes\\themes.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/themes/default/get",
-          "file": "rapitas-backend\\routes\\themes.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/themes/:id",
-          "file": "rapitas-backend\\routes\\themes.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/themes/",
-          "file": "rapitas-backend\\routes\\themes.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/themes/:id",
-          "file": "rapitas-backend\\routes\\themes.ts"
-        },
-        {
-          "method": "DELETE",
-          "path": "/themes/:id",
-          "file": "rapitas-backend\\routes\\themes.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/themes/reorder",
-          "file": "rapitas-backend\\routes\\themes.ts"
-        },
-        {
-          "method": "PATCH",
-          "path": "/themes/:id/set-default",
-          "file": "rapitas-backend\\routes\\themes.ts"
-        },
-        {
-          "method": "GET",
-          "path": "/tasks/:id/time-entries",
-          "file": "rapitas-backend\\routes\\time-entries.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/tasks/:id/time-entries",
-          "file": "rapitas-backend\\routes\\time-entries.ts"
-        },
-        {
-          "method": "POST",
-          "path": "/url-metadata",
-          "file": "rapitas-backend\\routes\\url-metadata.ts"
+          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
           "method": "GET",
           "path": "/workflow-roles",
-          "file": "rapitas-backend\\routes\\workflow-roles.ts"
+          "file": "rapitas-backend\\routes\\workflow\\workflow-roles.ts"
         },
         {
           "method": "GET",
           "path": "/workflow-roles/:role",
-          "file": "rapitas-backend\\routes\\workflow-roles.ts"
+          "file": "rapitas-backend\\routes\\workflow\\workflow-roles.ts"
         },
         {
           "method": "PUT",
           "path": "/workflow-roles/:role",
-          "file": "rapitas-backend\\routes\\workflow-roles.ts"
+          "file": "rapitas-backend\\routes\\workflow\\workflow-roles.ts"
         },
         {
           "method": "POST",
           "path": "/workflow-roles/initialize",
-          "file": "rapitas-backend\\routes\\workflow-roles.ts"
+          "file": "rapitas-backend\\routes\\workflow\\workflow-roles.ts"
         },
         {
           "method": "GET",
           "path": "/workflow/tasks/:taskId/files",
-          "file": "rapitas-backend\\routes\\workflow.ts"
+          "file": "rapitas-backend\\routes\\workflow\\workflow.ts"
         },
         {
           "method": "PUT",
           "path": "/workflow/tasks/:taskId/files/:fileType",
-          "file": "rapitas-backend\\routes\\workflow.ts"
+          "file": "rapitas-backend\\routes\\workflow\\workflow.ts"
         },
         {
           "method": "POST",
           "path": "/workflow/tasks/:taskId/approve-plan",
-          "file": "rapitas-backend\\routes\\workflow.ts"
+          "file": "rapitas-backend\\routes\\workflow\\workflow.ts"
         },
         {
           "method": "PUT",
           "path": "/workflow/tasks/:taskId/status",
-          "file": "rapitas-backend\\routes\\workflow.ts"
+          "file": "rapitas-backend\\routes\\workflow\\workflow.ts"
         },
         {
           "method": "POST",
           "path": "/workflow/workflow/tasks/:taskId/advance",
-          "file": "rapitas-backend\\routes\\workflow.ts"
+          "file": "rapitas-backend\\routes\\workflow\\workflow.ts"
         },
         {
           "method": "POST",
           "path": "/workflow/tasks/:taskId/set-mode",
-          "file": "rapitas-backend\\routes\\workflow.ts"
+          "file": "rapitas-backend\\routes\\workflow\\workflow.ts"
         },
         {
           "method": "GET",
           "path": "/workflow/tasks/:taskId/analyze-complexity",
-          "file": "rapitas-backend\\routes\\workflow.ts"
+          "file": "rapitas-backend\\routes\\workflow\\workflow.ts"
         },
         {
           "method": "GET",
           "path": "/workflow/modes",
-          "file": "rapitas-backend\\routes\\workflow.ts"
+          "file": "rapitas-backend\\routes\\workflow\\workflow.ts"
         }
       ],
       "services": [
@@ -2413,7 +2408,7 @@
         },
         {
           "name": "AgentExecutionConfig",
-          "fieldCount": 26,
+          "fieldCount": 28,
           "relations": [
             "taskId",
             "agentConfigId"
@@ -2769,15 +2764,15 @@
     }
   },
   "quality": {
-    "testFiles": 10,
-    "sourceFiles": 406,
-    "testRatio": 0.02,
-    "anyUsage": 433,
-    "todoCount": 73,
+    "testFiles": 16,
+    "sourceFiles": 399,
+    "testRatio": 0.04,
+    "anyUsage": 19,
+    "todoCount": 76,
     "fixmeCount": 1,
     "hackCount": 1,
-    "consoleLogCount": 687,
-    "tryCatchCount": 816
+    "consoleLogCount": 640,
+    "tryCatchCount": 836
   },
   "aiAgent": {
     "providers": [
@@ -2797,16 +2792,19 @@
       "custom"
     ],
     "agentRoutes": [
-      "rapitas-backend\\routes\\agent-execution-config.ts",
-      "rapitas-backend\\routes\\agent-metrics.ts",
-      "rapitas-backend\\routes\\agent-version-management.ts",
       "rapitas-backend\\routes\\agents\\agent-audit-router.ts",
       "rapitas-backend\\routes\\agents\\agent-config-router.ts",
+      "rapitas-backend\\routes\\agents\\agent-execution-config.ts",
       "rapitas-backend\\routes\\agents\\agent-execution-router.ts",
+      "rapitas-backend\\routes\\agents\\agent-metrics.ts",
       "rapitas-backend\\routes\\agents\\agent-session-router.ts",
       "rapitas-backend\\routes\\agents\\agent-system-router.ts",
-      "rapitas-backend\\routes\\ai-agent.ts",
-      "rapitas-backend\\scripts\\fix-ai-agent-routes.ts",
+      "rapitas-backend\\routes\\agents\\agent-version-management.ts",
+      "rapitas-backend\\routes\\agents\\ai-agent.ts",
+      "rapitas-backend\\routes\\agents\\approvals.ts",
+      "rapitas-backend\\routes\\agents\\cli-tools-management.ts",
+      "rapitas-backend\\routes\\agents\\execution-logs.ts",
+      "rapitas-backend\\routes\\agents\\parallel-execution.ts",
       "rapitas-backend\\tests\\agent-audit-router.test.ts",
       "rapitas-backend\\tests\\agent-config-router.test.ts",
       "rapitas-backend\\tests\\agent-execution-router.test.ts",
@@ -2866,7 +2864,7 @@
   "featureCompleteness": [
     {
       "name": "タスク管理",
-      "routes": 4,
+      "routes": 6,
       "services": 0,
       "components": 44,
       "hooks": 7,
@@ -2886,12 +2884,12 @@
     },
     {
       "name": "AIエージェント",
-      "routes": 11,
+      "routes": 14,
       "services": 35,
       "components": 8,
       "hooks": 1,
       "models": 7,
-      "tests": 6,
+      "tests": 7,
       "score": 100
     },
     {
@@ -2956,7 +2954,7 @@
     },
     {
       "name": "学習/習慣",
-      "routes": 5,
+      "routes": 6,
       "services": 0,
       "components": 8,
       "hooks": 0,
@@ -2976,7 +2974,7 @@
     }
   ],
   "scoring": {
-    "qualityScore": 50,
+    "qualityScore": 55,
     "featureCoverageScore": 81,
     "strengths": [
       "豊富なAPIエンドポイント（357件）",
@@ -2986,15 +2984,13 @@
       "高カバレッジ機能エリア: タスク管理, ポモドーロ/時間管理, AIエージェント, ワークフロー, GitHub連携, 通知, カレンダー/スケジュール, 分析/レポート"
     ],
     "weaknesses": [
-      "テストカバレッジが低い（テスト比率: 0.02）",
-      "any型の使用が多い（433箇所）",
-      "console.logが多い（687箇所）",
-      "未解決のTODOが多い（73件）",
+      "テストカバレッジが低い（テスト比率: 0.04）",
+      "console.logが多い（640箇所）",
+      "未解決のTODOが多い（76件）",
       "低カバレッジ機能エリア: 検索"
     ],
     "suggestions": [
       "テストの拡充（特にバックエンドのユニットテスト）",
-      "any型を具体的な型に置き換える型安全性の向上",
       "console.logをロガーライブラリに置き換え",
       "機能拡充の優先エリア: 検索"
     ]
