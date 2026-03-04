@@ -3,7 +3,7 @@
  * システム・診断機能（暗号化、診断、シャットダウン、再起動）のテスト
  */
 
-import { describe, it, expect, beforeEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 import { Elysia } from "elysia";
 import { agentSystemRouter } from "../routes/agents/agent-system-router";
 
@@ -25,9 +25,31 @@ interface ValidateConfigResponse {
 describe("Agent System Router", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let app: any;
+  const originalExit = process.exit;
+  const originalSetTimeout = global.setTimeout;
 
   beforeEach(() => {
+    // Mock process.exit to prevent shutdown/restart endpoints from killing the test runner
+    const mockExit = mock(() => {});
+    process.exit = mockExit as unknown as typeof process.exit;
+
+    // Mock setTimeout to prevent delayed process.exit calls
+    global.setTimeout = mock((callback: (...args: any[]) => void, delay: number, ...args: any[]) => {
+      // Check if the callback contains process.exit, if so don't execute it
+      const callbackStr = callback.toString();
+      if (callbackStr.includes('process.exit')) {
+        return 0; // Return a dummy timer ID
+      }
+      // For non-process.exit callbacks, execute immediately for faster tests
+      return originalSetTimeout(callback, 0, ...args);
+    }) as unknown as typeof setTimeout;
+
     app = new Elysia().use(agentSystemRouter);
+  });
+
+  afterEach(() => {
+    process.exit = originalExit;
+    global.setTimeout = originalSetTimeout;
   });
 
   describe("GET /agents/encryption-status", () => {
