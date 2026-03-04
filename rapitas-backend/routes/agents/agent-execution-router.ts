@@ -12,10 +12,67 @@ import {
   sanitizeScreenshots,
 } from "../../utils/agent-response-cleaner";
 import { captureScreenshotsForDiff } from "../../services/screenshot-service";
-import type { ExecutionWithExtras } from "../../types/agent-execution-types";
+import { generateBranchName } from "../../utils/branch-name-generator";
+import type { AgentExecutionWithExtras } from "../../types/agent-execution-types";
 import type { ScreenshotResult } from "../../services/screenshot-service";
+import { analyzeTaskComplexity } from "../../services/workflow/complexity-analyzer";
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads";
+
+/**
+ * セッションステータス更新のリトライ処理付きヘルパー関数
+ * @param sessionId - セッションID
+ * @param status - 更新後のステータス
+ * @param logPrefix - ログのプレフィックス
+ * @param maxRetries - 最大リトライ回数（デフォルト3回）
+ */
+async function updateSessionStatusWithRetry(
+  sessionId: number,
+  status: "completed" | "failed",
+  logPrefix: string = "",
+  maxRetries: number = 3
+): Promise<void> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await prisma.agentSession.update({
+        where: { id: sessionId },
+        data: {
+          status,
+          completedAt: new Date(),
+          ...(status === "failed" && { errorMessage: "Execution failed" }),
+        },
+      });
+
+      // 成功した場合
+      if (attempt > 1) {
+        console.log(
+          `${logPrefix} Session ${sessionId} status updated to ${status} on attempt ${attempt}`
+        );
+      }
+      return;
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `${logPrefix} Failed to update session ${sessionId} status (attempt ${attempt}/${maxRetries}):`,
+        error
+      );
+
+      // 最後の試行でない場合は少し待つ
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+  }
+
+  // 全ての試行が失敗した場合
+  console.error(
+    `${logPrefix} Failed to update session ${sessionId} status after ${maxRetries} attempts. Last error:`,
+    lastError
+  );
+  // エラーを再投げせず、処理を継続（従来の動作と同様）
+}
 
 export const agentExecutionRouter = new Elysia()
   // Execute agent on task
@@ -56,98 +113,176 @@ export const agentExecutionRouter = new Elysia()
         attachments,
       } = body;
 
-      const task = await prisma.task.findUnique({
-        where: { id: taskIdNum },
-        include: {
-          developerModeConfig: true,
-          theme: true,
-        },
-      });
+      let task;
+      try {
+        task = await prisma.task.findUnique({
+          where: { id: taskIdNum },
+          include: {
+            developerModeConfig: true,
+            theme: true,
+          },
+        });
+      } catch (dbError) {
+        console.error(`[API] Database error fetching task ${taskIdNum}:`, dbError);
+        context.set.status = 500;
+        return { error: "データベースクエリエラーが発生しました", details: dbError instanceof Error ? dbError.message : String(dbError) };
+      }
 
       if (!task) {
         context.set.status = 404;
         return { error: "Task not found" };
       }
 
+      // 自動複雑度評価の実行
+      if (task.complexityScore === null && !task.workflowModeOverride) {
+        console.log(`[API] Auto-analyzing task complexity for task ${taskIdNum}`);
+        try {
+          const complexityInput = {
+            title: task.title,
+            description: task.description,
+            estimatedHours: task.estimatedHours,
+            labels: task.labels ? JSON.parse(task.labels) : [],
+            priority: task.priority,
+            themeId: task.themeId,
+          };
+
+          const analysisResult = analyzeTaskComplexity(complexityInput);
+
+          // DBに結果を保存
+          await prisma.task.update({
+            where: { id: taskIdNum },
+            data: {
+              complexityScore: analysisResult.complexityScore,
+              workflowMode: analysisResult.recommendedMode,
+            },
+          });
+
+          // taskオブジェクトも更新（後続の処理で使用）
+          task.complexityScore = analysisResult.complexityScore;
+          task.workflowMode = analysisResult.recommendedMode;
+
+          console.log(`[API] Task ${taskIdNum} complexity auto-evaluated: score=${analysisResult.complexityScore}, mode=${analysisResult.recommendedMode}`);
+        } catch (error) {
+          console.error(`[API] Failed to analyze task complexity for task ${taskIdNum}:`, error);
+          // エラーが発生してもタスク実行は継続（フォールバック）
+        }
+      } else if (task.workflowModeOverride) {
+        console.log(`[API] Task ${taskIdNum} has workflow mode override, skipping auto-complexity analysis`);
+      } else if (task.complexityScore !== null) {
+        console.log(`[API] Task ${taskIdNum} already has complexity score: ${task.complexityScore}, skipping analysis`);
+      }
+
+      // 開発プロジェクトのテーマに属さず、workingDirectoryも明示指定されていない場合は実行拒否
+      if (!task.theme?.isDevelopment && !workingDirectory) {
+        console.error(
+          `[API] Task ${taskIdNum} rejected: not in a development theme and no workingDirectory specified.`,
+        );
+        context.set.status = 400;
+        return {
+          error: "開発プロジェクトに設定されたテーマのタスクのみ実行できます。テーマの設定を確認してください。",
+        };
+      }
+
       const workDir =
         workingDirectory || task.theme?.workingDirectory || process.cwd();
 
-      if (!task.theme?.isDevelopment && !workingDirectory) {
-        console.warn(
-          `Task ${taskIdNum} is not in a development theme. Using current directory.`,
-        );
-      }
-
       let developerModeConfig = task.developerModeConfig;
-      if (!developerModeConfig) {
-        developerModeConfig = await prisma.developerModeConfig.create({
-          data: {
-            taskId: taskIdNum,
-            isEnabled: true,
-          },
-        });
-      }
-
-      // 継続実行の場合は既存のセッションを使用、なければ新規作成
       let session;
-      if (sessionId) {
-        // 既存のセッションを取得して検証
-        const existingSession = await prisma.agentSession.findUnique({
-          where: { id: sessionId },
-        });
-        if (!existingSession) {
-          context.set.status = 404;
-          return { error: "Session not found" };
-        }
-        if (existingSession.configId !== developerModeConfig.id) {
-          context.set.status = 400;
-          return { error: "Session does not belong to this task" };
-        }
-        // セッションを再利用
-        session = existingSession;
-        console.log(
-          `[API] Continuing execution with existing session ${sessionId}`,
-        );
-      } else {
-        // 新規セッション作成
-        session = await prisma.agentSession.create({
-          data: {
-            configId: developerModeConfig.id,
-            status: "pending",
-          },
-        });
-        console.log(`[API] Created new session ${session.id}`);
-      }
+      let finalBranchName = branchName;
 
-      if (branchName) {
+      try {
+        if (!developerModeConfig) {
+          developerModeConfig = await prisma.developerModeConfig.create({
+            data: {
+              taskId: taskIdNum,
+              isEnabled: true,
+            },
+          });
+        }
+
+        // 継続実行の場合は既存のセッションを使用、なければ新規作成
+        if (sessionId) {
+          // 既存のセッションを取得して検証
+          const existingSession = await prisma.agentSession.findUnique({
+            where: { id: sessionId },
+          });
+          if (!existingSession) {
+            context.set.status = 404;
+            return { error: "Session not found" };
+          }
+          if (existingSession.configId !== developerModeConfig.id) {
+            context.set.status = 400;
+            return { error: "Session does not belong to this task" };
+          }
+          // セッションを再利用
+          session = existingSession;
+          console.log(
+            `[API] Continuing execution with existing session ${sessionId}`,
+          );
+        } else {
+          // 新規セッション作成
+          session = await prisma.agentSession.create({
+            data: {
+              configId: developerModeConfig.id,
+              status: "pending",
+            },
+          });
+          console.log(`[API] Created new session ${session.id}`);
+        }
+
+        // ブランチ名の自動生成または手動指定
+        if (!finalBranchName) {
+          try {
+            finalBranchName = await generateBranchName(task.title, task.description || undefined);
+            console.log(`[API] Generated branch name: ${finalBranchName} for task ${taskIdNum}`);
+          } catch (error) {
+            console.error(`[API] Branch name generation failed for task ${taskIdNum}:`, error);
+            finalBranchName = `feature/task-${taskIdNum}-auto-generated`;
+          }
+        }
+
+        // ブランチを作成またはチェックアウト
         const branchCreated = await orchestrator.createBranch(
           workDir,
-          branchName,
+          finalBranchName,
         );
         if (!branchCreated) {
-          return { error: "Failed to create branch", branchName };
+          return { error: "Failed to create branch", branchName: finalBranchName };
         }
+
+        // セッションにブランチ名を保存
+        session = await prisma.agentSession.update({
+          where: { id: session.id },
+          data: { branchName: finalBranchName },
+        });
+
+        await prisma.notification.create({
+          data: {
+            type: "agent_execution_started",
+            title: "エージェント実行開始",
+            message: `「${task.title}」の自動実行を開始しました`,
+            link: `/tasks/${taskIdNum}`,
+            metadata: toJsonString({ sessionId: session.id, taskId: taskIdNum }),
+          },
+        });
+
+        // タスクのステータスを「進行中」に更新
+        await prisma.task.update({
+          where: { id: taskIdNum },
+          data: {
+            status: "in-progress",
+            startedAt: task.startedAt || new Date(),
+          },
+        });
+        console.log(`[API] Updated task ${taskIdNum} status to 'in-progress'`);
+      } catch (dbError) {
+        console.error(`[API] Database error during execution setup for task ${taskIdNum}:`, dbError);
+        context.set.status = 500;
+        return {
+          error: "データベースクエリエラーが発生しました",
+          details: dbError instanceof Error ? dbError.message : String(dbError),
+        };
       }
-
-      await prisma.notification.create({
-        data: {
-          type: "agent_execution_started",
-          title: "エージェント実行開始",
-          message: `「${task.title}」の自動実行を開始しました`,
-          link: `/tasks/${taskIdNum}`,
-          metadata: toJsonString({ sessionId: session.id, taskId: taskIdNum }),
-        },
-      });
-
-      // タスクのステータスを「進行中」に更新
-      await prisma.task.update({
-        where: { id: taskIdNum },
-        data: {
-          status: "in-progress",
-          startedAt: task.startedAt || new Date(),
-        },
-      });
-      console.log(`[API] Updated task ${taskIdNum} status to 'in-progress'`);
 
       let fullInstruction: string;
       if (optimizedPrompt) {
@@ -336,19 +471,16 @@ export const agentExecutionRouter = new Elysia()
               );
             } else if (
               wfStatus === "in_progress" ||
-              wfStatus === "plan_approved"
+              wfStatus === "plan_approved" ||
+              wfStatus === "completed"
             ) {
-              // 実装中・承認済みはそのまま維持
-              console.log(
-                `[API] Task ${taskIdNum} kept as in-progress (workflow: ${wfStatus})`,
-              );
-            } else if (wfStatus === "completed") {
+              // 実行が成功完了したらタスクをdoneに更新
               await prisma.task.update({
                 where: { id: taskIdNum },
                 data: { status: "done", completedAt: new Date() },
               });
               console.log(
-                `[API] Updated task ${taskIdNum} status to 'done' (workflow completed)`,
+                `[API] Updated task ${taskIdNum} status to 'done' (workflow: ${wfStatus})`,
               );
             } else if (!wfStatus || wfStatus === "draft") {
               // ワークフロー未使用タスク、または初期状態は従来通り
@@ -364,21 +496,13 @@ export const agentExecutionRouter = new Elysia()
               );
             }
 
-            // セッションのステータスも完了に更新
-            await prisma.agentSession
-              .update({
-                where: { id: session.id },
-                data: {
-                  status: "completed",
-                  completedAt: new Date(),
-                },
-              })
-              .catch((e: unknown) => {
-                console.error(
-                  `[API] Failed to update session ${session.id} status:`,
-                  e,
-                );
-              });
+            // セッションのステータスも完了に更新（リトライ付き）
+            await updateSessionStatusWithRetry(
+              session.id,
+              "completed",
+              "[API]",
+              3
+            );
 
             const diff = await orchestrator.getFullGitDiff(workDir);
             const structuredDiff = await orchestrator.getDiff(workDir);
@@ -540,7 +664,7 @@ export const agentExecutionRouter = new Elysia()
         const latestSession = config.agentSessions[0];
         const latestExecution = latestSession.agentExecutions[0];
         const execExtras = latestExecution as typeof latestExecution &
-          ExecutionWithExtras;
+          AgentExecutionWithExtras;
 
         const isWaitingForInput = latestExecution?.status === "waiting_for_input";
         const questionText = execExtras?.question || null;
@@ -645,6 +769,16 @@ export const agentExecutionRouter = new Elysia()
         return { error: "No execution found" };
       }
 
+      // ステータスチェック: waiting_for_input でなければ応答不可
+      if (latestExecution.status === "running") {
+        return { error: "Execution is already running" };
+      }
+      if (latestExecution.status !== "waiting_for_input") {
+        return {
+          error: `Execution is not waiting for input: ${latestExecution.status}`,
+        };
+      }
+
       // オーケストレーターでロックを取得（他のプロセスと競合防止）
       if (
         !orchestrator.tryAcquireContinuationLock(
@@ -657,42 +791,38 @@ export const agentExecutionRouter = new Elysia()
         };
       }
 
-      try {
-        // タイムアウトキャンセルを試行
-        orchestrator.cancelQuestionTimeout(latestExecution.id);
-        console.log(
-          `[agent-respond] Cancelled timeout for execution ${latestExecution.id}`,
-        );
+      // タイムアウトキャンセルを試行
+      orchestrator.cancelQuestionTimeout(latestExecution.id);
+      console.log(
+        `[agent-respond] Cancelled timeout for execution ${latestExecution.id}`,
+      );
 
-        const workingDirectory =
-          config.task.theme?.workingDirectory || process.cwd();
+      const workingDirectory =
+        config.task.theme?.workingDirectory || process.cwd();
 
-        // 応答を送信
-        const result = await orchestrator.executeContinuation(
-          latestExecution.id,
-          response,
-          {
-            sessionId: session.id,
-            taskId,
-            workingDirectory,
-          },
-        );
+      // 応答を送信（ロック取得済みなので executeContinuationWithLock を使用）
+      // executeContinuationWithLock が finally でロックを解放する
+      const result = await orchestrator.executeContinuationWithLock(
+        latestExecution.id,
+        response,
+        {
+          sessionId: session.id,
+          taskId,
+          workingDirectory,
+        },
+      );
 
-        if (result.success) {
-          return {
-            success: true,
-            message: "Response sent successfully",
-            executionId: latestExecution.id,
-          };
-        } else {
-          return {
-            error: result.errorMessage || "Failed to send response",
-            executionId: latestExecution.id,
-          };
-        }
-      } finally {
-        // ロックを解放
-        orchestrator.releaseContinuationLock(latestExecution.id);
+      if (result.success) {
+        return {
+          success: true,
+          message: "Response sent successfully",
+          executionId: latestExecution.id,
+        };
+      } else {
+        return {
+          error: result.errorMessage || "Failed to send response",
+          executionId: latestExecution.id,
+        };
       }
     },
     {
@@ -885,13 +1015,13 @@ export const agentExecutionRouter = new Elysia()
           return { error: "Task not found" };
         }
 
-        // セッションIDが指定されていない場合は最新の完了済みセッションを取得
+        // セッションIDが指定されていない場合は最新の完了済み/失敗/中断セッションを取得
         let targetSessionId = sessionId;
         if (!targetSessionId && task.developerModeConfig) {
           const latestSession = await prisma.agentSession.findFirst({
             where: {
               configId: task.developerModeConfig.id,
-              status: "completed",
+              status: { in: ["completed", "failed", "interrupted"] },
             },
             orderBy: { createdAt: "desc" },
           });
@@ -922,14 +1052,54 @@ export const agentExecutionRouter = new Elysia()
           return { error: "Session not found" };
         }
 
-        if (session.status !== "completed") {
-          context.set.status = 400;
-          return { error: "Can only continue from completed sessions" };
+        // セッションのステータスをログに出力（デバッグ用）
+        console.log(
+          `[continue-execution] Session ${targetSessionId} status: "${session.status}"`,
+        );
+
+        // 現在実行中のエージェントがある場合のみ拒否（二重実行防止）
+        const activeCount = orchestrator.getActiveExecutionCount();
+        const hasRunningExecution = session.agentExecutions.some(
+          (e: { status: string }) => e.status === "running" || e.status === "pending",
+        );
+        if (hasRunningExecution && activeCount > 0) {
+          context.set.status = 409;
+          return { error: "An execution is already running for this session" };
         }
 
         // 前回の実行情報を取得
         const previousExecution = session.agentExecutions[0];
         const workingDirectory = task.theme?.workingDirectory || process.cwd();
+
+        // セッションのブランチ名を取得し、必要に応じてチェックアウト
+        if (session.branchName) {
+          try {
+            const branchCreated = await orchestrator.createBranch(
+              workingDirectory,
+              session.branchName,
+            );
+            if (!branchCreated) {
+              console.error(
+                `[continue-execution] Failed to checkout branch ${session.branchName} for task ${taskId}`,
+              );
+              // ブランチチェックアウト失敗は警告のみで継続
+            } else {
+              console.log(
+                `[continue-execution] Checked out branch ${session.branchName} for task ${taskId}`,
+              );
+            }
+          } catch (error) {
+            console.error(
+              `[continue-execution] Branch checkout error for task ${taskId}:`,
+              error,
+            );
+            // ブランチチェックアウト失敗は警告のみで継続
+          }
+        } else {
+          console.log(
+            `[continue-execution] No branch name stored in session ${targetSessionId}`,
+          );
+        }
 
         // セッションを再開状態に更新
         await prisma.agentSession.update({
@@ -1010,10 +1180,10 @@ export const agentExecutionRouter = new Elysia()
                 });
               } else if (
                 wfStatus === "in_progress" ||
-                wfStatus === "plan_approved"
+                wfStatus === "plan_approved" ||
+                wfStatus === "completed"
               ) {
-                // 実装中・承認済みはそのまま維持
-              } else if (wfStatus === "completed") {
+                // 実行が成功完了したらタスクをdoneに更新
                 await prisma.task.update({
                   where: { id: taskId },
                   data: { status: "done", completedAt: new Date() },
@@ -1026,21 +1196,13 @@ export const agentExecutionRouter = new Elysia()
                 });
               }
 
-              // セッションのステータスも完了に更新
-              await prisma.agentSession
-                .update({
-                  where: { id: targetSessionId },
-                  data: {
-                    status: "completed",
-                    completedAt: new Date(),
-                  },
-                })
-                .catch((e: unknown) => {
-                  console.error(
-                    `[continue-execution] Failed to update session ${targetSessionId} status:`,
-                    e,
-                  );
-                });
+              // セッションのステータスも完了に更新（リトライ付き）
+              await updateSessionStatusWithRetry(
+                targetSessionId,
+                "completed",
+                "[continue-execution]",
+                3
+              );
 
               console.log(`[continue-execution] Completed task ${taskId}`);
             } else {

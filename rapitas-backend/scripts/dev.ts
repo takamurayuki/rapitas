@@ -44,6 +44,12 @@ let serverProcess: Subprocess | null = null;
 let isRestarting = false;
 let restartTimeout: ReturnType<typeof setTimeout> | null = null;
 
+// エージェント実行中の延期リスタート管理
+let hasDeferredChanges = false;
+let deferredPrismaChange = false;
+let deferredFiles: string[] = [];
+let deferCheckInterval: ReturnType<typeof setInterval> | null = null;
+
 // 色付きログ出力
 const log = {
   info: (msg: string) => console.log(`\x1b[36m[DEV]\x1b[0m ${msg}`),
@@ -225,6 +231,19 @@ async function startServer(cleanupPort: boolean = false) {
 async function handlePrismaChange() {
   log.info("Prismaスキーマの変更を検出...");
 
+  // エージェント実行中はリスタートを延期
+  const agentActive = await isAgentExecutionActive();
+  if (agentActive) {
+    hasDeferredChanges = true;
+    deferredPrismaChange = true;
+    deferredFiles.push("prisma/schema.prisma");
+    log.warn(
+      `エージェント実行中のためPrismaリスタートを延期 (${deferredFiles.length} files queued)`,
+    );
+    startDeferredCheckInterval();
+    return;
+  }
+
   try {
     // db push を実行
     log.info("prisma db push を実行中...");
@@ -263,13 +282,98 @@ async function handlePrismaChange() {
   }
 }
 
-// デバウンス付きでサーバーを再起動
-function scheduleRestart() {
+/**
+ * バックエンドの /agents/system-status APIを呼び出し、
+ * エージェント実行がアクティブかどうかをチェックする。
+ * アクティブな場合、リスタートを抑制してエージェントの中断を防ぐ。
+ */
+async function isAgentExecutionActive(): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+
+    const res = await fetch(
+      `http://127.0.0.1:${SERVER_PORT}/agents/system-status`,
+      { signal: controller.signal },
+    );
+    clearTimeout(timeout);
+
+    if (!res.ok) return false;
+
+    const data = (await res.json()) as {
+      activeExecutions?: number;
+      runningExecutions?: number;
+    };
+    if (
+      data &&
+      ((data.activeExecutions ?? 0) > 0 || (data.runningExecutions ?? 0) > 0)
+    ) {
+      return true;
+    }
+    return false;
+  } catch {
+    // APIが応答しない場合は安全側に倒してリスタート許可
+    return false;
+  }
+}
+
+/**
+ * エージェント完了後に延期されたリスタートを実行するポーリング
+ */
+function startDeferredCheckInterval() {
+  if (deferCheckInterval) return;
+  deferCheckInterval = setInterval(async () => {
+    if (!hasDeferredChanges) {
+      clearInterval(deferCheckInterval!);
+      deferCheckInterval = null;
+      return;
+    }
+    const agentActive = await isAgentExecutionActive();
+    if (!agentActive) {
+      clearInterval(deferCheckInterval!);
+      deferCheckInterval = null;
+      const uniqueFiles = [...new Set(deferredFiles)].join(", ");
+      log.info(
+        `エージェント完了。延期された変更を適用: ${uniqueFiles}`,
+      );
+      const needsPrismaRestart = deferredPrismaChange;
+      hasDeferredChanges = false;
+      deferredPrismaChange = false;
+      deferredFiles = [];
+      if (needsPrismaRestart) {
+        await handlePrismaChange();
+      } else {
+        if (isRestarting) return;
+        isRestarting = true;
+        try {
+          await startServer();
+        } finally {
+          isRestarting = false;
+        }
+      }
+    }
+  }, 5000);
+}
+
+// デバウンス付きでサーバーを再起動（エージェント実行中は延期）
+function scheduleRestart(filename?: string) {
   if (restartTimeout) {
     clearTimeout(restartTimeout);
   }
 
   restartTimeout = setTimeout(async () => {
+    // エージェント実行中はリスタートを延期
+    const agentActive = await isAgentExecutionActive();
+    if (agentActive) {
+      hasDeferredChanges = true;
+      if (filename) deferredFiles.push(filename);
+      log.warn(
+        `エージェント実行中のためリスタートを延期 (${deferredFiles.length} files queued)`,
+      );
+      startDeferredCheckInterval();
+      return;
+    }
+
     if (isRestarting) return;
     isRestarting = true;
 
@@ -289,7 +393,7 @@ function watchTypeScriptFiles() {
   watch(INDEX_FILE, (eventType) => {
     if (eventType === "change") {
       log.info("index.ts の変更を検出");
-      scheduleRestart();
+      scheduleRestart("index.ts");
     }
   });
 
@@ -300,7 +404,7 @@ function watchTypeScriptFiles() {
       watch(dirPath, { recursive: true }, (eventType, filename) => {
         if (filename?.endsWith(".ts")) {
           log.info(`${dirName}/${filename} の変更を検出`);
-          scheduleRestart();
+          scheduleRestart(`${dirName}/${filename}`);
         }
       });
     } catch {

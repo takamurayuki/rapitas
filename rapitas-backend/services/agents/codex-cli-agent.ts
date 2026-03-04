@@ -12,7 +12,8 @@
  * - codex exec resume [SESSION_ID] でセッション再開
  */
 
-import { spawn, ChildProcess } from "child_process";
+import { spawn, ChildProcess, execSync } from "child_process";
+import { existsSync } from "fs";
 import { BaseAgent } from "./base-agent";
 import type {
   AgentCapability,
@@ -44,6 +45,25 @@ export type CodexCliAgentConfig = {
   resumeSessionId?: string; // セッション再開用ID
   sandboxMode?: "read-only" | "workspace-write" | "danger-full-access";
 };
+
+function resolveCliPath(cliName: string): string {
+  if (process.platform !== "win32") return cliName;
+  try {
+    const resolved = execSync(`where ${cliName}`, {
+      encoding: "utf8",
+      timeout: 5000,
+      windowsHide: true,
+    })
+      .trim()
+      .split(/\r?\n/)[0];
+    if (resolved && existsSync(resolved)) {
+      return resolved;
+    }
+  } catch {
+    // フォールバック
+  }
+  return cliName;
+}
 
 export class CodexCliAgent extends BaseAgent {
   private process: ChildProcess | null = null;
@@ -195,8 +215,9 @@ export class CodexCliAgent extends BaseAgent {
       }
 
       const isWindows = process.platform === "win32";
-      const codexPath =
-        process.env.CODEX_CLI_PATH || (isWindows ? "codex.cmd" : "codex");
+      const codexPath = resolveCliPath(
+        process.env.CODEX_CLI_PATH || (isWindows ? "codex.cmd" : "codex"),
+      );
 
       console.log(`${this.logPrefix} Platform: ${process.platform}`);
       console.log(`${this.logPrefix} Codex path: ${codexPath}`);
@@ -229,7 +250,8 @@ export class CodexCliAgent extends BaseAgent {
               return arg;
             })
             .join(" ");
-          finalCommand = `chcp 65001 >NUL 2>&1 && ${codexPath} ${argsString}`;
+          const quotedPath = codexPath.includes(" ") ? `"${codexPath}"` : codexPath;
+          finalCommand = `chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`;
           finalArgs = [];
         } else {
           finalCommand = codexPath;
@@ -773,8 +795,9 @@ export class CodexCliAgent extends BaseAgent {
   async isAvailable(): Promise<boolean> {
     return new Promise((resolve) => {
       const isWindows = process.platform === "win32";
-      const codexPath =
-        process.env.CODEX_CLI_PATH || (isWindows ? "codex.cmd" : "codex");
+      const codexPath = resolveCliPath(
+        process.env.CODEX_CLI_PATH || (isWindows ? "codex.cmd" : "codex"),
+      );
       const proc = spawn(codexPath, ["--version"], { shell: true });
 
       const timeout = setTimeout(() => {

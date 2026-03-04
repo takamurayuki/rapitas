@@ -28,10 +28,12 @@ export interface WorkflowViewerProps {
   workflowMode?: WorkflowMode | null;
   complexityScore?: number | null;
   workflowModeOverride?: boolean;
+  autoApprovePlan?: boolean;
   onPlanApprovalRequest?: () => void;
   onCompleteRequest?: () => void;
   onStatusChange?: (newStatus: WorkflowStatus) => void;
   onWorkflowModeChange?: (mode: WorkflowMode, isOverride: boolean) => void;
+  onAutoApprovePlanChange?: (value: boolean) => void;
   showWorkflowMode?: boolean;
   className?: string;
 }
@@ -127,10 +129,12 @@ export default function WorkflowViewer({
   workflowMode = null,
   complexityScore = null,
   workflowModeOverride = false,
+  autoApprovePlan = false,
   onPlanApprovalRequest,
   onCompleteRequest,
   onStatusChange,
   onWorkflowModeChange,
+  onAutoApprovePlanChange,
   showWorkflowMode = true,
   className = '',
 }: WorkflowViewerProps) {
@@ -354,6 +358,25 @@ export default function WorkflowViewer({
             disabled={effectiveStatus === 'in_progress' || effectiveStatus === 'completed'}
             showAnalyzeButton={true}
           />
+
+          {/* 計画自動承認設定 */}
+          <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoApprovePlan}
+                onChange={(e) => onAutoApprovePlanChange?.(e.target.checked)}
+                disabled={effectiveStatus === 'in_progress' || effectiveStatus === 'completed'}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800"
+              />
+              <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                計画を自動承認
+              </span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                (plan.md保存時に承認待ちをスキップ)
+              </span>
+            </label>
+          </div>
         </div>
       )}
 

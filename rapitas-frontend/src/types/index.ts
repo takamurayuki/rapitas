@@ -266,6 +266,7 @@ export type Task = {
   workflowMode?: WorkflowMode | null;
   complexityScore?: number | null;
   workflowModeOverride?: boolean | null;
+  autoApprovePlan?: boolean;
   createdAt: string;
   updatedAt: string;
 };

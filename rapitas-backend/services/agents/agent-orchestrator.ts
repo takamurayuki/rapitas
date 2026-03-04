@@ -3587,12 +3587,27 @@ ${errorMessage}
     branchName: string,
   ): Promise<boolean> {
     try {
-      await execAsync(`git checkout -b ${branchName}`, {
+      // 既存ブランチの存在チェック
+      const { stdout } = await execAsync(`git branch --list ${branchName}`, {
         cwd: workingDirectory,
       });
+
+      if (stdout.trim()) {
+        // 既存ブランチが存在する場合はチェックアウト
+        console.log(`[createBranch] Branch ${branchName} already exists, checking out`);
+        await execAsync(`git checkout ${branchName}`, {
+          cwd: workingDirectory,
+        });
+      } else {
+        // 新規ブランチを作成
+        console.log(`[createBranch] Creating new branch ${branchName}`);
+        await execAsync(`git checkout -b ${branchName}`, {
+          cwd: workingDirectory,
+        });
+      }
       return true;
     } catch (error) {
-      console.error("Failed to create branch:", error);
+      console.error("Failed to create/checkout branch:", error);
       return false;
     }
   }

@@ -277,7 +277,7 @@ function tryGracefulShutdownSync(port) {
     // curl が使えないか、リクエストが失敗した場合はNode.js one-linerを試行
     try {
       execSync(
-        `node -e "const h=require('http');const r=h.request({hostname:'localhost',port:${port},path:'/agents/shutdown',method:'POST',headers:{'Content-Type':'application/json'},timeout:3000},()=>process.exit(0));r.on('error',()=>process.exit(0));r.on('timeout',()=>{r.destroy();process.exit(0)});r.end()"`,
+        `node -e "const h=require('http');const r=h.request({hostname:'127.0.0.1',port:${port},path:'/agents/shutdown',method:'POST',headers:{'Content-Type':'application/json'},timeout:3000},()=>process.exit(0));r.on('error',()=>process.exit(0));r.on('timeout',()=>{r.destroy();process.exit(0)});r.end()"`,
         { stdio: "pipe", timeout: 5000 },
       );
       console.log(`  Graceful shutdown requested on port ${port} via node.`);
@@ -298,7 +298,7 @@ async function tryGracefulShutdownViaHttp(port) {
     await new Promise((resolve, reject) => {
       const req = http.request(
         {
-          hostname: "localhost",
+          hostname: "127.0.0.1",
           port: port,
           path: "/agents/shutdown",
           method: "POST",
@@ -810,7 +810,7 @@ async function stopBackendCompletely(skipShutdownApi = false) {
       await new Promise((resolve, reject) => {
         const req = http.request(
           {
-            hostname: "localhost",
+            hostname: "127.0.0.1",
             port: actualBackendPort,
             path: "/agents/shutdown",
             method: "POST",
@@ -931,7 +931,9 @@ async function isAgentExecutionActive() {
     const data = await new Promise((resolve, reject) => {
       const req = http.get(
         {
-          hostname: "localhost",
+          // Windows では "localhost" が IPv6 (::1) に解決され、
+          // IPv4 のみでリッスンしているバックエンドに接続できないことがある
+          hostname: "127.0.0.1",
           port: actualBackendPort,
           path: "/agents/system-status",
           timeout: 3000,
@@ -950,17 +952,30 @@ async function isAgentExecutionActive() {
           });
         },
       );
-      req.on("error", () => resolve(null));
+      req.on("error", (err) => {
+        console.log(`  [agent-check] system-status API error: ${err.message}`);
+        resolve(null);
+      });
       req.on("timeout", () => {
+        console.log("  [agent-check] system-status API timeout (3s)");
         req.destroy();
         resolve(null);
       });
     });
     if (data && (data.activeExecutions > 0 || data.runningExecutions > 0)) {
+      console.log(
+        `  [agent-check] Agent active (activeExecutions=${data.activeExecutions}, runningExecutions=${data.runningExecutions})`,
+      );
       return true;
     }
+    if (data) {
+      console.log(
+        `  [agent-check] No active agents (activeExecutions=${data.activeExecutions}, runningExecutions=${data.runningExecutions})`,
+      );
+    }
     return false;
-  } catch {
+  } catch (err) {
+    console.log(`  [agent-check] Exception: ${err.message || err}`);
     // APIが応答しない場合は安全側に倒してリスタート許可
     return false;
   }

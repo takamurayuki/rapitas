@@ -137,8 +137,10 @@ export default function Header() {
     activeExecutions: number;
   }>({ open: false, activeExecutions: 0 });
 
+  const [hasMounted, setHasMounted] = useState(false);
+
   const { isDarkMode, mounted: darkModeMounted, toggleTheme } = useDarkMode();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, isLoading: isAuthLoading, logout } = useAuth();
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -219,6 +221,11 @@ export default function Header() {
     await logout();
     router.push('/auth/login');
   };
+
+  // ハイドレーション後にマウント済みフラグをセット（認証UIのハイドレーションミスマッチ防止）
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   // Tauri環境かどうかを判定
   useEffect(() => {
@@ -952,8 +959,8 @@ export default function Header() {
               {/* 通知ベル */}
               <NotificationBell />
 
-              {/* ユーザーメニュー（認証時のみ表示） */}
-              {isAuthenticated && user && (
+              {/* ユーザーメニュー（認証時のみ表示、hasMountedでハイドレーションミスマッチ防止） */}
+              {hasMounted && !isAuthLoading && isAuthenticated && user && (
                 <div className="relative" ref={userMenuRef}>
                   <button
                     onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}

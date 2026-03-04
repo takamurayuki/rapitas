@@ -6,7 +6,8 @@
  * https://github.com/google-gemini/gemini-cli
  */
 
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
+import { existsSync } from 'fs';
 import type {
   AgentCapabilities,
   AgentProviderConfig,
@@ -106,10 +107,11 @@ export class GeminiCliAgentV2 extends AbstractAgent {
   async isAvailable(): Promise<boolean> {
     return new Promise((resolve) => {
       const isWindows = process.platform === 'win32';
-      const geminiPath =
+      const geminiPath = resolveCliPath(
         this.config.cliPath ||
         process.env.GEMINI_CLI_PATH ||
-        (isWindows ? 'gemini.cmd' : 'gemini');
+        (isWindows ? 'gemini.cmd' : 'gemini'),
+      );
 
       const proc = spawn(geminiPath, ['--version'], { shell: true });
 
@@ -282,10 +284,11 @@ export class GeminiCliAgentV2 extends AbstractAgent {
     return new Promise((resolve) => {
       const timeout = context.timeout || this.config.timeout || 900000;
       const isWindows = process.platform === 'win32';
-      const geminiPath =
+      const geminiPath = resolveCliPath(
         this.config.cliPath ||
         process.env.GEMINI_CLI_PATH ||
-        (isWindows ? 'gemini.cmd' : 'gemini');
+        (isWindows ? 'gemini.cmd' : 'gemini'),
+      );
 
       // コマンドライン引数を構築
       const args: string[] = [];
@@ -358,7 +361,8 @@ export class GeminiCliAgentV2 extends AbstractAgent {
             return arg;
           })
           .join(' ');
-        finalCommand = `chcp 65001 >NUL 2>&1 && ${geminiPath} ${argsString}`;
+        const quotedPath = geminiPath.includes(' ') ? `"${geminiPath}"` : geminiPath;
+        finalCommand = `chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`;
         finalArgs = [];
       } else {
         finalCommand = geminiPath;
@@ -691,6 +695,25 @@ export class GeminiCliAgentV2 extends AbstractAgent {
   }
 }
 
+function resolveCliPath(cliName: string): string {
+  if (process.platform !== 'win32') return cliName;
+  try {
+    const resolved = execSync(`where ${cliName}`, {
+      encoding: 'utf8',
+      timeout: 5000,
+      windowsHide: true,
+    })
+      .trim()
+      .split(/\r?\n/)[0];
+    if (resolved && existsSync(resolved)) {
+      return resolved;
+    }
+  } catch {
+    // フォールバック
+  }
+  return cliName;
+}
+
 /**
  * Gemini CLI プロバイダー
  */
@@ -734,10 +757,11 @@ export class GeminiCliProvider implements IAgentProvider {
   async isAvailable(): Promise<boolean> {
     return new Promise((resolve) => {
       const isWindows = process.platform === 'win32';
-      const geminiPath =
+      const geminiPath = resolveCliPath(
         this.defaultConfig.cliPath ||
         process.env.GEMINI_CLI_PATH ||
-        (isWindows ? 'gemini.cmd' : 'gemini');
+        (isWindows ? 'gemini.cmd' : 'gemini'),
+      );
 
       const proc = spawn(geminiPath, ['--version'], { shell: true });
 

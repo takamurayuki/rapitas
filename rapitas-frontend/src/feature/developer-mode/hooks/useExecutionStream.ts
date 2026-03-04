@@ -519,7 +519,7 @@ export function useExecutionPolling(taskId: number | null) {
                 'workflow-researcher': '[調査完了] リサーチフェーズが完了しました。次は計画フェーズを実行してください。',
                 'workflow-planner': '[計画作成完了] 計画フェーズが完了しました。計画内容を確認し、承認してください。',
                 'workflow-reviewer': '[レビュー完了] レビューフェーズが完了しました。計画内容を確認し、承認してください。',
-                'workflow-implementer': '[実装完了] 実装フェーズが完了しました。次は検証フェーズを実行してください。',
+                'workflow-implementer': '[実装完了] 実装フェーズが完了しました。検証フェーズを自動実行中...',
                 'workflow-verifier': '[検証完了] 検証フェーズが完了しました。検証結果を確認し、問題なければタスクを完了にしてください。',
               };
               completionMessage = '\n' + (WORKFLOW_PHASE_LABELS[sessionMode] || `[フェーズ完了] ${sessionMode}が完了しました。`) + '\n';

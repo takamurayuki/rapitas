@@ -4,17 +4,14 @@
 @import '../styles/note-editor-enhanced.css';
 @plugin "@tailwindcss/typography";
 
-@keyframes animate-execution-border {
-  from {
+/* アイコンの外枠に沿って線が回転するアニメーション */
+@keyframes icon-outer-border-spin {
+  0% {
     stroke-dashoffset: 0;
   }
-  to {
-    stroke-dashoffset: -2500; /* perimeterより十分大きい値で一周させる */
+  100% {
+    stroke-dashoffset: -107.96; /* 外枠の正確な周囲長: 直線64 + 2πr(r=7) = 64 + 43.96 */
   }
-}
-
-.animate-execution-border {
-  animation: animate-execution-border 3s linear infinite;
 }
 
 .execution-border-rect {

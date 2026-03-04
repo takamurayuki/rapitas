@@ -109,14 +109,18 @@ function NewTaskClient() {
     }
   };
 
+  const initializedRef = useRef(false);
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
     const themeIdParam = searchParams.get('themeId');
     if (themeIdParam) {
       setThemeId(Number(themeIdParam));
     }
     fetchThemes();
     fetchCategories();
-  }, [searchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // グローバル設定の取得
   useEffect(() => {
@@ -319,7 +323,10 @@ function NewTaskClient() {
       return;
     }
 
-    const executeAfterCreate = globalSettings?.autoExecuteAfterCreate ?? false;
+    // 開発プロジェクトのテーマに属するタスクのみ自動実行を許可
+    const executeAfterCreate =
+      (globalSettings?.autoExecuteAfterCreate ?? false) &&
+      selectedTheme?.isDevelopment === true;
 
     setIsSubmitting(true);
     try {
@@ -412,7 +419,10 @@ function NewTaskClient() {
     e?.preventDefault();
     if (isSubmitting || !title.trim()) return;
 
-    const executeAfterCreate = globalSettings?.autoExecuteAfterCreate ?? false;
+    // 開発プロジェクトのテーマに属するタスクのみ自動実行を許可
+    const executeAfterCreate =
+      (globalSettings?.autoExecuteAfterCreate ?? false) &&
+      selectedTheme?.isDevelopment === true;
 
     setIsSubmitting(true);
     try {

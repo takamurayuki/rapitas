@@ -1,7 +1,7 @@
 /**
  * Agent関連の型定義
  */
-import type { AgentConfig, AgentExecution } from "@prisma/client";
+import type { AIAgentConfig, AgentExecution } from "@prisma/client";
 import type { TaskPriority } from "../services/parallel-execution/types";
 
 /**

@@ -28,6 +28,7 @@ import type { Category, CategoryMode, Theme } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { useDebounce } from '@/hooks/useDebounce';
 import { IconGrid } from '@/components/category/IconGrid';
+import { useFilterDataStore } from '@/stores/filterDataStore';
 
 type CategoryWithThemes = Category & {
   themes: (Pick<Theme, 'id' | 'name' | 'color' | 'icon' | 'isDefault'> & {
@@ -64,6 +65,7 @@ const MODE_OPTIONS: {
 
 export default function CategoriesPage() {
   const { showToast } = useToast();
+  const clearFilterCache = useFilterDataStore((s) => s.clearCache);
   const [items, setItems] = useState<CategoryWithThemes[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -153,6 +155,7 @@ export default function CategoriesPage() {
       showToast('カテゴリを作成しました', 'success');
       setIsAdding(false);
       resetForm();
+      clearFilterCache();
       fetchItems();
     } catch (e) {
       console.error(e);
@@ -178,6 +181,7 @@ export default function CategoriesPage() {
       showToast('カテゴリを更新しました', 'success');
       setEditingId(null);
       setIconSearchQuery('');
+      clearFilterCache();
       fetchItems();
     } catch (e) {
       console.error(e);
@@ -201,6 +205,7 @@ export default function CategoriesPage() {
       if (!res.ok) throw new Error('削除に失敗しました');
 
       showToast('カテゴリを削除しました', 'success');
+      clearFilterCache();
       fetchItems();
     } catch (e) {
       console.error(e);
@@ -253,6 +258,7 @@ export default function CategoriesPage() {
         body: JSON.stringify({ orders }),
       });
       if (!res.ok) throw new Error('並び替えに失敗しました');
+      clearFilterCache();
     } catch (e) {
       console.error(e);
       showToast('並び替えに失敗しました', 'error');

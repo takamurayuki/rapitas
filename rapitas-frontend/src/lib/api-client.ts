@@ -54,8 +54,8 @@ class APIClient {
     const url = `${API_BASE_URL}${path}`;
     const cacheKey = `${options.method || 'GET'}:${url}:${JSON.stringify(options.body || {})}`;
 
-    // キャッシュチェック
-    if (!options.skipCache && options.method === 'GET') {
+    // キャッシュチェック（method未指定もGETとして扱う）
+    if (!options.skipCache && (!options.method || options.method === 'GET')) {
       const cached = this.getFromCache<T>(cacheKey);
       if (cached) {
         return cached;

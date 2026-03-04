@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Category, Theme } from '@/types';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, clearApiCache } from '@/lib/api-client';
 
 interface FilterDataState {
   // データ
@@ -175,8 +175,17 @@ export const useFilterDataStore = create<FilterDataStore>()(
           return;
         }
 
+        if (force) {
+          console.log('[filterDataStore] refreshData: Force refresh - clearing caches');
+          // api-clientのキャッシュもクリア
+          clearApiCache('/categories');
+          clearApiCache('/themes');
+          // lastUpdatedをリセットしてinitializeData内のフレッシュネスチェックをバイパス
+          set({ lastUpdated: null, isInitialized: false });
+        }
+
         console.log(`[filterDataStore] refreshData: Starting refresh (force: ${force})`);
-        return state.initializeData();
+        return get().initializeData();
       },
 
       // カテゴリ設定

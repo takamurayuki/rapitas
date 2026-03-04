@@ -39,10 +39,46 @@ export class ValidationError extends AppError {
 }
 
 /**
+ * Detect if an error is a Prisma-related error
+ */
+function isPrismaError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+
+  const name = error.name || "";
+  const message = error.message || "";
+
+  // Prismaエラーのクラス名検出
+  if (name.includes("PrismaClient")) return true;
+  if (name.includes("PrismaKnown")) return true;
+  if (name.includes("PrismaUnknown")) return true;
+  if (name.includes("PrismaValidation")) return true;
+
+  // Prismaエラーメッセージの検出
+  if (message.includes("Invalid `prisma")) return true;
+  if (message.includes("prisma.") && message.includes("invocation")) return true;
+  if (message.includes("Prisma schema")) return true;
+  if (message.includes("Unknown argument")) return true;
+  if (message.includes("Database connection")) return true;
+  if (message.includes("prisma client")) return true;
+
+  // 追加のPrismaエラーパターン
+  if (message.includes("PrismaClientKnownRequestError")) return true;
+  if (message.includes("PrismaClientUnknownRequestError")) return true;
+  if (message.includes("PrismaClientRustPanicError")) return true;
+  if (message.includes("PrismaClientInitializationError")) return true;
+  if (message.includes("PrismaClientValidationError")) return true;
+
+  return false;
+}
+
+/**
  * Error handler middleware plugin
  */
 export const errorHandler = new Elysia({ name: "error-handler" }).onError(
   ({ code, error, set }) => {
+    // Ensure JSON content type for all error responses
+    set.headers["Content-Type"] = "application/json; charset=utf-8";
+
     // Custom AppError
     if (error instanceof AppError) {
       set.status = error.statusCode;
@@ -67,13 +103,13 @@ export const errorHandler = new Elysia({ name: "error-handler" }).onError(
       return { error: "リソースが見つかりません" };
     }
 
-    // Prisma related errors
-    if ('message' in error && typeof error.message === 'string' && error.message.includes("Invalid `prisma")) {
+    // Prisma related errors (all types)
+    if (isPrismaError(error)) {
       console.error("[Prisma Error]", error);
       set.status = 400;
       return {
         error: "データベースクエリエラー",
-        details: error.message
+        details: error instanceof Error ? error.message : String(error),
       };
     }
 

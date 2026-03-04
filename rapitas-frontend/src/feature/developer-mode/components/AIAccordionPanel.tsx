@@ -138,6 +138,7 @@ type Props = {
     question?: string;
   } | null>;
   onStopExecution?: () => void;
+  onExecutionComplete?: () => void;
   // 並列実行関連
   subtasks?: Task[];
   onStartParallelExecution?: (config?: {
@@ -191,6 +192,7 @@ export function AIAccordionPanel({
   onReset,
   onRestoreExecutionState,
   onStopExecution,
+  onExecutionComplete,
   // 並列実行関連
   subtasks,
   onStartParallelExecution,
@@ -455,18 +457,25 @@ export function AIAccordionPanel({
     }
   }, [isExecuting, isPollingRunning, startPolling, isRestoring]);
 
-  // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新
-  // ただし、キャンセルは handleStopExecution で既に処理されているため、completed と failed のみ処理
+  // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新（一度だけ）
+  const handledTerminalStatusRef = useRef<string | null>(null);
   useEffect(() => {
-    if (pollingStatus === 'completed' || pollingStatus === 'failed') {
-      // 親コンポーネントの状態を更新して実行完了を通知
-      if (onStopExecution) {
-        onStopExecution();
-      }
-      // グローバルストアから実行中タスクを除去
+    // 同じ terminal ステータスを二度処理しない
+    if (handledTerminalStatusRef.current === pollingStatus) return;
+
+    if (pollingStatus === 'completed') {
+      handledTerminalStatusRef.current = pollingStatus;
+      onExecutionComplete?.();
       removeExecutingTask(taskId);
+    } else if (pollingStatus === 'failed' || pollingStatus === 'cancelled') {
+      handledTerminalStatusRef.current = pollingStatus;
+      onStopExecution?.();
+      removeExecutingTask(taskId);
+    } else {
+      // running / waiting_for_input 等に戻ったらリセット
+      handledTerminalStatusRef.current = null;
     }
-  }, [pollingStatus, onStopExecution, removeExecutingTask, taskId]);
+  }, [pollingStatus, onStopExecution, onExecutionComplete, removeExecutingTask, taskId]);
 
   // サブタスクが存在するかどうか
   const hasSubtasks = subtasks && subtasks.length > 0;
@@ -651,15 +660,16 @@ export function AIAccordionPanel({
       // ログ表示を継続
       setShowLogs(true);
       setExpandedSection('execution');
+      // 旧ポーリングを停止して残留ステータスをクリア
+      stopPolling();
       // 既存のセッションIDで実行を再開
       setSessionId(result.sessionId);
-      // ポーリングを再開（ログを保持）
-      // 少し遅延を入れて、バックエンドの継続実行処理が開始されるのを待つ
-      setTimeout(() => {
-        startPolling({
-          preserveLogs: true,
-        });
-      }, 500);
+      // ポーリングを即座に再開（ログを保持）
+      // startPolling内で即座にstatus='running'を設定し、旧completedステータスを上書きする
+      // terminalGraceMs(デフォルト2000ms)がバックエンドの処理開始を待つ
+      startPolling({
+        preserveLogs: true,
+      });
     }
   };
 
@@ -707,7 +717,8 @@ export function AIAccordionPanel({
   const isCompleted = finalStatus === 'completed' && !isWaitingForInput;
   const isCancelled = finalStatus === 'cancelled';
   const isFailed =
-    finalStatus === 'failed' || executionError || pollingError || sseError;
+    !isCompleted &&
+    (finalStatus === 'failed' || executionError || pollingError || sseError);
   // 中断判定: 復元した実行が interrupted だった場合（ログがあり、executionResultがある）
   const isInterrupted =
     !isCompleted &&
@@ -1365,7 +1376,7 @@ export function AIAccordionPanel({
                 </>
               )}
               {/* エラー: リセット + 再試行 */}
-              {isFailed && !isRunning && (
+              {isFailed && !isRunning && !isCompleted && (
                 <>
                   <button
                     onClick={(e) => {

@@ -511,9 +511,11 @@ function TaskDetailClient({
   // コンテンツ表示準備完了フラグ（スクロール固定→解除のため）
   const [contentReady, setContentReady] = useState(false);
 
-  // スケルトン非表示になった時にスクロール位置を先頭にリセットし、段階的にスクロールを有効化（ちらつき防止）
+  // スケルトン非表示になった時（初回ロード完了時のみ）にスクロール位置を先頭にリセットし、段階的にスクロールを有効化
+  const initialScrollDoneRef = useRef(false);
   useEffect(() => {
-    if (!showSkeleton && task && containerRef.current) {
+    if (!showSkeleton && containerRef.current && !initialScrollDoneRef.current) {
+      initialScrollDoneRef.current = true;
       // まずスクロールを無効化してトップに固定
       containerRef.current.scrollTop = 0;
       setContentReady(false);
@@ -522,7 +524,7 @@ function TaskDetailClient({
         setContentReady(true);
       });
     }
-  }, [showSkeleton, task]);
+  }, [showSkeleton]);
 
   // グローバル設定に基づいて開発者モードを自動有効化（開発プロジェクトかつAIアシスタント有効の場合）
   useEffect(() => {
@@ -582,10 +584,25 @@ function TaskDetailClient({
       taskId
     ) {
       autoExecuteTriggered.current = true;
-      // AIアシスタントパネルを表示
-      setShowAIAssistant(true);
-      // エージェント実行を開始
-      executeAgent();
+
+      // 開発プロジェクトのテーマに属するタスクのみ自動実行を許可
+      if (!task.theme?.isDevelopment) {
+        console.warn(
+          `[TaskDetail] Skipping auto-execute for task ${taskId}: theme is not a development project`,
+        );
+      } else {
+        // AIアシスタントパネルを表示
+        setShowAIAssistant(true);
+        // エージェント実行を開始
+        // 楽観的UI更新: エージェント実行開始時にタスクステータスをin-progressに設定
+        if (task && task.status !== 'in-progress') {
+          setTask((prev) => {
+            if (!prev) return prev;
+            return { ...prev, status: 'in-progress' };
+          });
+        }
+        executeAgent();
+      }
       // URLからautoExecuteパラメータを除去（リロード時の再実行防止）
       const newParams = new URLSearchParams(searchParams.toString());
       newParams.delete('autoExecute');
@@ -1468,6 +1485,13 @@ function TaskDetailClient({
                             console.log(
                               '[TaskDetail] Auto-executing agent after analysis',
                             );
+                            // 楽観的UI更新: エージェント実行開始時にタスクステータスをin-progressに設定
+                            if (task && task.status !== 'in-progress') {
+                              setTask((prev) => {
+                                if (!prev) return prev;
+                                return { ...prev, status: 'in-progress' };
+                              });
+                            }
                             await executeAgent({
                               useTaskAnalysis: true,
                               optimizedPrompt: optimizedPrompt || undefined,
@@ -1502,10 +1526,39 @@ function TaskDetailClient({
                   agentConfigId={agentConfigId}
                   agents={agents}
                   onAgentChange={setAgentConfigId}
-                  onExecute={executeAgent}
+                  onExecute={async (options) => {
+                    // 楽観的UI更新: エージェント実行開始時にタスクステータスをin-progressに設定
+                    if (task && task.status !== 'in-progress') {
+                      setTask((prev) => {
+                        if (!prev) return prev;
+                        return { ...prev, status: 'in-progress' };
+                      });
+                    }
+
+                    const result = await executeAgent(options);
+                    return result;
+                  }}
                   onReset={resetExecutionState}
                   onRestoreExecutionState={restoreExecutionState}
                   onStopExecution={setExecutionCancelled}
+                  onExecutionComplete={async () => {
+                    // バックエンドの.then()でタスクステータスが更新されるまでリトライで再取得
+                    for (let attempt = 0; attempt < 6; attempt++) {
+                      await new Promise(r => setTimeout(r, attempt === 0 ? 1000 : 2000));
+                      try {
+                        const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
+                        if (res.ok) {
+                          const data = await res.json();
+                          setTask(data);
+                          if (data.status === 'done') break;
+                        }
+                      } catch { /* retry */ }
+                    }
+                    // ワークフローファイルも再取得
+                    refetchWorkflowFiles();
+                    // 親コンポーネント（タスク一覧）にも通知
+                    onTaskUpdated?.();
+                  }}
                   // 並列実行関連
                   subtasks={task.subtasks}
                   onStartParallelExecution={startSession}
@@ -1547,6 +1600,7 @@ function TaskDetailClient({
                   workflowMode={task?.workflowMode}
                   complexityScore={task?.complexityScore}
                   workflowModeOverride={task?.workflowModeOverride ?? undefined}
+                  autoApprovePlan={task?.autoApprovePlan ?? false}
                   onPlanApprovalRequest={handlePlanApprovalRequest}
                   onCompleteRequest={handleWorkflowComplete}
                   onStatusChange={(newStatus) => {
@@ -1562,6 +1616,30 @@ function TaskDetailClient({
                         workflowModeOverride: isOverride
                       });
                       if (onTaskUpdated) onTaskUpdated();
+                    }
+                  }}
+                  onAutoApprovePlanChange={async (value) => {
+                    // autoApprovePlan変更時の処理
+                    if (!task) return;
+
+                    try {
+                      const response = await fetch(`${API_BASE}/tasks/${taskId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ autoApprovePlan: value }),
+                      });
+
+                      if (response.ok) {
+                        setTask({
+                          ...task,
+                          autoApprovePlan: value,
+                        });
+                        if (onTaskUpdated) onTaskUpdated();
+                      } else {
+                        console.error('Failed to update autoApprovePlan setting');
+                      }
+                    } catch (error) {
+                      console.error('Error updating autoApprovePlan setting:', error);
                     }
                   }}
                   showWorkflowMode={true}

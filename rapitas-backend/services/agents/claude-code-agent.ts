@@ -3,7 +3,7 @@
  * Claude Code CLIを子プロセスとして起動し、タスクを実行する
  */
 
-import { spawn, ChildProcess } from "child_process";
+import { spawn, ChildProcess, execSync } from "child_process";
 import { writeFileSync, unlinkSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -29,6 +29,10 @@ import type {
   QuestionKey,
   QuestionWaitingState,
 } from "./question-detection";
+import type {
+  WorkerOutputMessage,
+  WorkerInputMessage,
+} from "../../workers/output-parser-types";
 
 export type ClaudeCodeAgentConfig = {
   workingDirectory?: string;
@@ -39,6 +43,30 @@ export type ClaudeCodeAgentConfig = {
   continueConversation?: boolean; // 前回の会話を継続するか
   resumeSessionId?: string; // --resumeで使用するセッションID
 };
+
+/**
+ * Windows環境でCLIコマンドの絶対パスを解決する。
+ * PATH解決に失敗した場合はフォールバックとして元のパスを返す。
+ */
+function resolveCliPath(cliName: string): string {
+  if (process.platform !== "win32") return cliName;
+  try {
+    const resolved = execSync(`where ${cliName}`, {
+      encoding: "utf8",
+      timeout: 5000,
+      windowsHide: true,
+    })
+      .trim()
+      .split(/\r?\n/)[0];
+    if (resolved && existsSync(resolved)) {
+      console.log(`[resolveCliPath] Resolved ${cliName} -> ${resolved}`);
+      return resolved;
+    }
+  } catch {
+    console.warn(`[resolveCliPath] Failed to resolve ${cliName}, using relative path`);
+  }
+  return cliName;
+}
 
 export class ClaudeCodeAgent extends BaseAgent {
   private process: ChildProcess | null = null;
@@ -62,6 +90,14 @@ export class ClaudeCodeAgent extends BaseAgent {
     "Edit",
     "NotebookEdit",
   ]);
+  /** 出力パース用 Worker */
+  private parserWorker: Worker | null = null;
+  /** Workerからパースされたアーティファクト */
+  private workerArtifacts: AgentArtifact[] = [];
+  /** Workerからパースされたコミット */
+  private workerCommits: GitCommitInfo[] = [];
+  /** parse-complete完了時のコールバック */
+  private onParseComplete: (() => void) | null = null;
 
   constructor(id: string, name: string, config: ClaudeCodeAgentConfig = {}) {
     super(id, name, "claude-code");
@@ -95,6 +131,9 @@ export class ClaudeCodeAgent extends BaseAgent {
     this.activeTools.clear();
     this.claudeSessionId = null;
     this.hasFileModifyingToolCalls = false;
+    this.workerArtifacts = [];
+    this.workerCommits = [];
+    this.onParseComplete = null;
     const startTime = Date.now();
 
     // タイムアウトのデフォルト値を確実に設定
@@ -212,10 +251,11 @@ export class ClaudeCodeAgent extends BaseAgent {
         args.push("--max-tokens", String(this.config.maxTokens));
       }
 
-      // Windowsでは.cmdファイルを使用
+      // Windowsでは.cmdファイルを使用（絶対パスに解決してPATH解決の問題を回避）
       const isWindows = process.platform === "win32";
-      const claudePath =
+      const baseClaudePath =
         process.env.CLAUDE_CODE_PATH || (isWindows ? "claude.cmd" : "claude");
+      const claudePath = resolveCliPath(baseClaudePath);
 
       console.log(`${this.logPrefix} Platform: ${process.platform}`);
       console.log(`${this.logPrefix} Claude path: ${claudePath}`);
@@ -264,7 +304,9 @@ export class ClaudeCodeAgent extends BaseAgent {
               return arg;
             })
             .join(" ");
-          finalCommand = `chcp 65001 >NUL 2>&1 && ${claudePath} ${argsString}`;
+          // 絶対パスにスペースが含まれる可能性があるためクォートで囲む
+          const quotedPath = claudePath.includes(" ") ? `"${claudePath}"` : claudePath;
+          finalCommand = `chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`;
           finalArgs = []; // 引数はコマンド文字列に含まれているので空
         } else {
           finalCommand = claudePath;
@@ -456,9 +498,202 @@ export class ClaudeCodeAgent extends BaseAgent {
           clearInterval(timeoutCheckInterval);
         };
 
+        // 出力パース用 Worker を生成
+        this.parserWorker = new Worker(
+          new URL("../../workers/output-parser-worker.ts", import.meta.url).href,
+        );
+        this.parserWorker.postMessage({
+          type: "configure",
+          config: {
+            timeoutSeconds: this.config.timeout
+              ? Math.floor(this.config.timeout / 1000)
+              : undefined,
+            logPrefix: this.logPrefix,
+          },
+        } satisfies WorkerInputMessage);
+
+        // Worker からのメッセージハンドリング
+        this.parserWorker.onmessage = (event: MessageEvent<WorkerOutputMessage>) => {
+          const msg = event.data;
+          switch (msg.type) {
+            case "system-event":
+              if (msg.sessionId) {
+                this.claudeSessionId = msg.sessionId;
+                console.log(
+                  `${this.logPrefix} Session ID captured: ${this.claudeSessionId}`,
+                );
+                // 再開モードの場合、セッションIDの一致を確認
+                if (
+                  this.config.resumeSessionId &&
+                  this.config.resumeSessionId !== msg.sessionId
+                ) {
+                  console.warn(
+                    `${this.logPrefix} WARNING: Requested session ${this.config.resumeSessionId} but got ${msg.sessionId}`,
+                  );
+                  const mismatchWarning = `\n[警告] 指定されたセッション(${this.config.resumeSessionId.substring(0, 8)}...)の再開に失敗しました。新しいセッション(${msg.sessionId.substring(0, 8)}...)で続行します。前回のコンテキストが失われている可能性があります。\n`;
+                  this.outputBuffer += mismatchWarning;
+                  this.emitOutput(mismatchWarning);
+                }
+              }
+              if (msg.subtype === "error") {
+                console.error(
+                  `${this.logPrefix} System error event: ${msg.errorMessage}`,
+                );
+              }
+              if (msg.displayOutput) {
+                this.outputBuffer += msg.displayOutput;
+                this.emitOutput(msg.displayOutput);
+              }
+              break;
+
+            case "assistant-message":
+              if (msg.displayOutput) {
+                this.outputBuffer += msg.displayOutput;
+                this.emitOutput(msg.displayOutput);
+              }
+              // アクティブツールの追跡をメインスレッドでも維持（close時の参照用）
+              for (const tool of msg.toolUses) {
+                this.activeTools.set(tool.id, {
+                  name: tool.name,
+                  startTime: Date.now(),
+                  info: tool.info,
+                });
+              }
+              break;
+
+            case "user-message":
+              if (msg.displayOutput) {
+                this.outputBuffer += msg.displayOutput;
+                this.emitOutput(msg.displayOutput);
+              }
+              // ツール完了を反映
+              for (const result of msg.toolResults) {
+                if (result.toolUseId) {
+                  this.activeTools.delete(result.toolUseId);
+                }
+              }
+              break;
+
+            case "result-event":
+              if (msg.displayOutput) {
+                this.outputBuffer += msg.displayOutput;
+                this.emitOutput(msg.displayOutput);
+              }
+              break;
+
+            case "question-detected": {
+              const detectionResult = msg.detectionResult;
+              console.log(
+                `${this.logPrefix} AskUserQuestion tool detected via Worker!`,
+              );
+
+              // 質問待機状態を更新
+              this.detectedQuestion =
+                updateWaitingStateFromDetection(detectionResult);
+
+              console.log(
+                `${this.logPrefix} Question key generated:`,
+                this.detectedQuestion.questionKey,
+              );
+
+              // 即座に質問検出を通知（DBを即時更新するため）
+              this.status = "waiting_for_input";
+              this.emitQuestionDetected({
+                question: detectionResult.questionText,
+                questionType: tolegacyQuestionType(
+                  this.detectedQuestion.questionType,
+                ),
+                questionDetails:
+                  this.detectedQuestion.questionDetails,
+                questionKey: this.detectedQuestion.questionKey,
+                claudeSessionId: this.claudeSessionId || undefined,
+              });
+
+              if (msg.displayOutput) {
+                this.outputBuffer += msg.displayOutput;
+                this.emitOutput(msg.displayOutput);
+              }
+
+              // プロセスを停止して、ユーザーの回答後に --resume で再開する
+              console.log(
+                `${this.logPrefix} Stopping process to wait for user response`,
+              );
+              setTimeout(() => {
+                if (this.process && !this.process.killed) {
+                  console.log(
+                    `${this.logPrefix} Stopping process after stabilization delay (5s)`,
+                  );
+                  this.killProcessForQuestion();
+                }
+              }, 5000);
+              break;
+            }
+
+            case "tool-tracking":
+              if (msg.hasFileModifyingToolCalls) {
+                this.hasFileModifyingToolCalls = true;
+                console.log(
+                  `${this.logPrefix} File-modifying tool detected via Worker`,
+                );
+              }
+              break;
+
+            case "raw-output":
+              if (msg.displayOutput) {
+                this.outputBuffer += msg.displayOutput;
+                this.emitOutput(msg.displayOutput);
+              }
+              break;
+
+            case "artifacts-parsed":
+              this.workerArtifacts = msg.data.artifacts;
+              console.log(
+                `${this.logPrefix} Artifacts parsed by Worker: ${this.workerArtifacts.length} items`,
+              );
+              break;
+
+            case "commits-parsed":
+              this.workerCommits = msg.data.commits;
+              console.log(
+                `${this.logPrefix} Commits parsed by Worker: ${this.workerCommits.length} items`,
+              );
+              break;
+
+            case "parse-complete":
+              console.log(
+                `${this.logPrefix} Worker parse-complete received`,
+              );
+              if (this.onParseComplete) {
+                this.onParseComplete();
+                this.onParseComplete = null;
+              }
+              // Workerを終了
+              try {
+                this.parserWorker?.postMessage({ type: "terminate" } satisfies WorkerInputMessage);
+              } catch {
+                // Worker already terminated
+              }
+              this.parserWorker = null;
+              break;
+
+            case "error":
+              console.error(
+                `${this.logPrefix} Worker error: ${msg.message}`,
+                msg.stack,
+              );
+              break;
+          }
+        };
+
+        this.parserWorker.onerror = (error: ErrorEvent) => {
+          console.error(
+            `${this.logPrefix} Worker uncaught error:`,
+            error.message,
+          );
+        };
+
         this.process.stdout?.on("data", (data: Buffer) => {
           const chunk = data.toString();
-          this.lineBuffer += chunk;
           lastOutputTime = Date.now(); // 最終出力時刻を更新
 
           // 最初の出力が来た時にログを出力
@@ -470,236 +705,19 @@ export class ClaudeCodeAgent extends BaseAgent {
             );
           }
 
-          // 改行で分割して行ごとに処理
-          const lines = this.lineBuffer.split("\n");
-          this.lineBuffer = lines.pop() || ""; // 最後の不完全な行は保持
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-
-            try {
-              const json = JSON.parse(line);
-              const timestamp = new Date().toISOString();
-              console.log(
-                `${this.logPrefix} [${timestamp}] Event type: ${json.type}`,
-              );
-
-              // イベントタイプに応じて出力を生成
-              let displayOutput = "";
-              switch (json.type) {
-                case "assistant":
-                  // アシスタントのメッセージ
-                  if (json.message?.content) {
-                    for (const block of json.message.content) {
-                      if (block.type === "text" && block.text) {
-                        displayOutput += block.text;
-                      } else if (block.type === "tool_use") {
-                        // AskUserQuestionツールの検出（キーベース判定システム使用）
-                        if (block.name === "AskUserQuestion") {
-                          console.log(
-                            `${this.logPrefix} AskUserQuestion tool detected!`,
-                          );
-                          console.log(
-                            `${this.logPrefix} Tool input:`,
-                            JSON.stringify(block.input),
-                          );
-
-                          // 新しいキーベース判定システムで質問を検出
-                          const detectionResult = detectQuestionFromToolCall(
-                            block.name,
-                            block.input,
-                            this.config.timeout
-                              ? Math.floor(this.config.timeout / 1000)
-                              : undefined,
-                          );
-
-                          // 質問待機状態を更新
-                          this.detectedQuestion =
-                            updateWaitingStateFromDetection(detectionResult);
-
-                          console.log(
-                            `${this.logPrefix} Question key generated:`,
-                            this.detectedQuestion.questionKey,
-                          );
-
-                          // 即座に質問検出を通知（DBを即時更新するため）
-                          this.status = "waiting_for_input";
-                          this.emitQuestionDetected({
-                            question: detectionResult.questionText,
-                            questionType: tolegacyQuestionType(
-                              this.detectedQuestion.questionType,
-                            ),
-                            questionDetails:
-                              this.detectedQuestion.questionDetails,
-                            questionKey: this.detectedQuestion.questionKey,
-                            claudeSessionId: this.claudeSessionId || undefined,
-                          });
-
-                          displayOutput += `\n[質問] ${detectionResult.questionText}\n`;
-
-                          // AskUserQuestionツールが検出されたら、プロセスを停止
-                          // stdin が閉じられているため、応答を待ち続けるとエラーが連続発生する
-                          // プロセスを停止して、ユーザーの回答後に --resume で再開する
-                          console.log(
-                            `${this.logPrefix} Stopping process to wait for user response`,
-                          );
-                          // セッション状態の安定化のため十分に待ってからプロセスを停止
-                          // Claude Codeがセッション状態を永続化する時間を確保する（5秒）
-                          // 短すぎるとセッション保存が不完全になり、--resume での再開に失敗する
-                          setTimeout(() => {
-                            if (this.process && !this.process.killed) {
-                              console.log(
-                                `${this.logPrefix} Stopping process after stabilization delay (5s)`,
-                              );
-                              this.killProcessForQuestion();
-                            }
-                          }, 5000);
-                        } else {
-                          // ツール呼び出しの詳細情報を表示
-                          const toolInfo = this.formatToolInfo(
-                            block.name,
-                            block.input,
-                          );
-                          displayOutput += `\n[Tool: ${block.name}] ${toolInfo}\n`;
-                          // ファイル変更ツールの使用を追跡
-                          if (
-                            ClaudeCodeAgent.FILE_MODIFYING_TOOLS.has(block.name)
-                          ) {
-                            this.hasFileModifyingToolCalls = true;
-                            console.log(
-                              `${this.logPrefix} File-modifying tool detected: ${block.name}`,
-                            );
-                          }
-                          // アクティブツールとして追跡
-                          if (block.id) {
-                            this.activeTools.set(block.id, {
-                              name: block.name,
-                              startTime: Date.now(),
-                              info: toolInfo,
-                            });
-                          }
-                        }
-                      }
-                    }
-                  }
-                  break;
-                case "user":
-                  // ユーザーメッセージ（ツール結果など）
-                  if (json.message?.content) {
-                    for (const block of json.message.content) {
-                      if (block.type === "tool_result") {
-                        // アクティブツールから情報を取得
-                        const toolId = block.tool_use_id;
-                        const activeTool = toolId
-                          ? this.activeTools.get(toolId)
-                          : undefined;
-
-                        if (activeTool) {
-                          const duration = (
-                            (Date.now() - activeTool.startTime) /
-                            1000
-                          ).toFixed(1);
-                          if (block.is_error) {
-                            displayOutput += `[Tool Error: ${activeTool.name}] (${duration}s)\n`;
-                          } else {
-                            displayOutput += `[Tool Done: ${activeTool.name}] (${duration}s)\n`;
-                          }
-                          // アクティブツールから削除
-                          this.activeTools.delete(toolId);
-                        } else {
-                          // 情報がない場合のフォールバック
-                          const toolIdShort = toolId
-                            ? `ID: ${toolId.substring(0, 8)}...`
-                            : "";
-                          if (block.is_error) {
-                            displayOutput += `[Tool Error ${toolIdShort}]\n`;
-                          } else {
-                            displayOutput += `[Tool Done ${toolIdShort}]\n`;
-                          }
-                        }
-                      }
-                    }
-                  }
-                  break;
-                case "result":
-                  // 最終結果
-                  if (json.result) {
-                    const duration = json.duration_ms
-                      ? ` (${(json.duration_ms / 1000).toFixed(1)}s)`
-                      : "";
-                    const cost = json.cost_usd
-                      ? ` $${json.cost_usd.toFixed(4)}`
-                      : "";
-                    displayOutput += `\n[Result: ${json.subtype || "completed"}${duration}${cost}]\n`;
-                    if (json.result && typeof json.result === "string") {
-                      displayOutput += json.result + "\n";
-                    }
-                  }
-                  break;
-                case "system":
-                  // initイベントからセッションIDをキャプチャ
-                  if (json.subtype === "init" && json.session_id) {
-                    this.claudeSessionId = json.session_id;
-                    console.log(
-                      `${this.logPrefix} Session ID captured: ${this.claudeSessionId}`,
-                    );
-                    // 再開モードの場合、セッションIDの一致を確認
-                    if (
-                      this.config.resumeSessionId &&
-                      this.config.resumeSessionId !== json.session_id
-                    ) {
-                      console.warn(
-                        `${this.logPrefix} WARNING: Requested session ${this.config.resumeSessionId} but got ${json.session_id}`,
-                      );
-                      // セッションID不一致を通知（期限切れ等でClaude Codeが新規セッションを作成した可能性）
-                      const mismatchWarning = `\n[警告] 指定されたセッション(${this.config.resumeSessionId.substring(0, 8)}...)の再開に失敗しました。新しいセッション(${json.session_id.substring(0, 8)}...)で続行します。前回のコンテキストが失われている可能性があります。\n`;
-                      this.outputBuffer += mismatchWarning;
-                      this.emitOutput(mismatchWarning);
-                    }
-                  }
-                  // errorサブタイプの場合は詳細をログ
-                  if (json.subtype === "error") {
-                    console.error(
-                      `${this.logPrefix} System error event:`,
-                      JSON.stringify(json),
-                    );
-                    const errorMsg = typeof json.message === 'string' ? json.message : (json.error || "unknown");
-                    displayOutput += `[System Error: ${errorMsg}]\n`;
-                  } else {
-                    displayOutput += `[System: ${json.subtype || "info"}]\n`;
-                  }
-                  break;
-                default:
-                  console.log(
-                    `${this.logPrefix} Unknown event type: ${json.type}`,
-                    line.substring(0, 200),
-                  );
-              }
-
-              if (displayOutput) {
-                this.outputBuffer += displayOutput;
-                this.emitOutput(displayOutput);
-              }
-            } catch (e) {
-              // JSONパース失敗時: chcpコマンドの出力など不要な行をフィルタリング
-              const trimmedLine = line.trim();
-              if (
-                !trimmedLine ||
-                /^Active code page:/i.test(trimmedLine) ||
-                /^現在のコード ページ:/i.test(trimmedLine) ||
-                /^chcp\s/i.test(trimmedLine)
-              ) {
-                console.log(
-                  `${this.logPrefix} Filtered non-JSON output: ${trimmedLine.substring(0, 100)}`,
-                );
-                continue;
-              }
-              console.log(
-                `${this.logPrefix} Raw output: ${line.substring(0, 200)}`,
-              );
-              this.outputBuffer += line + "\n";
-              this.emitOutput(line + "\n");
-            }
+          // Worker にチャンクを委譲（パース処理はWorkerスレッドで実行）
+          try {
+            this.parserWorker?.postMessage({
+              type: "parse-chunk",
+              data: chunk,
+            } satisfies WorkerInputMessage);
+          } catch (workerErr) {
+            // Worker が終了済みの場合は無視（InvalidStateError: Worker has been terminated）
+            console.warn(
+              `${this.logPrefix} Worker postMessage failed:`,
+              workerErr instanceof Error ? workerErr.message : workerErr,
+            );
+            this.parserWorker = null;
           }
         });
 
@@ -753,8 +771,11 @@ export class ClaudeCodeAgent extends BaseAgent {
             return;
           }
 
-          const artifacts = this.parseArtifacts(this.outputBuffer);
-          const commits = this.parseCommits(this.outputBuffer);
+          // Workerにparse-completeを送信し、アーティファクト・コミットパースを実行
+          // Worker結果を待ってからresolveする
+          const resolveAfterParse = () => {
+            const artifacts = this.workerArtifacts;
+            const commits = this.workerCommits;
 
           // 質問検出（キーベース判定システム使用）
           console.log(`${this.logPrefix} Running question detection...`);
@@ -983,6 +1004,31 @@ export class ClaudeCodeAgent extends BaseAgent {
                 });
               }
             });
+          };
+
+          // Workerが存在する場合はparse-completeを送信して結果を待つ
+          // Workerが無い場合はフォールバックとして直接実行
+          if (this.parserWorker) {
+            this.workerArtifacts = [];
+            this.workerCommits = [];
+            this.onParseComplete = resolveAfterParse;
+
+            try {
+              this.parserWorker.postMessage({
+                type: "parse-complete",
+                outputBuffer: this.outputBuffer,
+              } satisfies WorkerInputMessage);
+            } catch (workerErr) {
+              console.warn(
+                `${this.logPrefix} Worker postMessage failed on parse-complete, falling back:`,
+                workerErr instanceof Error ? workerErr.message : workerErr,
+              );
+              this.onParseComplete = null;
+              resolveAfterParse();
+            }
+          } else {
+            resolveAfterParse();
+          }
         });
 
         this.process.on("error", (error: Error) => {
@@ -1137,8 +1183,9 @@ export class ClaudeCodeAgent extends BaseAgent {
   async isAvailable(): Promise<boolean> {
     return new Promise((resolve) => {
       const isWindows = process.platform === "win32";
-      const claudePath =
+      const baseClaudePath =
         process.env.CLAUDE_CODE_PATH || (isWindows ? "claude.cmd" : "claude");
+      const claudePath = resolveCliPath(baseClaudePath);
       const proc = spawn(claudePath, ["--version"], { shell: true });
 
       // 10秒タイムアウト
@@ -1528,121 +1575,4 @@ export class ClaudeCodeAgent extends BaseAgent {
     };
   }
 
-  /**
-   * 出力からファイル変更などの成果物を解析
-   */
-  private parseArtifacts(output: string): AgentArtifact[] {
-    const artifacts: AgentArtifact[] = [];
-
-    // ファイル作成/編集のパターンを検出
-    const filePatterns = [
-      /(?:Created|Modified|Wrote to|Writing to)[:\s]+([^\n]+)/gi,
-      /File: ([^\n]+)/gi,
-    ];
-
-    for (const pattern of filePatterns) {
-      let match: RegExpExecArray | null;
-      while ((match = pattern.exec(output)) !== null) {
-        const captured = match[1];
-        if (!captured) continue;
-        const filePath = captured.trim();
-        if (filePath && !filePath.includes("...")) {
-          artifacts.push({
-            type: "file",
-            name: filePath.split("/").pop() || filePath,
-            content: "", // 実際のコンテンツは後で取得
-            path: filePath,
-          });
-        }
-      }
-    }
-
-    // diff出力を検出
-    const diffPattern = /```diff\n([\s\S]*?)```/g;
-    let diffMatch;
-    while ((diffMatch = diffPattern.exec(output)) !== null) {
-      artifacts.push({
-        type: "diff",
-        name: "changes.diff",
-        content: diffMatch[1] || "",
-      });
-    }
-
-    return artifacts;
-  }
-
-  /**
-   * 出力からGitコミット情報を解析
-   */
-  private parseCommits(output: string): GitCommitInfo[] {
-    const commits: GitCommitInfo[] = [];
-
-    // コミットハッシュのパターンを検出
-    const commitPattern = /(?:Committed|commit)\s+([a-f0-9]{7,40})/gi;
-    let match;
-    while ((match = commitPattern.exec(output)) !== null) {
-      commits.push({
-        hash: match[1] || "",
-        message: "", // 詳細はgit logから取得する必要あり
-        branch: "",
-        filesChanged: 0,
-        additions: 0,
-        deletions: 0,
-      });
-    }
-
-    return commits;
-  }
-
-  /**
-   * ツール情報を人間が読みやすい形式にフォーマット
-   */
-  private formatToolInfo(
-    toolName: string,
-    input: Record<string, unknown> | undefined,
-  ): string {
-    if (!input) return "";
-
-    try {
-      switch (toolName) {
-        case "Read":
-          return input.file_path
-            ? `-> ${String(input.file_path).split(/[/\\]/).pop()}`
-            : "";
-        case "Write":
-          return input.file_path
-            ? `-> ${String(input.file_path).split(/[/\\]/).pop()}`
-            : "";
-        case "Edit":
-          return input.file_path
-            ? `-> ${String(input.file_path).split(/[/\\]/).pop()}`
-            : "";
-        case "Glob":
-          return input.pattern ? `pattern: ${input.pattern}` : "";
-        case "Grep":
-          return input.pattern ? `pattern: ${input.pattern}` : "";
-        case "Bash":
-          const cmd = String(input.command || "");
-          return cmd.length > 50 ? `$ ${cmd.substring(0, 50)}...` : `$ ${cmd}`;
-        case "Task":
-          return input.description ? String(input.description) : "";
-        case "WebFetch":
-          return input.url ? `-> ${String(input.url).substring(0, 40)}...` : "";
-        case "WebSearch":
-          return input.query ? `"${input.query}"` : "";
-        case "LSP":
-          return input.operation ? String(input.operation) : "";
-        default:
-          // 一般的なツールの場合は最初のキーの値を表示
-          const firstKey = Object.keys(input)[0];
-          if (firstKey && input[firstKey]) {
-            const val = String(input[firstKey]);
-            return val.length > 40 ? `${val.substring(0, 40)}...` : val;
-          }
-          return "";
-      }
-    } catch {
-      return "";
-    }
-  }
 }

@@ -1,7 +1,7 @@
 import { Elysia } from "elysia";
 import { prisma } from "../../config/database";
 import { orchestrator } from "../approvals";
-import type { ExecutionWithExtras } from "../../types/agent-execution-types";
+import type { AgentExecutionWithExtras } from "../../types/agent-execution-types";
 
 /**
  * エージェントセッション管理ルーター
@@ -114,7 +114,7 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
 
       return resumableExecutions.map(
         (exec: (typeof resumableExecutions)[number]) => {
-          const execWithExtras = exec as typeof exec & ExecutionWithExtras;
+          const execWithExtras = exec as typeof exec & AgentExecutionWithExtras;
           return {
             id: exec.id,
             taskId: exec.session.config?.task?.id,
@@ -176,7 +176,7 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
 
       return interruptedExecutions.map(
         (exec: (typeof interruptedExecutions)[number]) => {
-          const execWithExtras = exec as typeof exec & ExecutionWithExtras;
+          const execWithExtras = exec as typeof exec & AgentExecutionWithExtras;
           return {
             id: exec.id,
             taskId: exec.session.config?.task?.id,

@@ -1032,6 +1032,7 @@ ${existingTaskList}
       projectId,
       milestoneId,
       examGoalId,
+      autoApprovePlan,
     } = body as any;
 
     // 現在のタスクの状態を取得（行動記録のため）
@@ -1078,6 +1079,7 @@ ${existingTaskList}
         ...(projectId !== undefined && { projectId }),
         ...(milestoneId !== undefined && { milestoneId }),
         ...(examGoalId !== undefined && { examGoalId }),
+        ...(autoApprovePlan !== undefined && { autoApprovePlan }),
       },
     });
 
@@ -1559,176 +1561,7 @@ ${existingTaskList}
           error instanceof Error ? error.message : "Failed to execute task",
       };
     }
-  })
-
-  // エージェント実行（継続）
-  .post("/:id/continue-execution", async ({ params, body, set }) => {
-    try {
-      const taskId = parseInt(params.id);
-      const { instruction, sessionId, agentConfigId } = body as any;
-
-      if (!instruction?.trim()) {
-        set.status = 400;
-        return { error: "Instruction is required" };
-      }
-
-      const task = await prisma.task.findUnique({
-        where: { id: taskId },
-        include: {
-          developerModeConfig: true,
-          theme: true,
-        },
-      });
-
-      if (!task) {
-        set.status = 404;
-        return { error: "Task not found" };
-      }
-
-      // セッションIDを特定
-      let targetSessionId = sessionId;
-      if (!targetSessionId && task.developerModeConfig) {
-        const latestSession = await prisma.agentSession.findFirst({
-          where: {
-            configId: task.developerModeConfig.id,
-            status: "completed",
-          },
-          orderBy: { createdAt: "desc" },
-        });
-        if (latestSession) {
-          targetSessionId = latestSession.id;
-        }
-      }
-
-      if (!targetSessionId) {
-        set.status = 404;
-        return { error: "No completed session found for this task" };
-      }
-
-      const session = await prisma.agentSession.findUnique({
-        where: { id: targetSessionId },
-        include: {
-          agentExecutions: {
-            orderBy: { createdAt: "desc" },
-            take: 1,
-          },
-        },
-      });
-
-      if (!session) {
-        set.status = 404;
-        return { error: "Session not found" };
-      }
-
-      if (session.status !== "completed") {
-        set.status = 400;
-        return { error: "Can only continue from completed sessions" };
-      }
-
-      const previousExecution = session.agentExecutions[0];
-      const workingDirectory = task.theme?.workingDirectory || process.cwd();
-
-      // セッションを再開
-      await prisma.agentSession.update({
-        where: { id: targetSessionId },
-        data: { status: "running", lastActivityAt: new Date() },
-      });
-
-      await prisma.task.update({
-        where: { id: taskId },
-        data: { status: "in-progress" },
-      });
-
-      // 継続指示を構築
-      let fullInstruction = `## 追加指示\n\n${instruction}`;
-      if (previousExecution?.output) {
-        const prevOutput = previousExecution.output.substring(0, 3000);
-        fullInstruction = `## 前回の実行内容\n\n${prevOutput}${previousExecution.output.length > 3000 ? "\n...(省略)" : ""}\n\n${fullInstruction}`;
-      }
-
-      // オーケストレーターで非同期実行
-      orchestrator
-        .executeTask(
-          {
-            id: taskId,
-            title: task.title,
-            description: fullInstruction,
-            context: task.executionInstructions || undefined,
-            workingDirectory,
-          },
-          {
-            taskId,
-            sessionId: targetSessionId,
-            agentConfigId: agentConfigId || previousExecution?.agentConfigId,
-            workingDirectory,
-            continueFromPrevious: true,
-          },
-        )
-        .then(async (result) => {
-          if (result.success) {
-            // ワークフローステータスに基づいてタスクステータスを決定
-            const currentTask2 = await prisma.task.findUnique({ where: { id: taskId } });
-            const wfStatus2 = currentTask2?.workflowStatus;
-            if (wfStatus2 && ['plan_created', 'research_done'].includes(wfStatus2)) {
-              await prisma.task.update({ where: { id: taskId }, data: { status: "in-progress" } });
-            } else if (wfStatus2 !== 'in_progress') {
-              await prisma.task.update({
-                where: { id: taskId },
-                data: { status: "done", completedAt: new Date() },
-              });
-            }
-            await prisma.agentSession.update({
-              where: { id: targetSessionId },
-              data: { status: "completed", completedAt: new Date() },
-            });
-          } else {
-            await prisma.task.update({
-              where: { id: taskId },
-              data: { status: "todo" },
-            });
-            await prisma.agentSession.update({
-              where: { id: targetSessionId },
-              data: {
-                status: "failed",
-                completedAt: new Date(),
-                errorMessage: result.errorMessage || "Continuation failed",
-              },
-            });
-          }
-        })
-        .catch(async (error) => {
-          console.error("[continue-execution] Error:", error);
-          await prisma.task
-            .update({ where: { id: taskId }, data: { status: "todo" } })
-            .catch(() => {});
-          await prisma.agentSession
-            .update({
-              where: { id: targetSessionId },
-              data: {
-                status: "failed",
-                completedAt: new Date(),
-                errorMessage: error.message || "Continuation error",
-              },
-            })
-            .catch(() => {});
-        });
-
-      return {
-        success: true,
-        sessionId: targetSessionId,
-        taskId,
-        workingDirectory,
-        message:
-          "追加指示の実行を開始しました。リアルタイムで進捗を確認できます。",
-      };
-    } catch (error) {
-      console.error("[continue-execution] Error:", error);
-      set.status = 500;
-      return {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to continue execution",
-      };
-    }
   });
+
+  // NOTE: continue-execution エンドポイントは agent-execution-router.ts に統合済み
+  // 重複ルート登録を防ぐため、ここでは定義しない

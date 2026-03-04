@@ -107,6 +107,7 @@ export function AgentExecutionPanel({
   const [userResponse, setUserResponse] = useState('');
   const [isSendingResponse, setIsSendingResponse] = useState(false);
   const [followUpInstruction, setFollowUpInstruction] = useState('');
+  const [followUpError, setFollowUpError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
   const hasRestoredRef = useRef(false);
@@ -307,17 +308,20 @@ export function AgentExecutionPanel({
     }
   }, [isExecuting, isPollingRunning, startPolling]);
 
-  // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新
+  // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新（一度だけ）
+  const handledTerminalStatusRef = useRef<string | null>(null);
   useEffect(() => {
+    if (handledTerminalStatusRef.current === pollingStatus) return;
+
     if (
       pollingStatus === 'completed' ||
       pollingStatus === 'failed' ||
       pollingStatus === 'cancelled'
     ) {
-      // 親コンポーネントの状態を更新して実行完了を通知
-      if (onExecutionComplete) {
-        onExecutionComplete();
-      }
+      handledTerminalStatusRef.current = pollingStatus;
+      onExecutionComplete?.();
+    } else {
+      handledTerminalStatusRef.current = null;
     }
   }, [pollingStatus, onExecutionComplete]);
 
@@ -340,7 +344,11 @@ export function AgentExecutionPanel({
     const trimmedInstruction = followUpInstruction.trim();
     if (!trimmedInstruction) return;
 
+    // 指示を一時保存（エラー時の復元用）
+    const savedInstruction = trimmedInstruction;
+
     setFollowUpInstruction('');
+    setFollowUpError(null);
 
     try {
       // 新しい継続実行エンドポイントを呼び出す
@@ -383,13 +391,17 @@ export function AgentExecutionPanel({
         // 注意: ここで onExecute を呼ぶと新規実行が発火して
         // ログや状態が上書きされるため呼ばない
       } else {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({ error: '継続実行に失敗しました' }));
         console.error('Failed to continue execution:', errorData);
-        // エラーメッセージを表示するなどの処理
+        setFollowUpError(errorData.error || '継続実行に失敗しました。再度お試しください。');
+        // エラー時に指示を復元（リトライ可能にする）
+        setFollowUpInstruction(savedInstruction);
       }
     } catch (error) {
       console.error('Error continuing execution:', error);
-      // エラーハンドリング
+      setFollowUpError('サーバーとの通信に失敗しました。再度お試しください。');
+      // エラー時に指示を復元（リトライ可能にする）
+      setFollowUpInstruction(savedInstruction);
     }
   };
 
@@ -727,7 +739,7 @@ export function AgentExecutionPanel({
       'workflow-implementer': {
         title: '実装フェーズ完了',
         message: '実装者による実装が完了しました。',
-        nextAction: '次は検証フェーズを実行してください。',
+        nextAction: '検証フェーズが自動的に開始されます。しばらくお待ちください。',
       },
       'workflow-verifier': {
         title: '検証フェーズ完了',
@@ -811,6 +823,32 @@ export function AgentExecutionPanel({
             <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
               Ctrl+Enter で実行
             </p>
+            {followUpError && (
+              <div className="mt-2 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {followUpError}
+                </p>
+                {followUpInstruction.trim() && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      onClick={() => setFollowUpError(null)}
+                      className="px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                    >
+                      閉じる
+                    </button>
+                    <button
+                      onClick={handleFollowUpExecute}
+                      disabled={!followUpInstruction.trim() || isExecuting}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      再実行
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ログ表示 */}
@@ -1062,17 +1100,17 @@ export function AgentExecutionPanel({
                 <div>
                   <label className="flex text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 items-center gap-2">
                     <GitBranch className="w-4 h-4" />
-                    作業ブランチ名（任意）
+                    作業ブランチ名（空欄で自動生成）
                   </label>
                   <input
                     type="text"
                     value={branchName}
                     onChange={(e) => setBranchName(e.target.value)}
-                    placeholder={`例: feature/task-${Date.now()}`}
+                    placeholder="AIが自動で適切なブランチ名を生成します"
                     className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 transition-all"
                   />
                   <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    指定しない場合、自動でフィーチャーブランチが作成されます。
+                    指定しない場合、AIがタスク内容を基に適切なブランチ名を自動生成します。
                   </p>
                 </div>
               </div>
