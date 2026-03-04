@@ -139,21 +139,21 @@ export default function ErrorDemoPage() {
           </div>
           <div className="space-y-3">
             <Button
-              onClick={triggerSyntaxError}
+              onClickAction={triggerSyntaxError}
               variant="secondary"
               className="w-full justify-start"
             >
               SyntaxError を発生
             </Button>
             <Button
-              onClick={triggerTypeError}
+              onClickAction={triggerTypeError}
               variant="secondary"
               className="w-full justify-start"
             >
               TypeError を発生
             </Button>
             <Button
-              onClick={triggerDependencyError}
+              onClickAction={triggerDependencyError}
               variant="secondary"
               className="w-full justify-start"
             >
@@ -169,21 +169,21 @@ export default function ErrorDemoPage() {
           </div>
           <div className="space-y-3">
             <Button
-              onClick={triggerNetworkError}
+              onClickAction={triggerNetworkError}
               variant="secondary"
               className="w-full justify-start"
             >
               Network Error を発生
             </Button>
             <Button
-              onClick={triggerPromiseRejection}
+              onClickAction={triggerPromiseRejection}
               variant="secondary"
               className="w-full justify-start"
             >
               Unhandled Promise Rejection
             </Button>
             <Button
-              onClick={triggerTimeoutError}
+              onClickAction={triggerTimeoutError}
               variant="secondary"
               className="w-full justify-start"
             >
@@ -199,14 +199,14 @@ export default function ErrorDemoPage() {
           </div>
           <div className="space-y-3">
             <Button
-              onClick={triggerValidationError}
+              onClickAction={triggerValidationError}
               variant="secondary"
               className="w-full justify-start"
             >
               Validation Error を発生
             </Button>
             <Button
-              onClick={triggerComplexError}
+              onClickAction={triggerComplexError}
               variant="secondary"
               className="w-full justify-start"
             >
