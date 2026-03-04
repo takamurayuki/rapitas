@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Minus, Info, BarChart3, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import type { WorkflowMode } from './CompactWorkflowSelector';
+import { createLogger } from '@/lib/logger';
+const logger = createLogger('ComplexityIndicator');
 
 export interface ComplexityScore {
   complexityScore: number; // 0-100
@@ -93,7 +95,7 @@ export default function ComplexityIndicator({
       }
     } catch (err) {
       setError('分析中にエラーが発生しました');
-      console.error('Error analyzing complexity:', err);
+      logger.error('Error analyzing complexity:', err);
     } finally {
       setIsLoading(false);
     }

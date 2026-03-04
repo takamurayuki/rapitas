@@ -6,6 +6,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { searchTasks } from '@/lib/task-api';
 import type { Task } from '@/types';
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("useTaskSearch");
 
 interface UseTaskSearchOptions {
   minLength?: number; // 最小検索文字数
@@ -52,10 +55,10 @@ export function useTaskSearch(options: UseTaskSearchOptions = {}) {
     } catch (err) {
       if (err instanceof Error && err.name !== 'AbortError') {
         setError(err.message || '検索中にエラーが発生しました');
-        console.error('Search error:', err);
+        logger.error('Search error:', err);
       } else if (!(err instanceof Error)) {
         setError('検索中にエラーが発生しました');
-        console.error('Search error:', err);
+        logger.error('Search error:', err);
       }
     } finally {
       if (!abortControllerRef.current?.signal.aborted) {

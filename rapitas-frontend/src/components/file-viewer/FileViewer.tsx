@@ -21,6 +21,8 @@ import type { Resource } from '@/types';
 import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
 import MarkdownViewer from './MarkdownViewer';
 import './markdown-viewer.css';
+import { createLogger } from '@/lib/logger';
+const logger = createLogger('FileViewer');
 
 type FileViewerProps = {
   resource: Resource;
@@ -149,9 +151,9 @@ export default function FileViewer({
 
   // 画像の読み込みエラー時
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    console.error('[FileViewer] Image load error:', e);
+    logger.error('Image load error:', e);
     const url = getFileUrl(resource);
-    console.error('[FileViewer] Failed to load image from:', url);
+    logger.error('Failed to load image from:', url);
     setError(`画像の読み込みに失敗しました: ${url}`);
     setIsLoading(false);
   };
@@ -387,13 +389,13 @@ export default function FileViewer({
               src={getFileUrl(resource)}
               className="w-full h-full"
               onLoad={() => {
-                console.log('[FileViewer] PDF loaded successfully');
+                logger.debug('PDF loaded successfully');
                 setIsLoading(false);
               }}
               onError={(e) => {
-                console.error('[FileViewer] PDF load error:', e);
+                logger.error('PDF load error:', e);
                 const url = getFileUrl(resource);
-                console.error('[FileViewer] Failed to load PDF from:', url);
+                logger.error('Failed to load PDF from:', url);
                 setError(`PDFの読み込みに失敗しました: ${url}`);
                 setIsLoading(false);
               }}

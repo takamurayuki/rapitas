@@ -2,6 +2,10 @@
  * Tauri環境の検出とナビゲーションユーティリティ
  */
 
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger("Tauri");
+
 // Tauriの型定義（実際のAPIに合わせて簡略化）
 interface TauriSize {
   width: number;
@@ -166,7 +170,7 @@ export async function hideToTray(): Promise<void> {
       }
     }
   } catch (e) {
-    console.error('Failed to hide window to tray:', e);
+    logger.error('Failed to hide window to tray:', e);
   }
 }
 
@@ -185,14 +189,14 @@ export async function openExternalUrlInSplitView(
     return;
   }
 
-  console.log('Opening external URL in split view:', url);
+  logger.debug('Opening external URL in split view:', url);
 
   try {
     // Rustのopen_split_viewコマンドを呼び出す
     const { invoke } = await import('@tauri-apps/api/core');
     await invoke('open_split_view', { url });
 
-    console.log('Split view opened successfully');
+    logger.debug('Split view opened successfully');
 
     // 分割表示状態を記録
     const splitViewData: SplitViewData = {
@@ -212,7 +216,7 @@ export async function openExternalUrlInSplitView(
       }),
     );
   } catch (error) {
-    console.error('Failed to open URL in split view:', error);
+    logger.error('Failed to open URL in split view:', error);
 
     // フォールバック: 通常のブラウザで開く
     const { open } = await import('@tauri-apps/plugin-shell');
@@ -267,13 +271,13 @@ export async function openExternalUrlInNewWindow(
 
       // エラーハンドリング
       newWindow.once('tauri://error', (error: unknown) => {
-        console.error('Failed to create external window:', error);
+        logger.error('Failed to create external window:', error);
         // フォールバック: システムのデフォルトブラウザで開く
         openUrlInDefaultBrowser(url);
       });
     }
   } catch (e) {
-    console.error('Failed to open external URL in new window:', e);
+    logger.error('Failed to open external URL in new window:', e);
     // フォールバック: システムのデフォルトブラウザで開く
     openUrlInDefaultBrowser(url);
   }
@@ -343,7 +347,7 @@ export async function restoreFromSplitView(): Promise<void> {
       }),
     );
   } catch (e) {
-    console.error('Failed to restore from split view:', e);
+    logger.error('Failed to restore from split view:', e);
   }
 }
 
@@ -361,7 +365,7 @@ export async function openUrlInDefaultBrowser(url: string): Promise<void> {
     const { open } = await import('@tauri-apps/plugin-shell');
     await open(url);
   } catch (e) {
-    console.error('Failed to open URL in default browser:', e);
+    logger.error('Failed to open URL in default browser:', e);
     // 最終フォールバック
     window.open(url, '_blank');
   }

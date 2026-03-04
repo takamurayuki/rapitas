@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { useTaskCacheStore } from '@/stores/taskCacheStore';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("useTaskAutoSync");
 
 interface UseTaskAutoSyncOptions {
   /** 自動更新を有効化するか (default: true) */
@@ -52,10 +55,10 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
     intervalRef.current = setInterval(() => {
       // AIエージェント実行中で、スキップが有効な場合は更新をスキップ
       if (skipDuringExecution && executingTasksSize > 0) {
-        console.log('[useTaskAutoSync] Skipping sync due to executing tasks');
+        logger.debug('Skipping sync due to executing tasks');
         return;
       }
-      console.log('[useTaskAutoSync] Running automatic task sync');
+      logger.debug('Running automatic task sync');
       fetchUpdates(silent);
     }, interval);
 
@@ -75,10 +78,10 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
     const handleFocus = () => {
       // AIエージェント実行中で、スキップが有効な場合は更新をスキップ
       if (skipDuringExecution && executingTasksSize > 0) {
-        console.log('[useTaskAutoSync] Skipping focus sync due to executing tasks');
+        logger.debug('Skipping focus sync due to executing tasks');
         return;
       }
-      console.log('[useTaskAutoSync] Window focused, syncing tasks');
+      logger.debug('Window focused, syncing tasks');
       fetchUpdates(silent);
     };
 
@@ -94,10 +97,10 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
       if (!document.hidden) {
         // AIエージェント実行中で、スキップが有効な場合は更新をスキップ
         if (skipDuringExecution && executingTasksSize > 0) {
-          console.log('[useTaskAutoSync] Skipping visibility sync due to executing tasks');
+          logger.debug('Skipping visibility sync due to executing tasks');
           return;
         }
-        console.log('[useTaskAutoSync] Page became visible, syncing tasks');
+        logger.debug('Page became visible, syncing tasks');
         fetchUpdates(silent);
       }
     };

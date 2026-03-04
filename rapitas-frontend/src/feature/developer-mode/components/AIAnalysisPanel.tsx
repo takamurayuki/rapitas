@@ -37,6 +37,9 @@ import type { DeveloperModeConfig, TaskAnalysisResult } from '@/types';
 import { DependencyTree } from './DependencyTree';
 import { API_BASE_URL } from '@/utils/api';
 import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('AIAnalysisPanel');
 
 // TaskAnalysisResult is imported from @/types
 
@@ -206,7 +209,7 @@ export function AIAnalysisPanel({
         }
       }
     } catch (err) {
-      console.error('APIキー情報の取得に失敗:', err);
+      logger.error('APIキー情報の取得に失敗:', err);
     }
   };
 

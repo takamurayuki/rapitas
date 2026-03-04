@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useCallback, useRef } from 'react';
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("useWindowResize");
 
 interface UseWindowResizeOptions {
   debounceMs?: number;
@@ -96,7 +99,7 @@ export function useResizePerformance() {
       if (deltaTime >= 1000) {
         const fps = Math.round((frameCountRef.current * 1000) / deltaTime);
         if (fps < 30) {
-          console.warn(`Low FPS detected during resize: ${fps}`);
+          logger.warn(`Low FPS detected during resize: ${fps}`);
         }
         frameCountRef.current = 0;
         lastTimeRef.current = currentTime;

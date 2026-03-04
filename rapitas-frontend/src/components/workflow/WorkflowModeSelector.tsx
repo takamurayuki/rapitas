@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown, Zap, ArrowRight, Settings, Info, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+const logger = createLogger('WorkflowModeSelector');
 
 export type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
 
@@ -96,10 +98,10 @@ export default function WorkflowModeSelector({
         setSelectedMode(mode);
         onModeChange?.(mode, true);
       } else {
-        console.error('Failed to set workflow mode:', data.error);
+        logger.error('Failed to set workflow mode:', data.error);
       }
     } catch (err) {
-      console.error('Error setting workflow mode:', err);
+      logger.error('Error setting workflow mode:', err);
     } finally {
       setIsUpdating(false);
       setIsOpen(false);
@@ -117,10 +119,10 @@ export default function WorkflowModeSelector({
         setSelectedMode(recommendedMode);
         onModeChange?.(recommendedMode, false);
       } else {
-        console.error('Failed to analyze complexity:', data.error);
+        logger.error('Failed to analyze complexity:', data.error);
       }
     } catch (err) {
-      console.error('Error analyzing complexity:', err);
+      logger.error('Error analyzing complexity:', err);
     } finally {
       setIsAnalyzing(false);
     }

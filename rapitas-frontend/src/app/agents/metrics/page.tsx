@@ -22,6 +22,9 @@ import {
 import { API_BASE_URL } from '@/utils/api';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { requireAuth } from '@/contexts/AuthContext';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('AgentMetricsPage');
 
 // 型定義
 interface AgentMetrics {
@@ -135,7 +138,7 @@ function AgentMetricsPage() {
       }
 
     } catch (err) {
-      console.error('メトリクスデータの取得に失敗しました:', err);
+      logger.error('メトリクスデータの取得に失敗しました:', err);
       setError('メトリクスデータの取得に失敗しました');
     } finally {
       setLoading(false);

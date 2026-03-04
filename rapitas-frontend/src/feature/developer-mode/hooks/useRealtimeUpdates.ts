@@ -6,6 +6,9 @@ import type {
   GitHubEventData,
 } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('useRealtimeUpdates');
 
 export type EventHandler<T = unknown> = (data: T) => void;
 
@@ -109,7 +112,7 @@ export function useRealtimeUpdates(
           wildcardHandlers.forEach((handler) => handler(sseEvent));
         }
       } catch (err) {
-        console.error('Failed to parse SSE event:', err);
+        logger.error('Failed to parse SSE event:', err);
       }
     };
 
@@ -144,7 +147,7 @@ export function useRealtimeUpdates(
             handlers.forEach((handler) => handler(data));
           }
         } catch (err) {
-          console.error(`Failed to parse ${type} event:`, err);
+          logger.error(`Failed to parse ${type} event:`, err);
         }
       });
     });
@@ -162,11 +165,11 @@ export function useRealtimeUpdates(
   const subscribe = useCallback((channel: string) => {
     // 新しいチャンネルに購読するには再接続が必要
     // この実装では簡略化のため、初期接続時のチャンネルのみサポート
-    console.log(`Subscribing to channel: ${channel}`);
+    logger.debug(`Subscribing to channel: ${channel}`);
   }, []);
 
   const unsubscribe = useCallback((channel: string) => {
-    console.log(`Unsubscribing from channel: ${channel}`);
+    logger.debug(`Unsubscribing from channel: ${channel}`);
   }, []);
 
   const addHandler = useCallback((eventType: string, handler: EventHandler) => {

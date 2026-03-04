@@ -23,6 +23,9 @@ import type { ApprovalRequest, Priority, FileDiff } from '@/types';
 import { priorityColors, priorityLabels } from '@/types';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('ApprovalsClient');
 
 export default function ApprovalsClient() {
   const searchParams = useSearchParams();
@@ -151,7 +154,7 @@ export default function ApprovalsClient() {
         await fetchApprovals(filter);
       }
     } catch (error) {
-      console.error('Failed to request changes:', error);
+      logger.error('Failed to request changes:', error);
     } finally {
       setProcessingId(null);
       setExpandedId(null);

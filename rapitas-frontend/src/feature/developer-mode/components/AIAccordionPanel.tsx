@@ -54,6 +54,9 @@ import { API_BASE_URL } from '@/utils/api';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
 import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('AIAccordionPanel');
 
 // TaskAnalysisResult is imported from @/types
 
@@ -549,13 +552,13 @@ export function AIAccordionPanel({
           setBranchName(data.branchName);
         }
       } else {
-        console.error(
+        logger.error(
           'Failed to generate branch name:',
           data.error || data.details || 'Unknown error',
         );
       }
     } catch (error) {
-      console.error('Error generating branch name:', error);
+      logger.error('Error generating branch name:', error);
     } finally {
       setIsGeneratingBranchName(false);
     }
@@ -588,11 +591,11 @@ export function AIAccordionPanel({
         clearPollingQuestion();
       } else {
         // エラー時は質問を復元（ユーザーが再試行できるように）
-        console.error('Failed to send response:', res.status);
+        logger.error('Failed to send response:', res.status);
         setUserResponse(savedResponse);
       }
     } catch (error) {
-      console.error('Error sending response:', error);
+      logger.error('Error sending response:', error);
       // エラー時は回答を復元
       setUserResponse(savedResponse);
     } finally {
@@ -617,7 +620,7 @@ export function AIAccordionPanel({
         });
       }
     } catch (error) {
-      console.error('Error stopping execution:', error);
+      logger.error('Error stopping execution:', error);
     }
   }, [taskId, sessionId, setPollingCancelled, onStopExecution]);
 

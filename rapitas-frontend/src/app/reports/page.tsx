@@ -13,6 +13,9 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import BurnupChart from '@/components/BurnupChart';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('ReportsPage');
 
 export default function ReportsPage() {
   const [report, setReport] = useState<WeeklyReport | null>(null);
@@ -29,7 +32,7 @@ export default function ReportsPage() {
         setReport(await res.json());
       }
     } catch (e) {
-      console.error('Failed to fetch report:', e);
+      logger.error('Failed to fetch report:', e);
     } finally {
       setLoading(false);
     }
@@ -51,7 +54,7 @@ export default function ReportsPage() {
         URL.revokeObjectURL(url);
       }
     } catch (e) {
-      console.error('Failed to export:', e);
+      logger.error('Failed to export:', e);
     }
   };
 

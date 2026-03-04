@@ -4,6 +4,9 @@
  */
 
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger("ApiClient");
 
 type RequestOptions = RequestInit & {
   skipCache?: boolean;
@@ -400,7 +403,7 @@ class APIClient {
       // 期限切れのエントリーをクリーンアップ
       this.cleanupPersistentCache();
     } catch (error) {
-      console.warn('Failed to load persistent cache:', error);
+      logger.warn('Failed to load persistent cache:', error);
     }
   }
 
@@ -431,7 +434,7 @@ class APIClient {
       if (error instanceof DOMException && error.name === 'QuotaExceededError') {
         this.cleanupPersistentCache();
       }
-      console.warn('Failed to save persistent cache:', error);
+      logger.warn('Failed to save persistent cache:', error);
     }
   }
 
@@ -447,7 +450,7 @@ class APIClient {
       delete persistentCache[key];
       localStorage.setItem(this.localStorageKey, JSON.stringify(persistentCache));
     } catch (error) {
-      console.warn('Failed to remove persistent cache entry:', error);
+      logger.warn('Failed to remove persistent cache entry:', error);
     }
   }
 
@@ -473,7 +476,7 @@ class APIClient {
 
       localStorage.setItem(this.localStorageKey, JSON.stringify(cleaned));
     } catch (error) {
-      console.warn('Failed to cleanup persistent cache:', error);
+      logger.warn('Failed to cleanup persistent cache:', error);
     }
   }
 }

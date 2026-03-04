@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { FileStack, X, FolderPlus, Check } from 'lucide-react';
 import type { Task, TaskTemplate } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('SaveAsTemplateDialog');
 
 // デフォルトカテゴリ
 const DEFAULT_CATEGORIES = [
@@ -59,7 +62,7 @@ export default function SaveAsTemplateDialog({
           setCategories(merged);
         }
       } catch (err) {
-        console.error('Failed to fetch categories:', err);
+        logger.error('Failed to fetch categories:', err);
       }
     };
     if (isOpen) {

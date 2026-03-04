@@ -32,6 +32,9 @@ import {
   validateConfigOnServer,
   type ValidationResult,
 } from '@/utils/validation';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('AgentSettingsClient');
 
 type AgentConfig = {
   id: number;
@@ -195,7 +198,7 @@ export default function AgentSettingsClient({
         }
       }
     } catch (err) {
-      console.error('Failed to fetch models:', err);
+      logger.error('Failed to fetch models:', err);
     }
   }, []);
 
@@ -215,7 +218,7 @@ export default function AgentSettingsClient({
         setError('エージェントが見つかりません');
       }
     } catch (err) {
-      console.error('Failed to fetch agent:', err);
+      logger.error('Failed to fetch agent:', err);
       setError('エージェントの取得に失敗しました');
     } finally {
       setLoading(false);
@@ -392,7 +395,7 @@ export default function AgentSettingsClient({
         message: data.message || (data.success ? '接続成功' : '接続失敗'),
       });
     } catch (err) {
-      console.error('Failed to test connection:', err);
+      logger.error('Failed to test connection:', err);
       setTestResult({
         success: false,
         message: '接続テストに失敗しました',

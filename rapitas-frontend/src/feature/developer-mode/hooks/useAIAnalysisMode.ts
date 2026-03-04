@@ -9,6 +9,9 @@ import type {
   ExecutionResult,
 } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('useAIAnalysisMode');
 
 export type { ExecutionStatus, ExecutionResult };
 
@@ -174,7 +177,7 @@ export function useDeveloperMode(taskId: number) {
         setSessions(data);
       }
     } catch (err) {
-      console.error('Failed to fetch sessions:', err);
+      logger.error('Failed to fetch sessions:', err);
     }
   }, [taskId]);
 

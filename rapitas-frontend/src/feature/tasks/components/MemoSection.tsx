@@ -40,6 +40,9 @@ import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import type { Comment, CommentSearchResult } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('MemoSection');
 
 // Types
 
@@ -504,7 +507,7 @@ const Note = memo(function Note({
                           localStorage.setItem(`memo-data-${note.id}`, JSON.stringify(newMemoData));
                           window.dispatchEvent(new Event('storage'));
                         } catch (error) {
-                          console.error('Analysis failed:', error);
+                          logger.error('Analysis failed:', error);
                         } finally {
                           setIsAnalyzing(false);
                         }
@@ -1250,7 +1253,7 @@ export default function MemoSection({
                       };
                       localStorage.setItem(`memo-data-${note.id}`, JSON.stringify(newMemoData));
                     } catch (error) {
-                      console.error(`Failed to analyze memo ${note.id}:`, error);
+                      logger.error(`Failed to analyze memo ${note.id}:`, error);
                     }
                   }
 

@@ -5,12 +5,15 @@
 
 import { apiClient } from './api-client';
 import { cacheManager } from './cache-utils';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger("CacheWarmup");
 
 /**
  * アプリケーション起動時のキャッシュウォームアップ
  */
 export async function warmupApplicationCache(): Promise<void> {
-  console.log('[Cache] Starting application cache warmup...');
+  logger.info('[Cache] Starting application cache warmup...');
 
   try {
     // 最近アクセスしたタスクのIDを取得（localStorageから）
@@ -54,9 +57,9 @@ export async function warmupApplicationCache(): Promise<void> {
       cacheTime: 12 * 60 * 60 * 1000,
     });
 
-    console.log('[Cache] Application cache warmup completed');
+    logger.info('[Cache] Application cache warmup completed');
   } catch (error) {
-    console.warn('[Cache] Warmup error (non-critical):', error);
+    logger.warn('[Cache] Warmup error (non-critical):', error);
   }
 }
 
@@ -97,7 +100,7 @@ export function recordTaskAccess(taskId: number): void {
       updatedAt: Date.now(),
     }));
   } catch (error) {
-    console.warn('Failed to record task access:', error);
+    logger.warn('Failed to record task access:', error);
   }
 }
 
@@ -146,6 +149,6 @@ export function cleanupExpiredCache(): void {
 
     localStorage.setItem('rapitas-api-cache', JSON.stringify(cleaned));
   } catch (error) {
-    console.warn('Failed to cleanup cache:', error);
+    logger.warn('Failed to cleanup cache:', error);
   }
 }

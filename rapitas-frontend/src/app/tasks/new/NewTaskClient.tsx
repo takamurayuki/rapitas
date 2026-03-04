@@ -46,7 +46,9 @@ import { getTaskDetailPath } from '@/utils/tauri';
 import { useAppModeStore } from '@/stores/appModeStore';
 import { requireAuth } from '@/contexts/AuthContext';
 import CompactWorkflowSelector from '@/components/workflow/CompactWorkflowSelector';
+import { createLogger } from '@/lib/logger';
 
+const logger = createLogger('NewTaskClient');
 const API_BASE = API_BASE_URL;
 
 function NewTaskClient() {
@@ -105,7 +107,7 @@ function NewTaskClient() {
         setCategories(await res.json());
       }
     } catch (e) {
-      console.error('Failed to fetch categories:', e);
+      logger.error('Failed to fetch categories:', e);
     }
   };
 
@@ -129,11 +131,11 @@ function NewTaskClient() {
         const res = await fetch(`${API_BASE}/settings`);
         if (res.ok) {
           const settings = await res.json();
-          console.log('[NewTaskClient] Fetched settings:', settings);
+          logger.debug('[NewTaskClient] Fetched settings:', settings);
           setGlobalSettings(settings);
         }
       } catch (e) {
-        console.error('Failed to fetch global settings:', e);
+        logger.error('Failed to fetch global settings:', e);
       }
     };
     fetchGlobalSettings();
@@ -152,7 +154,7 @@ function NewTaskClient() {
         }
       }
     } catch (e) {
-      console.error(e);
+      logger.error(e);
     }
   };
 
@@ -238,7 +240,7 @@ function NewTaskClient() {
           fromAutoGenerate &&
           globalSettings?.autoCreateAfterTitleGeneration
         ) {
-          console.log(
+          logger.debug(
             '[NewTaskClient] Auto-creating task with title:',
             data.title,
           );
@@ -250,7 +252,7 @@ function NewTaskClient() {
         }
       }
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast(
         e instanceof Error ? e.message : 'タイトル生成に失敗しました',
         'error',
@@ -283,13 +285,13 @@ function NewTaskClient() {
     }
 
     const delaySec = globalSettings?.autoGenerateTitleDelay ?? 3;
-    console.log(
+    logger.debug(
       '[NewTaskClient] Setting auto-generate timer for',
       delaySec,
       'seconds',
     );
     autoGenerateTimerRef.current = setTimeout(() => {
-      console.log(
+      logger.debug(
         '[NewTaskClient] Auto-generate timer triggered, calling handleGenerateTitle',
       );
       handleGenerateTitle(true); // fromAutoGenerateフラグをtrueで呼び出し
@@ -309,12 +311,12 @@ function NewTaskClient() {
   ]);
 
   const handleSubmitWithTitle = async (generatedTitle: string) => {
-    console.log(
+    logger.debug(
       '[NewTaskClient] handleSubmitWithTitle called with:',
       generatedTitle,
     );
     if (isSubmitting || !generatedTitle.trim()) {
-      console.log(
+      logger.debug(
         '[NewTaskClient] Aborting submission - isSubmitting:',
         isSubmitting,
         'title empty:',
@@ -349,7 +351,7 @@ function NewTaskClient() {
         workflowModeOverride: isWorkflowModeOverride,
       };
 
-      console.log('[NewTaskClient] Creating task with data:', taskData);
+      logger.debug('[NewTaskClient] Creating task with data:', taskData);
 
       const res = await fetch(`${API_BASE}/tasks`, {
         method: 'POST',
@@ -377,7 +379,7 @@ function NewTaskClient() {
               });
               if (!subtaskRes.ok) {
                 const errorText = await subtaskRes.text();
-                console.error(
+                logger.error(
                   `[NewTaskClient] Failed to create subtask "${st.title}":`,
                   errorText,
                 );
@@ -390,7 +392,7 @@ function NewTaskClient() {
           (r) => r.status === 'rejected',
         ).length;
         if (failedCount > 0) {
-          console.warn(
+          logger.warn(
             `[NewTaskClient] ${failedCount} subtask(s) failed to create`,
           );
         }
@@ -408,7 +410,7 @@ function NewTaskClient() {
         router.push('/');
       }
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('タスクの作成に失敗しました', 'error');
     } finally {
       setIsSubmitting(false);
@@ -471,7 +473,7 @@ function NewTaskClient() {
               });
               if (!subtaskRes.ok) {
                 const errorText = await subtaskRes.text();
-                console.error(
+                logger.error(
                   `[NewTaskClient] Failed to create subtask "${st.title}":`,
                   errorText,
                 );
@@ -484,7 +486,7 @@ function NewTaskClient() {
           (r) => r.status === 'rejected',
         ).length;
         if (failedCount > 0) {
-          console.warn(
+          logger.warn(
             `[NewTaskClient] ${failedCount} subtask(s) failed to create`,
           );
         }
@@ -502,7 +504,7 @@ function NewTaskClient() {
         router.push('/');
       }
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('タスクの作成に失敗しました', 'error');
     } finally {
       setIsSubmitting(false);

@@ -27,6 +27,9 @@ import {
   showDesktopNotification,
 } from '@/utils/notification';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('DailySchedulePage');
 
 const CATEGORY_OPTIONS = [
   { value: 'sleep', label: '睡眠', icon: Moon, defaultColor: '#6366F1' },
@@ -126,7 +129,7 @@ export default function DailySchedulePage() {
         setBlocks(await res.json());
       }
     } catch (e) {
-      console.error('Failed to fetch schedule blocks:', e);
+      logger.error('Failed to fetch schedule blocks:', e);
     } finally {
       setLoading(false);
     }
@@ -219,7 +222,7 @@ export default function DailySchedulePage() {
         setIsModalOpen(false);
       }
     } catch (e) {
-      console.error('Failed to save schedule block:', e);
+      logger.error('Failed to save schedule block:', e);
     }
   };
 
@@ -233,7 +236,7 @@ export default function DailySchedulePage() {
         fetchBlocks();
       }
     } catch (e) {
-      console.error('Failed to delete schedule block:', e);
+      logger.error('Failed to delete schedule block:', e);
     }
   };
 

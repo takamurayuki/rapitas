@@ -40,6 +40,9 @@ import type {
 } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { validateName } from '@/utils/validation';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('DeveloperModeConfig');
 
 type TabId = 'task-analysis' | 'agent-execution';
 
@@ -232,7 +235,7 @@ export function DeveloperModeConfigModal({
         setExecNotifyOnError(data.notifyOnError);
       }
     } catch (err) {
-      console.error('設定の取得に失敗:', err);
+      logger.error('設定の取得に失敗:', err);
     } finally {
       setIsLoadingConfigs(false);
     }
@@ -249,10 +252,10 @@ export function DeveloperModeConfigModal({
       if (res.ok) {
         await fetchAgents();
       } else {
-        console.error('デフォルトエージェントの設定に失敗:', await res.text());
+        logger.error('デフォルトエージェントの設定に失敗:', await res.text());
       }
     } catch (err) {
-      console.error('デフォルトエージェントの設定に失敗:', err);
+      logger.error('デフォルトエージェントの設定に失敗:', err);
     } finally {
       setIsSettingDefault(false);
     }
@@ -274,7 +277,7 @@ export function DeveloperModeConfigModal({
         }
       }
     } catch (err) {
-      console.error('エージェント一覧の取得に失敗:', err);
+      logger.error('エージェント一覧の取得に失敗:', err);
     } finally {
       setIsLoadingAgents(false);
     }
@@ -293,7 +296,7 @@ export function DeveloperModeConfigModal({
         });
       }
     } catch (err) {
-      console.error('APIキー情報の取得に失敗:', err);
+      logger.error('APIキー情報の取得に失敗:', err);
     } finally {
       setIsLoadingApiKeys(false);
     }
@@ -425,7 +428,7 @@ export function DeveloperModeConfigModal({
         setTimeout(() => setApiKeySuccessMessage(null), 3000);
       }
     } catch (err) {
-      console.error('APIキー削除に失敗:', err);
+      logger.error('APIキー削除に失敗:', err);
     } finally {
       setIsSavingApiKey(false);
     }

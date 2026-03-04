@@ -27,6 +27,9 @@ import {
 } from '@/components/icons/ProviderIcons';
 import { UsageRateLimitGraph } from '@/components/UsageRateLimitGraph';
 import { requireAuth } from '@/contexts/AuthContext';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('SettingsPage');
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
   claude: 'Claude',
@@ -144,7 +147,7 @@ function setCachedData<T>(key: string, data: T): void {
       }),
     );
   } catch (error) {
-    console.error('Failed to cache data:', error);
+    logger.error('Failed to cache data:', error);
   }
 }
 
@@ -238,7 +241,7 @@ function SettingsPage() {
         }
       }
     } catch (err) {
-      console.error('APIキー情報の取得に失敗:', err);
+      logger.error('APIキー情報の取得に失敗:', err);
     }
   }, []);
 
@@ -269,7 +272,7 @@ function SettingsPage() {
         setCachedData(CACHE_KEYS.models, data);
       }
     } catch (err) {
-      console.error('モデル一覧の取得に失敗:', err);
+      logger.error('モデル一覧の取得に失敗:', err);
     }
   }, []);
 

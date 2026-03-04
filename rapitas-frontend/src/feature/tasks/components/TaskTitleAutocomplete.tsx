@@ -10,6 +10,9 @@ import {
   useMemo,
 } from 'react';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('TaskTitleAutocomplete');
 import type { Priority } from '@/types';
 
 const API_BASE = API_BASE_URL;
@@ -101,7 +104,7 @@ const TaskTitleAutocomplete = forwardRef<
 
         if (!res.ok) {
           // Log for debugging, but don't throw
-          console.debug(`Autocomplete API returned ${res.status}: ${url}`);
+          logger.debug(`Autocomplete API returned ${res.status}: ${url}`);
           setSuggestions([]);
           return;
         }
@@ -110,7 +113,7 @@ const TaskTitleAutocomplete = forwardRef<
         setSuggestions(data);
       } catch (e) {
         // Network error - backend might not be running
-        console.debug(
+        logger.debug(
           'Autocomplete fetch failed (backend might not be running):',
           e,
         );

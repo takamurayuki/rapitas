@@ -233,6 +233,7 @@ export default function Header() {
   }, []);
   const menuRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isUpdatingSearchRef = useRef(false); // プログラム的更新をトラック
 
   // ピン止め状態をlocalStorageから復元
   useEffect(() => {
@@ -255,18 +256,20 @@ export default function Header() {
       clearTimeout(debounceTimerRef.current);
     }
 
-    // 300ms後にURLを更新
-    debounceTimerRef.current = setTimeout(() => {
-      if (searchQuery.trim()) {
-        router.push(`/?search=${encodeURIComponent(searchQuery.trim())}`);
-      } else if (pathname === '/' || pathname === '/kanban') {
-        // 検索クエリが空で、タスクページにいる場合のみクリア
-        const currentSearch = searchParams.get('search');
-        if (currentSearch) {
-          router.push(pathname);
+    // ホーム・カンバンページではインラインフィルタリングも維持
+    if (pathname === '/' || pathname === '/kanban') {
+      debounceTimerRef.current = setTimeout(() => {
+        isUpdatingSearchRef.current = true; // プログラム的更新をマーク
+        if (searchQuery.trim()) {
+          router.push(`/?search=${encodeURIComponent(searchQuery.trim())}`);
+        } else {
+          const currentSearch = searchParams.get('search');
+          if (currentSearch) {
+            router.push(pathname);
+          }
         }
-      }
-    }, 300);
+      }, 300);
+    }
 
     // クリーンアップ
     return () => {
@@ -274,15 +277,39 @@ export default function Header() {
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [searchQuery, pathname, router, searchParams]);
+  }, [searchQuery, pathname, router]); // searchParamsを依存配列から除去 - 循環更新を防ぐ
 
-  // URLの検索パラメータから初期値を設定
+  // URLの検索パラメータから初期値を設定（外部変更時のみ）
   useEffect(() => {
-    const search = searchParams.get('search');
-    if (search && searchQuery !== search) {
-      setSearchQuery(search);
+    // プログラム的更新中は同期しない
+    if (isUpdatingSearchRef.current) {
+      isUpdatingSearchRef.current = false;
+      return;
     }
-  }, [searchParams]);
+
+    if (pathname === '/search') {
+      const q = searchParams.get('q');
+      if (q && searchQuery !== q) {
+        setSearchQuery(q);
+      }
+    } else {
+      const search = searchParams.get('search');
+      if (search && searchQuery !== search) {
+        setSearchQuery(search);
+      }
+    }
+  }, [searchParams, pathname]); // 循環更新防止ガード追加
+
+  // Enterキーで検索結果ページに遷移
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && searchQuery.trim()) {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      isUpdatingSearchRef.current = true; // プログラム的更新をマーク
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
 
   // メニュー外をクリックしたら閉じる（固定時は閉じない）
   useEffect(() => {
@@ -888,41 +915,40 @@ export default function Header() {
               </Link>
             </div>
 
-            {/* 検索バー（タスク一覧ページでのみ表示） */}
-            {(pathname === '/' || pathname === '/kanban') && (
-              <div className="flex-1 max-w-md mx-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="タスクを検索..."
-                    className="w-full pl-10 pr-4 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-zinc-400 dark:placeholder-zinc-500 transition-all"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => {
-                        // デバウンスタイマーをクリアして即座にリセット
-                        if (debounceTimerRef.current) {
-                          clearTimeout(debounceTimerRef.current);
-                        }
-                        setSearchQuery('');
-                        router.push(pathname === '/kanban' ? '/kanban' : '/');
-                      }}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
+            {/* 検索バー（全ページで表示） */}
+            <div className="flex-1 max-w-md mx-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  placeholder="検索... (Enterで横断検索)"
+                  className="w-full pl-10 pr-4 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-zinc-400 dark:placeholder-zinc-500 transition-all"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => {
+                      if (debounceTimerRef.current) {
+                        clearTimeout(debounceTimerRef.current);
+                      }
+                      setSearchQuery('');
+                      if (pathname === '/search') {
+                        router.push('/search');
+                      } else if (pathname === '/kanban') {
+                        router.push('/kanban');
+                      } else if (pathname === '/') {
+                        router.push('/');
+                      }
+                    }}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-            )}
-
-            {/* 検索バーがない場合のスペーサー */}
-            {pathname !== '/' && pathname !== '/kanban' && (
-              <div className="flex-1" />
-            )}
+            </div>
 
             {/* 表示切り替えボタン（タスク一覧/カンバンページのみ表示） */}
             <div className="flex items-center gap-3">

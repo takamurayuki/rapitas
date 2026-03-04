@@ -17,6 +17,9 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('AchievementsPage');
 
 const ICON_MAP: Record<string, LucideIcon> = {
   Star,
@@ -81,7 +84,7 @@ export default function AchievementsPage() {
         setAchievements(await res.json());
       }
     } catch (e) {
-      console.error('Failed to fetch achievements:', e);
+      logger.error('Failed to fetch achievements:', e);
     } finally {
       setLoading(false);
     }

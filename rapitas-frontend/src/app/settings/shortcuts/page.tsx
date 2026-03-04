@@ -19,6 +19,9 @@ import {
   type ShortcutId,
   type ShortcutBinding,
 } from '@/stores/shortcutStore';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('ShortcutsPage');
 
 type ModifierKey = 'Ctrl' | 'Alt' | 'Shift';
 
@@ -173,7 +176,7 @@ export default function ShortcutSettingsPage() {
         setGlobalKey(key);
       }
     } catch (e) {
-      console.error('Failed to load shortcut:', e);
+      logger.error('Failed to load shortcut:', e);
     } finally {
       setIsLoadingGlobal(false);
     }

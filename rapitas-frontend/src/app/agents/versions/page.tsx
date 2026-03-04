@@ -26,6 +26,9 @@ import {
 import { API_BASE_URL } from '@/utils/api';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { requireAuth } from '@/contexts/AuthContext';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('AgentVersionManagementPage');
 
 // 型定義
 interface AgentVersion {
@@ -107,7 +110,7 @@ function AgentVersionManagementPage() {
       }
 
     } catch (err) {
-      console.error('データの取得に失敗しました:', err);
+      logger.error('データの取得に失敗しました:', err);
       setError('データの取得に失敗しました');
     } finally {
       setLoading(false);
@@ -140,7 +143,7 @@ function AgentVersionManagementPage() {
         setError(data.error || 'インストールに失敗しました');
       }
     } catch (err) {
-      console.error('インストールエラー:', err);
+      logger.error('インストールエラー:', err);
       setError('インストール中にエラーが発生しました');
     } finally {
       setInstalling(prev => {
@@ -170,7 +173,7 @@ function AgentVersionManagementPage() {
         setError(data.error || 'アンインストールに失敗しました');
       }
     } catch (err) {
-      console.error('アンインストールエラー:', err);
+      logger.error('アンインストールエラー:', err);
       setError('アンインストール中にエラーが発生しました');
     }
   };
@@ -194,7 +197,7 @@ function AgentVersionManagementPage() {
         setError(data.error || '自動更新設定の変更に失敗しました');
       }
     } catch (err) {
-      console.error('自動更新設定エラー:', err);
+      logger.error('自動更新設定エラー:', err);
       setError('設定変更中にエラーが発生しました');
     }
   };

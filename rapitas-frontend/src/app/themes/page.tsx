@@ -38,6 +38,9 @@ import { API_BASE_URL } from '@/utils/api';
 import { useDebounce } from '@/hooks/useDebounce';
 import { IconGrid } from '@/components/category/IconGrid';
 import { useFilterDataStore } from '@/stores/filterDataStore';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('ThemesPage');
 
 // 作業ディレクトリをお気に入りに自動登録する関数
 const addWorkingDirectoryToFavorites = async (path: string) => {
@@ -62,7 +65,7 @@ const addWorkingDirectoryToFavorites = async (path: string) => {
       body: JSON.stringify({ path }),
     });
   } catch (err) {
-    console.error('Failed to add working directory to favorites:', err);
+    logger.error('Failed to add working directory to favorites:', err);
   }
 };
 
@@ -235,7 +238,7 @@ export default function ThemesPage() {
       if (!res.ok) throw new Error('取得に失敗しました');
       setItems(await res.json());
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('テーマの取得に失敗しました', 'error');
     } finally {
       setLoading(false);
@@ -248,7 +251,7 @@ export default function ThemesPage() {
         method: 'POST',
       });
     } catch (e) {
-      console.error('Failed to seed default categories:', e);
+      logger.error('Failed to seed default categories:', e);
     }
   };
 
@@ -273,7 +276,7 @@ export default function ThemesPage() {
         }
       }
     } catch (e) {
-      console.error(e);
+      logger.error(e);
     }
   };
 
@@ -314,7 +317,7 @@ export default function ThemesPage() {
       clearFilterCache();
       fetchItems();
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('テーマの作成に失敗しました', 'error');
     }
   };
@@ -330,7 +333,7 @@ export default function ThemesPage() {
     }
 
     try {
-      console.log('Updating theme with data:', formData);
+      logger.debug('Updating theme with data:', formData);
       const res = await fetch(`${API_BASE_URL}/themes/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -338,7 +341,7 @@ export default function ThemesPage() {
       });
 
       const responseText = await res.text();
-      console.log('Response status:', res.status, 'Response:', responseText);
+      logger.debug('Response status:', res.status, 'Response:', responseText);
 
       if (!res.ok) {
         let errorMessage = `更新に失敗しました (${res.status})`;
@@ -367,7 +370,7 @@ export default function ThemesPage() {
       clearFilterCache();
       fetchItems();
     } catch (e) {
-      console.error('Theme update error:', e);
+      logger.error('Theme update error:', e);
       showToast(
         e instanceof Error ? e.message : 'テーマの更新に失敗しました',
         'error',
@@ -389,7 +392,7 @@ export default function ThemesPage() {
       clearFilterCache();
       fetchItems();
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('テーマの削除に失敗しました', 'error');
     }
   };
@@ -405,7 +408,7 @@ export default function ThemesPage() {
       showToast('デフォルトテーマを設定しました', 'success');
       fetchItems();
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('デフォルトテーマの設定に失敗しました', 'error');
     }
   };
@@ -494,7 +497,7 @@ export default function ThemesPage() {
       if (!res.ok) throw new Error('並び替えに失敗しました');
       clearFilterCache();
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('並び替えに失敗しました', 'error');
       fetchItems();
     }

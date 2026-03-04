@@ -29,6 +29,9 @@ import { API_BASE_URL } from '@/utils/api';
 import { useDebounce } from '@/hooks/useDebounce';
 import { IconGrid } from '@/components/category/IconGrid';
 import { useFilterDataStore } from '@/stores/filterDataStore';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('CategoriesPage');
 
 type CategoryWithThemes = Category & {
   themes: (Pick<Theme, 'id' | 'name' | 'color' | 'icon' | 'isDefault'> & {
@@ -82,7 +85,7 @@ export default function CategoriesPage() {
         method: 'POST',
       });
     } catch (e) {
-      console.error('Failed to seed default categories:', e);
+      logger.error('Failed to seed default categories:', e);
     }
   };
 
@@ -94,7 +97,7 @@ export default function CategoriesPage() {
         setDefaultCategoryId(data.defaultCategoryId ?? null);
       }
     } catch (e) {
-      console.error('Failed to fetch default category:', e);
+      logger.error('Failed to fetch default category:', e);
     }
   };
 
@@ -111,7 +114,7 @@ export default function CategoriesPage() {
       localStorage.setItem('selectedCategoryFilter', String(id));
       showToast('デフォルトカテゴリを設定しました', 'success');
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('デフォルトカテゴリの設定に失敗しました', 'error');
     }
   };
@@ -123,7 +126,7 @@ export default function CategoriesPage() {
       if (!res.ok) throw new Error('取得に失敗しました');
       setItems(await res.json());
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('カテゴリの取得に失敗しました', 'error');
     } finally {
       setLoading(false);
@@ -158,7 +161,7 @@ export default function CategoriesPage() {
       clearFilterCache();
       fetchItems();
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('カテゴリの作成に失敗しました', 'error');
     }
   };
@@ -184,7 +187,7 @@ export default function CategoriesPage() {
       clearFilterCache();
       fetchItems();
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('カテゴリの更新に失敗しました', 'error');
     }
   };
@@ -208,7 +211,7 @@ export default function CategoriesPage() {
       clearFilterCache();
       fetchItems();
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('カテゴリの削除に失敗しました', 'error');
     }
   };
@@ -260,7 +263,7 @@ export default function CategoriesPage() {
       if (!res.ok) throw new Error('並び替えに失敗しました');
       clearFilterCache();
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('並び替えに失敗しました', 'error');
       fetchItems();
     }

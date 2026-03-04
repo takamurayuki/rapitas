@@ -11,6 +11,9 @@ import type {
 } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('useDeveloperMode');
 
 export type { ExecutionStatus, ExecutionResult };
 
@@ -148,13 +151,13 @@ export function useDeveloperMode(taskId: number) {
               fullOutput = logsData.logs
                 .map((log: { chunk: string }) => log.chunk)
                 .join('');
-              console.log(
-                `[restoreExecutionState] Restored ${logsData.logs.length} log chunks`,
+              logger.debug(
+                `Restored ${logsData.logs.length} log chunks`,
               );
             }
           }
         } catch (logErr) {
-          console.warn(
+          logger.warn(
             'Failed to fetch execution logs, using status output:',
             logErr,
           );
@@ -214,7 +217,7 @@ export function useDeveloperMode(taskId: number) {
 
       return null;
     } catch (err) {
-      console.error('Failed to restore execution state:', err);
+      logger.error('Failed to restore execution state:', err);
       return null;
     }
   }, [taskId]);
@@ -351,7 +354,7 @@ export function useDeveloperMode(taskId: number) {
         setSessions(data);
       }
     } catch (err) {
-      console.error('Failed to fetch sessions:', err);
+      logger.error('Failed to fetch sessions:', err);
     }
   }, [taskId]);
 
@@ -420,7 +423,7 @@ export function useDeveloperMode(taskId: number) {
     }) => {
       // Ref-based排他制御: 二重実行防止
       if (isExecutingRef.current) {
-        console.warn('[useDeveloperMode] Duplicate execution blocked: already executing');
+        logger.warn('Duplicate execution blocked: already executing');
         return undefined;
       }
       isExecutingRef.current = true;
@@ -450,7 +453,7 @@ export function useDeveloperMode(taskId: number) {
           // レスポンスがJSONかどうかを確認
           // Check if endpoint exists (404 error)
           if (res.status === 404) {
-            console.error('[useDeveloperMode] Endpoint not found:', res.url);
+            logger.error('Endpoint not found:', res.url);
             throw new Error(
               '実行エンドポイントが見つかりません。サーバーの設定を確認してください。',
             );
@@ -470,7 +473,7 @@ export function useDeveloperMode(taskId: number) {
             if (parseResult.success) {
               data = parseResult.data as Record<string, unknown>;
             } else {
-              console.warn('[useDeveloperMode] JSON parse failed:', parseResult.error);
+              logger.warn('JSON parse failed:', parseResult.error);
 
               // If response is empty, it might be still processing
               if (!responseText || responseText.trim() === '') {
@@ -489,8 +492,8 @@ export function useDeveloperMode(taskId: number) {
               }
             }
           } catch (textErr) {
-            console.warn(
-              '[useDeveloperMode] Failed to read response:',
+            logger.warn(
+              'Failed to read response:',
               textErr,
             );
             data = {
@@ -532,7 +535,7 @@ export function useDeveloperMode(taskId: number) {
           // レスポンスがJSONかどうかを確認
           // Check if endpoint exists (404 error)
           if (res.status === 404) {
-            console.error('[useDeveloperMode] Endpoint not found:', res.url);
+            logger.error('Endpoint not found:', res.url);
             throw new Error(
               '実行エンドポイントが見つかりません。サーバーの設定を確認してください。',
             );
@@ -552,7 +555,7 @@ export function useDeveloperMode(taskId: number) {
             if (parseResult.success) {
               data = parseResult.data as Record<string, unknown>;
             } else {
-              console.warn('[useDeveloperMode] JSON parse failed:', parseResult.error);
+              logger.warn('JSON parse failed:', parseResult.error);
 
               // If response is empty, it might be still processing
               if (!responseText || responseText.trim() === '') {
@@ -571,8 +574,8 @@ export function useDeveloperMode(taskId: number) {
               }
             }
           } catch (textErr) {
-            console.warn(
-              '[useDeveloperMode] Failed to read response:',
+            logger.warn(
+              'Failed to read response:',
               textErr,
             );
             data = {
@@ -640,14 +643,14 @@ export function useDeveloperMode(taskId: number) {
       );
       if (res.ok) {
         const data = await res.json();
-        console.log('[useDeveloperMode] Execution state reset:', data);
+        logger.debug('Execution state reset:', data);
       } else {
-        console.error(
-          '[useDeveloperMode] Failed to reset execution state in DB',
+        logger.error(
+          'Failed to reset execution state in DB',
         );
       }
     } catch (err) {
-      console.error('[useDeveloperMode] Error resetting execution state:', err);
+      logger.error('Error resetting execution state:', err);
     }
   }, [taskId]);
 
@@ -674,7 +677,7 @@ export function useDeveloperMode(taskId: number) {
       }
       return false;
     } catch (err) {
-      console.error('Failed to stop execution:', err);
+      logger.error('Failed to stop execution:', err);
       return false;
     }
   }, [taskId, removeExecutingTask]);
@@ -706,7 +709,7 @@ export function useDeveloperMode(taskId: number) {
         }
       }
     } catch (err) {
-      console.error('Failed to fetch agents:', err);
+      logger.error('Failed to fetch agents:', err);
     }
   }, [agentConfigId]);
 

@@ -3,6 +3,9 @@ import { useEffect, useState } from 'react';
 import type { Label } from '@/types';
 import { getIconComponent, ICON_DATA } from '@/components/category/IconData';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('LabelSelector');
 
 type LabelSelectorProps = {
   selectedLabelIds: number[];
@@ -27,7 +30,7 @@ export default function LabelSelector({
           setLabels(data);
         }
       } catch (e) {
-        console.error('Failed to fetch labels:', e);
+        logger.error('Failed to fetch labels:', e);
       } finally {
         setLoading(false);
       }

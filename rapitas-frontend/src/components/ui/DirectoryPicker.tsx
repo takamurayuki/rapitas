@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { SkeletonBlock } from './LoadingSpinner';
+import { createLogger } from '@/lib/logger';
+const logger = createLogger('DirectoryPicker');
 
 type DirectoryEntry = {
   name: string;
@@ -145,7 +147,7 @@ export function DirectoryPicker({
         setFavorites(data);
       }
     } catch (err) {
-      console.error('Failed to fetch favorites:', err);
+      logger.error('Failed to fetch favorites:', err);
     } finally {
       setIsLoadingFavorites(false);
     }
@@ -164,7 +166,7 @@ export function DirectoryPicker({
         setFavorites((prev) => [data, ...prev]);
       }
     } catch (err) {
-      console.error('Failed to add favorite:', err);
+      logger.error('Failed to add favorite:', err);
     }
   };
 
@@ -179,7 +181,7 @@ export function DirectoryPicker({
         setFavorites((prev) => prev.filter((f) => f.id !== id));
       }
     } catch (err) {
-      console.error('Failed to remove favorite:', err);
+      logger.error('Failed to remove favorite:', err);
     }
   };
 
@@ -256,7 +258,7 @@ export function DirectoryPicker({
         }
       }
     } catch (err) {
-      console.error('Failed to fetch favorites:', err);
+      logger.error('Failed to fetch favorites:', err);
       setFavorites([]);
       setFavoritesOnlyMode(false);
       // エラー時も通常のブラウズを開始

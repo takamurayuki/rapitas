@@ -78,7 +78,9 @@ import WorkflowStatusIndicator, {
 } from '@/components/workflow/WorkflowStatusIndicator';
 import { useWorkflowFiles } from '@/hooks/useWorkflowFiles';
 import { Loader2 } from 'lucide-react';
+import { createLogger } from '@/lib/logger';
 
+const logger = createLogger('TaskDetailClient');
 const API_BASE = API_BASE_URL;
 
 interface TaskDetailClientProps {
@@ -113,13 +115,13 @@ function TaskDetailClient({
     propTaskId?.toString() || taskIdFromParams || taskIdFromUrl;
 
   // デバッグログ
-  console.log('[TaskDetailClient] params:', params);
-  console.log(
+  logger.debug('[TaskDetailClient] params:', params);
+  logger.debug(
     '[TaskDetailClient] window.location:',
     typeof window !== 'undefined' ? window.location.href : 'SSR',
   );
-  console.log('[TaskDetailClient] params.id:', params?.id);
-  console.log('[TaskDetailClient] resolvedTaskId:', resolvedTaskId);
+  logger.debug('[TaskDetailClient] params.id:', params?.id);
+  logger.debug('[TaskDetailClient] resolvedTaskId:', resolvedTaskId);
 
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
@@ -297,7 +299,7 @@ function TaskDetailClient({
         try {
           const result = await restoreExecutionState();
           if (result && result.status === 'running') {
-            console.log('[TaskDetailClient] Execution state restored after approval');
+            logger.debug('[TaskDetailClient] Execution state restored after approval');
             return; // 復元成功、リトライ停止
           }
 
@@ -306,7 +308,7 @@ function TaskDetailClient({
             setTimeout(tryRestoreExecution, 2000); // 2秒後に再試行
           }
         } catch (err) {
-          console.warn('[TaskDetailClient] Failed to restore execution state:', err);
+          logger.warn('[TaskDetailClient] Failed to restore execution state:', err);
           if (attempts < maxAttempts) {
             setTimeout(tryRestoreExecution, 2000); // エラー時も再試行
           }
@@ -339,7 +341,7 @@ function TaskDetailClient({
         if (onTaskUpdated) onTaskUpdated();
       }
     } catch (err) {
-      console.error('Error completing workflow:', err);
+      logger.error('Error completing workflow:', err);
     }
   };
 
@@ -438,7 +440,7 @@ function TaskDetailClient({
         );
         setTimeEntries(data);
       } catch (err) {
-        console.error('Failed to fetch time entries:', err);
+        logger.error('Failed to fetch time entries:', err);
       }
     };
 
@@ -450,7 +452,7 @@ function TaskDetailClient({
         );
         setComments(data);
       } catch (err) {
-        console.error('Failed to fetch comments:', err);
+        logger.error('Failed to fetch comments:', err);
       }
     };
 
@@ -462,7 +464,7 @@ function TaskDetailClient({
         );
         setResources(data);
       } catch (err) {
-        console.error('Failed to fetch resources:', err);
+        logger.error('Failed to fetch resources:', err);
       }
     };
 
@@ -477,7 +479,7 @@ function TaskDetailClient({
           setShowAIAssistant(true);
         }
       } catch (err) {
-        console.error('Failed to fetch global settings:', err);
+        logger.error('Failed to fetch global settings:', err);
       }
     };
 
@@ -587,7 +589,7 @@ function TaskDetailClient({
 
       // 開発プロジェクトのテーマに属するタスクのみ自動実行を許可
       if (!task.theme?.isDevelopment) {
-        console.warn(
+        logger.warn(
           `[TaskDetail] Skipping auto-execute for task ${taskId}: theme is not a development project`,
         );
       } else if (!isExecuting) {
@@ -603,7 +605,7 @@ function TaskDetailClient({
         }
         executeAgent();
       } else {
-        console.warn(
+        logger.warn(
           `[TaskDetail] Skipping auto-execute for task ${taskId}: already executing`,
         );
       }
@@ -655,7 +657,7 @@ function TaskDetailClient({
       }
       onTaskUpdated?.();
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       // エラー時は元の状態に戻す
       setTask(previousTask);
     }
@@ -694,7 +696,7 @@ function TaskDetailClient({
 
       return null;
     } catch (err) {
-      console.error('Failed to add comment:', err);
+      logger.error('Failed to add comment:', err);
       return null;
     } finally {
       setIsAddingComment(false);
@@ -716,7 +718,7 @@ function TaskDetailClient({
           );
         }
       } catch (err) {
-        console.error('Failed to update comment:', err);
+        logger.error('Failed to update comment:', err);
       }
     },
     [],
@@ -733,7 +735,7 @@ function TaskDetailClient({
         setComments(comments.filter((c) => c.id !== commentId));
       }
     } catch (err) {
-      console.error('Failed to delete comment:', err);
+      logger.error('Failed to delete comment:', err);
     }
   };
 
@@ -755,7 +757,7 @@ function TaskDetailClient({
           }
         }
       } catch (err) {
-        console.error('Failed to create comment link:', err);
+        logger.error('Failed to create comment link:', err);
       }
     },
     [resolvedTaskId],
@@ -777,7 +779,7 @@ function TaskDetailClient({
           }
         }
       } catch (err) {
-        console.error('Failed to delete comment link:', err);
+        logger.error('Failed to delete comment link:', err);
       }
     },
     [resolvedTaskId],
@@ -827,7 +829,7 @@ function TaskDetailClient({
       setTask(updated);
       setIsEditing(false);
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       alert('タスクの更新に失敗しました');
     }
   };
@@ -852,7 +854,7 @@ function TaskDetailClient({
       // 前のページに戻る
       router.back();
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       alert('タスクの削除に失敗しました');
     }
   };
@@ -933,7 +935,7 @@ function TaskDetailClient({
       }
       cancelEditingSubtask();
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       alert('サブタスクの更新に失敗しました');
     }
   };
@@ -1006,7 +1008,7 @@ function TaskDetailClient({
         setTask(data);
       }
     } catch (err) {
-      console.error('Failed to refetch task:', err);
+      logger.error('Failed to refetch task:', err);
     }
   };
 
@@ -1022,7 +1024,7 @@ function TaskDetailClient({
       if (!res.ok) throw new Error('削除に失敗しました');
 
       const result = await res.json();
-      console.log(
+      logger.debug(
         `[TaskDetail] Deleted all subtasks: ${result.deletedCount} items`,
       );
 
@@ -1030,7 +1032,7 @@ function TaskDetailClient({
       await refetchTask();
       onTaskUpdated?.();
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       alert('サブタスクの削除に失敗しました');
     }
   };
@@ -1052,7 +1054,7 @@ function TaskDetailClient({
       if (!res.ok) throw new Error('削除に失敗しました');
 
       const result = await res.json();
-      console.log(
+      logger.debug(
         `[TaskDetail] Deleted selected subtasks: ${result.deletedCount} items`,
       );
 
@@ -1060,7 +1062,7 @@ function TaskDetailClient({
       await refetchTask();
       onTaskUpdated?.();
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       alert('サブタスクの削除に失敗しました');
     }
   };
@@ -1078,7 +1080,7 @@ function TaskDetailClient({
       await refetchTask();
       onTaskUpdated?.();
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       alert('サブタスクの削除に失敗しました');
     }
   };
@@ -1111,7 +1113,7 @@ function TaskDetailClient({
       const newTask = await res.json();
       router.push(getTaskDetailPath(newTask.id));
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       alert('タスクの複製に失敗しました');
     }
   };
@@ -1457,7 +1459,7 @@ function TaskDetailClient({
                         `${API_BASE}/tasks/${resolvedTaskId}`,
                       );
                       if (!res.ok) {
-                        console.error('[TaskDetail] Failed to fetch task after subtask creation');
+                        logger.error('[TaskDetail] Failed to fetch task after subtask creation');
                         return;
                       }
 
@@ -1473,7 +1475,7 @@ function TaskDetailClient({
                           `${API_BASE}/agent-execution-config/${resolvedTaskId}`,
                         );
                         if (!configRes.ok) {
-                          console.warn('[TaskDetail] Auto-execute config not found');
+                          logger.warn('[TaskDetail] Auto-execute config not found');
                           return;
                         }
 
@@ -1481,16 +1483,16 @@ function TaskDetailClient({
                         if (configData.autoExecuteOnAnalysis) {
                           // サブタスクがある場合は並列実行、なければ通常実行
                           if (data.subtasks && data.subtasks.length > 0) {
-                            console.log(
+                            logger.debug(
                               '[TaskDetail] Auto-executing parallel tasks after analysis',
                             );
                             startSession();
                           } else {
                             // 二重実行防止: 既に実行中なら実行しない
                             if (isExecuting) {
-                              console.warn('[TaskDetail] Skipping auto-execute: already executing');
+                              logger.warn('[TaskDetail] Skipping auto-execute: already executing');
                             } else {
-                              console.log(
+                              logger.debug(
                                 '[TaskDetail] Auto-executing agent after analysis',
                               );
                               // 楽観的UI更新: エージェント実行開始時にタスクステータスをin-progressに設定
@@ -1509,13 +1511,13 @@ function TaskDetailClient({
                           }
                         }
                       } catch (err) {
-                        console.error(
+                        logger.error(
                           '[TaskDetail] Failed to check auto-execute config:',
                           err,
                         );
                       }
                     } catch (err) {
-                      console.error(
+                      logger.error(
                         '[TaskDetail] Error in onSubtasksCreated:',
                         err,
                       );
@@ -1538,7 +1540,7 @@ function TaskDetailClient({
                   onExecute={async (options) => {
                     // 二重実行防止: 既に実行中なら実行しない
                     if (isExecuting) {
-                      console.warn('[TaskDetail] Skipping execute: already executing');
+                      logger.warn('[TaskDetail] Skipping execute: already executing');
                       return undefined;
                     }
                     // 楽観的UI更新: エージェント実行開始時にタスクステータスをin-progressに設定
@@ -1650,10 +1652,10 @@ function TaskDetailClient({
                         });
                         if (onTaskUpdated) onTaskUpdated();
                       } else {
-                        console.error('Failed to update autoApprovePlan setting');
+                        logger.error('Failed to update autoApprovePlan setting');
                       }
                     } catch (error) {
-                      console.error('Error updating autoApprovePlan setting:', error);
+                      logger.error('Error updating autoApprovePlan setting:', error);
                     }
                   }}
                   showWorkflowMode={true}

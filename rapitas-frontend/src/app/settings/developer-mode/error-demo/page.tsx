@@ -7,6 +7,9 @@ import { Card } from '@/components/ui/card';
 import { useErrorCapture } from '@/feature/developer-mode/hooks/useErrorCapture';
 import { ErrorAnalysis } from '@/feature/developer-mode/services/errorAnalysisService';
 import Link from 'next/link';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('ErrorDemoPage');
 
 export default function ErrorDemoPage() {
   const [lastError, setLastError] = useState<ErrorAnalysis | null>(null);
@@ -36,7 +39,7 @@ export default function ErrorDemoPage() {
       // This will throw: Cannot read properties of null
       obj.someProperty.doSomething();
     } catch (error) {
-      console.error(error);
+      logger.error(error);
     }
   };
 
@@ -72,7 +75,7 @@ export default function ErrorDemoPage() {
     try {
       throw new Error("Cannot find module 'non-existent-module'");
     } catch (error) {
-      console.error(error);
+      logger.error(error);
     }
   };
 

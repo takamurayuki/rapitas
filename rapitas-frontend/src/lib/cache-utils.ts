@@ -2,6 +2,10 @@
  * HTTPキャッシュとETag管理のユーティリティ
  */
 
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger("CacheUtils");
+
 interface CacheEntry<T = unknown> {
   etag?: string;
   lastModified?: string;
@@ -71,7 +75,7 @@ class CacheManager {
     } catch (error) {
       // ネットワークエラー時は、キャッシュがあれば使用
       if (cached && this.isCacheValid(cached)) {
-        console.warn('Network error, using cached data:', error);
+        logger.warn('Network error, using cached data:', error);
         return { data: cached.data as T, fromCache: true };
       }
       throw error;
@@ -112,7 +116,7 @@ class CacheManager {
         // 古いデータを即座に返し、バックグラウンドで更新
         if (cached) {
           // バックグラウンドで更新
-          this.fetchAndCache(url, cacheKey, options).catch(console.error);
+          this.fetchAndCache(url, cacheKey, options).catch((err) => logger.error(err));
           return cached.data as T;
         }
         return this.fetchAndCache(url, cacheKey, options);
@@ -126,7 +130,7 @@ class CacheManager {
     await Promise.allSettled(
       urls.map(url =>
         this.fetchWithETag(url).catch(err =>
-          console.warn(`Failed to warmup cache for ${url}:`, err)
+          logger.warn(`Failed to warmup cache for ${url}:`, err)
         )
       )
     );
