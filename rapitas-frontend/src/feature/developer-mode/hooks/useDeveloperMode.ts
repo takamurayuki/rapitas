@@ -17,7 +17,7 @@ export type { ExecutionStatus, ExecutionResult };
 /**
  * Safe JSON parsing with improved validation
  */
-function safeJsonParse(text: string): { success: boolean; data?: any; error?: string } {
+function safeJsonParse(text: string): { success: boolean; data?: unknown; error?: string } {
   // Basic validation
   if (!text || typeof text !== 'string') {
     return { success: false, error: 'Empty or invalid response text' };
@@ -447,7 +447,7 @@ export function useDeveloperMode(taskId: number) {
           }
 
           const contentType = res.headers.get('content-type');
-          let data;
+          let data: Record<string, unknown>;
           let responseText: string | null = null;
 
           try {
@@ -458,7 +458,7 @@ export function useDeveloperMode(taskId: number) {
             const parseResult = safeJsonParse(responseText);
 
             if (parseResult.success) {
-              data = parseResult.data;
+              data = parseResult.data as Record<string, unknown>;
             } else {
               console.warn('[useDeveloperMode] JSON parse failed:', parseResult.error);
 
@@ -492,19 +492,19 @@ export function useDeveloperMode(taskId: number) {
           if (res.ok) {
             setExecutionResult({
               success: true,
-              sessionId: data.sessionId,
-              message: data.message || '継続実行を開始しました',
+              sessionId: data.sessionId as number,
+              message: (data.message as string) || '継続実行を開始しました',
             });
             setExecutionStatus('running');
             // グローバルストアに実行中タスクを記録
             setExecutingTask({
               taskId,
-              sessionId: data.sessionId,
+              sessionId: data.sessionId as number,
               status: 'running',
             });
             return data;
           } else {
-            throw new Error(data.error || '継続実行に失敗しました');
+            throw new Error((data.error as string) || '継続実行に失敗しました');
           }
         } else {
           // 新規実行の場合は通常のエンドポイントを使用
@@ -529,7 +529,7 @@ export function useDeveloperMode(taskId: number) {
           }
 
           const contentType = res.headers.get('content-type');
-          let data;
+          let data: Record<string, unknown>;
           let responseText: string | null = null;
 
           try {
@@ -540,7 +540,7 @@ export function useDeveloperMode(taskId: number) {
             const parseResult = safeJsonParse(responseText);
 
             if (parseResult.success) {
-              data = parseResult.data;
+              data = parseResult.data as Record<string, unknown>;
             } else {
               console.warn('[useDeveloperMode] JSON parse failed:', parseResult.error);
 
@@ -574,19 +574,19 @@ export function useDeveloperMode(taskId: number) {
           if (res.ok) {
             setExecutionResult({
               success: true,
-              sessionId: data.sessionId,
-              message: data.message || 'エージェント実行を開始しました',
+              sessionId: data.sessionId as number,
+              message: (data.message as string) || 'エージェント実行を開始しました',
             });
             setExecutionStatus('running');
             // グローバルストアに実行中タスクを記録
             setExecutingTask({
               taskId,
-              sessionId: data.sessionId,
+              sessionId: data.sessionId as number,
               status: 'running',
             });
             return data;
           } else {
-            throw new Error(data.error || 'エージェントの実行に失敗しました');
+            throw new Error((data.error as string) || 'エージェントの実行に失敗しました');
           }
         }
       } catch (err) {

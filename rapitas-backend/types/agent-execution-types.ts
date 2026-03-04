@@ -1,7 +1,7 @@
 /**
  * Agent実行関連の型定義
  */
-import type { AgentExecution } from "@prisma/client";
+import type { AgentExecution, AgentSession, AIAgentConfig, AgentExecutionLog, GitCommit } from "@prisma/client";
 
 /**
  * Agent実行ステータス
@@ -77,7 +77,7 @@ export interface ExecutionRequest {
   useTaskAnalysis?: boolean;
   optimizedPrompt?: string;
   sessionId?: number;
-  attachments?: any[];
+  attachments?: Array<{ path: string; type?: string }>;
 }
 
 /**
@@ -94,10 +94,10 @@ export interface ExecutionResult {
  * AgentExecutionの拡張型（関連データを含む）
  */
 export interface AgentExecutionWithExtras extends AgentExecution {
-  session?: any;
-  agentConfig?: any;
-  executionLogs?: any[];
-  gitCommits?: any[];
+  session?: AgentSession;
+  agentConfig?: AIAgentConfig | null;
+  executionLogs?: AgentExecutionLog[];
+  gitCommits?: GitCommit[];
 }
 
 /**
@@ -190,7 +190,7 @@ export interface RealtimeEventData {
   taskId: number;
   executionId?: number;
   message?: string;
-  data?: any;
+  data?: Record<string, unknown>;
   timestamp: Date;
 }
 

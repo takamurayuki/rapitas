@@ -2,12 +2,28 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+/**
+ * タスク関連データを含むタスク型
+ */
+interface TaskWithRelations {
+  title: string;
+  description?: string | null;
+  priority: string;
+  estimatedHours?: number | null;
+  actualHours?: number | null;
+  themeId?: number | null;
+  startedAt?: Date | string | null;
+  createdAt?: Date | string | null;
+  completedAt?: Date | string | null;
+  taskLabels?: Array<{ labelId: number }>;
+}
+
 export interface BehaviorContext {
   timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night';
   dayOfWeek: string;
   previousAction?: string;
   sessionDuration?: number;
-  [key: string]: any;
+  [key: string]: string | number | boolean | undefined;
 }
 
 export class UserBehaviorService {
@@ -21,7 +37,7 @@ export class UserBehaviorService {
       taskId?: number;
       themeId?: number;
       context?: BehaviorContext;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
     } = {}
   ) {
     const { userId = 1, taskId, themeId, context, metadata } = options;
@@ -64,15 +80,15 @@ export class UserBehaviorService {
   /**
    * タスク作成時の行動を記録
    */
-  static async recordTaskCreated(taskId: number, task: any) {
+  static async recordTaskCreated(taskId: number, task: TaskWithRelations) {
     await this.recordBehavior('task_created', {
       taskId,
-      themeId: task.themeId,
+      themeId: task.themeId ?? undefined,
       metadata: {
         priority: task.priority,
         estimatedHours: task.estimatedHours,
         hasDescription: !!task.description,
-        labelIds: task.taskLabels?.map((tl: any) => tl.labelId) || [],
+        labelIds: task.taskLabels?.map((tl) => tl.labelId) || [],
       }
     });
   }
@@ -80,10 +96,10 @@ export class UserBehaviorService {
   /**
    * タスク開始時の行動を記録
    */
-  static async recordTaskStarted(taskId: number, task: any) {
+  static async recordTaskStarted(taskId: number, task: TaskWithRelations) {
     await this.recordBehavior('task_started', {
       taskId,
-      themeId: task.themeId,
+      themeId: task.themeId ?? undefined,
       metadata: {
         timeToStart: task.startedAt && task.createdAt
           ? (new Date(task.startedAt).getTime() - new Date(task.createdAt).getTime()) / 1000 / 60 / 60 // 時間単位
@@ -95,10 +111,10 @@ export class UserBehaviorService {
   /**
    * タスク完了時の行動を記録・パターンを更新
    */
-  static async recordTaskCompleted(taskId: number, task: any) {
+  static async recordTaskCompleted(taskId: number, task: TaskWithRelations) {
     await this.recordBehavior('task_completed', {
       taskId,
-      themeId: task.themeId,
+      themeId: task.themeId ?? undefined,
       metadata: {
         actualHours: task.actualHours,
         timeToComplete: task.completedAt && task.startedAt
@@ -114,9 +130,9 @@ export class UserBehaviorService {
   /**
    * タスクパターンを更新
    */
-  private static async updateTaskPattern(task: any) {
+  private static async updateTaskPattern(task: TaskWithRelations) {
     const userId = 1; // 現在は固定
-    const labelIds = task.taskLabels?.map((tl: any) => tl.labelId) || [];
+    const labelIds = task.taskLabels?.map((tl) => tl.labelId) || [];
 
     const existingPattern = await prisma.taskPattern.findUnique({
       where: {
@@ -300,9 +316,9 @@ export class UserBehaviorService {
             themeId,
             ...summaryData,
           },
-        }).catch((e: any) => {
+        }).catch((e: unknown) => {
           // Race condition: another process created the record between findFirst and create
-          if (e.code === 'P2002') {
+          if (e instanceof Error && 'code' in e && (e as { code: string }).code === 'P2002') {
             return prisma.userBehaviorSummary.updateMany({
               where: { userId, periodType, periodStart, themeId: themeId ?? null },
               data: summaryData,

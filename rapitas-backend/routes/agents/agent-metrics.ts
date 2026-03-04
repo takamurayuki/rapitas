@@ -1,7 +1,9 @@
 import { Elysia } from 'elysia';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
+
+type ExecutionWhereInput = Prisma.AgentExecutionWhereInput;
 
 // メトリクスデータの型定義
 export interface AgentMetrics {
@@ -59,7 +61,7 @@ export interface DateRange {
  * エージェントごとの詳細メトリクス取得
  */
 async function getAgentMetrics(dateRange?: DateRange): Promise<AgentMetrics[]> {
-  const whereClause: any = {};
+  const whereClause: ExecutionWhereInput = {};
 
   if (dateRange?.startDate || dateRange?.endDate) {
     whereClause.createdAt = {};
@@ -196,7 +198,7 @@ async function getExecutionTrends(period: 'day' | 'week' | 'month' = 'day', days
  * エージェント性能比較データ取得
  */
 async function getAgentPerformanceComparison(dateRange?: DateRange): Promise<AgentPerformanceComparison[]> {
-  const whereClause: any = {};
+  const whereClause: ExecutionWhereInput = {};
 
   if (dateRange?.startDate || dateRange?.endDate) {
     whereClause.createdAt = {};
@@ -224,7 +226,16 @@ async function getAgentPerformanceComparison(dateRange?: DateRange): Promise<Age
   const groupedData: Record<string, {
     agentType: string;
     modelId: string;
-    executions: any[];
+    executions: Array<{
+      id: number;
+      status: string;
+      executionTimeMs: number | null;
+      tokensUsed: number;
+      agentConfig: {
+        agentType: string;
+        modelId: string | null;
+      } | null;
+    }>;
   }> = {};
 
   executions.forEach(execution => {
@@ -270,7 +281,7 @@ async function getAgentPerformanceComparison(dateRange?: DateRange): Promise<Age
  * メトリクス概要データ取得
  */
 async function getMetricsOverview(dateRange?: DateRange): Promise<MetricsOverview> {
-  const whereClause: any = {};
+  const whereClause: ExecutionWhereInput = {};
 
   if (dateRange?.startDate || dateRange?.endDate) {
     whereClause.createdAt = {};
@@ -401,7 +412,7 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
         period: query.period as 'day' | 'week' | 'month',
       };
 
-      const whereClause: any = {};
+      const whereClause: ExecutionWhereInput = {};
       if (dateRange?.startDate || dateRange?.endDate) {
         whereClause.createdAt = {};
         if (dateRange.startDate) {

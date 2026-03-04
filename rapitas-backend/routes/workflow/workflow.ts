@@ -78,6 +78,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
   const result: {
     autoCommitResult?: { success: boolean; hash?: string; branch?: string; filesChanged?: number; error?: string };
     autoPRResult?: { success: boolean; prUrl?: string; prNumber?: number; error?: string };
+    autoMergeResult?: { success: boolean; mergeStrategy?: string; error?: string };
   } = {};
 
   try {
@@ -86,7 +87,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
       where: { taskId },
     });
 
-    if (!execConfig || (!execConfig.autoCommit && !execConfig.autoCreatePR)) {
+    if (!execConfig || (!execConfig.autoCommit && !execConfig.autoCreatePR && !execConfig.autoMergePR)) {
       return result;
     }
 
@@ -97,7 +98,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
         theme: true,
         developerModeConfig: {
           include: {
-            sessions: {
+            agentSessions: {
               orderBy: { lastActivityAt: 'desc' },
               take: 1,
             },
@@ -115,7 +116,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
       process.cwd();
 
     // ブランチ名をAgentSessionから取得
-    const latestSession = task.developerModeConfig?.sessions?.[0];
+    const latestSession = task.developerModeConfig?.agentSessions?.[0];
     const branchName = latestSession?.branchName;
 
     const orchestrator = AgentOrchestrator.getInstance(prisma);
@@ -216,6 +217,75 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
         result.autoPRResult = {
           success: false,
           error: prError instanceof Error ? prError.message : String(prError),
+        };
+      }
+    }
+
+    // autoMergePRの処理（autoCreatePRが成功した場合のみ）
+    if (execConfig.autoMergePR && result.autoPRResult?.success && result.autoPRResult?.prNumber) {
+      try {
+        const mergeResult = await orchestrator.mergePullRequest(
+          workingDirectory,
+          result.autoPRResult.prNumber,
+          execConfig.mergeCommitThreshold ?? 5,
+        );
+
+        result.autoMergeResult = mergeResult;
+
+        if (mergeResult.success) {
+          console.log(`[Workflow] Auto-merge successful for task ${taskId}: strategy=${mergeResult.mergeStrategy}`);
+
+          // ActivityLogに記録
+          await prisma.activityLog.create({
+            data: {
+              taskId,
+              action: 'auto_pr_merged',
+              metadata: JSON.stringify({
+                prNumber: result.autoPRResult.prNumber,
+                prUrl: result.autoPRResult.prUrl,
+                mergeStrategy: mergeResult.mergeStrategy,
+              }),
+              createdAt: new Date(),
+            },
+          });
+
+          // 通知を作成
+          await prisma.notification.create({
+            data: {
+              type: 'auto_pr_merged',
+              title: '自動マージ完了',
+              message: `タスク「${task.title}」のPRが自動マージされました (${mergeResult.mergeStrategy})`,
+              link: result.autoPRResult.prUrl || `/tasks/${taskId}`,
+              metadata: JSON.stringify({
+                taskId,
+                prNumber: result.autoPRResult.prNumber,
+                mergeStrategy: mergeResult.mergeStrategy,
+              }),
+            },
+          });
+        } else {
+          console.error(`[Workflow] Auto-merge failed for task ${taskId}:`, mergeResult.error);
+
+          // 失敗通知（ワークフロー全体は失敗させない）
+          await prisma.notification.create({
+            data: {
+              type: 'auto_pr_merge_failed',
+              title: '自動マージ失敗',
+              message: `タスク「${task.title}」のPR自動マージに失敗しました: ${mergeResult.error}`,
+              link: result.autoPRResult.prUrl || `/tasks/${taskId}`,
+              metadata: JSON.stringify({
+                taskId,
+                prNumber: result.autoPRResult.prNumber,
+                error: mergeResult.error,
+              }),
+            },
+          });
+        }
+      } catch (mergeError) {
+        console.error(`[Workflow] Auto-merge failed for task ${taskId}:`, mergeError);
+        result.autoMergeResult = {
+          success: false,
+          error: mergeError instanceof Error ? mergeError.message : String(mergeError),
         };
       }
     }
@@ -405,7 +475,19 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       }
 
       // レスポンス構築
-      const response: any = {
+      const response: {
+        success: boolean;
+        fileType: string;
+        path: string;
+        workflowStatus: string | null;
+        autoApproved: boolean;
+        taskCompleted?: boolean;
+        taskStatus?: string;
+        completedAt?: string;
+        autoCommit?: { success: boolean; hash?: string; branch?: string; filesChanged?: number; error?: string };
+        autoPR?: { success: boolean; prUrl?: string; prNumber?: number; error?: string };
+        autoMerge?: { success: boolean; mergeStrategy?: string; error?: string };
+      } = {
         success: true,
         fileType,
         path: filePath,
@@ -425,6 +507,9 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         }
         if (autoCommitPRResult.autoPRResult) {
           response.autoPR = autoCommitPRResult.autoPRResult;
+        }
+        if (autoCommitPRResult.autoMergeResult) {
+          response.autoMerge = autoCommitPRResult.autoMergeResult;
         }
       }
 
@@ -524,7 +609,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       }
 
       const parsedBody = body as { status: string };
-      if (!parsedBody?.status || !VALID_WORKFLOW_STATUSES.includes(parsedBody.status as any)) {
+      if (!parsedBody?.status || !(VALID_WORKFLOW_STATUSES as readonly string[]).includes(parsedBody.status)) {
         set.status = 400;
         return { error: `Invalid status. Must be one of: ${VALID_WORKFLOW_STATUSES.join(', ')}` };
       }

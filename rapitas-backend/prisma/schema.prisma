@@ -793,6 +793,8 @@ model AgentExecutionConfig {
   branchPrefix          String    @default("feature/")
   autoCommit            Boolean   @default(false)
   autoCreatePR          Boolean   @default(false)
+  autoMergePR           Boolean   @default(false)
+  mergeCommitThreshold  Int       @default(5)
 
   // 実行制御
   requireApproval       String    @default("always") // always, major_only, never

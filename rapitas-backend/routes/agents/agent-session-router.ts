@@ -10,7 +10,7 @@ import type { AgentExecutionWithExtras } from "../../types/agent-execution-types
 export const agentSessionRouter = new Elysia({ prefix: '/agents' })
 
   // Get session details
-  .get("/sessions/:id", async (context: any) => {
+  .get("/sessions/:id", async (context) => {
     const { params } = context;
     return await prisma.agentSession.findUnique({
       where: { id: parseInt(params.id) },
@@ -28,7 +28,7 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
   })
 
   // Stop session
-  .post("/sessions/:id/stop", async (context: any) => {
+  .post("/sessions/:id/stop", async (context) => {
     const { params } = context;
     const sessionId = parseInt(params.id);
 

@@ -55,10 +55,13 @@ export const promptsRoutes = new Elysia()
   // プロンプト作成
   .post(
     "/tasks/:id/prompts",
-    async (context: any) => {
+    async (context) => {
       const { params, body, set } = context;
       const taskIdNum = parseInt(params.id);
-      const { name, optimizedPrompt, structuredSections, qualityScore, originalDescription  } = body as any;
+      const { name, optimizedPrompt, structuredSections, qualityScore, originalDescription  } = body as {
+        name?: string; optimizedPrompt: string; structuredSections?: string;
+        qualityScore?: number; originalDescription?: string;
+      };
 
       if (!optimizedPrompt) {
         set.status = 400;
@@ -84,9 +87,11 @@ export const promptsRoutes = new Elysia()
   // プロンプト更新
   .patch(
     "/prompts/:id",
-    async ({ params, body, set }: any) => {
+    async ({ params, body, set }) => {
       const promptId = parseInt(params.id);
-      const { name, optimizedPrompt, isActive  } = body as any;
+      const { name, optimizedPrompt, isActive  } = body as {
+        name?: string; optimizedPrompt?: string; isActive?: boolean;
+      };
 
       const existing = await prisma.taskPrompt.findUnique({
         where: { id: promptId },
@@ -113,7 +118,7 @@ export const promptsRoutes = new Elysia()
   // プロンプト削除
   .delete(
     "/prompts/:id",
-    async (context: any) => {
+    async (context) => {
       const { params, set  } = context;
       const promptId = parseInt(params.id);
 
@@ -137,7 +142,7 @@ export const promptsRoutes = new Elysia()
   // サブタスクを含む全プロンプト生成（一括最適化）
   .post(
     "/tasks/:id/prompts/generate-all",
-    async (context: any) => {
+    async (context) => {
       const { params, set  } = context;
       const taskIdNum = parseInt(params.id);
 

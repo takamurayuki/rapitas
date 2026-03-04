@@ -78,7 +78,7 @@ describe("fromJsonString", () => {
   });
 
   test("有効なJSON文字列をパースすること", () => {
-    expect(fromJsonString('["bug","feature"]')).toEqual(["bug", "feature"]);
+    expect(fromJsonString<string[]>('["bug","feature"]')).toEqual(["bug", "feature"]);
   });
 
   test("無効なJSON文字列でnullを返すこと", () => {
@@ -87,7 +87,7 @@ describe("fromJsonString", () => {
 
   test("オブジェクトをそのまま返すこと", () => {
     const obj = { key: "value" };
-    expect(fromJsonString(obj)).toBe(obj);
+    expect(fromJsonString<{ key: string }>(obj)).toBe(obj);
   });
 });
 

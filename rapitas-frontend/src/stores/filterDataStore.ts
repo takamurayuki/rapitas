@@ -61,8 +61,8 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /**
  * タイムアウト付きのfetch関数
  */
-const fetchWithTimeout = async (fetchFn: () => Promise<any>, timeout: number) => {
-  const timeoutPromise = new Promise((_, reject) =>
+const fetchWithTimeout = async <T>(fetchFn: () => Promise<T>, timeout: number): Promise<T> => {
+  const timeoutPromise = new Promise<T>((_, reject) =>
     setTimeout(() => reject(new Error('Request timed out')), timeout)
   );
 
@@ -329,7 +329,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
 
 // デバッグ用のヘルパー関数
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-  (window as any).filterDataStoreDebug = {
+  (window as unknown as Record<string, unknown>).filterDataStoreDebug = {
     getState: () => useFilterDataStore.getState(),
     clearCache: () => useFilterDataStore.getState().clearCache(),
     refreshData: (force = true) => useFilterDataStore.getState().refreshData(force),

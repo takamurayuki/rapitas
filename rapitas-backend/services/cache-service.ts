@@ -12,10 +12,10 @@ interface CacheStrategy {
 
 // メモリキャッシュ戦略（開発環境用）
 class MemoryCacheStrategy implements CacheStrategy {
-  private cache: LRUCache<string, any>;
+  private cache: LRUCache<string, unknown>;
 
   constructor(options: { max?: number; ttl?: number } = {}) {
-    this.cache = new LRUCache<string, any>({
+    this.cache = new LRUCache<string, unknown>({
       max: options.max || 1000,
       ttl: options.ttl || 1000 * 60 * 5, // デフォルト5分
       updateAgeOnGet: true,

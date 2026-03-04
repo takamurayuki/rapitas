@@ -28,7 +28,7 @@ export interface CreateAgentConfigRequest {
   apiKey?: string;
   endpoint?: string;
   modelId?: string;
-  capabilities?: Record<string, any>;
+  capabilities?: Record<string, boolean>;
   isDefault?: boolean;
 }
 
@@ -37,7 +37,7 @@ export interface UpdateAgentConfigRequest {
   apiKey?: string;
   endpoint?: string;
   modelId?: string;
-  capabilities?: Record<string, any>;
+  capabilities?: Record<string, boolean>;
   isDefault?: boolean;
 }
 
@@ -218,7 +218,7 @@ export class AgentConfigService {
     }
 
     // 更新データの構築
-    const updateData: any = {};
+    const updateData: Record<string, string | boolean | null | undefined> = {};
     if (name !== undefined) updateData.name = name;
     if (apiKeyEncrypted !== undefined) updateData.apiKeyEncrypted = apiKeyEncrypted;
     if (endpoint !== undefined) updateData.endpoint = endpoint;
@@ -437,7 +437,7 @@ export class AgentConfigService {
     apiKey?: string;
     endpoint?: string;
     modelId?: string;
-    additionalConfig?: Record<string, any>;
+    additionalConfig?: Record<string, boolean>;
   }): Promise<ValidationResult> {
     const { agentType, apiKey, endpoint, modelId, additionalConfig } = config;
     const errors: ValidationError[] = [];
@@ -515,7 +515,7 @@ export class AgentConfigService {
   /**
    * エージェントの機能設定を取得
    */
-  async getCapabilities(id: number): Promise<Record<string, any>> {
+  async getCapabilities(id: number): Promise<Record<string, boolean>> {
     const agent = await this.getAgentById(id);
     if (!agent) {
       throw new Error(`Agent config not found: ${id}`);
@@ -532,7 +532,7 @@ export class AgentConfigService {
   /**
    * エージェントの機能設定を更新
    */
-  async updateCapabilities(id: number, capabilities: Record<string, any>): Promise<AIAgentConfig> {
+  async updateCapabilities(id: number, capabilities: Record<string, boolean>): Promise<AIAgentConfig> {
     const agent = await this.getAgentById(id);
     if (!agent) {
       throw new Error(`Agent config not found: ${id}`);

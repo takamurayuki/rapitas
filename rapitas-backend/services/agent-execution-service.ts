@@ -2,10 +2,8 @@
  * Agent Execution Service
  * エージェント実行のライフサイクル管理、セッション管理を行う
  */
-import { PrismaClient, Task, AgentExecution, AgentSession } from "@prisma/client";
-import { ParallelExecutor } from "../services/parallel-execution/parallel-executor";
+import { PrismaClient, AgentExecution, AgentSession } from "@prisma/client";
 import { orchestrator } from "../routes/agents/approvals";
-import type { TaskPriority } from "../services/parallel-execution/types";
 import type {
   ExecutionRequest,
   ExecutionResult,
@@ -14,20 +12,9 @@ import type {
 
 export class AgentExecutionService {
   private prisma: PrismaClient;
-  private parallelExecutor: ParallelExecutor | null = null;
 
   constructor(prisma: PrismaClient) {
     this.prisma = prisma;
-  }
-
-  /**
-   * ParallelExecutorインスタンスを取得（シングルトン）
-   */
-  private getParallelExecutor(): ParallelExecutor {
-    if (!this.parallelExecutor) {
-      this.parallelExecutor = new ParallelExecutor(this.prisma);
-    }
-    return this.parallelExecutor;
   }
 
   /**
@@ -42,7 +29,6 @@ export class AgentExecutionService {
       useTaskAnalysis = true,
       optimizedPrompt,
       sessionId,
-      attachments,
     } = request;
 
     // タスク情報を取得
@@ -193,7 +179,7 @@ export class AgentExecutionService {
    * 実行指示文を構築
    */
   private buildExecutionInstruction(
-    task: any,
+    task: { description: string | null; workflowFiles?: Array<{ fileType: string }> },
     optimizedPrompt?: string,
     useTaskAnalysis?: boolean
   ): string {
@@ -203,23 +189,11 @@ export class AgentExecutionService {
       instruction = `${optimizedPrompt}\n\n元のタスク内容:\n${instruction}`;
     }
 
-    if (useTaskAnalysis && task.workflowFiles?.some((f: any) => f.fileType === "research")) {
+    if (useTaskAnalysis && task.workflowFiles?.some((f) => f.fileType === "research")) {
       instruction = `## 事前調査済み\n\nこのタスクは事前調査が完了しています。ワークフローファイルを確認してください。\n\n${instruction}`;
     }
 
     return instruction;
-  }
-
-  /**
-   * タスクの優先度を決定
-   */
-  private determinePriority(task: Task): TaskPriority {
-    switch (task.priority) {
-      case "high": return "high";
-      case "medium": return "medium";
-      case "low": return "low";
-      default: return "medium";
-    }
   }
 
   /**
@@ -353,6 +327,7 @@ export class AgentExecutionService {
           context: task.executionInstructions || undefined,
         },
         {
+          taskId,
           sessionId: previousExecution.sessionId,
         }
       );

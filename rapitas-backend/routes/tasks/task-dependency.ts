@@ -195,7 +195,7 @@ export const taskDependencyRoutes = new Elysia()
   // Task dependency analysis (file-sharing based)
   .get(
     "/tasks/:id/dependency-analysis",
-    async (context: any) => {
+    async (context) => {
       const { params  } = context;
       const taskIdNum = parseInt(params.id);
 
@@ -309,7 +309,7 @@ export const taskDependencyRoutes = new Elysia()
   // SSE-based dependency analysis stream
   .get(
     "/tasks/:id/dependency-analysis/stream",
-    async (context: any) => {
+    async (context) => {
       const { params, set  } = context;
       const taskIdNum = parseInt(params.id);
 

@@ -125,7 +125,7 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
   // Get category by ID
   .get(
     "/:id",
-    async (context: any) => {
+    async (context) => {
       const { params  } = context;
       const id = parseInt(params.id);
       if (isNaN(id)) {
@@ -157,9 +157,11 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
   // Create category
   .post(
     "/",
-    async (context: any) => {
+    async (context) => {
       const { body  } = context;
-      const { name, description, color, icon, mode, sortOrder  } = body as any;
+      const { name, description, color, icon, mode, sortOrder  } = body as {
+        name: string; description?: string; color?: string; icon?: string; mode?: string; sortOrder?: number;
+      };
 
       return await prisma.category.create({
         data: {
@@ -185,7 +187,7 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
   // Update category
   .patch(
     "/:id",
-    async (context: any) => {
+    async (context) => {
       const { params, body  } = context;
       const id = parseInt(params.id);
       if (isNaN(id)) {
@@ -197,7 +199,9 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
         throw new NotFoundError("Category not found");
       }
 
-      const { name, description, color, icon, mode, sortOrder  } = body as any;
+      const { name, description, color, icon, mode, sortOrder  } = body as {
+        name?: string; description?: string; color?: string; icon?: string; mode?: string; sortOrder?: number;
+      };
 
       const updateData: Record<string, unknown> = {};
       if (name !== undefined) updateData.name = name;
@@ -223,7 +227,7 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
   )
 
   // Delete category (default categories cannot be deleted)
-  .delete("/:id", async (context: any) => {
+  .delete("/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
@@ -246,7 +250,7 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
   // Set default category (for task list initial selection)
   .patch(
     "/:id/set-default",
-    async (context: any) => {
+    async (context) => {
       const { params  } = context;
       const id = parseInt(params.id);
       if (isNaN(id)) {

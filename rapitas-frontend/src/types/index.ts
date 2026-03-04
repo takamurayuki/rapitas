@@ -93,15 +93,6 @@ export type WorkflowFile = {
   size?: number;
 };
 
-export type WorkflowFilesResponse = {
-  research: WorkflowFile;
-  question: WorkflowFile;
-  plan: WorkflowFile;
-  verify: WorkflowFile;
-  workflowStatus: WorkflowStatus | null;
-  path: WorkflowPathInfo;
-};
-
 export type WorkflowPathInfo = {
   taskId: number;
   categoryId: number | null;
@@ -302,15 +293,6 @@ export type CommentLink = {
   createdAt: string;
 };
 
-// Combined link for UI display
-export type CommentLinkDisplay = {
-  id: number;
-  direction: 'outgoing' | 'incoming';
-  label?: string | null;
-  linkedComment: LinkedCommentSummary;
-  createdAt: string;
-};
-
 export type Comment = {
   id: number;
   taskId: number;
@@ -334,19 +316,6 @@ export type CommentSearchResult = {
     id: number;
     title: string;
   };
-};
-
-export type ActivityLogChanges = Record<string, unknown>;
-export type ActivityLogMetadata = Record<string, unknown>;
-
-export type ActivityLog = {
-  id: number;
-  taskId?: number | null;
-  projectId?: number | null;
-  action: string;
-  changes?: ActivityLogChanges;
-  metadata?: ActivityLogMetadata;
-  createdAt: string;
 };
 
 export const priorityColors = {
@@ -755,42 +724,6 @@ export type AgentType =
   | 'openai'
   | 'azure-openai';
 
-// エージェント設定フィールドのスキーマ
-export type ConfigFieldSchema = {
-  name: string;
-  label: string;
-  type: 'text' | 'password' | 'url' | 'select' | 'number' | 'boolean';
-  description?: string;
-  required?: boolean;
-  placeholder?: string;
-  options?: Array<{ value: string; label: string }>;
-  validation?: {
-    pattern?: string;
-    minLength?: number;
-    maxLength?: number;
-    min?: number;
-    max?: number;
-  };
-};
-
-// エージェント設定スキーマ
-export type AgentConfigSchema = {
-  agentType: string;
-  displayName: string;
-  description: string;
-  apiKeyRequired: boolean;
-  apiKeyLabel?: string;
-  apiKeyPrefix?: string;
-  apiKeyPlaceholder?: string;
-  endpointRequired: boolean;
-  defaultEndpoint?: string;
-  modelRequired: boolean;
-  availableModels?: Array<{ value: string; label: string }>;
-  defaultModel?: string;
-  additionalFields?: ConfigFieldSchema[];
-  capabilities: AgentCapability;
-};
-
 // エージェント実行
 export type AgentExecution = {
   id: number;
@@ -969,49 +902,6 @@ export type GitHubEventData = {
   timestamp: string;
 };
 
-// ==================== 拡張された通知タイプ ====================
-
-export type NotificationType =
-  | 'approval_request'
-  | 'task_completed'
-  | 'agent_error'
-  | 'daily_summary'
-  | 'pr_review_requested'
-  | 'pr_approved'
-  | 'pr_changes_requested'
-  | 'agent_execution_started'
-  | 'agent_execution_complete'
-  | 'github_sync_complete';
-
-// ==================== 拡張されたTask型 ====================
-
-export type TaskWithGitHub = Task & {
-  githubIssueId?: number | null;
-  githubPrId?: number | null;
-  autoExecutable?: boolean;
-  requireApproval?: 'always' | 'major_only' | 'never';
-  githubIssue?: GitHubIssue;
-  githubPr?: GitHubPullRequest;
-};
-
-// ==================== 拡張された承認リクエスト型 ====================
-
-export type ApprovalRequestExtended = ApprovalRequest & {
-  executionType?: 'code_execution' | 'pr_merge' | 'deployment' | null;
-  estimatedChanges?: {
-    files?: string[];
-    additions?: number;
-    deletions?: number;
-  } | null;
-};
-
-// ==================== 拡張されたDeveloperModeConfig型 ====================
-
-export type DeveloperModeConfigExtended = DeveloperModeConfig & {
-  requireApproval?: 'always' | 'major_only' | 'never';
-  autoExecuteOn?: string[];
-};
-
 // ==================== コードレビュー関連 ====================
 
 export type ReviewComment = {
@@ -1044,12 +934,6 @@ export type AIChatAction =
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_EXPANDED'; payload: boolean }
   | { type: 'CLEAR_MESSAGES' };
-
-export type AIServiceConfig = {
-  apiKey: string;
-  model?: string;
-  maxTokens?: number;
-};
 
 export type AIServiceResponse = {
   success: boolean;
@@ -1099,13 +983,6 @@ export type TaskAnalysisConfig = {
   updatedAt: string;
 };
 
-export type TaskAnalysisConfigInput = Partial<
-  Omit<
-    TaskAnalysisConfig,
-    'id' | 'taskId' | 'agentConfig' | 'createdAt' | 'updatedAt'
-  >
->;
-
 // ==================== エージェント実行設定 ====================
 
 export type BranchStrategy = 'auto' | 'manual' | 'none';
@@ -1133,6 +1010,8 @@ export type AgentExecutionConfig = {
   branchPrefix: string;
   autoCommit: boolean;
   autoCreatePR: boolean;
+  autoMergePR: boolean;
+  mergeCommitThreshold: number;
 
   // 実行制御
   requireApproval: ApprovalMode;
@@ -1157,13 +1036,6 @@ export type AgentExecutionConfig = {
   createdAt: string;
   updatedAt: string;
 };
-
-export type AgentExecutionConfigInput = Partial<
-  Omit<
-    AgentExecutionConfig,
-    'id' | 'taskId' | 'agentConfig' | 'createdAt' | 'updatedAt'
-  >
->;
 
 // ==================== スケジュールイベント ====================
 
@@ -1210,10 +1082,6 @@ export type PaidLeaveBalance = {
   lastCalculatedAt: string;
   createdAt: string;
   updatedAt: string;
-};
-
-export type PaidLeaveHistoryItem = ScheduleEvent & {
-  usedDays: number;
 };
 
 export type DailyScheduleBlock = {

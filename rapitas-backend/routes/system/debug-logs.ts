@@ -17,9 +17,9 @@ export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
   .post(
     "/analyze",
     async (context) => {
-      const { body } = context as { body: { content: string; type?: string; options?: any } };
+      const { body } = context;
       try {
-        const { content, type, options  } = body as any;
+        const { content, type, options  } = body as { content: string; type?: string; options?: AnalyzeOptions };
 
         // アナライザーのインスタンスを作成
         const analyzer = new DebugLogAnalyzer();
@@ -101,9 +101,9 @@ export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
   .post(
     "/detect-type",
     async (context) => {
-      const { body } = context as { body: { content: string } };
+      const { body } = context;
       try {
-        const { content  } = body as any;
+        const { content  } = body as { content: string };
 
         const analyzer = new DebugLogAnalyzer();
         const additionalParsers = LogParserFactory.createAllParsers();
@@ -139,9 +139,9 @@ export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
   .post(
     "/analyze-stream",
     async (context) => {
-      const { body, set } = context as { body: { url: string; type?: string; options?: any }; set: any };
+      const { body, set } = context;
       try {
-        const { url, type, options  } = body as any;
+        const { url, type, options  } = body as { url: string; type?: string; options?: AnalyzeOptions };
 
         // URLからログをストリーミングで取得
         const response = await fetch(url);
@@ -159,7 +159,7 @@ export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
         const additionalParsers = LogParserFactory.createAllParsers();
         additionalParsers.forEach(parser => analyzer.addParser(parser));
 
-        const entries: any[] = [];
+        const entries: Record<string, unknown>[] = [];
         let buffer = "";
 
         // ストリーム処理
@@ -177,7 +177,7 @@ export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
             // 各行を解析（本来はanalyzeStreamを使うべきですが、簡略化）
             const lineResult = analyzer.analyze(line, options);
             if (lineResult.entries.length > 0) {
-              entries.push(...lineResult.entries);
+              entries.push(...lineResult.entries.map(e => e as unknown as Record<string, unknown>));
             }
 
             // リミットチェック
@@ -192,7 +192,7 @@ export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
         if (buffer.trim()) {
           const lineResult = analyzer.analyze(buffer, options);
           if (lineResult.entries.length > 0) {
-            entries.push(...lineResult.entries);
+            entries.push(...lineResult.entries.map(e => e as unknown as Record<string, unknown>));
           }
         }
 

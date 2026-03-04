@@ -7,7 +7,7 @@ interface WebSocketInstance {
   send: (data: string) => void;
   close: () => void;
   readyState: number;
-  data?: any;
+  data?: Record<string, unknown>;
 }
 
 // WebSocketクライアントの管理
@@ -374,14 +374,14 @@ export const notifyDataChange = {
 export const websocketRoutes = new Elysia()
   .ws("/ws", {
     async message(ws, message) {
-      const clientId = (ws as any).id || `client-${Date.now()}`;
+      const clientId = (ws as unknown as { id?: string }).id || `client-${Date.now()}`;
 
       try {
         const data = JSON.parse(message.toString());
         const handler = webSocketHandlers[data.type as keyof typeof webSocketHandlers];
 
         if (handler) {
-          await handler(ws as any, clientId, data.data || {});
+          await handler(ws as unknown as WebSocketInstance, clientId, data.data || {});
         } else {
           ws.send(JSON.stringify({
             type: "error",
@@ -397,8 +397,9 @@ export const websocketRoutes = new Elysia()
     },
 
     open(ws) {
-      const clientId = (ws as any).id || `client-${Date.now()}`;
-      wsManager.addClient(clientId, ws as any, (ws as any).data);
+      const wsWithId = ws as unknown as WebSocketInstance & { id?: string };
+      const clientId = wsWithId.id || `client-${Date.now()}`;
+      wsManager.addClient(clientId, ws as unknown as WebSocketInstance, wsWithId.data as { userId?: string; sessionId?: string } | undefined);
 
       ws.send(JSON.stringify({
         type: "connected",
@@ -408,7 +409,7 @@ export const websocketRoutes = new Elysia()
     },
 
     close(ws) {
-      const clientId = (ws as any).id;
+      const clientId = (ws as unknown as { id?: string }).id;
       if (clientId) {
         wsManager.removeClient(clientId);
       }

@@ -86,7 +86,7 @@ export const statisticsRoutes = new Elysia({ prefix: "/statistics" })
   })
 
   // 日別学習時間
-  .get("/daily-study", async (context: any) => {
+  .get("/daily-study", async (context) => {
       const { query  } = context;
     const daysNum = query.days ? parseInt(query.days) : 7;
 
@@ -122,7 +122,7 @@ export const statisticsRoutes = new Elysia({ prefix: "/statistics" })
   })
 
   // 科目別学習時間
-  .get("/subject-breakdown", async (context: any) => {
+  .get("/subject-breakdown", async (context) => {
       const { query  } = context;
     const daysNum = query.days ? parseInt(query.days) : 30;
 

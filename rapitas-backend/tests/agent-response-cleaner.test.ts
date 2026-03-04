@@ -12,8 +12,8 @@ describe("cleanImplementationSummary", () => {
   });
 
   test("null/undefinedでデフォルトメッセージを返すこと", () => {
-    expect(cleanImplementationSummary(null as any)).toBe("実装が完了しました。");
-    expect(cleanImplementationSummary(undefined as any)).toBe("実装が完了しました。");
+    expect(cleanImplementationSummary(null as unknown as string)).toBe("実装が完了しました。");
+    expect(cleanImplementationSummary(undefined as unknown as string)).toBe("実装が完了しました。");
   });
 
   test("正常なMarkdownテキストをそのまま保持すること", () => {

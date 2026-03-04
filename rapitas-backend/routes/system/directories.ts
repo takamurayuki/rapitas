@@ -8,9 +8,9 @@ import * as path from "path";
 
 export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   // Browse directories
-  .get("/browse", async (context: any) => {
+  .get("/browse", async (context) => {
       const { query  } = context;
-    const { path: dirPath  } = query as any;
+    const { path: dirPath  } = query as { path?: string };
 
     try {
       if (!dirPath || dirPath.trim() === "") {
@@ -139,9 +139,9 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   // Validate path
   .post(
     "/validate",
-    async (context: any) => {
+    async (context) => {
       const { body  } = context;
-      const { path: dirPath  } = body as any;
+      const { path: dirPath  } = body as { path: string };
 
       if (!dirPath) {
         return { valid: false, error: "パスが指定されていません" };
@@ -194,9 +194,9 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   // Add favorite directory
   .post(
     "/favorites",
-    async (context: any) => {
+    async (context) => {
       const { body  } = context;
-      const { path: dirPath, name  } = body as any;
+      const { path: dirPath, name  } = body as { path: string; name?: string };
 
       try {
         const normalizedPath = path.resolve(dirPath);
@@ -240,10 +240,10 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   // Update favorite directory
   .patch(
     "/favorites/:id",
-    async (context: any) => {
+    async (context) => {
       const { params, body } = context;
       const id = parseInt(params.id);
-      const { name  } = body as any;
+      const { name  } = body as { name?: string };
 
       try {
         const favorite = await prisma.favoriteDirectory.update({
@@ -265,9 +265,9 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   // Create a new directory
   .post(
     "/create",
-    async (context: any) => {
+    async (context) => {
       const { body  } = context;
-      const { path: dirPath  } = body as any;
+      const { path: dirPath  } = body as { path: string };
 
       if (!dirPath || !dirPath.trim()) {
         return { success: false, error: "パスが指定されていません" };
@@ -316,7 +316,7 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   )
 
   // Delete favorite directory
-  .delete("/favorites/:id", async (context: any) => {
+  .delete("/favorites/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
 

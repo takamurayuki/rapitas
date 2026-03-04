@@ -244,7 +244,30 @@ function processLine(line: string): void {
   }
 }
 
-function processAssistantMessage(json: any, prefix: string): void {
+interface ContentBlock {
+  type: string;
+  text?: string;
+  name?: string;
+  id?: string;
+  input?: Record<string, unknown>;
+  is_error?: boolean;
+  tool_use_id?: string;
+}
+
+interface ParsedJsonMessage {
+  type: string;
+  subtype?: string;
+  message?: {
+    content?: ContentBlock[];
+  };
+  result?: unknown;
+  duration_ms?: number;
+  cost_usd?: number;
+  session_id?: string;
+  error?: string;
+}
+
+function processAssistantMessage(json: ParsedJsonMessage, prefix: string): void {
   let displayOutput = "";
   const toolUses: WorkerToolUse[] = [];
   let hasFileModifying = false;
@@ -266,7 +289,7 @@ function processAssistantMessage(json: any, prefix: string): void {
 
           postResult({
             type: "question-detected",
-            detectionResult,
+            detectionResult: detectionResult as unknown as WaitingQuestionState & { questionText: string },
             displayOutput: `\n[質問] ${detectionResult.questionText}\n`,
           });
         } else {
@@ -313,7 +336,7 @@ function processAssistantMessage(json: any, prefix: string): void {
   }
 }
 
-function processUserMessage(json: any): void {
+function processUserMessage(json: ParsedJsonMessage): void {
   let displayOutput = "";
   const toolResults: WorkerToolResult[] = [];
 
@@ -357,7 +380,7 @@ function processUserMessage(json: any): void {
   }
 }
 
-function processResultEvent(json: any): void {
+function processResultEvent(json: ParsedJsonMessage): void {
   let displayOutput = "";
 
   if (json.result !== undefined) {
@@ -381,7 +404,7 @@ function processResultEvent(json: any): void {
   });
 }
 
-function processSystemEvent(json: any, prefix: string): void {
+function processSystemEvent(json: ParsedJsonMessage, prefix: string): void {
   let displayOutput = "";
   let sessionId: string | undefined;
   let sessionMismatchWarning: string | undefined;
@@ -414,8 +437,27 @@ function processSystemEvent(json: any, prefix: string): void {
 
 // ==================== メインメッセージハンドラ ====================
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function postResult(msg: any): void {
+interface WorkerPostMessage {
+  type: string;
+  displayOutput?: string;
+  toolUses?: WorkerToolUse[];
+  toolResults?: WorkerToolResult[];
+  detectionResult?: WaitingQuestionState & { questionText: string };
+  hasFileModifyingToolCalls?: boolean;
+  subtype?: string;
+  sessionId?: string;
+  errorMessage?: string;
+  sessionMismatchWarning?: string;
+  durationMs?: number;
+  costUsd?: number;
+  result?: string;
+  data?: { artifacts: AgentArtifact[] } | { commits: GitCommitInfo[] };
+  remainingBuffer?: string;
+  message?: string;
+  stack?: string;
+}
+
+function postResult(msg: WorkerPostMessage): void {
   self.postMessage(msg);
 }
 

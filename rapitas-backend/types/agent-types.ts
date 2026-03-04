@@ -1,8 +1,7 @@
 /**
  * Agent関連の型定義
  */
-import type { AIAgentConfig, AgentExecution } from "@prisma/client";
-import type { TaskPriority } from "../services/parallel-execution/types";
+import type { AgentExecution } from "@prisma/client";
 
 /**
  * AgentExecution に question/questionType/questionDetails/claudeSessionId が
@@ -60,7 +59,7 @@ export interface AgentTypeInfo {
   type: string;
   name: string;
   description: string;
-  configSchema: Record<string, any>;
+  configSchema: Record<string, unknown>;
   supportedModels: string[];
 }
 
@@ -91,7 +90,7 @@ export interface EncryptionStatus {
  */
 export interface AgentConfigChange {
   field: string;
-  oldValue: any;
-  newValue: any;
+  oldValue: unknown;
+  newValue: unknown;
   changeType: "created" | "updated" | "deleted";
 }

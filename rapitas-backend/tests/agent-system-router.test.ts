@@ -7,8 +7,24 @@ import { describe, it, expect, beforeEach } from "bun:test";
 import { Elysia } from "elysia";
 import { agentSystemRouter } from "../routes/agents/agent-system-router";
 
+interface EncryptionStatusResponse {
+  isConfigured: boolean;
+  [key: string]: unknown;
+}
+
+interface SystemStatusResponse {
+  status: string;
+  [key: string]: unknown;
+}
+
+interface ValidateConfigResponse {
+  isValid: boolean;
+  [key: string]: unknown;
+}
+
 describe("Agent System Router", () => {
-  let app: Elysia;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let app: any;
 
   beforeEach(() => {
     app = new Elysia().use(agentSystemRouter);
@@ -18,7 +34,7 @@ describe("Agent System Router", () => {
     it("should return encryption status", async () => {
       const response = await app
         .handle(new Request("http://localhost/agents/encryption-status"))
-        .then(res => res.json());
+        .then((res: Response) => res.json()) as EncryptionStatusResponse;
 
       expect(response).toBeDefined();
       expect(typeof response.isConfigured).toBe("boolean");
@@ -29,7 +45,7 @@ describe("Agent System Router", () => {
     it("should return system diagnosis", async () => {
       const response = await app
         .handle(new Request("http://localhost/agents/diagnose"))
-        .then(res => res.json());
+        .then((res: Response) => res.json()) as Record<string, unknown>;
 
       expect(response).toBeDefined();
       expect(typeof response).toBe("object");
@@ -40,7 +56,7 @@ describe("Agent System Router", () => {
     it("should return system status", async () => {
       const response = await app
         .handle(new Request("http://localhost/agents/system-status"))
-        .then(res => res.json());
+        .then((res: Response) => res.json()) as SystemStatusResponse;
 
       expect(response).toBeDefined();
       expect(typeof response.status).toBe("string");
@@ -73,7 +89,7 @@ describe("Agent System Router", () => {
     it("should validate agent configuration", async () => {
       const response = await app
         .handle(new Request("http://localhost/agents/validate-config"))
-        .then(res => res.json());
+        .then((res: Response) => res.json()) as ValidateConfigResponse;
 
       expect(response).toBeDefined();
       expect(typeof response.isValid).toBe("boolean");

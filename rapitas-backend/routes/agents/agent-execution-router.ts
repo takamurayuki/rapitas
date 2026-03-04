@@ -675,7 +675,7 @@ export const agentExecutionRouter = new Elysia()
   // Get task execution status
   .get(
     "/tasks/:id/execution-status",
-    async (context: any) => {
+    async (context) => {
       const { params } = context;
       try {
         const taskId = parseInt(params.id);
@@ -892,7 +892,7 @@ export const agentExecutionRouter = new Elysia()
   // Stop task execution (rollback changes)
   .post(
     "/tasks/:id/stop-execution",
-    async (context: any) => {
+    async (context) => {
       const { params } = context;
       const taskId = parseInt(params.id);
 
@@ -1088,7 +1088,11 @@ export const agentExecutionRouter = new Elysia()
     "/tasks/:id/continue-execution",
     async (context) => {
       const taskId = parseInt(context.params.id);
-      const { instruction, sessionId, agentConfigId } = context.body as any;
+      const { instruction, sessionId, agentConfigId } = context.body as {
+        instruction?: string;
+        sessionId?: number;
+        agentConfigId?: number;
+      };
 
       if (!instruction?.trim()) {
         context.set.status = 400;
@@ -1434,7 +1438,7 @@ export const agentExecutionRouter = new Elysia()
   // Reset execution state
   .post(
     "/tasks/:id/reset-execution-state",
-    async (context: any) => {
+    async (context) => {
       const { params } = context;
       const taskId = parseInt(params.id);
 

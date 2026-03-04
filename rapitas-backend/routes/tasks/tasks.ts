@@ -21,9 +21,9 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
   // Search task titles for autocomplete
   .get(
     "/search",
-    async (context: any) => {
+    async (context) => {
       const { query } = context;
-      const { q, limit, themeId, projectId } = query as any;
+      const { q, limit, themeId, projectId } = query;
       const searchQuery = q?.trim() ?? "";
       const resultLimit = Math.min(parseInt(limit ?? "10"), 20);
 
@@ -70,9 +70,9 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
   // Get task suggestions based on past tasks for a theme (frequency-based fallback)
   .get(
     "/suggestions",
-    async (context: any) => {
+    async (context) => {
       const { query } = context;
-      const { themeId, limit } = query as any;
+      const { themeId, limit } = query;
       const resultLimit = Math.min(parseInt(limit ?? "10"), 20);
 
       if (!themeId) {
@@ -186,9 +186,9 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
   // AI-powered task suggestions: analyze past tasks and suggest new ones
   .get(
     "/suggestions/ai",
-    async (context: any) => {
+    async (context) => {
       const { query } = context;
-      const { themeId, limit } = query as any;
+      const { themeId, limit } = query;
       const resultLimit = Math.min(parseInt(limit ?? "5"), 10);
 
       console.log(
@@ -364,7 +364,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
 - よく使うラベル: ${
             userPreferences.mostUsedLabels
               .slice(0, 3)
-              .map((l: any) => `${l.labelId}`)
+              .map((l: { labelId: string }) => `${l.labelId}`)
               .join(", ") || "なし"
           }
 - 優先度の傾向: ${
@@ -573,9 +573,9 @@ ${existingTaskList}
   // Get cached AI suggestions for a theme
   .get(
     "/suggestions/ai/cache",
-    async (context: any) => {
+    async (context) => {
       const { query } = context;
-      const { themeId } = query as any;
+      const { themeId } = query;
 
       if (!themeId) {
         return { suggestions: [], analysis: null, source: "none" };
@@ -644,9 +644,9 @@ ${existingTaskList}
   // Delete cached suggestions for a theme
   .delete(
     "/suggestions/ai/cache",
-    async (context: any) => {
+    async (context) => {
       const { query } = context;
-      const { themeId } = query as any;
+      const { themeId } = query;
 
       if (!themeId) {
         return { success: false, message: "themeId is required" };
@@ -681,9 +681,11 @@ ${existingTaskList}
   )
 
   // Get all tasks (supports incremental fetch via `since` param)
-  .get("/", async (context: any) => {
+  .get("/", async (context) => {
     const { query } = context;
-    const { projectId, milestoneId, priority, since } = query as any;
+    const { projectId, milestoneId, priority, since } = query as {
+      projectId?: string; milestoneId?: string; priority?: string; since?: string;
+    };
 
     const baseWhere = {
       parentId: null,
@@ -762,7 +764,7 @@ ${existingTaskList}
   })
 
   // Get task by ID
-  .get("/:id", async (context: any) => {
+  .get("/:id", async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
@@ -792,7 +794,7 @@ ${existingTaskList}
   // Create task
   .post(
     "/",
-    async (context: any) => {
+    async (context) => {
       const { body } = context;
       const {
         title,
@@ -811,7 +813,13 @@ ${existingTaskList}
         examGoalId,
         isDeveloperMode,
         isAiTaskAnalysis,
-      } = body as any;
+      } = body as {
+        title: string; description?: string; status?: string; priority?: string;
+        labels?: string; labelIds?: number[]; estimatedHours?: number;
+        dueDate?: string; subject?: string; parentId?: number;
+        projectId?: number; milestoneId?: number; themeId?: number;
+        examGoalId?: number; isDeveloperMode?: boolean; isAiTaskAnalysis?: boolean;
+      };
 
       try {
         // サブタスク作成時はトランザクションで重複チェックと作成を原子的に実行
@@ -1011,7 +1019,7 @@ ${existingTaskList}
   )
 
   // Update task
-  .patch("/:id", async (context: any) => {
+  .patch("/:id", async (context) => {
     const { params, body } = context;
     const taskId = parseInt(params.id);
     if (isNaN(taskId)) {
@@ -1033,7 +1041,13 @@ ${existingTaskList}
       milestoneId,
       examGoalId,
       autoApprovePlan,
-    } = body as any;
+    } = body as {
+      title?: string; description?: string; themeId?: number; status?: string;
+      priority?: string; labels?: string; labelIds?: number[];
+      estimatedHours?: number; dueDate?: string; subject?: string;
+      projectId?: number; milestoneId?: number; examGoalId?: number;
+      autoApprovePlan?: boolean;
+    };
 
     // 現在のタスクの状態を取得（行動記録のため）
     const currentTask = await prisma.task.findUnique({
@@ -1154,7 +1168,7 @@ ${existingTaskList}
   })
 
   // Delete task
-  .delete("/:id", async (context: any) => {
+  .delete("/:id", async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
@@ -1167,7 +1181,7 @@ ${existingTaskList}
   })
 
   // 重複サブタスクを削除（特定のタスク配下）
-  .post("/:id/cleanup-duplicates", async (context: any) => {
+  .post("/:id/cleanup-duplicates", async (context) => {
     const { params } = context;
     const parentId = parseInt(params.id);
     if (isNaN(parentId)) {
@@ -1298,7 +1312,7 @@ ${existingTaskList}
   })
 
   // サブタスクの一括削除（特定のタスク配下のすべてのサブタスクを削除）
-  .delete("/:id/subtasks", async (context: any) => {
+  .delete("/:id/subtasks", async (context) => {
     const { params } = context;
     const parentId = parseInt(params.id);
     if (isNaN(parentId)) {
@@ -1350,7 +1364,7 @@ ${existingTaskList}
         throw new ValidationError("無効なIDです");
       }
 
-      const { subtaskIds } = body as any;
+      const { subtaskIds } = body as { subtaskIds: number[] };
 
       if (!subtaskIds || subtaskIds.length === 0) {
         throw new ValidationError("削除するサブタスクが指定されていません");
@@ -1423,7 +1437,10 @@ ${existingTaskList}
         workingDirectory: requestedDir,
         optimizedPrompt,
         agentConfigId,
-      } = body as any;
+      } = body as {
+        instruction?: string; branchName?: string; workingDirectory?: string;
+        optimizedPrompt?: string; agentConfigId?: number;
+      };
 
       const task = await prisma.task.findUnique({
         where: { id: taskId },

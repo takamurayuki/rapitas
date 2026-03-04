@@ -20,7 +20,7 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
   })
 
   // 学習目標をIDで取得
-  .get("/:id", async (context: any) => {
+  .get("/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     return await prisma.learningGoal.findUnique({
@@ -121,7 +121,7 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
   )
 
   // 学習目標を削除
-  .delete("/:id", async (context: any) => {
+  .delete("/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     return await prisma.learningGoal.delete({
@@ -132,7 +132,7 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
   // AI学習プランを生成
   .post(
     "/:id/generate-plan",
-    async (context: any) => {
+    async (context) => {
       const { params  } = context;
       const id = parseInt(params.id);
 
@@ -279,7 +279,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
   )
 
   // 学習プランをタスクに適用（テーマ作成 → タスク・サブタスク登録）
-  .post("/:id/apply", async (context: any) => {
+  .post("/:id/apply", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
 

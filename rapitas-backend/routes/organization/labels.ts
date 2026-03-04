@@ -21,7 +21,7 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
   })
 
   // Get label by ID
-  .get("/:id", async (context: any) => {
+  .get("/:id", async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
@@ -49,9 +49,11 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
   // Create label
   .post(
     "/",
-    async (context: any) => {
+    async (context) => {
       const { body } = context;
-      const { name, description, color, icon } = body as any;
+      const { name, description, color, icon } = body as {
+        name: string; description?: string; color?: string; icon?: string;
+      };
 
       return await prisma.label.create({
         data: {
@@ -70,14 +72,16 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
   // Update label
   .patch(
     "/:id",
-    async (context: any) => {
+    async (context) => {
       const { params, body } = context;
       const id = parseInt(params.id);
       if (isNaN(id)) {
         throw new ValidationError("無効なIDです");
       }
 
-      const { name, description, color, icon } = body as any;
+      const { name, description, color, icon } = body as {
+        name?: string; description?: string; color?: string; icon?: string;
+      };
 
       return await prisma.label.update({
         where: { id },
@@ -96,7 +100,7 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
 
   // Reorder labels
   .patch("/reorder", async ({ body }) => {
-    const { orders } = body as any;
+    const { orders } = body as { orders: Array<{ id: number; sortOrder: number }> };
 
     await Promise.all(
       orders.map(({ id, sortOrder }) =>
@@ -111,7 +115,7 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
   })
 
   // Delete label
-  .delete("/:id", async (context: any) => {
+  .delete("/:id", async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
@@ -131,14 +135,14 @@ export const taskLabelsRoutes = new Elysia()
   // Update task labels (bulk)
   .put(
     "/tasks/:id/labels",
-    async (context: any) => {
+    async (context) => {
       const { params, body } = context;
       const taskId = parseInt(params.id);
       if (isNaN(taskId)) {
         throw new ValidationError("無効なタスクIDです");
       }
 
-      const { labelIds } = body as any;
+      const { labelIds } = body as { labelIds: number[] };
 
       // Delete existing associations
       await prisma.taskLabel.deleteMany({

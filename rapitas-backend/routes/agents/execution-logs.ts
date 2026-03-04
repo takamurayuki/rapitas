@@ -13,7 +13,7 @@ export const executionLogsRoutes = new Elysia()
   /**
    * 実行ログファイルの一覧を取得
    */
-  .get("/api/execution-logs", async (context: any) => {
+  .get("/api/execution-logs", async (context) => {
       const { query  } = context;
     const limit = Number(query?.limit) || 50;
     const offset = Number(query?.offset) || 0;
@@ -38,7 +38,7 @@ export const executionLogsRoutes = new Elysia()
   /**
    * 特定の実行IDのログファイルを取得
    */
-  .get("/api/execution-logs/:executionId", async (context: any) => {
+  .get("/api/execution-logs/:executionId", async (context) => {
     const { params, query, set } = context;
     const executionId = Number(params.executionId);
     if (isNaN(executionId)) {
@@ -86,7 +86,7 @@ export const executionLogsRoutes = new Elysia()
   /**
    * 特定の実行IDのログファイルをダウンロード
    */
-  .get("/api/execution-logs/:executionId/download", async (context: any) => {
+  .get("/api/execution-logs/:executionId/download", async (context) => {
       const { params, set  } = context;
     const executionId = Number(params.executionId);
     if (isNaN(executionId)) {
@@ -112,7 +112,7 @@ export const executionLogsRoutes = new Elysia()
   /**
    * 特定の実行IDのエラーサマリーのみ取得
    */
-  .get("/api/execution-logs/:executionId/errors", async (context: any) => {
+  .get("/api/execution-logs/:executionId/errors", async (context) => {
       const { params, set  } = context;
     const executionId = Number(params.executionId);
     if (isNaN(executionId)) {

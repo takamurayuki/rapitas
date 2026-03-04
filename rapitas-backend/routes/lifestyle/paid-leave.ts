@@ -48,7 +48,7 @@ const calculateUsedDays = async (userId: string, fiscalYear: number): Promise<nu
 
 export const paidLeaveRoutes = new Elysia({ prefix: "/paid-leave" })
   // 有給残日数を取得
-  .get("/balance", async (context: any) => {
+  .get("/balance", async (context) => {
       const { query  } = context;
     try {
       const userId = query.userId || "default";
@@ -105,10 +105,12 @@ export const paidLeaveRoutes = new Elysia({ prefix: "/paid-leave" })
   })
 
   // 有給残日数を更新
-  .put("/balance", async (context: any) => {
+  .put("/balance", async (context) => {
       const { body  } = context;
     try {
-      const { userId = "default", fiscalYear, totalDays, carryOverDays  } = body as any;
+      const { userId = "default", fiscalYear, totalDays, carryOverDays  } = body as {
+        userId?: string; fiscalYear?: number; totalDays?: number; carryOverDays?: number;
+      };
       const targetYear = fiscalYear || getCurrentFiscalYear();
 
       const balance = await prisma.paidLeaveBalance.upsert({
@@ -161,7 +163,7 @@ export const paidLeaveRoutes = new Elysia({ prefix: "/paid-leave" })
   })
 
   // 有給申請履歴を取得
-  .get("/history", async (context: any) => {
+  .get("/history", async (context) => {
       const { query  } = context;
     try {
       const userId = query.userId || "default";

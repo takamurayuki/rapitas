@@ -118,7 +118,7 @@ const GENRES = [
   {id:"util",      icon:"🔧", label:"ユーティリティ・生産性"},
 ];
 
-const SUB_GENRES = {
+const SUB_GENRES: Record<string, {id: string; icon: string; label: string; desc: string}[]> = {
   game:[
     {id:"rpg",       icon:"⚔️",  label:"RPG",              desc:"レベルアップ・クエスト・ストーリー"},
     {id:"action",    icon:"💥",  label:"アクション",        desc:"リアルタイム操作・コンボ・爽快感"},
@@ -282,7 +282,36 @@ const PRIORITIES = [
 // ─────────────────────────────────────────────────────────────────────────────
 // AI CALLS
 // ─────────────────────────────────────────────────────────────────────────────
-async function proposeApps(answers: any) {
+
+interface AppAnswers {
+  genre: string;
+  subs?: string[];
+  elements?: string[];
+  platform: string;
+  scale: string;
+  priority: string;
+}
+
+interface AppProposal {
+  id: number;
+  name: string;
+  tagline: string;
+  concept: string;
+  unique: string;
+  difficulty: string;
+  tech_hint: string[];
+  title?: string;
+  description?: string;
+  score?: number;
+}
+
+interface GenerateResult {
+  tech_rationale: string;
+  score: number;
+  claude_md: string;
+}
+
+async function proposeApps(answers: AppAnswers) {
   const genre = GENRES.find(g=>g.id===answers.genre)?.label || answers.genre;
   const subs  = (answers.subs||[]).map((id: string)=>SUB_GENRES[answers.genre]?.find(s=>s.id===id)?.label).filter(Boolean).join("、");
   const elems = (answers.elements||[]).map((id: string)=>ELEMENTS.find(e=>e.id===id)?.label).filter(Boolean).join("、");
@@ -302,7 +331,7 @@ async function proposeApps(answers: any) {
   return data;
 }
 
-async function generateClaudeMd(answers: any, proposal: any) {
+async function generateClaudeMd(answers: AppAnswers, proposal: AppProposal) {
   const genre = GENRES.find(g=>g.id===answers.genre)?.label || answers.genre;
   const subs  = (answers.subs||[]).map((id: string)=>SUB_GENRES[answers.genre]?.find(s=>s.id===id)?.label).filter(Boolean).join("、");
   const elems = (answers.elements||[]).map((id: string)=>ELEMENTS.find(e=>e.id===id)?.label).filter(Boolean).join("、");
@@ -359,17 +388,17 @@ function DotIcon(){
 export default function ClaudeMdGeneratorPage(){
   // phase: intro | genre | sub | elements | platform | proposing | proposals | generating | result
   const [phase, setPhase]       = useState("intro");
-  const [answers, setAnswers]   = useState({});
-  const [proposals, setProposals] = useState([]);
-  const [pickedProp, setPickedProp] = useState(null);
-  const [result, setResult]     = useState(null);
+  const [answers, setAnswers]   = useState<AppAnswers>({genre:"",platform:"",scale:"",priority:""});
+  const [proposals, setProposals] = useState<AppProposal[]>([]);
+  const [pickedProp, setPickedProp] = useState<AppProposal | null>(null);
+  const [result, setResult]     = useState<GenerateResult | null>(null);
   const [copied, setCopied]     = useState(false);
-  const topRef = useRef(null);
+  const topRef = useRef<HTMLDivElement>(null);
 
   useEffect(()=>{ topRef.current?.scrollIntoView({behavior:"smooth"}); },[phase]);
 
   // ── helpers ─────────────────────────────────────────────────────────────
-  const go = (nextPhase: string, extra: any = {}) => {
+  const go = (nextPhase: string, extra: Partial<AppAnswers> = {}) => {
     setAnswers(a=>({...a,...extra}));
     setPhase(nextPhase);
   };
@@ -425,7 +454,7 @@ export default function ClaudeMdGeneratorPage(){
   if(phase==="sub"){
     const subs = SUB_GENRES[answers.genre] || [];
     const sel  = answers.subs || [];
-    const toggle = (id: string) => setAnswers((a: any)=>({...a,subs:a.subs.includes(id)?a.subs.filter((x: string)=>x!==id):[...a.subs,id]}));
+    const toggle = (id: string) => setAnswers(a=>({...a,subs:a.subs?.includes(id)?a.subs.filter(x=>x!==id):[...(a.subs || []),id]}));
     return(
       <PageWrap topRef={topRef}
         title={`「${GENRES.find(g=>g.id===answers.genre)?.label}」の\nどんな種類ですか？`}
@@ -456,7 +485,7 @@ export default function ClaudeMdGeneratorPage(){
   // ── ELEMENTS ─────────────────────────────────────────────────────────────
   if(phase==="elements"){
     const sel = answers.elements || [];
-    const toggle = (id: string) => setAnswers((a: any)=>({...a,elements:a.elements.includes(id)?a.elements.filter((x: string)=>x!==id):[...a.elements,id]}));
+    const toggle = (id: string) => setAnswers(a=>({...a,elements:a.elements?.includes(id)?a.elements.filter(x=>x!==id):[...(a.elements || []),id]}));
     return(
       <PageWrap topRef={topRef}
         title="付け加えたい機能・要素は？"
@@ -483,12 +512,12 @@ export default function ClaudeMdGeneratorPage(){
 
   // ── PLATFORM ─────────────────────────────────────────────────────────────
   if(phase==="platform"){
-    const [localPlatform, setLocalPlatform] = useState(answers.platform||null);
-    const [localScale, setLocalScale]       = useState(answers.scale||null);
-    const [localPrio, setLocalPrio]         = useState(answers.priority||null);
+    const [localPlatform, setLocalPlatform] = useState<string|null>(answers.platform||null);
+    const [localScale, setLocalScale]       = useState<string|null>(answers.scale||null);
+    const [localPrio, setLocalPrio]         = useState<string|null>(answers.priority||null);
 
     const handleGenerate = async () => {
-      const next = {...answers, platform:localPlatform, scale:localScale, priority:localPrio};
+      const next: AppAnswers = {...answers, platform:localPlatform||"", scale:localScale||"", priority:localPrio||""};
       setAnswers(next);
       setPhase("proposing");
       try{
@@ -602,7 +631,7 @@ export default function ClaudeMdGeneratorPage(){
           </div>
 
           <div style={{display:"flex",flexDirection:"column",gap:16,marginBottom:32}}>
-            {proposals.map((p: any,i: number)=>{
+            {proposals.map((p,i)=>{
               const picked=pickedProp?.id===p.id;
               return(
                 <div key={p.id} className={`prop-card ${picked?"picked":""} fade stagger-${i+1}`}
@@ -632,7 +661,7 @@ export default function ClaudeMdGeneratorPage(){
                     ✦ {p.unique}
                   </div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                    {(p.tech_hint||[]).map((t: string)=>(
+                    {(p.tech_hint||[]).map((t)=>(
                       <span key={t} className="tag tag-accent" style={{fontSize:10}}>{t}</span>
                     ))}
                   </div>
@@ -663,7 +692,7 @@ export default function ClaudeMdGeneratorPage(){
               onClick={async()=>{
                 setPhase("generating");
                 try{
-                  const r=await generateClaudeMd(answers,pickedProp);
+                  const r=await generateClaudeMd(answers,pickedProp!);
                   setResult(r);
                 }catch{
                   setResult({tech_rationale:"",score:90,claude_md:"エラーが発生しました。"});
@@ -715,7 +744,7 @@ export default function ClaudeMdGeneratorPage(){
               style={{background:copied?"#059669":undefined}}>
               {copied?"✓ コピー完了":"コピー"}
             </button>
-            <button className="btn btn-g" onClick={()=>{setPhase("intro");setAnswers({});setProposals([]);setPickedProp(null);setResult(null);}}>
+            <button className="btn btn-g" onClick={()=>{setPhase("intro");setAnswers({genre:"",platform:"",scale:"",priority:""});setProposals([]);setPickedProp(null);setResult(null);}}>
               最初から
             </button>
           </div>
@@ -745,7 +774,20 @@ export default function ClaudeMdGeneratorPage(){
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE WRAPPER COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
-function PageWrap({topRef,title,sub,step,total,onBack,onNext,nextLabel,canNext=true,children}: any){
+interface PageWrapProps {
+  topRef: React.RefObject<HTMLDivElement | null>;
+  title: string;
+  sub?: string;
+  step: number;
+  total: number;
+  onBack?: () => void;
+  onNext?: () => void;
+  nextLabel?: string;
+  canNext?: boolean;
+  children: React.ReactNode;
+}
+
+function PageWrap({topRef,title,sub,step,total,onBack,onNext,nextLabel,canNext=true,children}: PageWrapProps){
   const progress = ((step-1)/total)*100;
   return(
     <div style={{minHeight:"100vh",background:"var(--bg)",padding:"40px 20px",fontFamily:"'Outfit',sans-serif"}}>
