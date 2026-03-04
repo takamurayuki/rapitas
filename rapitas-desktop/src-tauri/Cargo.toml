@@ -1,0 +1,28 @@
+[package]
+name = "rapitas"
+version = "1.0.0"
+description = "Rapitas - AI-Powered Task Management Desktop App"
+authors = ["you"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.5", features = [] }
+
+[dependencies]
+tauri = { version = "2.10.1", features = ["tray-icon", "image-png"] }
+tauri-plugin-shell = "2.3"
+tauri-plugin-global-shortcut = "2.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+url = "2"
+open = "5"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["winuser", "processthreadsapi", "psapi", "shellapi", "winreg"] }
+windows = { version = "0.58", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
+
+[features]
+# 開発モードではdefaultを空にしてdevUrlを使用
+# 本番ビルドでは --features custom-protocol を指定
+default = []
+custom-protocol = ["tauri/custom-protocol"]

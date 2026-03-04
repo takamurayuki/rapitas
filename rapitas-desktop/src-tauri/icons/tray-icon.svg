@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#818CF8"/>
+      <stop offset="100%" style="stop-color:#6366F1"/>
+    </linearGradient>
+  </defs>
+  <!-- 角丸背景 -->
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <!-- チェックリストアイコン（シンプルで直感的） -->
+  <!-- 1行目: チェックマーク + ライン -->
+  <path d="M15 20l4 4 6-8" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <line x1="30" y1="20" x2="50" y2="20" stroke="white" stroke-width="3" stroke-linecap="round"/>
+  <!-- 2行目: チェックマーク + ライン -->
+  <path d="M15 33l4 4 6-8" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <line x1="30" y1="33" x2="46" y2="33" stroke="white" stroke-width="3" stroke-linecap="round"/>
+  <!-- 3行目: 丸 + ライン（未完了タスク） -->
+  <circle cx="19" cy="46" r="4" stroke="white" stroke-width="3" fill="none"/>
+  <line x1="30" y1="46" x2="42" y2="46" stroke="white" stroke-width="3" stroke-linecap="round"/>
+</svg>
