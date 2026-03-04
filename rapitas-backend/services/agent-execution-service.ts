@@ -9,6 +9,9 @@ import type {
   ExecutionResult,
   AgentExecutionWithExtras
 } from "../types/agent-execution-types";
+import { createLogger } from '../config/logger';
+
+const log = createLogger('agent-execution-service');
 
 export class AgentExecutionService {
   private prisma: PrismaClient;
@@ -215,7 +218,7 @@ export class AgentExecutionService {
 
       return stopped;
     } catch (error) {
-      console.error("Failed to stop execution:", error);
+      log.error({ err: error }, "Failed to stop execution");
       return false;
     }
   }

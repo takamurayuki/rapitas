@@ -4,6 +4,9 @@
  */
 import { Elysia, t } from "elysia";
 import { realtimeService } from "../../services/realtime-service";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:sse");
 
 export const sseRoutes = new Elysia({ prefix: "/events" })
   // Stream all events
@@ -51,7 +54,7 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
         cancel() {
           realtimeService.removeClient(activeClientId);
           realtimeService.removeStreamController(activeClientId);
-          console.log(`[SSE] Client ${activeClientId} disconnected (stream)`);
+          log.info(`[SSE] Client ${activeClientId} disconnected (stream)`);
         },
       }),
       {
@@ -79,7 +82,7 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
         "Access-Control-Allow-Origin": "*",
       };
 
-      console.log(`[SSE] Client connecting to channel: ${channel}`);
+      log.info(`[SSE] Client connecting to channel: ${channel}`);
 
       let activeClientId = "";
 
@@ -102,7 +105,7 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
               activeClientId,
               controller,
             );
-            console.log(
+            log.info(
               `[SSE] Client ${activeClientId} registered for channel: ${channel}`,
             );
 
@@ -126,7 +129,7 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
           cancel() {
             realtimeService.removeClient(activeClientId);
             realtimeService.removeStreamController(activeClientId);
-            console.log(
+            log.info(
               `[SSE] Client ${activeClientId} disconnected (${channel})`,
             );
           },

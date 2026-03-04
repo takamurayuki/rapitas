@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
+import { createLogger } from '../../config/logger';
 
+const log = createLogger('user-behavior-service');
 const prisma = new PrismaClient();
 
 /**
@@ -72,7 +74,7 @@ export class UserBehaviorService {
         }
       });
     } catch (error) {
-      console.error('Failed to record user behavior:', error);
+      log.error({ err: error }, 'Failed to record user behavior');
       // エラーをスローしない（ユーザー行動記録の失敗がメイン処理を妨げないように）
     }
   }

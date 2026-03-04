@@ -5,6 +5,9 @@
 
 import { EventEmitter } from 'events';
 import type { ExecutionLogEntry } from './types';
+import { createLogger } from '../../config/logger';
+
+const log = createLogger('log-aggregator');
 
 /**
  * ログフィルターの条件
@@ -134,7 +137,7 @@ export class LogAggregator extends EventEmitter {
         try {
           subscriber.callback(entry);
         } catch (error) {
-          console.error(`[LogAggregator] Error in subscriber ${subscriber.id}:`, error);
+          log.error({ err: error }, `[LogAggregator] Error in subscriber ${subscriber.id}`);
         }
       }
     }

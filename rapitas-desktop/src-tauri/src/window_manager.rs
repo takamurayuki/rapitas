@@ -6,9 +6,12 @@ use winapi::{
         minwindef::{BOOL, LPARAM, TRUE},
         windef::{HWND, RECT},
     },
-    um::winuser::{
-        EnumWindows, GetWindowTextW, IsWindowVisible, SetForegroundWindow, SetWindowPos,
-        ShowWindow, SWP_FRAMECHANGED, SWP_NOZORDER, SW_NORMAL, SW_RESTORE,
+    um::{
+        dwmapi::DwmGetWindowAttribute,
+        winuser::{
+            EnumWindows, GetWindowRect, GetWindowTextW, IsWindowVisible, SetForegroundWindow,
+            SetWindowPos, ShowWindow, SWP_FRAMECHANGED, SWP_NOZORDER, SW_NORMAL, SW_RESTORE,
+        },
     },
 };
 
@@ -164,6 +167,39 @@ pub fn get_work_area() -> (i32, i32, i32, i32) {
     }
 }
 
+/// DWMの不可視ボーダー（リサイズハンドル用透明領域）のサイズを取得する。
+/// 返り値: (border_left, border_top, border_right, border_bottom)
+#[cfg(target_os = "windows")]
+pub fn get_invisible_border(hwnd: HWND) -> (i32, i32, i32, i32) {
+    unsafe {
+        let mut window_rect: RECT = std::mem::zeroed();
+        let mut frame_rect: RECT = std::mem::zeroed();
+
+        if GetWindowRect(hwnd, &mut window_rect) == 0 {
+            return (7, 0, 7, 7); // フォールバック値
+        }
+
+        // DWMWA_EXTENDED_FRAME_BOUNDS = 9
+        let hr = DwmGetWindowAttribute(
+            hwnd,
+            9,
+            &mut frame_rect as *mut RECT as *mut _,
+            std::mem::size_of::<RECT>() as u32,
+        );
+
+        if hr != 0 {
+            return (7, 0, 7, 7); // フォールバック値
+        }
+
+        let border_left = frame_rect.left - window_rect.left;
+        let border_top = frame_rect.top - window_rect.top;
+        let border_right = window_rect.right - frame_rect.right;
+        let border_bottom = window_rect.bottom - frame_rect.bottom;
+
+        (border_left, border_top, border_right, border_bottom)
+    }
+}
+
 #[cfg(target_os = "windows")]
 pub fn set_window_split_left_with_height(hwnd: HWND, _screen_width: i32, _height: i32) {
     unsafe {
@@ -172,15 +208,16 @@ pub fn set_window_split_left_with_height(hwnd: HWND, _screen_width: i32, _height
         ShowWindow(hwnd, SW_NORMAL);
 
         let (work_x, work_y, work_width, work_height) = get_work_area();
+        let (bl, _bt, br, bb) = get_invisible_border(hwnd);
 
-        // 左半分に配置（作業領域を考慮）
+        // 不可視ボーダーを補正して可視領域がぴったり左半分になるよう配置
         SetWindowPos(
             hwnd,
             std::ptr::null_mut(),
-            work_x,
+            work_x - bl,
             work_y,
-            work_width / 2,
-            work_height,
+            work_width / 2 + bl + br,
+            work_height + bb,
             SWP_NOZORDER | SWP_FRAMECHANGED,
         );
     }
@@ -194,15 +231,16 @@ pub fn set_window_split_right_with_height(hwnd: HWND, _screen_width: i32, _heigh
         ShowWindow(hwnd, SW_NORMAL);
 
         let (work_x, work_y, work_width, work_height) = get_work_area();
+        let (bl, _bt, br, bb) = get_invisible_border(hwnd);
 
-        // 右半分に配置（作業領域を考慮）
+        // 不可視ボーダーを補正して可視領域がぴったり右半分になるよう配置
         SetWindowPos(
             hwnd,
             std::ptr::null_mut(),
-            work_x + work_width / 2,
+            work_x + work_width / 2 - bl,
             work_y,
-            work_width / 2,
-            work_height,
+            work_width / 2 + bl + br,
+            work_height + bb,
             SWP_NOZORDER | SWP_FRAMECHANGED,
         );
     }

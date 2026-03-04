@@ -552,6 +552,7 @@ model UserSettings {
   geminiDefaultModel          String?
   defaultAiProvider           String?   @default("claude")
   autoApprovePlan             Boolean   @default(false) // plan.md保存時に自動承認するか
+  autoComplexityAnalysis      Boolean   @default(false) // 複雑度の自動分析を有効にするか
   createdAt                   DateTime  @default(now())
   updatedAt                   DateTime  @updatedAt
 }

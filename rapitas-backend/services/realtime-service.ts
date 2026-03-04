@@ -3,6 +3,10 @@
  * SSE (Server-Sent Events) でエージェント実行状況やGitHubイベントをストリーミング
  */
 
+import { createLogger } from '../config/logger';
+
+const log = createLogger('realtime-service');
+
 export type SSEEvent = {
   type: string;
   data: unknown;
@@ -160,7 +164,7 @@ export class RealtimeService {
       }
       return true;
     } catch (error) {
-      console.error(`Failed to send to client ${clientId}:`, error);
+      log.error({ err: error }, `Failed to send to client ${clientId}`);
       this.removeClient(clientId);
       return false;
     }
@@ -354,13 +358,13 @@ export class RealtimeService {
     for (const [clientId, controller] of this.streamControllers) {
       try {
         controller.close();
-        console.log(`[SSE] Closed stream for client ${clientId}`);
+        log.info(`[SSE] Closed stream for client ${clientId}`);
       } catch (error) {
         // 既にcloseされている場合は無視
       }
     }
     if (controllerCount > 0) {
-      console.log(
+      log.info(
         `[SSE] Closed ${controllerCount} SSE stream(s) during shutdown`,
       );
     }

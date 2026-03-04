@@ -4,6 +4,7 @@
  */
 
 import type { IAgentLogger, LogLevel } from './interfaces';
+import { createLogger } from '../../../config/logger';
 
 /**
  * ログエントリ
@@ -64,6 +65,7 @@ export class ConsoleLogger implements IAgentLogger {
   private formatter: (entry: LogEntry) => string;
   private history: LogEntry[] = [];
   private baseContext: Record<string, unknown>;
+  private pinoLogger;
 
   constructor(options: LoggerOptions = {}) {
     this.minLevel = options.minLevel ?? 'info';
@@ -73,6 +75,7 @@ export class ConsoleLogger implements IAgentLogger {
     this.maxHistorySize = options.maxHistorySize ?? 1000;
     this.formatter = options.formatter ?? defaultFormatter;
     this.baseContext = {};
+    this.pinoLogger = createLogger(this.prefix || 'agent');
   }
 
   /**
@@ -99,21 +102,21 @@ export class ConsoleLogger implements IAgentLogger {
       }
     }
 
-    // コンソールに出力
+    // pinoで出力
     if (this.enableConsole) {
-      const formatted = this.formatter(entry);
+      const ctx = entry.context && Object.keys(entry.context).length > 0 ? entry.context : undefined;
       switch (level) {
         case 'error':
-          console.error(formatted);
+          this.pinoLogger.error(ctx ?? {}, entry.message);
           break;
         case 'warn':
-          console.warn(formatted);
+          this.pinoLogger.warn(ctx ?? {}, entry.message);
           break;
         case 'debug':
-          console.debug(formatted);
+          this.pinoLogger.debug(ctx ?? {}, entry.message);
           break;
         default:
-          console.log(formatted);
+          this.pinoLogger.info(ctx ?? {}, entry.message);
       }
     }
   }
@@ -161,7 +164,7 @@ export class ConsoleLogger implements IAgentLogger {
    * 子ロガーを作成（コンテキスト付き）
    */
   child(context: Record<string, unknown>): IAgentLogger {
-    const childLogger = new ConsoleLogger({
+    const childLoggerInstance = new ConsoleLogger({
       minLevel: this.minLevel,
       prefix: this.prefix,
       enableConsole: this.enableConsole,
@@ -169,9 +172,10 @@ export class ConsoleLogger implements IAgentLogger {
       formatter: this.formatter,
     });
 
-    childLogger.baseContext = { ...this.baseContext, ...context };
+    childLoggerInstance.baseContext = { ...this.baseContext, ...context };
+    childLoggerInstance.pinoLogger = this.pinoLogger.child(context);
 
-    return childLogger;
+    return childLoggerInstance;
   }
 
   /**

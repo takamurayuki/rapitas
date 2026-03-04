@@ -3,6 +3,10 @@
  * 複数エージェントの実行を管理・調整
  */
 
+import { createLogger } from '../../../config/logger';
+
+const pinoLog = createLogger('agent-execution-manager');
+
 import type {
   AgentState,
   AgentExecutionContext,
@@ -357,16 +361,15 @@ export class AgentExecutionManager implements IAgentExecutionManager {
     if (this.logger) {
       this.logger[level](message);
     } else {
-      const prefix = '[ExecutionManager]';
       switch (level) {
         case 'error':
-          console.error(`${prefix} ${message}`);
+          pinoLog.error(message);
           break;
         case 'warn':
-          console.warn(`${prefix} ${message}`);
+          pinoLog.warn(message);
           break;
         default:
-          console.log(`${prefix} ${message}`);
+          pinoLog.info(message);
       }
     }
   }

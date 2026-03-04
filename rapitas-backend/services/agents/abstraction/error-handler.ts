@@ -3,6 +3,10 @@
  * エラーの処理、リトライ戦略、エラーログの管理
  */
 
+import { createLogger } from '../../../config/logger';
+
+const pinoLog = createLogger('agent-error-handler');
+
 import type {
   AgentExecutionContext,
   AgentExecutionResult,
@@ -391,16 +395,15 @@ export class DefaultErrorHandler implements IErrorHandler {
     if (this.logger) {
       this.logger[level](message);
     } else {
-      const prefix = '[ErrorHandler]';
       switch (level) {
         case 'error':
-          console.error(`${prefix} ${message}`);
+          pinoLog.error(message);
           break;
         case 'warn':
-          console.warn(`${prefix} ${message}`);
+          pinoLog.warn(message);
           break;
         default:
-          console.log(`${prefix} ${message}`);
+          pinoLog.info(message);
       }
     }
   }

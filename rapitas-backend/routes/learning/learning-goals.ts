@@ -4,6 +4,9 @@
  */
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:learning-goals");
 import {
   sendAIMessage,
   getDefaultProvider,
@@ -249,7 +252,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
 
         const jsonMatch = response.content.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
-          console.error("[learning-goals] Failed to parse AI response");
+          log.error("[learning-goals] Failed to parse AI response");
           const fallbackPlan = generateFallbackPlan(goal.title, goal.currentLevel, goal.targetLevel, totalDays, goal.dailyHours);
           await prisma.learningGoal.update({
             where: { id },
@@ -267,7 +270,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
 
         return { plan, source: "ai", tokensUsed: response.tokensUsed };
       } catch (error) {
-        console.error("[learning-goals] AI plan generation failed:", error);
+        log.error({ err: error }, "[learning-goals] AI plan generation failed");
         const fallbackPlan = generateFallbackPlan(goal.title, goal.currentLevel, goal.targetLevel, totalDays, goal.dailyHours);
         await prisma.learningGoal.update({
           where: { id },

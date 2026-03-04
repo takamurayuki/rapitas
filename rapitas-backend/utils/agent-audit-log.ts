@@ -3,6 +3,9 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { createLogger } from '../config/logger';
+
+const log = createLogger('agent-audit-log');
 
 const prisma = new PrismaClient();
 
@@ -43,9 +46,9 @@ export async function logAgentConfigChange(entry: AuditLogEntry): Promise<void> 
         userAgent: entry.userAgent,
       },
     });
-    console.log(`[AuditLog] Agent ${entry.agentConfigId}: ${entry.action}`);
+    log.info(`Agent ${entry.agentConfigId}: ${entry.action}`);
   } catch (error) {
-    console.error("[AuditLog] Failed to create audit log:", error);
+    log.error({ err: error }, "Failed to create audit log");
     // 監査ログの記録失敗は、メイン処理をブロックしない
   }
 }

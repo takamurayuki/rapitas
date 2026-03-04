@@ -249,8 +249,6 @@ export default function CompactTaskDetailCard({
               onAddComment={onAddComment || (() => {})}
               onUpdateComment={onUpdateComment || (async () => {})}
               onDeleteComment={onDeleteComment || (() => {})}
-              onCreateLink={onCreateLink}
-              onDeleteLink={onDeleteLink}
             />
           </AccordionContent>
         </AccordionItem>

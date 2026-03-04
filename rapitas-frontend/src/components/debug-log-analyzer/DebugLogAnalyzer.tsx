@@ -241,28 +241,28 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => loadSampleLog('json')}
+                    onClickAction={() => loadSampleLog('json')}
                   >
                     JSON
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => loadSampleLog('nodejs')}
+                    onClickAction={() => loadSampleLog('nodejs')}
                   >
                     Node.js
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => loadSampleLog('apache')}
+                    onClickAction={() => loadSampleLog('apache')}
                   >
                     Apache
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => loadSampleLog('nginx')}
+                    onClickAction={() => loadSampleLog('nginx')}
                   >
                     Nginx
                   </Button>
@@ -292,7 +292,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
               <div className="flex justify-between">
                 <Button
                   variant="outline"
-                  onClick={() => {
+                  onClickAction={() => {
                     setLogContent('');
                     setError(null);
                     setAnalysisResult(null);
@@ -303,7 +303,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
                   クリア
                 </Button>
                 <Button
-                  onClick={handleAnalyze}
+                  onClickAction={handleAnalyze}
                   disabled={!logContent || isAnalyzing}
                 >
                   {isAnalyzing ? (
@@ -408,7 +408,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
 
               <Button
                 variant="outline"
-                onClick={() => setFilter({})}
+                onClickAction={() => setFilter({})}
                 disabled={Object.keys(filter).length === 0}
               >
                 フィルターをクリア

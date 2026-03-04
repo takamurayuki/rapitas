@@ -3,6 +3,9 @@
  */
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:developer-mode");
 import {
   analyzeTask,
   generateOptimizedPrompt,
@@ -221,7 +224,7 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
               // タイトルが重複する場合はスキップ
               const normalizedTitle = subtask.title.toLowerCase().trim();
               if (existingTitles.has(normalizedTitle)) {
-                console.log(`[developer-mode] Skipping duplicate subtask: ${subtask.title}`);
+                log.info(`[developer-mode] Skipping duplicate subtask: ${subtask.title}`);
                 continue;
               }
               existingTitles.add(normalizedTitle);
@@ -434,7 +437,7 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
           },
         };
       } catch (error: unknown) {
-        console.error("Prompt optimization error:", error);
+        log.error({ err: error }, "Prompt optimization error");
         set.status = 500;
         return {
           error: "プロンプト最適化に失敗しました",
@@ -522,7 +525,7 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
         const result = await generateBranchName(title, description, branchProvider);
         return result;
       } catch (error: unknown) {
-        console.error("Branch name generation error:", error);
+        log.error({ err: error }, "Branch name generation error");
         set.status = 500;
         return {
           error: "ブランチ名の生成に失敗しました",
@@ -589,7 +592,7 @@ export const developerModeRoutes = new Elysia({ prefix: "/developer-mode" })
         const result = await generateTaskTitle(description, titleProvider);
         return result;
       } catch (error: unknown) {
-        console.error("Title generation error:", error);
+        log.error({ err: error }, "Title generation error");
         set.status = 500;
         return {
           error: "タイトルの生成に失敗しました",

@@ -1,7 +1,7 @@
 # Rapitas Codebase Analysis Report
 
-> Generated: 2026-03-04T07:56:59.037Z
-> Execution time: 12465ms
+> Generated: 2026-03-04T08:20:45.574Z
+> Execution time: 419ms
 > Project root: `C:\Projects\rapitas`
 
 ---
@@ -11,18 +11,18 @@
 ### サマリ
 | 項目 | 値 |
 |------|-----|
-| 総ファイル数 | 749 |
-| 総コード行数 | 183,930 |
+| 総ファイル数 | 753 |
+| 総コード行数 | 184,004 |
 | 総サイズ | 10.6 MB |
 
 ### 拡張子別
 | 拡張子 | ファイル数 | 行数 | サイズ | 平均行数 |
 |--------|-----------|------|--------|----------|
 | .ts | 246 | 81,115 | 2.4 MB | 330 |
-| .tsx | 169 | 65,336 | 2.4 MB | 387 |
+| .tsx | 169 | 65,347 | 2.4 MB | 387 |
 | .yaml | 4 | 13,219 | 437.0 KB | 3305 |
-| .md | 158 | 12,882 | 518.1 KB | 82 |
-| .json | 10 | 3,255 | 100.1 KB | 326 |
+| .md | 162 | 12,949 | 523.0 KB | 80 |
+| .json | 10 | 3,251 | 103.1 KB | 325 |
 | .js | 95 | 2,745 | 3.7 MB | 29 |
 | .css | 8 | 1,769 | 299.2 KB | 221 |
 | .yml | 8 | 1,246 | 40.2 KB | 156 |
@@ -34,13 +34,13 @@
 ### ディレクトリ別
 | ディレクトリ | ファイル数 | 行数 | サイズ |
 |-------------|-----------|------|--------|
-| rapitas-frontend | 257 | 94,059 | 3.2 MB |
-| rapitas-backend | 333 | 76,315 | 2.4 MB |
+| rapitas-frontend | 257 | 94,070 | 3.2 MB |
+| rapitas-backend | 337 | 76,382 | 2.4 MB |
 | rapitas-desktop | 141 | 5,134 | 4.7 MB |
-| analysis-result.json | 1 | 3,002 | 93.1 KB |
+| analysis-result.json | 1 | 2,998 | 96.1 KB |
 | .github | 9 | 1,441 | 47.4 KB |
 | docs | 1 | 839 | 22.9 KB |
-| analysis-report.md | 1 | 803 | 43.0 KB |
+| analysis-report.md | 1 | 803 | 45.7 KB |
 | pnpm-lock.yaml | 1 | 713 | 22.2 KB |
 | project-guide.md | 1 | 684 | 22.5 KB |
 | README.md | 1 | 473 | 13.9 KB |
@@ -53,7 +53,7 @@
 |---|---------|------|--------|
 | 1 | `rapitas-frontend\pnpm-lock.yaml` | 10,822 | 362.2 KB |
 | 2 | `rapitas-backend\services\agents\agent-orchestrator.ts` | 3,934 | 127.9 KB |
-| 3 | `analysis-result.json` | 3,002 | 93.1 KB |
+| 3 | `analysis-result.json` | 2,998 | 96.1 KB |
 | 4 | `rapitas-frontend\src\components\note\NoteEditor.tsx` | 2,998 | 105.2 KB |
 | 5 | `rapitas-frontend\src\app\tasks\[id]\TaskDetailClient.tsx` | 2,044 | 84.1 KB |
 | 6 | `rapitas-frontend\src\components\category\IconData.ts` | 2,023 | 54.2 KB |
@@ -65,7 +65,7 @@
 | 12 | `rapitas-backend\routes\agents\agent-execution-router.ts` | 1,532 | 54.3 KB |
 | 13 | `rapitas-backend\routes\agents\ai-agent.ts` | 1,532 | 48.6 KB |
 | 14 | `rapitas-frontend\src\feature\developer-mode\components\AIAnalysisPanel.tsx` | 1,416 | 60.1 KB |
-| 15 | `rapitas-frontend\src\feature\tasks\components\MemoSection.tsx` | 1,403 | 52.4 KB |
+| 15 | `rapitas-frontend\src\feature\tasks\components\MemoSection.tsx` | 1,405 | 52.4 KB |
 | 16 | `rapitas-desktop\scripts\dev.js` | 1,364 | 47.3 KB |
 | 17 | `rapitas-frontend\src\components\Header.tsx` | 1,256 | 46.7 KB |
 | 18 | `rapitas-backend\services\parallel-execution\sub-agent-controller.ts` | 1,247 | 38.0 KB |

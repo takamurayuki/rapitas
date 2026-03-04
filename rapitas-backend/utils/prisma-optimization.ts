@@ -1,5 +1,8 @@
 import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+import { createLogger } from '../config/logger';
+
+const log = createLogger('prisma-optimization');
 
 // クエリ最適化のユーティリティ
 export class PrismaOptimizer {
@@ -101,7 +104,7 @@ export function setupPrismaOptimizations(prisma: PrismaClient) {
 
     // 遅いクエリの検出
     if (duration > 100) {
-      console.warn(
+      log.warn(
         `Slow query detected: ${params.model}.${params.action} took ${duration}ms`,
       );
     }
@@ -136,7 +139,7 @@ export function setupPrismaOptimizations(prisma: PrismaClient) {
           prismaError.code === "P2024" || // タイムアウト
           (prismaError.code === "P2002" && retries < maxRetries) // ユニーク制約違反（リトライ可能な場合）
         ) {
-          console.log(
+          log.info(
             `Retrying query (${retries}/${maxRetries}): ${params.model}.${params.action}`,
           );
           await new Promise((resolve) =>
@@ -209,7 +212,7 @@ export class PrismaDataLoader<T> {
       });
     } catch (error) {
       batch.forEach(({ resolve }) => resolve(null));
-      console.error("DataLoader error:", error);
+      log.error({ err: error }, "DataLoader error");
     }
   }
 

@@ -3,6 +3,7 @@
  */
 
 import { Elysia, t, type Context } from "elysia";
+import { createLogger } from "../../config/logger";
 import DebugLogAnalyzer, {
   LogType,
   LogLevel,
@@ -10,6 +11,8 @@ import DebugLogAnalyzer, {
   AnalyzeOptions
 } from "../../utils/debug-log-analyzer";
 import { LogParserFactory } from "../../utils/debug-log-parsers";
+
+const log = createLogger("routes:debug-logs");
 
 // デバッグログ解析ルーター
 export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
@@ -40,7 +43,7 @@ export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
           detectedType
         };
       } catch (error) {
-        console.error("Log analysis error:", error);
+        log.error({ err: error }, "Log analysis error");
         return {
           success: false,
           error: error instanceof Error ? error.message : "ログ解析中にエラーが発生しました"
@@ -116,7 +119,7 @@ export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
           type: detectedType
         };
       } catch (error) {
-        console.error("Type detection error:", error);
+        log.error({ err: error }, "Type detection error");
         return {
           success: false,
           error: error instanceof Error ? error.message : "タイプ検出中にエラーが発生しました"
@@ -206,7 +209,7 @@ export const debugLogsRouter = new Elysia({ prefix: "/debug-logs" })
           processedLines: entries.length
         };
       } catch (error) {
-        console.error("Stream analysis error:", error);
+        log.error({ err: error }, "Stream analysis error");
         set.status = 500;
         return {
           success: false,

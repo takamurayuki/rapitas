@@ -3,6 +3,10 @@
  * 依存関係を考慮したタスクの並列スケジューリングを管理
  */
 
+import { createLogger } from '../../config/logger';
+
+const log = createLogger('parallel-scheduler');
+
 import type {
   TaskNode,
   ParallelExecutionPlan,
@@ -423,7 +427,7 @@ export class ParallelScheduler {
       try {
         listener(event);
       } catch (error) {
-        console.error('[ParallelScheduler] Error in event listener:', error);
+        log.error({ err: error }, '[ParallelScheduler] Error in event listener');
       }
     }
   }

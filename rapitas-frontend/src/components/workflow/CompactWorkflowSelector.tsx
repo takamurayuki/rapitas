@@ -71,6 +71,7 @@ export interface CompactWorkflowSelectorProps {
   currentMode?: WorkflowMode | null;
   isOverridden?: boolean;
   complexityScore?: number | null;
+  autoComplexityAnalysis?: boolean;
   onModeChange?: (mode: WorkflowMode, isOverride: boolean) => void;
   onAnalysisComplete?: (analysis: ComplexityScore) => void;
   disabled?: boolean;
@@ -113,6 +114,7 @@ export default function CompactWorkflowSelector({
   currentMode = 'comprehensive',
   isOverridden = false,
   complexityScore = null,
+  autoComplexityAnalysis = false,
   onModeChange,
   onAnalysisComplete,
   disabled = false,
@@ -131,8 +133,15 @@ export default function CompactWorkflowSelector({
     }
   }, [currentMode]);
 
+  // 自動分析ON時、complexityScoreがない場合に自動実行（taskId=0は新規タスクなのでスキップ）
+  useEffect(() => {
+    if (autoComplexityAnalysis && complexityScore === null && !analysis && !isAnalyzing && taskId > 0) {
+      handleAnalyze();
+    }
+  }, [autoComplexityAnalysis, complexityScore]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleModeSelect = async (mode: WorkflowMode) => {
-    if (mode === selectedMode || disabled) return;
+    if (mode === selectedMode || disabled || autoComplexityAnalysis) return;
 
     setIsUpdating(true);
     try {
@@ -230,7 +239,7 @@ export default function CompactWorkflowSelector({
               >
                 <button
                   onClick={() => handleModeSelect(mode)}
-                  disabled={disabled || isUpdating}
+                  disabled={disabled || isUpdating || autoComplexityAnalysis}
                   className={`
                     flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all
                     disabled:opacity-50 disabled:cursor-not-allowed
@@ -288,16 +297,20 @@ export default function CompactWorkflowSelector({
             ) : (
               <Info className="h-4 w-4" />
             )}
-            <span className="font-medium">自動分析</span>
+            <span className="font-medium">{autoComplexityAnalysis ? '再分析' : '自動分析'}</span>
           </button>
         )}
 
-        {/* 手動設定バッジ */}
-        {isOverridden && (
+        {/* モード設定バッジ */}
+        {autoComplexityAnalysis ? (
+          <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-800/50 text-blue-700 dark:text-blue-300 text-xs font-medium rounded-full">
+            自動
+          </span>
+        ) : isOverridden ? (
           <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 text-xs font-medium rounded-full">
             手動
           </span>
-        )}
+        ) : null}
       </div>
 
       {/* 推奨モード通知（分析後に表示） */}

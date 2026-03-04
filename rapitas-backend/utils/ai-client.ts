@@ -4,6 +4,9 @@
  */
 import { prisma } from "../config/database";
 import { decrypt } from "./encryption";
+import { createLogger } from '../config/logger';
+
+const log = createLogger('ai-client');
 
 export type AIProvider = "claude" | "chatgpt" | "gemini";
 
@@ -82,9 +85,9 @@ export async function getApiKeyForProvider(provider: AIProvider): Promise<string
           return decrypted;
         }
         // 復号できたが形式が不正な場合はログ出力して環境変数にフォールバック
-        console.warn(`[ai-client] DB stored ${provider} API key has invalid format, falling back to env var`);
+        log.warn(`DB stored ${provider} API key has invalid format, falling back to env var`);
       } catch (error) {
-        console.warn(`[ai-client] Failed to decrypt ${provider} API key from DB:`, error instanceof Error ? error.message : error);
+        log.warn({ err: error instanceof Error ? error : undefined, detail: error instanceof Error ? undefined : error }, `Failed to decrypt ${provider} API key from DB`);
       }
     }
   }
@@ -95,7 +98,7 @@ export async function getApiKeyForProvider(provider: AIProvider): Promise<string
     if (isValidApiKeyFormat(envKey, provider)) {
       return envKey;
     }
-    console.warn("[ai-client] CLAUDE_API_KEY env var has invalid format");
+    log.warn("CLAUDE_API_KEY env var has invalid format");
   }
 
   return null;
@@ -201,7 +204,7 @@ async function callClaude(
         throw error;
       }
       const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
-      console.warn(`Claude API error (status ${status}), retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})...`);
+      log.warn(`Claude API error (status ${status}), retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})...`);
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }

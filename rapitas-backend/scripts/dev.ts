@@ -9,6 +9,9 @@
 import { spawn, type Subprocess, spawnSync } from "bun";
 import { watch, readFileSync, existsSync } from "fs";
 import { join, resolve } from "path";
+import { createLogger } from '../config/logger';
+
+const pinoLog = createLogger('dev');
 
 const ROOT_DIR = resolve(import.meta.dir, "..");
 const PRISMA_SCHEMA = join(ROOT_DIR, "prisma", "schema.prisma");
@@ -33,7 +36,7 @@ function loadEnvFile() {
         }
       }
     }
-    console.log(`[DEV] Loaded environment variables from .env`);
+    pinoLog.info(`Loaded environment variables from .env`);
   }
 }
 
@@ -52,10 +55,10 @@ let deferCheckInterval: ReturnType<typeof setInterval> | null = null;
 
 // 色付きログ出力
 const log = {
-  info: (msg: string) => console.log(`\x1b[36m[DEV]\x1b[0m ${msg}`),
-  success: (msg: string) => console.log(`\x1b[32m[DEV]\x1b[0m ${msg}`),
-  warn: (msg: string) => console.log(`\x1b[33m[DEV]\x1b[0m ${msg}`),
-  error: (msg: string) => console.log(`\x1b[31m[DEV]\x1b[0m ${msg}`),
+  info: (msg: string) => pinoLog.info(msg),
+  success: (msg: string) => pinoLog.info(msg),
+  warn: (msg: string) => pinoLog.warn(msg),
+  error: (msg: string) => pinoLog.error(msg),
 };
 
 // 指定ポートを使用しているプロセスを全て終了する
@@ -484,15 +487,13 @@ process.on("SIGTERM", () => cleanup("SIGTERM"));
 
 // メイン処理
 async function main() {
-  console.log("");
-  console.log("╔════════════════════════════════════════════╗");
-  console.log("║     Rapitas Backend 開発サーバー           ║");
-  console.log("╠════════════════════════════════════════════╣");
-  console.log("║  • TypeScriptファイル変更 → 自動再起動     ║");
-  console.log("║  • Prismaスキーマ変更 → 自動db push        ║");
-  console.log("║  • Ctrl+C で終了                           ║");
-  console.log("╚════════════════════════════════════════════╝");
-  console.log("");
+  pinoLog.info("╔════════════════════════════════════════════╗");
+  pinoLog.info("║     Rapitas Backend 開発サーバー           ║");
+  pinoLog.info("╠════════════════════════════════════════════╣");
+  pinoLog.info("║  • TypeScriptファイル変更 → 自動再起動     ║");
+  pinoLog.info("║  • Prismaスキーマ変更 → 自動db push        ║");
+  pinoLog.info("║  • Ctrl+C で終了                           ║");
+  pinoLog.info("╚════════════════════════════════════════════╝");
 
   // 初回起動時にPrismaの同期を確認
   log.info("初回起動: Prismaスキーマを同期中...");

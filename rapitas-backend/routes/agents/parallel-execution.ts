@@ -4,6 +4,9 @@
  */
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:parallel-execution");
 import {
   createParallelExecutor,
   createDependencyAnalyzer,
@@ -346,7 +349,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
         };
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error("[ParallelExecution] Error starting session:", errorMessage);
+        log.error({ errorMessage }, "[ParallelExecution] Error starting session");
         return {
           success: false,
           error: errorMessage,

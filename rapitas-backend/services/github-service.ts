@@ -6,6 +6,9 @@
 import { exec } from "child_process";
 import { promisify } from "util";
 import { PrismaClient } from '@prisma/client';
+import { createLogger } from '../config/logger';
+
+const log = createLogger('github-service');
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 import { realtimeService } from "./realtime-service";
 
@@ -207,7 +210,7 @@ export class GitHubService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const stderr = error && typeof error === 'object' && 'stderr' in error ? (error as { stderr: string }).stderr : undefined;
-      console.error(`gh command failed: ${command}`, message);
+      log.error({ message }, `gh command failed: ${command}`);
       throw new Error(stderr || message);
     }
   }
@@ -535,7 +538,7 @@ export class GitHubService {
       return { success: true, prUrl, prNumber };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error("Failed to create PR:", error);
+      log.error({ err: error }, "Failed to create PR");
       return { success: false, error: message };
     }
   }
@@ -810,7 +813,7 @@ export class GitHubService {
         await this.handleIssueEvent(payload);
         break;
       default:
-        console.log(`Unhandled webhook event: ${event}`);
+        log.info(`Unhandled webhook event: ${event}`);
     }
   }
 

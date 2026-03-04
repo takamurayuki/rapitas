@@ -3,6 +3,9 @@ import { prisma } from '../../config/database';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { google } from 'googleapis';
+import { createLogger } from '../../config/logger';
+
+const log = createLogger('routes:auth');
 
 // Simple in-memory rate limiter for auth endpoints
 const authAttempts = new Map<string, { count: number; resetAt: number }>();
@@ -121,7 +124,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         }
       };
     } catch (error) {
-      console.error('Registration error:', error);
+      log.error({ err: error }, 'Registration error');
       set.status = 500;
       return { success: false, message: 'Internal server error during registration' };
     }
@@ -207,7 +210,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         }
       };
     } catch (error) {
-      console.error('Login error:', error);
+      log.error({ err: error }, 'Login error');
       set.status = 500;
       return { success: false, message: 'Internal server error during login' };
     }
@@ -234,7 +237,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
 
       return { success: true, message: 'Logged out successfully' };
     } catch (error) {
-      console.error('Logout error:', error);
+      log.error({ err: error }, 'Logout error');
       set.status = 500;
       return { success: false, message: 'Internal server error during logout' };
     }
@@ -278,7 +281,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         }
       };
     } catch (error) {
-      console.error('Get user error:', error);
+      log.error({ err: error }, 'Get user error');
       set.status = 500;
       return { success: false, message: 'Internal server error getting user info' };
     }
@@ -326,7 +329,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         }))
       };
     } catch (error) {
-      console.error('Get sessions error:', error);
+      log.error({ err: error }, 'Get sessions error');
       set.status = 500;
       return { success: false, message: 'Internal server error getting sessions' };
     }
@@ -377,7 +380,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
 
       return { success: true, message: 'Session deleted successfully' };
     } catch (error) {
-      console.error('Delete session error:', error);
+      log.error({ err: error }, 'Delete session error');
       set.status = 500;
       return { success: false, message: 'Internal server error deleting session' };
     }
@@ -420,7 +423,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         message: `Cleaned up ${result.count} expired sessions`
       };
     } catch (error) {
-      console.error('Cleanup sessions error:', error);
+      log.error({ err: error }, 'Cleanup sessions error');
       set.status = 500;
       return { success: false, message: 'Internal server error during cleanup' };
     }
@@ -441,7 +444,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         url: authUrl
       };
     } catch (error) {
-      console.error('Google auth URL generation error:', error);
+      log.error({ err: error }, 'Google auth URL generation error');
       set.status = 500;
       return { success: false, message: 'Failed to generate Google authentication URL' };
     }
@@ -461,7 +464,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       set.headers.location = authUrl;
       return;
     } catch (error) {
-      console.error('Google auth initiation error:', error);
+      log.error({ err: error }, 'Google auth initiation error');
       set.status = 500;
       return { success: false, message: 'Failed to initiate Google authentication' };
     }
@@ -565,7 +568,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       return;
 
     } catch (error) {
-      console.error('Google callback error:', error);
+      log.error({ err: error }, 'Google callback error');
       set.status = 302;
       set.headers.location = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth?error=callback_failed`;
       return;

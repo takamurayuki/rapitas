@@ -324,7 +324,7 @@ export const ErrorAnalysisPanel: React.FC<ErrorAnalysisPanelProps> = ({
           </select>
 
           <Button
-            onClick={() => setIsAutoRefresh(!isAutoRefresh)}
+            onClickAction={() => setIsAutoRefresh(!isAutoRefresh)}
             variant={isAutoRefresh ? 'primary' : 'secondary'}
             size="sm"
           >
@@ -333,7 +333,7 @@ export const ErrorAnalysisPanel: React.FC<ErrorAnalysisPanelProps> = ({
             />
           </Button>
 
-          <Button onClick={exportErrorLog} variant="secondary" size="sm">
+          <Button onClickAction={exportErrorLog} variant="secondary" size="sm">
             <Download className="h-4 w-4 mr-2" />
             Export Log
           </Button>
@@ -514,14 +514,14 @@ export const ErrorAnalysisPanel: React.FC<ErrorAnalysisPanelProps> = ({
                         <Button
                           size="sm"
                           variant="secondary"
-                          onClick={() => onErrorSelect?.(error)}
+                          onClickAction={() => onErrorSelect?.(error)}
                         >
                           Investigate
                         </Button>
                         <Button
                           size="sm"
                           variant="secondary"
-                          onClick={() => {
+                          onClickAction={() => {
                             navigator.clipboard.writeText(
                               JSON.stringify(error, null, 2),
                             );

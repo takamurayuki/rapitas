@@ -5,6 +5,9 @@
  */
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
+import { createLogger } from "./config/logger";
+
+const log = createLogger("stub-server");
 
 const app = new Elysia();
 
@@ -116,7 +119,7 @@ app.onError(({ code, error }) => {
 
 // Check for version flag (for CI/CD build testing)
 if (process.argv.includes("--version") || process.argv.includes("-v")) {
-  console.log("CI/CD Stub Backend v1.0.0");
+  log.info("CI/CD Stub Backend v1.0.0");
   process.exit(0);
 }
 
@@ -131,26 +134,26 @@ app.listen({
   reusePort: true,
 });
 
-console.log(`🚀 CI/CD Stub Backend running on http://localhost:${PORT}`);
-console.log(`⚠️  This is a minimal stub server for CI/CD builds.`);
-console.log(`⚠️  Database functionality is not available.`);
+log.info(`CI/CD Stub Backend running on http://localhost:${PORT}`);
+log.warn("This is a minimal stub server for CI/CD builds.");
+log.warn("Database functionality is not available.");
 
 // Auto-exit after timeout in CI environment
 if (isCI) {
-  console.log(`⏱️  CI mode: Auto-exit after ${CI_TIMEOUT}ms`);
+  log.info({ timeoutMs: CI_TIMEOUT }, `CI mode: Auto-exit after ${CI_TIMEOUT}ms`);
   setTimeout(() => {
-    console.log("CI timeout reached, exiting...");
+    log.info("CI timeout reached, exiting...");
     process.exit(0);
   }, CI_TIMEOUT);
 }
 
 // グレースフルシャットダウン
 process.on("SIGTERM", () => {
-  console.log("Received SIGTERM, shutting down...");
+  log.info("Received SIGTERM, shutting down...");
   process.exit(0);
 });
 
 process.on("SIGINT", () => {
-  console.log("Received SIGINT, shutting down...");
+  log.info("Received SIGINT, shutting down...");
   process.exit(0);
 });

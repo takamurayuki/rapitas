@@ -15,6 +15,7 @@ export const systemSchemas = {
     autoGenerateTitleDelay: t.Optional(t.Number()),
     autoCreateAfterTitleGeneration: t.Optional(t.Boolean()),
     autoApprovePlan: t.Optional(t.Boolean()),
+    autoComplexityAnalysis: t.Optional(t.Boolean()),
     defaultAiProvider: t.Optional(t.String()),
     defaultCategoryId: t.Optional(t.Number()),
     activeMode: t.Optional(t.String())

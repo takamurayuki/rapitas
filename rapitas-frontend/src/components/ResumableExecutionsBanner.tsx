@@ -148,7 +148,7 @@ export function ResumableExecutionsBanner() {
 
   // バックエンド復帰時に再フェッチする
   const { isConnected } = useBackendHealth({
-    onReconnect: () => {
+    onReconnectAction: () => {
       console.log(
         '[ResumableExecutionsBanner] Backend reconnected, re-fetching executions',
       );
@@ -156,7 +156,7 @@ export function ResumableExecutionsBanner() {
       setConnectionError(null);
       fetchResumableExecutions();
     },
-    onDisconnect: () => {
+    onDisconnectAction: () => {
       console.log('[ResumableExecutionsBanner] Backend disconnected');
       setConnectionError(
         new Error('バックエンドサーバーとの接続が切断されました'),

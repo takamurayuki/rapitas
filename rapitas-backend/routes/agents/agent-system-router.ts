@@ -8,6 +8,9 @@ import { orchestrator } from "./approvals";
 import { isEncryptionKeyConfigured } from "../../utils/encryption";
 import { getAllAgentConfigSchemas } from "../../utils/agent-config-schema";
 import { realtimeService } from "../../services/realtime-service";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:agent-system");
 
 export const agentSystemRouter = new Elysia({ prefix: "/agents" })
 
@@ -33,9 +36,9 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
     const { spawn } = await import("child_process");
     const claudePath = process.env.CLAUDE_CODE_PATH || "claude";
 
-    console.log("[Diagnose] Testing Claude CLI...");
-    console.log("[Diagnose] Claude path:", claudePath);
-    console.log("[Diagnose] Platform:", process.platform);
+    log.info("[Diagnose] Testing Claude CLI...");
+    log.info({ claudePath }, "[Diagnose] Claude path");
+    log.info({ platform: process.platform }, "[Diagnose] Platform");
 
     const results: {
       step: string;
@@ -95,7 +98,7 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
     });
 
     results.push({ step: "claude --version", ...versionResult });
-    console.log("[Diagnose] Version check:", versionResult);
+    log.info({ versionResult }, "[Diagnose] Version check");
 
     // Step 2: Test simple prompt with spawn and explicit cmd.exe
     if (versionResult.success) {
@@ -112,7 +115,7 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
 
         if (isWindows) {
           const fullCommand = `${claudePath} --dangerously-skip-permissions -p "Say hello"`;
-          console.log("[Diagnose] Windows full command:", fullCommand);
+          log.info({ fullCommand }, "[Diagnose] Windows full command");
           proc = spawn("cmd.exe", ["/c", fullCommand], {
             env: { ...process.env, FORCE_COLOR: "0", CI: "1" },
             windowsHide: true,
@@ -131,7 +134,7 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
         let stderr = "";
 
         const timeout = setTimeout(() => {
-          console.log("[Diagnose] Timeout, killing process");
+          log.info("[Diagnose] Timeout, killing process");
           proc.kill();
           resolve({
             success: false,
@@ -143,22 +146,19 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
         proc.stdout?.on("data", (data) => {
           const chunk = data.toString();
           stdout += chunk;
-          console.log("[Diagnose] stdout chunk:", chunk.substring(0, 100));
+          log.info({ chunk: chunk.substring(0, 100) }, "[Diagnose] stdout chunk");
         });
 
         proc.stderr?.on("data", (data) => {
           const chunk = data.toString();
           stderr += chunk;
-          console.log("[Diagnose] stderr chunk:", chunk.substring(0, 100));
+          log.info({ chunk: chunk.substring(0, 100) }, "[Diagnose] stderr chunk");
         });
 
         proc.on("close", (code) => {
           clearTimeout(timeout);
-          console.log(
-            "[Diagnose] Process closed, code:",
-            code,
-            "stdout length:",
-            stdout.length,
+          log.info({ code, stdoutLength: stdout.length },
+            "[Diagnose] Process closed",
           );
           resolve({
             success: code === 0,
@@ -171,7 +171,7 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
 
         proc.on("error", (err) => {
           clearTimeout(timeout);
-          console.log("[Diagnose] Process error:", err.message);
+          log.info({ err }, "[Diagnose] Process error");
           resolve({
             success: false,
             error: err.message,
@@ -181,7 +181,7 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
       });
 
       results.push({ step: "simple prompt test", ...promptResult });
-      console.log("[Diagnose] Prompt test result:", promptResult);
+      log.info({ promptResult }, "[Diagnose] Prompt test result");
     }
 
     return {
@@ -303,7 +303,7 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
   // Graceful shutdown endpoint (called by dev.js before stopping)
   .post("/shutdown", async () => {
     try {
-      console.log("[shutdown] Graceful shutdown requested via API");
+      log.info("[shutdown] Graceful shutdown requested via API");
 
       const activeCount = orchestrator.getActiveExecutionCount();
 
@@ -312,25 +312,25 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
       setTimeout(async () => {
         try {
           // Step 1: SSE接続を全て閉じる（CLOSE_WAIT蓄積を防止）
-          console.log("[shutdown] Closing all SSE connections...");
+          log.info("[shutdown] Closing all SSE connections...");
           realtimeService.shutdown();
 
           // Step 2: リスニングソケットを即座に閉じる（ポート解放を最優先）
-          console.log(
+          log.info(
             "[shutdown] Closing listening socket first for quick port release...",
           );
           await orchestrator.stopServer();
-          console.log("[shutdown] Listening socket closed, port released.");
+          log.info("[shutdown] Listening socket closed, port released.");
 
           // Step 3: エージェント停止とDB保存
-          console.log("[shutdown] Stopping agents and saving state...");
+          log.info("[shutdown] Stopping agents and saving state...");
           await orchestrator.gracefulShutdown({ skipServerStop: true });
-          console.log("[shutdown] Agent shutdown completed.");
+          log.info("[shutdown] Agent shutdown completed.");
         } catch (error) {
-          console.error("[shutdown] Graceful shutdown error:", error);
+          log.error({ err: error }, "[shutdown] Graceful shutdown error");
         } finally {
           // Step 4: プロセス終了
-          console.log("[shutdown] Exiting process...");
+          log.info("[shutdown] Exiting process...");
           setTimeout(() => process.exit(0), 200);
         }
       }, 300); // レスポンス送信の時間を確保
@@ -341,7 +341,7 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
         activeExecutions: activeCount,
       };
     } catch (error) {
-      console.error("[shutdown] Error:", error);
+      log.error({ err: error }, "[shutdown] Error");
       return {
         success: false,
         error:
@@ -356,7 +356,7 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
   // Performs graceful shutdown then exits with code 75 to signal dev.js to restart
   .post("/restart", async () => {
     try {
-      console.log("[restart] Server restart requested via API");
+      log.info("[restart] Server restart requested via API");
 
       const activeCount = orchestrator.getActiveExecutionCount();
 
@@ -364,25 +364,25 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
       setTimeout(async () => {
         try {
           // Step 1: SSE接続を全て閉じる（CLOSE_WAIT蓄積を防止）
-          console.log("[restart] Closing all SSE connections...");
+          log.info("[restart] Closing all SSE connections...");
           realtimeService.shutdown();
 
           // Step 2: リスニングソケットを即座に閉じる（ポート解放を最優先）
-          console.log(
+          log.info(
             "[restart] Closing listening socket first for quick port release...",
           );
           await orchestrator.stopServer();
-          console.log("[restart] Listening socket closed, port released.");
+          log.info("[restart] Listening socket closed, port released.");
 
           // Step 3: エージェント停止とDB保存
-          console.log("[restart] Stopping agents and saving state...");
+          log.info("[restart] Stopping agents and saving state...");
           await orchestrator.gracefulShutdown({ skipServerStop: true });
-          console.log("[restart] Agent shutdown completed.");
+          log.info("[restart] Agent shutdown completed.");
         } catch (error) {
-          console.error("[restart] Graceful shutdown error:", error);
+          log.error({ err: error }, "[restart] Graceful shutdown error");
         } finally {
           // Step 4: 終了コード75でdev.jsに再起動を通知
-          console.log("[restart] Exiting with restart code...");
+          log.info("[restart] Exiting with restart code...");
           setTimeout(() => process.exit(75), 200);
         }
       }, 300); // レスポンス送信の時間を確保
@@ -394,7 +394,7 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
         activeExecutions: activeCount,
       };
     } catch (error) {
-      console.error("[restart] Error:", error);
+      log.error({ err: error }, "[restart] Error");
       return {
         success: false,
         error:

@@ -144,6 +144,7 @@ export default function WorkflowViewer({
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [advanceError, setAdvanceError] = useState<string | null>(null);
   const [roles, setRoles] = useState<WorkflowRoleConfig[]>([]);
+  const [autoComplexityAnalysis, setAutoComplexityAnalysis] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevStatusRef = useRef<WorkflowStatus | null>(null);
 
@@ -210,6 +211,22 @@ export default function WorkflowViewer({
       }
     };
     fetchRoles();
+  }, []);
+
+  // 自動複雑度分析設定を取得
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/settings`);
+        if (res.ok) {
+          const data = await res.json();
+          setAutoComplexityAnalysis(data.autoComplexityAnalysis ?? false);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    fetchSettings();
   }, []);
 
   // ポーリング開始/停止ヘルパー
@@ -348,6 +365,7 @@ export default function WorkflowViewer({
             currentMode={workflowMode}
             isOverridden={workflowModeOverride}
             complexityScore={complexityScore}
+            autoComplexityAnalysis={autoComplexityAnalysis}
             onModeChange={onWorkflowModeChange}
             onAnalysisComplete={(analysis) => {
               // 分析完了時に親コンポーネントに通知

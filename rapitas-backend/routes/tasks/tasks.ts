@@ -16,6 +16,9 @@ import { orchestrator } from "../agents/approvals";
 import { toJsonString } from "../../utils/db-helpers";
 import { checkAchievements } from "../../services/achievement-checker";
 import { notifyTaskCompleted } from "../../services/notification-service";
+import { createLogger } from "../../config/logger";
+
+const logger = createLogger("tasks");
 
 export const tasksRoutes = new Elysia({ prefix: "/tasks" })
   // Search task titles for autocomplete
@@ -191,12 +194,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       const { themeId, limit } = query;
       const resultLimit = Math.min(parseInt(limit ?? "5"), 10);
 
-      console.log(
-        "[tasks/suggestions/ai] Request received - themeId:",
-        themeId,
-        "limit:",
-        resultLimit,
-      );
+      logger.info({ themeId, limit: resultLimit }, "[tasks/suggestions/ai] Request received");
 
       if (!themeId) {
         return { suggestions: [], source: "none" };
@@ -206,7 +204,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
 
       // Check if AI is available
       const aiAvailable = await isAnyApiKeyConfigured();
-      console.log("[tasks/suggestions/ai] AI available:", aiAvailable);
+      logger.info({ aiAvailable }, "[tasks/suggestions/ai] AI available");
 
       // Get theme info
       const theme = await prisma.theme.findUnique({
@@ -215,11 +213,11 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       });
 
       if (!theme) {
-        console.log("[tasks/suggestions/ai] Theme not found:", parsedThemeId);
+        logger.info({ themeId: parsedThemeId }, "[tasks/suggestions/ai] Theme not found");
         return { suggestions: [], source: "none" };
       }
 
-      console.log("[tasks/suggestions/ai] Theme found:", theme.name);
+      logger.info({ themeName: theme.name }, "[tasks/suggestions/ai] Theme found");
 
       // Get completed tasks for analysis
       const completedTasks = await prisma.task.findMany({
@@ -243,10 +241,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
         take: 30,
       });
 
-      console.log(
-        "[tasks/suggestions/ai] Completed tasks found:",
-        completedTasks.length,
-      );
+      logger.info({ count: completedTasks.length }, "[tasks/suggestions/ai] Completed tasks found");
 
       // ユーザーの行動パターンを取得
       const taskPatterns = await prisma.taskPattern.findMany({
@@ -258,10 +253,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
         take: 10,
       });
 
-      console.log(
-        "[tasks/suggestions/ai] Task patterns found:",
-        taskPatterns.length,
-      );
+      logger.info({ count: taskPatterns.length }, "[tasks/suggestions/ai] Task patterns found");
 
       // ユーザーの行動サマリーを取得（最新の週次・月次データ）
       const behaviorSummary = await prisma.userBehaviorSummary.findFirst({
@@ -272,10 +264,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
         orderBy: { periodEnd: "desc" },
       });
 
-      console.log(
-        "[tasks/suggestions/ai] Behavior summary found:",
-        behaviorSummary ? "yes" : "no",
-      );
+      logger.info({ found: !!behaviorSummary }, "[tasks/suggestions/ai] Behavior summary found");
 
       // Get existing active tasks to avoid duplicates
       const existingTasks = await prisma.task.findMany({
@@ -290,19 +279,16 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       const existingTitles = existingTasks.map(
         (t: { title: string }) => t.title,
       );
-      console.log(
-        "[tasks/suggestions/ai] Existing active tasks:",
-        existingTitles.length,
-      );
+      logger.info({ count: existingTitles.length }, "[tasks/suggestions/ai] Existing active tasks");
 
       if (!aiAvailable) {
-        console.log("[tasks/suggestions/ai] AI not available");
+        logger.info("[tasks/suggestions/ai] AI not available");
         return { suggestions: [], source: "insufficient_data" };
       }
 
       // AIを使用する場合は、完了タスクが0件でもテーマ情報から提案を生成
       if (completedTasks.length === 0) {
-        console.log(
+        logger.info(
           "[tasks/suggestions/ai] No completed tasks, generating initial suggestions based on theme",
         );
       }
@@ -458,7 +444,7 @@ ${existingTaskList}
 
         const jsonMatch = response.content.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
-          console.error("[tasks/suggestions/ai] Failed to parse AI response");
+          logger.error("[tasks/suggestions/ai] Failed to parse AI response");
           return { suggestions: [], source: "ai_error" };
         }
 
@@ -540,15 +526,12 @@ ${existingTaskList}
               });
             }
           } else {
-            console.warn(
+            logger.warn(
               "[tasks/suggestions/ai] taskSuggestionCache model not available - run prisma generate",
             );
           }
         } catch (cacheError) {
-          console.error(
-            "[tasks/suggestions/ai] Failed to cache suggestions:",
-            cacheError,
-          );
+          logger.error({ err: cacheError }, "[tasks/suggestions/ai] Failed to cache suggestions");
         }
 
         return {
@@ -558,7 +541,7 @@ ${existingTaskList}
           tokensUsed: response.tokensUsed,
         };
       } catch (error) {
-        console.error("[tasks/suggestions/ai] AI suggestion failed:", error);
+        logger.error({ err: error }, "[tasks/suggestions/ai] AI suggestion failed");
         return { suggestions: [], source: "ai_error" };
       }
     },
@@ -584,7 +567,7 @@ ${existingTaskList}
       const parsedThemeId = parseInt(themeId);
 
       if (!prisma.taskSuggestionCache) {
-        console.warn(
+        logger.warn(
           "[tasks/suggestions/ai/cache] taskSuggestionCache model not available - run prisma generate",
         );
         return { suggestions: [], analysis: null, source: "none" };
@@ -655,7 +638,7 @@ ${existingTaskList}
       const parsedThemeId = parseInt(themeId);
 
       if (!prisma.taskSuggestionCache) {
-        console.warn(
+        logger.warn(
           "[tasks/suggestions/ai/cache] taskSuggestionCache model not available - run prisma generate",
         );
         return {
@@ -851,7 +834,7 @@ ${existingTaskList}
               });
 
               if (existingSubtask) {
-                console.log(
+                logger.info(
                   `[tasks] Duplicate subtask prevented: "${title}" already exists for parent ${parentId}`,
                 );
                 // 既存のサブタスクを返す（重複作成を防止）
@@ -992,7 +975,7 @@ ${existingTaskList}
         if (error instanceof AppError) {
           throw error;
         }
-        console.error("[tasks] Failed to create task:", error);
+        logger.error({ err: error }, "[tasks] Failed to create task");
         throw new AppError(500, "タスクの作成に失敗しました");
       }
     },
@@ -1224,7 +1207,7 @@ ${existingTaskList}
             where: { id: subtask.id },
           });
           deletedIds.push(subtask.id);
-          console.log(
+          logger.info(
             `[tasks] Deleted duplicate subtask: "${subtask.title}" (id: ${subtask.id})`,
           );
         }
@@ -1286,7 +1269,7 @@ ${existingTaskList}
               where: { id: subtask.id },
             });
             deletedIds.push(subtask.id);
-            console.log(
+            logger.info(
               `[tasks] Deleted duplicate subtask: "${subtask.title}" (id: ${subtask.id}, parent: ${parentId})`,
             );
           }
@@ -1341,7 +1324,7 @@ ${existingTaskList}
       where: { parentId },
     });
 
-    console.log(
+    logger.info(
       `[tasks] Deleted all ${deletedCount} subtasks for parent task ${parentId}`,
     );
 
@@ -1392,7 +1375,7 @@ ${existingTaskList}
       const invalidIds = subtaskIds.filter((id) => !validIds.includes(id));
 
       if (invalidIds.length > 0) {
-        console.warn(
+        logger.warn(
           `[tasks] Some subtask IDs are invalid or don't belong to parent ${parentId}: ${invalidIds.join(", ")}`,
         );
       }
@@ -1405,7 +1388,7 @@ ${existingTaskList}
         },
       });
 
-      console.log(
+      logger.info(
         `[tasks] Deleted ${deleteResult.count} selected subtasks for parent task ${parentId}`,
       );
 
@@ -1547,7 +1530,7 @@ ${existingTaskList}
           }
         })
         .catch(async (error) => {
-          console.error("[execute] Error:", error);
+          logger.error({ err: error }, "[execute] Error");
           await prisma.task
             .update({ where: { id: taskId }, data: { status: "todo" } })
             .catch(() => {});
@@ -1571,7 +1554,7 @@ ${existingTaskList}
         message: "実行を開始しました。リアルタイムで進捗を確認できます。",
       };
     } catch (error) {
-      console.error("[execute] Error:", error);
+      logger.error({ err: error }, "[execute] Error");
       set.status = 500;
       return {
         error:

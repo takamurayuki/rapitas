@@ -3,6 +3,10 @@
  * プロバイダーとエージェントの登録・管理
  */
 
+import { createLogger } from '../../../config/logger';
+
+const log = createLogger('agent-registry');
+
 import type {
   AgentProviderId,
   AgentCapabilities,
@@ -61,11 +65,11 @@ export class AgentRegistry implements IAgentRegistry {
    */
   registerProvider(provider: IAgentProvider): void {
     if (this.providers.has(provider.providerId)) {
-      console.warn(`Provider '${provider.providerId}' is already registered. Replacing.`);
+      log.warn(`Provider '${provider.providerId}' is already registered. Replacing.`);
     }
 
     this.providers.set(provider.providerId, provider);
-    console.log(`Provider '${provider.providerId}' (${provider.providerName}) registered`);
+    log.info(`Provider '${provider.providerId}' (${provider.providerName}) registered`);
   }
 
   /**
@@ -75,7 +79,7 @@ export class AgentRegistry implements IAgentRegistry {
     // このプロバイダーのエージェントを全て解放
     for (const [agentId, agent] of this.agents.entries()) {
       if (agent.metadata.providerId === providerId) {
-        agent.dispose().catch(console.error);
+        agent.dispose().catch((err) => log.error({ err }, 'Failed to dispose agent'));
         this.agents.delete(agentId);
       }
     }
@@ -118,7 +122,7 @@ export class AgentRegistry implements IAgentRegistry {
           healthStatus,
         });
       } catch (error) {
-        console.error(`Error checking provider ${provider.providerId}:`, error);
+        log.error({ err: error }, `Error checking provider ${provider.providerId}`);
         results.push({
           providerId: provider.providerId,
           providerName: provider.providerName,
@@ -211,7 +215,7 @@ export class AgentRegistry implements IAgentRegistry {
     const agent = provider.createAgent(config);
     this.agents.set(agent.metadata.id, agent);
 
-    console.log(`Agent '${agent.metadata.id}' created with provider '${config.providerId}'`);
+    log.info(`Agent '${agent.metadata.id}' created with provider '${config.providerId}'`);
     return agent;
   }
 
@@ -246,7 +250,7 @@ export class AgentRegistry implements IAgentRegistry {
     if (agent) {
       await agent.dispose();
       this.agents.delete(agentId);
-      console.log(`Agent '${agentId}' disposed`);
+      log.info(`Agent '${agentId}' disposed`);
     }
   }
 
@@ -262,7 +266,7 @@ export class AgentRegistry implements IAgentRegistry {
 
     await Promise.allSettled(disposePromises);
     this.agents.clear();
-    console.log('All agents disposed');
+    log.info('All agents disposed');
   }
 
   /**

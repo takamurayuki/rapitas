@@ -8,6 +8,10 @@
 export { ClaudeCodeProvider, claudeCodeProvider } from './claude-code-provider';
 export { ClaudeCodeAgentAdapter } from './claude-code-agent-adapter';
 
+import { createLogger } from '../../../../config/logger';
+
+const log = createLogger('abstraction-providers');
+
 // レジストリ
 import { AgentRegistry } from '../registry';
 import { ClaudeCodeProvider } from './claude-code-provider';
@@ -22,7 +26,7 @@ export function registerBuiltinProviders(): void {
   const claudeCodeProvider = new ClaudeCodeProvider();
   registry.registerProvider(claudeCodeProvider);
 
-  console.log('[Agent Providers] Builtin providers registered');
+  log.info('[Agent Providers] Builtin providers registered');
 }
 
 /**
@@ -36,16 +40,16 @@ export function registerProvider(providerId: 'claude-code' | 'openai-codex' | 'g
       registry.registerProvider(new ClaudeCodeProvider());
       break;
     case 'openai-codex':
-      console.warn(`[Agent Providers] Provider '${providerId}' is not yet implemented`);
+      log.warn(`[Agent Providers] Provider '${providerId}' is not yet implemented`);
       break;
     case 'gemini':
-      console.warn(`[Agent Providers] Provider '${providerId}' is not yet implemented`);
+      log.warn(`[Agent Providers] Provider '${providerId}' is not yet implemented`);
       break;
     case 'anthropic-api':
-      console.warn(`[Agent Providers] Provider '${providerId}' is not yet implemented`);
+      log.warn(`[Agent Providers] Provider '${providerId}' is not yet implemented`);
       break;
     default:
-      console.warn(`[Agent Providers] Unknown provider: ${providerId}`);
+      log.warn(`[Agent Providers] Unknown provider: ${providerId}`);
   }
 }
 
@@ -81,7 +85,7 @@ export async function initializeProviders(): Promise<{
   // 将来の追加プロバイダー用のプレースホルダー
   // OpenAI Codex, Gemini等の実装時にここに追加
 
-  console.log(`[Agent Providers] Initialization complete: ${registered.length} registered, ${available.length} available`);
+  log.info(`[Agent Providers] Initialization complete: ${registered.length} registered, ${available.length} available`);
 
   return {
     registered,

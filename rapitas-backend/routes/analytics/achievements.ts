@@ -3,6 +3,9 @@
  */
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
+import { createLogger } from "../../config/logger";
+
+const log = createLogger("routes:achievements");
 
 // 初期実績データ
 const ACHIEVEMENTS = [
@@ -233,7 +236,7 @@ export const achievementsRoutes = new Elysia({ prefix: "/achievements" })
         currentStreak = streakData.currentStreak || 0;
       }
     } catch (e) {
-      console.debug("Failed to fetch streak data:", e);
+      log.debug({ err: e }, "Failed to fetch streak data");
     }
 
     // 学習時間をチェック (hours単位)

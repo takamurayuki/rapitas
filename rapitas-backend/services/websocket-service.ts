@@ -1,6 +1,9 @@
 import { Elysia, t } from "elysia";
 import { prisma } from "../config";
 import { cacheService } from "./cache-service";
+import { createLogger } from '../config/logger';
+
+const log = createLogger('websocket-service');
 
 // WebSocketインスタンスの型
 interface WebSocketInstance {
@@ -51,7 +54,7 @@ class WebSocketManager {
       metadata,
     };
     this.clients.set(id, client);
-    console.log(`WebSocket client connected: ${id}`);
+    log.info(`WebSocket client connected: ${id}`);
   }
 
   // クライアントの削除
@@ -63,7 +66,7 @@ class WebSocketManager {
         this.leaveRoom(id, room);
       }
       this.clients.delete(id);
-      console.log(`WebSocket client disconnected: ${id}`);
+      log.info(`WebSocket client disconnected: ${id}`);
     }
   }
 
@@ -90,7 +93,7 @@ class WebSocketManager {
       client.subscriptions.add(roomName);
     }
 
-    console.log(`Client ${clientId} joined room: ${roomName}`);
+    log.info(`Client ${clientId} joined room: ${roomName}`);
   }
 
   // ルームから退出
@@ -110,7 +113,7 @@ class WebSocketManager {
       client.subscriptions.delete(roomName);
     }
 
-    console.log(`Client ${clientId} left room: ${roomName}`);
+    log.info(`Client ${clientId} left room: ${roomName}`);
   }
 
   // メッセージをルームに送信
@@ -153,7 +156,7 @@ class WebSocketManager {
 
     for (const [id, client] of this.clients) {
       if (now - client.lastActivity > timeout) {
-        console.log(`Client ${id} timed out, removing...`);
+        log.info(`Client ${id} timed out, removing...`);
         this.removeClient(id);
       } else if (client.ws.readyState === 1) {
         // Ping送信

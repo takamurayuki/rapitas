@@ -100,7 +100,7 @@ export type WorkflowPathInfo = {
   dir: string;
 };
 
-export type WorkflowRole = 'researcher' | 'planner' | 'reviewer' | 'implementer' | 'verifier';
+export type WorkflowRole = 'researcher' | 'planner' | 'reviewer' | 'implementer' | 'verifier' | 'auto_verifier';
 
 export type WorkflowRoleConfig = {
   id: number;
@@ -671,6 +671,7 @@ export type UserSettings = {
   autoCreateAfterTitleGeneration: boolean;
   autoFetchTaskSuggestions: boolean;
   autoApprovePlan: boolean;
+  autoComplexityAnalysis: boolean;
   defaultCategoryId?: number | null;
   activeMode: ActiveMode;
   claudeApiKeyConfigured?: boolean;

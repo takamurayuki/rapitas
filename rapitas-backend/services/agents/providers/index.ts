@@ -47,6 +47,10 @@ export {
 } from './gemini-cli-provider';
 export type { GeminiCliConfig } from './gemini-cli-provider';
 
+import { createLogger } from '../../../config/logger';
+
+const log = createLogger('agent-providers');
+
 import { agentRegistry } from '../abstraction';
 import { claudeCodeProvider } from './claude-code-provider';
 import { anthropicApiProvider } from './anthropic-api-provider';
@@ -98,13 +102,7 @@ export function registerDefaultProviders(options?: RegisterProvidersOptions): vo
     agentRegistry.registerProvider(geminiCliProvider);
   }
 
-  console.log('Default providers registered:', {
-    claudeCode: opts.claudeCode,
-    anthropicApi: opts.anthropicApi,
-    openai: opts.openai,
-    gemini: opts.gemini,
-    geminiCli: opts.geminiCli,
-  });
+  log.info({ providers: { claudeCode: opts.claudeCode, anthropicApi: opts.anthropicApi, openai: opts.openai, gemini: opts.gemini, geminiCli: opts.geminiCli } }, 'Default providers registered');
 }
 
 /**

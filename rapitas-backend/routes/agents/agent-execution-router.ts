@@ -5,6 +5,7 @@
 import { Elysia, t } from "elysia";
 import { join } from "path";
 import { prisma } from "../../config/database";
+import { createLogger } from "../../config/logger";
 import { orchestrator } from "./approvals";
 import { toJsonString, fromJsonString } from "../../utils/db-helpers";
 import {
@@ -18,6 +19,7 @@ import type { ScreenshotResult } from "../../services/screenshot-service";
 import { analyzeTaskComplexity } from "../../services/workflow/complexity-analyzer";
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads";
+const log = createLogger("routes:agent-execution");
 
 /**
  * セッションステータス更新のリトライ処理付きヘルパー関数
@@ -47,16 +49,15 @@ async function updateSessionStatusWithRetry(
 
       // 成功した場合
       if (attempt > 1) {
-        console.log(
+        log.info(
           `${logPrefix} Session ${sessionId} status updated to ${status} on attempt ${attempt}`
         );
       }
       return;
     } catch (error) {
       lastError = error;
-      console.warn(
-        `${logPrefix} Failed to update session ${sessionId} status (attempt ${attempt}/${maxRetries}):`,
-        error
+      log.warn({ err: error },
+        `${logPrefix} Failed to update session ${sessionId} status (attempt ${attempt}/${maxRetries})`,
       );
 
       // 最後の試行でない場合は少し待つ
@@ -67,11 +68,116 @@ async function updateSessionStatusWithRetry(
   }
 
   // 全ての試行が失敗した場合
-  console.error(
-    `${logPrefix} Failed to update session ${sessionId} status after ${maxRetries} attempts. Last error:`,
-    lastError
+  log.error({ err: lastError },
+    `${logPrefix} Failed to update session ${sessionId} status after ${maxRetries} attempts`,
   );
   // エラーを再投げせず、処理を継続（従来の動作と同様）
+}
+
+/**
+ * 実行完了後のコードレビュー承認リクエスト作成（autoApprove対応）
+ * 通常実行と継続実行の両方から呼び出される共通処理
+ */
+async function createCodeReviewApproval(params: {
+  taskId: number;
+  taskTitle: string;
+  configId: number;
+  sessionId: number;
+  workDir: string;
+  branchName?: string;
+  resultOutput?: string;
+  executionTimeMs?: number;
+  logPrefix: string;
+}): Promise<void> {
+  const {
+    taskId,
+    taskTitle,
+    configId,
+    sessionId,
+    workDir,
+    branchName,
+    resultOutput,
+    executionTimeMs,
+    logPrefix,
+  } = params;
+
+  try {
+    const diff = await orchestrator.getFullGitDiff(workDir);
+    const structuredDiff = await orchestrator.getDiff(workDir);
+
+    if (diff && diff !== "No changes detected") {
+      const implementationSummary = cleanImplementationSummary(
+        resultOutput || "実装が完了しました。",
+      );
+
+      // UI変更がある場合はスクリーンショットを撮影
+      let screenshots: ScreenshotResult[] = [];
+      try {
+        screenshots = await captureScreenshotsForDiff(structuredDiff, {
+          workingDirectory: workDir,
+          agentOutput: resultOutput || "",
+        });
+        if (screenshots.length > 0) {
+          log.info(
+            `${logPrefix} Captured ${screenshots.length} screenshots for task ${taskId}: ${screenshots.map((s) => s.page).join(", ")}`,
+          );
+        }
+      } catch (screenshotErr) {
+        log.warn({ err: screenshotErr }, `${logPrefix} Screenshot capture failed (non-fatal)`);
+      }
+
+      const screenshotData = sanitizeScreenshots(screenshots);
+
+      // autoApprove設定を確認
+      const devConfig = await prisma.developerModeConfig.findUnique({
+        where: { id: configId },
+        select: { autoApprove: true },
+      });
+      const isAutoApprove = devConfig?.autoApprove === true;
+
+      try {
+        const approvalRequest = await prisma.approvalRequest.create({
+          data: {
+            configId,
+            requestType: "code_review",
+            title: `「${taskTitle}」のコードレビュー`,
+            description: implementationSummary,
+            status: isAutoApprove ? "approved" : "pending",
+            proposedChanges: toJsonString({
+              taskId,
+              sessionId,
+              workingDirectory: workDir,
+              branchName,
+              structuredDiff,
+              implementationSummary,
+              executionTimeMs,
+              screenshots: screenshotData,
+            }),
+            executionType: "code_review",
+            estimatedChanges: toJsonString({
+              filesChanged: structuredDiff.length,
+              summary: implementationSummary.substring(0, 500),
+            }),
+            ...(isAutoApprove && { approvedAt: new Date() }),
+          },
+        });
+
+        if (isAutoApprove) {
+          log.info(
+            `${logPrefix} Auto-approved code review for task ${taskId} (approval #${approvalRequest.id})`,
+          );
+        } else {
+          log.info(
+            `${logPrefix} Created code review approval #${approvalRequest.id} for task ${taskId}`,
+          );
+        }
+      } catch (approvalError) {
+        log.error({ err: approvalError }, `${logPrefix} Failed to create approval request for task ${taskId}`);
+      }
+    }
+  } catch (diffError) {
+    log.error({ err: diffError }, `${logPrefix} Failed to get diff for task ${taskId}`);
+  }
 }
 
 export const agentExecutionRouter = new Elysia()
@@ -123,7 +229,7 @@ export const agentExecutionRouter = new Elysia()
           },
         });
       } catch (dbError) {
-        console.error(`[API] Database error fetching task ${taskIdNum}:`, dbError);
+        log.error({ err: dbError }, `[API] Database error fetching task ${taskIdNum}`);
         context.set.status = 500;
         return { error: "データベースクエリエラーが発生しました", details: dbError instanceof Error ? dbError.message : String(dbError) };
       }
@@ -135,7 +241,7 @@ export const agentExecutionRouter = new Elysia()
 
       // 自動複雑度評価の実行
       if (task.complexityScore === null && !task.workflowModeOverride) {
-        console.log(`[API] Auto-analyzing task complexity for task ${taskIdNum}`);
+        log.info(`[API] Auto-analyzing task complexity for task ${taskIdNum}`);
         try {
           const complexityInput = {
             title: task.title,
@@ -161,20 +267,20 @@ export const agentExecutionRouter = new Elysia()
           task.complexityScore = analysisResult.complexityScore;
           task.workflowMode = analysisResult.recommendedMode;
 
-          console.log(`[API] Task ${taskIdNum} complexity auto-evaluated: score=${analysisResult.complexityScore}, mode=${analysisResult.recommendedMode}`);
+          log.info(`[API] Task ${taskIdNum} complexity auto-evaluated: score=${analysisResult.complexityScore}, mode=${analysisResult.recommendedMode}`);
         } catch (error) {
-          console.error(`[API] Failed to analyze task complexity for task ${taskIdNum}:`, error);
+          log.error({ err: error }, `[API] Failed to analyze task complexity for task ${taskIdNum}`);
           // エラーが発生してもタスク実行は継続（フォールバック）
         }
       } else if (task.workflowModeOverride) {
-        console.log(`[API] Task ${taskIdNum} has workflow mode override, skipping auto-complexity analysis`);
+        log.info(`[API] Task ${taskIdNum} has workflow mode override, skipping auto-complexity analysis`);
       } else if (task.complexityScore !== null) {
-        console.log(`[API] Task ${taskIdNum} already has complexity score: ${task.complexityScore}, skipping analysis`);
+        log.info(`[API] Task ${taskIdNum} already has complexity score: ${task.complexityScore}, skipping analysis`);
       }
 
       // 開発プロジェクトのテーマに属さず、workingDirectoryも明示指定されていない場合は実行拒否
       if (!task.theme?.isDevelopment && !workingDirectory) {
-        console.error(
+        log.error(
           `[API] Task ${taskIdNum} rejected: not in a development theme and no workingDirectory specified.`,
         );
         context.set.status = 400;
@@ -218,7 +324,7 @@ export const agentExecutionRouter = new Elysia()
           }
           // セッションを再利用
           session = existingSession;
-          console.log(
+          log.info(
             `[API] Continuing execution with existing session ${sessionId}`,
           );
         } else {
@@ -229,16 +335,16 @@ export const agentExecutionRouter = new Elysia()
               status: "pending",
             },
           });
-          console.log(`[API] Created new session ${session.id}`);
+          log.info(`[API] Created new session ${session.id}`);
         }
 
         // ブランチ名の自動生成または手動指定
         if (!finalBranchName) {
           try {
             finalBranchName = await generateBranchName(task.title, task.description || undefined);
-            console.log(`[API] Generated branch name: ${finalBranchName} for task ${taskIdNum}`);
+            log.info(`[API] Generated branch name: ${finalBranchName} for task ${taskIdNum}`);
           } catch (error) {
-            console.error(`[API] Branch name generation failed for task ${taskIdNum}:`, error);
+            log.error({ err: error }, `[API] Branch name generation failed for task ${taskIdNum}`);
             finalBranchName = `feature/task-${taskIdNum}-auto-generated`;
           }
         }
@@ -276,9 +382,9 @@ export const agentExecutionRouter = new Elysia()
             startedAt: task.startedAt || new Date(),
           },
         });
-        console.log(`[API] Updated task ${taskIdNum} status to 'in-progress'`);
+        log.info(`[API] Updated task ${taskIdNum} status to 'in-progress'`);
       } catch (dbError) {
-        console.error(`[API] Database error during execution setup for task ${taskIdNum}:`, dbError);
+        log.error({ err: dbError }, `[API] Database error during execution setup for task ${taskIdNum}`);
         context.set.status = 500;
         return {
           error: "データベースクエリエラーが発生しました",
@@ -291,7 +397,7 @@ export const agentExecutionRouter = new Elysia()
         fullInstruction = instruction
           ? `${optimizedPrompt}\n\n追加指示:\n${instruction}`
           : optimizedPrompt;
-        console.log(`[API] Using optimized prompt for task ${taskIdNum}`);
+        log.info(`[API] Using optimized prompt for task ${taskIdNum}`);
       } else {
         fullInstruction = instruction
           ? `${task.description || task.title}\n\n追加指示:\n${instruction}`
@@ -313,7 +419,7 @@ export const agentExecutionRouter = new Elysia()
           })
           .join("\n");
         fullInstruction += `\n\n## 添付ファイル\n以下のファイルがタスクに添付されています。必要に応じて参照してください:\n${attachmentInfo}`;
-        console.log(
+        log.info(
           `[API] Added ${attachments.length} attachments to instruction`,
         );
       }
@@ -388,19 +494,19 @@ export const agentExecutionRouter = new Elysia()
                   reasoning: (analysisOutput.reasoning as string) || "",
                   tips: analysisOutput.tips as string[] | undefined,
                 };
-                console.log(`[API] Using AI task analysis for task ${taskIdNum}`);
-                console.log(
+                log.info(`[API] Using AI task analysis for task ${taskIdNum}`);
+                log.info(
                   `[API] Analysis subtasks count: ${analysisInfo!.subtasks.length}`,
                 );
               }
             } catch (e) {
-              console.error(`[API] Failed to parse analysis result:`, e);
+              log.error({ err: e }, `[API] Failed to parse analysis result`);
             }
           } else {
-            console.log(`[API] No analysis result found for task ${taskIdNum}`);
+            log.info(`[API] No analysis result found for task ${taskIdNum}`);
           }
         } catch (dbError) {
-          console.error(`[API] Failed to fetch analysis action for task ${taskIdNum}:`, dbError);
+          log.error({ err: dbError }, `[API] Failed to fetch analysis action for task ${taskIdNum}`);
           // 分析データ取得失敗時は分析なしで実行を継続
         }
       }
@@ -427,7 +533,7 @@ export const agentExecutionRouter = new Elysia()
         .then(async (result) => {
           if (result.waitingForInput) {
             // 質問待ち状態: タスクは実行中のまま維持
-            console.log(
+            log.info(
               `[API] Task ${taskIdNum} is waiting for user input, keeping status as 'in_progress'`,
             );
             await prisma.task
@@ -436,10 +542,7 @@ export const agentExecutionRouter = new Elysia()
                 data: { status: "in_progress" },
               })
               .catch((e: unknown) => {
-                console.error(
-                  `[API] Failed to update task ${taskIdNum} status to in_progress:`,
-                  e,
-                );
+                log.error({ err: e }, `[API] Failed to update task ${taskIdNum} status to in_progress`);
               });
 
             // セッションも実行中のまま維持
@@ -452,10 +555,7 @@ export const agentExecutionRouter = new Elysia()
                 },
               })
               .catch((e: unknown) => {
-                console.error(
-                  `[API] Failed to update session ${session.id} status to running:`,
-                  e,
-                );
+                log.error({ err: e }, `[API] Failed to update session ${session.id} status to running`);
               });
           } else if (result.success) {
             // ワークフローステータスに基づいてタスクステータスを決定
@@ -475,14 +575,11 @@ export const agentExecutionRouter = new Elysia()
                     where: { id: taskIdNum },
                     data: { status: "in-progress" },
                   });
-                  console.log(
+                  log.info(
                     `[API] Task ${taskIdNum} kept as in-progress (workflow: ${wfStatus})`,
                   );
                 } catch (updateError) {
-                  console.error(
-                    `[API] Failed to update task ${taskIdNum} status to in-progress:`,
-                    updateError,
-                  );
+                  log.error({ err: updateError }, `[API] Failed to update task ${taskIdNum} status to in-progress`);
                 }
               } else if (
                 wfStatus === "in_progress" ||
@@ -495,14 +592,11 @@ export const agentExecutionRouter = new Elysia()
                     where: { id: taskIdNum },
                     data: { status: "done", completedAt: new Date() },
                   });
-                  console.log(
+                  log.info(
                     `[API] Updated task ${taskIdNum} status to 'done' (workflow: ${wfStatus})`,
                   );
                 } catch (updateError) {
-                  console.error(
-                    `[API] Failed to update task ${taskIdNum} status to done:`,
-                    updateError,
-                  );
+                  log.error({ err: updateError }, `[API] Failed to update task ${taskIdNum} status to done`);
                 }
               } else if (!wfStatus || wfStatus === "draft") {
                 // ワークフロー未使用タスク、または初期状態は従来通り
@@ -511,24 +605,18 @@ export const agentExecutionRouter = new Elysia()
                     where: { id: taskIdNum },
                     data: { status: "done", completedAt: new Date() },
                   });
-                  console.log(`[API] Updated task ${taskIdNum} status to 'done'`);
+                  log.info(`[API] Updated task ${taskIdNum} status to 'done'`);
                 } catch (updateError) {
-                  console.error(
-                    `[API] Failed to update task ${taskIdNum} status to done:`,
-                    updateError,
-                  );
+                  log.error({ err: updateError }, `[API] Failed to update task ${taskIdNum} status to done`);
                 }
               } else {
                 // 未知のワークフローステータス: 安全のためin-progressを維持
-                console.log(
+                log.info(
                   `[API] Task ${taskIdNum} kept as in-progress (unknown workflow status: ${wfStatus})`,
                 );
               }
             } catch (taskError) {
-              console.error(
-                `[API] Failed to fetch or update task ${taskIdNum}:`,
-                taskError,
-              );
+              log.error({ err: taskError }, `[API] Failed to fetch or update task ${taskIdNum}`);
             }
 
             // セッションのステータスも完了に更新（リトライ付き）
@@ -539,82 +627,28 @@ export const agentExecutionRouter = new Elysia()
               3
             );
 
-            const diff = await orchestrator.getFullGitDiff(workDir);
-            const structuredDiff = await orchestrator.getDiff(workDir);
-
-            if (diff && diff !== "No changes detected") {
-              const implementationSummary = cleanImplementationSummary(
-                result.output || "実装が完了しました。",
-              );
-
-              // UI変更がある場合はスクリーンショットを撮影
-              let screenshots: ScreenshotResult[] = [];
-              try {
-                screenshots = await captureScreenshotsForDiff(structuredDiff, {
-                  workingDirectory: workDir,
-                  agentOutput: result.output || "",
-                });
-                if (screenshots.length > 0) {
-                  console.log(
-                    `[API] Captured ${screenshots.length} screenshots for task ${taskIdNum}: ${screenshots.map((s) => s.page).join(", ")}`,
-                  );
-                }
-              } catch (screenshotErr) {
-                console.warn(
-                  "[API] Screenshot capture failed (non-fatal):",
-                  screenshotErr,
-                );
-              }
-
-              const screenshotData = sanitizeScreenshots(screenshots);
-              console.log(
-                `[API] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s) => s.url).join(", ")}`,
-              );
-
-              try {
-                const approvalRequest = await prisma.approvalRequest.create({
-                  data: {
-                    configId: developerModeConfig!.id,
-                    requestType: "code_review",
-                    title: `「${task.title}」のコードレビュー`,
-                    description: implementationSummary,
-                    proposedChanges: toJsonString({
-                      taskId: taskIdNum,
-                      sessionId: session.id,
-                      workingDirectory: workDir,
-                      branchName,
-                      structuredDiff,
-                      implementationSummary,
-                      executionTimeMs: result.executionTimeMs,
-                      screenshots: screenshotData,
-                    }),
-                    executionType: "code_review",
-                    estimatedChanges: toJsonString({
-                      filesChanged: structuredDiff.length,
-                      summary: implementationSummary.substring(0, 500),
-                    }),
-                  },
-                });
-              } catch (approvalError) {
-                console.error(
-                  `[API] Failed to create approval request for task ${taskIdNum}:`,
-                  approvalError,
-                );
-              }
-            }
+            // コードレビュー承認リクエスト作成（autoApprove対応）
+            await createCodeReviewApproval({
+              taskId: taskIdNum,
+              taskTitle: task.title,
+              configId: developerModeConfig!.id,
+              sessionId: session.id,
+              workDir,
+              branchName,
+              resultOutput: result.output,
+              executionTimeMs: result.executionTimeMs,
+              logPrefix: "[API]",
+            });
           } else {
             // エラーが発生した場合
-            console.error(`[API] Execution failed for task ${taskIdNum}:`, result.errorMessage);
+            log.error({ errorMessage: result.errorMessage }, `[API] Execution failed for task ${taskIdNum}`);
             try {
               await prisma.task.update({
                 where: { id: taskIdNum },
                 data: { status: "todo" },
               });
             } catch (updateError) {
-              console.error(
-                `[API] Failed to update task ${taskIdNum} status to todo after execution failure:`,
-                updateError,
-              );
+              log.error({ err: updateError }, `[API] Failed to update task ${taskIdNum} status to todo after execution failure`);
             }
 
             await prisma.agentSession
@@ -627,15 +661,12 @@ export const agentExecutionRouter = new Elysia()
                 },
               })
               .catch((e: unknown) => {
-                console.error(
-                  `[API] Failed to update session ${session.id} status to failed:`,
-                  e,
-                );
+                log.error({ err: e }, `[API] Failed to update session ${session.id} status to failed`);
               });
           }
         })
         .catch(async (error) => {
-          console.error(`[API] Execution error for task ${taskIdNum}:`, error);
+          log.error({ err: error }, `[API] Execution error for task ${taskIdNum}`);
           await prisma.task.update({
             where: { id: taskIdNum },
             data: { status: "todo" },
@@ -651,10 +682,7 @@ export const agentExecutionRouter = new Elysia()
               },
             })
             .catch((e: unknown) => {
-              console.error(
-                `[API] Failed to update session ${session.id} status to failed:`,
-                e,
-              );
+              log.error({ err: e }, `[API] Failed to update session ${session.id} status to failed`);
             });
         });
 
@@ -762,7 +790,7 @@ export const agentExecutionRouter = new Elysia()
           agentConfig: agentConfigInfo || null,
         };
       } catch (error) {
-        console.error("[execution-status] Error fetching status:", error);
+        log.error({ err: error }, "[execution-status] Error fetching status");
         return {
           status: "error",
           message: "状態の取得中にエラーが発生しました",
@@ -843,7 +871,7 @@ export const agentExecutionRouter = new Elysia()
 
         // タイムアウトキャンセルを試行
         orchestrator.cancelQuestionTimeout(latestExecution.id);
-        console.log(
+        log.info(
           `[agent-respond] Cancelled timeout for execution ${latestExecution.id}`,
         );
 
@@ -875,7 +903,7 @@ export const agentExecutionRouter = new Elysia()
           };
         }
       } catch (error) {
-        console.error("[agent-respond] Database error:", error);
+        log.error({ err: error }, "[agent-respond] Database error");
         return {
           error: "データベースエラーが発生しました。応答の送信に失敗しました。",
           message: "Failed to send agent response due to database error",
@@ -939,14 +967,11 @@ export const agentExecutionRouter = new Elysia()
               await prisma.agentExecutionLog.deleteMany({
                 where: { executionId: runningExecution.id },
               });
-              console.log(
+              log.info(
                 `[stop-execution] Deleted execution logs for execution ${runningExecution.id}`,
               );
             } catch (deleteError) {
-              console.error(
-                `[stop-execution] Failed to delete execution logs for execution ${runningExecution.id}:`,
-                deleteError,
-              );
+              log.error({ err: deleteError }, `[stop-execution] Failed to delete execution logs for execution ${runningExecution.id}`);
             }
 
             // オーケストレーターで停止できなかった場合でも DBのステータスを確実に更新
@@ -960,28 +985,22 @@ export const agentExecutionRouter = new Elysia()
                     errorMessage: "Cancelled by user",
                   },
                 });
-                console.log(
+                log.info(
                   `[stop-execution] Updated DB status for execution ${runningExecution.id} (not found in orchestrator)`,
                 );
               } catch (updateError) {
-                console.error(
-                  `[stop-execution] Failed to update execution ${runningExecution.id} status:`,
-                  updateError,
-                );
+                log.error({ err: updateError }, `[stop-execution] Failed to update execution ${runningExecution.id} status`);
               }
             }
 
             if (task?.workingDirectory) {
               try {
                 await orchestrator.revertChanges(task.workingDirectory);
-                console.log(
+                log.info(
                   `[stop-execution] Reverted changes in ${task.workingDirectory}`,
                 );
               } catch (revertError) {
-                console.error(
-                  `[stop-execution] Failed to revert changes:`,
-                  revertError,
-                );
+                log.error({ err: revertError }, `[stop-execution] Failed to revert changes`);
               }
             }
 
@@ -1024,10 +1043,7 @@ export const agentExecutionRouter = new Elysia()
               },
             });
           } catch (executionUpdateError) {
-            console.error(
-              `[stop-execution] Failed to update execution ${execution.id}:`,
-              executionUpdateError,
-            );
+            log.error({ err: executionUpdateError }, `[stop-execution] Failed to update execution ${execution.id}`);
             // 個別のエラーは継続（他の実行の停止処理は継続）
           }
         }
@@ -1042,23 +1058,17 @@ export const agentExecutionRouter = new Elysia()
             },
           });
         } catch (sessionUpdateError) {
-          console.error(
-            `[stop-execution] Failed to update session ${session.id} status:`,
-            sessionUpdateError,
-          );
+          log.error({ err: sessionUpdateError }, `[stop-execution] Failed to update session ${session.id} status`);
         }
 
         if (task?.workingDirectory) {
           try {
             await orchestrator.revertChanges(task.workingDirectory);
-            console.log(
+            log.info(
               `[stop-execution] Reverted changes in ${task.workingDirectory}`,
             );
           } catch (revertError) {
-            console.error(
-              `[stop-execution] Failed to revert changes:`,
-              revertError,
-            );
+            log.error({ err: revertError }, `[stop-execution] Failed to revert changes`);
           }
         }
 
@@ -1068,7 +1078,7 @@ export const agentExecutionRouter = new Elysia()
           message: "Execution stopped and changes reverted",
         };
       } catch (error) {
-        console.error("[stop-execution] Database error:", error);
+        log.error({ err: error }, "[stop-execution] Database error");
         return {
           success: false,
           error: "データベースエラーが発生しました。実行の停止に失敗しました。",
@@ -1152,7 +1162,7 @@ export const agentExecutionRouter = new Elysia()
         }
 
         // セッションのステータスをログに出力（デバッグ用）
-        console.log(
+        log.info(
           `[continue-execution] Session ${targetSessionId} status: "${session.status}"`,
         );
 
@@ -1178,24 +1188,21 @@ export const agentExecutionRouter = new Elysia()
               session.branchName,
             );
             if (!branchCreated) {
-              console.error(
+              log.error(
                 `[continue-execution] Failed to checkout branch ${session.branchName} for task ${taskId}`,
               );
               // ブランチチェックアウト失敗は警告のみで継続
             } else {
-              console.log(
+              log.info(
                 `[continue-execution] Checked out branch ${session.branchName} for task ${taskId}`,
               );
             }
           } catch (error) {
-            console.error(
-              `[continue-execution] Branch checkout error for task ${taskId}:`,
-              error,
-            );
+            log.error({ err: error }, `[continue-execution] Branch checkout error for task ${taskId}`);
             // ブランチチェックアウト失敗は警告のみで継続
           }
         } else {
-          console.log(
+          log.info(
             `[continue-execution] No branch name stored in session ${targetSessionId}`,
           );
         }
@@ -1210,7 +1217,7 @@ export const agentExecutionRouter = new Elysia()
             },
           });
         } catch (dbError) {
-          console.error(`[continue-execution] Failed to update session ${targetSessionId} status:`, dbError);
+          log.error({ err: dbError }, `[continue-execution] Failed to update session ${targetSessionId} status`);
           // セッション更新失敗でも実行は継続
         }
 
@@ -1223,11 +1230,11 @@ export const agentExecutionRouter = new Elysia()
             },
           });
         } catch (dbError) {
-          console.error(`[continue-execution] Failed to update task ${taskId} status:`, dbError);
+          log.error({ err: dbError }, `[continue-execution] Failed to update task ${taskId} status`);
           // タスク更新失敗でも実行は継続
         }
 
-        console.log(
+        log.info(
           `[continue-execution] Continuing execution for task ${taskId} in session ${targetSessionId}`,
         );
 
@@ -1243,7 +1250,7 @@ export const agentExecutionRouter = new Elysia()
             },
           });
         } catch (dbError) {
-          console.error(`[continue-execution] Failed to create notification for task ${taskId}:`, dbError);
+          log.error({ err: dbError }, `[continue-execution] Failed to create notification for task ${taskId}`);
           // 通知作成失敗でも実行は継続
         }
 
@@ -1295,10 +1302,7 @@ export const agentExecutionRouter = new Elysia()
                       data: { status: "in-progress" },
                     });
                   } catch (updateError) {
-                    console.error(
-                      `[continue-execution] Failed to update task ${taskId} status to in-progress:`,
-                      updateError,
-                    );
+                    log.error({ err: updateError }, `[continue-execution] Failed to update task ${taskId} status to in-progress`);
                   }
                 } else if (
                   wfStatus === "in_progress" ||
@@ -1312,10 +1316,7 @@ export const agentExecutionRouter = new Elysia()
                       data: { status: "done", completedAt: new Date() },
                     });
                   } catch (updateError) {
-                    console.error(
-                      `[continue-execution] Failed to update task ${taskId} status to done:`,
-                      updateError,
-                    );
+                    log.error({ err: updateError }, `[continue-execution] Failed to update task ${taskId} status to done`);
                   }
                 } else if (!wfStatus || wfStatus === "draft") {
                   // ワークフロー未使用タスク、または初期状態は従来通り
@@ -1325,17 +1326,11 @@ export const agentExecutionRouter = new Elysia()
                       data: { status: "done", completedAt: new Date() },
                     });
                   } catch (updateError) {
-                    console.error(
-                      `[continue-execution] Failed to update task ${taskId} status to done:`,
-                      updateError,
-                    );
+                    log.error({ err: updateError }, `[continue-execution] Failed to update task ${taskId} status to done`);
                   }
                 }
               } catch (taskError) {
-                console.error(
-                  `[continue-execution] Failed to fetch or update task ${taskId}:`,
-                  taskError,
-                );
+                log.error({ err: taskError }, `[continue-execution] Failed to fetch or update task ${taskId}`);
               }
 
               // セッションのステータスも完了に更新（リトライ付き）
@@ -1346,12 +1341,26 @@ export const agentExecutionRouter = new Elysia()
                 3
               );
 
-              console.log(`[continue-execution] Completed task ${taskId}`);
+              // コードレビュー承認リクエスト作成（autoApprove対応）
+              if (task.developerModeConfig) {
+                await createCodeReviewApproval({
+                  taskId,
+                  taskTitle: task.title,
+                  configId: task.developerModeConfig.id,
+                  sessionId: targetSessionId,
+                  workDir: workingDirectory,
+                  branchName: session.branchName || undefined,
+                  resultOutput: result.output,
+                  executionTimeMs: result.executionTimeMs,
+                  logPrefix: "[continue-execution]",
+                });
+              }
+
+              log.info(`[continue-execution] Completed task ${taskId}`);
             } else {
               // エラーが発生した場合
-              console.error(
-                `[continue-execution] Failed for task ${taskId}:`,
-                result.errorMessage,
+              log.error({ errorMessage: result.errorMessage },
+                `[continue-execution] Failed for task ${taskId}`,
               );
               try {
                 await prisma.task.update({
@@ -1359,10 +1368,7 @@ export const agentExecutionRouter = new Elysia()
                   data: { status: "todo" },
                 });
               } catch (updateError) {
-                console.error(
-                  `[continue-execution] Failed to update task ${taskId} status to todo after failure:`,
-                  updateError,
-                );
+                log.error({ err: updateError }, `[continue-execution] Failed to update task ${taskId} status to todo after failure`);
               }
 
               await prisma.agentSession
@@ -1375,28 +1381,19 @@ export const agentExecutionRouter = new Elysia()
                   },
                 })
                 .catch((e: unknown) => {
-                  console.error(
-                    `[continue-execution] Failed to update session ${targetSessionId} status to failed:`,
-                    e,
-                  );
+                  log.error({ err: e }, `[continue-execution] Failed to update session ${targetSessionId} status to failed`);
                 });
             }
           })
           .catch(async (error) => {
-            console.error(
-              `[continue-execution] Execution error for task ${taskId}:`,
-              error,
-            );
+            log.error({ err: error }, `[continue-execution] Execution error for task ${taskId}`);
             try {
               await prisma.task.update({
                 where: { id: taskId },
                 data: { status: "todo" },
               });
             } catch (updateError) {
-              console.error(
-                `[continue-execution] Failed to update task ${taskId} status to todo after execution error:`,
-                updateError,
-              );
+              log.error({ err: updateError }, `[continue-execution] Failed to update task ${taskId} status to todo after execution error`);
             }
 
             await prisma.agentSession
@@ -1409,10 +1406,7 @@ export const agentExecutionRouter = new Elysia()
                 },
               })
               .catch((e: unknown) => {
-                console.error(
-                  `[continue-execution] Failed to update session ${targetSessionId} status to failed:`,
-                  e,
-                );
+                log.error({ err: e }, `[continue-execution] Failed to update session ${targetSessionId} status to failed`);
               });
           });
 
@@ -1423,7 +1417,7 @@ export const agentExecutionRouter = new Elysia()
           taskId,
         };
       } catch (error) {
-        console.error(`[continue-execution] Error:`, error);
+        log.error({ err: error }, `[continue-execution] Error`);
         context.set.status = 500;
         return { error: "Internal server error" };
       }
@@ -1512,7 +1506,7 @@ export const agentExecutionRouter = new Elysia()
           },
         });
 
-        console.log(`[reset-execution-state] Reset execution state for task ${taskId}`);
+        log.info(`[reset-execution-state] Reset execution state for task ${taskId}`);
 
         return {
           success: true,
@@ -1520,7 +1514,7 @@ export const agentExecutionRouter = new Elysia()
           taskId,
         };
       } catch (error) {
-        console.error(`[reset-execution-state] Error:`, error);
+        log.error({ err: error }, `[reset-execution-state] Error`);
         return { error: "Failed to reset execution state" };
       }
     },

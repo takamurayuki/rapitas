@@ -1,5 +1,8 @@
 import { Elysia } from 'elysia';
 import { PrismaClient, Prisma } from '@prisma/client';
+import { createLogger } from '../../config/logger';
+
+const log = createLogger('routes:agent-metrics');
 
 const prisma = new PrismaClient();
 
@@ -349,7 +352,7 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
       const metrics = await getAgentMetrics(dateRange);
       return { metrics };
     } catch (error) {
-      console.error('Error fetching agent metrics:', error);
+      log.error({ err: error }, 'Error fetching agent metrics');
       return { error: 'エージェントメトリクスの取得に失敗しました' };
     }
   })
@@ -366,7 +369,7 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
       const overview = await getMetricsOverview(dateRange);
       return overview;
     } catch (error) {
-      console.error('Error fetching metrics overview:', error);
+      log.error({ err: error }, 'Error fetching metrics overview');
       return { error: 'メトリクス概要の取得に失敗しました' };
     }
   })
@@ -380,7 +383,7 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
       const trends = await getExecutionTrends(period, days);
       return { trends };
     } catch (error) {
-      console.error('Error fetching execution trends:', error);
+      log.error({ err: error }, 'Error fetching execution trends');
       return { error: '実行トレンドの取得に失敗しました' };
     }
   })
@@ -397,7 +400,7 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
       const performance = await getAgentPerformanceComparison(dateRange);
       return { performance };
     } catch (error) {
-      console.error('Error fetching agent performance:', error);
+      log.error({ err: error }, 'Error fetching agent performance');
       return { error: 'エージェント性能比較の取得に失敗しました' };
     }
   })
@@ -499,7 +502,7 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
         })),
       };
     } catch (error) {
-      console.error('Error fetching agent detail metrics:', error);
+      log.error({ err: error }, 'Error fetching agent detail metrics');
       return { error: 'エージェント詳細メトリクスの取得に失敗しました' };
     }
   });

@@ -1,5 +1,8 @@
 import { Redis } from "ioredis";
 import { LRUCache } from "lru-cache";
+import { createLogger } from '../config/logger';
+
+const log = createLogger('cache-service');
 
 // キャッシュストラテジーのインターフェース
 interface CacheStrategy {
@@ -60,11 +63,11 @@ class RedisCacheStrategy implements CacheStrategy {
     this.redis = new Redis(redisUrl || process.env.REDIS_URL || "redis://localhost:6379");
 
     this.redis.on("error", (err: Error) => {
-      console.error("Redis connection error:", err);
+      log.error({ err }, "Redis connection error");
     });
 
     this.redis.on("connect", () => {
-      console.log("Redis connected successfully");
+      log.info("Redis connected successfully");
     });
   }
 
@@ -73,7 +76,7 @@ class RedisCacheStrategy implements CacheStrategy {
       const value = await this.redis.get(key);
       return value ? JSON.parse(value) : null;
     } catch (error) {
-      console.error(`Cache get error for key ${key}:`, error);
+      log.error({ err: error }, `Cache get error for key ${key}`);
       return null;
     }
   }
@@ -82,7 +85,7 @@ class RedisCacheStrategy implements CacheStrategy {
     try {
       await this.redis.setex(key, ttl, JSON.stringify(value));
     } catch (error) {
-      console.error(`Cache set error for key ${key}:`, error);
+      log.error({ err: error }, `Cache set error for key ${key}`);
     }
   }
 
@@ -90,7 +93,7 @@ class RedisCacheStrategy implements CacheStrategy {
     try {
       await this.redis.del(key);
     } catch (error) {
-      console.error(`Cache delete error for key ${key}:`, error);
+      log.error({ err: error }, `Cache delete error for key ${key}`);
     }
   }
 
@@ -105,7 +108,7 @@ class RedisCacheStrategy implements CacheStrategy {
         await this.redis.flushdb();
       }
     } catch (error) {
-      console.error("Cache clear error:", error);
+      log.error({ err: error }, "Cache clear error");
     }
   }
 
@@ -114,7 +117,7 @@ class RedisCacheStrategy implements CacheStrategy {
       const exists = await this.redis.exists(key);
       return exists === 1;
     } catch (error) {
-      console.error(`Cache has error for key ${key}:`, error);
+      log.error({ err: error }, `Cache has error for key ${key}`);
       return false;
     }
   }
