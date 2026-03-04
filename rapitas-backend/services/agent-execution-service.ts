@@ -4,7 +4,7 @@
  */
 import { PrismaClient, Task, AgentExecution, AgentSession } from "@prisma/client";
 import { ParallelExecutor } from "../services/parallel-execution/parallel-executor";
-import { orchestrator } from "../routes/approvals";
+import { orchestrator } from "../routes/agents/approvals";
 import type { TaskPriority } from "../services/parallel-execution/types";
 import type {
   ExecutionRequest,

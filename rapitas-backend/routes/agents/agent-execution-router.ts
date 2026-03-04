@@ -5,7 +5,7 @@
 import { Elysia, t } from "elysia";
 import { join } from "path";
 import { prisma } from "../../config/database";
-import { orchestrator } from "../approvals";
+import { orchestrator } from "./approvals";
 import { toJsonString, fromJsonString } from "../../utils/db-helpers";
 import {
   cleanImplementationSummary,
@@ -192,8 +192,10 @@ export const agentExecutionRouter = new Elysia()
 
       try {
         if (!developerModeConfig) {
-          developerModeConfig = await prisma.developerModeConfig.create({
-            data: {
+          developerModeConfig = await prisma.developerModeConfig.upsert({
+            where: { taskId: taskIdNum },
+            update: {},
+            create: {
               taskId: taskIdNum,
               isEnabled: true,
             },
@@ -335,66 +337,71 @@ export const agentExecutionRouter = new Elysia()
         | undefined;
 
       if (useTaskAnalysis && developerModeConfig) {
-        const latestAnalysisAction = await prisma.agentAction.findFirst({
-          where: {
-            session: {
-              configId: developerModeConfig.id,
+        try {
+          const latestAnalysisAction = await prisma.agentAction.findFirst({
+            where: {
+              session: {
+                configId: developerModeConfig.id,
+              },
+              actionType: "analysis",
+              status: "success",
             },
-            actionType: "analysis",
-            status: "success",
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        });
+            orderBy: {
+              createdAt: "desc",
+            },
+          });
 
-        if (latestAnalysisAction?.output) {
-          try {
-            const analysisOutput = fromJsonString<Record<string, unknown>>(
-              latestAnalysisAction.output,
-            );
-            if (analysisOutput?.summary && analysisOutput?.suggestedSubtasks) {
-              analysisInfo = {
-                summary: analysisOutput.summary as string,
-                complexity:
-                  (analysisOutput.complexity as
-                    | "simple"
-                    | "medium"
-                    | "complex") || "medium",
-                estimatedTotalHours:
-                  (analysisOutput.estimatedTotalHours as number) || 0,
-                subtasks: (
-                  (analysisOutput.suggestedSubtasks as Array<{
-                    title: string;
-                    description?: string;
-                    estimatedHours?: number;
-                    priority?: string;
-                    order?: number;
-                    dependencies?: number[];
-                  }>) || []
-                ).map((st) => ({
-                  title: st.title,
-                  description: st.description || "",
-                  estimatedHours: st.estimatedHours || 0,
-                  priority:
-                    (st.priority as "low" | "medium" | "high" | "urgent") ||
-                    "medium",
-                  order: st.order || 0,
-                  dependencies: st.dependencies,
-                })),
-                reasoning: (analysisOutput.reasoning as string) || "",
-                tips: analysisOutput.tips as string[] | undefined,
-              };
-              console.log(`[API] Using AI task analysis for task ${taskIdNum}`);
-              console.log(
-                `[API] Analysis subtasks count: ${analysisInfo!.subtasks.length}`,
+          if (latestAnalysisAction?.output) {
+            try {
+              const analysisOutput = fromJsonString<Record<string, unknown>>(
+                latestAnalysisAction.output,
               );
+              if (analysisOutput?.summary && analysisOutput?.suggestedSubtasks) {
+                analysisInfo = {
+                  summary: analysisOutput.summary as string,
+                  complexity:
+                    (analysisOutput.complexity as
+                      | "simple"
+                      | "medium"
+                      | "complex") || "medium",
+                  estimatedTotalHours:
+                    (analysisOutput.estimatedTotalHours as number) || 0,
+                  subtasks: (
+                    (analysisOutput.suggestedSubtasks as Array<{
+                      title: string;
+                      description?: string;
+                      estimatedHours?: number;
+                      priority?: string;
+                      order?: number;
+                      dependencies?: number[];
+                    }>) || []
+                  ).map((st) => ({
+                    title: st.title,
+                    description: st.description || "",
+                    estimatedHours: st.estimatedHours || 0,
+                    priority:
+                      (st.priority as "low" | "medium" | "high" | "urgent") ||
+                      "medium",
+                    order: st.order || 0,
+                    dependencies: st.dependencies,
+                  })),
+                  reasoning: (analysisOutput.reasoning as string) || "",
+                  tips: analysisOutput.tips as string[] | undefined,
+                };
+                console.log(`[API] Using AI task analysis for task ${taskIdNum}`);
+                console.log(
+                  `[API] Analysis subtasks count: ${analysisInfo!.subtasks.length}`,
+                );
+              }
+            } catch (e) {
+              console.error(`[API] Failed to parse analysis result:`, e);
             }
-          } catch (e) {
-            console.error(`[API] Failed to parse analysis result:`, e);
+          } else {
+            console.log(`[API] No analysis result found for task ${taskIdNum}`);
           }
-        } else {
-          console.log(`[API] No analysis result found for task ${taskIdNum}`);
+        } catch (dbError) {
+          console.error(`[API] Failed to fetch analysis action for task ${taskIdNum}:`, dbError);
+          // 分析データ取得失敗時は分析なしで実行を継続
         }
       }
 
@@ -452,47 +459,75 @@ export const agentExecutionRouter = new Elysia()
               });
           } else if (result.success) {
             // ワークフローステータスに基づいてタスクステータスを決定
-            const currentTask = await prisma.task.findUnique({
-              where: { id: taskIdNum },
-            });
-            const wfStatus = currentTask?.workflowStatus;
-            if (
-              wfStatus === "plan_created" ||
-              wfStatus === "research_done" ||
-              wfStatus === "verify_done"
-            ) {
-              // 承認待ち・確認待ちフェーズではdoneにしない
-              await prisma.task.update({
+            try {
+              const currentTask = await prisma.task.findUnique({
                 where: { id: taskIdNum },
-                data: { status: "in-progress" },
               });
-              console.log(
-                `[API] Task ${taskIdNum} kept as in-progress (workflow: ${wfStatus})`,
-              );
-            } else if (
-              wfStatus === "in_progress" ||
-              wfStatus === "plan_approved" ||
-              wfStatus === "completed"
-            ) {
-              // 実行が成功完了したらタスクをdoneに更新
-              await prisma.task.update({
-                where: { id: taskIdNum },
-                data: { status: "done", completedAt: new Date() },
-              });
-              console.log(
-                `[API] Updated task ${taskIdNum} status to 'done' (workflow: ${wfStatus})`,
-              );
-            } else if (!wfStatus || wfStatus === "draft") {
-              // ワークフロー未使用タスク、または初期状態は従来通り
-              await prisma.task.update({
-                where: { id: taskIdNum },
-                data: { status: "done", completedAt: new Date() },
-              });
-              console.log(`[API] Updated task ${taskIdNum} status to 'done'`);
-            } else {
-              // 未知のワークフローステータス: 安全のためin-progressを維持
-              console.log(
-                `[API] Task ${taskIdNum} kept as in-progress (unknown workflow status: ${wfStatus})`,
+              const wfStatus = currentTask?.workflowStatus;
+              if (
+                wfStatus === "plan_created" ||
+                wfStatus === "research_done" ||
+                wfStatus === "verify_done"
+              ) {
+                // 承認待ち・確認待ちフェーズではdoneにしない
+                try {
+                  await prisma.task.update({
+                    where: { id: taskIdNum },
+                    data: { status: "in-progress" },
+                  });
+                  console.log(
+                    `[API] Task ${taskIdNum} kept as in-progress (workflow: ${wfStatus})`,
+                  );
+                } catch (updateError) {
+                  console.error(
+                    `[API] Failed to update task ${taskIdNum} status to in-progress:`,
+                    updateError,
+                  );
+                }
+              } else if (
+                wfStatus === "in_progress" ||
+                wfStatus === "plan_approved" ||
+                wfStatus === "completed"
+              ) {
+                // 実行が成功完了したらタスクをdoneに更新
+                try {
+                  await prisma.task.update({
+                    where: { id: taskIdNum },
+                    data: { status: "done", completedAt: new Date() },
+                  });
+                  console.log(
+                    `[API] Updated task ${taskIdNum} status to 'done' (workflow: ${wfStatus})`,
+                  );
+                } catch (updateError) {
+                  console.error(
+                    `[API] Failed to update task ${taskIdNum} status to done:`,
+                    updateError,
+                  );
+                }
+              } else if (!wfStatus || wfStatus === "draft") {
+                // ワークフロー未使用タスク、または初期状態は従来通り
+                try {
+                  await prisma.task.update({
+                    where: { id: taskIdNum },
+                    data: { status: "done", completedAt: new Date() },
+                  });
+                  console.log(`[API] Updated task ${taskIdNum} status to 'done'`);
+                } catch (updateError) {
+                  console.error(
+                    `[API] Failed to update task ${taskIdNum} status to done:`,
+                    updateError,
+                  );
+                }
+              } else {
+                // 未知のワークフローステータス: 安全のためin-progressを維持
+                console.log(
+                  `[API] Task ${taskIdNum} kept as in-progress (unknown workflow status: ${wfStatus})`,
+                );
+              }
+            } catch (taskError) {
+              console.error(
+                `[API] Failed to fetch or update task ${taskIdNum}:`,
+                taskError,
               );
             }
 
@@ -536,37 +571,51 @@ export const agentExecutionRouter = new Elysia()
                 `[API] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s) => s.url).join(", ")}`,
               );
 
-              const approvalRequest = await prisma.approvalRequest.create({
-                data: {
-                  configId: developerModeConfig!.id,
-                  requestType: "code_review",
-                  title: `「${task.title}」のコードレビュー`,
-                  description: implementationSummary,
-                  proposedChanges: toJsonString({
-                    taskId: taskIdNum,
-                    sessionId: session.id,
-                    workingDirectory: workDir,
-                    branchName,
-                    structuredDiff,
-                    implementationSummary,
-                    executionTimeMs: result.executionTimeMs,
-                    screenshots: screenshotData,
-                  }),
-                  executionType: "code_review",
-                  estimatedChanges: toJsonString({
-                    filesChanged: structuredDiff.length,
-                    summary: implementationSummary.substring(0, 500),
-                  }),
-                },
-              });
+              try {
+                const approvalRequest = await prisma.approvalRequest.create({
+                  data: {
+                    configId: developerModeConfig!.id,
+                    requestType: "code_review",
+                    title: `「${task.title}」のコードレビュー`,
+                    description: implementationSummary,
+                    proposedChanges: toJsonString({
+                      taskId: taskIdNum,
+                      sessionId: session.id,
+                      workingDirectory: workDir,
+                      branchName,
+                      structuredDiff,
+                      implementationSummary,
+                      executionTimeMs: result.executionTimeMs,
+                      screenshots: screenshotData,
+                    }),
+                    executionType: "code_review",
+                    estimatedChanges: toJsonString({
+                      filesChanged: structuredDiff.length,
+                      summary: implementationSummary.substring(0, 500),
+                    }),
+                  },
+                });
+              } catch (approvalError) {
+                console.error(
+                  `[API] Failed to create approval request for task ${taskIdNum}:`,
+                  approvalError,
+                );
+              }
             }
           } else {
             // エラーが発生した場合
             console.error(`[API] Execution failed for task ${taskIdNum}:`, result.errorMessage);
-            await prisma.task.update({
-              where: { id: taskIdNum },
-              data: { status: "todo" },
-            });
+            try {
+              await prisma.task.update({
+                where: { id: taskIdNum },
+                data: { status: "todo" },
+              });
+            } catch (updateError) {
+              console.error(
+                `[API] Failed to update task ${taskIdNum} status to todo after execution failure:`,
+                updateError,
+              );
+            }
 
             await prisma.agentSession
               .update({
@@ -740,88 +789,96 @@ export const agentExecutionRouter = new Elysia()
         return { error: "Response is required" };
       }
 
-      // 実行情報を取得してロックとタイムアウトキャンセルを試みる
-      const config = await prisma.developerModeConfig.findUnique({
-        where: { taskId },
-        include: {
-          task: { include: { theme: true } },
-          agentSessions: {
-            orderBy: { createdAt: "desc" },
-            take: 1,
-            include: {
-              agentExecutions: {
-                orderBy: { createdAt: "desc" },
-                take: 1,
+      try {
+        // 実行情報を取得してロックとタイムアウトキャンセルを試みる
+        const config = await prisma.developerModeConfig.findUnique({
+          where: { taskId },
+          include: {
+            task: { include: { theme: true } },
+            agentSessions: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              include: {
+                agentExecutions: {
+                  orderBy: { createdAt: "desc" },
+                  take: 1,
+                },
               },
             },
           },
-        },
-      });
+        });
 
-      if (!config || !config.agentSessions[0]) {
-        return { error: "No active session found" };
-      }
+        if (!config || !config.agentSessions[0]) {
+          return { error: "No active session found" };
+        }
 
-      const session = config.agentSessions[0];
-      const latestExecution = session.agentExecutions[0];
+        const session = config.agentSessions[0];
+        const latestExecution = session.agentExecutions[0];
 
-      if (!latestExecution) {
-        return { error: "No execution found" };
-      }
+        if (!latestExecution) {
+          return { error: "No execution found" };
+        }
 
-      // ステータスチェック: waiting_for_input でなければ応答不可
-      if (latestExecution.status === "running") {
-        return { error: "Execution is already running" };
-      }
-      if (latestExecution.status !== "waiting_for_input") {
-        return {
-          error: `Execution is not waiting for input: ${latestExecution.status}`,
-        };
-      }
+        // ステータスチェック: waiting_for_input でなければ応答不可
+        if (latestExecution.status === "running") {
+          return { error: "Execution is already running" };
+        }
+        if (latestExecution.status !== "waiting_for_input") {
+          return {
+            error: `Execution is not waiting for input: ${latestExecution.status}`,
+          };
+        }
 
-      // オーケストレーターでロックを取得（他のプロセスと競合防止）
-      if (
-        !orchestrator.tryAcquireContinuationLock(
+        // オーケストレーターでロックを取得（他のプロセスと競合防止）
+        if (
+          !orchestrator.tryAcquireContinuationLock(
+            latestExecution.id,
+            "user_response",
+          )
+        ) {
+          return {
+            error: "Another operation is in progress for this execution",
+          };
+        }
+
+        // タイムアウトキャンセルを試行
+        orchestrator.cancelQuestionTimeout(latestExecution.id);
+        console.log(
+          `[agent-respond] Cancelled timeout for execution ${latestExecution.id}`,
+        );
+
+        const workingDirectory =
+          config.task.theme?.workingDirectory || process.cwd();
+
+        // 応答を送信（ロック取得済みなので executeContinuationWithLock を使用）
+        // executeContinuationWithLock が finally でロックを解放する
+        const result = await orchestrator.executeContinuationWithLock(
           latestExecution.id,
-          "user_response",
-        )
-      ) {
+          response,
+          {
+            sessionId: session.id,
+            taskId,
+            workingDirectory,
+          },
+        );
+
+        if (result.success) {
+          return {
+            success: true,
+            message: "Response sent successfully",
+            executionId: latestExecution.id,
+          };
+        } else {
+          return {
+            error: result.errorMessage || "Failed to send response",
+            executionId: latestExecution.id,
+          };
+        }
+      } catch (error) {
+        console.error("[agent-respond] Database error:", error);
         return {
-          error: "Another operation is in progress for this execution",
-        };
-      }
-
-      // タイムアウトキャンセルを試行
-      orchestrator.cancelQuestionTimeout(latestExecution.id);
-      console.log(
-        `[agent-respond] Cancelled timeout for execution ${latestExecution.id}`,
-      );
-
-      const workingDirectory =
-        config.task.theme?.workingDirectory || process.cwd();
-
-      // 応答を送信（ロック取得済みなので executeContinuationWithLock を使用）
-      // executeContinuationWithLock が finally でロックを解放する
-      const result = await orchestrator.executeContinuationWithLock(
-        latestExecution.id,
-        response,
-        {
-          sessionId: session.id,
-          taskId,
-          workingDirectory,
-        },
-      );
-
-      if (result.success) {
-        return {
-          success: true,
-          message: "Response sent successfully",
-          executionId: latestExecution.id,
-        };
-      } else {
-        return {
-          error: result.errorMessage || "Failed to send response",
-          executionId: latestExecution.id,
+          error: "データベースエラーが発生しました。応答の送信に失敗しました。",
+          message: "Failed to send agent response due to database error",
         };
       }
     },
@@ -839,147 +896,185 @@ export const agentExecutionRouter = new Elysia()
       const { params } = context;
       const taskId = parseInt(params.id);
 
-      const task = await prisma.task.findUnique({
-        where: { id: taskId },
-        select: { workingDirectory: true },
-      });
-
-      const config = await prisma.developerModeConfig.findUnique({
-        where: { taskId },
-        include: {
-          agentSessions: {
-            where: {
-              status: { in: ["running", "pending"] },
-            },
-            orderBy: { createdAt: "desc" },
-            take: 1,
-          },
-        },
-      });
-
-      if (!config || config.agentSessions.length === 0) {
-        const runningExecution = await prisma.agentExecution.findFirst({
-          where: {
-            session: {
-              config: {
-                taskId,
-              },
-            },
-            status: { in: ["running", "pending", "waiting_for_input"] },
-          },
-          orderBy: { createdAt: "desc" },
+      try {
+        const task = await prisma.task.findUnique({
+          where: { id: taskId },
+          select: { workingDirectory: true },
         });
 
-        if (runningExecution) {
-          // オーケストレーターで停止を試みる
-          const stopped = await orchestrator
-            .stopExecution(runningExecution.id)
-            .catch(() => false);
+        const config = await prisma.developerModeConfig.findUnique({
+          where: { taskId },
+          include: {
+            agentSessions: {
+              where: {
+                status: { in: ["running", "pending"] },
+              },
+              orderBy: { createdAt: "desc" },
+              take: 1,
+            },
+          },
+        });
 
-          // 実行ログを削除
-          await prisma.agentExecutionLog.deleteMany({
-            where: { executionId: runningExecution.id },
+        if (!config || config.agentSessions.length === 0) {
+          const runningExecution = await prisma.agentExecution.findFirst({
+            where: {
+              session: {
+                config: {
+                  taskId,
+                },
+              },
+              status: { in: ["running", "pending", "waiting_for_input"] },
+            },
+            orderBy: { createdAt: "desc" },
           });
-          console.log(
-            `[stop-execution] Deleted execution logs for execution ${runningExecution.id}`,
-          );
 
-          // オーケストレーターで停止できなかった場合でも DBのステータスを確実に更新
-          if (!stopped) {
+          if (runningExecution) {
+            // オーケストレーターで停止を試みる
+            const stopped = await orchestrator
+              .stopExecution(runningExecution.id)
+              .catch(() => false);
+
+            try {
+              // 実行ログを削除
+              await prisma.agentExecutionLog.deleteMany({
+                where: { executionId: runningExecution.id },
+              });
+              console.log(
+                `[stop-execution] Deleted execution logs for execution ${runningExecution.id}`,
+              );
+            } catch (deleteError) {
+              console.error(
+                `[stop-execution] Failed to delete execution logs for execution ${runningExecution.id}:`,
+                deleteError,
+              );
+            }
+
+            // オーケストレーターで停止できなかった場合でも DBのステータスを確実に更新
+            if (!stopped) {
+              try {
+                await prisma.agentExecution.update({
+                  where: { id: runningExecution.id },
+                  data: {
+                    status: "cancelled",
+                    completedAt: new Date(),
+                    errorMessage: "Cancelled by user",
+                  },
+                });
+                console.log(
+                  `[stop-execution] Updated DB status for execution ${runningExecution.id} (not found in orchestrator)`,
+                );
+              } catch (updateError) {
+                console.error(
+                  `[stop-execution] Failed to update execution ${runningExecution.id} status:`,
+                  updateError,
+                );
+              }
+            }
+
+            if (task?.workingDirectory) {
+              try {
+                await orchestrator.revertChanges(task.workingDirectory);
+                console.log(
+                  `[stop-execution] Reverted changes in ${task.workingDirectory}`,
+                );
+              } catch (revertError) {
+                console.error(
+                  `[stop-execution] Failed to revert changes:`,
+                  revertError,
+                );
+              }
+            }
+
+            return {
+              success: true,
+              message: "Execution cancelled and changes reverted",
+            };
+          }
+
+          return { success: false, message: "No running execution found" };
+        }
+
+        const session = config.agentSessions[0];
+
+        const executions = orchestrator.getSessionExecutions(session.id);
+        for (const execution of executions) {
+          await orchestrator.stopExecution(execution.executionId);
+        }
+
+        const pendingExecutions = await prisma.agentExecution.findMany({
+          where: {
+            sessionId: session.id,
+            status: { in: ["running", "pending", "waiting_for_input"] },
+          },
+        });
+
+        for (const execution of pendingExecutions) {
+          try {
+            // 実行ログを削除
+            await prisma.agentExecutionLog.deleteMany({
+              where: { executionId: execution.id },
+            });
+
             await prisma.agentExecution.update({
-              where: { id: runningExecution.id },
+              where: { id: execution.id },
               data: {
                 status: "cancelled",
                 completedAt: new Date(),
                 errorMessage: "Cancelled by user",
               },
             });
+          } catch (executionUpdateError) {
+            console.error(
+              `[stop-execution] Failed to update execution ${execution.id}:`,
+              executionUpdateError,
+            );
+            // 個別のエラーは継続（他の実行の停止処理は継続）
+          }
+        }
+
+        try {
+          await prisma.agentSession.update({
+            where: { id: session.id },
+            data: {
+              status: "failed",
+              completedAt: new Date(),
+              errorMessage: "Cancelled by user",
+            },
+          });
+        } catch (sessionUpdateError) {
+          console.error(
+            `[stop-execution] Failed to update session ${session.id} status:`,
+            sessionUpdateError,
+          );
+        }
+
+        if (task?.workingDirectory) {
+          try {
+            await orchestrator.revertChanges(task.workingDirectory);
             console.log(
-              `[stop-execution] Updated DB status for execution ${runningExecution.id} (not found in orchestrator)`,
+              `[stop-execution] Reverted changes in ${task.workingDirectory}`,
+            );
+          } catch (revertError) {
+            console.error(
+              `[stop-execution] Failed to revert changes:`,
+              revertError,
             );
           }
-
-          if (task?.workingDirectory) {
-            try {
-              await orchestrator.revertChanges(task.workingDirectory);
-              console.log(
-                `[stop-execution] Reverted changes in ${task.workingDirectory}`,
-              );
-            } catch (revertError) {
-              console.error(
-                `[stop-execution] Failed to revert changes:`,
-                revertError,
-              );
-            }
-          }
-
-          return {
-            success: true,
-            message: "Execution cancelled and changes reverted",
-          };
         }
 
-        return { success: false, message: "No running execution found" };
-      }
-
-      const session = config.agentSessions[0];
-
-      const executions = orchestrator.getSessionExecutions(session.id);
-      for (const execution of executions) {
-        await orchestrator.stopExecution(execution.executionId);
-      }
-
-      const pendingExecutions = await prisma.agentExecution.findMany({
-        where: {
+        return {
+          success: true,
           sessionId: session.id,
-          status: { in: ["running", "pending", "waiting_for_input"] },
-        },
-      });
-
-      for (const execution of pendingExecutions) {
-        // 実行ログを削除
-        await prisma.agentExecutionLog.deleteMany({
-          where: { executionId: execution.id },
-        });
-
-        await prisma.agentExecution.update({
-          where: { id: execution.id },
-          data: {
-            status: "cancelled",
-            completedAt: new Date(),
-            errorMessage: "Cancelled by user",
-          },
-        });
+          message: "Execution stopped and changes reverted",
+        };
+      } catch (error) {
+        console.error("[stop-execution] Database error:", error);
+        return {
+          success: false,
+          error: "データベースエラーが発生しました。実行の停止に失敗しました。",
+          message: "Failed to stop execution due to database error",
+        };
       }
-
-      await prisma.agentSession.update({
-        where: { id: session.id },
-        data: {
-          status: "failed",
-          completedAt: new Date(),
-          errorMessage: "Cancelled by user",
-        },
-      });
-
-      if (task?.workingDirectory) {
-        try {
-          await orchestrator.revertChanges(task.workingDirectory);
-          console.log(
-            `[stop-execution] Reverted changes in ${task.workingDirectory}`,
-          );
-        } catch (revertError) {
-          console.error(
-            `[stop-execution] Failed to revert changes:`,
-            revertError,
-          );
-        }
-      }
-
-      return {
-        success: true,
-        sessionId: session.id,
-        message: "Execution stopped and changes reverted",
-      };
     },
     {
       params: t.Object({
@@ -1102,36 +1197,51 @@ export const agentExecutionRouter = new Elysia()
         }
 
         // セッションを再開状態に更新
-        await prisma.agentSession.update({
-          where: { id: targetSessionId },
-          data: {
-            status: "running",
-            lastActivityAt: new Date(),
-          },
-        });
+        try {
+          await prisma.agentSession.update({
+            where: { id: targetSessionId },
+            data: {
+              status: "running",
+              lastActivityAt: new Date(),
+            },
+          });
+        } catch (dbError) {
+          console.error(`[continue-execution] Failed to update session ${targetSessionId} status:`, dbError);
+          // セッション更新失敗でも実行は継続
+        }
 
         // タスクのステータスを「進行中」に更新
-        await prisma.task.update({
-          where: { id: taskId },
-          data: {
-            status: "in-progress",
-          },
-        });
+        try {
+          await prisma.task.update({
+            where: { id: taskId },
+            data: {
+              status: "in-progress",
+            },
+          });
+        } catch (dbError) {
+          console.error(`[continue-execution] Failed to update task ${taskId} status:`, dbError);
+          // タスク更新失敗でも実行は継続
+        }
 
         console.log(
           `[continue-execution] Continuing execution for task ${taskId} in session ${targetSessionId}`,
         );
 
         // 通知を作成
-        await prisma.notification.create({
-          data: {
-            type: "agent_execution_continued",
-            title: "追加指示実行開始",
-            message: `「${task.title}」に追加指示を実行しています`,
-            link: `/tasks/${taskId}`,
-            metadata: toJsonString({ sessionId: targetSessionId, taskId }),
-          },
-        });
+        try {
+          await prisma.notification.create({
+            data: {
+              type: "agent_execution_continued",
+              title: "追加指示実行開始",
+              message: `「${task.title}」に追加指示を実行しています`,
+              link: `/tasks/${taskId}`,
+              metadata: toJsonString({ sessionId: targetSessionId, taskId }),
+            },
+          });
+        } catch (dbError) {
+          console.error(`[continue-execution] Failed to create notification for task ${taskId}:`, dbError);
+          // 通知作成失敗でも実行は継続
+        }
 
         // 前回の実行ログを含めて新しい指示を作成
         let fullInstruction = `## 追加指示\n\n${instruction}`;
@@ -1163,37 +1273,65 @@ export const agentExecutionRouter = new Elysia()
           .then(async (result) => {
             if (result.success) {
               // ワークフローステータスに基づいてタスクステータスを決定
-              const currentTask = await prisma.task.findUnique({
-                where: { id: taskId },
-              });
-              const wfStatus = currentTask?.workflowStatus;
-              if (
-                wfStatus &&
-                ["plan_created", "research_done", "verify_done"].includes(
-                  wfStatus,
-                )
-              ) {
-                // 承認待ち・確認待ちフェーズではdoneにしない
-                await prisma.task.update({
+              try {
+                const currentTask = await prisma.task.findUnique({
                   where: { id: taskId },
-                  data: { status: "in-progress" },
                 });
-              } else if (
-                wfStatus === "in_progress" ||
-                wfStatus === "plan_approved" ||
-                wfStatus === "completed"
-              ) {
-                // 実行が成功完了したらタスクをdoneに更新
-                await prisma.task.update({
-                  where: { id: taskId },
-                  data: { status: "done", completedAt: new Date() },
-                });
-              } else if (!wfStatus || wfStatus === "draft") {
-                // ワークフロー未使用タスク、または初期状態は従来通り
-                await prisma.task.update({
-                  where: { id: taskId },
-                  data: { status: "done", completedAt: new Date() },
-                });
+                const wfStatus = currentTask?.workflowStatus;
+                if (
+                  wfStatus &&
+                  ["plan_created", "research_done", "verify_done"].includes(
+                    wfStatus,
+                  )
+                ) {
+                  // 承認待ち・確認待ちフェーズではdoneにしない
+                  try {
+                    await prisma.task.update({
+                      where: { id: taskId },
+                      data: { status: "in-progress" },
+                    });
+                  } catch (updateError) {
+                    console.error(
+                      `[continue-execution] Failed to update task ${taskId} status to in-progress:`,
+                      updateError,
+                    );
+                  }
+                } else if (
+                  wfStatus === "in_progress" ||
+                  wfStatus === "plan_approved" ||
+                  wfStatus === "completed"
+                ) {
+                  // 実行が成功完了したらタスクをdoneに更新
+                  try {
+                    await prisma.task.update({
+                      where: { id: taskId },
+                      data: { status: "done", completedAt: new Date() },
+                    });
+                  } catch (updateError) {
+                    console.error(
+                      `[continue-execution] Failed to update task ${taskId} status to done:`,
+                      updateError,
+                    );
+                  }
+                } else if (!wfStatus || wfStatus === "draft") {
+                  // ワークフロー未使用タスク、または初期状態は従来通り
+                  try {
+                    await prisma.task.update({
+                      where: { id: taskId },
+                      data: { status: "done", completedAt: new Date() },
+                    });
+                  } catch (updateError) {
+                    console.error(
+                      `[continue-execution] Failed to update task ${taskId} status to done:`,
+                      updateError,
+                    );
+                  }
+                }
+              } catch (taskError) {
+                console.error(
+                  `[continue-execution] Failed to fetch or update task ${taskId}:`,
+                  taskError,
+                );
               }
 
               // セッションのステータスも完了に更新（リトライ付き）
@@ -1211,10 +1349,17 @@ export const agentExecutionRouter = new Elysia()
                 `[continue-execution] Failed for task ${taskId}:`,
                 result.errorMessage,
               );
-              await prisma.task.update({
-                where: { id: taskId },
-                data: { status: "todo" },
-              });
+              try {
+                await prisma.task.update({
+                  where: { id: taskId },
+                  data: { status: "todo" },
+                });
+              } catch (updateError) {
+                console.error(
+                  `[continue-execution] Failed to update task ${taskId} status to todo after failure:`,
+                  updateError,
+                );
+              }
 
               await prisma.agentSession
                 .update({
@@ -1238,10 +1383,17 @@ export const agentExecutionRouter = new Elysia()
               `[continue-execution] Execution error for task ${taskId}:`,
               error,
             );
-            await prisma.task.update({
-              where: { id: taskId },
-              data: { status: "todo" },
-            });
+            try {
+              await prisma.task.update({
+                where: { id: taskId },
+                data: { status: "todo" },
+              });
+            } catch (updateError) {
+              console.error(
+                `[continue-execution] Failed to update task ${taskId} status to todo after execution error:`,
+                updateError,
+              );
+            }
 
             await prisma.agentSession
               .update({

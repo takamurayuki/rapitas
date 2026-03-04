@@ -52,7 +52,7 @@ import {
 } from "./routes";
 
 // Import optimized batch routes
-import { batchRoutesV2 } from "./routes/batch-v2";
+import { batchRoutesV2 } from "./routes/tasks/batch-v2";
 
 // Import WebSocket routes
 import { websocketRoutes, wsManager } from "./services/websocket-service";
@@ -67,7 +67,7 @@ import { setupPrismaOptimizations } from "./utils/prisma-optimization";
 import { cacheService } from "./services/cache-service";
 
 // Import orchestrator for startup recovery
-import { orchestrator } from "./routes/approvals";
+import { orchestrator } from "./routes/agents/approvals";
 
 // Import realtime service for SSE cleanup on shutdown
 import { realtimeService } from "./services/realtime-service";

@@ -12,11 +12,12 @@ import {
   Play,
   Loader2,
 } from 'lucide-react';
-import type { DeveloperModeConfig, TaskAnalysisResult } from '@/types';
+import type { DeveloperModeConfig, TaskAnalysisResult, Task } from '@/types';
 import type {
   ExecutionStatus,
   ExecutionResult,
 } from '../hooks/useDeveloperMode';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 import { AIAnalysisPanel } from './AIAnalysisPanel';
 import { AgentExecutionPanel } from './AgentExecutionPanel';
 
@@ -67,6 +68,16 @@ type Props = {
     question?: string;
   } | null>;
   onStopExecution?: () => void;
+
+  // サブタスク関連（タブ表示用）
+  subtasks?: Task[];
+  subtaskLogs?: Map<
+    number,
+    { logs: Array<{ timestamp: string; message: string; level: string }> }
+  >;
+  parallelSessionId?: string | null;
+  getSubtaskStatus?: (subtaskId: number) => ParallelExecutionStatus | undefined;
+  onRefreshSubtaskLogs?: (taskId?: number) => void;
 };
 
 const STORAGE_KEY = 'ai-assistant-accordion-height';
@@ -107,6 +118,11 @@ export function AIAssistantAccordion({
   onReset,
   onRestoreExecutionState,
   onStopExecution,
+  subtasks,
+  subtaskLogs,
+  parallelSessionId,
+  getSubtaskStatus,
+  onRefreshSubtaskLogs,
 }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [localOptimizedPrompt, setLocalOptimizedPrompt] = useState<
@@ -330,6 +346,11 @@ export function AIAssistantAccordion({
                   onReset={onReset}
                   onRestoreExecutionState={onRestoreExecutionState}
                   onStopExecution={onStopExecution}
+                  subtasks={subtasks}
+                  subtaskLogs={subtaskLogs}
+                  parallelSessionId={parallelSessionId}
+                  getSubtaskStatus={getSubtaskStatus}
+                  onRefreshSubtaskLogs={onRefreshSubtaskLogs}
                 />
               </div>
             )}
