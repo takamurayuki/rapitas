@@ -239,6 +239,37 @@ export const agentExecutionRouter = new Elysia()
         return { error: "Task not found" };
       }
 
+      // 二重実行防止: 同じタスクに対してrunning/pendingの実行が既にある場合は拒否
+      if (!sessionId) {
+        // 新規実行の場合のみチェック（継続実行はsessionId指定で既存セッションを使うため除外）
+        try {
+          const existingActiveExecution = await prisma.agentExecution.findFirst({
+            where: {
+              session: {
+                config: {
+                  taskId: taskIdNum,
+                },
+              },
+              status: { in: ["running", "pending"] },
+            },
+          });
+
+          if (existingActiveExecution) {
+            log.warn(
+              `[API] Duplicate execution rejected for task ${taskIdNum}: existing execution #${existingActiveExecution.id} is ${existingActiveExecution.status}`,
+            );
+            context.set.status = 409;
+            return {
+              error: "このタスクは既に実行中です。完了後に再実行してください。",
+              existingExecutionId: existingActiveExecution.id,
+            };
+          }
+        } catch (dbError) {
+          log.error({ err: dbError }, `[API] Failed to check for duplicate executions for task ${taskIdNum}`);
+          // チェック失敗時は実行を続行（安全側に倒す）
+        }
+      }
+
       // 自動複雑度評価の実行
       if (task.complexityScore === null && !task.workflowModeOverride) {
         log.info(`[API] Auto-analyzing task complexity for task ${taskIdNum}`);
