@@ -20,7 +20,7 @@ export const projectsRoutes = new Elysia({ prefix: "/projects" })
   })
 
   // Get project by ID
-  .get("/:id", async (context: any) => {
+  .get("/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
@@ -47,9 +47,11 @@ export const projectsRoutes = new Elysia({ prefix: "/projects" })
   // Create project
   .post(
     "/",
-    async (context: any) => {
+    async (context) => {
       const { body  } = context;
-      const { name, description, color, icon  } = body as any;
+      const { name, description, color, icon  } = body as {
+        name: string; description?: string; color?: string; icon?: string;
+      };
       return await prisma.project.create({
         data: {
           name,
@@ -67,14 +69,14 @@ export const projectsRoutes = new Elysia({ prefix: "/projects" })
   // Update project
   .patch(
     "/:id",
-    async (context: any) => {
+    async (context) => {
       const { params, body  } = context;
       const id = parseInt(params.id);
       if (isNaN(id)) {
         throw new ValidationError("無効なIDです");
       }
 
-      const { name, description, color, icon  } = body as any;
+      const { name, description, color, icon  } = body as { name?: string; description?: string; color?: string; icon?: string };
       return await prisma.project.update({
         where: { id },
         data: {
@@ -88,7 +90,7 @@ export const projectsRoutes = new Elysia({ prefix: "/projects" })
   )
 
   // Delete project
-  .delete("/:id", async (context: any) => {
+  .delete("/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {

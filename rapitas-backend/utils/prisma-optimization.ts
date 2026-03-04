@@ -27,7 +27,7 @@ export class PrismaOptimizer {
   }
 
   // 並列クエリの実行
-  static async parallelQueries<T extends Record<string, Promise<any>>>(
+  static async parallelQueries<T extends Record<string, Promise<unknown>>>(
     queries: T,
   ): Promise<{ [K in keyof T]: Awaited<T[K]> }> {
     const keys = Object.keys(queries) as (keyof T)[];
@@ -76,10 +76,24 @@ export class PrismaOptimizer {
   }
 }
 
+// Prisma middleware params type (deprecated in newer versions)
+interface MiddlewareParams {
+  model?: string;
+  action: string;
+  args: Record<string, unknown>;
+  dataPath: string[];
+  runInTransaction: boolean;
+}
+
+type PrismaMiddlewareFn = (params: MiddlewareParams, next: (params: MiddlewareParams) => Promise<unknown>) => Promise<unknown>;
+type PrismaWithUse = PrismaClient & { $use: (fn: PrismaMiddlewareFn) => void };
+
 // Prismaミドルウェアの拡張
 export function setupPrismaOptimizations(prisma: PrismaClient) {
+  const prismaWithMiddleware = prisma as unknown as PrismaWithUse;
   // クエリのロギングとパフォーマンス計測
-  (prisma as any).$use(async (params, next) => {
+  // Note: $use middleware is deprecated in newer Prisma versions, using type assertion
+  prismaWithMiddleware.$use(async (params: MiddlewareParams, next: (params: MiddlewareParams) => Promise<unknown>) => {
     const before = Date.now();
     const result = await next(params);
     const after = Date.now();
@@ -105,21 +119,22 @@ export function setupPrismaOptimizations(prisma: PrismaClient) {
   });
 
   // 自動的なリトライロジック
-  (prisma as any).$use(async (params, next) => {
+  prismaWithMiddleware.$use(async (params: MiddlewareParams, next: (params: MiddlewareParams) => Promise<unknown>) => {
     const maxRetries = 3;
     let retries = 0;
 
     while (retries < maxRetries) {
       try {
         return await next(params);
-      } catch (error: any) {
+      } catch (error: unknown) {
         retries++;
 
+        const prismaError = error as { code?: string };
         // トランザクションのデッドロックやタイムアウトの場合にリトライ
         if (
-          error.code === "P2034" || // トランザクションのタイムアウト
-          error.code === "P2024" || // タイムアウト
-          (error.code === "P2002" && retries < maxRetries) // ユニーク制約違反（リトライ可能な場合）
+          prismaError.code === "P2034" || // トランザクションのタイムアウト
+          prismaError.code === "P2024" || // タイムアウト
+          (prismaError.code === "P2002" && retries < maxRetries) // ユニーク制約違反（リトライ可能な場合）
         ) {
           console.log(
             `Retrying query (${retries}/${maxRetries}): ${params.model}.${params.action}`,
@@ -223,8 +238,8 @@ export const QueryOptimizers = {
         },
       },
       timeEntries: {
-        select: { id: true, startTime: true, endTime: true, duration: true },
-        orderBy: { startTime: "desc" as const } as any,
+        select: { id: true, startedAt: true, endedAt: true, duration: true },
+        orderBy: { startedAt: "desc" as const },
         take: 5,
       },
       taskDependencies: {
@@ -243,7 +258,7 @@ export const QueryOptimizers = {
   }),
 
   // 集計クエリの最適化
-  async getTaskStatistics(prisma: any, filters: any) {
+  async getTaskStatistics(prisma: PrismaClient, filters: Prisma.TaskWhereInput) {
     const results = await PrismaOptimizer.parallelQueries({
       totalCount: prisma.task.count({ where: filters }),
       statusCounts: prisma.task.groupBy({
@@ -281,10 +296,10 @@ export const QueryOptimizers = {
     return {
       total: results.totalCount,
       byStatus: Object.fromEntries(
-        results.statusCounts.map((s: any) => [s.status, s._count.status]),
+        results.statusCounts.map((s: { status: string; _count: { status: number } }) => [s.status, s._count.status]),
       ),
       byPriority: Object.fromEntries(
-        results.priorityCounts.map((p: any) => [p.priority, p._count.priority]),
+        results.priorityCounts.map((p: { priority: string; _count: { priority: number } }) => [p.priority, p._count.priority]),
       ),
       overdue: results.overdueTasks,
       upcoming: results.upcomingTasks,
@@ -292,7 +307,7 @@ export const QueryOptimizers = {
   },
 
   // 効率的な検索クエリ
-  searchTasks: (searchTerm: string, filters: any = {}) => ({
+  searchTasks: (searchTerm: string, filters: Prisma.TaskWhereInput = {}) => ({
     where: {
       AND: [
         filters,

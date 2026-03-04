@@ -482,7 +482,7 @@ Guidelines:
 
 export const systemPromptsRoutes = new Elysia()
   // システムプロンプト一覧取得
-  .get("/system-prompts", async (context: any) => {
+  .get("/system-prompts", async (context) => {
       const { query  } = context;
     const where: Record<string, unknown> = {};
     if (query.category) {
@@ -498,7 +498,7 @@ export const systemPromptsRoutes = new Elysia()
   })
 
   // システムプロンプト取得（キーで）
-  .get("/system-prompts/:key", async (context: any) => {
+  .get("/system-prompts/:key", async (context) => {
       const { params, set  } = context;
     const prompt = await prisma.systemPrompt.findUnique({
       where: { key: params.key },
@@ -594,7 +594,7 @@ export const systemPromptsRoutes = new Elysia()
   // システムプロンプト削除（デフォルトプロンプトは削除不可）
   .delete(
     "/system-prompts/:key",
-    async (context: any) => {
+    async (context) => {
       const { params, set  } = context;
       const existing = await prisma.systemPrompt.findUnique({
         where: { key: params.key },
@@ -621,7 +621,7 @@ export const systemPromptsRoutes = new Elysia()
   // デフォルトプロンプトをリセット（元の内容に戻す）
   .post(
     "/system-prompts/:key/reset",
-    async (context: any) => {
+    async (context) => {
       const { params, set  } = context;
       const defaultPrompt = DEFAULT_SYSTEM_PROMPTS.find((p) => p.key === params.key);
       if (!defaultPrompt) {

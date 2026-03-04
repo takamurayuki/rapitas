@@ -158,7 +158,7 @@ export default function GlobalPomodoroModal({
         {/* タスク名 */}
         <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
           <Link
-            href={getTaskDetailPath(currentTaskId)}
+            href={`${getTaskDetailPath(currentTaskId)}${getTaskDetailPath(currentTaskId).includes('?') ? '&' : '?'}showHeader=true`}
             className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5 min-w-0"
             onClick={onClose}
           >

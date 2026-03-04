@@ -13,8 +13,8 @@ class OptimizedAPIClient {
   private socket: Socket | null = null;
   private batchQueue: Map<string, {
     request: BatchRequest;
-    resolve: (value: any) => void;
-    reject: (reason: any) => void;
+    resolve: (value: unknown) => void;
+    reject: (reason: unknown) => void;
   }> = new Map();
   private batchTimeout: NodeJS.Timeout | null = null;
   private batchSize = 10;
@@ -22,7 +22,7 @@ class OptimizedAPIClient {
 
   // ローカルキャッシュ
   private cache = new Map<string, {
-    data: any;
+    data: unknown;
     timestamp: number;
     ttl: number;
   }>();
@@ -51,18 +51,18 @@ class OptimizedAPIClient {
     });
 
     // リアルタイムイベントハンドラー
-    this.socket.on("task-updated", (data: any) => {
+    this.socket.on("task-updated", (data: { data: { id: number } }) => {
       this.invalidateCache(`task:${data.data.id}`);
       this.emit("task-updated", data);
     });
 
-    this.socket.on("task-deleted", (data: any) => {
+    this.socket.on("task-deleted", (data: { taskId: number }) => {
       this.invalidateCache(`task:${data.taskId}`);
       this.emit("task-deleted", data);
     });
 
-    this.socket.on("batch-update", (data: any) => {
-      data.updates.forEach((update: any) => {
+    this.socket.on("batch-update", (data: { updates: Array<{ type: string; id: number }> }) => {
+      data.updates.forEach((update: { type: string; id: number }) => {
         this.invalidateCache(`${update.type}:${update.id}`);
       });
       this.emit("batch-update", data);
@@ -126,7 +126,7 @@ class OptimizedAPIClient {
   }
 
   // カーソル位置の共有
-  updateCursor(sessionId: string, position: any): void {
+  updateCursor(sessionId: string, position: { line: number; column: number }): void {
     this.socket?.emit("message", {
       type: "updateCursor",
       data: { sessionId, position },
@@ -147,7 +147,7 @@ class OptimizedAPIClient {
       const id = `${Date.now()}-${Math.random()}`;
       this.batchQueue.set(id, {
         request: { ...request, id },
-        resolve,
+        resolve: resolve as (value: unknown) => void,
         reject,
       });
 
@@ -190,7 +190,7 @@ class OptimizedAPIClient {
       const { results } = await response.json();
 
       // 結果を各リクエストに配信
-      results.forEach((result: any) => {
+      results.forEach((result: { id: string; status: number; body?: unknown; error?: string }) => {
         const item = currentBatch.get(result.id);
         if (item) {
           if (result.status === 200) {
@@ -209,7 +209,7 @@ class OptimizedAPIClient {
   }
 
   // キャッシュの取得
-  private getFromCache(key: string): any | null {
+  private getFromCache<T = unknown>(key: string): T | null {
     const cached = this.cache.get(key);
     if (!cached) return null;
 
@@ -219,11 +219,11 @@ class OptimizedAPIClient {
       return null;
     }
 
-    return cached.data;
+    return cached.data as T;
   }
 
   // キャッシュの設定
-  private setCache(key: string, data: any, ttl: number = 300000): void {
+  private setCache(key: string, data: unknown, ttl: number = 300000): void {
     this.cache.set(key, {
       data,
       timestamp: Date.now(),
@@ -250,7 +250,7 @@ class OptimizedAPIClient {
   // タスクの取得（バッチ対応）
   async getTask(id: string): Promise<Task> {
     const cacheKey = `task:${id}`;
-    const cached = this.getFromCache(cacheKey);
+    const cached = this.getFromCache<Task>(cacheKey);
     if (cached) return cached;
 
     const result = await this.addToBatch<Task>({
@@ -270,9 +270,9 @@ class OptimizedAPIClient {
     cursor?: string;
     limit?: number;
   }): Promise<TaskListResponse> {
-    const queryString = params ? new URLSearchParams(params as any).toString() : "";
+    const queryString = params ? new URLSearchParams(params as Record<string, string>).toString() : "";
     const cacheKey = `tasks:${queryString}`;
-    const cached = this.getFromCache(cacheKey);
+    const cached = this.getFromCache<TaskListResponse>(cacheKey);
     if (cached) return cached;
 
     const result = await this.addToBatch<TaskListResponse>({
@@ -322,7 +322,7 @@ class OptimizedAPIClient {
   // 統計情報の取得（バッチ対応）
   async getStatistics(): Promise<Statistics> {
     const cacheKey = "statistics:tasks";
-    const cached = this.getFromCache(cacheKey);
+    const cached = this.getFromCache<Statistics>(cacheKey);
     if (cached) return cached;
 
     const result = await this.addToBatch<Statistics>({
@@ -341,7 +341,7 @@ class OptimizedAPIClient {
 
     // キャッシュチェック
     for (const id of ids) {
-      const cached = this.getFromCache(`task:${id}`);
+      const cached = this.getFromCache<Task>(`task:${id}`);
       if (cached) {
         results.set(id, cached);
       } else {
@@ -376,7 +376,7 @@ class OptimizedAPIClient {
     this.eventHandlers.get(event)?.delete(handler);
   }
 
-  private emit(event: string, data: any): void {
+  private emit(event: string, data: unknown): void {
     this.eventHandlers.get(event)?.forEach(handler => {
       handler(data);
     });
@@ -398,7 +398,7 @@ interface BatchRequest {
   id?: string;
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   url: string;
-  body?: any;
+  body?: unknown;
 }
 
 interface Task {
@@ -485,7 +485,7 @@ function TaskList() {
     apiClient.subscribe("category", "1");
 
     // 更新イベントをリッスン
-    const handleUpdate = (data: any) => {
+    const handleUpdate = (data: unknown) => {
       // タスクリストを再取得または部分更新
       console.log("Task updated:", data);
     };

@@ -146,9 +146,9 @@ function parseApprovalJsonFields(approval: ApprovalWithChanges | null) {
 
 export const approvalsRoutes = new Elysia({ prefix: "/approvals" })
   // Get approval list
-  .get("/", async (context: any) => {
+  .get("/", async (context) => {
       const { query  } = context;
-    const { status  } = query as any;
+    const { status  } = query as { status?: string };
     const approvals = await prisma.approvalRequest.findMany({
       where: status ? { status } : { status: "pending" },
       include: {
@@ -173,9 +173,9 @@ export const approvalsRoutes = new Elysia({ prefix: "/approvals" })
   })
 
   // Get approval details
-  .get("/:id", async (context: any) => {
+  .get("/:id", async (context) => {
       const { params  } = context;
-    const { id  } = params as any;
+    const { id  } = params as { id: string };
     const approval = await prisma.approvalRequest.findUnique({
       where: { id: parseInt(id) },
       include: {
@@ -666,8 +666,8 @@ Task ID: ${task.id}
   .post(
     "/:id/reject-code-review",
     async (context) => {
-      const { id } = context.params as any;
-      const { reason } = context.body as any;
+      const { id } = context.params as { id: string };
+      const { reason } = context.body as { reason?: string };
 
       const approval = await prisma.approvalRequest.findUnique({
         where: { id: parseInt(id) },
@@ -950,9 +950,9 @@ ${previousImplementation}
   )
 
   // Get diff
-  .get("/:id/diff", async (context: any) => {
+  .get("/:id/diff", async (context) => {
       const { params  } = context;
-    const { id  } = params as any;
+    const { id  } = params as { id: string };
 
     const approval = await prisma.approvalRequest.findUnique({
       where: { id: parseInt(id) },
@@ -989,9 +989,9 @@ ${previousImplementation}
   })
 
   // Bulk approve
-  .post("/bulk-approve", async (context: any) => {
+  .post("/bulk-approve", async (context) => {
       const { body  } = context;
-    const { ids  } = body as any;
+    const { ids  } = body as { ids: number[] };
 
     const results = [];
     for (const id of ids) {

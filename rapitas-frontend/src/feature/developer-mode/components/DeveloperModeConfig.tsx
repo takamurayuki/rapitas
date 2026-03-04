@@ -121,6 +121,8 @@ export function DeveloperModeConfigModal({
   const [branchPrefix, setBranchPrefix] = useState('feature/');
   const [autoCommit, setAutoCommit] = useState(false);
   const [autoCreatePR, setAutoCreatePR] = useState(false);
+  const [autoMergePR, setAutoMergePR] = useState(false);
+  const [mergeCommitThreshold, setMergeCommitThreshold] = useState(5);
   const [autoExecuteOnAnalysis, setAutoExecuteOnAnalysis] = useState(false);
   const [useOptimizedPrompt, setUseOptimizedPrompt] = useState(true);
   const [autoCodeReview, setAutoCodeReview] = useState(true);
@@ -219,6 +221,8 @@ export function DeveloperModeConfigModal({
         setBranchPrefix(data.branchPrefix);
         setAutoCommit(data.autoCommit);
         setAutoCreatePR(data.autoCreatePR);
+        setAutoMergePR(data.autoMergePR ?? false);
+        setMergeCommitThreshold(data.mergeCommitThreshold ?? 5);
         setAutoExecuteOnAnalysis(data.autoExecuteOnAnalysis);
         setUseOptimizedPrompt(data.useOptimizedPrompt);
         setAutoCodeReview(data.autoCodeReview);
@@ -549,6 +553,8 @@ export function DeveloperModeConfigModal({
           branchPrefix,
           autoCommit,
           autoCreatePR,
+          autoMergePR,
+          mergeCommitThreshold,
           autoExecuteOnAnalysis,
           useOptimizedPrompt,
           autoCodeReview,
@@ -1306,6 +1312,38 @@ export function DeveloperModeConfigModal({
           setAutoCreatePR,
           '自動PR作成',
           '完了時にPull Requestを自動作成',
+        )}
+        {autoCreatePR && (
+          <>
+            {renderToggle(
+              autoMergePR,
+              setAutoMergePR,
+              '自動マージ',
+              'PR作成後に自動でマージ（squash/merge）',
+            )}
+            {autoMergePR && (
+              <div className="ml-4 flex items-center gap-2">
+                <label className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Squashマージ閾値
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={mergeCommitThreshold}
+                  onChange={(e) =>
+                    setMergeCommitThreshold(
+                      Math.max(1, parseInt(e.target.value, 10) || 1),
+                    )
+                  }
+                  className="w-16 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200"
+                />
+                <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                  コミット以上でsquash
+                </span>
+              </div>
+            )}
+          </>
         )}
       </div>
 

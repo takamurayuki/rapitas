@@ -19,9 +19,9 @@ export const screenshotsRoutes = new Elysia()
   // スクリーンショット画像の配信
   .get(
     "/screenshots/:filename",
-    async (context: any) => {
+    async (context) => {
       const { params  } = context;
-      const { filename  } = params as any;
+      const { filename  } = params;
 
       // パストラバーサル防止
       if (filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
@@ -54,7 +54,7 @@ export const screenshotsRoutes = new Elysia()
   // 手動でスクリーンショットを撮影
   .post(
     "/screenshots/capture",
-    async (context: any) => {
+    async (context) => {
       const { body } = context;
       try {
         const results = await captureScreenshots(body);
@@ -103,10 +103,10 @@ export const screenshotsRoutes = new Elysia()
   // プロジェクトの全ページルートを検出
   .post(
     "/screenshots/detect-pages",
-    async (context: any) => {
+    async (context) => {
       const { body  } = context;
       try {
-        const { workingDirectory  } = body as any;
+        const { workingDirectory  } = body as { workingDirectory?: string };
         if (!workingDirectory) {
           return { success: false, error: "workingDirectory is required" };
         }
@@ -131,10 +131,10 @@ export const screenshotsRoutes = new Elysia()
   // プロジェクト構造を検出
   .post(
     "/screenshots/detect-project",
-    async (context: any) => {
+    async (context) => {
       const { body  } = context;
       try {
-        const { workingDirectory  } = body as any;
+        const { workingDirectory  } = body as { workingDirectory?: string };
         if (!workingDirectory) {
           return { error: "workingDirectory is required" };
         }

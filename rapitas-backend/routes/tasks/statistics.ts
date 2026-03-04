@@ -1,5 +1,5 @@
-import { Elysia, type Context } from "elysia";
-import { prisma } from "../../../config/database";
+import { Elysia } from "elysia";
+import { prisma } from "../../config";
 
 /**
  * タスク統計エンドポイント
@@ -8,7 +8,7 @@ import { prisma } from "../../../config/database";
 export const taskStatisticsRoutes = new Elysia({ prefix: "/tasks" })
   .get(
     "/statistics",
-    async (context: any) => {
+    async (context) => {
       const { set } = context;
       const [total, byStatus, byCategory, recent] = await Promise.all([
         // 総タスク数
@@ -74,7 +74,7 @@ export const taskStatisticsRoutes = new Elysia({ prefix: "/tasks" })
 
   .get(
     "/recent",
-    async (context: any) => {
+    async (context) => {
       const { query, set } = context;
       const limit = Math.min(parseInt(query.limit || "10"), 50);
 

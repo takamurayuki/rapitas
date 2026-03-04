@@ -9,7 +9,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
   prefix: "/task-analysis-config",
 })
   // タスク分析設定の取得
-  .get("/:taskId", async (context: any) => {
+  .get("/:taskId", async (context) => {
       const { params, set  } = context;
     const taskId = parseInt(params.taskId);
 
@@ -41,7 +41,24 @@ export const taskAnalysisConfigRoutes = new Elysia({
     "/:taskId",
     async (context) => {
       const { params, body: rawBody, set } = context;
-      const body = rawBody as any;
+      const body = rawBody as {
+        analysisDepth?: string;
+        maxSubtasks?: number;
+        priorityStrategy?: string;
+        includeEstimates?: boolean;
+        includeDependencies?: boolean;
+        includeTips?: boolean;
+        agentConfigId?: number;
+        modelOverride?: string;
+        maxTokens?: number;
+        temperature?: number;
+        promptStrategy?: string;
+        customPromptTemplate?: string;
+        contextInstructions?: string;
+        autoApproveSubtasks?: boolean;
+        autoOptimizePrompt?: boolean;
+        notifyOnComplete?: boolean;
+      };
       const taskId = parseInt(params.taskId);
 
       // タスクの存在確認
@@ -145,7 +162,24 @@ export const taskAnalysisConfigRoutes = new Elysia({
     "/:taskId",
     async (context) => {
       const { params, body: rawBody, set } = context;
-      const body = rawBody as any;
+      const body = rawBody as {
+        analysisDepth?: string;
+        maxSubtasks?: number;
+        priorityStrategy?: string;
+        includeEstimates?: boolean;
+        includeDependencies?: boolean;
+        includeTips?: boolean;
+        agentConfigId?: number;
+        modelOverride?: string;
+        maxTokens?: number;
+        temperature?: number;
+        promptStrategy?: string;
+        customPromptTemplate?: string;
+        contextInstructions?: string;
+        autoApproveSubtasks?: boolean;
+        autoOptimizePrompt?: boolean;
+        notifyOnComplete?: boolean;
+      };
       const taskId = parseInt(params.taskId);
 
       const existing = await prisma.taskAnalysisConfig.findUnique({
@@ -213,7 +247,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
   )
 
   // タスク分析設定の削除（デフォルトに戻す）
-  .delete("/:taskId", async (context: any) => {
+  .delete("/:taskId", async (context) => {
       const { params, set  } = context;
     const taskId = parseInt(params.taskId);
 

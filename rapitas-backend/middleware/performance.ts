@@ -1,8 +1,8 @@
-import { Elysia, type Context } from "elysia";
+import { Elysia } from "elysia";
 import { LRUCache } from "lru-cache";
 
 // メモリキャッシュの設定
-const cache = new LRUCache<string, { data: any; etag: string }>({
+const cache = new LRUCache<string, { data: unknown; etag: string }>({
   max: 500, // 最大500エントリ
   ttl: 1000 * 60 * 5, // 5分のTTL
   updateAgeOnGet: true,
@@ -10,7 +10,7 @@ const cache = new LRUCache<string, { data: any; etag: string }>({
 });
 
 // ETagを生成
-function generateETag(data: any): string {
+function generateETag(data: unknown): string {
   const str = JSON.stringify(data);
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -23,8 +23,7 @@ function generateETag(data: any): string {
 
 // レスポンス圧縮の設定
 export const compressionMiddleware = new Elysia({ name: "compression" })
-  .derive(async (context: any) => {
-    const { request, set } = context;
+  .derive(async ({ request }) => {
     const acceptEncoding = request.headers.get("accept-encoding");
     const supportsGzip = acceptEncoding?.includes("gzip");
     const supportsBrotli = acceptEncoding?.includes("br");
@@ -40,8 +39,7 @@ export const compressionMiddleware = new Elysia({ name: "compression" })
 
 // キャッシュミドルウェア
 export const cacheMiddleware = new Elysia({ name: "cache" })
-  .derive(async (context: any) => {
-    const { request, set, path } = context;
+  .derive(async ({ request, set, path }) => {
     // GETリクエストのみキャッシュ
     if (request.method !== "GET") {
       return { cache: { enabled: false } };
@@ -71,7 +69,7 @@ export const cacheMiddleware = new Elysia({ name: "cache" })
         key: cacheKey,
         data: cached?.data,
         etag: cached?.etag,
-        set: (data: any) => {
+        set: (data: unknown) => {
           const etag = generateETag(data);
           cache.set(cacheKey, { data, etag });
           set.headers["etag"] = etag;
@@ -104,8 +102,7 @@ interface RequestMetrics {
 const metricsMap = new WeakMap<Request, RequestMetrics>();
 
 export const performanceMonitoring = new Elysia({ name: "performance-monitoring" })
-  .derive((context: any) => {
-    const { request } = context;
+  .derive(({ request }) => {
     const metrics: RequestMetrics = {
       startTime: performance.now(),
       dbQueryTime: 0,
@@ -124,8 +121,7 @@ export const performanceMonitoring = new Elysia({ name: "performance-monitoring"
       }
     };
   })
-  .onAfterHandle((context: any) => {
-    const { request, set, path } = context;
+  .onAfterHandle(({ request, set, path }) => {
     const metrics = metricsMap.get(request);
     if (metrics) {
       const totalTime = performance.now() - metrics.startTime;
@@ -160,8 +156,7 @@ export const connectionPooling = {
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 export const rateLimitMiddleware = new Elysia({ name: "rate-limit" })
-  .derive((context: any) => {
-    const { request, set } = context;
+  .derive(({ request, set }) => {
     const clientIp = request.headers.get("x-forwarded-for") || "unknown";
     const now = Date.now();
     const windowMs = 60000; // 1分

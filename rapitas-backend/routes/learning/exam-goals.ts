@@ -17,7 +17,7 @@ export const examGoalsRoutes = new Elysia({ prefix: "/exam-goals" })
     });
   })
 
-  .get("/:id", async (context: any) => {
+  .get("/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) throw new ValidationError("無効なIDです");
@@ -34,9 +34,12 @@ export const examGoalsRoutes = new Elysia({ prefix: "/exam-goals" })
 
   .post(
     "/",
-    async (context: any) => {
+    async (context) => {
       const { body  } = context;
-      const { name, description, examDate, targetScore, color, icon  } = body as any;
+      const { name, description, examDate, targetScore, color, icon  } = body as {
+        name: string; examDate: string; description?: string | null; targetScore?: string | null;
+        color?: string | null; icon?: string | null;
+      };
       return await prisma.examGoal.create({
         data: {
           name,
@@ -62,12 +65,15 @@ export const examGoalsRoutes = new Elysia({ prefix: "/exam-goals" })
 
   .patch(
     "/:id",
-    async (context: any) => {
+    async (context) => {
       const { params, body  } = context;
       const id = parseInt(params.id);
       if (isNaN(id)) throw new ValidationError("無効なIDです");
 
-      const { name, description, examDate, targetScore, color, icon, isCompleted, actualScore  } = body as any;
+      const { name, description, examDate, targetScore, color, icon, isCompleted, actualScore  } = body as {
+        name?: string; description?: string; examDate?: string; targetScore?: string | null;
+        color?: string; icon?: string | null; isCompleted?: boolean; actualScore?: string | null;
+      };
       return await prisma.examGoal.update({
         where: { id },
         data: {
@@ -84,7 +90,7 @@ export const examGoalsRoutes = new Elysia({ prefix: "/exam-goals" })
     }
   )
 
-  .delete("/:id", async (context: any) => {
+  .delete("/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) throw new ValidationError("無効なIDです");

@@ -131,7 +131,9 @@ export const resourcesRoutes = new Elysia()
   .post(
     "/resources",
     async ({ body }) => {
-      const { taskId, title, url, type, description  } = body as any;
+      const { taskId, title, url, type, description  } = body as {
+        taskId?: number; title: string; url?: string; type: string; description?: string;
+      };
       return await prisma.resource.create({
         data: {
           title,
@@ -156,9 +158,11 @@ export const resourcesRoutes = new Elysia()
   // Upload file resource
   .post(
     "/resources/upload",
-    async (context: any) => {
+    async (context) => {
       const { body } = context;
-      const { taskId: taskIdStr, file, title, description  } = body;
+      const { taskId: taskIdStr, file, title, description  } = body as {
+        taskId?: string; file: File; title?: string; description?: string;
+      };
 
       // Validate file exists
       if (!file || !(file instanceof File)) {
@@ -374,7 +378,7 @@ export const resourcesRoutes = new Elysia()
   )
 
   // Delete resource (and file if exists)
-  .delete("/resources/:id", async (context: any) => {
+  .delete("/resources/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) throw new ValidationError("無効なIDです");

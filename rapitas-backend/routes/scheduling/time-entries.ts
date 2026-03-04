@@ -8,7 +8,7 @@ import { ValidationError } from "../../middleware/error-handler";
 
 export const timeEntriesRoutes = new Elysia()
   // Get time entries for a task
-  .get("/tasks/:id/time-entries", async (context: any) => {
+  .get("/tasks/:id/time-entries", async (context) => {
       const { params  } = context;
     const taskId = parseInt(params.id);
     if (isNaN(taskId)) {
@@ -24,14 +24,14 @@ export const timeEntriesRoutes = new Elysia()
   // Create time entry for a task
   .post(
     "/tasks/:id/time-entries",
-    async (context: any) => {
+    async (context) => {
       const { params, body  } = context;
       const taskId = parseInt(params.id);
       if (isNaN(taskId)) {
         throw new ValidationError("無効なタスクIDです");
       }
 
-      const { duration, note, startedAt, endedAt  } = body as any;
+      const { duration, note, startedAt, endedAt  } = body as { duration: number; note?: string; startedAt: string; endedAt: string };
       return await prisma.timeEntry.create({
         data: {
           taskId,

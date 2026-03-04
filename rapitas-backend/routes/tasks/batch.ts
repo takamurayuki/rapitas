@@ -9,7 +9,7 @@ export const batchRoutes = new Elysia({ prefix: "/batch" })
   .post(
     "/",
     async (context) => {
-      const { body } = context as { body: { requests: Array<{ id: string; method: string; url: string; body?: any }> } };
+      const { body } = context as { body: { requests: Array<{ id: string; method: string; url: string; body?: unknown }> } };
       const results = await Promise.all(
         body.requests.map(async (request) => {
           try {
@@ -20,12 +20,13 @@ export const batchRoutes = new Elysia({ prefix: "/batch" })
               status: 200,
               body: result,
             };
-          } catch (error: any) {
+          } catch (error: unknown) {
+            const err = error as { status?: number; message?: string };
             return {
               id: request.id,
-              status: error.status || 500,
+              status: err.status || 500,
               body: null,
-              error: error.message || "Internal server error",
+              error: err.message || "Internal server error",
             };
           }
         })
@@ -58,7 +59,7 @@ export const batchRoutes = new Elysia({ prefix: "/batch" })
 async function processRequest(request: {
   method: string;
   url: string;
-  body?: any;
+  body?: unknown;
 }) {
   const { method, url, body } = request;
 
@@ -87,7 +88,7 @@ async function processRequest(request: {
 async function handleTaskRequests(
   method: string,
   pathParts: string[],
-  body?: any
+  body?: unknown
 ) {
   const [id, subResource] = pathParts;
 
@@ -99,7 +100,7 @@ async function handleTaskRequests(
       const status = queryParams.get("status");
       const since = queryParams.get("since");
 
-      const where: any = {};
+      const where: Record<string, unknown> = {};
       if (themeId) where.themeId = parseInt(themeId);
       if (status) where.status = status;
 
@@ -169,7 +170,7 @@ async function handleTaskRequests(
 async function handleCategoryRequests(
   method: string,
   pathParts: string[],
-  body?: any
+  body?: unknown
 ) {
   if (method === "GET") {
     return prisma.category.findMany();
@@ -183,7 +184,7 @@ async function handleCategoryRequests(
 async function handleThemeRequests(
   method: string,
   pathParts: string[],
-  body?: any
+  body?: unknown
 ) {
   if (method === "GET") {
     return prisma.theme.findMany();
@@ -197,7 +198,7 @@ async function handleThemeRequests(
 async function handleStatisticsRequests(
   method: string,
   pathParts: string[],
-  body?: any
+  body?: unknown
 ) {
   if (method === "GET" && pathParts[0] === "tasks") {
     const [total, byStatus, byCategory] = await Promise.all([

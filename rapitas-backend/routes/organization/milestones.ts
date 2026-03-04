@@ -8,9 +8,9 @@ import { ValidationError } from "../../middleware/error-handler";
 
 export const milestonesRoutes = new Elysia({ prefix: "/milestones" })
   // Get all milestones
-  .get("/", async (context: any) => {
+  .get("/", async (context) => {
       const { query  } = context;
-    const { projectId  } = query as any;
+    const { projectId  } = query as { projectId?: string };
     return await prisma.milestone.findMany({
       where: projectId ? { projectId: parseInt(projectId) } : undefined,
       include: {
@@ -22,7 +22,7 @@ export const milestonesRoutes = new Elysia({ prefix: "/milestones" })
   })
 
   // Get milestone by ID
-  .get("/:id", async (context: any) => {
+  .get("/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
@@ -44,9 +44,11 @@ export const milestonesRoutes = new Elysia({ prefix: "/milestones" })
   // Create milestone
   .post(
     "/",
-    async (context: any) => {
+    async (context) => {
       const { body  } = context;
-      const { name, description, dueDate, projectId  } = body as any;
+      const { name, description, dueDate, projectId  } = body as {
+        name: string; projectId: number; description?: string; dueDate?: string;
+      };
       return await prisma.milestone.create({
         data: {
           name,
@@ -67,14 +69,14 @@ export const milestonesRoutes = new Elysia({ prefix: "/milestones" })
   // Update milestone
   .patch(
     "/:id",
-    async (context: any) => {
+    async (context) => {
       const { params, body  } = context;
       const id = parseInt(params.id);
       if (isNaN(id)) {
         throw new ValidationError("無効なIDです");
       }
 
-      const { name, description, dueDate  } = body as any;
+      const { name, description, dueDate  } = body as { name?: string; description?: string; dueDate?: string | null };
       return await prisma.milestone.update({
         where: { id },
         data: {
@@ -89,7 +91,7 @@ export const milestonesRoutes = new Elysia({ prefix: "/milestones" })
   )
 
   // Delete milestone
-  .delete("/:id", async (context: any) => {
+  .delete("/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {

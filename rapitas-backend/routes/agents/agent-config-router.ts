@@ -63,7 +63,7 @@ export const agentConfigRouter = new Elysia()
   // Toggle agent active status
   .put(
     "/agents/:id/toggle-active",
-    async (context: any) => {
+    async (context) => {
       const { params } = context;
       const agentId = parseInt(params.id, 10);
       if (isNaN(agentId)) {
@@ -136,7 +136,7 @@ export const agentConfigRouter = new Elysia()
   // Set default agent by ID
   .put(
     "/agents/:id/set-default",
-    async (context: any) => {
+    async (context) => {
       const { params } = context;
       const agentId = parseInt(params.id, 10);
       if (isNaN(agentId)) {

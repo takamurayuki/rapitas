@@ -130,12 +130,19 @@ export function cleanupExpiredCache(): void {
     const persistentCache = JSON.parse(stored);
     const now = Date.now();
 
-    const cleaned = Object.entries(persistentCache).reduce((acc, [key, entry]: [string, any]) => {
-      if (entry.expiry > now) {
-        acc[key] = entry;
+    interface PersistentCacheEntry {
+      data: unknown;
+      timestamp: number;
+      expiry: number;
+    }
+
+    const cleaned = Object.entries(persistentCache).reduce<Record<string, PersistentCacheEntry>>((acc, [key, entry]) => {
+      const cacheEntry = entry as PersistentCacheEntry;
+      if (cacheEntry.expiry > now) {
+        acc[key] = cacheEntry;
       }
       return acc;
-    }, {} as Record<string, any>);
+    }, {});
 
     localStorage.setItem('rapitas-api-cache', JSON.stringify(cleaned));
   } catch (error) {

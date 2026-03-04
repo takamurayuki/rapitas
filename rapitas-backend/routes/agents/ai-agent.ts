@@ -85,8 +85,7 @@ export const aiAgentRoutes = new Elysia()
   // Create agent configuration
   .post(
     "/agents",
-    async (context: any) => {
-      const { body } = context;
+    async (context) => {
       const {
         agentType,
         name,
@@ -95,7 +94,15 @@ export const aiAgentRoutes = new Elysia()
         modelId,
         capabilities,
         isDefault,
-      } = body as any;
+      } = context.body as {
+        agentType: string;
+        name: string;
+        apiKey?: string;
+        endpoint?: string;
+        modelId?: string;
+        capabilities?: Record<string, unknown>;
+        isDefault?: boolean;
+      };
 
       if (isDefault) {
         await prisma.aIAgentConfig.updateMany({
@@ -159,9 +166,8 @@ export const aiAgentRoutes = new Elysia()
   // Update agent configuration
   .patch(
     "/agents/:id",
-    async (context: any) => {
-      const { params, body } = context;
-      const { id } = params as any;
+    async (context) => {
+      const { id } = context.params as { id: string };
       const {
         name,
         apiKey,
@@ -171,7 +177,16 @@ export const aiAgentRoutes = new Elysia()
         capabilities,
         isDefault,
         isActive,
-      } = body as any;
+      } = context.body as {
+        name?: string;
+        apiKey?: string;
+        clearApiKey?: boolean;
+        endpoint?: string;
+        modelId?: string;
+        capabilities?: Record<string, unknown>;
+        isDefault?: boolean;
+        isActive?: boolean;
+      };
 
       if (isDefault) {
         await prisma.aIAgentConfig.updateMany({
@@ -279,9 +294,9 @@ export const aiAgentRoutes = new Elysia()
   // Get single agent configuration with masked API key
   .get(
     "/agents/:id",
-    async (context: any) => {
-      const { params, set } = context;
-      const { id } = params as any;
+    async (context) => {
+      const { set } = context;
+      const { id } = context.params as { id: string };
       const agent = await prisma.aIAgentConfig.findUnique({
         where: { id: parseInt(id) },
         include: {
@@ -331,9 +346,8 @@ export const aiAgentRoutes = new Elysia()
   // Delete agent configuration
   .delete(
     "/agents/:id",
-    async (context: any) => {
-      const { params } = context;
-      const { id } = params as any;
+    async (context) => {
+      const { id } = context.params as { id: string };
 
       // 削除前の値を取得
       const previous = await prisma.aIAgentConfig.findUnique({
@@ -370,10 +384,10 @@ export const aiAgentRoutes = new Elysia()
   // Save API key for agent
   .post(
     "/agents/:id/api-key",
-    async (context: any) => {
-      const { params, body, set } = context;
-      const { id } = params as any;
-      const { apiKey } = body as any;
+    async (context) => {
+      const { set } = context;
+      const { id } = context.params as { id: string };
+      const { apiKey } = context.body as { apiKey: string };
 
       if (!apiKey) {
         set.status = 400;
@@ -430,9 +444,9 @@ export const aiAgentRoutes = new Elysia()
   // Delete API key for agent
   .delete(
     "/agents/:id/api-key",
-    async (context: any) => {
-      const { params, set } = context;
-      const { id } = params as any;
+    async (context) => {
+      const { set } = context;
+      const { id } = context.params as { id: string };
 
       const agent = await prisma.aIAgentConfig.findUnique({
         where: { id: parseInt(id) },
@@ -469,9 +483,9 @@ export const aiAgentRoutes = new Elysia()
   // Test connection for agent
   .post(
     "/agents/:id/test",
-    async (context: any) => {
-      const { params, set } = context;
-      const { id } = params as any;
+    async (context) => {
+      const { set } = context;
+      const { id } = context.params as { id: string };
       const agent = await prisma.aIAgentConfig.findUnique({
         where: { id: parseInt(id) },
       });
@@ -795,7 +809,7 @@ export const aiAgentRoutes = new Elysia()
   })
 
   // Get available models for a specific agent type
-  .get("/agents/models", async (context: any) => {
+  .get("/agents/models", async (context) => {
     const { query } = context;
     if (query.type) {
       const models = await getModelsForAgentType(query.type);
@@ -810,9 +824,8 @@ export const aiAgentRoutes = new Elysia()
   // Set development agent configuration
   .post(
     "/agents/development",
-    async (context: any) => {
-      const { body } = context;
-      const { type, model } = body as any;
+    async (context) => {
+      const { type, model } = context.body as { type: string; model: string };
 
       // Find or create agent config
       let agent = await prisma.aIAgentConfig.findFirst({
@@ -928,7 +941,13 @@ export const aiAgentRoutes = new Elysia()
   // Validate agent configuration
   .post("/agents/validate-config", async ({ body, set }) => {
     const { agentType, apiKey, endpoint, modelId, additionalConfig } =
-      body as any;
+      body as {
+        agentType: string;
+        apiKey?: string;
+        endpoint?: string;
+        modelId?: string;
+        additionalConfig?: Record<string, unknown>;
+      };
 
     const errors: string[] = [];
 
@@ -961,7 +980,7 @@ export const aiAgentRoutes = new Elysia()
 
   // Test API key connection for an agent
   .post("/agents/:id/test-connection", async (context) => {
-    const { id } = context.params as any;
+    const { id } = context.params as { id: string };
     const agent = await prisma.aIAgentConfig.findUnique({
       where: { id: parseInt(id) },
     });
@@ -1053,7 +1072,7 @@ export const aiAgentRoutes = new Elysia()
   })
 
   // Mark interrupted execution as acknowledged (to clear it from the list)
-  .post("/agents/executions/:id/acknowledge", async (context: any) => {
+  .post("/agents/executions/:id/acknowledge", async (context) => {
     const { params } = context;
     const executionId = parseInt(params.id);
 

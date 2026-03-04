@@ -104,7 +104,7 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
     });
   })
 
-  .get("/:id", async (context: any) => {
+  .get("/:id", async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
     const thirtyDaysAgo = new Date();
@@ -173,7 +173,10 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
     "/",
     async ({ body }) => {
       const { name, description, icon, color, frequency, targetCount } =
-        body as any;
+        body as {
+          name: string; description?: string; icon?: string; color?: string;
+          frequency?: string; targetCount?: number;
+        };
       return await prisma.habit.create({
         data: {
           name,
@@ -200,7 +203,7 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
   .patch("/:id", async ({ params, body }) => {
     const id = parseInt(params.id);
     const { name, description, icon, color, frequency, targetCount, isActive } =
-      body as any;
+      body as { name?: string; description?: string; icon?: string; color?: string; frequency?: string; targetCount?: number; isActive?: boolean };
     return await prisma.habit.update({
       where: { id },
       data: {
@@ -215,7 +218,7 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
     });
   })
 
-  .delete("/:id", async (context: any) => {
+  .delete("/:id", async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
     return await prisma.habit.delete({ where: { id } });
@@ -223,7 +226,7 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
 
   .post("/:id/log", async ({ params, body }) => {
     const id = parseInt(params.id);
-    const { date, note } = body as any;
+    const { date, note } = body as { date?: string; note?: string };
 
     const targetDate = date ? new Date(date) : new Date();
     targetDate.setHours(0, 0, 0, 0);
@@ -254,7 +257,7 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
   })
 
   // 習慣の統計情報
-  .get("/:id/statistics", async (context: any) => {
+  .get("/:id/statistics", async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
 

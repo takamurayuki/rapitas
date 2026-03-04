@@ -32,7 +32,7 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
   // Get theme by ID
   .get(
     "/:id",
-    async (context: any) => {
+    async (context) => {
       const { params  } = context;
       const id = parseInt(params.id);
       if (isNaN(id)) {
@@ -61,7 +61,7 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
   // Create theme (categoryId is required)
   .post(
     "/",
-    async (context: any) => {
+    async (context) => {
       const { body  } = context;
       const { name,
         description,
@@ -72,7 +72,11 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
         workingDirectory,
         defaultBranch,
         categoryId,
-       } = body as any;
+       } = body as {
+        name: string; description?: string; color?: string; icon?: string;
+        isDevelopment?: boolean; repositoryUrl?: string; workingDirectory?: string;
+        defaultBranch?: string; categoryId: number;
+      };
 
       return await prisma.theme.create({
         data: {
@@ -97,7 +101,7 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
   // Update theme
   .patch(
     "/:id",
-    async (context: any) => {
+    async (context) => {
       const { params, body  } = context;
       const id = parseInt(params.id);
       if (isNaN(id)) {
@@ -122,7 +126,11 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
         workingDirectory,
         defaultBranch,
         categoryId,
-       } = body as any;
+       } = body as {
+        name?: string; description?: string; color?: string; icon?: string;
+        isDevelopment?: boolean; repositoryUrl?: string; workingDirectory?: string;
+        defaultBranch?: string; categoryId?: number | null; sortOrder?: number;
+      };
 
       const updateData: Record<string, unknown> = {};
       if (name !== undefined) updateData.name = name;
@@ -157,7 +165,7 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
   )
 
   // Delete theme
-  .delete("/:id", async (context: any) => {
+  .delete("/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
@@ -174,7 +182,7 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
     "/reorder",
     async (context) => {
       const { body } = context;
-      const { orders } = body as any;
+      const { orders } = body as { orders: Array<{ id: number; sortOrder: number }> };
 
       await Promise.all(
         orders.map(({ id, sortOrder }) =>
@@ -190,7 +198,7 @@ export const themesRoutes = new Elysia({ prefix: "/themes" })
   )
 
   // Set default theme (per category: only one default per category)
-  .patch("/:id/set-default", async (context: any) => {
+  .patch("/:id/set-default", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {

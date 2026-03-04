@@ -56,9 +56,9 @@ export const notificationsRoutes = new Elysia({ prefix: "/notifications" })
     });
   })
   // Get notifications list
-  .get("/", async (context: any) => {
+  .get("/", async (context) => {
       const { query  } = context;
-    const { unreadOnly, limit  } = query as any;
+    const { unreadOnly, limit  } = query as { unreadOnly?: string; limit?: string };
 
     return await prisma.notification.findMany({
       where: unreadOnly === "true" ? { isRead: false } : undefined,
@@ -76,7 +76,7 @@ export const notificationsRoutes = new Elysia({ prefix: "/notifications" })
   })
 
   // Mark as read
-  .patch("/:id/read", async (context: any) => {
+  .patch("/:id/read", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
@@ -99,7 +99,7 @@ export const notificationsRoutes = new Elysia({ prefix: "/notifications" })
   })
 
   // Delete notification
-  .delete("/:id", async (context: any) => {
+  .delete("/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {

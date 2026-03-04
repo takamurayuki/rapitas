@@ -110,7 +110,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .get(
     "/tasks/:id/analyze",
-    async (context: any) => {
+    async (context) => {
       const { params  } = context;
       try {
         const taskId = parseInt(params.id);
@@ -167,7 +167,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .get(
     "/tasks/:id/analyze/stream",
-    async (context: any) => {
+    async (context) => {
       const { params, set  } = context;
       const taskId = parseInt(params.id);
 
@@ -257,11 +257,11 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .post(
     "/tasks/:id/execute",
-    async (context: any) => {
+    async (context) => {
       const { params, body  } = context;
       try {
         const taskId = parseInt(params.id);
-        const config = body.config as Partial<ParallelExecutionConfig> | undefined;
+        const config = (body as Record<string, unknown>).config as Partial<ParallelExecutionConfig> | undefined;
 
         // タスク情報を取得
         const task = await prisma.task.findUnique({
@@ -378,7 +378,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .get(
     "/sessions/:sessionId/status",
-    async (context: any) => {
+    async (context) => {
       const { params  } = context;
       try {
         const executor = getParallelExecutor();
@@ -412,7 +412,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .post(
     "/sessions/:sessionId/stop",
-    async (context: any) => {
+    async (context) => {
       const { params  } = context;
       try {
         const executor = getParallelExecutor();
@@ -442,7 +442,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .get(
     "/sessions/:sessionId/logs",
-    async (context: any) => {
+    async (context) => {
       const { params, query  } = context;
       try {
         const executor = getParallelExecutor();
@@ -482,7 +482,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
    */
   .get(
     "/sessions/:sessionId/logs/stream",
-    async (context: any) => {
+    async (context) => {
       const { params, set  } = context;
       set.headers = {
         "Content-Type": "text/event-stream",

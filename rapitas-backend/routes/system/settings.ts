@@ -5,6 +5,32 @@ import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
 import { getApiKeyForProvider } from "../../utils/ai-client";
 import { encrypt, decrypt, maskApiKey } from "../../utils/encryption";
+import { systemSchemas } from "../../schemas/system.schema";
+
+// Type definitions for request bodies
+interface UserSettingsUpdateBody {
+  developerModeDefault?: boolean;
+  aiTaskAnalysisDefault?: boolean;
+  autoResumeInterruptedTasks?: boolean;
+  autoExecuteAfterCreate?: boolean;
+  autoGenerateTitle?: boolean;
+  autoGenerateTitleDelay?: number;
+  autoCreateAfterTitleGeneration?: boolean;
+  autoApprovePlan?: boolean;
+  defaultAiProvider?: string;
+  defaultCategoryId?: number | null;
+  activeMode?: string;
+}
+
+interface ApiKeyBody {
+  apiKey: string;
+  provider?: string;
+}
+
+interface ModelConfigBody {
+  model?: string;
+  provider?: string;
+}
 
 const PROVIDER_COLUMNS = {
   claude: "claudeApiKeyEncrypted",
@@ -280,9 +306,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   // Update settings
   .patch(
     "/",
-    async (context) => {
-      const { body, set } = context;
-      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, autoExecuteAfterCreate, autoGenerateTitle, autoGenerateTitleDelay, autoCreateAfterTitleGeneration, autoApprovePlan, defaultAiProvider, defaultCategoryId, activeMode } = body as any;
+    async ({ body, set }) => {
+      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, autoExecuteAfterCreate, autoGenerateTitle, autoGenerateTitleDelay, autoCreateAfterTitleGeneration, autoApprovePlan, defaultAiProvider, defaultCategoryId, activeMode } = body as { developerModeDefault?: boolean; aiTaskAnalysisDefault?: boolean; autoResumeInterruptedTasks?: boolean; autoExecuteAfterCreate?: boolean; autoGenerateTitle?: boolean; autoGenerateTitleDelay?: number; autoCreateAfterTitleGeneration?: boolean; autoApprovePlan?: boolean; defaultAiProvider?: string; defaultCategoryId?: number; activeMode?: string };
 
       try {
         let settings = await prisma.userSettings.findFirst();
@@ -331,19 +356,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       }
     },
     {
-      body: t.Object({
-        developerModeDefault: t.Optional(t.Boolean()),
-        aiTaskAnalysisDefault: t.Optional(t.Boolean()),
-        autoResumeInterruptedTasks: t.Optional(t.Boolean()),
-        autoExecuteAfterCreate: t.Optional(t.Boolean()),
-        autoGenerateTitle: t.Optional(t.Boolean()),
-        autoGenerateTitleDelay: t.Optional(t.Number()),
-        autoCreateAfterTitleGeneration: t.Optional(t.Boolean()),
-        autoApprovePlan: t.Optional(t.Boolean()),
-        defaultAiProvider: t.Optional(t.String()),
-        defaultCategoryId: t.Optional(t.Union([t.Number(), t.Null()])),
-        activeMode: t.Optional(t.String()),
-      }),
+      body: systemSchemas.userSettings
     }
   )
 
@@ -356,9 +369,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   })
 
   // Get API key status for a specific provider
-  .get("/api-key", async (context: any) => {
-      const { query  } = context;
-    const provider = (query.provider as string) || "claude";
+  .get("/api-key", async ({ query }) => {
+    const provider = query.provider || "claude";
 
     if (!isValidProvider(provider)) {
       return { configured: false, maskedKey: null, provider };
@@ -396,6 +408,10 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
     } catch {
       return { configured: false, maskedKey: null, provider };
     }
+  }, {
+    query: t.Object({
+      provider: t.Optional(t.String())
+    })
   })
 
   // Get all providers' API key status
@@ -432,9 +448,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   // Save API key for a specific provider
   .post(
     "/api-key",
-    async (context: any) => {
-      const { body, set  } = context;
-      const { apiKey, provider = "claude"  } = body as any;
+    async ({ body, set }) => {
+      const { apiKey, provider = "claude" } = body as { apiKey: string; provider?: string };
 
       if (!isValidProvider(provider)) {
         set.status = 400;
@@ -470,19 +485,15 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       };
     },
     {
-      body: t.Object({
-        apiKey: t.String({ minLength: 1 }),
-        provider: t.Optional(t.String()),
-      }),
+      body: systemSchemas.aiProviderConfig
     }
   )
 
   // Validate API key format for a specific provider
   .post(
     "/api-key/validate",
-    async (context: any) => {
-      const { body, set  } = context;
-      const { apiKey, provider = "claude"  } = body as any;
+    async ({ body, set }) => {
+      const { apiKey, provider = "claude" } = body as { apiKey: string; provider?: string };
 
       if (!isValidProvider(provider)) {
         set.status = 400;
@@ -493,17 +504,13 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       return validation;
     },
     {
-      body: t.Object({
-        apiKey: t.String(),
-        provider: t.Optional(t.String()),
-      }),
+      body: systemSchemas.aiProviderConfig
     }
   )
 
   // Delete API key for a specific provider
-  .delete("/api-key", async (context: any) => {
-      const { query  } = context;
-    const provider = (query.provider as string) || "claude";
+  .delete("/api-key", async ({ query }) => {
+    const provider = query.provider || "claude";
 
     if (!isValidProvider(provider)) {
       throw new Error(`Invalid provider: ${provider}`);
@@ -520,6 +527,10 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
     }
 
     return { success: true, provider };
+  }, {
+    query: t.Object({
+      provider: t.Optional(t.String())
+    })
   })
 
   // Get available models for all providers
@@ -528,9 +539,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   })
 
   // Get default model for a specific provider
-  .get("/model", async (context: any) => {
-      const { query  } = context;
-    const provider = (query.provider as string) || "claude";
+  .get("/model", async ({ query }) => {
+    const provider = query.provider || "claude";
 
     if (!isValidProvider(provider)) {
       return { provider, model: null };
@@ -543,14 +553,17 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
 
     const column = PROVIDER_MODEL_COLUMNS[provider];
     return { provider, model: settings[column] };
+  }, {
+    query: t.Object({
+      provider: t.Optional(t.String())
+    })
   })
 
   // Save default model for a specific provider
   .post(
     "/model",
-    async (context: any) => {
-      const { body, set  } = context;
-      const { model, provider = "claude"  } = body as any;
+    async ({ body, set }) => {
+      const { model, provider = "claude" } = body as { model: string; provider?: string };
 
       if (!isValidProvider(provider)) {
         set.status = 400;
@@ -584,9 +597,6 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       return { provider, model };
     },
     {
-      body: t.Object({
-        model: t.Optional(t.String()),
-        provider: t.Optional(t.String()),
-      }),
+      body: systemSchemas.modelConfig
     }
   );

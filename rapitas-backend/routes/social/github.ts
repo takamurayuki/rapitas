@@ -5,6 +5,7 @@
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
 import { GitHubService, type GitHubWebhookPayload } from "../../services/github-service";
+import { githubSchemas, githubParamSchemas, githubQuerySchemas } from "../../schemas/github.schema";
 
 // Create GitHub service instance
 const githubService = new GitHubService(prisma);
@@ -78,9 +79,9 @@ export const githubRoutes = new Elysia({ prefix: "/github" })
   // Update integration
   .patch(
     "/integrations/:id",
-    async (context: any) => {
-      const { id  } = context.params as any;
-      const { syncIssues, syncPullRequests, autoLinkTasks, isActive  } = context.body as any;
+    async ({ params, body }) => {
+      const { id } = params;
+      const { syncIssues, syncPullRequests, autoLinkTasks, isActive } = body as { syncIssues?: boolean; syncPullRequests?: boolean; autoLinkTasks?: boolean; isActive?: boolean };
 
       return await prisma.gitHubIntegration.update({
         where: { id: parseInt(id) },
@@ -92,26 +93,31 @@ export const githubRoutes = new Elysia({ prefix: "/github" })
         },
       });
     },
+    {
+      params: githubParamSchemas.integrationId,
+      body: githubSchemas.integrationUpdate
+    }
   )
 
   // Delete integration
   .delete(
     "/integrations/:id",
-    async (context: any) => {
-      const { params  } = context;
-      const { id  } = params as any;
+    async ({ params }) => {
+      const { id } = params;
       return await prisma.gitHubIntegration.delete({
         where: { id: parseInt(id) },
       });
     },
+    {
+      params: githubParamSchemas.integrationId
+    }
   )
 
   // Sync PRs
   .post(
     "/integrations/:id/sync-prs",
-    async (context: any) => {
-      const { params  } = context;
-      const { id  } = params as any;
+    async ({ params }) => {
+      const { id } = params;
       const count = await githubService.syncPullRequests(parseInt(id));
       return { syncedCount: count };
     },
@@ -120,9 +126,9 @@ export const githubRoutes = new Elysia({ prefix: "/github" })
   // Sync Issues
   .post(
     "/integrations/:id/sync-issues",
-    async (context: any) => {
+    async (context) => {
       const { params  } = context;
-      const { id  } = params as any;
+      const { id  } = params as { id: string };
       const count = await githubService.syncIssues(parseInt(id));
       return { syncedCount: count };
     },
@@ -131,10 +137,10 @@ export const githubRoutes = new Elysia({ prefix: "/github" })
   // Get PR list
   .get(
     "/integrations/:id/pull-requests",
-    async (context: any) => {
+    async (context) => {
       const { params, query } = context;
-      const { id } = params as any;
-      const { state, fromGitHub } = query as any;
+      const { id } = params as { id: string };
+      const { state, fromGitHub } = query as { state?: string; fromGitHub?: string };
 
       if (fromGitHub === "true") {
         const integration = await prisma.gitHubIntegration.findUnique({
@@ -164,9 +170,9 @@ export const githubRoutes = new Elysia({ prefix: "/github" })
   // Get PR details
   .get(
     "/pull-requests/:id",
-    async (context: any) => {
+    async (context) => {
       const { params  } = context;
-      const { id  } = params as any;
+      const { id  } = params as { id: string };
       return await prisma.gitHubPullRequest.findUnique({
         where: { id: parseInt(id) },
         include: {
@@ -181,9 +187,9 @@ export const githubRoutes = new Elysia({ prefix: "/github" })
   // Get PR diff
   .get(
     "/pull-requests/:id/diff",
-    async (context: any) => {
+    async (context) => {
       const { params  } = context;
-      const { id  } = params as any;
+      const { id  } = params as { id: string };
       const pr = await prisma.gitHubPullRequest.findUnique({
         where: { id: parseInt(id) },
         include: { integration: true },
@@ -199,9 +205,9 @@ export const githubRoutes = new Elysia({ prefix: "/github" })
   // Post PR comment
   .post(
     "/pull-requests/:id/comments",
-    async (context: any) => {
-      const { id  } = context.params as any;
-      const { body: commentBody, path, line  } = context.body as any;
+    async (context) => {
+      const { id  } = context.params as { id: string };
+      const { body: commentBody, path, line  } = context.body as { body: string; path?: string; line?: number };
 
       const pr = await prisma.gitHubPullRequest.findUnique({
         where: { id: parseInt(id) },
@@ -241,9 +247,9 @@ export const githubRoutes = new Elysia({ prefix: "/github" })
   // Approve PR
   .post(
     "/pull-requests/:id/approve",
-    async (context: any) => {
-      const { id  } = context.params as any;
-      const { body: reviewBody  } = context.body as any;
+    async (context) => {
+      const { id  } = context.params as { id: string };
+      const { body: reviewBody  } = context.body as { body?: string };
 
       const pr = await prisma.gitHubPullRequest.findUnique({
         where: { id: parseInt(id) },
@@ -274,7 +280,7 @@ export const githubRoutes = new Elysia({ prefix: "/github" })
     "/pull-requests/:id/request-changes",
     async (context) => {
       const id = context.params.id;
-      const reviewBody = (context.body as any).body;
+      const reviewBody = (context.body as { body?: string }).body;
 
       const pr = await prisma.gitHubPullRequest.findUnique({
         where: { id: parseInt(id) },
@@ -322,9 +328,9 @@ export const githubRoutes = new Elysia({ prefix: "/github" })
   // Get Issue details
   .get(
     "/issues/:id",
-    async (context: any) => {
+    async (context) => {
       const { params  } = context;
-      const { id  } = params as any;
+      const { id  } = params as { id: string };
       return await prisma.gitHubIssue.findUnique({
         where: { id: parseInt(id) },
         include: { integration: true },
@@ -335,9 +341,9 @@ export const githubRoutes = new Elysia({ prefix: "/github" })
   // Post Issue comment
   .post(
     "/issues/:id/comments",
-    async (context: any) => {
-      const { id  } = context.params as any;
-      const { body: commentBody  } = context.body as any;
+    async (context) => {
+      const { id  } = context.params as { id: string };
+      const { body: commentBody  } = context.body as { body: string };
 
       const issue = await prisma.gitHubIssue.findUnique({
         where: { id: parseInt(id) },
@@ -358,9 +364,9 @@ export const githubRoutes = new Elysia({ prefix: "/github" })
   // Create Task from Issue
   .post(
     "/issues/:id/create-task",
-    async (context: any) => {
-      const { id } = context.params as any;
-      const { projectId, themeId, priority } = context.body as any;
+    async (context) => {
+      const { id } = context.params as { id: string };
+      const { projectId, themeId, priority } = context.body as { projectId?: number; themeId?: number; priority?: string };
 
       const issue = await prisma.gitHubIssue.findUnique({
         where: { id: parseInt(id) },
@@ -392,14 +398,14 @@ export const githubRoutes = new Elysia({ prefix: "/github" })
   // Webhook receiver
   .post(
     "/webhook",
-    async (context: any) => {
+    async (context) => {
       const { request, body } = context;
       const event = request.headers.get("x-github-event");
       if (!event) {
         return { error: "Missing X-GitHub-Event header" };
       }
 
-      await githubService.handleWebhook(event, body);
+      await githubService.handleWebhook(event, body as GitHubWebhookPayload);
       return { success: true };
     },
   );
@@ -459,9 +465,9 @@ export const taskGithubRoutes = new Elysia()
   // Link GitHub PR to Task
   .post(
     "/tasks/:id/link-github-pr/:prId",
-    async (context: any) => {
+    async (context) => {
       const { params  } = context;
-      const { id, prId  } = params as any;
+      const { id, prId  } = params as { id: string; prId: string };
 
       await prisma.gitHubPullRequest.update({
         where: { id: parseInt(prId) },

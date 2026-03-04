@@ -8,7 +8,8 @@ import { Elysia } from "elysia";
 import { agentConfigRouter } from "../routes/agents/agent-config-router";
 
 describe("Agent Config Router", () => {
-  let app: Elysia;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let app: any;
 
   beforeEach(() => {
     app = new Elysia().use(agentConfigRouter);

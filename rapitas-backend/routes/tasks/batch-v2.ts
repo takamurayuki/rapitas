@@ -15,21 +15,23 @@ interface BatchResult {
 }
 
 // リクエストハンドラーのレジストリ
+type HandlerContext = { query?: Record<string, string>; params?: Record<string, string>; body?: unknown };
+
 const requestHandlers = new Map<
   string,
-  (params: { query?: any; params?: any; body?: any }) => Promise<any>
+  (params: HandlerContext) => Promise<unknown>
 >();
 
 // ハンドラーを登録
 function registerHandler(
   pattern: string,
-  handler: (params: { query?: any; params?: any; body?: any }) => Promise<any>,
+  handler: (params: HandlerContext) => Promise<unknown>,
 ) {
   requestHandlers.set(pattern, handler);
 }
 
 // 最適化されたハンドラーを登録
-registerHandler("GET:/tasks", async (context: any) => {
+registerHandler("GET:/tasks", async (context) => {
       const { query  } = context;
   const cacheKey = CacheKeys.taskList(query);
 
@@ -44,14 +46,14 @@ registerHandler("GET:/tasks", async (context: any) => {
     status,
     since,
     cursor,
-    limit = 20,
+    limit = "20",
     search,
     projectId,
     priority,
-   } = query as any;
+   } = query as Record<string, string>;
 
   // フィルター構築
-  const where: Record<string, any> = {};
+  const where: Record<string, unknown> = {};
   if (categoryId) where.categoryId = parseInt(categoryId);
   if (status) where.status = status;
   if (projectId) where.projectId = parseInt(projectId);
@@ -67,7 +69,7 @@ registerHandler("GET:/tasks", async (context: any) => {
         },
         ...QueryOptimizers.taskWithRelations(),
         orderBy: { updatedAt: "desc" },
-      }),
+      } as Parameters<typeof prisma.task.findMany>[0]),
       totalCount: prisma.task.count({ where }),
       activeIds: prisma.task.findMany({
         where,
@@ -95,7 +97,7 @@ registerHandler("GET:/tasks", async (context: any) => {
       ...searchQuery,
       ...PrismaOptimizer.cursorPagination(cursor, parseInt(limit)),
       orderBy: { createdAt: "desc" },
-    });
+    } as Parameters<typeof prisma.task.findMany>[0]);
 
     const formatted = PrismaOptimizer.formatCursorResults(
       results,
@@ -111,7 +113,7 @@ registerHandler("GET:/tasks", async (context: any) => {
     ...QueryOptimizers.taskWithRelations(),
     ...PrismaOptimizer.cursorPagination(cursor, parseInt(limit)),
     orderBy: { createdAt: "desc" },
-  });
+  } as Parameters<typeof prisma.task.findMany>[0]);
 
   const formatted = PrismaOptimizer.formatCursorResults(
     results,
@@ -121,7 +123,7 @@ registerHandler("GET:/tasks", async (context: any) => {
   return formatted;
 });
 
-registerHandler("GET:/tasks/:id", async (context: any) => {
+registerHandler("GET:/tasks/:id", async (context) => {
       const { params  } = context;
   const id = parseInt(params.id);
   const cacheKey = CacheKeys.task(params.id);
@@ -134,7 +136,7 @@ registerHandler("GET:/tasks/:id", async (context: any) => {
   const task = await prisma.task.findUnique({
     where: { id },
     ...QueryOptimizers.taskWithRelations(),
-  });
+  } as Parameters<typeof prisma.task.findUnique>[0]);
 
   if (task) {
     await cacheService.set(cacheKey, task, CacheKeys.TTL.MEDIUM);
@@ -157,12 +159,12 @@ registerHandler("GET:/statistics/tasks", async () => {
   return stats;
 });
 
-registerHandler("POST:/tasks", async (context: any) => {
+registerHandler("POST:/tasks", async (context) => {
       const { body  } = context;
   const task = await prisma.task.create({
-    data: body,
+    data: body as Parameters<typeof prisma.task.create>[0]["data"],
     ...QueryOptimizers.taskWithRelations(),
-  });
+  } as Parameters<typeof prisma.task.create>[0]);
 
   // 関連するキャッシュを無効化
   await cacheService.clear("tasks:");
@@ -171,14 +173,14 @@ registerHandler("POST:/tasks", async (context: any) => {
   return task;
 });
 
-registerHandler("PATCH:/tasks/:id", async (context: any) => {
+registerHandler("PATCH:/tasks/:id", async (context) => {
       const { params, body  } = context;
   const id = parseInt(params.id);
   const task = await prisma.task.update({
     where: { id },
-    data: body,
+    data: body as Parameters<typeof prisma.task.update>[0]["data"],
     ...QueryOptimizers.taskWithRelations(),
-  });
+  } as Parameters<typeof prisma.task.update>[0]);
 
   // 特定のタスクキャッシュを無効化
   await cacheService.delete(CacheKeys.task(params.id));
@@ -188,7 +190,7 @@ registerHandler("PATCH:/tasks/:id", async (context: any) => {
   return task;
 });
 
-registerHandler("DELETE:/tasks/:id", async (context: any) => {
+registerHandler("DELETE:/tasks/:id", async (context) => {
       const { params  } = context;
   const id = parseInt(params.id);
   await prisma.task.delete({ where: { id } });
@@ -215,7 +217,7 @@ class BatchProcessor {
       id: string;
       method: string;
       url: string;
-      body?: any;
+      body?: unknown;
     }>,
   ): Promise<BatchResult[]> {
     // リクエストをキューに追加
@@ -239,7 +241,7 @@ class BatchProcessor {
     id: string;
     method: string;
     url: string;
-    body?: any;
+    body?: unknown;
   }) {
     return async (): Promise<BatchResult> => {
       const startTime = performance.now();
@@ -274,17 +276,17 @@ class BatchProcessor {
         return {
           id: request.id,
           status: 200,
-          body: result,
-          cached: result.cached || false,
+          body: result as string | object,
+          cached: (result as { cached?: boolean }).cached || false,
           executionTime,
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         const executionTime = performance.now() - startTime;
-
+        const err = error as { status?: number; message?: string };
         return {
           id: request.id,
-          status: error.status || 500,
-          error: error.message || "Internal server error",
+          status: err.status || 500,
+          error: err.message || "Internal server error",
           executionTime,
         };
       }
@@ -305,7 +307,7 @@ class BatchProcessor {
     return `${method}:/${pattern}`;
   }
 
-  private findHandler(key: string): { handler: any; params: any } | null {
+  private findHandler(key: string): { handler: (params: HandlerContext) => Promise<unknown>; params: Record<string, string> } | null {
     // 完全一致を試みる
     if (requestHandlers.has(key)) {
       return { handler: requestHandlers.get(key), params: {} };
@@ -350,14 +352,14 @@ export const batchRoutesV2 = new Elysia({ prefix: "/batch/v2" })
   .use(performanceMonitoring)
   .post(
     "/",
-    async (context: any) => {
+    async (context) => {
       const { body, set  } = context;
       const typedBody = body as {
         requests: Array<{
           id: string;
           method: string;
           path: string;
-          params?: any;
+          params?: unknown;
         }>;
       };
       const results = await batchProcessor.processRequests(

@@ -432,9 +432,9 @@ export const agentVersionManagementRoutes = new Elysia()
       });
 
       const versionHistory = auditLogs.map(log => {
-        let changeDetails: any = {};
-        let previousValues: any = {};
-        let newValues: any = {};
+        let changeDetails: Record<string, unknown> = {};
+        let previousValues: Record<string, unknown> = {};
+        let newValues: Record<string, unknown> = {};
 
         try {
           if (log.changeDetails) changeDetails = JSON.parse(log.changeDetails);
@@ -484,9 +484,9 @@ export const agentVersionManagementRoutes = new Elysia()
  */
 function getVersionChangeDescription(
   action: string,
-  changeDetails: any,
-  previousValues: any,
-  newValues: any
+  changeDetails: Record<string, unknown>,
+  previousValues: Record<string, unknown>,
+  newValues: Record<string, unknown>
 ): string {
   switch (action) {
     case "update_version":

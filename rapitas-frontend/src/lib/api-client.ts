@@ -391,7 +391,7 @@ class APIClient {
       const now = Date.now();
 
       // 有効なキャッシュエントリーのみメモリに読み込む
-      Object.entries(persistentCache).forEach(([key, entry]: [string, any]) => {
+      (Object.entries(persistentCache) as [string, { data: unknown; timestamp: number; expiry: number }][]).forEach(([key, entry]) => {
         if (entry.expiry > now) {
           this.cache.set(key, entry);
         }
@@ -462,12 +462,14 @@ class APIClient {
       const persistentCache = JSON.parse(stored);
       const now = Date.now();
 
-      const cleaned = Object.entries(persistentCache).reduce((acc, [key, entry]: [string, any]) => {
-        if (entry.expiry > now) {
-          acc[key] = entry;
+      type CacheEntry = { data: unknown; timestamp: number; expiry: number };
+      const cleaned = Object.entries(persistentCache).reduce<Record<string, CacheEntry>>((acc, [key, entry]) => {
+        const cacheEntry = entry as CacheEntry;
+        if (cacheEntry.expiry > now) {
+          acc[key] = cacheEntry;
         }
         return acc;
-      }, {} as Record<string, any>);
+      }, {});
 
       localStorage.setItem(this.localStorageKey, JSON.stringify(cleaned));
     } catch (error) {

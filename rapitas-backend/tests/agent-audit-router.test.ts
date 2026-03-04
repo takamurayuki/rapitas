@@ -7,8 +7,21 @@ import { describe, it, expect, beforeEach } from "bun:test";
 import { Elysia } from "elysia";
 import { agentAuditRouter, taskExecutionLogsRouter } from "../routes/agents/agent-audit-router";
 
+interface AuditLogResponse {
+  logs: unknown[];
+  [key: string]: unknown;
+}
+
+interface ExecutionLogResponse {
+  logs: unknown[];
+  lastSequence: unknown;
+  status: string;
+  [key: string]: unknown;
+}
+
 describe("Agent Audit Router", () => {
-  let app: Elysia;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let app: any;
 
   beforeEach(() => {
     app = new Elysia()
@@ -21,7 +34,7 @@ describe("Agent Audit Router", () => {
       const mockAgentId = "123";
       const response = await app
         .handle(new Request(`http://localhost/agents/${mockAgentId}/audit-logs`))
-        .then(res => res.json());
+        .then((res: Response) => res.json()) as AuditLogResponse;
 
       expect(response).toBeDefined();
       expect(response.logs).toBeDefined();
@@ -33,7 +46,7 @@ describe("Agent Audit Router", () => {
     it("should return recent audit logs", async () => {
       const response = await app
         .handle(new Request("http://localhost/agents/audit-logs/recent"))
-        .then(res => res.json());
+        .then((res: Response) => res.json()) as AuditLogResponse;
 
       expect(response).toBeDefined();
       expect(response.logs).toBeDefined();
@@ -49,7 +62,7 @@ describe("Agent Audit Router", () => {
 
       // レスポンスは複雑なオブジェクト構造 (単一execution mode or 複数execution mode)
       if (httpResponse.status === 200) {
-        const response = await httpResponse.json();
+        const response = await httpResponse.json() as ExecutionLogResponse;
         expect(response).toBeDefined();
         expect(response.logs).toBeDefined();
         expect(Array.isArray(response.logs)).toBe(true);

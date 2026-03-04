@@ -50,7 +50,7 @@ type TaskActivity = {
   details?: string;
   user?: string;
   timestamp: string;
-  changes?: Record<string, { from: any; to: any }>;
+  changes?: Record<string, { from: unknown; to: unknown }>;
 };
 
 type MemoAnalysis = {
@@ -212,7 +212,7 @@ const MEMO_TEMPLATES: MemoTemplate[] = [
 
 const MEMO_TYPE_CONFIG: Record<MemoType, {
   label: string;
-  icon: any;
+  icon: React.ElementType;
   color: { bg: string; text: string; border: string; badge: string };
 }> = {
   'work-log': {
@@ -1032,7 +1032,7 @@ export default function MemoSection({
   const notes = useMemo(() => {
     const process = (c: Comment): NoteData => {
       // ローカルストレージからメモデータを取得
-      let memoData = {};
+      let memoData: Record<string, unknown> = {};
       try {
         const saved = localStorage.getItem(`memo-data-${c.id}`);
         memoData = saved ? JSON.parse(saved) : {};
@@ -1042,8 +1042,8 @@ export default function MemoSection({
         ...c,
         time: timeAgo(new Date(c.createdAt)),
         replies: c.replies?.map(process),
-        memoType: memoData.memoType || 'general',
-        isPinned: memoData.isPinned || false,
+        memoType: (memoData.memoType as MemoType) || 'general',
+        isPinned: (memoData.isPinned as boolean) || false,
       };
     };
 

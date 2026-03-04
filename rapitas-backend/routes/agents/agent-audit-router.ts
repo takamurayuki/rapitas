@@ -16,7 +16,7 @@ import {
 type ExecutionWithExtras = {
   question?: string | null;
   questionType?: string | null;
-  questionDetails?: any;
+  questionDetails?: unknown;
   claudeSessionId?: string | null;
 };
 
@@ -24,7 +24,7 @@ export const agentAuditRouter = new Elysia({ prefix: "/agents" })
   // Get audit logs for a specific agent
   .get("/:id/audit-logs", async (context) => {
     const { params, query } = context;
-    const { id } = params as any;
+    const { id } = params;
     const limit = query.limit ? parseInt(query.limit) : 50;
 
     const logs = await getAgentConfigAuditLogs(parseInt(id), limit);
@@ -32,7 +32,7 @@ export const agentAuditRouter = new Elysia({ prefix: "/agents" })
   })
 
   // Get recent audit logs (all agents)
-  .get("/audit-logs/recent", async (context: any) => {
+  .get("/audit-logs/recent", async (context) => {
     const { query } = context;
     const limit = query.limit ? parseInt(query.limit) : 100;
     const logs = await getRecentAuditLogs(limit);

@@ -11,6 +11,15 @@ import {
   errorHandler,
 } from "../middleware/error-handler";
 
+interface ErrorResponseBody {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  code?: string;
+  type?: string;
+  details?: string;
+}
+
 describe("AppError", () => {
   test("statusCode, message, codeを保持すること", () => {
     const error = new AppError(400, "Bad request", "INVALID_INPUT");
@@ -104,7 +113,7 @@ describe("errorHandler middleware (inline onError)", () => {
 
     const response = await app.handle(new Request("http://localhost/test"));
     expect(response.status).toBe(422);
-    const body = await response.json();
+    const body = await response.json() as ErrorResponseBody;
     expect(body.error).toBe("Unprocessable");
     expect(body.code).toBe("UNPROCESSABLE");
   });
@@ -116,7 +125,7 @@ describe("errorHandler middleware (inline onError)", () => {
 
     const response = await app.handle(new Request("http://localhost/test"));
     expect(response.status).toBe(404);
-    const body = await response.json();
+    const body = await response.json() as ErrorResponseBody;
     expect(body.error).toBe("タスクが見つかりません");
   });
 
@@ -127,7 +136,7 @@ describe("errorHandler middleware (inline onError)", () => {
 
     const response = await app.handle(new Request("http://localhost/test"));
     expect(response.status).toBe(500);
-    const body = await response.json();
+    const body = await response.json() as ErrorResponseBody;
     expect(body.error).toBe("Unexpected error");
     expect(body.type).toBe("Error");
   });
@@ -141,7 +150,7 @@ describe("errorHandler middleware (inline onError)", () => {
 
     const response = await app.handle(new Request("http://localhost/test"));
     expect(response.status).toBe(400);
-    const body = await response.json();
+    const body = await response.json() as ErrorResponseBody;
     expect(body.error).toBe("データベースクエリエラー");
   });
 });

@@ -6,9 +6,9 @@ import { prisma } from "../../config/database";
 import { toJsonString, fromJsonString } from "../../utils/db-helpers";
 
 export const templatesRoutes = new Elysia({ prefix: "/templates" })
-  .get("/", async (context: any) => {
+  .get("/", async (context) => {
       const { query  } = context;
-    const { category, search, themeId  } = query as any;
+    const { category, search, themeId  } = query as { category?: string; search?: string; themeId?: string };
 
     const where: Record<string, unknown> = {};
 
@@ -53,7 +53,7 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
     return templates.map((t: { category: string }) => t.category);
   })
 
-  .get("/:id", async (context: any) => {
+  .get("/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     return await prisma.taskTemplate.findUnique({
@@ -75,7 +75,9 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
     "/",
     async (context) => {
       const { body } = context;
-      const { name, description, category, templateData, themeId } = body as any;
+      const { name, description, category, templateData, themeId } = body as {
+        name: string; description?: string; category: string; templateData: string; themeId?: number;
+      };
       return await prisma.taskTemplate.create({
         data: {
           name,
@@ -113,7 +115,7 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
     async (context) => {
       const { params, body } = context;
       const taskId = parseInt(params.taskId);
-      const { name, description, category } = body as any;
+      const { name, description, category } = body as { name: string; description?: string; category: string };
 
       // タスクを取得（サブタスク含む）
       const task = await prisma.task.findUnique({
@@ -189,7 +191,7 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
     }
   )
 
-  .delete("/:id", async (context: any) => {
+  .delete("/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     return await prisma.taskTemplate.delete({ where: { id } });
@@ -201,7 +203,7 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
     async (context) => {
       const { params, body } = context;
       const id = parseInt(params.id);
-      const { themeId, projectId, milestoneId, title: customTitle, dueDate } = (body as any) || {};
+      const { themeId, projectId, milestoneId, title: customTitle, dueDate } = (body as { themeId?: number; projectId?: number; milestoneId?: number; title?: string; dueDate?: string }) || {};
 
       const template = await prisma.taskTemplate.findUnique({
         where: { id },

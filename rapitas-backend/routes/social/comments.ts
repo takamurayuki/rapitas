@@ -248,7 +248,7 @@ export const commentsRoutes = new Elysia()
   )
 
   // Get all links for a comment
-  .get("/comments/:id/links", async (context: any) => {
+  .get("/comments/:id/links", async (context) => {
       const { params  } = context;
     const commentId = parseInt(params.id);
     if (isNaN(commentId)) {
@@ -324,7 +324,7 @@ export const commentsRoutes = new Elysia()
   )
 
   // Delete a link
-  .delete("/comment-links/:id", async (context: any) => {
+  .delete("/comment-links/:id", async (context) => {
       const { params  } = context;
     const linkId = parseInt(params.id);
     if (isNaN(linkId)) {
@@ -355,7 +355,7 @@ export const commentsRoutes = new Elysia()
     }: {
       query: { q?: string; taskId?: string; excludeId?: string; limit?: string };
     }) => {
-      const { q, taskId, excludeId, limit  } = query as any;
+      const { q, taskId, excludeId, limit  } = query;
       const searchLimit = limit ? parseInt(limit) : 20;
       const excludeCommentId = excludeId ? parseInt(excludeId) : undefined;
 

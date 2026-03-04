@@ -3562,6 +3562,57 @@ ${errorMessage}
   }
 
   /**
+   * PRを自動マージする
+   * コミット数が閾値以上の場合はsquash merge、未満の場合は通常のmerge commitを使用
+   */
+  async mergePullRequest(
+    workingDirectory: string,
+    prNumber: number,
+    commitThreshold: number = 5,
+  ): Promise<{
+    success: boolean;
+    mergeStrategy?: "squash" | "merge";
+    error?: string;
+  }> {
+    try {
+      const ghPath =
+        process.platform === "win32"
+          ? '"C:\\Program Files\\GitHub CLI\\gh.exe"'
+          : "gh";
+
+      // PRのコミット数を取得
+      const { stdout } = await execAsync(
+        `${ghPath} pr view ${prNumber} --json commits --jq ".commits | length"`,
+        { cwd: workingDirectory, encoding: "utf8" },
+      );
+      const commitCount = parseInt(stdout.trim(), 10) || 1;
+      const mergeStrategy =
+        commitCount >= commitThreshold ? "squash" : "merge";
+      const mergeFlag =
+        mergeStrategy === "squash" ? "--squash" : "--merge";
+
+      // マージ + リモートブランチ削除
+      await execAsync(
+        `${ghPath} pr merge ${prNumber} ${mergeFlag} --delete-branch`,
+        { cwd: workingDirectory, encoding: "utf8" },
+      );
+
+      // ベースブランチに戻って最新化
+      await execAsync("git checkout master", {
+        cwd: workingDirectory,
+      });
+      await execAsync("git pull", { cwd: workingDirectory });
+
+      return { success: true, mergeStrategy };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
    * 変更を元に戻す
    */
   async revertChanges(workingDirectory: string): Promise<boolean> {

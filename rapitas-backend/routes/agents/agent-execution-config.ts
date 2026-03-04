@@ -5,13 +5,37 @@
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
 
+/** Type for agent execution config create/update body */
+interface ExecutionConfigBody {
+  agentConfigId?: number | null;
+  workingDirectory?: string | null;
+  timeoutMs?: number;
+  maxRetries?: number;
+  branchStrategy?: string;
+  branchPrefix?: string;
+  autoCommit?: boolean;
+  autoCreatePR?: boolean;
+  requireApproval?: string;
+  autoExecuteOnAnalysis?: boolean;
+  parallelExecution?: boolean;
+  maxConcurrentAgents?: number;
+  useOptimizedPrompt?: boolean;
+  additionalInstructions?: string | null;
+  autoCodeReview?: boolean;
+  reviewScope?: string;
+  notifyOnStart?: boolean;
+  notifyOnComplete?: boolean;
+  notifyOnError?: boolean;
+  notifyOnQuestion?: boolean;
+}
+
 export const agentExecutionConfigRoutes = new Elysia({
   prefix: "/agent-execution-config",
 })
   // エージェント実行設定の取得
   .get("/:taskId", async (context) => {
     const { params, set } = context;
-    const taskId = parseInt((params as any).taskId);
+    const taskId = parseInt((params as { taskId: string }).taskId);
 
     const config = await prisma.agentExecutionConfig.findUnique({
       where: { taskId },
@@ -39,9 +63,10 @@ export const agentExecutionConfigRoutes = new Elysia({
   // エージェント実行設定の作成または更新（upsert）
   .put(
     "/:taskId",
-    async (context: any) => {
-      const { params, body, set } = context;
-      const taskId = parseInt((params as any).taskId);
+    async (context) => {
+      const { params, set } = context;
+      const body = context.body as ExecutionConfigBody;
+      const taskId = parseInt((params as { taskId: string }).taskId);
 
       // タスクの存在確認
       const task = await prisma.task.findUnique({ where: { id: taskId } });
@@ -148,15 +173,16 @@ export const agentExecutionConfigRoutes = new Elysia({
       });
 
       return config;
-    }
+    },
   )
 
   // エージェント実行設定の部分更新
   .patch(
     "/:taskId",
-    async (context: any) => {
-      const { params, body, set } = context;
-      const taskId = parseInt((params as any).taskId);
+    async (context) => {
+      const { set } = context;
+      const body = context.body as ExecutionConfigBody;
+      const taskId = parseInt((context.params as { taskId: string }).taskId);
 
       const existing = await prisma.agentExecutionConfig.findUnique({
         where: { taskId },
@@ -223,13 +249,13 @@ export const agentExecutionConfigRoutes = new Elysia({
       });
 
       return config;
-    }
+    },
   )
 
   // エージェント実行設定の削除（デフォルトに戻す）
-  .delete("/:taskId", async (context: any) => {
+  .delete("/:taskId", async (context) => {
       const { params, set  } = context;
-    const taskId = parseInt((params as any).taskId);
+    const taskId = parseInt((params as { taskId: string }).taskId);
 
     const existing = await prisma.agentExecutionConfig.findUnique({
       where: { taskId },

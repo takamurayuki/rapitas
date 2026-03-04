@@ -9,9 +9,9 @@ import { parseRRule, expandRecurrence, RECURRENCE_PRESETS } from "../../services
 export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   // Get all schedule events (with optional date range filter)
   // 繰り返しイベントを仮想展開して返す
-  .get("/", async (context: any) => {
+  .get("/", async (context) => {
       const { query  } = context;
-    const { from, to  } = query as any;
+    const { from, to  } = query as { from?: string; to?: string };
 
     const rangeStart = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const rangeEnd = to ? new Date(to) : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
@@ -107,7 +107,7 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   })
 
   // Get single schedule event
-  .get("/:id", async (context: any) => {
+  .get("/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) throw new ValidationError("Invalid ID");
@@ -210,7 +210,7 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   )
 
   // Delete schedule event
-  .delete("/:id", async (context: any) => {
+  .delete("/:id", async (context) => {
       const { params  } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) throw new ValidationError("Invalid ID");
@@ -303,7 +303,7 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   // Mark reminder as sent
   .post(
     "/reminders/:id/sent",
-    async (context: any) => {
+    async (context) => {
       const { params  } = context;
       const id = parseInt(params.id);
       if (isNaN(id)) throw new ValidationError("Invalid ID");
