@@ -196,7 +196,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">ログ解析結果</h2>
         {onExport && (
-          <Button onClick={onExport} variant="outline" size="sm">
+          <Button onClickAction={onExport} variant="outline" size="sm">
             <Download className="w-4 h-4 mr-2" />
             エクスポート
           </Button>
@@ -509,7 +509,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
                       variant={
                         selectedLevel === level ? 'secondary' : 'outline'
                       }
-                      onClick={() =>
+                      onClickAction={() =>
                         setSelectedLevel(
                           selectedLevel === level ? null : (level as LogLevel),
                         )

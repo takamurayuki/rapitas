@@ -32,6 +32,8 @@ import {
   Sparkles,
   Eye,
   EyeOff,
+  ArrowRight,
+  Tag,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -273,7 +275,7 @@ type Props = {
   isAddingComment: boolean;
   taskId: number;
   onNewCommentChange: (v: string) => void;
-  onAddComment: (content?: string, parentId?: number) => void;
+  onAddComment: (content?: string, parentId?: number) => Promise<number | undefined> | void;
   onUpdateComment: (id: number, content: string) => Promise<void>;
   onDeleteComment: (id: number) => void;
 };

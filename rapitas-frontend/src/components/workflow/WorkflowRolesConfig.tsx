@@ -100,6 +100,17 @@ const ROLE_CONFIG: Record<
     description: '実装結果を検証しレポートを作成',
     inputLabel: 'plan.md + diff',
   },
+  auto_verifier: {
+    label: '自動検証',
+    icon: ShieldCheck,
+    color: 'text-teal-600 dark:text-teal-400',
+    bgColor: 'bg-teal-50 dark:bg-teal-900/20',
+    borderColor: 'border-teal-200 dark:border-teal-800',
+    accentColor: 'bg-teal-600',
+    outputFile: 'verify.md',
+    description: '実装結果を自動で検証しレポートを作成',
+    inputLabel: 'plan.md + diff',
+  },
 };
 
 const ROLE_ORDER: WorkflowRole[] = ['researcher', 'planner', 'reviewer', 'implementer', 'verifier'];
