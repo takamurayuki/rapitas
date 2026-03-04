@@ -395,9 +395,9 @@ function collectQualityMetrics(files: FileInfo[]): AnalysisResult["quality"] {
           anyUsage++;
         }
       }
-      if (/\bTODO\b/i.test(line)) todoCount++;
-      if (/\bFIXME\b/i.test(line)) fixmeCount++;
-      if (/\bHACK\b/i.test(line)) hackCount++;
+      if (/\/\/\s*TODO[\s:]/i.test(line)) todoCount++;
+      if (/\/\/\s*FIXME[\s:]/i.test(line)) fixmeCount++;
+      if (/\/\/\s*HACK[\s:]/i.test(line)) hackCount++;
       if (/console\.log\s*\(/.test(line)) consoleLogCount++;
       if (/\btry\s*\{/.test(line)) tryCatchCount++;
     }
