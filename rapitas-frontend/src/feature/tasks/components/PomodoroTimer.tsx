@@ -276,7 +276,7 @@ export default function PomodoroTimer({
           <div className="flex gap-2 mb-8">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i}>
-                {i < pomodoroCount ? (
+                {i < pomodoroCount % 4 ? (
                   <Icon iconNode={fruit} className="w-5 h-5 text-red-500" />
                 ) : (
                   <Circle className="w-5 h-5 text-zinc-300 dark:text-zinc-700" />
