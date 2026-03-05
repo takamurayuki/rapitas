@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('GenerateProposalsRoute');
 
 interface ProposalRequest {
   genre: string;
@@ -76,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(mockResponse);
   } catch (error) {
-    console.error('Error generating proposals:', error);
+    logger.error('Error generating proposals:', error);
     return NextResponse.json(
       { error: 'プロポーザルの生成に失敗しました' },
       { status: 500 }

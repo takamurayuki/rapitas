@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import type { ParallelExecutionStatus } from '../components/SubtaskExecutionStatus';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('useParallelExecutionStatus');
 
 /**
  * サブタスクの実行ステータス
@@ -369,7 +372,7 @@ export function useParallelExecutionStatus({
             handleSSEEvent(data as ParallelExecutionEvent);
           }
         } catch (err) {
-          console.error('[SSE] Failed to parse event:', err);
+          logger.error('[SSE] Failed to parse event:', err);
         }
       };
 
@@ -463,7 +466,7 @@ export function useParallelExecutionStatus({
         });
       }
     } catch (err) {
-      console.error('[Polling] Failed to fetch status:', err);
+      logger.error('[Polling] Failed to fetch status:', err);
     }
   }, [sessionId]);
 
@@ -570,7 +573,7 @@ export function useParallelExecutionStatus({
       // グローバルストアから削除
       removeExecutingTask(taskId);
     } catch (err) {
-      console.error('[StopSession] Error:', err);
+      logger.error('[StopSession] Error:', err);
     }
   }, [sessionId, removeExecutingTask, taskId]);
 

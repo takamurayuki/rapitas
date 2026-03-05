@@ -3,6 +3,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { Notification } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('useNotifications');
 
 export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -26,7 +29,7 @@ export function useNotifications() {
           return data;
         }
       } catch (err) {
-        console.error('Failed to fetch notifications:', err);
+        logger.error('Failed to fetch notifications:', err);
       } finally {
         setIsLoading(false);
       }
@@ -44,7 +47,7 @@ export function useNotifications() {
         return data.count;
       }
     } catch (err) {
-      console.error('Failed to fetch unread count:', err);
+      logger.error('Failed to fetch unread count:', err);
     }
     return 0;
   }, []);
@@ -66,7 +69,7 @@ export function useNotifications() {
         return true;
       }
     } catch (err) {
-      console.error('Failed to mark as read:', err);
+      logger.error('Failed to mark as read:', err);
     }
     return false;
   }, []);
@@ -88,7 +91,7 @@ export function useNotifications() {
         return true;
       }
     } catch (err) {
-      console.error('Failed to mark all as read:', err);
+      logger.error('Failed to mark all as read:', err);
     }
     return false;
   }, []);
@@ -109,10 +112,10 @@ export function useNotifications() {
         return true;
       } else {
         const errorData = await res.json().catch(() => ({}));
-        console.error('Failed to delete notification:', res.status, errorData);
+        logger.error('Failed to delete notification:', res.status, errorData);
       }
     } catch (err) {
-      console.error('Failed to delete notification:', err);
+      logger.error('Failed to delete notification:', err);
     }
     return false;
   }, []);
@@ -128,14 +131,14 @@ export function useNotifications() {
         return true;
       } else {
         const errorData = await res.json().catch(() => ({}));
-        console.error(
+        logger.error(
           'Failed to delete all notifications:',
           res.status,
           errorData,
         );
       }
     } catch (err) {
-      console.error('Failed to delete all notifications:', err);
+      logger.error('Failed to delete all notifications:', err);
     }
     return false;
   }, []);

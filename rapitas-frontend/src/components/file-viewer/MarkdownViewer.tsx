@@ -9,6 +9,8 @@ import {
 } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useDarkMode } from '@/hooks/use-dark-mode';
 import { Copy, Check, List, ExternalLink } from 'lucide-react';
+import { createLogger } from '@/lib/logger';
+const logger = createLogger('MarkdownViewer');
 
 type MarkdownViewerProps = {
   content: string;
@@ -67,7 +69,7 @@ export default function MarkdownViewer({
       setCopiedCode(id);
       setTimeout(() => setCopiedCode(null), 2000);
     } catch (err) {
-      console.error('Failed to copy code:', err);
+      logger.error('Failed to copy code:', err);
     }
   };
 

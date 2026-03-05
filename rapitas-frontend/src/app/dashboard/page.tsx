@@ -13,6 +13,9 @@ import {
 import { API_BASE_URL } from '@/utils/api';
 import BurnupChart from '@/components/BurnupChart';
 import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('DashboardPage');
 
 type OverviewStats = {
   tasks: {
@@ -54,7 +57,7 @@ export default function DashboardPage() {
         setOverview(await res.json());
       }
     } catch (e) {
-      console.error('Failed to fetch overview:', e);
+      logger.error('Failed to fetch overview:', e);
     }
   }, []);
 
@@ -66,7 +69,7 @@ export default function DashboardPage() {
         setDailyStudy(Array.isArray(data) ? data : []);
       }
     } catch (e) {
-      console.error('Failed to fetch daily study:', e);
+      logger.error('Failed to fetch daily study:', e);
     }
   }, []);
 
@@ -77,7 +80,7 @@ export default function DashboardPage() {
         setStreakInfo(await res.json());
       }
     } catch (e) {
-      console.error('Failed to fetch streak info:', e);
+      logger.error('Failed to fetch streak info:', e);
     }
   }, []);
 

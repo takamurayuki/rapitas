@@ -4,6 +4,9 @@ import {
   openExternalUrlInSplitView,
   isSplitViewActive,
 } from '@/utils/tauri';
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("useSplitView");
 
 interface UseSplitViewReturn {
   /** 分割表示が現在アクティブかどうか */
@@ -52,7 +55,7 @@ export function useSplitView(): UseSplitViewReturn {
         // 少し遅延してから状態を更新（ウィンドウ操作が完了するまで待機）
         setTimeout(checkSplitViewStatus, 500);
       } catch (error) {
-        console.error('Failed to open split view:', error);
+        logger.error('Failed to open split view:', error);
       }
     },
     [checkSplitViewStatus],

@@ -17,6 +17,9 @@ import { CardLightSweep, useProgressColors } from './TaskCompletionAnimation';
 import { prefetch } from '@/lib/api-client';
 import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('TaskCard');
 
 interface TaskCardProps {
   task: Task;
@@ -179,7 +182,7 @@ const TaskCard = memo(function TaskCard({
       onTaskUpdated?.();
       setShowContextMenu(false);
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('タスクの複製に失敗しました', 'error');
     }
   };
@@ -198,7 +201,7 @@ const TaskCard = memo(function TaskCard({
       onTaskUpdated?.();
       setShowContextMenu(false);
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('タスクの削除に失敗しました', 'error');
     }
   };

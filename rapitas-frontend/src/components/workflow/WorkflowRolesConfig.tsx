@@ -18,6 +18,8 @@ import {
 import type { AIAgentConfig, WorkflowRole } from '@/types';
 import { useWorkflowRoles } from '@/hooks/useWorkflowRoles';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+const logger = createLogger('WorkflowRolesConfig');
 
 type SystemPrompt = {
   key: string;
@@ -137,7 +139,7 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
           setSystemPrompts(data);
         }
       } catch (err) {
-        console.error('Failed to fetch system prompts:', err);
+        logger.error('Failed to fetch system prompts:', err);
       }
     };
     fetchPrompts();

@@ -6,6 +6,9 @@ import { Plus, Edit2, Trash2, Check, Target, Flame, Clock } from 'lucide-react';
 import { getIconComponent } from '@/components/category/IconData';
 import { API_BASE_URL } from '@/utils/api';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('HabitsPage');
 
 const PRESET_COLORS = [
   '#10B981',
@@ -42,7 +45,7 @@ export default function HabitsPage() {
         setHabits(await res.json());
       }
     } catch (e) {
-      console.error('Failed to fetch habits:', e);
+      logger.error('Failed to fetch habits:', e);
     } finally {
       setLoading(false);
     }
@@ -99,7 +102,7 @@ export default function HabitsPage() {
         setIsModalOpen(false);
       }
     } catch (e) {
-      console.error('Failed to save habit:', e);
+      logger.error('Failed to save habit:', e);
     }
   };
 
@@ -113,7 +116,7 @@ export default function HabitsPage() {
         fetchHabits();
       }
     } catch (e) {
-      console.error('Failed to delete habit:', e);
+      logger.error('Failed to delete habit:', e);
     }
   };
 
@@ -128,7 +131,7 @@ export default function HabitsPage() {
         fetchHabits();
       }
     } catch (e) {
-      console.error('Failed to log habit:', e);
+      logger.error('Failed to log habit:', e);
     }
   };
 

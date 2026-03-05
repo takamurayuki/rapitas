@@ -9,6 +9,9 @@ import { LoadingSpinner, SkeletonBlock } from '@/components/ui/LoadingSpinner';
 import { ErrorAnalysisPanel } from '@/feature/developer-mode/components/ErrorAnalysisPanel';
 import { useErrorCapture } from '@/feature/developer-mode/hooks/useErrorCapture';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('DeveloperModePage');
 
 export default function DeveloperModeSettingsPage() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
@@ -23,7 +26,7 @@ export default function DeveloperModeSettingsPage() {
     captureUnhandledRejections: true,
     captureNetworkErrors: true,
     onError: (error) => {
-      console.log('Error captured:', error);
+      logger.debug('Error captured:', error);
     },
   });
 

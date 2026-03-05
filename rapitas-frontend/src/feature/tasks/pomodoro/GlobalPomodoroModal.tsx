@@ -18,6 +18,9 @@ import { usePomodoroStore, formatTime } from './pomodoroStore';
 import { TimeEntry } from '@/types';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('GlobalPomodoroModal');
 
 interface GlobalPomodoroModalProps {
   isOpen: boolean;
@@ -60,13 +63,13 @@ export default function GlobalPomodoroModal({
           return res.json();
         })
         .then((data) => setTimeEntries(data))
-        .catch((err) => console.error('Failed to fetch time entries:', err));
+        .catch((err) => logger.error('Failed to fetch time entries:', err));
 
       fetch(`${API_BASE_URL}/tasks/${currentTaskId}`)
         .then((res) => {
           if (!res.ok) {
             // タスクが見つからない場合はタイマーを停止してモーダルを閉じる
-            console.log('Task not found, stopping timer');
+            logger.info('Task not found, stopping timer');
             state.stopTimer();
             onClose();
             return null;
@@ -81,7 +84,7 @@ export default function GlobalPomodoroModal({
             });
           }
         })
-        .catch((err) => console.error('Failed to fetch task:', err));
+        .catch((err) => logger.error('Failed to fetch task:', err));
     }
   }, [propTaskId, state.taskId, isOpen, state.stopTimer, onClose]);
 
@@ -104,13 +107,13 @@ export default function GlobalPomodoroModal({
           return res.json();
         })
         .then((data) => setTimeEntries(data))
-        .catch((err) => console.error('Failed to fetch time entries:', err));
+        .catch((err) => logger.error('Failed to fetch time entries:', err));
 
       fetch(`${API_BASE_URL}/tasks/${currentTaskId}`)
         .then((res) => {
           if (!res.ok) {
             // タスクが見つからない場合はタイマーを停止してモーダルを閉じる
-            console.log('Task not found, stopping timer');
+            logger.info('Task not found, stopping timer');
             state.stopTimer();
             onClose();
             return null;
@@ -125,7 +128,7 @@ export default function GlobalPomodoroModal({
             });
           }
         })
-        .catch((err) => console.error('Failed to fetch task:', err));
+        .catch((err) => logger.error('Failed to fetch task:', err));
     }
   };
 

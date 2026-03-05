@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('ExecutionStream');
 
 export type ExecutionEventData = {
   output?: string;
@@ -88,30 +91,30 @@ export function useExecutionStream(sessionId: number | null) {
   const connect = useCallback(() => {
     // SSEが無効の場合は何もしない
     if (!SSE_ENABLED) {
-      console.log('[ExecutionStream] SSE disabled, using polling instead');
+      logger.debug('SSE disabled, using polling instead');
       return;
     }
 
     if (!sessionId) {
-      console.log('[ExecutionStream] No sessionId, skipping connection');
+      logger.debug('No sessionId, skipping connection');
       return;
     }
     if (eventSourceRef.current) {
-      console.log('[ExecutionStream] Already connected, skipping');
+      logger.debug('Already connected, skipping');
       return;
     }
 
     const channel = `session:${sessionId}`;
     const url = `${API_BASE_URL}/events/subscribe/${encodeURIComponent(channel)}`;
 
-    console.log('[ExecutionStream] Connecting to:', url);
+    logger.debug('Connecting to:', url);
 
     try {
       const eventSource = new EventSource(url);
       eventSourceRef.current = eventSource;
 
       eventSource.onopen = () => {
-        console.log('[ExecutionStream] Connection opened');
+        logger.debug('Connection opened');
         setState((prev) => ({ ...prev, isConnected: true, error: null }));
       };
 
@@ -119,8 +122,8 @@ export function useExecutionStream(sessionId: number | null) {
         // EventSourceのエラーは接続の再試行を示す場合もあるため、
         // readyStateをチェックして本当のエラーかどうか判定
         if (eventSource.readyState === EventSource.CLOSED) {
-          console.log(
-            '[ExecutionStream] Connection closed, will use polling fallback',
+          logger.debug(
+            'Connection closed, will use polling fallback',
           );
           eventSourceRef.current = null;
           setState((prev) => ({
@@ -130,19 +133,19 @@ export function useExecutionStream(sessionId: number | null) {
           }));
         } else if (eventSource.readyState === EventSource.CONNECTING) {
           // 再接続中の場合はログのみ
-          console.log('[ExecutionStream] Reconnecting...');
+          logger.debug('Reconnecting...');
         }
       };
 
       // 接続確認イベント（サーバーから送信）
       eventSource.addEventListener('connected', (event) => {
-        console.log('[ExecutionStream] Connected event received:', event.data);
+        logger.debug('Connected event received:', event.data);
         setState((prev) => ({ ...prev, isConnected: true, error: null }));
       });
 
       // 実行開始イベント
       eventSource.addEventListener('execution_started', (event) => {
-        console.log('[ExecutionStream] Execution started:', event.data);
+        logger.info('Execution started:', event.data);
         logsRef.current = ['[開始] エージェントの実行を開始しました...\n'];
         setState((prev) => ({
           ...prev,
@@ -163,13 +166,13 @@ export function useExecutionStream(sessionId: number | null) {
             logs: logsRef.current,
           }));
         } catch (e) {
-          console.error('[ExecutionStream] Failed to parse output:', e);
+          logger.error('Failed to parse output:', e);
         }
       });
 
       // 完了イベント
       eventSource.addEventListener('execution_completed', (event) => {
-        console.log('[ExecutionStream] Execution completed:', event.data);
+        logger.info('Execution completed:', event.data);
         try {
           const data = JSON.parse(event.data);
           logsRef.current = trimLogs([
@@ -195,7 +198,7 @@ export function useExecutionStream(sessionId: number | null) {
 
       // 失敗イベント
       eventSource.addEventListener('execution_failed', (event) => {
-        console.log('[ExecutionStream] Execution failed:', event.data);
+        logger.info('Execution failed:', event.data);
         try {
           const data = JSON.parse(event.data);
           logsRef.current = trimLogs([
@@ -221,7 +224,7 @@ export function useExecutionStream(sessionId: number | null) {
 
       // キャンセルイベント
       eventSource.addEventListener('execution_cancelled', (event) => {
-        console.log('[ExecutionStream] Execution cancelled');
+        logger.info('Execution cancelled');
         logsRef.current = trimLogs([
           ...logsRef.current,
           '\n[キャンセル] 実行がキャンセルされました。\n',
@@ -239,7 +242,7 @@ export function useExecutionStream(sessionId: number | null) {
         eventSourceRef.current = null;
       };
     } catch (error) {
-      console.error('[ExecutionStream] Failed to create EventSource:', error);
+      logger.error('Failed to create EventSource:', error);
       setState((prev) => ({
         ...prev,
         isConnected: false,
@@ -341,8 +344,8 @@ export function useExecutionPolling(taskId: number | null) {
       preserveLogs?: boolean;
       terminalGraceMs?: number;
     }) => {
-      console.log(
-        '[ExecutionPolling] startPolling called, taskId:',
+      logger.debug(
+        'startPolling called, taskId:',
         taskId,
         'intervalRef:',
         intervalRef.current,
@@ -350,8 +353,8 @@ export function useExecutionPolling(taskId: number | null) {
         options,
       );
       if (!taskId || intervalRef.current) {
-        console.log(
-          '[ExecutionPolling] Skipping - taskId:',
+        logger.debug(
+          'Skipping - taskId:',
           taskId,
           'intervalRef exists:',
           !!intervalRef.current,
@@ -359,7 +362,7 @@ export function useExecutionPolling(taskId: number | null) {
         return;
       }
 
-      console.log('[ExecutionPolling] Starting polling for task:', taskId);
+      logger.debug('Starting polling for task:', taskId);
 
       // 継続実行はバックエンド側で新しい execution が作成されるまで、
       // 旧 execution の completed が返り続けることがあるため、短い猶予期間を設ける
@@ -419,7 +422,7 @@ export function useExecutionPolling(taskId: number | null) {
       const poll = async () => {
         // キャンセル状態の場合はポーリングをスキップ（キャンセル後のステータス上書きを防止）
         if (lastProcessedStatusRef.current === 'cancelled') {
-          console.log('[ExecutionPolling] Skipping poll - already cancelled');
+          logger.debug('Skipping poll - already cancelled');
           return;
         }
 
@@ -438,14 +441,14 @@ export function useExecutionPolling(taskId: number | null) {
 
           // キャンセル状態になった場合は結果を無視
           if (lastProcessedStatusRef.current === 'cancelled') {
-            console.log(
-              '[ExecutionPolling] Ignoring result - cancelled during fetch',
+            logger.debug(
+              'Ignoring result - cancelled during fetch',
             );
             return;
           }
 
           if (!res.ok) {
-            console.log('[ExecutionPolling] Response not ok:', res.status);
+            logger.debug('Response not ok:', res.status);
             return;
           }
 
@@ -453,7 +456,7 @@ export function useExecutionPolling(taskId: number | null) {
 
           // 実行データがない場合はスキップ
           if (!data.executionStatus || data.status === 'none') {
-            console.log('[ExecutionPolling] No execution data yet');
+            logger.debug('No execution data yet');
             return;
           }
 
@@ -462,8 +465,8 @@ export function useExecutionPolling(taskId: number | null) {
             const currentLength = lastOutputLengthRef.current;
             const newOutput = data.output.slice(currentLength);
             if (newOutput) {
-              console.log(
-                '[ExecutionPolling] New output received:',
+              logger.debug(
+                'New output received:',
                 newOutput.length,
                 'chars',
               );
@@ -504,7 +507,7 @@ export function useExecutionPolling(taskId: number | null) {
             if (!isStatusChanged && hasAddedFinalLogRef.current) {
               return;
             }
-            console.log('[ExecutionPolling] Execution completed');
+            logger.info('Execution completed');
             lastProcessedStatusRef.current = currentStatus;
             // 終了ログが未追加の場合のみ追加（重複防止）
             const shouldAddLog = !hasAddedFinalLogRef.current;
@@ -553,14 +556,14 @@ export function useExecutionPolling(taskId: number | null) {
               isInFailedGracePeriod &&
               lastProcessedStatusRef.current === 'responding'
             ) {
-              console.log(
-                '[ExecutionPolling] Ignoring failed status during grace period (session fallback may be in progress)',
+              logger.debug(
+                'Ignoring failed status during grace period (session fallback may be in progress)',
               );
               return;
             }
 
-            console.log(
-              '[ExecutionPolling] Execution failed:',
+            logger.info(
+              'Execution failed:',
               data.errorMessage,
             );
             lastProcessedStatusRef.current = currentStatus;
@@ -591,7 +594,7 @@ export function useExecutionPolling(taskId: number | null) {
             if (!isStatusChanged && hasAddedFinalLogRef.current) {
               return;
             }
-            console.log('[ExecutionPolling] Execution cancelled');
+            logger.info('Execution cancelled');
             lastProcessedStatusRef.current = currentStatus;
             // 終了ログが未追加の場合のみ追加（重複防止）
             const shouldAddLog = !hasAddedFinalLogRef.current;
@@ -627,13 +630,13 @@ export function useExecutionPolling(taskId: number | null) {
               isInInterruptedGracePeriod &&
               lastProcessedStatusRef.current === 'responding'
             ) {
-              console.log(
-                '[ExecutionPolling] Ignoring interrupted status during grace period',
+              logger.debug(
+                'Ignoring interrupted status during grace period',
               );
               return;
             }
 
-            console.log('[ExecutionPolling] Execution interrupted');
+            logger.info('Execution interrupted');
             lastProcessedStatusRef.current = currentStatus;
             const shouldAddLog = !hasAddedFinalLogRef.current;
             if (shouldAddLog) {
@@ -680,14 +683,14 @@ export function useExecutionPolling(taskId: number | null) {
                 !currentQuestion ||
                 clearedQuestionRef.current === currentQuestion
               ) {
-                console.log(
-                  '[ExecutionPolling] Ignoring stale waiting_for_input during grace period',
+                logger.debug(
+                  'Ignoring stale waiting_for_input during grace period',
                 );
                 return;
               }
               // 猶予期間中でも、新しい質問（以前とは異なる質問）は許可する
-              console.log(
-                '[ExecutionPolling] New question detected during grace period, allowing through',
+              logger.debug(
+                'New question detected during grace period, allowing through',
               );
             }
 
@@ -707,8 +710,8 @@ export function useExecutionPolling(taskId: number | null) {
                 : undefined;
 
             if (isNewQuestion) {
-              console.log(
-                '[ExecutionPolling] Waiting for input:',
+              logger.debug(
+                'Waiting for input:',
                 currentQuestion,
                 'questionType:',
                 data.questionType,
@@ -756,7 +759,7 @@ export function useExecutionPolling(taskId: number | null) {
         } catch (error) {
           // AbortErrorはタイムアウトによるもの - 静かにスキップ
           if (error instanceof Error && error.name === 'AbortError') {
-            console.log('[ExecutionPolling] Request timed out, will retry');
+            logger.debug('Request timed out, will retry');
             return;
           }
           // TypeError: Failed to fetchはネットワークエラー - バックエンドが応答しない可能性
@@ -764,13 +767,13 @@ export function useExecutionPolling(taskId: number | null) {
             error instanceof TypeError &&
             error.message.includes('Failed to fetch')
           ) {
-            console.warn(
-              '[ExecutionPolling] Network error - backend may be unresponsive',
+            logger.warn(
+              'Network error - backend may be unresponsive',
             );
             // 連続エラーをカウントし、一定回数超えたらエラー状態にする処理も可能
             return;
           }
-          console.error('[ExecutionPolling] Error:', error);
+          logger.error('Polling error:', error);
         }
       };
 

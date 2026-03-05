@@ -2,6 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("AuthContext");
 
 // 型定義
 export interface User {
@@ -75,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return null;
     } catch (error) {
-      console.error('セッション検証エラー:', error);
+      logger.error('セッション検証エラー:', error);
       return null;
     }
   };
@@ -133,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       setState(prev => ({ ...prev, isLoading: false }));
-      console.error('ログインエラー:', error);
+      logger.error('ログインエラー:', error);
       return { success: false, error: 'ネットワークエラーが発生しました' };
     }
   };
@@ -171,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       setState(prev => ({ ...prev, isLoading: false }));
-      console.error('登録エラー:', error);
+      logger.error('登録エラー:', error);
       return { success: false, error: 'ネットワークエラーが発生しました' };
     }
   };
@@ -188,7 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       });
     } catch (error) {
-      console.error('ログアウト通知エラー:', error);
+      logger.error('ログアウト通知エラー:', error);
     } finally {
       // ローカル状態をクリア
       setState({
@@ -226,7 +229,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       setState(prev => ({ ...prev, isLoading: false }));
-      console.error('Googleログインエラー:', error);
+      logger.error('Googleログインエラー:', error);
       return { success: false, error: 'ネットワークエラーが発生しました' };
     }
   };

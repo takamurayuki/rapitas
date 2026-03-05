@@ -3,6 +3,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { TrendingUp, Calendar, Target, Zap, Award } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import type { Theme } from '@/types';
+import { createLogger } from '@/lib/logger';
+const logger = createLogger('BurnupChart');
 
 type BurnupData = {
   period: {
@@ -52,7 +54,7 @@ export default function BurnupChart({
         const res = await fetch(`${API_BASE_URL}/themes`);
         if (res.ok) setThemes(await res.json());
       } catch (e) {
-        console.error('Failed to fetch themes:', e);
+        logger.error('Failed to fetch themes:', e);
       }
     };
     fetchThemes();
@@ -75,7 +77,7 @@ export default function BurnupChart({
           setData(await res.json());
         }
       } catch (e) {
-        console.error('Failed to fetch burnup data:', e);
+        logger.error('Failed to fetch burnup data:', e);
       } finally {
         setLoading(false);
       }

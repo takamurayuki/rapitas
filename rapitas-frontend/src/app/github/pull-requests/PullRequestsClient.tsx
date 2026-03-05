@@ -14,6 +14,9 @@ import {
 } from 'lucide-react';
 import type { GitHubPullRequest, GitHubIntegration } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('PullRequestsClient');
 
 export default function PullRequestsClient() {
   const searchParams = useSearchParams();
@@ -48,7 +51,7 @@ export default function PullRequestsClient() {
         }
       }
     } catch (error) {
-      console.error('Failed to fetch integrations:', error);
+      logger.error('Failed to fetch integrations:', error);
     }
   };
 
@@ -62,7 +65,7 @@ export default function PullRequestsClient() {
         setPrs(await res.json());
       }
     } catch (error) {
-      console.error('Failed to fetch PRs:', error);
+      logger.error('Failed to fetch PRs:', error);
     } finally {
       setLoading(false);
     }

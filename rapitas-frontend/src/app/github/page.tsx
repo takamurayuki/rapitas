@@ -22,6 +22,9 @@ import type {
 import { getLabelsArray } from '@/utils/labels';
 import { API_BASE_URL } from '@/utils/api';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('GitHubPage');
 
 export default function GitHubPage() {
   const [integrations, setIntegrations] = useState<GitHubIntegration[]>([]);
@@ -70,7 +73,7 @@ export default function GitHubPage() {
         }
       }
     } catch (error) {
-      console.error('Failed to fetch GitHub data:', error);
+      logger.error('Failed to fetch GitHub data:', error);
     } finally {
       setLoading(false);
     }
@@ -89,7 +92,7 @@ export default function GitHubPage() {
       ]);
       await fetchData();
     } catch (error) {
-      console.error('Sync failed:', error);
+      logger.error('Sync failed:', error);
     } finally {
       setSyncing(null);
     }

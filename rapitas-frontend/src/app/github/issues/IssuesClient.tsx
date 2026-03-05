@@ -15,6 +15,9 @@ import type { GitHubIssue, GitHubIntegration } from '@/types';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('IssuesClient');
 
 export default function IssuesPage() {
   const searchParams = useSearchParams();
@@ -50,7 +53,7 @@ export default function IssuesPage() {
         }
       }
     } catch (error) {
-      console.error('Failed to fetch integrations:', error);
+      logger.error('Failed to fetch integrations:', error);
     }
   };
 
@@ -64,7 +67,7 @@ export default function IssuesPage() {
         setIssues(await res.json());
       }
     } catch (error) {
-      console.error('Failed to fetch issues:', error);
+      logger.error('Failed to fetch issues:', error);
     } finally {
       setLoading(false);
     }
@@ -87,7 +90,7 @@ export default function IssuesPage() {
         await fetchIssues();
       }
     } catch (error) {
-      console.error('Failed to create task:', error);
+      logger.error('Failed to create task:', error);
     } finally {
       setCreatingTask(null);
     }

@@ -16,6 +16,9 @@ import {
 import type { Resource } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import FileViewer from '@/components/file-viewer/FileViewer';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('FileUploader');
 
 // ダウンロード状態の型
 type DownloadState = 'idle' | 'downloading' | 'completed';
@@ -37,7 +40,7 @@ async function downloadFile(url: string, fileName: string) {
     document.body.removeChild(link);
     URL.revokeObjectURL(blobUrl);
   } catch (error) {
-    console.error('Download error:', error);
+    logger.error('Download error:', error);
     throw error;
   }
 }

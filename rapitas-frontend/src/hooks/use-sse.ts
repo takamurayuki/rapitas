@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("useSSE");
 
 // SSEイベントの型定義
 export type SSEEventType =
@@ -140,7 +143,7 @@ export function useSSE<T = unknown>(
         };
 
         eventSource.onerror = (event) => {
-          console.error('SSE connection error:', event);
+          logger.error('SSE connection error:', event);
           const connectionError = new Error('SSE接続でエラーが発生しました');
           optionsRef.current.onConnectionError?.(connectionError);
           setError({
@@ -156,7 +159,7 @@ export function useSSE<T = unknown>(
             const parsed: SSEEvent = JSON.parse(event.data);
             optionsRef.current.onStart?.();
           } catch (e) {
-            console.error('Failed to parse start event:', e);
+            logger.error('Failed to parse start event:', e);
           }
         });
 
@@ -167,7 +170,7 @@ export function useSSE<T = unknown>(
             setProgressMessage(parsed.data.message);
             optionsRef.current.onProgress?.(parsed.data);
           } catch (e) {
-            console.error('Failed to parse progress event:', e);
+            logger.error('Failed to parse progress event:', e);
           }
         });
 
@@ -177,7 +180,7 @@ export function useSSE<T = unknown>(
             setData(parsed.data);
             optionsRef.current.onData?.(parsed.data);
           } catch (e) {
-            console.error('Failed to parse data event:', e);
+            logger.error('Failed to parse data event:', e);
           }
         });
 
@@ -190,7 +193,7 @@ export function useSSE<T = unknown>(
               optionsRef.current.onError?.(parsed.data);
             }
           } catch (e) {
-            console.error('Failed to parse error event:', e);
+            logger.error('Failed to parse error event:', e);
           }
         });
 
@@ -200,7 +203,7 @@ export function useSSE<T = unknown>(
             setRetryInfo(parsed.data);
             optionsRef.current.onRetry?.(parsed.data);
           } catch (e) {
-            console.error('Failed to parse retry event:', e);
+            logger.error('Failed to parse retry event:', e);
           }
         });
 
@@ -210,7 +213,7 @@ export function useSSE<T = unknown>(
             setRollbackInfo(parsed.data);
             optionsRef.current.onRollback?.(parsed.data);
           } catch (e) {
-            console.error('Failed to parse rollback event:', e);
+            logger.error('Failed to parse rollback event:', e);
           }
         });
 
@@ -222,11 +225,11 @@ export function useSSE<T = unknown>(
             optionsRef.current.onComplete?.(parsed.data);
             disconnect();
           } catch (e) {
-            console.error('Failed to parse complete event:', e);
+            logger.error('Failed to parse complete event:', e);
           }
         });
       } catch (err) {
-        console.error('Failed to create EventSource:', err);
+        logger.error('Failed to create EventSource:', err);
         const connectionError =
           err instanceof Error ? err : new Error('SSE接続の作成に失敗しました');
         optionsRef.current.onConnectionError?.(connectionError);

@@ -28,6 +28,9 @@ import {
   Calendar,
 } from 'lucide-react';
 import type { Label } from '@/types';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('KanbanPage');
 
 type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
@@ -204,7 +207,7 @@ export default function KanbanPage() {
       const res = await fetch(`${API_BASE}/labels`);
       if (res.ok) setLabels(await res.json());
     } catch (e) {
-      console.error('Failed to fetch labels:', e);
+      logger.error('Failed to fetch labels:', e);
     }
   };
 
@@ -237,7 +240,7 @@ export default function KanbanPage() {
       });
       if (!res.ok) throw new Error('更新に失敗しました');
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       if (oldTask) {
         updateTaskLocally(id, { status: oldTask.status });
       }

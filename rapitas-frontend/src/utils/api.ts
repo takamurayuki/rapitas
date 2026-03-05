@@ -1,3 +1,7 @@
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger("Api");
+
 /**
  * API Base URL
  * 環境変数から取得し、設定されていない場合はデフォルト値を使用
@@ -36,7 +40,7 @@ export async function fetchWithRetry(
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      console.debug(`[fetchWithRetry] Attempting ${attempt + 1}/${maxRetries} for ${url}`);
+      logger.debug(`[fetchWithRetry] Attempting ${attempt + 1}/${maxRetries} for ${url}`);
 
       // タイムアウト処理のためのAbortController
       const controller = new AbortController();
@@ -55,7 +59,7 @@ export async function fetchWithRetry(
         throw new Error(`HTTP ${response.status} ${response.statusText}`);
       }
 
-      console.debug(`[fetchWithRetry] Success for ${url}`);
+      logger.debug(`[fetchWithRetry] Success for ${url}`);
       return response;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -69,7 +73,7 @@ export async function fetchWithRetry(
 
       if (isLastAttempt) {
         // 最後のリトライでも失敗した場合のみエラーレベル
-        console.error(
+        logger.error(
           `[fetchWithRetry] Final attempt ${attempt + 1}/${maxRetries} failed for ${url}:`,
           {
             message: lastError.message,
@@ -81,13 +85,13 @@ export async function fetchWithRetry(
         );
       } else if (isNetworkError || isTimeoutError) {
         // ネットワークエラーやタイムアウトはサーバー再起動中など正常な状況
-        console.debug(
+        logger.debug(
           `[fetchWithRetry] Attempt ${attempt + 1}/${maxRetries} failed for ${url} (retrying):`,
           lastError.message,
         );
       } else {
         // HTTPエラーなど、その他のエラーは警告レベル
-        console.warn(
+        logger.warn(
           `[fetchWithRetry] Attempt ${attempt + 1}/${maxRetries} failed for ${url} (retrying):`,
           lastError.message,
         );

@@ -21,6 +21,9 @@ import type { Priority, UserSettings } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import TaskSuggestionDetail from './TaskSuggestionDetail';
 import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('TaskSuggestions');
 
 type TaskSuggestion = {
   title: string;
@@ -101,7 +104,7 @@ export default function TaskSuggestions({
 
   // themeId変更時の処理 - 自動読み込みを削除
   useEffect(() => {
-    console.log('[TaskSuggestions] Theme changed to:', themeId);
+    logger.debug('[TaskSuggestions] Theme changed to:', themeId);
 
     if (!themeId) {
       // テーマが選択されていない場合はリセット
@@ -119,7 +122,7 @@ export default function TaskSuggestions({
     async (forceRefresh = false) => {
       if (!themeId) return;
 
-      console.log('[TaskSuggestions] Fetching AI suggestions, forceRefresh:', forceRefresh);
+      logger.debug('[TaskSuggestions] Fetching AI suggestions, forceRefresh:', forceRefresh);
       setIsAiLoading(true);
       setAiError(false);
 
@@ -135,7 +138,7 @@ export default function TaskSuggestions({
               cacheData.source === 'cache' &&
               cacheData.suggestions.length > 0
             ) {
-              console.log('[TaskSuggestions] Using cached suggestions');
+              logger.debug('[TaskSuggestions] Using cached suggestions');
               setAiSuggestions(cacheData.suggestions);
               setAiAnalysis(cacheData.analysis);
               setIsCached(true);
@@ -146,18 +149,18 @@ export default function TaskSuggestions({
           }
         } catch (e) {
           // キャッシュ取得失敗時はAI生成にフォールバック
-          console.error('[TaskSuggestions] Cache fetch error:', e);
+          logger.error('[TaskSuggestions] Cache fetch error:', e);
         }
       }
 
       try {
-        console.log('[TaskSuggestions] Generating new AI suggestions');
+        logger.debug('[TaskSuggestions] Generating new AI suggestions');
         const res = await fetch(
           `${API_BASE_URL}/tasks/suggestions/ai?themeId=${themeId}&limit=5`,
         );
         if (res.ok) {
           const data: AiSuggestionsResponse = await res.json();
-          console.log('[TaskSuggestions] AI generation response:', data.source, 'suggestions:', data.suggestions.length);
+          logger.debug('[TaskSuggestions] AI generation response:', data.source, 'suggestions:', data.suggestions.length);
 
           if (data.source === 'ai' && data.suggestions.length > 0) {
             setAiSuggestions(data.suggestions);
@@ -168,13 +171,13 @@ export default function TaskSuggestions({
             setAiSuggestions([]);
             setAiAnalysis(null);
             if (data.source === 'ai_error' || data.source === 'insufficient_data') {
-              console.log('[TaskSuggestions] AI generation failed:', data.source);
+              logger.debug('[TaskSuggestions] AI generation failed:', data.source);
               setAiError(true);
             }
           }
         }
       } catch (e) {
-        console.error('[TaskSuggestions] Failed to fetch AI suggestions:', e);
+        logger.error('[TaskSuggestions] Failed to fetch AI suggestions:', e);
         setAiError(true);
       } finally {
         setIsAiLoading(false);
@@ -186,7 +189,7 @@ export default function TaskSuggestions({
   const clearCache = useCallback(async () => {
     if (!themeId) return;
 
-    console.log('[TaskSuggestions] Clearing cache for theme:', themeId);
+    logger.debug('[TaskSuggestions] Clearing cache for theme:', themeId);
 
     try {
       await fetch(
@@ -194,7 +197,7 @@ export default function TaskSuggestions({
         { method: 'DELETE' },
       );
     } catch (e) {
-      console.error('[TaskSuggestions] Failed to clear cache:', e);
+      logger.error('[TaskSuggestions] Failed to clear cache:', e);
     }
 
     setAiSuggestions([]);

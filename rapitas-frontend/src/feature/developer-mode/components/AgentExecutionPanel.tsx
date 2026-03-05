@@ -47,6 +47,9 @@ import { AgentSwitcher } from '@/components/ui/AgentSwitcher';
 import { API_BASE_URL } from '@/utils/api';
 import type { Task } from '@/types';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('AgentExecutionPanel');
 
 type Props = {
   taskId: number;
@@ -409,13 +412,13 @@ export function AgentExecutionPanel({
         // ログや状態が上書きされるため呼ばない
       } else {
         const errorData = await response.json().catch(() => ({ error: '継続実行に失敗しました' }));
-        console.error('Failed to continue execution:', errorData);
+        logger.error('Failed to continue execution:', errorData);
         setFollowUpError(errorData.error || '継続実行に失敗しました。再度お試しください。');
         // エラー時に指示を復元（リトライ可能にする）
         setFollowUpInstruction(savedInstruction);
       }
     } catch (error) {
-      console.error('Error continuing execution:', error);
+      logger.error('Error continuing execution:', error);
       setFollowUpError('サーバーとの通信に失敗しました。再度お試しください。');
       // エラー時に指示を復元（リトライ可能にする）
       setFollowUpInstruction(savedInstruction);
@@ -449,11 +452,11 @@ export function AgentExecutionPanel({
         clearPollingQuestion();
       } else {
         // エラー時は質問を復元（ユーザーが再試行できるように）
-        console.error('Failed to send response:', res.status);
+        logger.error('Failed to send response:', res.status);
         setUserResponse(savedResponse);
       }
     } catch (error) {
-      console.error('Error sending response:', error);
+      logger.error('Error sending response:', error);
       // エラー時は回答を復元
       setUserResponse(savedResponse);
     } finally {
@@ -494,12 +497,12 @@ export function AgentExecutionPanel({
             },
           );
           if (!fallbackRes.ok) {
-            console.error('Failed to stop execution');
+            logger.error('Failed to stop execution');
           }
         }
       }
     } catch (error) {
-      console.error('Error stopping execution:', error);
+      logger.error('Error stopping execution:', error);
     }
   }, [taskId, sessionId, setPollingCancelled, clearLogs, onStopExecution]);
 

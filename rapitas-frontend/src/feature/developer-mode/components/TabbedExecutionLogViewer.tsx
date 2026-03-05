@@ -15,6 +15,9 @@ import {
   type ExecutionLogStatus,
 } from './ExecutionLogViewer';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('TabbedExecutionLogViewer');
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 
 /**
@@ -139,8 +142,8 @@ export const TabbedExecutionLogViewer: React.FC<
           }));
         }
       } catch (err) {
-        console.error(
-          `[TabbedLogViewer] Failed to fetch logs for task ${taskId}:`,
+        logger.error(
+          `Failed to fetch logs for task ${taskId}:`,
           err,
         );
       } finally {

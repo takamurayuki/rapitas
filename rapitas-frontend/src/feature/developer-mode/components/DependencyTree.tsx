@@ -26,6 +26,9 @@ import {
 } from '@/hooks/use-sse';
 import { API_BASE_URL } from '@/utils/api';
 import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('DependencyTree');
 
 // Types
 type DependencyInfo = {
@@ -243,16 +246,16 @@ export function DependencyTree({ taskId }: Props) {
     reset,
   } = useSSE<AnalysisResult>({
     onComplete: () => {
-      console.log('SSE analysis completed');
+      logger.info('SSE analysis completed');
     },
     onError: (error) => {
-      console.error('SSE error:', error);
+      logger.error('SSE error:', error);
     },
     onRetry: (info) => {
-      console.log('Retrying:', info);
+      logger.debug('Retrying:', info);
     },
     onRollback: (info) => {
-      console.log('Rollback:', info);
+      logger.debug('Rollback:', info);
     },
   });
 

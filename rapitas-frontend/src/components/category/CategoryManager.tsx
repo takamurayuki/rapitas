@@ -27,6 +27,8 @@ import {
 } from './IconData';
 import { API_BASE_URL } from '@/utils/api';
 import { useDebounce } from '@/hooks/useDebounce';
+import { createLogger } from '@/lib/logger';
+const logger = createLogger('CategoryManager');
 import { IconGrid } from './IconGrid';
 
 // 後方互換性のためにICON_MAPをエクスポート
@@ -112,7 +114,7 @@ export default function CategoryManager({ config }: Props) {
       if (!res.ok) throw new Error('取得に失敗しました');
       setItems(await res.json());
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast(`${config.itemName}の取得に失敗しました`, 'error');
     } finally {
       setLoading(false);
@@ -143,7 +145,7 @@ export default function CategoryManager({ config }: Props) {
       resetForm();
       fetchItems();
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast(`${config.itemName}の作成に失敗しました`, 'error');
     }
   };
@@ -168,7 +170,7 @@ export default function CategoryManager({ config }: Props) {
       setIconSearchQuery('');
       fetchItems();
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast(`${config.itemName}の更新に失敗しました`, 'error');
     }
   };
@@ -186,7 +188,7 @@ export default function CategoryManager({ config }: Props) {
       showToast(`${config.itemName}を削除しました`, 'success');
       fetchItems();
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast(`${config.itemName}の削除に失敗しました`, 'error');
     }
   };
@@ -205,7 +207,7 @@ export default function CategoryManager({ config }: Props) {
       showToast(`デフォルト${config.itemName}を設定しました`, 'success');
       fetchItems();
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast(`デフォルト${config.itemName}の設定に失敗しました`, 'error');
     }
   };
@@ -260,7 +262,7 @@ export default function CategoryManager({ config }: Props) {
       });
       if (!res.ok) throw new Error('並び替えに失敗しました');
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('並び替えに失敗しました', 'error');
       fetchItems();
     }

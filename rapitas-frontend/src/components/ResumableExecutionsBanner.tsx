@@ -19,6 +19,8 @@ import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
 import { useBackendHealth } from '@/hooks/use-backend-health';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
 import { useTaskDetailVisibilityStore } from '@/stores/taskDetailVisibilityStore';
+import { createLogger } from '@/lib/logger';
+const logger = createLogger('ResumableExecutionsBanner');
 
 // セッション中に自動再開が実行済みかどうかを追跡するグローバルフラグ
 const AUTO_RESUME_SESSION_KEY = 'rapitas_auto_resume_triggered';
@@ -85,12 +87,12 @@ export function ResumableExecutionsBanner() {
         const data = await res.json();
         setAutoResume(data.autoResumeInterruptedTasks ?? false);
       } else {
-        console.warn(
+        logger.warn(
           `Failed to fetch auto-resume setting: ${res.status} ${res.statusText}`,
         );
       }
     } catch (error) {
-      console.error('Failed to fetch auto-resume setting:', error);
+      logger.error('Failed to fetch auto-resume setting:', error);
       // バックエンドが利用できない場合はデフォルト値を使用
       setAutoResume(false);
     }
@@ -120,15 +122,15 @@ export function ResumableExecutionsBanner() {
         });
         return data;
       } else {
-        console.warn(
+        logger.warn(
           `Failed to fetch resumable executions: ${res.status} ${res.statusText}`,
         );
         // エラーレスポンスの場合は空配列を設定
         setExecutions([]);
       }
     } catch (error) {
-      console.error('Failed to fetch resumable executions:', error);
-      console.error('Error details:', {
+      logger.error('Failed to fetch resumable executions:', error);
+      logger.error('Error details:', {
         message: error instanceof Error ? error.message : String(error),
         name: error instanceof Error ? error.name : 'Unknown',
         stack: error instanceof Error ? error.stack : undefined,
@@ -149,15 +151,15 @@ export function ResumableExecutionsBanner() {
   // バックエンド復帰時に再フェッチする
   const { isConnected } = useBackendHealth({
     onReconnectAction: () => {
-      console.log(
-        '[ResumableExecutionsBanner] Backend reconnected, re-fetching executions',
+      logger.info(
+        'Backend reconnected, re-fetching executions',
       );
       setIsLoading(true);
       setConnectionError(null);
       fetchResumableExecutions();
     },
     onDisconnectAction: () => {
-      console.log('[ResumableExecutionsBanner] Backend disconnected');
+      logger.info('Backend disconnected');
       setConnectionError(
         new Error('バックエンドサーバーとの接続が切断されました'),
       );
@@ -165,8 +167,8 @@ export function ResumableExecutionsBanner() {
   });
 
   useEffect(() => {
-    console.log(
-      '[ResumableExecutionsBanner] Component mounted, fetching initial data',
+    logger.debug(
+      'Component mounted, fetching initial data',
     );
     fetchAutoResumeSetting();
     fetchResumableExecutions();
@@ -225,13 +227,13 @@ export function ResumableExecutionsBanner() {
     // sessionStorageでセッション中に既に実行済みかチェック
     const alreadyTriggered = sessionStorage.getItem(AUTO_RESUME_SESSION_KEY);
     if (alreadyTriggered === 'true') {
-      console.log('[AutoResume] Already triggered in this session, skipping');
+      logger.debug('Already triggered in this session, skipping');
       return;
     }
 
     // 自動再開を実行
-    console.log(
-      `[AutoResume] Starting auto-resume for ${resumableExecutions.length} executions`,
+    logger.info(
+      `Starting auto-resume for ${resumableExecutions.length} executions`,
     );
     sessionStorage.setItem(AUTO_RESUME_SESSION_KEY, 'true');
 
@@ -317,7 +319,7 @@ export function ResumableExecutionsBanner() {
           window.location.href = `/tasks/${data.taskId}?showHeader=true`;
         }
       } else {
-        console.error(
+        logger.error(
           `Failed to resume execution: ${res.status} ${res.statusText}`,
         );
         if (!isAutoResume) {
@@ -328,7 +330,7 @@ export function ResumableExecutionsBanner() {
         }
       }
     } catch (error) {
-      console.error('Error resuming execution:', error);
+      logger.error('Error resuming execution:', error);
     } finally {
       setResumingIds((prev) => {
         const newSet = new Set(prev);
@@ -365,12 +367,12 @@ export function ResumableExecutionsBanner() {
         // Remove from list
         setExecutions((prev) => prev.filter((e) => e.id !== executionId));
       } else {
-        console.error(
+        logger.error(
           `Failed to dismiss execution: ${res.status} ${res.statusText}`,
         );
       }
     } catch (error) {
-      console.error('Error dismissing execution:', error);
+      logger.error('Error dismissing execution:', error);
     } finally {
       setDismissingIds((prev) => {
         const newSet = new Set(prev);

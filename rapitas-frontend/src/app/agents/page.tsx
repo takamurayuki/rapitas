@@ -19,6 +19,9 @@ import type { AIAgentConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { UsageRateLimitGraph } from '@/components/UsageRateLimitGraph';
 import WorkflowRolesConfig from '@/components/workflow/WorkflowRolesConfig';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('AgentsPage');
 
 type ModelOption = {
   value: string;
@@ -60,7 +63,7 @@ function setCachedData<T>(key: string, data: T): void {
       }),
     );
   } catch (error) {
-    console.error('Failed to cache data:', error);
+    logger.error('Failed to cache data:', error);
   }
 }
 
@@ -122,7 +125,7 @@ export default function AgentsPage() {
         setCachedData(CACHE_KEYS.models, modelsData);
       }
     } catch (err) {
-      console.error('Failed to fetch agents:', err);
+      logger.error('Failed to fetch agents:', err);
     } finally {
       setLoading(false);
     }

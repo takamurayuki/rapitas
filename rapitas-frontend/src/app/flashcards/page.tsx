@@ -13,6 +13,9 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('FlashcardsPage');
 
 export default function FlashcardsPage() {
   const [decks, setDecks] = useState<FlashcardDeck[]>([]);
@@ -47,7 +50,7 @@ export default function FlashcardsPage() {
         setDecks(await res.json());
       }
     } catch (e) {
-      console.error('Failed to fetch decks:', e);
+      logger.error('Failed to fetch decks:', e);
     } finally {
       setLoading(false);
     }
@@ -60,7 +63,7 @@ export default function FlashcardsPage() {
         setSelectedDeck(await res.json());
       }
     } catch (e) {
-      console.error('Failed to fetch deck:', e);
+      logger.error('Failed to fetch deck:', e);
     }
   };
 
@@ -80,7 +83,7 @@ export default function FlashcardsPage() {
         setDeckName('');
       }
     } catch (e) {
-      console.error('Failed to create deck:', e);
+      logger.error('Failed to create deck:', e);
     }
   };
 
@@ -97,7 +100,7 @@ export default function FlashcardsPage() {
         }
       }
     } catch (e) {
-      console.error('Failed to delete deck:', e);
+      logger.error('Failed to delete deck:', e);
     }
   };
 
@@ -121,7 +124,7 @@ export default function FlashcardsPage() {
         setCardBack('');
       }
     } catch (e) {
-      console.error('Failed to add card:', e);
+      logger.error('Failed to add card:', e);
     }
   };
 
@@ -135,7 +138,7 @@ export default function FlashcardsPage() {
         fetchDeck(selectedDeck.id);
       }
     } catch (e) {
-      console.error('Failed to delete card:', e);
+      logger.error('Failed to delete card:', e);
     }
   };
 
@@ -161,7 +164,7 @@ export default function FlashcardsPage() {
         fetchDeck(selectedDeck.id);
       }
     } catch (e) {
-      console.error('Failed to review card:', e);
+      logger.error('Failed to review card:', e);
     }
   };
 
@@ -210,7 +213,7 @@ export default function FlashcardsPage() {
         }
       }
     } catch (e) {
-      console.error('Failed to generate cards:', e);
+      logger.error('Failed to generate cards:', e);
       alert('カードの生成に失敗しました');
     } finally {
       setIsGenerating(false);

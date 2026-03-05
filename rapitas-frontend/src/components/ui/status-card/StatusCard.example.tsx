@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { StatusCard, AgentStatusType } from './index';
 import { Bot, Zap } from 'lucide-react';
+import { createLogger } from '@/lib/logger';
+const logger = createLogger('StatusCardExample');
 
 /**
  * StatusCard 使用例・デモコンポーネント
@@ -121,7 +123,7 @@ export const InteractiveDemo: React.FC = () => {
   };
 
   const handleStatusChange = (newStatus: AgentStatusType) => {
-    console.log(`ステータスが変更されました: ${newStatus}`);
+    logger.debug(`ステータスが変更されました: ${newStatus}`);
   };
 
   return (

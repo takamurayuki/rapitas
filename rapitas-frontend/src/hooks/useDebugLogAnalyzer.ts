@@ -11,6 +11,9 @@ import {
   AnalyzeLogResponse,
   ParsedLogEntry
 } from '@/types/debug-log';
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("useDebugLogAnalyzer");
 
 interface UseDebugLogAnalyzerResult {
   isAnalyzing: boolean;
@@ -90,7 +93,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'ログ解析中にエラーが発生しました';
         setError(message);
-        console.error('Log analysis error:', err);
+        logger.error('Log analysis error:', err);
         return null;
       } finally {
         setIsAnalyzing(false);
@@ -118,7 +121,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
 
       return data.type as LogType;
     } catch (err) {
-      console.error('Type detection error:', err);
+      logger.error('Type detection error:', err);
       return 'unknown';
     }
   }, [API_BASE_URL]);
@@ -135,7 +138,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
 
       return data.types;
     } catch (err) {
-      console.error('Get supported types error:', err);
+      logger.error('Get supported types error:', err);
       return [];
     }
   }, [API_BASE_URL]);
@@ -196,7 +199,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'ストリーム解析中にエラーが発生しました';
         setError(message);
-        console.error('Stream analysis error:', err);
+        logger.error('Stream analysis error:', err);
         return null;
       } finally {
         setIsAnalyzing(false);

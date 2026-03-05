@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { Task, Status } from '@/types';
 import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
+import { createLogger } from "@/lib/logger";
+const logger = createLogger("taskCacheStore");
 
 type TaskCacheState = {
   tasks: Task[];
@@ -30,21 +32,21 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
   fetchAll: async () => {
     // 既に初期化済みなら、fetchUpdatesを使用する
     if (get().initialized) {
-      console.log('[taskCacheStore] fetchAll: Already initialized, calling fetchUpdates instead');
+      logger.debug('[taskCacheStore] fetchAll: Already initialized, calling fetchUpdates instead');
       return get().fetchUpdates();
     }
 
-    console.log('[taskCacheStore] fetchAll: Starting full fetch');
+    logger.info('[taskCacheStore] fetchAll: Starting full fetch');
     set({ loading: true });
     try {
       const res = await fetchWithRetry(`${API_BASE_URL}/tasks`);
       if (!res.ok) {
         const text = await res.text().catch(() => '<no body>');
-        console.error('GET /tasks failed:', res.status, res.statusText, text);
+        logger.error('GET /tasks failed:', res.status, res.statusText, text);
         throw new Error('取得に失敗しました');
       }
       const data: Task[] = await res.json();
-      console.log(`[taskCacheStore] fetchAll: Received ${data.length} tasks`);
+      logger.info(`[taskCacheStore] fetchAll: Received ${data.length} tasks`);
       set({
         tasks: data,
         lastFetchedAt: new Date().toISOString(),
@@ -52,7 +54,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
         loading: false, // 成功時は即座にloadingをfalseに
       });
     } catch (e) {
-      console.error('[taskCacheStore] fetchAll error:', e);
+      logger.error('[taskCacheStore] fetchAll error:', e);
       // エラー時でもinitializedをtrueにして、空のリストを表示
       set({ initialized: true, loading: false });
     }
@@ -62,11 +64,11 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
     const { lastFetchedAt, tasks } = get();
     if (!lastFetchedAt) {
       // No previous fetch — do full fetch instead
-      console.log('[taskCacheStore] fetchUpdates: No lastFetchedAt, calling fetchAll');
+      logger.debug('[taskCacheStore] fetchUpdates: No lastFetchedAt, calling fetchAll');
       return get().fetchAll();
     }
 
-    console.log(`[taskCacheStore] fetchUpdates: Starting incremental fetch (silent: ${silent})`);
+    logger.debug(`[taskCacheStore] fetchUpdates: Starting incremental fetch (silent: ${silent})`);
     // Only show loading indicator if not silent
     if (!silent) {
       set({ loading: true });
@@ -76,7 +78,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
         `${API_BASE_URL}/tasks?since=${encodeURIComponent(lastFetchedAt)}`,
       );
       if (!res.ok) {
-        console.error('[taskCacheStore] fetchUpdates failed:', res.status);
+        logger.error('[taskCacheStore] fetchUpdates failed:', res.status);
         if (!silent) {
           set({ loading: false });
         }
@@ -113,11 +115,11 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
 
           const deletedCount = beforeCount - taskMap.size;
           if (deletedCount > 0) {
-            console.log(`[taskCacheStore] fetchUpdates: Removed ${deletedCount} deleted tasks`);
+            logger.info(`[taskCacheStore] fetchUpdates: Removed ${deletedCount} deleted tasks`);
           }
         } else if (taskMap.size > serverTotalCount) {
           // activeIdsがない場合は従来の方法（全件再取得）
-          console.log(`[taskCacheStore] fetchUpdates: Local count (${taskMap.size}) > server count (${serverTotalCount}), refetching all`);
+          logger.info(`[taskCacheStore] fetchUpdates: Local count (${taskMap.size}) > server count (${serverTotalCount}), refetching all`);
           if (!silent) {
             set({ loading: false });
           }
@@ -125,24 +127,24 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
         }
 
         const merged = Array.from(taskMap.values());
-        console.log(`[taskCacheStore] fetchUpdates: Merged ${updatedTasks.length} updates, total: ${merged.length}`);
+        logger.debug(`[taskCacheStore] fetchUpdates: Merged ${updatedTasks.length} updates, total: ${merged.length}`);
         set({
           tasks: merged,
           lastFetchedAt: new Date().toISOString(),
         });
       } else {
         // Fallback: server returned plain array (shouldn't happen with since param, but handle gracefully)
-        console.log('[taskCacheStore] fetchUpdates: Received non-incremental response');
+        logger.debug('[taskCacheStore] fetchUpdates: Received non-incremental response');
         set({
           tasks: data,
           lastFetchedAt: new Date().toISOString(),
         });
       }
     } catch (e) {
-      console.error('[taskCacheStore] fetchUpdates error:', e);
+      logger.error('[taskCacheStore] fetchUpdates error:', e);
     } finally {
       if (!silent) {
-        console.log('[taskCacheStore] fetchUpdates: Setting loading to false');
+        logger.debug('[taskCacheStore] fetchUpdates: Setting loading to false');
         set({ loading: false });
       }
     }

@@ -18,6 +18,9 @@ import {
 } from '@/components/category/IconData';
 import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('ExamGoalsPage');
 
 const PRESET_COLORS = [
   '#10B981', // emerald
@@ -58,7 +61,7 @@ export default function ExamGoalsPage() {
         setExamGoals(data);
       }
     } catch (e) {
-      console.error('Failed to fetch exam goals:', e);
+      logger.error('Failed to fetch exam goals:', e);
     } finally {
       setLoading(false);
     }
@@ -120,7 +123,7 @@ export default function ExamGoalsPage() {
         setIsModalOpen(false);
       }
     } catch (e) {
-      console.error('Failed to save exam goal:', e);
+      logger.error('Failed to save exam goal:', e);
     }
   };
 
@@ -134,7 +137,7 @@ export default function ExamGoalsPage() {
         fetchExamGoals();
       }
     } catch (e) {
-      console.error('Failed to delete exam goal:', e);
+      logger.error('Failed to delete exam goal:', e);
     }
   };
 
@@ -153,7 +156,7 @@ export default function ExamGoalsPage() {
         fetchExamGoals();
       }
     } catch (e) {
-      console.error('Failed to complete exam goal:', e);
+      logger.error('Failed to complete exam goal:', e);
     }
   };
 

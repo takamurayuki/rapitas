@@ -16,6 +16,9 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('FocusClient');
 
 type FocusMode = 'work' | 'break';
 
@@ -44,7 +47,7 @@ export default function FocusClient() {
         setTask(await res.json());
       }
     } catch (e) {
-      console.error('Failed to fetch task:', e);
+      logger.error('Failed to fetch task:', e);
     }
   }, []);
 
@@ -85,7 +88,7 @@ export default function FocusClient() {
         }),
       });
     } catch (e) {
-      console.error('Failed to save time entry:', e);
+      logger.error('Failed to save time entry:', e);
     }
   }, [customWorkTime, taskId, startTime, sessionsCompleted, showToast]);
 
@@ -227,7 +230,7 @@ export default function FocusClient() {
         showToast('タスクの完了に失敗しました', 'error');
       }
     } catch (e) {
-      console.error('Failed to complete task:', e);
+      logger.error('Failed to complete task:', e);
       showToast('エラーが発生しました', 'error');
     }
   };

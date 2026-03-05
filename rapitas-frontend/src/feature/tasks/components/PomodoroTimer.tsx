@@ -18,6 +18,9 @@ import {
   DEFAULT_LONG_BREAK,
 } from '../pomodoro/pomodoroStore';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('PomodoroTimer');
 
 // タイマーステータス（コールバック用）
 export type PomodoroTimerStatus = {
@@ -81,7 +84,7 @@ export default function PomodoroTimer({
 
       onUpdate();
     } catch (err) {
-      console.error('Failed to start timer:', err);
+      logger.error('Failed to start timer:', err);
     }
   };
 
@@ -129,7 +132,7 @@ export default function PomodoroTimer({
       store.stopTimer();
       onUpdate();
     } catch (err) {
-      console.error('Failed to stop timer:', err);
+      logger.error('Failed to stop timer:', err);
     }
   };
 
@@ -168,7 +171,7 @@ export default function PomodoroTimer({
       store.stopTimer();
       onUpdate();
     } catch (err) {
-      console.error('Failed to complete task:', err);
+      logger.error('Failed to complete task:', err);
     }
   };
 

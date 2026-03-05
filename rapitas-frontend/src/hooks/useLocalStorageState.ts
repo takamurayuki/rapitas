@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("useLocalStorageState");
 
 // LocalStorageの読み書きを最適化するカスタムフック
 export function useLocalStorageState<T>(
@@ -16,7 +19,7 @@ export function useLocalStorageState<T>(
       const item = localStorage.getItem(key);
       return item !== null && item !== 'null' ? JSON.parse(item) : defaultValue;
     } catch (error) {
-      console.error(`Error reading localStorage key "${key}":`, error);
+      logger.error(`Error reading localStorage key "${key}":`, error);
       return defaultValue;
     }
   });
@@ -32,7 +35,7 @@ export function useLocalStorageState<T>(
           setState(JSON.parse(item));
         }
       } catch (error) {
-        console.error(
+        logger.error(
           `Error reading localStorage key "${key}" on mount:`,
           error,
         );
@@ -56,7 +59,7 @@ export function useLocalStorageState<T>(
           localStorage.setItem(key, JSON.stringify(value));
         }
       } catch (error) {
-        console.error(`Error saving to localStorage key "${key}":`, error);
+        logger.error(`Error saving to localStorage key "${key}":`, error);
       }
     },
     [key],
@@ -71,7 +74,7 @@ export function useLocalStorageState<T>(
         try {
           setState(JSON.parse(e.newValue));
         } catch (error) {
-          console.error(
+          logger.error(
             `Error parsing localStorage change for key "${key}":`,
             error,
           );

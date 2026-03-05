@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('GenerateClaudeMdRoute');
 
 interface ClaudeMdRequest {
   genre: string;
@@ -307,7 +310,7 @@ NEXT_PUBLIC_APP_NAME=${proposal.name}
 
     return NextResponse.json(mockResponse);
   } catch (error) {
-    console.error('Error generating Claude MD:', error);
+    logger.error('Error generating Claude MD:', error);
     return NextResponse.json(
       { error: 'CLAUDE.mdの生成に失敗しました' },
       { status: 500 }

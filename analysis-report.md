@@ -1,7 +1,7 @@
 # Rapitas Codebase Analysis Report
 
-> Generated: 2026-03-04T12:04:47.789Z
-> Execution time: 19206ms
+> Generated: 2026-03-04T13:27:14.373Z
+> Execution time: 1740ms
 > Project root: `C:\Projects\rapitas`
 
 ---
@@ -11,18 +11,18 @@
 ### サマリ
 | 項目 | 値 |
 |------|-----|
-| 総ファイル数 | 771 |
-| 総コード行数 | 185,094 |
-| 総サイズ | 10.6 MB |
+| 総ファイル数 | 781 |
+| 総コード行数 | 186,583 |
+| 総サイズ | 10.7 MB |
 
 ### 拡張子別
 | 拡張子 | ファイル数 | 行数 | サイズ | 平均行数 |
 |--------|-----------|------|--------|----------|
-| .ts | 247 | 81,360 | 2.4 MB | 329 |
-| .tsx | 169 | 65,442 | 2.4 MB | 387 |
-| .md | 179 | 13,691 | 559.1 KB | 76 |
+| .ts | 248 | 81,571 | 2.4 MB | 329 |
+| .tsx | 172 | 66,065 | 2.4 MB | 384 |
+| .md | 185 | 14,338 | 583.8 KB | 78 |
 | .yaml | 4 | 13,219 | 437.0 KB | 3305 |
-| .json | 10 | 3,258 | 103.3 KB | 326 |
+| .json | 10 | 3,266 | 103.5 KB | 327 |
 | .js | 95 | 2,745 | 3.7 MB | 29 |
 | .css | 8 | 1,769 | 299.2 KB | 221 |
 | .yml | 8 | 1,246 | 40.2 KB | 156 |
@@ -34,13 +34,13 @@
 ### ディレクトリ別
 | ディレクトリ | ファイル数 | 行数 | サイズ |
 |-------------|-----------|------|--------|
-| rapitas-frontend | 257 | 94,166 | 3.2 MB |
-| rapitas-backend | 355 | 77,376 | 2.4 MB |
+| rapitas-frontend | 261 | 95,000 | 3.2 MB |
+| rapitas-backend | 361 | 78,023 | 2.5 MB |
 | rapitas-desktop | 141 | 5,134 | 4.7 MB |
-| analysis-result.json | 1 | 2,998 | 96.1 KB |
+| analysis-result.json | 1 | 3,006 | 96.3 KB |
 | .github | 9 | 1,441 | 47.4 KB |
 | docs | 1 | 839 | 22.9 KB |
-| analysis-report.md | 1 | 803 | 45.7 KB |
+| analysis-report.md | 1 | 803 | 45.6 KB |
 | pnpm-lock.yaml | 1 | 713 | 22.2 KB |
 | project-guide.md | 1 | 684 | 22.5 KB |
 | README.md | 1 | 473 | 13.9 KB |
@@ -53,23 +53,23 @@
 |---|---------|------|--------|
 | 1 | `rapitas-frontend\pnpm-lock.yaml` | 10,822 | 362.2 KB |
 | 2 | `rapitas-backend\services\agents\agent-orchestrator.ts` | 3,936 | 128.4 KB |
-| 3 | `analysis-result.json` | 2,998 | 96.1 KB |
+| 3 | `analysis-result.json` | 3,006 | 96.3 KB |
 | 4 | `rapitas-frontend\src\components\note\NoteEditor.tsx` | 2,998 | 105.2 KB |
-| 5 | `rapitas-frontend\src\app\tasks\[id]\TaskDetailClient.tsx` | 2,044 | 84.1 KB |
+| 5 | `rapitas-frontend\src\app\tasks\[id]\TaskDetailClient.tsx` | 2,060 | 82.9 KB |
 | 6 | `rapitas-frontend\src\components\category\IconData.ts` | 2,023 | 54.2 KB |
-| 7 | `rapitas-frontend\src\feature\developer-mode\components\AIAccordionPanel.tsx` | 1,696 | 70.0 KB |
+| 7 | `rapitas-frontend\src\feature\developer-mode\components\AIAccordionPanel.tsx` | 1,699 | 70.1 KB |
 | 8 | `rapitas-backend\services\agents\claude-code-agent.ts` | 1,582 | 62.8 KB |
 | 9 | `rapitas-backend\routes\tasks\tasks.ts` | 1,568 | 52.4 KB |
-| 10 | `rapitas-frontend\src\app\HomeClient.tsx` | 1,564 | 66.5 KB |
-| 11 | `rapitas-backend\routes\agents\agent-execution-router.ts` | 1,557 | 56.2 KB |
-| 12 | `rapitas-frontend\src\feature\developer-mode\components\DeveloperModeConfig.tsx` | 1,556 | 56.8 KB |
+| 10 | `rapitas-frontend\src\app\HomeClient.tsx` | 1,566 | 65.0 KB |
+| 11 | `rapitas-frontend\src\feature\developer-mode\components\DeveloperModeConfig.tsx` | 1,559 | 56.9 KB |
+| 12 | `rapitas-backend\routes\agents\agent-execution-router.ts` | 1,557 | 56.2 KB |
 | 13 | `rapitas-backend\routes\agents\ai-agent.ts` | 1,528 | 48.5 KB |
-| 14 | `rapitas-frontend\src\feature\developer-mode\components\AIAnalysisPanel.tsx` | 1,416 | 60.1 KB |
-| 15 | `rapitas-frontend\src\feature\tasks\components\MemoSection.tsx` | 1,405 | 52.4 KB |
+| 14 | `rapitas-frontend\src\feature\developer-mode\components\AIAnalysisPanel.tsx` | 1,419 | 60.2 KB |
+| 15 | `rapitas-frontend\src\feature\tasks\components\MemoSection.tsx` | 1,408 | 52.5 KB |
 | 16 | `rapitas-desktop\scripts\dev.js` | 1,364 | 47.3 KB |
-| 17 | `rapitas-frontend\src\components\Header.tsx` | 1,256 | 46.7 KB |
+| 17 | `rapitas-frontend\src\components\Header.tsx` | 1,282 | 47.7 KB |
 | 18 | `rapitas-backend\services\parallel-execution\sub-agent-controller.ts` | 1,250 | 38.1 KB |
-| 19 | `rapitas-frontend\src\app\themes\page.tsx` | 1,190 | 49.6 KB |
+| 19 | `rapitas-frontend\src\app\themes\page.tsx` | 1,193 | 48.6 KB |
 | 20 | `rapitas-frontend\src\app\globals.css` | 1,177 | 24.3 KB |
 
 ---
@@ -578,14 +578,15 @@
 ### Frontend
 - **コンポーネント (カテゴリ別)**:
   - **shared-components**: 66ファイル
-  - **pages**: 52ファイル
+  - **pages**: 54ファイル
   - **tasks**: 32ファイル
   - **developer-mode**: 16ファイル
   - **calendar**: 2ファイル
   - **other**: 1ファイル
+  - **search**: 1ファイル
 - **カスタムフック数**: 33
 - **ストア数**: 8
-- **ページルート数**: 40
+- **ページルート数**: 41
 
 <details>
 <summary>ページルート一覧</summary>
@@ -618,6 +619,7 @@
 - `/learning-goals`
 - `/`
 - `/reports`
+- `/search`
 - `/settings/cli-tools`
 - `/settings/developer-mode/error-demo`
 - `/settings/developer-mode`
@@ -640,13 +642,13 @@
 | 指標 | 値 |
 |------|-----|
 | テストファイル数 | 16 |
-| ソースファイル数 | 400 |
+| ソースファイル数 | 404 |
 | テスト比率 | 0.04 (4.0%) |
 | `any`型使用数 | 19 |
 | TODO コメント | 76 |
 | FIXME コメント | 1 |
 | HACK コメント | 1 |
-| console.log 使用数 | 119 |
+| console.log 使用数 | 6 |
 | try/catch ブロック数 | 839 |
 
 ---
@@ -745,12 +747,12 @@
 | GitHub連携 | 1 | 1 | 7 | 1 | 5 | 0 | **95/100** |
 | 認証 | 2 | 0 | 4 | 0 | 3 | 1 | **70/100** |
 | 通知 | 1 | 1 | 1 | 1 | 1 | 0 | **95/100** |
-| 検索 | 1 | 0 | 0 | 2 | 0 | 0 | **35/100** |
+| 検索 | 1 | 0 | 3 | 2 | 0 | 0 | **60/100** |
 | カレンダー/スケジュール | 2 | 2 | 5 | 1 | 2 | 0 | **95/100** |
 | 学習/習慣 | 6 | 0 | 8 | 0 | 7 | 0 | **65/100** |
 | 分析/レポート | 4 | 1 | 4 | 0 | 2 | 0 | **85/100** |
 
-**平均機能カバレッジスコア: 81/100**
+**平均機能カバレッジスコア: 84/100**
 
 ---
 
@@ -759,26 +761,22 @@
 ### スコア
 | 指標 | スコア |
 |------|--------|
-| 品質スコア | **55/100** |
-| 機能カバレッジスコア | **81/100** |
+| 品質スコア | **70/100** |
+| 機能カバレッジスコア | **84/100** |
 
 ### 強み
 - 豊富なAPIエンドポイント（357件）
 - 充実したデータモデル（55モデル）
-- 多彩なフロントエンドページ（40ルート）
+- 多彩なフロントエンドページ（41ルート）
 - 再利用可能なカスタムフック（33個）
 - 高カバレッジ機能エリア: タスク管理, ポモドーロ/時間管理, AIエージェント, ワークフロー, GitHub連携, 通知, カレンダー/スケジュール, 分析/レポート
 
 ### 弱み
 - テストカバレッジが低い（テスト比率: 0.04）
-- console.logが多い（119箇所）
 - 未解決のTODOが多い（76件）
-- 低カバレッジ機能エリア: 検索
 
 ### 改善提案
 - テストの拡充（特にバックエンドのユニットテスト）
-- console.logをロガーライブラリに置き換え
-- 機能拡充の優先エリア: 検索
 
 ---
 

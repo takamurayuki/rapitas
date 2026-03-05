@@ -2,6 +2,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BarChart3, Timer, TrendingUp, Calendar } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('PomodoroStatistics');
 import { formatTime } from './pomodoroStore';
 
 type DailyStat = { date: string; count: number; minutes: number };
@@ -39,7 +42,7 @@ export default function PomodoroStatistics() {
         setStats(data);
       }
     } catch (e) {
-      console.error('Failed to fetch pomodoro stats:', e);
+      logger.error('Failed to fetch pomodoro stats:', e);
     } finally {
       setLoading(false);
     }

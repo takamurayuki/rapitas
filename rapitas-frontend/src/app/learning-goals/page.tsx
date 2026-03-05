@@ -22,6 +22,9 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('LearningGoalsPage');
 
 // ウィザードのステップ
 type WizardStep = 'goal' | 'level' | 'schedule' | 'confirm';
@@ -63,7 +66,7 @@ export default function LearningGoalsPage() {
         setGoals(await res.json());
       }
     } catch (e) {
-      console.error('Failed to fetch learning goals:', e);
+      logger.error('Failed to fetch learning goals:', e);
     }
   }, []);
 
@@ -79,7 +82,7 @@ export default function LearningGoalsPage() {
         );
       }
     } catch (e) {
-      console.error('Failed to fetch categories:', e);
+      logger.error('Failed to fetch categories:', e);
     }
   }, []);
 
@@ -130,7 +133,7 @@ export default function LearningGoalsPage() {
         handleGeneratePlan(newGoal.id);
       }
     } catch (e) {
-      console.error('Failed to create learning goal:', e);
+      logger.error('Failed to create learning goal:', e);
       showToast('作成に失敗しました', 'error');
     }
   };
@@ -167,7 +170,7 @@ export default function LearningGoalsPage() {
         showToast('プラン生成に失敗しました', 'error');
       }
     } catch (e) {
-      console.error('Failed to generate plan:', e);
+      logger.error('Failed to generate plan:', e);
       showToast('エラーが発生しました', 'error');
     } finally {
       setGenerating(false);
@@ -213,7 +216,7 @@ export default function LearningGoalsPage() {
         }
       }
     } catch (e) {
-      console.error('Failed to apply plan:', e);
+      logger.error('Failed to apply plan:', e);
       showToast('エラーが発生しました', 'error');
     } finally {
       setApplying(false);
@@ -232,7 +235,7 @@ export default function LearningGoalsPage() {
         await fetchGoals();
       }
     } catch (e) {
-      console.error('Failed to delete:', e);
+      logger.error('Failed to delete:', e);
       showToast('削除に失敗しました', 'error');
     }
   };

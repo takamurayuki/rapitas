@@ -25,7 +25,9 @@ import ScheduleEventDialog from '@/feature/calendar/components/ScheduleEventDial
 import PaidLeaveDialog from '@/feature/calendar/components/PaidLeaveDialog';
 import { getHolidaysForMonth } from '@/utils/holidays';
 import type { PaidLeaveBalance } from '@/types';
+import { createLogger } from '@/lib/logger';
 
+const logger = createLogger('CalendarPage');
 const API_BASE = API_BASE_URL;
 
 type CalendarEvent = {
@@ -71,7 +73,7 @@ export default function CalendarPage() {
         setPaidLeaveBalance(balance.data || balance);
       }
     } catch (e) {
-      console.error('Failed to fetch paid leave balance:', e);
+      logger.error('Failed to fetch paid leave balance:', e);
     }
   }, []);
 
@@ -97,7 +99,7 @@ export default function CalendarPage() {
       setExams(examsData);
       setSchedules(schedulesData);
     } catch (e) {
-      console.error('Failed to fetch events:', e);
+      logger.error('Failed to fetch events:', e);
     } finally {
       setLoading(false);
     }
@@ -279,7 +281,7 @@ export default function CalendarPage() {
         showToast('タスクの作成に失敗しました', 'error');
       }
     } catch (e) {
-      console.error('Failed to create task:', e);
+      logger.error('Failed to create task:', e);
       showToast('エラーが発生しました', 'error');
     } finally {
       setCreating(false);
@@ -302,7 +304,7 @@ export default function CalendarPage() {
         showToast('スケジュールの追加に失敗しました', 'error');
       }
     } catch (e) {
-      console.error('Failed to create schedule:', e);
+      logger.error('Failed to create schedule:', e);
       showToast('エラーが発生しました', 'error');
     }
   };
@@ -323,7 +325,7 @@ export default function CalendarPage() {
         showToast('有給申請の登録に失敗しました', 'error');
       }
     } catch (e) {
-      console.error('Failed to create paid leave:', e);
+      logger.error('Failed to create paid leave:', e);
       showToast('エラーが発生しました', 'error');
     }
   };
@@ -341,7 +343,7 @@ export default function CalendarPage() {
         showToast('スケジュールの削除に失敗しました', 'error');
       }
     } catch (e) {
-      console.error('Failed to delete schedule:', e);
+      logger.error('Failed to delete schedule:', e);
       showToast('エラーが発生しました', 'error');
     }
   };

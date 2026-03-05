@@ -1,5 +1,5 @@
-import { io, Socket } from "socket.io-client";
-import React from "react";
+import { io, Socket } from 'socket.io-client';
+import React from 'react';
 
 /**
  * 最適化されたAPIクライアント
@@ -11,23 +11,29 @@ import React from "react";
 class OptimizedAPIClient {
   private baseURL: string;
   private socket: Socket | null = null;
-  private batchQueue: Map<string, {
-    request: BatchRequest;
-    resolve: (value: unknown) => void;
-    reject: (reason: unknown) => void;
-  }> = new Map();
+  private batchQueue: Map<
+    string,
+    {
+      request: BatchRequest;
+      resolve: (value: unknown) => void;
+      reject: (reason: unknown) => void;
+    }
+  > = new Map();
   private batchTimeout: NodeJS.Timeout | null = null;
   private batchSize = 10;
   private batchDelay = 10; // ms
 
   // ローカルキャッシュ
-  private cache = new Map<string, {
-    data: unknown;
-    timestamp: number;
-    ttl: number;
-  }>();
+  private cache = new Map<
+    string,
+    {
+      data: unknown;
+      timestamp: number;
+      ttl: number;
+    }
+  >();
 
-  constructor(baseURL: string = "http://localhost:3001") {
+  constructor(baseURL: string = 'http://localhost:3001') {
     this.baseURL = baseURL;
   }
 
@@ -36,41 +42,44 @@ class OptimizedAPIClient {
     if (this.socket?.connected) return;
 
     this.socket = io(this.baseURL, {
-      transports: ["websocket"],
+      transports: ['websocket'],
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: 5,
     });
 
-    this.socket.on("connect", () => {
-      console.log("WebSocket connected");
+    this.socket.on('connect', () => {
+      console.log('WebSocket connected');
     });
 
-    this.socket.on("disconnect", () => {
-      console.log("WebSocket disconnected");
+    this.socket.on('disconnect', () => {
+      console.log('WebSocket disconnected');
     });
 
     // リアルタイムイベントハンドラー
-    this.socket.on("task-updated", (data: { data: { id: number } }) => {
+    this.socket.on('task-updated', (data: { data: { id: number } }) => {
       this.invalidateCache(`task:${data.data.id}`);
-      this.emit("task-updated", data);
+      this.emit('task-updated', data);
     });
 
-    this.socket.on("task-deleted", (data: { taskId: number }) => {
+    this.socket.on('task-deleted', (data: { taskId: number }) => {
       this.invalidateCache(`task:${data.taskId}`);
-      this.emit("task-deleted", data);
+      this.emit('task-deleted', data);
     });
 
-    this.socket.on("batch-update", (data: { updates: Array<{ type: string; id: number }> }) => {
-      data.updates.forEach((update: { type: string; id: number }) => {
-        this.invalidateCache(`${update.type}:${update.id}`);
-      });
-      this.emit("batch-update", data);
-    });
+    this.socket.on(
+      'batch-update',
+      (data: { updates: Array<{ type: string; id: number }> }) => {
+        data.updates.forEach((update: { type: string; id: number }) => {
+          this.invalidateCache(`${update.type}:${update.id}`);
+        });
+        this.emit('batch-update', data);
+      },
+    );
 
     // Pingレスポンス
-    this.socket.on("ping", () => {
-      this.socket?.emit("pong");
+    this.socket.on('ping', () => {
+      this.socket?.emit('pong');
     });
   }
 
@@ -89,25 +98,25 @@ class OptimizedAPIClient {
     }
 
     switch (type) {
-      case "task":
+      case 'task':
         if (id) {
-          this.socket?.emit("message", {
-            type: "subscribeTask",
+          this.socket?.emit('message', {
+            type: 'subscribeTask',
             data: { taskId: id },
           });
         }
         break;
-      case "category":
+      case 'category':
         if (id) {
-          this.socket?.emit("message", {
-            type: "subscribeCategory",
+          this.socket?.emit('message', {
+            type: 'subscribeCategory',
             data: { categoryId: id },
           });
         }
         break;
-      case "statistics":
-        this.socket?.emit("message", {
-          type: "subscribeStatistics",
+      case 'statistics':
+        this.socket?.emit('message', {
+          type: 'subscribeStatistics',
         });
         break;
     }
@@ -119,24 +128,27 @@ class OptimizedAPIClient {
       this.connectWebSocket();
     }
 
-    this.socket?.emit("message", {
-      type: "joinCollaboration",
+    this.socket?.emit('message', {
+      type: 'joinCollaboration',
       data: { sessionId },
     });
   }
 
   // カーソル位置の共有
-  updateCursor(sessionId: string, position: { line: number; column: number }): void {
-    this.socket?.emit("message", {
-      type: "updateCursor",
+  updateCursor(
+    sessionId: string,
+    position: { line: number; column: number },
+  ): void {
+    this.socket?.emit('message', {
+      type: 'updateCursor',
       data: { sessionId, position },
     });
   }
 
   // タイピング状態の共有
   setTypingStatus(sessionId: string, isTyping: boolean): void {
-    this.socket?.emit("message", {
-      type: "setTypingStatus",
+    this.socket?.emit('message', {
+      type: 'setTypingStatus',
       data: { sessionId, isTyping },
     });
   }
@@ -153,7 +165,10 @@ class OptimizedAPIClient {
 
       // バッチタイマーの設定
       if (!this.batchTimeout) {
-        this.batchTimeout = setTimeout(() => this.flushBatch(), this.batchDelay);
+        this.batchTimeout = setTimeout(
+          () => this.flushBatch(),
+          this.batchDelay,
+        );
       }
 
       // バッチサイズに達したら即座に送信
@@ -172,14 +187,16 @@ class OptimizedAPIClient {
 
     if (this.batchQueue.size === 0) return;
 
-    const requests = Array.from(this.batchQueue.values()).map(item => item.request);
+    const requests = Array.from(this.batchQueue.values()).map(
+      (item) => item.request,
+    );
     const currentBatch = new Map(this.batchQueue);
     this.batchQueue.clear();
 
     try {
       const response = await fetch(`${this.baseURL}/batch/v2`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requests }),
       });
 
@@ -190,19 +207,26 @@ class OptimizedAPIClient {
       const { results } = await response.json();
 
       // 結果を各リクエストに配信
-      results.forEach((result: { id: string; status: number; body?: unknown; error?: string }) => {
-        const item = currentBatch.get(result.id);
-        if (item) {
-          if (result.status === 200) {
-            item.resolve(result.body);
-          } else {
-            item.reject(new Error(result.error || "Request failed"));
+      results.forEach(
+        (result: {
+          id: string;
+          status: number;
+          body?: unknown;
+          error?: string;
+        }) => {
+          const item = currentBatch.get(result.id);
+          if (item) {
+            if (result.status === 200) {
+              item.resolve(result.body);
+            } else {
+              item.reject(new Error(result.error || 'Request failed'));
+            }
           }
-        }
-      });
+        },
+      );
     } catch (error) {
       // エラー時はすべてのリクエストを拒否
-      currentBatch.forEach(item => {
+      currentBatch.forEach((item) => {
         item.reject(error);
       });
     }
@@ -254,7 +278,7 @@ class OptimizedAPIClient {
     if (cached) return cached;
 
     const result = await this.addToBatch<Task>({
-      method: "GET",
+      method: 'GET',
       url: `/tasks/${id}`,
     });
 
@@ -270,14 +294,16 @@ class OptimizedAPIClient {
     cursor?: string;
     limit?: number;
   }): Promise<TaskListResponse> {
-    const queryString = params ? new URLSearchParams(params as Record<string, string>).toString() : "";
+    const queryString = params
+      ? new URLSearchParams(params as Record<string, string>).toString()
+      : '';
     const cacheKey = `tasks:${queryString}`;
     const cached = this.getFromCache<TaskListResponse>(cacheKey);
     if (cached) return cached;
 
     const result = await this.addToBatch<TaskListResponse>({
-      method: "GET",
-      url: `/tasks${queryString ? `?${queryString}` : ""}`,
+      method: 'GET',
+      url: `/tasks${queryString ? `?${queryString}` : ''}`,
     });
 
     this.setCache(cacheKey, result, params?.since ? 60000 : 300000);
@@ -287,8 +313,8 @@ class OptimizedAPIClient {
   // タスクの作成（直接送信）
   async createTask(data: CreateTaskData): Promise<Task> {
     const response = await fetch(`${this.baseURL}/tasks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
 
@@ -297,15 +323,15 @@ class OptimizedAPIClient {
     }
 
     const task = await response.json();
-    this.invalidateCache("tasks:");
+    this.invalidateCache('tasks:');
     return task;
   }
 
   // タスクの更新（直接送信）
   async updateTask(id: string, data: UpdateTaskData): Promise<Task> {
     const response = await fetch(`${this.baseURL}/tasks/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
 
@@ -315,19 +341,19 @@ class OptimizedAPIClient {
 
     const task = await response.json();
     this.invalidateCache(`task:${id}`);
-    this.invalidateCache("tasks:");
+    this.invalidateCache('tasks:');
     return task;
   }
 
   // 統計情報の取得（バッチ対応）
   async getStatistics(): Promise<Statistics> {
-    const cacheKey = "statistics:tasks";
+    const cacheKey = 'statistics:tasks';
     const cached = this.getFromCache<Statistics>(cacheKey);
     if (cached) return cached;
 
     const result = await this.addToBatch<Statistics>({
-      method: "GET",
-      url: "/statistics/tasks",
+      method: 'GET',
+      url: '/statistics/tasks',
     });
 
     this.setCache(cacheKey, result, 600000); // 10分
@@ -351,7 +377,7 @@ class OptimizedAPIClient {
 
     // キャッシュにないものをバッチ取得
     if (uncachedIds.length > 0) {
-      const promises = uncachedIds.map(id => this.getTask(id));
+      const promises = uncachedIds.map((id) => this.getTask(id));
       const tasks = await Promise.all(promises);
 
       tasks.forEach((task, index) => {
@@ -377,7 +403,7 @@ class OptimizedAPIClient {
   }
 
   private emit(event: string, data: unknown): void {
-    this.eventHandlers.get(event)?.forEach(handler => {
+    this.eventHandlers.get(event)?.forEach((handler) => {
       handler(data);
     });
   }
@@ -396,7 +422,7 @@ class OptimizedAPIClient {
 // 型定義
 interface BatchRequest {
   id?: string;
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   url: string;
   body?: unknown;
 }
@@ -457,8 +483,8 @@ export function useOptimizedAPI() {
   React.useEffect(() => {
     apiClient.connectWebSocket();
 
-    apiClient.on("connect", () => setConnected(true));
-    apiClient.on("disconnect", () => setConnected(false));
+    apiClient.on('connect', () => setConnected(true));
+    apiClient.on('disconnect', () => setConnected(false));
 
     return () => {
       apiClient.destroy();
@@ -467,43 +493,3 @@ export function useOptimizedAPI() {
 
   return { apiClient, connected };
 }
-
-// 使用例:
-/*
-// コンポーネントでの使用
-function TaskList() {
-  const { apiClient, connected } = useOptimizedAPI();
-  const [tasks, setTasks] = useState<Task[]>([]);
-
-  useEffect(() => {
-    // タスクリストを取得
-    apiClient.getTasks({ categoryId: 1 }).then(response => {
-      setTasks(response.data);
-    });
-
-    // リアルタイム更新を購読
-    apiClient.subscribe("category", "1");
-
-    // 更新イベントをリッスン
-    const handleUpdate = (data: unknown) => {
-      // タスクリストを再取得または部分更新
-      console.log("Task updated:", data);
-    };
-
-    apiClient.on("category-task-updated", handleUpdate);
-
-    return () => {
-      apiClient.off("category-task-updated", handleUpdate);
-    };
-  }, []);
-
-  return (
-    <div>
-      {connected ? "Connected" : "Disconnected"}
-      {tasks.map(task => (
-        <div key={task.id}>{task.title}</div>
-      ))}
-    </div>
-  );
-}
-*/

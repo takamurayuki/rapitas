@@ -4,6 +4,9 @@ import { useEffect, useRef, useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
 import { useTaskCacheStore } from '@/stores/taskCacheStore';
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("useExecutingTasksPolling");
 
 /**
  * 実行中のタスクをポーリングで検出し、グローバルストアに反映するフック
@@ -40,18 +43,18 @@ export function useExecutingTasksPolling(options?: {
     if (hadError) {
       // エラー発生時は間隔を倍に（最大30秒）
       newInterval = Math.min(currentIntervalRef.current * 2, 30000);
-      console.log(`[useExecutingTasksPolling] Error occurred, increasing interval to ${newInterval}ms`);
+      logger.debug(`Error occurred, increasing interval to ${newInterval}ms`);
     } else if (hasExecutingTasks) {
       // 実行中タスクがある場合は短い間隔（デフォルトのまま）
       newInterval = interval;
       if (currentIntervalRef.current !== interval) {
-        console.log(`[useExecutingTasksPolling] Tasks executing, resetting interval to ${newInterval}ms`);
+        logger.debug(`Tasks executing, resetting interval to ${newInterval}ms`);
       }
     } else {
       // 実行中タスクがない場合は長い間隔（最大15秒）
       newInterval = Math.min(interval * 2, 15000);
       if (currentIntervalRef.current !== newInterval) {
-        console.log(`[useExecutingTasksPolling] No tasks executing, increasing interval to ${newInterval}ms`);
+        logger.debug(`No tasks executing, increasing interval to ${newInterval}ms`);
       }
     }
 
@@ -136,8 +139,8 @@ export function useExecutingTasksPolling(options?: {
       errorCountRef.current++;
       const timeSinceLastSuccess = Date.now() - lastSuccessTimeRef.current;
 
-      console.warn(
-        `[useExecutingTasksPolling] Fetch failed (attempt ${errorCountRef.current}, ${Math.round(timeSinceLastSuccess / 1000)}s since last success):`,
+      logger.warn(
+        `Fetch failed (attempt ${errorCountRef.current}, ${Math.round(timeSinceLastSuccess / 1000)}s since last success):`,
         error
       );
 
@@ -145,7 +148,7 @@ export function useExecutingTasksPolling(options?: {
 
       // 長期間エラーが続く場合は既知のタスク状態をリセット
       if (timeSinceLastSuccess > 60000) { // 1分
-        console.warn('[useExecutingTasksPolling] Long-term connectivity issues, clearing known tasks');
+        logger.warn('Long-term connectivity issues, clearing known tasks');
         knownTaskIdsRef.current.clear();
       }
     }

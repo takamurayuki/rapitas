@@ -50,7 +50,9 @@ import {
   TaskCardsSkeleton,
   EnhancedSkeletonBlock,
 } from '@/components/ui/LoadingSpinner';
+import { createLogger } from '@/lib/logger';
 
+const logger = createLogger('HomeClient');
 const API_BASE = API_BASE_URL;
 
 function HomeClientPage() {
@@ -262,7 +264,7 @@ function HomeClientPage() {
       });
       if (!res.ok) throw new Error('更新に失敗しました');
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       // Rollback on failure
       if (oldTask) {
         updateTaskLocally(id, { status: oldTask.status });
@@ -329,7 +331,7 @@ function HomeClientPage() {
       // サーバーから最新データを再取得（theme情報を含む）
       await fetchTasks();
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       showToast('タスクの作成に失敗しました', 'error');
     }
   };
@@ -531,7 +533,7 @@ function HomeClientPage() {
       setGlobalSettings(data);
       return data;
     } catch (e) {
-      console.error('Failed to fetch global settings:', e);
+      logger.error('Failed to fetch global settings:', e);
     }
     return null;
   };
@@ -568,7 +570,7 @@ function HomeClientPage() {
           timeoutPromise,
         ])) as PromiseSettledResult<unknown>[];
       } catch {
-        console.warn(
+        logger.warn(
           'Initial data load timed out after 15s - API may be unreachable',
         );
         results = Object.values(requests).map(() => ({
@@ -610,7 +612,7 @@ function HomeClientPage() {
   useEffect(() => {
     const checkBackgroundRefresh = () => {
       if (shouldBackgroundRefresh()) {
-        console.log('[HomeClient] Triggering background filter data refresh');
+        logger.debug('[HomeClient] Triggering background filter data refresh');
         backgroundRefresh();
       }
     };

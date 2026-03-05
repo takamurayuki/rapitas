@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import type { AIAgentConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+const logger = createLogger('AgentSwitcher');
 
 type AgentSwitcherProps = {
   /** 現在選択中のエージェントID（nullの場合はデフォルト） */
@@ -96,7 +98,7 @@ export function AgentSwitcher({
         setAgents(await res.json());
       }
     } catch {
-      console.error('Failed to fetch agents');
+      logger.error('Failed to fetch agents');
     } finally {
       setLoading(false);
     }

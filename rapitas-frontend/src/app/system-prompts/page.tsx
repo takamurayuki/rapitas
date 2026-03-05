@@ -16,6 +16,9 @@ import {
   Search,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('SystemPromptsPage');
 
 type SystemPrompt = {
   id: number;
@@ -81,7 +84,7 @@ export default function SystemPromptsPage() {
         }
       }
     } catch (error) {
-      console.error('Failed to fetch system prompts:', error);
+      logger.error('Failed to fetch system prompts:', error);
     } finally {
       setLoading(false);
     }
@@ -95,7 +98,7 @@ export default function SystemPromptsPage() {
         setPrompts(await res.json());
       }
     } catch (error) {
-      console.error('Failed to seed system prompts:', error);
+      logger.error('Failed to seed system prompts:', error);
     }
   };
 
@@ -111,7 +114,7 @@ export default function SystemPromptsPage() {
         fetchPrompts();
       }
     } catch (error) {
-      console.error('Failed to update system prompt:', error);
+      logger.error('Failed to update system prompt:', error);
     }
   };
 
@@ -127,7 +130,7 @@ export default function SystemPromptsPage() {
         fetchPrompts();
       }
     } catch (error) {
-      console.error('Failed to reset system prompt:', error);
+      logger.error('Failed to reset system prompt:', error);
     }
   };
 
@@ -144,7 +147,7 @@ export default function SystemPromptsPage() {
         alert(data.error || '削除に失敗しました');
       }
     } catch (error) {
-      console.error('Failed to delete system prompt:', error);
+      logger.error('Failed to delete system prompt:', error);
     }
   };
 

@@ -3,6 +3,9 @@ import TaskStatusChange from './TaskStatusChange';
 import { statusConfig, renderStatusIcon } from '../config/StatusConfig';
 import { API_BASE_URL } from '@/utils/api';
 import type { Status } from '@/types';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('SubtaskStatusButtons');
 
 // ステータスの配列を共通で定義
 export const STATUS_OPTIONS: Status[] = ['todo', 'in-progress', 'done'];
@@ -41,7 +44,7 @@ export default function SubtaskStatusButtons({
           onTaskUpdated();
         }
       } else {
-        console.error('API Error:', response.status, response.statusText);
+        logger.error('API Error:', response.status, response.statusText);
         // エラー時：元の状態に戻す
         if (onStatusChange) {
           onStatusChange(taskId, currentStatus);
@@ -49,7 +52,7 @@ export default function SubtaskStatusButtons({
         throw new Error(`Status update failed: ${response.status}`);
       }
     } catch (error) {
-      console.error('Failed to update subtask status:', error);
+      logger.error('Failed to update subtask status:', error);
 
       // エラー時：元の状態に戻す（ネットワークエラーなど）
       if (onStatusChange) {

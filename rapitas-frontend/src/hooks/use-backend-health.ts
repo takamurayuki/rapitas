@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("useBackendHealth");
 
 type BackendHealthStatus = 'connected' | 'disconnected' | 'checking';
 
@@ -54,15 +57,15 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
       if (res.ok) {
         if (wasDisconnectedRef.current) {
           wasDisconnectedRef.current = false;
-          console.log('[useBackendHealth] Backend reconnected');
+          logger.info('Backend reconnected');
           onReconnectRef.current?.();
         }
         setStatus('connected');
       } else {
         if (!wasDisconnectedRef.current) {
           wasDisconnectedRef.current = true;
-          console.warn(
-            `[useBackendHealth] Backend disconnected: ${res.status} ${res.statusText}`,
+          logger.warn(
+            `Backend disconnected: ${res.status} ${res.statusText}`,
           );
           onDisconnectRef.current?.();
         }
@@ -79,8 +82,8 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
 
       if (!wasDisconnectedRef.current) {
         wasDisconnectedRef.current = true;
-        console.warn(
-          `[useBackendHealth] Backend health check failed: ${errorMessage}`,
+        logger.warn(
+          `Backend health check failed: ${errorMessage}`,
           error,
         );
         onDisconnectRef.current?.();

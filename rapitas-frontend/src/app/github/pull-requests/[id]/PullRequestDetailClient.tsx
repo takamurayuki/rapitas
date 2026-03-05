@@ -23,6 +23,9 @@ import {
 import type { GitHubPullRequest, FileDiff } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('PullRequestDetailClient');
 
 export default function PullRequestDetailClient() {
   const params = useParams();
@@ -60,7 +63,7 @@ export default function PullRequestDetailClient() {
         setDiff(await diffRes.json());
       }
     } catch (error) {
-      console.error('Failed to fetch PR:', error);
+      logger.error('Failed to fetch PR:', error);
     } finally {
       setLoading(false);
     }
@@ -79,7 +82,7 @@ export default function PullRequestDetailClient() {
       setCommentBody('');
       await fetchPRData();
     } catch (error) {
-      console.error('Failed to comment:', error);
+      logger.error('Failed to comment:', error);
     } finally {
       setCommenting(false);
     }
@@ -97,7 +100,7 @@ export default function PullRequestDetailClient() {
       setCommentBody('');
       await fetchPRData();
     } catch (error) {
-      console.error('Failed to review:', error);
+      logger.error('Failed to review:', error);
     } finally {
       setReviewAction(null);
     }

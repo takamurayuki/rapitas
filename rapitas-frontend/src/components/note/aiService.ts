@@ -1,5 +1,7 @@
 import type { AIChatMessage, AIServiceResponse, ApiProvider } from '@/types';
 import { API_BASE_URL as API_BASE } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+const logger = createLogger('aiService');
 
 export type SendMessageOptions = {
   message: string;
@@ -55,7 +57,7 @@ export async function sendMessageToAI(
       message: data.message || data.content,
     };
   } catch (error) {
-    console.error('AI API Error:', error);
+    logger.error('AI API Error:', error);
     return {
       success: false,
       error:
@@ -150,7 +152,7 @@ export async function sendMessageToAIStream(
 
     onComplete();
   } catch (error) {
-    console.error('AI Stream Error:', error);
+    logger.error('AI Stream Error:', error);
     onError(
       error instanceof Error
         ? error.message

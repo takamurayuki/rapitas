@@ -11,6 +11,9 @@ import {
   PomodoroState,
 } from './pomodoroStore';
 import { API_BASE_URL } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('GlobalPomodoroWidget');
 
 export default function GlobalPomodoroWidget() {
   const [showModal, setShowModal] = useState(false);
@@ -61,12 +64,12 @@ export default function GlobalPomodoroWidget() {
         const res = await fetch(`${API_BASE_URL}/tasks/${state.taskId}`);
         if (!res.ok) {
           // タスクが見つからない場合はタイマーを停止
-          console.log('Task not found, stopping timer');
+          logger.info('Task not found, stopping timer');
           stopTimer();
         }
       } catch (err) {
         // ネットワークエラーなどの場合はタイマーを停止しない
-        console.error('Failed to check task existence:', err);
+        logger.error('Failed to check task existence:', err);
       }
     };
 

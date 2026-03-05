@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import type { WorkflowRoleConfig, WorkflowRole } from '@/types';
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("useWorkflowRoles");
 
 export function useWorkflowRoles() {
   const [roles, setRoles] = useState<WorkflowRoleConfig[]>([]);
@@ -20,7 +23,7 @@ export function useWorkflowRoles() {
       const data = await res.json();
       setRoles(data);
     } catch (err) {
-      console.error('Failed to fetch workflow roles:', err);
+      logger.error('Failed to fetch workflow roles:', err);
       setError(err instanceof Error ? err.message : 'ロール設定の取得に失敗しました');
     } finally {
       setIsLoading(false);
