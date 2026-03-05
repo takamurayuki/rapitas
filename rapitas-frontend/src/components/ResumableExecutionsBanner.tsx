@@ -129,13 +129,8 @@ export function ResumableExecutionsBanner() {
         setExecutions([]);
       }
     } catch (error) {
-      logger.error('Failed to fetch resumable executions:', error);
-      logger.error('Error details:', {
-        message: error instanceof Error ? error.message : String(error),
-        name: error instanceof Error ? error.name : 'Unknown',
-        stack: error instanceof Error ? error.stack : undefined,
-        cause: error instanceof Error ? error.cause : undefined,
-      });
+      const errMsg = error instanceof Error ? error.message : String(error);
+      logger.warn(`Failed to fetch resumable executions: ${errMsg}`);
 
       // ネットワークエラーの場合は接続エラーとして記録
       setConnectionError(
@@ -166,13 +161,17 @@ export function ResumableExecutionsBanner() {
     },
   });
 
+  // バックエンド接続確認後に初回フェッチを実行（レースコンディション防止）
+  const initialFetchDoneRef = useRef(false);
   useEffect(() => {
+    if (!isConnected || initialFetchDoneRef.current) return;
+    initialFetchDoneRef.current = true;
     logger.debug(
-      'Component mounted, fetching initial data',
+      'Backend connected, fetching initial data',
     );
     fetchAutoResumeSetting();
     fetchResumableExecutions();
-  }, [fetchAutoResumeSetting, fetchResumableExecutions]);
+  }, [isConnected, fetchAutoResumeSetting, fetchResumableExecutions]);
 
   // グローバルストアに新しい実行タスクが追加されたら即座にフェッチ
   const prevExecutingTasksSizeRef = useRef(executingTasksSize);
