@@ -1,7 +1,7 @@
 # Rapitas Codebase Analysis Report
 
-> Generated: 2026-03-04T13:27:14.373Z
-> Execution time: 1740ms
+> Generated: 2026-03-04T15:32:18.706Z
+> Execution time: 20056ms
 > Project root: `C:\Projects\rapitas`
 
 ---
@@ -11,18 +11,18 @@
 ### サマリ
 | 項目 | 値 |
 |------|-----|
-| 総ファイル数 | 781 |
-| 総コード行数 | 186,583 |
+| 総ファイル数 | 788 |
+| 総コード行数 | 186,935 |
 | 総サイズ | 10.7 MB |
 
 ### 拡張子別
 | 拡張子 | ファイル数 | 行数 | サイズ | 平均行数 |
 |--------|-----------|------|--------|----------|
-| .ts | 248 | 81,571 | 2.4 MB | 329 |
+| .ts | 248 | 81,615 | 2.4 MB | 329 |
 | .tsx | 172 | 66,065 | 2.4 MB | 384 |
-| .md | 185 | 14,338 | 583.8 KB | 78 |
+| .md | 192 | 14,649 | 598.4 KB | 76 |
 | .yaml | 4 | 13,219 | 437.0 KB | 3305 |
-| .json | 10 | 3,266 | 103.5 KB | 327 |
+| .json | 10 | 3,263 | 103.4 KB | 326 |
 | .js | 95 | 2,745 | 3.7 MB | 29 |
 | .css | 8 | 1,769 | 299.2 KB | 221 |
 | .yml | 8 | 1,246 | 40.2 KB | 156 |
@@ -34,13 +34,13 @@
 ### ディレクトリ別
 | ディレクトリ | ファイル数 | 行数 | サイズ |
 |-------------|-----------|------|--------|
-| rapitas-frontend | 261 | 95,000 | 3.2 MB |
-| rapitas-backend | 361 | 78,023 | 2.5 MB |
+| rapitas-frontend | 261 | 94,987 | 3.2 MB |
+| rapitas-backend | 368 | 78,394 | 2.5 MB |
 | rapitas-desktop | 141 | 5,134 | 4.7 MB |
-| analysis-result.json | 1 | 3,006 | 96.3 KB |
+| analysis-result.json | 1 | 3,003 | 96.2 KB |
 | .github | 9 | 1,441 | 47.4 KB |
 | docs | 1 | 839 | 22.9 KB |
-| analysis-report.md | 1 | 803 | 45.6 KB |
+| analysis-report.md | 1 | 800 | 45.5 KB |
 | pnpm-lock.yaml | 1 | 713 | 22.2 KB |
 | project-guide.md | 1 | 684 | 22.5 KB |
 | README.md | 1 | 473 | 13.9 KB |
@@ -53,12 +53,12 @@
 |---|---------|------|--------|
 | 1 | `rapitas-frontend\pnpm-lock.yaml` | 10,822 | 362.2 KB |
 | 2 | `rapitas-backend\services\agents\agent-orchestrator.ts` | 3,936 | 128.4 KB |
-| 3 | `analysis-result.json` | 3,006 | 96.3 KB |
+| 3 | `analysis-result.json` | 3,003 | 96.2 KB |
 | 4 | `rapitas-frontend\src\components\note\NoteEditor.tsx` | 2,998 | 105.2 KB |
 | 5 | `rapitas-frontend\src\app\tasks\[id]\TaskDetailClient.tsx` | 2,060 | 82.9 KB |
 | 6 | `rapitas-frontend\src\components\category\IconData.ts` | 2,023 | 54.2 KB |
 | 7 | `rapitas-frontend\src\feature\developer-mode\components\AIAccordionPanel.tsx` | 1,699 | 70.1 KB |
-| 8 | `rapitas-backend\services\agents\claude-code-agent.ts` | 1,582 | 62.8 KB |
+| 8 | `rapitas-backend\services\agents\claude-code-agent.ts` | 1,639 | 65.5 KB |
 | 9 | `rapitas-backend\routes\tasks\tasks.ts` | 1,568 | 52.4 KB |
 | 10 | `rapitas-frontend\src\app\HomeClient.tsx` | 1,566 | 65.0 KB |
 | 11 | `rapitas-frontend\src\feature\developer-mode\components\DeveloperModeConfig.tsx` | 1,559 | 56.9 KB |
@@ -645,11 +645,11 @@
 | ソースファイル数 | 404 |
 | テスト比率 | 0.04 (4.0%) |
 | `any`型使用数 | 19 |
-| TODO コメント | 76 |
-| FIXME コメント | 1 |
-| HACK コメント | 1 |
-| console.log 使用数 | 6 |
-| try/catch ブロック数 | 839 |
+| TODO コメント | 0 |
+| FIXME コメント | 0 |
+| HACK コメント | 0 |
+| console.log 使用数 | 5 |
+| try/catch ブロック数 | 841 |
 
 ---
 
@@ -773,7 +773,6 @@
 
 ### 弱み
 - テストカバレッジが低い（テスト比率: 0.04）
-- 未解決のTODOが多い（76件）
 
 ### 改善提案
 - テストの拡充（特にバックエンドのユニットテスト）

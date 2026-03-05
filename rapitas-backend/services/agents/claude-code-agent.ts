@@ -87,6 +87,8 @@ export class ClaudeCodeAgent extends BaseAgent {
   private claudeSessionId: string | null = null;
   /** ファイル変更ツール（Write, Edit, NotebookEdit, Bash）が正常に使用されたかどうか */
   private hasFileModifyingToolCalls: boolean = false;
+  /** アイドルハングによる強制終了フラグ */
+  private idleTimeoutForceKilled: boolean = false;
   /** ファイル変更ツールの名前一覧 */
   private static readonly FILE_MODIFYING_TOOLS = new Set([
     "Write",
@@ -134,6 +136,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     this.activeTools.clear();
     this.claudeSessionId = null;
     this.hasFileModifyingToolCalls = false;
+    this.idleTimeoutForceKilled = false;
     this.workerArtifacts = [];
     this.workerCommits = [];
     this.onParseComplete = null;
@@ -414,8 +417,10 @@ export class ClaudeCodeAgent extends BaseAgent {
         // 出力アイドルタイムアウト: 一定時間stdoutからデータが来ない場合、バッファを強制処理
         let lastOutputTime = Date.now();
         let hasReceivedAnyOutput = false;
+        this.idleTimeoutForceKilled = false; // アイドルハングによる強制終了フラグ（インスタンス変数に変更）
         const OUTPUT_IDLE_TIMEOUT = 30000; // 30秒
         const INITIAL_OUTPUT_TIMEOUT = 60000; // 初期出力タイムアウト: 60秒
+        const MAX_OUTPUT_IDLE_TIMEOUT = 300000; // 5分: 出力後に5分間アイドルならプロセスハングとみなす
 
         const idleCheckInterval = setInterval(() => {
           const idleTime = Date.now() - lastOutputTime;
@@ -447,6 +452,51 @@ export class ClaudeCodeAgent extends BaseAgent {
             logger.info(
               `${this.logPrefix} Still running... Output idle: ${Math.floor(idleTime / 1000)}s, Buffer: ${this.lineBuffer.length} chars, Total output: ${this.outputBuffer.length} chars, HasOutput: ${hasReceivedAnyOutput}`,
             );
+          }
+
+          // アイドルハング検出: 出力があった後にMAX_OUTPUT_IDLE_TIMEOUT以上アイドルならプロセスハングとみなす
+          if (
+            hasReceivedAnyOutput &&
+            idleTime > MAX_OUTPUT_IDLE_TIMEOUT &&
+            !this.lineBuffer.trim() &&
+            this.status === "running" &&
+            this.process &&
+            !this.process.killed
+          ) {
+            logger.warn(
+              `${this.logPrefix} OUTPUT IDLE HANG DETECTED: No output for ${Math.floor(idleTime / 1000)}s after producing ${this.outputBuffer.length} chars. Force-killing hung process.`,
+            );
+            this.emitOutput(
+              `\n${this.logPrefix} プロセスが${Math.floor(idleTime / 1000)}秒間応答がないため、ハングとみなして強制終了します。\n`,
+            );
+            this.idleTimeoutForceKilled = true;
+            clearInterval(idleCheckInterval);
+
+            // プロセスを強制終了
+            const pid = this.process.pid;
+            if (process.platform === "win32") {
+              try {
+                if (pid) {
+                  execSync(`taskkill /PID ${pid} /T /F`, {
+                    stdio: "ignore",
+                    windowsHide: true,
+                  });
+                  logger.info(
+                    `${this.logPrefix} Process ${pid} killed via taskkill (idle hang)`,
+                  );
+                }
+              } catch (e) {
+                logger.warn(
+                  { err: e },
+                  `${this.logPrefix} taskkill failed (idle hang), trying process.kill()`,
+                );
+                try {
+                  this.process.kill();
+                } catch {}
+              }
+            } else {
+              this.process.kill("SIGTERM");
+            }
           }
         }, 5000); // 5秒ごとにチェック
 
@@ -887,7 +937,8 @@ export class ClaudeCodeAgent extends BaseAgent {
           }
 
           // エラー終了の場合はそのまま失敗として返す
-          if (code !== 0) {
+          // ただし、アイドルハングによる強制終了の場合はexit codeに関わらずgit diff判定へ進む
+          if (code !== 0 && !this.idleTimeoutForceKilled) {
             logger.info(
               `${this.logPrefix} No question detected, setting status to failed (exitCode: ${code})`,
             );
@@ -905,7 +956,13 @@ export class ClaudeCodeAgent extends BaseAgent {
             return;
           }
 
-          // 正常終了（code === 0）の場合、git diffで実際のコード変更を確認する
+          if (this.idleTimeoutForceKilled) {
+            logger.info(
+              `${this.logPrefix} Process was force-killed due to idle hang (exitCode: ${code}). Proceeding to git diff check for completion determination.`,
+            );
+          }
+
+          // 正常終了（code === 0）またはアイドルハングkillの場合、git diffで実際のコード変更を確認する
           // ファイル変更ツール（Write/Edit等）が呼ばれていても、計画モード（EnterPlanMode）や
           // サブエージェント（Task）経由の場合は実際にファイルが変更されていない可能性がある
           logger.info(

@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generatedAt": "2026-03-04T13:27:14.373Z",
-    "executionTimeMs": 1740,
+    "generatedAt": "2026-03-04T15:32:18.706Z",
+    "executionTimeMs": 20056,
     "projectRoot": "C:\\Projects\\rapitas"
   },
   "codeMetrics": {
@@ -9,8 +9,8 @@
       {
         "extension": ".ts",
         "fileCount": 248,
-        "totalLines": 81571,
-        "totalSize": 2518150,
+        "totalLines": 81615,
+        "totalSize": 2520155,
         "avgLines": 329
       },
       {
@@ -22,10 +22,10 @@
       },
       {
         "extension": ".md",
-        "fileCount": 185,
-        "totalLines": 14338,
-        "totalSize": 597794,
-        "avgLines": 78
+        "fileCount": 192,
+        "totalLines": 14649,
+        "totalSize": 612737,
+        "avgLines": 76
       },
       {
         "extension": ".yaml",
@@ -37,9 +37,9 @@
       {
         "extension": ".json",
         "fileCount": 10,
-        "totalLines": 3266,
-        "totalSize": 106034,
-        "avgLines": 327
+        "totalLines": 3263,
+        "totalSize": 105878,
+        "avgLines": 326
       },
       {
         "extension": ".js",
@@ -104,13 +104,13 @@
       },
       "analysis-report.md": {
         "files": 1,
-        "lines": 803,
-        "size": 46720
+        "lines": 800,
+        "size": 46585
       },
       "analysis-result.json": {
         "files": 1,
-        "lines": 3006,
-        "size": 98618
+        "lines": 3003,
+        "size": 98462
       },
       "docs": {
         "files": 1,
@@ -138,9 +138,9 @@
         "size": 13941
       },
       "rapitas-backend": {
-        "files": 361,
-        "lines": 78023,
-        "size": 2575935
+        "files": 368,
+        "lines": 78394,
+        "size": 2593745
       },
       "rapitas-desktop": {
         "files": 141,
@@ -149,8 +149,8 @@
       },
       "rapitas-frontend": {
         "files": 261,
-        "lines": 95000,
-        "size": 3392333
+        "lines": 94987,
+        "size": 3391606
       },
       "README.md": {
         "files": 1,
@@ -171,8 +171,8 @@
       },
       {
         "path": "analysis-result.json",
-        "lines": 3006,
-        "size": 98618
+        "lines": 3003,
+        "size": 98462
       },
       {
         "path": "rapitas-frontend\\src\\components\\note\\NoteEditor.tsx",
@@ -196,8 +196,8 @@
       },
       {
         "path": "rapitas-backend\\services\\agents\\claude-code-agent.ts",
-        "lines": 1582,
-        "size": 64305
+        "lines": 1639,
+        "size": 67049
       },
       {
         "path": "rapitas-backend\\routes\\tasks\\tasks.ts",
@@ -260,9 +260,9 @@
         "size": 24840
       }
     ],
-    "totalFiles": 781,
-    "totalLines": 186583,
-    "totalSize": 11205080
+    "totalFiles": 788,
+    "totalLines": 186935,
+    "totalSize": 11221872
   },
   "architecture": {
     "backend": {
@@ -2778,11 +2778,11 @@
     "sourceFiles": 404,
     "testRatio": 0.04,
     "anyUsage": 19,
-    "todoCount": 76,
-    "fixmeCount": 1,
-    "hackCount": 1,
-    "consoleLogCount": 6,
-    "tryCatchCount": 839
+    "todoCount": 0,
+    "fixmeCount": 0,
+    "hackCount": 0,
+    "consoleLogCount": 5,
+    "tryCatchCount": 841
   },
   "aiAgent": {
     "providers": [
@@ -2994,8 +2994,7 @@
       "高カバレッジ機能エリア: タスク管理, ポモドーロ/時間管理, AIエージェント, ワークフロー, GitHub連携, 通知, カレンダー/スケジュール, 分析/レポート"
     ],
     "weaknesses": [
-      "テストカバレッジが低い（テスト比率: 0.04）",
-      "未解決のTODOが多い（76件）"
+      "テストカバレッジが低い（テスト比率: 0.04）"
     ],
     "suggestions": [
       "テストの拡充（特にバックエンドのユニットテスト）"

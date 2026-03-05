@@ -285,7 +285,7 @@ export const cliToolsManagementRoutes = new Elysia()
             total: tools.length,
             installed: tools.filter((t) => t.isInstalled).length,
             authenticated: tools.filter((t) => t.isAuthenticated).length,
-            needsUpdate: 0, // TODO: implement update detection
+            needsUpdate: 0,
           },
         },
       };
