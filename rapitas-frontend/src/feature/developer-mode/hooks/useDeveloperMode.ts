@@ -532,12 +532,20 @@ export function useDeveloperMode(taskId: number) {
             body: JSON.stringify(requestBody),
           });
 
-          // レスポンスがJSONかどうかを確認
           // Check if endpoint exists (404 error)
           if (res.status === 404) {
             logger.error('Endpoint not found:', res.url);
             throw new Error(
               '実行エンドポイントが見つかりません。サーバーの設定を確認してください。',
+            );
+          }
+
+          // 二重実行防止 (409 Conflict)
+          if (res.status === 409) {
+            const conflictData = await res.json().catch(() => ({})) as Record<string, unknown>;
+            logger.warn('Duplicate execution rejected:', conflictData);
+            throw new Error(
+              (conflictData.error as string) || 'このタスクは既に実行中です。',
             );
           }
 

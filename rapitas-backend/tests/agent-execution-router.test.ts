@@ -8,8 +8,7 @@ import { Elysia } from "elysia";
 import { agentExecutionRouter } from "../routes/agents/agent-execution-router";
 
 describe("Agent Execution Router", () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let app: any;
+  let app: Elysia;
 
   beforeEach(() => {
     app = new Elysia().use(agentExecutionRouter);
