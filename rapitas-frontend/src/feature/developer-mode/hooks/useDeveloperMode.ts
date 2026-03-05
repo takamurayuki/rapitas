@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type {
   DeveloperModeConfig,
   TaskAnalysisResult,
@@ -83,6 +83,9 @@ export function useDeveloperMode(taskId: number) {
   const [agentConfigId, setAgentConfigId] = useState<number | null>(null);
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const { setExecutingTask, removeExecutingTask } = useExecutionStateStore();
+
+  // Ref-based排他制御: React状態の非同期更新を回避して即座に二重実行を防止
+  const isExecutingRef = useRef(false);
 
   const fetchConfig = useCallback(async () => {
     setIsLoading(true);
@@ -415,6 +418,13 @@ export function useDeveloperMode(taskId: number) {
         description?: string;
       }>;
     }) => {
+      // Ref-based排他制御: 二重実行防止
+      if (isExecutingRef.current) {
+        console.warn('[useDeveloperMode] Duplicate execution blocked: already executing');
+        return undefined;
+      }
+      isExecutingRef.current = true;
+
       setIsExecuting(true);
       setExecutionStatus('running');
       setExecutionResult(null);
@@ -602,6 +612,7 @@ export function useDeveloperMode(taskId: number) {
         removeExecutingTask(taskId);
         return null;
       } finally {
+        isExecutingRef.current = false;
         setIsExecuting(false);
       }
     },
@@ -613,6 +624,7 @@ export function useDeveloperMode(taskId: number) {
    */
   const resetExecutionState = useCallback(async () => {
     // ローカル状態をリセット
+    isExecutingRef.current = false;
     setIsExecuting(false);
     setExecutionStatus('idle');
     setExecutionResult(null);

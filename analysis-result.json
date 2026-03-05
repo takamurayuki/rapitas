@@ -1,24 +1,31 @@
 {
   "metadata": {
-    "generatedAt": "2026-03-04T08:20:45.574Z",
-    "executionTimeMs": 419,
+    "generatedAt": "2026-03-04T12:04:47.789Z",
+    "executionTimeMs": 19206,
     "projectRoot": "C:\\Projects\\rapitas"
   },
   "codeMetrics": {
     "byExtension": [
       {
         "extension": ".ts",
-        "fileCount": 246,
-        "totalLines": 81115,
-        "totalSize": 2500020,
-        "avgLines": 330
+        "fileCount": 247,
+        "totalLines": 81360,
+        "totalSize": 2512334,
+        "avgLines": 329
       },
       {
         "extension": ".tsx",
         "fileCount": 169,
-        "totalLines": 65347,
-        "totalSize": 2484088,
+        "totalLines": 65442,
+        "totalSize": 2489063,
         "avgLines": 387
+      },
+      {
+        "extension": ".md",
+        "fileCount": 179,
+        "totalLines": 13691,
+        "totalSize": 572485,
+        "avgLines": 76
       },
       {
         "extension": ".yaml",
@@ -28,18 +35,11 @@
         "avgLines": 3305
       },
       {
-        "extension": ".md",
-        "fileCount": 162,
-        "totalLines": 12949,
-        "totalSize": 535569,
-        "avgLines": 80
-      },
-      {
         "extension": ".json",
         "fileCount": 10,
-        "totalLines": 3251,
-        "totalSize": 105562,
-        "avgLines": 325
+        "totalLines": 3258,
+        "totalSize": 105791,
+        "avgLines": 326
       },
       {
         "extension": ".js",
@@ -72,9 +72,9 @@
       {
         "extension": ".prisma",
         "fileCount": 1,
-        "totalLines": 1010,
-        "totalSize": 40580,
-        "avgLines": 1010
+        "totalLines": 1011,
+        "totalSize": 40686,
+        "avgLines": 1011
       },
       {
         "extension": ".sql",
@@ -105,12 +105,12 @@
       "analysis-report.md": {
         "files": 1,
         "lines": 803,
-        "size": 46765
+        "size": 46763
       },
       "analysis-result.json": {
         "files": 1,
         "lines": 2998,
-        "size": 98377
+        "size": 98375
       },
       "docs": {
         "files": 1,
@@ -138,9 +138,9 @@
         "size": 13941
       },
       "rapitas-backend": {
-        "files": 337,
-        "lines": 76382,
-        "size": 2501040
+        "files": 355,
+        "lines": 77376,
+        "size": 2550583
       },
       "rapitas-desktop": {
         "files": 141,
@@ -149,8 +149,8 @@
       },
       "rapitas-frontend": {
         "files": 257,
-        "lines": 94070,
-        "size": 3365739
+        "lines": 94166,
+        "size": 3370740
       },
       "README.md": {
         "files": 1,
@@ -166,13 +166,13 @@
       },
       {
         "path": "rapitas-backend\\services\\agents\\agent-orchestrator.ts",
-        "lines": 3934,
-        "size": 130956
+        "lines": 3936,
+        "size": 131483
       },
       {
         "path": "analysis-result.json",
         "lines": 2998,
-        "size": 98377
+        "size": 98375
       },
       {
         "path": "rapitas-frontend\\src\\components\\note\\NoteEditor.tsx",
@@ -195,14 +195,14 @@
         "size": 71700
       },
       {
-        "path": "rapitas-backend\\routes\\tasks\\tasks.ts",
-        "lines": 1585,
-        "size": 53713
+        "path": "rapitas-backend\\services\\agents\\claude-code-agent.ts",
+        "lines": 1582,
+        "size": 64305
       },
       {
-        "path": "rapitas-backend\\services\\agents\\claude-code-agent.ts",
-        "lines": 1579,
-        "size": 64073
+        "path": "rapitas-backend\\routes\\tasks\\tasks.ts",
+        "lines": 1568,
+        "size": 53685
       },
       {
         "path": "rapitas-frontend\\src\\app\\HomeClient.tsx",
@@ -210,19 +210,19 @@
         "size": 68060
       },
       {
+        "path": "rapitas-backend\\routes\\agents\\agent-execution-router.ts",
+        "lines": 1557,
+        "size": 57589
+      },
+      {
         "path": "rapitas-frontend\\src\\feature\\developer-mode\\components\\DeveloperModeConfig.tsx",
         "lines": 1556,
         "size": 58191
       },
       {
-        "path": "rapitas-backend\\routes\\agents\\agent-execution-router.ts",
-        "lines": 1532,
-        "size": 55584
-      },
-      {
         "path": "rapitas-backend\\routes\\agents\\ai-agent.ts",
-        "lines": 1532,
-        "size": 49773
+        "lines": 1528,
+        "size": 49681
       },
       {
         "path": "rapitas-frontend\\src\\feature\\developer-mode\\components\\AIAnalysisPanel.tsx",
@@ -246,8 +246,8 @@
       },
       {
         "path": "rapitas-backend\\services\\parallel-execution\\sub-agent-controller.ts",
-        "lines": 1247,
-        "size": 38894
+        "lines": 1250,
+        "size": 39012
       },
       {
         "path": "rapitas-frontend\\src\\app\\themes\\page.tsx",
@@ -260,9 +260,9 @@
         "size": 24840
       }
     ],
-    "totalFiles": 753,
-    "totalLines": 184004,
-    "totalSize": 11103395
+    "totalFiles": 771,
+    "totalLines": 185094,
+    "totalSize": 11157935
   },
   "architecture": {
     "backend": {
@@ -2323,7 +2323,7 @@
         },
         {
           "name": "UserSettings",
-          "fieldCount": 21,
+          "fieldCount": 22,
           "relations": []
         },
         {
@@ -2765,14 +2765,14 @@
   },
   "quality": {
     "testFiles": 16,
-    "sourceFiles": 399,
+    "sourceFiles": 400,
     "testRatio": 0.04,
     "anyUsage": 19,
     "todoCount": 76,
     "fixmeCount": 1,
     "hackCount": 1,
-    "consoleLogCount": 640,
-    "tryCatchCount": 836
+    "consoleLogCount": 119,
+    "tryCatchCount": 839
   },
   "aiAgent": {
     "providers": [
@@ -2782,8 +2782,8 @@
     ],
     "agentTypes": [
       "manual",
-      "analysis",
       "code_review",
+      "analysis",
       "execution",
       "implementation",
       "codex",
@@ -2851,9 +2851,9 @@
   },
   "dependencies": {
     "backend": {
-      "total": 19,
-      "production": 16,
-      "dev": 3
+      "total": 24,
+      "production": 18,
+      "dev": 6
     },
     "frontend": {
       "total": 44,
@@ -2985,7 +2985,7 @@
     ],
     "weaknesses": [
       "テストカバレッジが低い（テスト比率: 0.04）",
-      "console.logが多い（640箇所）",
+      "console.logが多い（119箇所）",
       "未解決のTODOが多い（76件）",
       "低カバレッジ機能エリア: 検索"
     ],

@@ -1,7 +1,7 @@
 # Rapitas Codebase Analysis Report
 
-> Generated: 2026-03-04T08:20:45.574Z
-> Execution time: 419ms
+> Generated: 2026-03-04T12:04:47.789Z
+> Execution time: 19206ms
 > Project root: `C:\Projects\rapitas`
 
 ---
@@ -11,31 +11,31 @@
 ### サマリ
 | 項目 | 値 |
 |------|-----|
-| 総ファイル数 | 753 |
-| 総コード行数 | 184,004 |
+| 総ファイル数 | 771 |
+| 総コード行数 | 185,094 |
 | 総サイズ | 10.6 MB |
 
 ### 拡張子別
 | 拡張子 | ファイル数 | 行数 | サイズ | 平均行数 |
 |--------|-----------|------|--------|----------|
-| .ts | 246 | 81,115 | 2.4 MB | 330 |
-| .tsx | 169 | 65,347 | 2.4 MB | 387 |
+| .ts | 247 | 81,360 | 2.4 MB | 329 |
+| .tsx | 169 | 65,442 | 2.4 MB | 387 |
+| .md | 179 | 13,691 | 559.1 KB | 76 |
 | .yaml | 4 | 13,219 | 437.0 KB | 3305 |
-| .md | 162 | 12,949 | 523.0 KB | 80 |
-| .json | 10 | 3,251 | 103.1 KB | 325 |
+| .json | 10 | 3,258 | 103.3 KB | 326 |
 | .js | 95 | 2,745 | 3.7 MB | 29 |
 | .css | 8 | 1,769 | 299.2 KB | 221 |
 | .yml | 8 | 1,246 | 40.2 KB | 156 |
 | .html | 41 | 1,195 | 760.0 KB | 29 |
-| .prisma | 1 | 1,010 | 39.6 KB | 1010 |
+| .prisma | 1 | 1,011 | 39.7 KB | 1011 |
 | .sql | 8 | 154 | 5.3 KB | 19 |
 | .toml | 1 | 4 | 131 B | 4 |
 
 ### ディレクトリ別
 | ディレクトリ | ファイル数 | 行数 | サイズ |
 |-------------|-----------|------|--------|
-| rapitas-frontend | 257 | 94,070 | 3.2 MB |
-| rapitas-backend | 337 | 76,382 | 2.4 MB |
+| rapitas-frontend | 257 | 94,166 | 3.2 MB |
+| rapitas-backend | 355 | 77,376 | 2.4 MB |
 | rapitas-desktop | 141 | 5,134 | 4.7 MB |
 | analysis-result.json | 1 | 2,998 | 96.1 KB |
 | .github | 9 | 1,441 | 47.4 KB |
@@ -52,23 +52,23 @@
 | # | ファイル | 行数 | サイズ |
 |---|---------|------|--------|
 | 1 | `rapitas-frontend\pnpm-lock.yaml` | 10,822 | 362.2 KB |
-| 2 | `rapitas-backend\services\agents\agent-orchestrator.ts` | 3,934 | 127.9 KB |
+| 2 | `rapitas-backend\services\agents\agent-orchestrator.ts` | 3,936 | 128.4 KB |
 | 3 | `analysis-result.json` | 2,998 | 96.1 KB |
 | 4 | `rapitas-frontend\src\components\note\NoteEditor.tsx` | 2,998 | 105.2 KB |
 | 5 | `rapitas-frontend\src\app\tasks\[id]\TaskDetailClient.tsx` | 2,044 | 84.1 KB |
 | 6 | `rapitas-frontend\src\components\category\IconData.ts` | 2,023 | 54.2 KB |
 | 7 | `rapitas-frontend\src\feature\developer-mode\components\AIAccordionPanel.tsx` | 1,696 | 70.0 KB |
-| 8 | `rapitas-backend\routes\tasks\tasks.ts` | 1,585 | 52.5 KB |
-| 9 | `rapitas-backend\services\agents\claude-code-agent.ts` | 1,579 | 62.6 KB |
+| 8 | `rapitas-backend\services\agents\claude-code-agent.ts` | 1,582 | 62.8 KB |
+| 9 | `rapitas-backend\routes\tasks\tasks.ts` | 1,568 | 52.4 KB |
 | 10 | `rapitas-frontend\src\app\HomeClient.tsx` | 1,564 | 66.5 KB |
-| 11 | `rapitas-frontend\src\feature\developer-mode\components\DeveloperModeConfig.tsx` | 1,556 | 56.8 KB |
-| 12 | `rapitas-backend\routes\agents\agent-execution-router.ts` | 1,532 | 54.3 KB |
-| 13 | `rapitas-backend\routes\agents\ai-agent.ts` | 1,532 | 48.6 KB |
+| 11 | `rapitas-backend\routes\agents\agent-execution-router.ts` | 1,557 | 56.2 KB |
+| 12 | `rapitas-frontend\src\feature\developer-mode\components\DeveloperModeConfig.tsx` | 1,556 | 56.8 KB |
+| 13 | `rapitas-backend\routes\agents\ai-agent.ts` | 1,528 | 48.5 KB |
 | 14 | `rapitas-frontend\src\feature\developer-mode\components\AIAnalysisPanel.tsx` | 1,416 | 60.1 KB |
 | 15 | `rapitas-frontend\src\feature\tasks\components\MemoSection.tsx` | 1,405 | 52.4 KB |
 | 16 | `rapitas-desktop\scripts\dev.js` | 1,364 | 47.3 KB |
 | 17 | `rapitas-frontend\src\components\Header.tsx` | 1,256 | 46.7 KB |
-| 18 | `rapitas-backend\services\parallel-execution\sub-agent-controller.ts` | 1,247 | 38.0 KB |
+| 18 | `rapitas-backend\services\parallel-execution\sub-agent-controller.ts` | 1,250 | 38.1 KB |
 | 19 | `rapitas-frontend\src\app\themes\page.tsx` | 1,190 | 49.6 KB |
 | 20 | `rapitas-frontend\src\app\globals.css` | 1,177 | 24.3 KB |
 
@@ -549,7 +549,7 @@
 | AgentAction | 12 | 1 |
 | ApprovalRequest | 17 | 1 |
 | Notification | 9 | 0 |
-| UserSettings | 21 | 0 |
+| UserSettings | 22 | 0 |
 | AIAgentConfig | 13 | 0 |
 | AgentExecution | 21 | 2 |
 | AgentExecutionLog | 8 | 1 |
@@ -640,14 +640,14 @@
 | 指標 | 値 |
 |------|-----|
 | テストファイル数 | 16 |
-| ソースファイル数 | 399 |
+| ソースファイル数 | 400 |
 | テスト比率 | 0.04 (4.0%) |
 | `any`型使用数 | 19 |
 | TODO コメント | 76 |
 | FIXME コメント | 1 |
 | HACK コメント | 1 |
-| console.log 使用数 | 640 |
-| try/catch ブロック数 | 836 |
+| console.log 使用数 | 119 |
+| try/catch ブロック数 | 839 |
 
 ---
 
@@ -656,7 +656,7 @@
 | 項目 | 値 |
 |------|-----|
 | AIプロバイダー | Anthropic (Claude), OpenAI, Google (Gemini) |
-| エージェントタイプ | manual, analysis, code_review, execution, implementation, codex, openai, gemini, custom |
+| エージェントタイプ | manual, code_review, analysis, execution, implementation, codex, openai, gemini, custom |
 | エージェントルート数 | 18 |
 | エージェントサービス数 | 35 |
 
@@ -728,9 +728,9 @@
 
 | パッケージ | 本番 | 開発 | 合計 |
 |-----------|------|------|------|
-| Backend | 16 | 3 | 19 |
+| Backend | 18 | 6 | 24 |
 | Frontend | 28 | 16 | 44 |
-| **合計** | **44** | **19** | **63** |
+| **合計** | **46** | **22** | **68** |
 
 ---
 
@@ -771,7 +771,7 @@
 
 ### 弱み
 - テストカバレッジが低い（テスト比率: 0.04）
-- console.logが多い（640箇所）
+- console.logが多い（119箇所）
 - 未解決のTODOが多い（76件）
 - 低カバレッジ機能エリア: 検索
 
