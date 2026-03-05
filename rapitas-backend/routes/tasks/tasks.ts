@@ -194,7 +194,10 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       const { themeId, limit } = query;
       const resultLimit = Math.min(parseInt(limit ?? "5"), 10);
 
-      logger.info({ themeId, limit: resultLimit }, "[tasks/suggestions/ai] Request received");
+      logger.info(
+        { themeId, limit: resultLimit },
+        "[tasks/suggestions/ai] Request received",
+      );
 
       if (!themeId) {
         return { suggestions: [], source: "none" };
@@ -213,11 +216,17 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       });
 
       if (!theme) {
-        logger.info({ themeId: parsedThemeId }, "[tasks/suggestions/ai] Theme not found");
+        logger.info(
+          { themeId: parsedThemeId },
+          "[tasks/suggestions/ai] Theme not found",
+        );
         return { suggestions: [], source: "none" };
       }
 
-      logger.info({ themeName: theme.name }, "[tasks/suggestions/ai] Theme found");
+      logger.info(
+        { themeName: theme.name },
+        "[tasks/suggestions/ai] Theme found",
+      );
 
       // Get completed tasks for analysis
       const completedTasks = await prisma.task.findMany({
@@ -241,7 +250,10 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
         take: 30,
       });
 
-      logger.info({ count: completedTasks.length }, "[tasks/suggestions/ai] Completed tasks found");
+      logger.info(
+        { count: completedTasks.length },
+        "[tasks/suggestions/ai] Completed tasks found",
+      );
 
       // ユーザーの行動パターンを取得
       const taskPatterns = await prisma.taskPattern.findMany({
@@ -253,7 +265,10 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
         take: 10,
       });
 
-      logger.info({ count: taskPatterns.length }, "[tasks/suggestions/ai] Task patterns found");
+      logger.info(
+        { count: taskPatterns.length },
+        "[tasks/suggestions/ai] Task patterns found",
+      );
 
       // ユーザーの行動サマリーを取得（最新の週次・月次データ）
       const behaviorSummary = await prisma.userBehaviorSummary.findFirst({
@@ -264,7 +279,10 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
         orderBy: { periodEnd: "desc" },
       });
 
-      logger.info({ found: !!behaviorSummary }, "[tasks/suggestions/ai] Behavior summary found");
+      logger.info(
+        { found: !!behaviorSummary },
+        "[tasks/suggestions/ai] Behavior summary found",
+      );
 
       // Get existing active tasks to avoid duplicates
       const existingTasks = await prisma.task.findMany({
@@ -279,7 +297,10 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       const existingTitles = existingTasks.map(
         (t: { title: string }) => t.title,
       );
-      logger.info({ count: existingTitles.length }, "[tasks/suggestions/ai] Existing active tasks");
+      logger.info(
+        { count: existingTitles.length },
+        "[tasks/suggestions/ai] Existing active tasks",
+      );
 
       if (!aiAvailable) {
         logger.info("[tasks/suggestions/ai] AI not available");
@@ -531,7 +552,10 @@ ${existingTaskList}
             );
           }
         } catch (cacheError) {
-          logger.error({ err: cacheError }, "[tasks/suggestions/ai] Failed to cache suggestions");
+          logger.error(
+            { err: cacheError },
+            "[tasks/suggestions/ai] Failed to cache suggestions",
+          );
         }
 
         return {
@@ -541,7 +565,10 @@ ${existingTaskList}
           tokensUsed: response.tokensUsed,
         };
       } catch (error) {
-        logger.error({ err: error }, "[tasks/suggestions/ai] AI suggestion failed");
+        logger.error(
+          { err: error },
+          "[tasks/suggestions/ai] AI suggestion failed",
+        );
         return { suggestions: [], source: "ai_error" };
       }
     },
@@ -667,7 +694,10 @@ ${existingTaskList}
   .get("/", async (context) => {
     const { query } = context;
     const { projectId, milestoneId, priority, since } = query as {
-      projectId?: string; milestoneId?: string; priority?: string; since?: string;
+      projectId?: string;
+      milestoneId?: string;
+      priority?: string;
+      since?: string;
     };
 
     const baseWhere = {
@@ -797,11 +827,22 @@ ${existingTaskList}
         isDeveloperMode,
         isAiTaskAnalysis,
       } = body as {
-        title: string; description?: string; status?: string; priority?: string;
-        labels?: string; labelIds?: number[]; estimatedHours?: number;
-        dueDate?: string; subject?: string; parentId?: number;
-        projectId?: number; milestoneId?: number; themeId?: number;
-        examGoalId?: number; isDeveloperMode?: boolean; isAiTaskAnalysis?: boolean;
+        title: string;
+        description?: string;
+        status?: string;
+        priority?: string;
+        labels?: string;
+        labelIds?: number[];
+        estimatedHours?: number;
+        dueDate?: string;
+        subject?: string;
+        parentId?: number;
+        projectId?: number;
+        milestoneId?: number;
+        themeId?: number;
+        examGoalId?: number;
+        isDeveloperMode?: boolean;
+        isAiTaskAnalysis?: boolean;
       };
 
       try {
@@ -1025,10 +1066,19 @@ ${existingTaskList}
       examGoalId,
       autoApprovePlan,
     } = body as {
-      title?: string; description?: string; themeId?: number; status?: string;
-      priority?: string; labels?: string; labelIds?: number[];
-      estimatedHours?: number; dueDate?: string; subject?: string;
-      projectId?: number; milestoneId?: number; examGoalId?: number;
+      title?: string;
+      description?: string;
+      themeId?: number;
+      status?: string;
+      priority?: string;
+      labels?: string;
+      labelIds?: number[];
+      estimatedHours?: number;
+      dueDate?: string;
+      subject?: string;
+      projectId?: number;
+      milestoneId?: number;
+      examGoalId?: number;
       autoApprovePlan?: boolean;
     };
 
@@ -1408,160 +1458,4 @@ ${existingTaskList}
         subtaskIds: t.Array(t.Number()),
       }),
     },
-  )
-
-  // エージェント実行（新規）
-  .post("/:id/execute", async ({ params, body, set }) => {
-    try {
-      const taskId = parseInt(params.id);
-      const {
-        instruction,
-        branchName,
-        workingDirectory: requestedDir,
-        optimizedPrompt,
-        agentConfigId,
-      } = body as {
-        instruction?: string; branchName?: string; workingDirectory?: string;
-        optimizedPrompt?: string; agentConfigId?: number;
-      };
-
-      const task = await prisma.task.findUnique({
-        where: { id: taskId },
-        include: {
-          developerModeConfig: true,
-          theme: true,
-          subtasks: { include: { prompts: true } },
-        },
-      });
-
-      if (!task) {
-        set.status = 404;
-        return { error: "Task not found" };
-      }
-
-      const workingDirectory =
-        requestedDir || task.theme?.workingDirectory || process.cwd();
-
-      // セッションを作成
-      let configId = task.developerModeConfig?.id;
-      if (!configId) {
-        const config = await prisma.developerModeConfig.create({
-          data: { taskId },
-        });
-        configId = config.id;
-      }
-
-      const session = await prisma.agentSession.create({
-        data: {
-          configId,
-          status: "pending",
-        },
-      });
-
-      // タスクを進行中に更新
-      await prisma.task.update({
-        where: { id: taskId },
-        data: { status: "in-progress" },
-      });
-
-      // 通知を作成
-      await prisma.notification.create({
-        data: {
-          type: "agent_execution_started",
-          title: "エージェント実行開始",
-          message: `「${task.title}」の実行を開始しました`,
-          link: `/tasks/${taskId}`,
-          metadata: toJsonString({ sessionId: session.id, taskId }),
-        },
-      });
-
-      // 実行指示を構築
-      const taskInstruction =
-        optimizedPrompt || instruction || task.description || task.title;
-
-      // オーケストレーターで非同期実行
-      orchestrator
-        .executeTask(
-          {
-            id: taskId,
-            title: task.title,
-            description: taskInstruction,
-            context: task.executionInstructions || undefined,
-            workingDirectory,
-          },
-          {
-            taskId,
-            sessionId: session.id,
-            agentConfigId,
-            workingDirectory,
-            branchName,
-          },
-        )
-        .then(async (result) => {
-          if (result.success) {
-            // ワークフローステータスに基づいてタスクステータスを決定
-            const currentTask = await prisma.task.findUnique({ where: { id: taskId } });
-            const wfStatus = currentTask?.workflowStatus;
-            if (wfStatus && ['plan_created', 'research_done'].includes(wfStatus)) {
-              await prisma.task.update({ where: { id: taskId }, data: { status: "in-progress" } });
-            } else if (wfStatus !== 'in_progress') {
-              await prisma.task.update({
-                where: { id: taskId },
-                data: { status: "done", completedAt: new Date() },
-              });
-            }
-            await prisma.agentSession.update({
-              where: { id: session.id },
-              data: { status: "completed", completedAt: new Date() },
-            });
-          } else {
-            await prisma.task.update({
-              where: { id: taskId },
-              data: { status: "todo" },
-            });
-            await prisma.agentSession.update({
-              where: { id: session.id },
-              data: {
-                status: "failed",
-                completedAt: new Date(),
-                errorMessage: result.errorMessage || "Execution failed",
-              },
-            });
-          }
-        })
-        .catch(async (error) => {
-          logger.error({ err: error }, "[execute] Error");
-          await prisma.task
-            .update({ where: { id: taskId }, data: { status: "todo" } })
-            .catch(() => {});
-          await prisma.agentSession
-            .update({
-              where: { id: session.id },
-              data: {
-                status: "failed",
-                completedAt: new Date(),
-                errorMessage: error.message || "Execution error",
-              },
-            })
-            .catch(() => {});
-        });
-
-      return {
-        success: true,
-        sessionId: session.id,
-        taskId,
-        workingDirectory,
-        message: "実行を開始しました。リアルタイムで進捗を確認できます。",
-      };
-    } catch (error) {
-      logger.error({ err: error }, "[execute] Error");
-      set.status = 500;
-      return {
-        error:
-          error instanceof Error ? error.message : "Failed to execute task",
-      };
-    }
-  });
-
-  // NOTE: continue-execution エンドポイントは agent-execution-router.ts に統合済み
-  // 重複ルート登録を防ぐため、ここでは定義しない
+  );

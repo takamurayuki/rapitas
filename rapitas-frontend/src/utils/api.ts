@@ -73,15 +73,9 @@ export async function fetchWithRetry(
 
       if (isLastAttempt) {
         // 最後のリトライでも失敗した場合のみエラーレベル
+        const errorType = isTimeoutError ? 'Timeout' : isNetworkError ? 'NetworkError' : lastError.name;
         logger.error(
-          `[fetchWithRetry] Final attempt ${attempt + 1}/${maxRetries} failed for ${url}:`,
-          {
-            message: lastError.message,
-            type: lastError.name,
-            stack: lastError.stack,
-            isTimeout: isTimeoutError,
-            isNetworkError: isNetworkError,
-          },
+          `[fetchWithRetry] Final attempt ${attempt + 1}/${maxRetries} failed for ${url}: [${errorType}] ${lastError.message}`,
         );
       } else if (isNetworkError || isTimeoutError) {
         // ネットワークエラーやタイムアウトはサーバー再起動中など正常な状況

@@ -22,6 +22,32 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads";
 const log = createLogger("routes:agent-execution");
 
 /**
+ * タスク実行のインメモリロック
+ * DB チェックでは非同期実行のレースコンディションを防げないため、
+ * タスクID単位でロックを取得し、同一タスクの同時実行を確実に防止する。
+ */
+const taskExecutionLocks = new Map<number, { lockedAt: Date; sessionId?: number }>();
+
+function acquireTaskExecutionLock(taskId: number): boolean {
+  if (taskExecutionLocks.has(taskId)) {
+    const lock = taskExecutionLocks.get(taskId)!;
+    // 10分以上経過したロックは古いとみなして解放（安全弁）
+    const elapsed = Date.now() - lock.lockedAt.getTime();
+    if (elapsed < 10 * 60 * 1000) {
+      return false;
+    }
+    log.warn(`[ExecutionLock] Stale lock released for task ${taskId} (elapsed: ${elapsed}ms)`);
+  }
+  taskExecutionLocks.set(taskId, { lockedAt: new Date() });
+  return true;
+}
+
+function releaseTaskExecutionLock(taskId: number): void {
+  taskExecutionLocks.delete(taskId);
+  log.info(`[ExecutionLock] Lock released for task ${taskId}`);
+}
+
+/**
  * セッションステータス更新のリトライ処理付きヘルパー関数
  * @param sessionId - セッションID
  * @param status - 更新後のステータス
@@ -239,36 +265,24 @@ export const agentExecutionRouter = new Elysia()
         return { error: "Task not found" };
       }
 
-      // 二重実行防止: 同じタスクに対してrunning/pendingの実行が既にある場合は拒否
-      if (!sessionId) {
-        // 新規実行の場合のみチェック（継続実行はsessionId指定で既存セッションを使うため除外）
-        try {
-          const existingActiveExecution = await prisma.agentExecution.findFirst({
-            where: {
-              session: {
-                config: {
-                  taskId: taskIdNum,
-                },
-              },
-              status: { in: ["running", "pending"] },
-            },
-          });
-
-          if (existingActiveExecution) {
-            log.warn(
-              `[API] Duplicate execution rejected for task ${taskIdNum}: existing execution #${existingActiveExecution.id} is ${existingActiveExecution.status}`,
-            );
-            context.set.status = 409;
-            return {
-              error: "このタスクは既に実行中です。完了後に再実行してください。",
-              existingExecutionId: existingActiveExecution.id,
-            };
-          }
-        } catch (dbError) {
-          log.error({ err: dbError }, `[API] Failed to check for duplicate executions for task ${taskIdNum}`);
-          // チェック失敗時は実行を続行（安全側に倒す）
+      // 二重実行防止: インメモリロックで同一タスクの同時実行を確実にブロック
+      const lockAcquired = !sessionId;
+      if (lockAcquired) {
+        if (!acquireTaskExecutionLock(taskIdNum)) {
+          log.warn(`[API] Duplicate execution rejected for task ${taskIdNum}: in-memory lock held`);
+          context.set.status = 409;
+          return {
+            error: "このタスクは既に実行中です。完了後に再実行してください。",
+          };
         }
+        log.info(`[API] Execution lock acquired for task ${taskIdNum}`);
       }
+
+      // ロック取得後のエラー時はロックを解放するヘルパー
+      const earlyReturnWithLockRelease = (response: Record<string, unknown>) => {
+        if (lockAcquired) releaseTaskExecutionLock(taskIdNum);
+        return response;
+      };
 
       // 自動複雑度評価の実行
       if (task.complexityScore === null && !task.workflowModeOverride) {
@@ -315,9 +329,9 @@ export const agentExecutionRouter = new Elysia()
           `[API] Task ${taskIdNum} rejected: not in a development theme and no workingDirectory specified.`,
         );
         context.set.status = 400;
-        return {
+        return earlyReturnWithLockRelease({
           error: "開発プロジェクトに設定されたテーマのタスクのみ実行できます。テーマの設定を確認してください。",
-        };
+        });
       }
 
       const workDir =
@@ -347,11 +361,11 @@ export const agentExecutionRouter = new Elysia()
           });
           if (!existingSession) {
             context.set.status = 404;
-            return { error: "Session not found" };
+            return earlyReturnWithLockRelease({ error: "Session not found" });
           }
           if (existingSession.configId !== developerModeConfig.id) {
             context.set.status = 400;
-            return { error: "Session does not belong to this task" };
+            return earlyReturnWithLockRelease({ error: "Session does not belong to this task" });
           }
           // セッションを再利用
           session = existingSession;
@@ -386,7 +400,7 @@ export const agentExecutionRouter = new Elysia()
           finalBranchName,
         );
         if (!branchCreated) {
-          return { error: "Failed to create branch", branchName: finalBranchName };
+          return earlyReturnWithLockRelease({ error: "Failed to create branch", branchName: finalBranchName });
         }
 
         // セッションにブランチ名を保存
@@ -417,10 +431,10 @@ export const agentExecutionRouter = new Elysia()
       } catch (dbError) {
         log.error({ err: dbError }, `[API] Database error during execution setup for task ${taskIdNum}`);
         context.set.status = 500;
-        return {
+        return earlyReturnWithLockRelease({
           error: "データベースクエリエラーが発生しました",
           details: dbError instanceof Error ? dbError.message : String(dbError),
-        };
+        });
       }
 
       let fullInstruction: string;
@@ -715,6 +729,9 @@ export const agentExecutionRouter = new Elysia()
             .catch((e: unknown) => {
               log.error({ err: e }, `[API] Failed to update session ${session.id} status to failed`);
             });
+        })
+        .finally(() => {
+          releaseTaskExecutionLock(taskIdNum);
         });
 
       return {
@@ -1103,6 +1120,9 @@ export const agentExecutionRouter = new Elysia()
           }
         }
 
+        // 実行停止時にインメモリロックも解放
+        releaseTaskExecutionLock(taskId);
+
         return {
           success: true,
           sessionId: session.id,
@@ -1110,6 +1130,8 @@ export const agentExecutionRouter = new Elysia()
         };
       } catch (error) {
         log.error({ err: error }, "[stop-execution] Database error");
+        // エラー時もロック解放を試みる
+        releaseTaskExecutionLock(taskId);
         return {
           success: false,
           error: "データベースエラーが発生しました。実行の停止に失敗しました。",
@@ -1539,6 +1561,9 @@ export const agentExecutionRouter = new Elysia()
 
         log.info(`[reset-execution-state] Reset execution state for task ${taskId}`);
 
+        // リセット時にインメモリロックも解放
+        releaseTaskExecutionLock(taskId);
+
         return {
           success: true,
           message: "Execution state reset successfully",
@@ -1546,6 +1571,7 @@ export const agentExecutionRouter = new Elysia()
         };
       } catch (error) {
         log.error({ err: error }, `[reset-execution-state] Error`);
+        releaseTaskExecutionLock(taskId);
         return { error: "Failed to reset execution state" };
       }
     },

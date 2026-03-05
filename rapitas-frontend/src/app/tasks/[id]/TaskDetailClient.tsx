@@ -1,7 +1,6 @@
 'use client';
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { getLabelsArray } from '@/utils/labels';
 import type {
   Task,
   TimeEntry,
@@ -17,10 +16,6 @@ import {
   renderStatusIcon,
 } from '@/feature/tasks/config/StatusConfig';
 import {
-  Timer,
-  Coffee,
-  Pause,
-  Hourglass,
   Clock,
   CheckCircle2,
   Circle,
@@ -46,13 +41,9 @@ import {
 import { SubtaskTitleIndicator } from '@/feature/tasks/components/SubtaskExecutionStatus';
 import { useParallelExecutionStatus } from '@/feature/tasks/hooks/useParallelExecutionStatus';
 import { useSubtaskLogs } from '@/feature/tasks/hooks/useSubtaskLogs';
-import { getTaskDetailPath } from '@/utils/tauri';
 import GlobalPomodoroModal from '@/feature/tasks/pomodoro/GlobalPomodoroModal';
-import Button from '@/components/ui/button/Button';
 import {
   usePomodoro,
-  formatTime,
-  getRemainingTime,
 } from '@/feature/tasks/pomodoro/PomodoroProvider';
 import { useDeveloperMode } from '@/feature/developer-mode/hooks/useDeveloperMode';
 import CompactTaskDetailCard from '@/feature/tasks/components/CompactTaskDetailCard';
@@ -64,21 +55,21 @@ import DropdownMenu from '@/components/ui/dropdown/DropdownMenu';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
 import { API_BASE_URL } from '@/utils/api';
-import { apiFetch, parallelFetch } from '@/lib/api-client';
+import { apiFetch } from '@/lib/api-client';
 import { preloadTaskDetails } from '@/lib/task-api';
-import { cacheManager } from '@/lib/cache-utils';
 import { recordTaskAccess } from '@/lib/cache-warmup';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
 import { requireAuth } from '@/contexts/AuthContext';
 import type { WorkflowStatus } from '@/types';
-import WorkflowViewer from '@/components/workflow/WorkflowViewer';
 import PlanApprovalModal from '@/components/workflow/PlanApprovalModal';
-import WorkflowStatusIndicator, {
-  WorkflowProgress,
-} from '@/components/workflow/WorkflowStatusIndicator';
 import { useWorkflowFiles } from '@/hooks/useWorkflowFiles';
-import { Loader2 } from 'lucide-react';
 import { createLogger } from '@/lib/logger';
+
+// Extracted hooks and components
+import { useTaskActions } from './hooks/useTaskActions';
+import { useCommentSystem } from './hooks/useCommentSystem';
+import TaskPomodoroButton from './components/TaskPomodoroButton';
+import TaskWorkflowSection from './components/TaskWorkflowSection';
 
 const logger = createLogger('TaskDetailClient');
 const API_BASE = API_BASE_URL;
@@ -127,20 +118,10 @@ function TaskDetailClient({
   const [loading, setLoading] = useState(true);
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const skeletonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skeletonStartRef = useRef<number>(Date.now());
   const taskLoadedRef = useRef(false);
-
-  // 編集フォーム用の状態
-  const [editTitle, setEditTitle] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [editStatus, setEditStatus] = useState('');
-  const [editLabels, setEditLabels] = useState('');
-  const [editLabelIds, setEditLabelIds] = useState<number[]>([]);
-  const [editEstimatedHours, setEditEstimatedHours] = useState('');
-  const [editPriority, setEditPriority] = useState<Priority>('medium');
 
   // 時間トラッキング用の状態
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
@@ -155,20 +136,6 @@ function TaskDetailClient({
 
   // サブタスクアコーディオン用の状態
   const [isSubtasksExpanded, setIsSubtasksExpanded] = useState(true);
-
-  // サブタスク編集用の状態
-  const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
-  const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
-  const [editingSubtaskDescription, setEditingSubtaskDescription] =
-    useState('');
-  // サブタスク選択削除用の状態
-  const [isSubtaskSelectionMode, setIsSubtaskSelectionMode] = useState(false);
-  const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<Set<number>>(
-    new Set(),
-  );
-  const [showSubtaskDeleteConfirm, setShowSubtaskDeleteConfirm] = useState<
-    'all' | 'selected' | null
-  >(null);
 
   // タスク完了オーバーレイ用の状態
   const [showCompleteOverlay, setShowCompleteOverlay] = useState(false);
@@ -208,9 +175,6 @@ function TaskDetailClient({
     fetchAgents,
   } = useDeveloperMode(taskId);
 
-  // const {
-  //   config: config,
-  // } = useAIAnalysisMode(taskId);
   const {
     approve: approveRequest,
     reject: rejectRequest,
@@ -234,45 +198,28 @@ function TaskDetailClient({
     hasAnyFile: hasAnyWorkflowFile,
   } = useWorkflowFiles(taskId || null);
 
-  /**
-   * 時間管理ボタンのスタイルを状態に応じて取得する
-   */
-  const getTimerButtonStyle = () => {
-    const baseStyle = "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors text-zinc-700 dark:text-zinc-300 border";
+  // --- Extracted hooks ---
 
-    if (isThisTaskTimer && pomodoroState.isTimerRunning) {
-      if (pomodoroState.isBreakTime) {
-        // 休憩中
-        return `${baseStyle} bg-green-50 dark:bg-green-950 border-green-300 dark:border-green-700 hover:bg-zinc-50 dark:hover:bg-zinc-700`;
-      } else if (pomodoroState.isPaused) {
-        // 一時停止中
-        return `${baseStyle} bg-orange-50 dark:bg-orange-950 border-orange-300 dark:border-orange-700 hover:bg-zinc-50 dark:hover:bg-zinc-700`;
-      } else {
-        // 実行中
-        return `${baseStyle} bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-700 hover:bg-zinc-50 dark:hover:bg-zinc-700`;
-      }
-    } else {
-      // 初期状態（編集ボタンと同じスタイル）
-      return `${baseStyle} bg-white dark:bg-indigo-dark-800 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700`;
-    }
-  };
+  const taskActions = useTaskActions({
+    task,
+    resolvedTaskId,
+    setTask,
+    onTaskUpdated,
+    isThisTaskTimer,
+    pomodoroState,
+    stopTimer,
+    setShowPomodoroModal,
+    setShowCompleteOverlay,
+  });
 
-  /**
-   * 時間管理ボタンのアイコンを状態に応じて取得する
-   */
-  const getTimerIcon = () => {
-    if (isThisTaskTimer && pomodoroState.isTimerRunning) {
-      if (pomodoroState.isBreakTime) {
-        return <Coffee className="w-4 h-4" />;
-      } else if (pomodoroState.isPaused) {
-        return <Pause className="w-4 h-4" />;
-      } else {
-        return <Hourglass className="w-4 h-4 animate-pulse" />;
-      }
-    } else {
-      return <Timer className="w-4 h-4" />;
-    }
-  };
+  const commentSystem = useCommentSystem({
+    resolvedTaskId,
+    comments,
+    setComments,
+    newComment,
+    setNewComment,
+    setIsAddingComment,
+  });
 
   // ワークフローステータスの同期
   useEffect(() => {
@@ -292,7 +239,7 @@ function TaskDetailClient({
 
       // 承認後にバックエンドがエージェントを起動するまで待機し、実行状態を復元する
       let attempts = 0;
-      const maxAttempts = 10; // 最大10回試行（20秒）
+      const maxAttempts = 10;
 
       const tryRestoreExecution = async () => {
         attempts++;
@@ -300,27 +247,24 @@ function TaskDetailClient({
           const result = await restoreExecutionState();
           if (result && result.status === 'running') {
             logger.debug('[TaskDetailClient] Execution state restored after approval');
-            return; // 復元成功、リトライ停止
+            return;
           }
 
-          // 実行状態が見つからない場合、最大試行回数まで再試行
           if (attempts < maxAttempts) {
-            setTimeout(tryRestoreExecution, 2000); // 2秒後に再試行
+            setTimeout(tryRestoreExecution, 2000);
           }
         } catch (err) {
           logger.warn('[TaskDetailClient] Failed to restore execution state:', err);
           if (attempts < maxAttempts) {
-            setTimeout(tryRestoreExecution, 2000); // エラー時も再試行
+            setTimeout(tryRestoreExecution, 2000);
           }
         }
       };
 
-      // 承認後、少し待ってから実行状態復元を試行
       setTimeout(tryRestoreExecution, 1000);
     }
     refetchWorkflowFiles();
     setShowPlanApprovalModal(false);
-    // 承認された場合、バックエンドが自動的に実装フェーズを開始する（approve-planエンドポイント内でadvanceが呼ばれる）
   };
 
   const handleWorkflowComplete = async () => {
@@ -389,24 +333,22 @@ function TaskDetailClient({
   });
 
   useEffect(() => {
-    const SKELETON_MIN_DURATION = 400; // スケルトン最低表示時間(ms)
+    const SKELETON_MIN_DURATION = 400;
 
     const isInitialLoad = !taskLoadedRef.current;
     const fetchTask = async () => {
       try {
-        // 初回ロード時のみスケルトン/ローディングを表示（再取得時はちらつき防止のため表示しない）
         if (isInitialLoad) {
           setLoading(true);
           setShowSkeleton(true);
           skeletonStartRef.current = Date.now();
         }
         const data = await apiFetch<Task>(`/tasks/${resolvedTaskId}`, {
-          cacheTime: 24 * 60 * 60 * 1000, // 24時間キャッシュ
+          cacheTime: 24 * 60 * 60 * 1000,
         });
         setTask(data);
         taskLoadedRef.current = true;
 
-        // タスクアクセスを記録（次回起動時のウォームアップ用）
         if (resolvedTaskId) {
           const numericTaskId = parseInt(resolvedTaskId, 10);
           if (!isNaN(numericTaskId)) {
@@ -418,7 +360,6 @@ function TaskDetailClient({
       } finally {
         if (isInitialLoad) {
           setLoading(false);
-          // スケルトン最低表示時間を保証
           const elapsed = Date.now() - skeletonStartRef.current;
           const remaining = SKELETON_MIN_DURATION - elapsed;
           if (remaining > 0) {
@@ -436,7 +377,7 @@ function TaskDetailClient({
       try {
         const data = await apiFetch<TimeEntry[]>(
           `/tasks/${resolvedTaskId}/time-entries`,
-          { cacheTime: 60 * 60 * 1000 } // 1時間キャッシュ
+          { cacheTime: 60 * 60 * 1000 }
         );
         setTimeEntries(data);
       } catch (err) {
@@ -448,7 +389,7 @@ function TaskDetailClient({
       try {
         const data = await apiFetch<Comment[]>(
           `/tasks/${resolvedTaskId}/comments`,
-          { cacheTime: 60 * 60 * 1000 } // 1時間キャッシュ
+          { cacheTime: 60 * 60 * 1000 }
         );
         setComments(data);
       } catch (err) {
@@ -460,7 +401,7 @@ function TaskDetailClient({
       try {
         const data = await apiFetch<Resource[]>(
           `/tasks/${resolvedTaskId}/resources`,
-          { cacheTime: 60 * 60 * 1000 } // 1時間キャッシュ
+          { cacheTime: 60 * 60 * 1000 }
         );
         setResources(data);
       } catch (err) {
@@ -471,10 +412,9 @@ function TaskDetailClient({
     const fetchGlobalSettings = async () => {
       try {
         const data = await apiFetch<UserSettings>('/settings', {
-          cacheTime: 6 * 60 * 60 * 1000, // 6時間キャッシュ
+          cacheTime: 6 * 60 * 60 * 1000,
         });
         setGlobalSettings(data);
-        // グローバル設定からAIアシスタントパネルを初期化
         if (data.aiTaskAnalysisDefault) {
           setShowAIAssistant(true);
         }
@@ -484,7 +424,6 @@ function TaskDetailClient({
     };
 
     if (resolvedTaskId) {
-      // 並列リクエストで高速化
       Promise.all([
         fetchTask(),
         fetchTimeEntries(),
@@ -495,7 +434,6 @@ function TaskDetailClient({
         fetchGlobalSettings(),
       ]);
 
-      // 関連タスクをプリフェッチ
       if (task?.subtasks && task.subtasks.length > 0) {
         const subtaskIds = task.subtasks.map(s => s.id);
         preloadTaskDetails(subtaskIds);
@@ -510,28 +448,24 @@ function TaskDetailClient({
     };
   }, [resolvedTaskId, fetchDevModeConfig, fetchAgents]);
 
-  // コンテンツ表示準備完了フラグ（スクロール固定→解除のため）
+  // コンテンツ表示準備完了フラグ
   const [contentReady, setContentReady] = useState(false);
 
-  // スケルトン非表示になった時（初回ロード完了時のみ）にスクロール位置を先頭にリセットし、段階的にスクロールを有効化
   const initialScrollDoneRef = useRef(false);
   useEffect(() => {
     if (!showSkeleton && containerRef.current && !initialScrollDoneRef.current) {
       initialScrollDoneRef.current = true;
-      // まずスクロールを無効化してトップに固定
       containerRef.current.scrollTop = 0;
       setContentReady(false);
-      // 次のフレームでコンテンツ表示を有効化（スクロール可能にする）
       requestAnimationFrame(() => {
         setContentReady(true);
       });
     }
   }, [showSkeleton]);
 
-  // グローバル設定に基づいて開発者モードを自動有効化（開発プロジェクトかつAIアシスタント有効の場合）
+  // グローバル設定に基づいて開発者モードを自動有効化
   useEffect(() => {
     const autoEnableDeveloperMode = async () => {
-      // グローバル設定がロードされ、AIアシスタントがデフォルト有効で、開発プロジェクトで、まだ有効化されていない場合
       if (
         globalSettings?.aiTaskAnalysisDefault &&
         task?.theme?.isDevelopment === true &&
@@ -552,7 +486,7 @@ function TaskDetailClient({
     enableDeveloperMode,
   ]);
 
-  // 開発者モードが有効な場合、または実行中/実行結果がある場合は、AIアシスタントパネルを表示
+  // 開発者モードが有効な場合、AIアシスタントパネルを表示
   useEffect(() => {
     if (
       devModeConfig?.isEnabled === true ||
@@ -560,7 +494,7 @@ function TaskDetailClient({
       executionResult !== null ||
       isParallelExecutionRunning ||
       parallelSessionId !== null ||
-      isTaskExecutingInStore  // グローバル実行状態も確認
+      isTaskExecutingInStore
     ) {
       setShowAIAssistant(true);
     }
@@ -587,16 +521,12 @@ function TaskDetailClient({
     ) {
       autoExecuteTriggered.current = true;
 
-      // 開発プロジェクトのテーマに属するタスクのみ自動実行を許可
       if (!task.theme?.isDevelopment) {
         logger.warn(
           `[TaskDetail] Skipping auto-execute for task ${taskId}: theme is not a development project`,
         );
       } else if (!isExecuting) {
-        // AIアシスタントパネルを表示
         setShowAIAssistant(true);
-        // エージェント実行を開始
-        // 楽観的UI更新: エージェント実行開始時にタスクステータスをin-progressに設定
         if (task && task.status !== 'in-progress') {
           setTask((prev) => {
             if (!prev) return prev;
@@ -609,7 +539,6 @@ function TaskDetailClient({
           `[TaskDetail] Skipping auto-execute for task ${taskId}: already executing`,
         );
       }
-      // URLからautoExecuteパラメータを除去（リロード時の再実行防止）
       const newParams = new URLSearchParams(searchParams.toString());
       newParams.delete('autoExecute');
       const newQuery = newParams.toString();
@@ -618,254 +547,12 @@ function TaskDetailClient({
     }
   }, [task, loading, isExecuting, taskId, searchParams, executeAgent, router]);
 
-  const updateStatus = async (taskId: number, newStatus: string) => {
-    // タスク完了時にオーバーレイを表示
-    if (newStatus === 'done') {
-      setShowCompleteOverlay(true);
-    }
-
-    // 楽観的UI更新: APIレスポンスを待たずに即座にUIを更新
-    const previousTask = task;
-    setTask((prev) => {
-      if (!prev) return prev;
-      // メインタスクのステータス更新
-      if (prev.id === taskId) {
-        return { ...prev, status: newStatus as Task['status'] };
-      }
-      // サブタスクのステータス更新
-      if (prev.subtasks) {
-        const updatedSubtasks = prev.subtasks.map((subtask) =>
-          subtask.id === taskId
-            ? { ...subtask, status: newStatus as Task['status'] }
-            : subtask,
-        );
-        return { ...prev, subtasks: updatedSubtasks };
-      }
-      return prev;
-    });
-
-    try {
-      const res = await fetch(`${API_BASE}/tasks/${taskId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!res.ok) {
-        // エラー時は元の状態に戻す
-        setTask(previousTask);
-        throw new Error('ステータス更新に失敗しました');
-      }
-      onTaskUpdated?.();
-    } catch (err) {
-      logger.error(err);
-      // エラー時は元の状態に戻す
-      setTask(previousTask);
-    }
-  };
-
-  const handleAddComment = async (content?: string, parentId?: number): Promise<number | null> => {
-    const commentContent = content || newComment;
-    if (!commentContent.trim()) return null;
-
-    try {
-      setIsAddingComment(true);
-      const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: commentContent, parentId }),
-      });
-
-      if (res.ok) {
-        const newCommentData = await res.json();
-
-        // コメント一覧を再取得してツリー構造を更新
-        const commentsRes = await fetch(
-          `${API_BASE}/tasks/${resolvedTaskId}/comments`,
-        );
-        if (commentsRes.ok) {
-          setComments(await commentsRes.json());
-        }
-        // メインのコメント入力をクリア（返信の場合は content が渡されるので newComment はクリアしない）
-        if (!content) {
-          setNewComment('');
-        }
-
-        // 作成されたコメントのIDを返す
-        return newCommentData.id;
-      }
-
-      return null;
-    } catch (err) {
-      logger.error('Failed to add comment:', err);
-      return null;
-    } finally {
-      setIsAddingComment(false);
-    }
-  };
-
-  const handleUpdateComment = useCallback(
-    async (commentId: number, content: string) => {
-      try {
-        const res = await fetch(`${API_BASE}/comments/${commentId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content }),
-        });
-        if (res.ok) {
-          const updatedComment = await res.json();
-          setComments((prev) =>
-            prev.map((c) => (c.id === commentId ? updatedComment : c)),
-          );
-        }
-      } catch (err) {
-        logger.error('Failed to update comment:', err);
-      }
-    },
-    [],
-  );
-
-  const handleDeleteComment = async (commentId: number) => {
-    if (!confirm('このコメントを削除しますか?')) return;
-
-    try {
-      const res = await fetch(`${API_BASE}/comments/${commentId}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        setComments(comments.filter((c) => c.id !== commentId));
-      }
-    } catch (err) {
-      logger.error('Failed to delete comment:', err);
-    }
-  };
-
-  const handleCreateCommentLink = useCallback(
-    async (fromCommentId: number, toCommentId: number, label?: string) => {
-      try {
-        const res = await fetch(`${API_BASE}/comments/${fromCommentId}/links`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ toCommentId, label }),
-        });
-        if (res.ok) {
-          // Refresh comments to show new link
-          const commentsRes = await fetch(
-            `${API_BASE}/tasks/${resolvedTaskId}/comments`,
-          );
-          if (commentsRes.ok) {
-            setComments(await commentsRes.json());
-          }
-        }
-      } catch (err) {
-        logger.error('Failed to create comment link:', err);
-      }
-    },
-    [resolvedTaskId],
-  );
-
-  const handleDeleteCommentLink = useCallback(
-    async (linkId: number) => {
-      try {
-        const res = await fetch(`${API_BASE}/comment-links/${linkId}`, {
-          method: 'DELETE',
-        });
-        if (res.ok) {
-          // Refresh comments to reflect removed link
-          const commentsRes = await fetch(
-            `${API_BASE}/tasks/${resolvedTaskId}/comments`,
-          );
-          if (commentsRes.ok) {
-            setComments(await commentsRes.json());
-          }
-        }
-      } catch (err) {
-        logger.error('Failed to delete comment link:', err);
-      }
-    },
-    [resolvedTaskId],
-  );
-
-  const startEditing = () => {
-    if (!task) return;
-    setEditTitle(task.title);
-    setEditDescription(task.description || '');
-    setEditStatus(task.status);
-    setEditLabels(getLabelsArray(task.labels).join(', '));
-    setEditLabelIds(task.taskLabels?.map((tl) => tl.labelId) || []);
-    setEditEstimatedHours(task.estimatedHours?.toString() || '');
-    setEditPriority((task.priority as Priority) || 'medium');
-    setIsEditing(true);
-  };
-
-  const cancelEditing = () => setIsEditing(false);
-
-  const saveTask = async () => {
-    if (!task || !editTitle.trim()) return;
-
-    try {
-      const labelArray = editLabels
-        .split(',')
-        .map((l) => l.trim())
-        .filter(Boolean);
-
-      const res = await fetch(`${API_BASE}/tasks/${task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: editTitle,
-          description: editDescription || undefined,
-          status: editStatus,
-          priority: editPriority,
-          labels: labelArray.length > 0 ? labelArray : undefined,
-          labelIds: editLabelIds,
-          estimatedHours: editEstimatedHours
-            ? parseFloat(editEstimatedHours)
-            : undefined,
-        }),
-      });
-
-      if (!res.ok) throw new Error('更新に失敗しました');
-      const updated = await res.json();
-      setTask(updated);
-      setIsEditing(false);
-    } catch (err) {
-      logger.error(err);
-      alert('タスクの更新に失敗しました');
-    }
-  };
-
-  const deleteTask = async () => {
-    if (!confirm('このタスクを削除しますか?')) return;
-
-    try {
-      const res = await fetch(`${API_BASE}/tasks/${task?.id}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) throw new Error('削除に失敗しました');
-
-      // このタスクのタイマーが動作中なら停止
-      if (isThisTaskTimer && pomodoroState.isTimerRunning) {
-        stopTimer();
-      }
-
-      // ポモドーロモーダルを閉じる
-      setShowPomodoroModal(false);
-
-      // 前のページに戻る
-      router.back();
-    } catch (err) {
-      logger.error(err);
-      alert('タスクの削除に失敗しました');
-    }
-  };
-
   // AI分析の実行
   const handleAnalyze = async () => {
     const result = await analyzeTask();
     if (result?.approvalRequestId) {
       setPendingApprovalId(result.approvalRequestId);
     }
-    // 自動承認の場合は、タスクを再取得
     if (result?.autoApproved) {
       const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
       if (res.ok) {
@@ -876,8 +563,6 @@ function TaskDetailClient({
 
   // 承認
   const handleApproveAnalysis = async (arg?: number | number[]) => {
-    // arg may be approvalId (number) when called from AIAnalysisPanel
-    // or selectedSubtasks (number[]) when called locally.
     const approvalId = typeof arg === 'number' ? arg : pendingApprovalId;
     const selectedSubtasks = Array.isArray(arg) ? arg : undefined;
     if (!approvalId) return;
@@ -885,7 +570,6 @@ function TaskDetailClient({
     if (result?.success) {
       setAnalysisResult(null);
       setPendingApprovalId(null);
-      // タスクを再取得してサブタスクを表示
       const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
       if (res.ok) {
         setTask(await res.json());
@@ -901,224 +585,7 @@ function TaskDetailClient({
     setPendingApprovalId(null);
   };
 
-  // サブタスク編集開始
-  const startEditingSubtask = (subtask: Task) => {
-    setEditingSubtaskId(subtask.id);
-    setEditingSubtaskTitle(subtask.title);
-    setEditingSubtaskDescription(subtask.description || '');
-  };
-
-  // サブタスク編集キャンセル
-  const cancelEditingSubtask = () => {
-    setEditingSubtaskId(null);
-    setEditingSubtaskTitle('');
-    setEditingSubtaskDescription('');
-  };
-
-  // サブタスク更新
-  const updateSubtask = async (
-    subtaskId: number,
-    data: { title?: string; description?: string },
-  ) => {
-    try {
-      const res = await fetch(`${API_BASE}/tasks/${subtaskId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error('サブタスクの更新に失敗しました');
-
-      // タスクを再取得してサブタスクを更新
-      const taskRes = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
-      if (taskRes.ok) {
-        setTask(await taskRes.json());
-      }
-      cancelEditingSubtask();
-    } catch (err) {
-      logger.error(err);
-      alert('サブタスクの更新に失敗しました');
-    }
-  };
-
-  // サブタスク編集保存
-  const saveSubtaskEdit = () => {
-    if (editingSubtaskId && editingSubtaskTitle.trim()) {
-      updateSubtask(editingSubtaskId, {
-        title: editingSubtaskTitle,
-        description: editingSubtaskDescription || undefined,
-      });
-    }
-  };
-
-  // サブタスク選択モードの切り替え
-  const toggleSubtaskSelectionMode = () => {
-    if (isSubtaskSelectionMode) {
-      setSelectedSubtaskIds(new Set());
-    }
-    setIsSubtaskSelectionMode(!isSubtaskSelectionMode);
-  };
-
-  // サブタスクの選択を切り替え
-  const toggleSubtaskSelection = (subtaskId: number) => {
-    setSelectedSubtaskIds((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(subtaskId)) {
-        newSet.delete(subtaskId);
-      } else {
-        newSet.add(subtaskId);
-      }
-      return newSet;
-    });
-  };
-
-  // 全サブタスクを選択
-  const selectAllSubtasks = () => {
-    if (task?.subtasks) {
-      setSelectedSubtaskIds(new Set(task.subtasks.map((s) => s.id)));
-    }
-  };
-
-  // 全サブタスクの選択を解除
-  const deselectAllSubtasks = () => {
-    setSelectedSubtaskIds(new Set());
-  };
-
-  // 選択したサブタスクを削除
-  const handleDeleteSelectedSubtasks = async () => {
-    if (selectedSubtaskIds.size > 0) {
-      await deleteSelectedSubtasks(Array.from(selectedSubtaskIds));
-      setSelectedSubtaskIds(new Set());
-      setIsSubtaskSelectionMode(false);
-      setShowSubtaskDeleteConfirm(null);
-    }
-  };
-
-  // 全サブタスクを削除
-  const handleDeleteAllSubtasks = async () => {
-    await deleteAllSubtasks();
-    setShowSubtaskDeleteConfirm(null);
-  };
-
-  // タスクを再取得するヘルパー関数
-  const refetchTask = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setTask(data);
-      }
-    } catch (err) {
-      logger.error('Failed to refetch task:', err);
-    }
-  };
-
-  // サブタスク一括削除
-  const deleteAllSubtasks = async () => {
-    if (!task) return;
-
-    try {
-      const res = await fetch(`${API_BASE}/tasks/${task.id}/subtasks`, {
-        method: 'DELETE',
-      });
-
-      if (!res.ok) throw new Error('削除に失敗しました');
-
-      const result = await res.json();
-      logger.debug(
-        `[TaskDetail] Deleted all subtasks: ${result.deletedCount} items`,
-      );
-
-      // タスクを再取得
-      await refetchTask();
-      onTaskUpdated?.();
-    } catch (err) {
-      logger.error(err);
-      alert('サブタスクの削除に失敗しました');
-    }
-  };
-
-  // サブタスク選択削除
-  const deleteSelectedSubtasks = async (subtaskIds: number[]) => {
-    if (!task || subtaskIds.length === 0) return;
-
-    try {
-      const res = await fetch(
-        `${API_BASE}/tasks/${task.id}/subtasks/delete-selected`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subtaskIds }),
-        },
-      );
-
-      if (!res.ok) throw new Error('削除に失敗しました');
-
-      const result = await res.json();
-      logger.debug(
-        `[TaskDetail] Deleted selected subtasks: ${result.deletedCount} items`,
-      );
-
-      // タスクを再取得
-      await refetchTask();
-      onTaskUpdated?.();
-    } catch (err) {
-      logger.error(err);
-      alert('サブタスクの削除に失敗しました');
-    }
-  };
-
-  // 単一サブタスク削除
-  const deleteSubtask = async (subtaskId: number) => {
-    try {
-      const res = await fetch(`${API_BASE}/tasks/${subtaskId}`, {
-        method: 'DELETE',
-      });
-
-      if (!res.ok) throw new Error('削除に失敗しました');
-
-      // タスクを再取得
-      await refetchTask();
-      onTaskUpdated?.();
-    } catch (err) {
-      logger.error(err);
-      alert('サブタスクの削除に失敗しました');
-    }
-  };
-
-  const duplicateTask = async () => {
-    if (!task) return;
-
-    try {
-      const duplicateData = {
-        title: `${task.title} (コピー)`,
-        description: task.description || undefined,
-        status: 'todo',
-        labels: task.labels || undefined,
-        labelIds: task.taskLabels?.map((tl) => tl.labelId) || [],
-        estimatedHours: task.estimatedHours || undefined,
-        dueDate: task.dueDate || undefined,
-        projectId: task.projectId || undefined,
-        milestoneId: task.milestoneId || undefined,
-        themeId: task.themeId || undefined,
-      };
-
-      const res = await fetch(`${API_BASE}/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(duplicateData),
-      });
-
-      if (!res.ok) throw new Error('複製に失敗しました');
-
-      const newTask = await res.json();
-      router.push(getTaskDetailPath(newTask.id));
-    } catch (err) {
-      logger.error(err);
-      alert('タスクの複製に失敗しました');
-    }
-  };
-
-  // Loading state - スケルトンローダーを表示（最低表示時間を保証）
+  // Loading state
   if (loading || showSkeleton) {
     return <TaskDetailSkeleton />;
   }
@@ -1168,27 +635,20 @@ function TaskDetailClient({
             )}
           </div>
           <div className="flex items-center gap-2">
-            {!isEditing && (
-              <button
+            {!taskActions.isEditing && (
+              <TaskPomodoroButton
+                taskTitle={task.title}
+                isThisTaskTimer={isThisTaskTimer}
+                pomodoroState={pomodoroState}
                 onClick={() => setShowPomodoroModal(true)}
-                className={getTimerButtonStyle()}
-                title={`${task?.title} - 時間管理`}
-              >
-                {getTimerIcon()}
-                <span>時間管理</span>
-                {isThisTaskTimer && pomodoroState.isTimerRunning && (
-                  <span className="text-xs font-mono tabular-nums">
-                    {formatTime(getRemainingTime(pomodoroState))}
-                  </span>
-                )}
-              </button>
+              />
             )}
 
-            {!isEditing ? (
+            {!taskActions.isEditing ? (
               <>
                 <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400">
                   <button
-                    onClick={startEditing}
+                    onClick={taskActions.startEditing}
                     className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-all cursor-pointer"
                   >
                     <Pencil className="w-4 h-4" />
@@ -1202,7 +662,7 @@ function TaskDetailClient({
                     {
                       label: '複製',
                       icon: <Copy className="w-4 h-4" />,
-                      onClick: duplicateTask,
+                      onClick: taskActions.duplicateTask,
                     },
                     {
                       label: 'テンプレート保存',
@@ -1212,7 +672,7 @@ function TaskDetailClient({
                     {
                       label: '削除',
                       icon: <Trash2 className="w-4 h-4" />,
-                      onClick: deleteTask,
+                      onClick: taskActions.deleteTask,
                       variant: 'danger',
                     },
                   ]}
@@ -1222,7 +682,7 @@ function TaskDetailClient({
               <>
                 <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-green-500 dark:hover:border-green-400">
                   <button
-                    onClick={saveTask}
+                    onClick={taskActions.saveTask}
                     className="flex items-center gap-2 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-all cursor-pointer"
                   >
                     <Save className="w-4 h-4" />
@@ -1233,7 +693,7 @@ function TaskDetailClient({
                 </div>
                 <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400">
                   <button
-                    onClick={cancelEditing}
+                    onClick={taskActions.cancelEditing}
                     className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
                   >
                     <X className="w-4 h-4" />
@@ -1247,7 +707,7 @@ function TaskDetailClient({
           </div>
         </div>
 
-        {isEditing ? (
+        {taskActions.isEditing ? (
           /* Edit Mode */
           <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
             {/* Title Input with Status */}
@@ -1256,8 +716,8 @@ function TaskDetailClient({
                 <input
                   type="text"
                   className="flex-1 min-w-0 text-2xl font-bold bg-transparent border-none outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-600"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
+                  value={taskActions.editTitle}
+                  onChange={(e) => taskActions.setEditTitle(e.target.value)}
                   placeholder="タスクのタイトル"
                 />
                 <div className="flex items-center gap-1 shrink-0">
@@ -1267,11 +727,11 @@ function TaskDetailClient({
                       <TaskStatusChange
                         key={status}
                         status={status}
-                        currentStatus={editStatus}
+                        currentStatus={taskActions.editStatus}
                         config={config}
                         renderIcon={renderStatusIcon}
                         onClick={(newStatus: string) =>
-                          setEditStatus(newStatus)
+                          taskActions.setEditStatus(newStatus)
                         }
                         size="md"
                       />
@@ -1289,8 +749,8 @@ function TaskDetailClient({
               </div>
               <textarea
                 className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-violet-500/20 transition-all font-mono min-h-[200px]"
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
+                value={taskActions.editDescription}
+                onChange={(e) => taskActions.setEditDescription(e.target.value)}
                 placeholder="マークダウン形式で記述..."
               />
             </div>
@@ -1302,8 +762,8 @@ function TaskDetailClient({
                 <span className="text-sm font-medium">ラベル</span>
               </div>
               <LabelSelector
-                selectedLabelIds={editLabelIds}
-                onChange={setEditLabelIds}
+                selectedLabelIds={taskActions.editLabelIds}
+                onChange={taskActions.setEditLabelIds}
               />
             </div>
 
@@ -1347,16 +807,16 @@ function TaskDetailClient({
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => setEditPriority(opt.value)}
+                    onClick={() => taskActions.setEditPriority(opt.value)}
                     className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
-                      editPriority === opt.value
+                      taskActions.editPriority === opt.value
                         ? `${opt.bgColor} text-white shadow-md`
                         : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700'
                     }`}
                   >
                     <span
                       className={
-                        editPriority === opt.value
+                        taskActions.editPriority === opt.value
                           ? 'text-white'
                           : opt.iconColor
                       }
@@ -1382,8 +842,8 @@ function TaskDetailClient({
                   min="0"
                   className="w-32 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-2.5 text-sm border-none outline-none focus:ring-2 focus:ring-violet-500/20 transition-all"
                   placeholder="0"
-                  value={editEstimatedHours}
-                  onChange={(e) => setEditEstimatedHours(e.target.value)}
+                  value={taskActions.editEstimatedHours}
+                  onChange={(e) => taskActions.setEditEstimatedHours(e.target.value)}
                 />
                 <span className="text-sm text-zinc-500 dark:text-zinc-400">
                   時間
@@ -1398,7 +858,7 @@ function TaskDetailClient({
             <div className="mb-6">
               <CompactTaskDetailCard
                 task={task}
-                onStatusUpdate={updateStatus}
+                onStatusUpdate={taskActions.updateStatus}
                 resources={resources}
                 onResourcesChange={async () => {
                   const res = await fetch(
@@ -1406,26 +866,19 @@ function TaskDetailClient({
                   );
                   if (res.ok) setResources(await res.json());
                 }}
-                // メモ関連のprops
                 comments={comments}
                 newComment={newComment}
                 isAddingComment={isAddingComment}
                 onNewCommentChange={setNewComment}
-                onAddComment={handleAddComment}
-                onUpdateComment={handleUpdateComment}
-                onDeleteComment={handleDeleteComment}
-                onCreateLink={handleCreateCommentLink}
-                onDeleteLink={handleDeleteCommentLink}
+                onAddComment={commentSystem.handleAddComment}
+                onUpdateComment={commentSystem.handleUpdateComment}
+                onDeleteComment={commentSystem.handleDeleteComment}
+                onCreateLink={commentSystem.handleCreateCommentLink}
+                onDeleteLink={commentSystem.handleDeleteCommentLink}
               />
             </div>
 
-            {/* AI アシスタント統合パネル（タスク分析 + プロンプト最適化 + エージェント実行） */}
-            {/* 開発プロジェクトで、以下のいずれかの条件を満たす場合に表示:
-                - AIアシスタント設定が有効
-                - 開発者モードが有効
-                - エージェント実行中
-                - 実行結果がある
-                - グローバル実行状態で実行中 */}
+            {/* AI アシスタント統合パネル */}
             {task.theme?.isDevelopment === true &&
              (showAIAssistant ||
               devModeConfig?.isEnabled === true ||
@@ -1441,7 +894,6 @@ function TaskDetailClient({
                   taskDescription={task.description}
                   config={devModeConfig}
                   onOpenSettings={() => setShowDevModeConfig(true)}
-                  // AI分析関連
                   isAnalyzing={isAnalyzing}
                   analysisResult={analysisResult}
                   analysisError={analysisError}
@@ -1454,7 +906,6 @@ function TaskDetailClient({
                   onPromptGenerated={(prompt) => setOptimizedPrompt(prompt)}
                   onSubtasksCreated={async () => {
                     try {
-                      // タスクを再取得してサブタスクを更新
                       const res = await fetch(
                         `${API_BASE}/tasks/${resolvedTaskId}`,
                       );
@@ -1466,10 +917,8 @@ function TaskDetailClient({
                       const data = await res.json();
                       setTask(data);
 
-                      // サーバー側の処理が完了するまで少し待機
                       await new Promise(resolve => setTimeout(resolve, 500));
 
-                      // 自動実行設定を確認
                       try {
                         const configRes = await fetch(
                           `${API_BASE}/agent-execution-config/${resolvedTaskId}`,
@@ -1481,21 +930,18 @@ function TaskDetailClient({
 
                         const configData = await configRes.json();
                         if (configData.autoExecuteOnAnalysis) {
-                          // サブタスクがある場合は並列実行、なければ通常実行
                           if (data.subtasks && data.subtasks.length > 0) {
                             logger.debug(
                               '[TaskDetail] Auto-executing parallel tasks after analysis',
                             );
                             startSession();
                           } else {
-                            // 二重実行防止: 既に実行中なら実行しない
                             if (isExecuting) {
                               logger.warn('[TaskDetail] Skipping auto-execute: already executing');
                             } else {
                               logger.debug(
                                 '[TaskDetail] Auto-executing agent after analysis',
                               );
-                              // 楽観的UI更新: エージェント実行開始時にタスクステータスをin-progressに設定
                               if (task && task.status !== 'in-progress') {
                                 setTask((prev) => {
                                   if (!prev) return prev;
@@ -1523,7 +969,6 @@ function TaskDetailClient({
                       );
                     }
                   }}
-                  // エージェント実行関連（開発者モードが有効なら表示）
                   showAgentPanel={devModeConfig?.isEnabled === true}
                   isExecuting={isExecuting}
                   executionStatus={executionStatus}
@@ -1537,13 +982,11 @@ function TaskDetailClient({
                   agentConfigId={agentConfigId}
                   agents={agents}
                   onAgentChange={setAgentConfigId}
-                  onExecute={async (options) => {
-                    // 二重実行防止: 既に実行中なら実行しない
+                  onExecute={async (options?) => {
                     if (isExecuting) {
                       logger.warn('[TaskDetail] Skipping execute: already executing');
-                      return undefined;
+                      return null;
                     }
-                    // 楽観的UI更新: エージェント実行開始時にタスクステータスをin-progressに設定
                     if (task && task.status !== 'in-progress') {
                       setTask((prev) => {
                         if (!prev) return prev;
@@ -1552,13 +995,12 @@ function TaskDetailClient({
                     }
 
                     const result = await executeAgent(options);
-                    return result;
+                    return result as { sessionId?: number; message?: string } | null;
                   }}
                   onReset={resetExecutionState}
                   onRestoreExecutionState={restoreExecutionState}
                   onStopExecution={setExecutionCancelled}
                   onExecutionComplete={async () => {
-                    // バックエンドの.then()でタスクステータスが更新されるまでリトライで再取得
                     for (let attempt = 0; attempt < 6; attempt++) {
                       await new Promise(r => setTimeout(r, attempt === 0 ? 1000 : 2000));
                       try {
@@ -1570,12 +1012,9 @@ function TaskDetailClient({
                         }
                       } catch { /* retry */ }
                     }
-                    // ワークフローファイルも再取得
                     refetchWorkflowFiles();
-                    // 親コンポーネント（タスク一覧）にも通知
                     onTaskUpdated?.();
                   }}
-                  // 並列実行関連
                   subtasks={task.subtasks}
                   onStartParallelExecution={startSession}
                   isParallelExecutionRunning={isParallelExecutionRunning}
@@ -1589,88 +1028,18 @@ function TaskDetailClient({
 
             {/* Workflow Section - 開発テーマのみ表示 */}
             {task.theme?.isDevelopment === true && (
-              <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden mb-6">
-                <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                        ワークフロー
-                      </h3>
-                      <WorkflowStatusIndicator
-                        status={currentWorkflowStatus}
-                        size="sm"
-                      />
-                    </div>
-                    <Loader2 className={`h-4 w-4 text-zinc-400 animate-spin transition-opacity ${isWorkflowLoading ? 'opacity-100' : 'opacity-0'}`} />
-                  </div>
-                  {currentWorkflowStatus && (
-                    <div className="mt-3">
-                      <WorkflowProgress currentStatus={currentWorkflowStatus} />
-                    </div>
-                  )}
-                </div>
-
-                <WorkflowViewer
-                  taskId={taskId}
-                  workflowStatus={currentWorkflowStatus}
-                  workflowMode={task?.workflowMode}
-                  complexityScore={task?.complexityScore}
-                  workflowModeOverride={task?.workflowModeOverride ?? undefined}
-                  autoApprovePlan={task?.autoApprovePlan ?? false}
-                  onPlanApprovalRequest={handlePlanApprovalRequest}
-                  onCompleteRequest={handleWorkflowComplete}
-                  onStatusChange={(newStatus) => {
-                    setCurrentWorkflowStatus(newStatus);
-                    if (onTaskUpdated) onTaskUpdated();
-                  }}
-                  onWorkflowModeChange={(mode, isOverride) => {
-                    // ワークフローモード変更時の処理
-                    if (task) {
-                      setTask({
-                        ...task,
-                        workflowMode: mode,
-                        workflowModeOverride: isOverride
-                      });
-                      if (onTaskUpdated) onTaskUpdated();
-                    }
-                  }}
-                  onAutoApprovePlanChange={async (value) => {
-                    // autoApprovePlan変更時の処理
-                    if (!task) return;
-
-                    try {
-                      const response = await fetch(`${API_BASE}/tasks/${taskId}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ autoApprovePlan: value }),
-                      });
-
-                      if (response.ok) {
-                        setTask({
-                          ...task,
-                          autoApprovePlan: value,
-                        });
-                        if (onTaskUpdated) onTaskUpdated();
-                      } else {
-                        logger.error('Failed to update autoApprovePlan setting');
-                      }
-                    } catch (error) {
-                      logger.error('Error updating autoApprovePlan setting:', error);
-                    }
-                  }}
-                  showWorkflowMode={true}
-                />
-
-                {workflowError && (
-                  <div className="px-4 pb-4">
-                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                      <p className="text-sm text-red-700 dark:text-red-300">
-                        {workflowError}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <TaskWorkflowSection
+                task={task}
+                taskId={taskId}
+                currentWorkflowStatus={currentWorkflowStatus}
+                setCurrentWorkflowStatus={setCurrentWorkflowStatus}
+                isWorkflowLoading={isWorkflowLoading}
+                workflowError={workflowError}
+                onPlanApprovalRequest={handlePlanApprovalRequest}
+                onWorkflowComplete={handleWorkflowComplete}
+                onTaskUpdated={onTaskUpdated}
+                setTask={setTask}
+              />
             )}
 
             {/* Subtasks Section (AI生成含む) - アコーディオン表示 */}
@@ -1718,15 +1087,15 @@ function TaskDetailClient({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          toggleSubtaskSelectionMode();
+                          taskActions.toggleSubtaskSelectionMode();
                         }}
                         className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg transition-colors ${
-                          isSubtaskSelectionMode
+                          taskActions.isSubtaskSelectionMode
                             ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
                             : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                         }`}
                       >
-                        {isSubtaskSelectionMode ? (
+                        {taskActions.isSubtaskSelectionMode ? (
                           <>
                             <X className="w-3.5 h-3.5" />
                             解除
@@ -1739,33 +1108,33 @@ function TaskDetailClient({
                         )}
                       </button>
                       {/* 選択モード時の操作 */}
-                      {isSubtaskSelectionMode && (
+                      {taskActions.isSubtaskSelectionMode && (
                         <>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              selectedSubtaskIds.size === task.subtasks!.length
-                                ? deselectAllSubtasks()
-                                : selectAllSubtasks();
+                              taskActions.selectedSubtaskIds.size === task.subtasks!.length
+                                ? taskActions.deselectAllSubtasks()
+                                : taskActions.selectAllSubtasks();
                             }}
                             className="px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                           >
-                            {selectedSubtaskIds.size === task.subtasks!.length
+                            {taskActions.selectedSubtaskIds.size === task.subtasks!.length
                               ? '全解除'
                               : '全選択'}
                           </button>
-                          {selectedSubtaskIds.size > 0 && (
+                          {taskActions.selectedSubtaskIds.size > 0 && (
                             <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setShowSubtaskDeleteConfirm('selected');
+                                  taskActions.setShowSubtaskDeleteConfirm('selected');
                                 }}
                                 className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all cursor-pointer"
                               >
                                 <Trash2 className="w-4 h-4" />
                                 <span className="font-mono text-xs font-black tracking-tight">
-                                  {selectedSubtaskIds.size}件削除
+                                  {taskActions.selectedSubtaskIds.size}件削除
                                 </span>
                               </button>
                             </div>
@@ -1773,12 +1142,12 @@ function TaskDetailClient({
                         </>
                       )}
                       {/* 一括削除ボタン */}
-                      {!isSubtaskSelectionMode && (
+                      {!taskActions.isSubtaskSelectionMode && (
                         <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setShowSubtaskDeleteConfirm('all');
+                              taskActions.setShowSubtaskDeleteConfirm('all');
                             }}
                             className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all cursor-pointer"
                           >
@@ -1806,20 +1175,20 @@ function TaskDetailClient({
                   </div>
                 </div>
                 {/* 削除確認ダイアログ */}
-                {showSubtaskDeleteConfirm && (
+                {taskActions.showSubtaskDeleteConfirm && (
                   <div className="p-4 bg-red-50 dark:bg-red-950/30 border-b border-red-200 dark:border-red-800">
                     <p className="text-sm text-red-700 dark:text-red-300 mb-3">
-                      {showSubtaskDeleteConfirm === 'all'
+                      {taskActions.showSubtaskDeleteConfirm === 'all'
                         ? `すべてのサブタスク（${task.subtasks.length}件）を削除しますか？この操作は取り消せません。`
-                        : `選択した${selectedSubtaskIds.size}件のサブタスクを削除しますか？この操作は取り消せません。`}
+                        : `選択した${taskActions.selectedSubtaskIds.size}件のサブタスクを削除しますか？この操作は取り消せません。`}
                     </p>
                     <div className="flex gap-2">
                       <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400">
                         <button
                           onClick={
-                            showSubtaskDeleteConfirm === 'all'
-                              ? handleDeleteAllSubtasks
-                              : handleDeleteSelectedSubtasks
+                            taskActions.showSubtaskDeleteConfirm === 'all'
+                              ? taskActions.handleDeleteAllSubtasks
+                              : taskActions.handleDeleteSelectedSubtasks
                           }
                           className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all cursor-pointer"
                         >
@@ -1831,7 +1200,7 @@ function TaskDetailClient({
                       </div>
                       <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400">
                         <button
-                          onClick={() => setShowSubtaskDeleteConfirm(null)}
+                          onClick={() => taskActions.setShowSubtaskDeleteConfirm(null)}
                           className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
                         >
                           <X className="w-4 h-4" />
@@ -1849,40 +1218,40 @@ function TaskDetailClient({
                       <div
                         key={subtask.id}
                         className={`p-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors ${
-                          isSubtaskSelectionMode &&
-                          selectedSubtaskIds.has(subtask.id)
+                          taskActions.isSubtaskSelectionMode &&
+                          taskActions.selectedSubtaskIds.has(subtask.id)
                             ? 'bg-blue-50 dark:bg-blue-950/20 ring-1 ring-blue-500 dark:ring-blue-400'
                             : ''
                         }`}
                       >
-                        {editingSubtaskId === subtask.id ? (
+                        {taskActions.editingSubtaskId === subtask.id ? (
                           /* サブタスク編集モード */
                           <div className="space-y-3">
                             <input
                               type="text"
                               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              value={editingSubtaskTitle}
+                              value={taskActions.editingSubtaskTitle}
                               onChange={(e) =>
-                                setEditingSubtaskTitle(e.target.value)
+                                taskActions.setEditingSubtaskTitle(e.target.value)
                               }
                               placeholder="サブタスクタイトル"
                               autoFocus
                             />
                             <textarea
                               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              value={editingSubtaskDescription}
+                              value={taskActions.editingSubtaskDescription}
                               onChange={(e) =>
-                                setEditingSubtaskDescription(e.target.value)
+                                taskActions.setEditingSubtaskDescription(e.target.value)
                               }
                               placeholder="説明（マークダウン対応）"
                               rows={3}
                             />
                             <div className="flex items-center gap-2">
-                              <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!editingSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-green-500 dark:hover:border-green-400'}`}>
+                              <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!taskActions.editingSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-green-500 dark:hover:border-green-400'}`}>
                                 <button
-                                  onClick={saveSubtaskEdit}
-                                  disabled={!editingSubtaskTitle.trim()}
-                                  className={`flex items-center gap-2 transition-all ${!editingSubtaskTitle.trim() ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 cursor-pointer'}`}
+                                  onClick={taskActions.saveSubtaskEdit}
+                                  disabled={!taskActions.editingSubtaskTitle.trim()}
+                                  className={`flex items-center gap-2 transition-all ${!taskActions.editingSubtaskTitle.trim() ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 cursor-pointer'}`}
                                 >
                                   <Check className="w-4 h-4" />
                                   <span className="font-mono text-xs font-black tracking-tight">
@@ -1892,7 +1261,7 @@ function TaskDetailClient({
                               </div>
                               <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400">
                                 <button
-                                  onClick={cancelEditingSubtask}
+                                  onClick={taskActions.cancelEditingSubtask}
                                   className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
                                 >
                                   <X className="w-4 h-4" />
@@ -1908,22 +1277,22 @@ function TaskDetailClient({
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                               {/* 選択モード時のチェックボックス */}
-                              {isSubtaskSelectionMode && (
+                              {taskActions.isSubtaskSelectionMode && (
                                 <button
                                   onClick={() =>
-                                    toggleSubtaskSelection(subtask.id)
+                                    taskActions.toggleSubtaskSelection(subtask.id)
                                   }
                                   className="shrink-0"
                                 >
-                                  {selectedSubtaskIds.has(subtask.id) ? (
+                                  {taskActions.selectedSubtaskIds.has(subtask.id) ? (
                                     <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                                   ) : (
                                     <Square className="w-5 h-5 text-zinc-400" />
                                   )}
                                 </button>
                               )}
-                              {/* 並列実行ステータスアイコン（実行中の場合） */}
-                              {!isSubtaskSelectionMode &&
+                              {/* 並列実行ステータスアイコン */}
+                              {!taskActions.isSubtaskSelectionMode &&
                               isParallelExecutionRunning &&
                               getSubtaskStatus(subtask.id) ? (
                                 <SubtaskTitleIndicator
@@ -1931,8 +1300,7 @@ function TaskDetailClient({
                                   size="sm"
                                 />
                               ) : (
-                                !isSubtaskSelectionMode && (
-                                  /* 通常のステータスアイコン */
+                                !taskActions.isSubtaskSelectionMode && (
                                   <div className="shrink-0">
                                     {subtask.status === 'done' ? (
                                       <div className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
@@ -1967,7 +1335,6 @@ function TaskDetailClient({
                               )}
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
-                              {/* ステータス変更ボタン（コンパクト版） */}
                               {(['todo', 'in-progress', 'done'] as const).map(
                                 (status) => {
                                   const config = sharedStatusConfig[status];
@@ -1979,7 +1346,7 @@ function TaskDetailClient({
                                       config={config}
                                       renderIcon={renderStatusIcon}
                                       onClick={(newStatus) =>
-                                        updateStatus(subtask.id, newStatus)
+                                        taskActions.updateStatus(subtask.id, newStatus)
                                       }
                                       size="sm"
                                     />
@@ -1989,7 +1356,7 @@ function TaskDetailClient({
                               {/* 編集ボタン */}
                               <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 shadow-sm transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400">
                                 <button
-                                  onClick={() => startEditingSubtask(subtask)}
+                                  onClick={() => taskActions.startEditingSubtask(subtask)}
                                   className="flex items-center justify-center text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-all cursor-pointer"
                                   title="編集"
                                 >
@@ -2035,7 +1402,6 @@ function TaskDetailClient({
           isOpen={showSaveTemplateDialog}
           onClose={() => setShowSaveTemplateDialog(false)}
           onSuccess={() => {
-            // テンプレート保存成功時の通知（任意）
             alert('テンプレートとして保存しました');
           }}
         />
