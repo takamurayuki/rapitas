@@ -233,7 +233,9 @@ function NewTaskClient() {
       const data = await res.json();
       if (data.title) {
         setTitle(data.title);
-        showToast('タイトルを自動生成しました', 'success');
+        if (!fromAutoGenerate) {
+          showToast('タイトルを自動生成しました', 'success');
+        }
 
         // タイトル生成後の自動作成が有効な場合（自動生成から呼ばれた場合のみ）
         if (
@@ -244,7 +246,6 @@ function NewTaskClient() {
             '[NewTaskClient] Auto-creating task with title:',
             data.title,
           );
-          showToast('タスクを自動作成します...', 'info');
           // 生成されたタイトルを直接渡して実行
           setTimeout(() => {
             handleSubmitWithTitle(data.title);

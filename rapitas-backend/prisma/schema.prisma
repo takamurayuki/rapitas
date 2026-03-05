@@ -796,6 +796,7 @@ model AgentExecutionConfig {
   autoCreatePR          Boolean   @default(false)
   autoMergePR           Boolean   @default(false)
   mergeCommitThreshold  Int       @default(5)
+  targetBranch          String    @default("develop") // PR作成・マージ先のブランチ
 
   // 実行制御
   requireApproval       String    @default("always") // always, major_only, never

@@ -59,17 +59,22 @@ export default function GlobalPomodoroWidget() {
     if (!state?._hasHydrated || !state?.isTimerRunning || !state?.taskId)
       return;
 
+    const controller = new AbortController();
+
     const checkTaskExists = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/tasks/${state.taskId}`);
+        const res = await fetch(`${API_BASE_URL}/tasks/${state.taskId}`, {
+          signal: controller.signal,
+        });
         if (!res.ok) {
           // タスクが見つからない場合はタイマーを停止
           logger.info('Task not found, stopping timer');
           stopTimer();
         }
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
         // ネットワークエラーなどの場合はタイマーを停止しない
-        logger.error('Failed to check task existence:', err);
+        logger.warn('Failed to check task existence:', err);
       }
     };
 
@@ -79,7 +84,10 @@ export default function GlobalPomodoroWidget() {
     // 30秒ごとにチェック
     const intervalId = setInterval(checkTaskExists, 30000);
 
-    return () => clearInterval(intervalId);
+    return () => {
+      controller.abort();
+      clearInterval(intervalId);
+    };
   }, [state?._hasHydrated, state?.isTimerRunning, state?.taskId, stopTimer]);
 
   // マウント前またはstate未設定の場合は何も表示しない（Hydration対策）

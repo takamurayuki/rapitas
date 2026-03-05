@@ -3571,6 +3571,7 @@ ${errorMessage}
     workingDirectory: string,
     prNumber: number,
     commitThreshold: number = 5,
+    baseBranch: string = "master",
   ): Promise<{
     success: boolean;
     mergeStrategy?: "squash" | "merge";
@@ -3600,7 +3601,7 @@ ${errorMessage}
       );
 
       // ベースブランチに戻って最新化
-      await execAsync("git checkout master", {
+      await execAsync(`git checkout ${baseBranch}`, {
         cwd: workingDirectory,
       });
       await execAsync("git pull", { cwd: workingDirectory });
