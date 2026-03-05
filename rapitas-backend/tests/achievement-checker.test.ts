@@ -14,6 +14,10 @@ const mockPrisma = {
     findUnique: mock(() => Promise.resolve(null)),
     create: mock(() => Promise.resolve({})),
   },
+  notification: {
+    create: mock(() => Promise.resolve({})),
+    count: mock(() => Promise.resolve(0)),
+  },
   task: { count: mock(() => Promise.resolve(0)) },
   studyStreak: { findMany: mock(() => Promise.resolve([])), findFirst: mock(() => Promise.resolve(null)) },
   timeEntry: { findMany: mock(() => Promise.resolve([])) },
@@ -38,6 +42,7 @@ describe("checkAchievements", () => {
     mockPrisma.achievement.findMany.mockResolvedValue([]);
     mockPrisma.userAchievement.findUnique.mockReset();
     mockPrisma.userAchievement.create.mockReset();
+    mockPrisma.notification.create.mockReset();
     mockPrisma.task.count.mockReset();
   });
 

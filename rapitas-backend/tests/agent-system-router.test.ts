@@ -5,7 +5,62 @@
 
 import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 import { Elysia } from "elysia";
-import { agentSystemRouter } from "../routes/agents/agent-system-router";
+
+const mockPrisma = {
+  aIAgentConfig: {
+    findFirst: mock(() => Promise.resolve(null)),
+  },
+  agentExecution: {
+    count: mock(() => Promise.resolve(0)),
+  },
+  $queryRaw: mock(() => Promise.resolve([1])),
+};
+
+const mockOrchestrator = {
+  shutdown: mock(() => Promise.resolve()),
+  restart: mock(() => Promise.resolve()),
+  getActiveExecutionCount: mock(() => 0),
+  isInShutdown: mock(() => false),
+};
+
+const mockRealtimeService = {
+  broadcast: mock(() => {}),
+  getConnectedClients: mock(() => 0),
+};
+
+// Mock modules
+mock.module("../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../routes/agents/approvals", () => ({ orchestrator: mockOrchestrator }));
+mock.module("../utils/encryption", () => ({
+  isEncryptionKeyConfigured: mock(() => true),
+}));
+mock.module("../utils/agent-config-schema", () => ({
+  getAllAgentConfigSchemas: mock(() => ({})),
+}));
+mock.module("../services/realtime-service", () => ({
+  realtimeService: mockRealtimeService,
+}));
+mock.module("../config/logger", () => ({
+  createLogger: mock(() => ({
+    info: mock(() => {}),
+    error: mock(() => {}),
+    warn: mock(() => {}),
+  })),
+}));
+
+// Mock child_process for diagnose endpoint
+mock.module("child_process", () => ({
+  spawn: mock(() => ({
+    stdout: { on: mock(() => {}) },
+    stderr: { on: mock(() => {}) },
+    kill: mock(() => {}),
+    on: mock((event, callback) => {
+      if (event === "close") setTimeout(() => callback(0), 100);
+    }),
+  })),
+}));
+
+const { agentSystemRouter } = await import("../routes/agents/agent-system-router");
 
 interface EncryptionStatusResponse {
   isConfigured: boolean;
@@ -66,22 +121,24 @@ describe("Agent System Router", () => {
   describe("GET /agents/diagnose", () => {
     it("should return system diagnosis", async () => {
       const response = await app
-        .handle(new Request("http://localhost/agents/diagnose"))
-        .then((res: Response) => res.json()) as Record<string, unknown>;
+        .handle(new Request("http://localhost/agents/diagnose"));
 
-      expect(response).toBeDefined();
-      expect(typeof response).toBe("object");
+      expect(response.status).toBe(200);
+      const data = await response.json() as Record<string, unknown>;
+      expect(data).toBeDefined();
+      expect(typeof data).toBe("object");
     });
   });
 
   describe("GET /agents/system-status", () => {
     it("should return system status", async () => {
       const response = await app
-        .handle(new Request("http://localhost/agents/system-status"))
-        .then((res: Response) => res.json()) as SystemStatusResponse;
+        .handle(new Request("http://localhost/agents/system-status"));
 
-      expect(response).toBeDefined();
-      expect(typeof response.status).toBe("string");
+      expect(response.status).toBe(200);
+      const data = await response.json() as SystemStatusResponse;
+      expect(data).toBeDefined();
+      expect(typeof data.status).toBe("string");
     });
   });
 
