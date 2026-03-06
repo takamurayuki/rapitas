@@ -6,3 +6,7 @@ uploads
 nul
 public
 migrations
+
+# Analysis reports (auto-generated)
+analysis-report.md
+analysis-result.json
