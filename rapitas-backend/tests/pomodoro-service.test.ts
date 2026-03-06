@@ -1,328 +1,515 @@
 /**
  * Pomodoro Service テスト
- * ポモドーロタイマーのビジネスロジック（純粋計算部分）を検証
+ * ポモドーロタイマーのビジネスロジックテスト
  */
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, mock, beforeEach } from "bun:test";
 
-// ポモドーロ設定定数（元サービスの値を再現）
-const WORK_DURATION = 25 * 60;
-const SHORT_BREAK_DURATION = 5 * 60;
-const LONG_BREAK_DURATION = 15 * 60;
-const POMODOROS_BEFORE_LONG_BREAK = 4;
+const now = new Date("2026-03-05T10:00:00.000Z");
 
-describe("Pomodoro Service - ビジネスロジック", () => {
-  describe("経過時間計算", () => {
-    test("activeセッションの経過時間を正しく計算すること", () => {
-      const elapsed = 0;
-      const startedAt = new Date(Date.now() - 600_000); // 10分前
-      const duration = 1500; // 25分
+const mockPrisma = {
+  pomodoroSession: {
+    findFirst: mock(() => Promise.resolve(null)),
+    findUnique: mock(() => Promise.resolve(null)),
+    findMany: mock(() => Promise.resolve([])),
+    create: mock(() => Promise.resolve({})),
+    update: mock(() => Promise.resolve({})),
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
+    count: mock(() => Promise.resolve(0)),
+  },
+  timeEntry: {
+    create: mock(() => Promise.resolve({})),
+  },
+};
 
-      const currentElapsed =
-        elapsed +
-        Math.floor((Date.now() - startedAt.getTime()) / 1000);
+mock.module("../config/database", () => ({
+  prisma: mockPrisma,
+}));
 
-      expect(currentElapsed).toBeGreaterThanOrEqual(599);
-      expect(currentElapsed).toBeLessThanOrEqual(601);
-    });
+const {
+  startPomodoro,
+  pausePomodoro,
+  resumePomodoro,
+  completePomodoro,
+  cancelPomodoro,
+  getActiveSession,
+  getStatistics,
+  getHistory,
+} = await import("../services/pomodoro-service");
 
-    test("pausedセッションはelapsedをそのまま使うこと", () => {
-      const status = "paused";
-      const elapsed = 300;
-      const duration = 1500;
-      const startedAt = new Date();
-
-      const currentElapsed =
-        status === "active"
-          ? elapsed +
-            Math.floor((Date.now() - startedAt.getTime()) / 1000)
-          : elapsed;
-
-      expect(currentElapsed).toBe(300);
-    });
-
-    test("remainingSecondsが負にならないこと", () => {
-      const duration = 1500;
-      const currentElapsed = 2000; // duration超過
-
-      const remainingSeconds = Math.max(0, duration - currentElapsed);
-      expect(remainingSeconds).toBe(0);
-    });
-
-    test("currentElapsedがdurationを超えないこと", () => {
-      const duration = 1500;
-      const rawElapsed = 2000;
-
-      const currentElapsed = Math.min(rawElapsed, duration);
-      expect(currentElapsed).toBe(1500);
-    });
+describe("startPomodoro", () => {
+  beforeEach(() => {
+    for (const method of Object.values(mockPrisma.pomodoroSession)) {
+      method.mockReset();
+    }
+    mockPrisma.pomodoroSession.updateMany.mockResolvedValue({ count: 0 });
   });
 
-  describe("セッション開始時のduration決定", () => {
-    test("デフォルトはwork(25分)であること", () => {
-      const type = undefined;
-      const customDuration = undefined;
+  test("デフォルトでwork=25分のセッションを作成すること", async () => {
+    const session = {
+      id: 1, taskId: null, status: "active", type: "work",
+      duration: 1500, elapsed: 0, startedAt: now, completedPomodoros: 0,
+      task: null,
+    };
+    mockPrisma.pomodoroSession.create.mockResolvedValue(session);
 
-      const duration =
-        customDuration ??
-        (type === "short_break"
-          ? SHORT_BREAK_DURATION
-          : type === "long_break"
-            ? LONG_BREAK_DURATION
-            : WORK_DURATION);
+    const result = await startPomodoro({});
 
-      expect(duration).toBe(1500);
-    });
-
-    test("short_breakで5分になること", () => {
-      const type = "short_break";
-      const customDuration = undefined;
-
-      const duration =
-        customDuration ??
-        (type === "short_break"
-          ? SHORT_BREAK_DURATION
-          : type === "long_break"
-            ? LONG_BREAK_DURATION
-            : WORK_DURATION);
-
-      expect(duration).toBe(300);
-    });
-
-    test("long_breakで15分になること", () => {
-      const type = "long_break";
-
-      const duration =
-        type === "short_break"
-          ? SHORT_BREAK_DURATION
-          : type === "long_break"
-            ? LONG_BREAK_DURATION
-            : WORK_DURATION;
-
-      expect(duration).toBe(900);
-    });
-
-    test("カスタムdurationが優先されること", () => {
-      const customDuration = 3000;
-
-      const duration = customDuration ?? WORK_DURATION;
-      expect(duration).toBe(3000);
-    });
+    const createCall = mockPrisma.pomodoroSession.create.mock.calls[0]![0] as {
+      data: { duration: number; type: string };
+    };
+    expect(createCall.data.duration).toBe(1500); // 25 * 60
+    expect(createCall.data.type).toBe("work");
+    expect(result.currentElapsed).toBe(0);
+    expect(result.remainingSeconds).toBe(1500);
   });
 
-  describe("次セッションタイプの判定", () => {
-    test("work完了後でcompletedPomodoros=1ならshort_breakになること", () => {
-      const sessionType = "work";
-      const completedPomodoros = 0;
-      const newCompletedPomodoros =
-        sessionType === "work"
-          ? completedPomodoros + 1
-          : completedPomodoros;
+  test("short_breakタイプで5分のdurationを設定すること", async () => {
+    const session = {
+      id: 1, taskId: null, status: "active", type: "short_break",
+      duration: 300, elapsed: 0, startedAt: now, completedPomodoros: 0,
+      task: null,
+    };
+    mockPrisma.pomodoroSession.create.mockResolvedValue(session);
 
-      let nextType = "short_break";
-      if (sessionType === "work") {
-        if (newCompletedPomodoros % POMODOROS_BEFORE_LONG_BREAK === 0) {
-          nextType = "long_break";
-        } else {
-          nextType = "short_break";
-        }
-      } else {
-        nextType = "work";
-      }
+    await startPomodoro({ type: "short_break" });
 
-      expect(nextType).toBe("short_break");
-      expect(newCompletedPomodoros).toBe(1);
-    });
-
-    test("work完了後でcompletedPomodoros=4ならlong_breakになること", () => {
-      const sessionType = "work";
-      const completedPomodoros = 3;
-      const newCompletedPomodoros =
-        sessionType === "work"
-          ? completedPomodoros + 1
-          : completedPomodoros;
-
-      let nextType = "short_break";
-      if (sessionType === "work") {
-        if (newCompletedPomodoros % POMODOROS_BEFORE_LONG_BREAK === 0) {
-          nextType = "long_break";
-        } else {
-          nextType = "short_break";
-        }
-      } else {
-        nextType = "work";
-      }
-
-      expect(nextType).toBe("long_break");
-      expect(newCompletedPomodoros).toBe(4);
-    });
-
-    test("work完了後でcompletedPomodoros=8ならlong_breakになること", () => {
-      const sessionType = "work";
-      const completedPomodoros = 7;
-      const newCompletedPomodoros =
-        sessionType === "work"
-          ? completedPomodoros + 1
-          : completedPomodoros;
-
-      let nextType = "short_break";
-      if (sessionType === "work") {
-        if (newCompletedPomodoros % POMODOROS_BEFORE_LONG_BREAK === 0) {
-          nextType = "long_break";
-        } else {
-          nextType = "short_break";
-        }
-      } else {
-        nextType = "work";
-      }
-
-      expect(nextType).toBe("long_break");
-    });
-
-    test("short_break完了後はworkになること", () => {
-      const sessionType = "short_break";
-      const completedPomodoros = 2;
-      const newCompletedPomodoros =
-        sessionType === "work"
-          ? completedPomodoros + 1
-          : completedPomodoros;
-
-      let nextType = "short_break";
-      if (sessionType === "work") {
-        if (newCompletedPomodoros % POMODOROS_BEFORE_LONG_BREAK === 0) {
-          nextType = "long_break";
-        } else {
-          nextType = "short_break";
-        }
-      } else {
-        nextType = "work";
-      }
-
-      expect(nextType).toBe("work");
-      expect(newCompletedPomodoros).toBe(2); // breakではカウント増えない
-    });
-
-    test("long_break完了後はworkになること", () => {
-      const sessionType = "long_break";
-
-      let nextType = "short_break";
-      if (sessionType === "work") {
-        nextType = "short_break";
-      } else {
-        nextType = "work";
-      }
-
-      expect(nextType).toBe("work");
-    });
+    const createCall = mockPrisma.pomodoroSession.create.mock.calls[0]![0] as {
+      data: { duration: number };
+    };
+    expect(createCall.data.duration).toBe(300); // 5 * 60
   });
 
-  describe("TimeEntry自動作成のロジック", () => {
-    test("workセッションかつtaskId有りの場合にTimeEntryを作成する", () => {
-      const sessionType = "work";
-      const taskId = 42;
-      const duration = 1500;
+  test("long_breakタイプで15分のdurationを設定すること", async () => {
+    const session = {
+      id: 1, taskId: null, status: "active", type: "long_break",
+      duration: 900, elapsed: 0, startedAt: now, completedPomodoros: 0,
+      task: null,
+    };
+    mockPrisma.pomodoroSession.create.mockResolvedValue(session);
 
-      const shouldCreateTimeEntry =
-        sessionType === "work" && taskId != null;
-      const durationHours = duration / 3600;
-      const note = `ポモドーロ完了 (${Math.round(duration / 60)}分)`;
+    await startPomodoro({ type: "long_break" });
 
-      expect(shouldCreateTimeEntry).toBe(true);
-      expect(durationHours).toBeCloseTo(0.4167, 3);
-      expect(note).toBe("ポモドーロ完了 (25分)");
-    });
-
-    test("breakセッションではTimeEntryを作成しない", () => {
-      const sessionType = "short_break";
-      const taskId = 42;
-
-      const shouldCreateTimeEntry =
-        sessionType === "work" && taskId != null;
-
-      expect(shouldCreateTimeEntry).toBe(false);
-    });
-
-    test("taskIdなしではTimeEntryを作成しない", () => {
-      const sessionType = "work";
-      const taskId = null;
-
-      const shouldCreateTimeEntry =
-        sessionType === "work" && taskId != null;
-
-      expect(shouldCreateTimeEntry).toBe(false);
-    });
+    const createCall = mockPrisma.pomodoroSession.create.mock.calls[0]![0] as {
+      data: { duration: number };
+    };
+    expect(createCall.data.duration).toBe(900); // 15 * 60
   });
 
-  describe("一時停止のelapsed計算", () => {
-    test("経過時間を正しく加算すること", () => {
-      const currentElapsed = 100;
-      const startedAt = new Date(Date.now() - 200_000); // 200秒前
-      const duration = 1500;
+  test("カスタムdurationを指定できること", async () => {
+    const session = {
+      id: 1, taskId: null, status: "active", type: "work",
+      duration: 3000, elapsed: 0, startedAt: now, completedPomodoros: 0,
+      task: null,
+    };
+    mockPrisma.pomodoroSession.create.mockResolvedValue(session);
 
-      const additionalElapsed = Math.floor(
-        (Date.now() - startedAt.getTime()) / 1000
-      );
-      const newElapsed = Math.min(
-        currentElapsed + additionalElapsed,
-        duration
-      );
+    await startPomodoro({ duration: 3000 });
 
-      expect(additionalElapsed).toBeGreaterThanOrEqual(199);
-      expect(additionalElapsed).toBeLessThanOrEqual(201);
-      expect(newElapsed).toBeGreaterThanOrEqual(299);
-      expect(newElapsed).toBeLessThanOrEqual(301);
-    });
-
-    test("elapsed合計がdurationを超えないこと", () => {
-      const currentElapsed = 1400;
-      const additionalElapsed = 200;
-      const duration = 1500;
-
-      const newElapsed = Math.min(
-        currentElapsed + additionalElapsed,
-        duration
-      );
-
-      expect(newElapsed).toBe(1500);
-    });
+    const createCall = mockPrisma.pomodoroSession.create.mock.calls[0]![0] as {
+      data: { duration: number };
+    };
+    expect(createCall.data.duration).toBe(3000);
   });
 
-  describe("統計集計ロジック", () => {
-    test("日別集計が正しいこと", () => {
-      const sessions = [
-        { completedAt: new Date("2026-01-01T10:00:00Z"), duration: 1500, taskId: null },
-        { completedAt: new Date("2026-01-01T14:00:00Z"), duration: 1500, taskId: null },
-        { completedAt: new Date("2026-01-02T10:00:00Z"), duration: 1500, taskId: null },
-      ];
+  test("開始時に既存のアクティブセッションをキャンセルすること", async () => {
+    const session = {
+      id: 2, taskId: null, status: "active", type: "work",
+      duration: 1500, elapsed: 0, startedAt: now, completedPomodoros: 0,
+      task: null,
+    };
+    mockPrisma.pomodoroSession.create.mockResolvedValue(session);
 
-      const dailyMap = new Map<string, { count: number; minutes: number }>();
-      for (const s of sessions) {
-        const dateKey = s.completedAt.toISOString().split("T")[0]!;
-        const existing = dailyMap.get(dateKey) || { count: 0, minutes: 0 };
-        existing.count++;
-        existing.minutes += s.duration / 60;
-        dailyMap.set(dateKey, existing);
-      }
+    await startPomodoro({});
 
-      expect(dailyMap.get("2026-01-01")!.count).toBe(2);
-      expect(dailyMap.get("2026-01-01")!.minutes).toBe(50);
-      expect(dailyMap.get("2026-01-02")!.count).toBe(1);
+    expect(mockPrisma.pomodoroSession.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: { in: ["active", "paused"] } },
+        data: expect.objectContaining({ status: "cancelled" }),
+      })
+    );
+  });
+
+  test("taskIdを設定できること", async () => {
+    const session = {
+      id: 1, taskId: 42, status: "active", type: "work",
+      duration: 1500, elapsed: 0, startedAt: now, completedPomodoros: 0,
+      task: { id: 42, title: "Test", status: "todo" },
+    };
+    mockPrisma.pomodoroSession.create.mockResolvedValue(session);
+
+    await startPomodoro({ taskId: 42 });
+
+    const createCall = mockPrisma.pomodoroSession.create.mock.calls[0]![0] as {
+      data: { taskId: number };
+    };
+    expect(createCall.data.taskId).toBe(42);
+  });
+});
+
+describe("pausePomodoro", () => {
+  beforeEach(() => {
+    mockPrisma.pomodoroSession.findUnique.mockReset();
+    mockPrisma.pomodoroSession.update.mockReset();
+  });
+
+  test("アクティブでないセッションでエラーをスローすること", async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue(null);
+    await expect(pausePomodoro(1)).rejects.toThrow("アクティブなセッションが見つかりません");
+  });
+
+  test("paused状態のセッションでエラーをスローすること", async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 1, status: "paused", elapsed: 100, startedAt: now, duration: 1500,
+    });
+    await expect(pausePomodoro(1)).rejects.toThrow("アクティブなセッションが見つかりません");
+  });
+
+  test("一時停止時にelapsedを更新しremainingSecondsを返すこと", async () => {
+    const startedAt = new Date(Date.now() - 120000); // 2 minutes ago
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 1, status: "active", elapsed: 0, startedAt, duration: 1500,
+    });
+    const updated = {
+      id: 1, status: "paused", elapsed: 120, duration: 1500,
+      startedAt, task: null,
+    };
+    mockPrisma.pomodoroSession.update.mockResolvedValue(updated);
+
+    const result = await pausePomodoro(1);
+    expect(result.remainingSeconds).toBe(1380); // 1500 - 120
+  });
+});
+
+describe("resumePomodoro", () => {
+  beforeEach(() => {
+    mockPrisma.pomodoroSession.findUnique.mockReset();
+    mockPrisma.pomodoroSession.update.mockReset();
+  });
+
+  test("paused以外のセッションでエラーをスローすること", async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue(null);
+    await expect(resumePomodoro(1)).rejects.toThrow("一時停止中のセッションが見つかりません");
+  });
+
+  test("active状態のセッションでエラーをスローすること", async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 1, status: "active", elapsed: 100, startedAt: now, duration: 1500,
+    });
+    await expect(resumePomodoro(1)).rejects.toThrow("一時停止中のセッションが見つかりません");
+  });
+
+  test("再開時にstatusをactiveに変更すること", async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 1, status: "paused", elapsed: 300, startedAt: now, duration: 1500,
+    });
+    const updated = {
+      id: 1, status: "active", elapsed: 300, duration: 1500,
+      startedAt: now, task: null,
+    };
+    mockPrisma.pomodoroSession.update.mockResolvedValue(updated);
+
+    const result = await resumePomodoro(1);
+    expect(result.currentElapsed).toBe(300);
+    expect(result.remainingSeconds).toBe(1200); // 1500 - 300
+  });
+});
+
+describe("completePomodoro", () => {
+  beforeEach(() => {
+    mockPrisma.pomodoroSession.findUnique.mockReset();
+    mockPrisma.pomodoroSession.update.mockReset();
+    mockPrisma.timeEntry.create.mockReset();
+  });
+
+  test("active/paused以外のセッションでエラーをスローすること", async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue(null);
+    await expect(completePomodoro(1)).rejects.toThrow("完了可能なセッションが見つかりません");
+  });
+
+  test("completedセッションでエラーをスローすること", async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 1, status: "completed", elapsed: 1500, startedAt: now,
+      duration: 1500, type: "work", completedPomodoros: 1, taskId: null,
+    });
+    await expect(completePomodoro(1)).rejects.toThrow("完了可能なセッションが見つかりません");
+  });
+
+  test("work完了後にshort_breakをnextTypeとして返すこと", async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 1, status: "active", elapsed: 1500, startedAt: now,
+      duration: 1500, type: "work", completedPomodoros: 0, taskId: null,
+    });
+    const updated = {
+      id: 1, status: "completed", elapsed: 1500, duration: 1500,
+      type: "work", completedPomodoros: 1, task: null,
+    };
+    mockPrisma.pomodoroSession.update.mockResolvedValue(updated);
+
+    const result = await completePomodoro(1);
+    expect(result.nextType).toBe("short_break");
+    expect(result.completedPomodoros).toBe(1);
+  });
+
+  test("4回目のwork完了後にlong_breakをnextTypeとして返すこと", async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 1, status: "active", elapsed: 1500, startedAt: now,
+      duration: 1500, type: "work", completedPomodoros: 3, taskId: null,
+    });
+    const updated = {
+      id: 1, status: "completed", elapsed: 1500, duration: 1500,
+      type: "work", completedPomodoros: 4, task: null,
+    };
+    mockPrisma.pomodoroSession.update.mockResolvedValue(updated);
+
+    const result = await completePomodoro(1);
+    expect(result.nextType).toBe("long_break");
+  });
+
+  test("break完了後にworkをnextTypeとして返すこと", async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 1, status: "active", elapsed: 300, startedAt: now,
+      duration: 300, type: "short_break", completedPomodoros: 2, taskId: null,
+    });
+    const updated = {
+      id: 1, status: "completed", elapsed: 300, duration: 300,
+      type: "short_break", completedPomodoros: 2, task: null,
+    };
+    mockPrisma.pomodoroSession.update.mockResolvedValue(updated);
+
+    const result = await completePomodoro(1);
+    expect(result.nextType).toBe("work");
+    // break doesn't increment completedPomodoros
+    expect(result.completedPomodoros).toBe(2);
+  });
+
+  test("work完了かつtaskIdありの場合TimeEntryを作成すること", async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 1, status: "active", elapsed: 1500, startedAt: now,
+      duration: 1500, type: "work", completedPomodoros: 0, taskId: 42,
+    });
+    const updated = {
+      id: 1, status: "completed", elapsed: 1500, duration: 1500,
+      type: "work", completedPomodoros: 1, task: { id: 42, title: "Test", status: "todo" },
+    };
+    mockPrisma.pomodoroSession.update.mockResolvedValue(updated);
+
+    await completePomodoro(1);
+    expect(mockPrisma.timeEntry.create).toHaveBeenCalledTimes(1);
+
+    const createCall = mockPrisma.timeEntry.create.mock.calls[0]![0] as {
+      data: { taskId: number; duration: number; note: string };
+    };
+    expect(createCall.data.taskId).toBe(42);
+    expect(createCall.data.duration).toBeCloseTo(1500 / 3600, 4); // hours
+    expect(createCall.data.note).toContain("25分");
+  });
+
+  test("break完了時はTimeEntryを作成しないこと", async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 1, status: "active", elapsed: 300, startedAt: now,
+      duration: 300, type: "short_break", completedPomodoros: 1, taskId: 42,
+    });
+    const updated = {
+      id: 1, status: "completed", elapsed: 300, duration: 300,
+      type: "short_break", completedPomodoros: 1, task: null,
+    };
+    mockPrisma.pomodoroSession.update.mockResolvedValue(updated);
+
+    await completePomodoro(1);
+    expect(mockPrisma.timeEntry.create).not.toHaveBeenCalled();
+  });
+
+  test("work完了かつtaskIdなしの場合TimeEntryを作成しないこと", async () => {
+    mockPrisma.pomodoroSession.findUnique.mockResolvedValue({
+      id: 1, status: "active", elapsed: 1500, startedAt: now,
+      duration: 1500, type: "work", completedPomodoros: 0, taskId: null,
+    });
+    const updated = {
+      id: 1, status: "completed", elapsed: 1500, duration: 1500,
+      type: "work", completedPomodoros: 1, task: null,
+    };
+    mockPrisma.pomodoroSession.update.mockResolvedValue(updated);
+
+    await completePomodoro(1);
+    expect(mockPrisma.timeEntry.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("cancelPomodoro", () => {
+  beforeEach(() => {
+    mockPrisma.pomodoroSession.update.mockReset();
+  });
+
+  test("セッションをcancelled状態に更新すること", async () => {
+    mockPrisma.pomodoroSession.update.mockResolvedValue({
+      id: 1, status: "cancelled",
     });
 
-    test("平均ポモドーロ数を計算すること", () => {
-      const totalPomodoros = 10;
-      const dailyCount = 5;
+    await cancelPomodoro(1);
 
-      const averagePerDay =
-        dailyCount > 0
-          ? Math.round((totalPomodoros / dailyCount) * 10) / 10
-          : 0;
+    const updateCall = mockPrisma.pomodoroSession.update.mock.calls[0]![0] as {
+      data: { status: string };
+    };
+    expect(updateCall.data.status).toBe("cancelled");
+  });
+});
 
-      expect(averagePerDay).toBe(2);
+describe("getActiveSession", () => {
+  beforeEach(() => {
+    mockPrisma.pomodoroSession.findFirst.mockReset();
+  });
+
+  test("アクティブセッションがない場合nullを返すこと", async () => {
+    mockPrisma.pomodoroSession.findFirst.mockResolvedValue(null);
+    const result = await getActiveSession();
+    expect(result).toBeNull();
+  });
+
+  test("paused状態ではelapsedをそのまま返すこと", async () => {
+    mockPrisma.pomodoroSession.findFirst.mockResolvedValue({
+      id: 1, status: "paused", elapsed: 500, startedAt: now,
+      duration: 1500, task: null,
     });
 
-    test("日数0の場合平均が0になること", () => {
-      const averagePerDay = 0 > 0 ? 10 / 0 : 0;
-      expect(averagePerDay).toBe(0);
+    const result = await getActiveSession();
+    expect(result!.currentElapsed).toBe(500);
+    expect(result!.remainingSeconds).toBe(1000);
+  });
+
+  test("active状態では経過時間を計算すること", async () => {
+    const startedAt = new Date(Date.now() - 60000); // 1 minute ago
+    mockPrisma.pomodoroSession.findFirst.mockResolvedValue({
+      id: 1, status: "active", elapsed: 0, startedAt,
+      duration: 1500, task: null,
     });
+
+    const result = await getActiveSession();
+    // currentElapsed should be approximately 60 seconds
+    expect(result!.currentElapsed).toBeGreaterThanOrEqual(59);
+    expect(result!.currentElapsed).toBeLessThanOrEqual(62);
+  });
+
+  test("currentElapsedがdurationを超えないこと", async () => {
+    const startedAt = new Date(Date.now() - 3600000); // 1 hour ago
+    mockPrisma.pomodoroSession.findFirst.mockResolvedValue({
+      id: 1, status: "active", elapsed: 0, startedAt,
+      duration: 1500, task: null,
+    });
+
+    const result = await getActiveSession();
+    expect(result!.currentElapsed).toBe(1500);
+    expect(result!.remainingSeconds).toBe(0);
+  });
+});
+
+describe("getStatistics", () => {
+  beforeEach(() => {
+    mockPrisma.pomodoroSession.findMany.mockReset();
+  });
+
+  test("セッションがない場合ゼロ値を返すこと", async () => {
+    mockPrisma.pomodoroSession.findMany.mockResolvedValue([]);
+
+    const result = await getStatistics({});
+    expect(result.totalPomodoros).toBe(0);
+    expect(result.totalMinutes).toBe(0);
+    expect(result.averagePerDay).toBe(0);
+    expect(result.dailyStats).toEqual([]);
+    expect(result.taskStats).toEqual([]);
+  });
+
+  test("日別集計とタスク別集計を正しく計算すること", async () => {
+    mockPrisma.pomodoroSession.findMany.mockResolvedValue([
+      {
+        id: 1, duration: 1500, completedAt: new Date("2026-03-05"),
+        createdAt: new Date("2026-03-05"), taskId: 1,
+        task: { id: 1, title: "Task A" },
+      },
+      {
+        id: 2, duration: 1500, completedAt: new Date("2026-03-05"),
+        createdAt: new Date("2026-03-05"), taskId: 1,
+        task: { id: 1, title: "Task A" },
+      },
+      {
+        id: 3, duration: 1500, completedAt: new Date("2026-03-04"),
+        createdAt: new Date("2026-03-04"), taskId: 2,
+        task: { id: 2, title: "Task B" },
+      },
+    ]);
+
+    const result = await getStatistics({});
+    expect(result.totalPomodoros).toBe(3);
+    expect(result.totalMinutes).toBe(75); // 3 * 25
+    expect(result.dailyStats.length).toBe(2);
+    expect(result.taskStats.length).toBe(2);
+    // Task A has 2 pomodoros, sorted first
+    expect(result.taskStats[0]!.title).toBe("Task A");
+    expect(result.taskStats[0]!.count).toBe(2);
+  });
+
+  test("averagePerDayを正しく計算すること", async () => {
+    mockPrisma.pomodoroSession.findMany.mockResolvedValue([
+      {
+        id: 1, duration: 1500, completedAt: new Date("2026-03-05"),
+        createdAt: new Date("2026-03-05"), taskId: null, task: null,
+      },
+      {
+        id: 2, duration: 1500, completedAt: new Date("2026-03-05"),
+        createdAt: new Date("2026-03-05"), taskId: null, task: null,
+      },
+      {
+        id: 3, duration: 1500, completedAt: new Date("2026-03-04"),
+        createdAt: new Date("2026-03-04"), taskId: null, task: null,
+      },
+    ]);
+
+    const result = await getStatistics({});
+    // 3 pomodoros / 2 days = 1.5
+    expect(result.averagePerDay).toBe(1.5);
+  });
+});
+
+describe("getHistory", () => {
+  beforeEach(() => {
+    mockPrisma.pomodoroSession.findMany.mockReset();
+    mockPrisma.pomodoroSession.count.mockReset();
+  });
+
+  test("セッション履歴とtotalを返すこと", async () => {
+    mockPrisma.pomodoroSession.findMany.mockResolvedValue([
+      { id: 1, status: "completed" },
+      { id: 2, status: "cancelled" },
+    ]);
+    mockPrisma.pomodoroSession.count.mockResolvedValue(10);
+
+    const result = await getHistory({});
+    expect(result.sessions.length).toBe(2);
+    expect(result.total).toBe(10);
+  });
+
+  test("デフォルトでlimit=20, offset=0を使用すること", async () => {
+    mockPrisma.pomodoroSession.findMany.mockResolvedValue([]);
+    mockPrisma.pomodoroSession.count.mockResolvedValue(0);
+
+    await getHistory({});
+
+    const findCall = mockPrisma.pomodoroSession.findMany.mock.calls[0]![0] as {
+      take: number; skip: number;
+    };
+    expect(findCall.take).toBe(20);
+    expect(findCall.skip).toBe(0);
+  });
+
+  test("カスタムlimit/offsetを使用できること", async () => {
+    mockPrisma.pomodoroSession.findMany.mockResolvedValue([]);
+    mockPrisma.pomodoroSession.count.mockResolvedValue(0);
+
+    await getHistory({ limit: 5, offset: 10 });
+
+    const findCall = mockPrisma.pomodoroSession.findMany.mock.calls[0]![0] as {
+      take: number; skip: number;
+    };
+    expect(findCall.take).toBe(5);
+    expect(findCall.skip).toBe(10);
   });
 });

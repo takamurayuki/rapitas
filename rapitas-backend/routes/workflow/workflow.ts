@@ -122,6 +122,12 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
     const latestSession = task.developerModeConfig?.agentSessions?.[0];
     const branchName = latestSession?.branchName;
 
+    // ターゲットブランチを解決: execConfig.targetBranch → theme.defaultBranch → 'master'
+    const targetBranch =
+      (execConfig as Record<string, unknown>).targetBranch as string ||
+      task.theme?.defaultBranch ||
+      'master';
+
     const orchestrator = AgentOrchestrator.getInstance(prisma);
 
     // autoCommitの処理
@@ -177,7 +183,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
           workingDirectory,
           prTitle,
           prBody,
-          'master',
+          targetBranch,
         );
 
         result.autoPRResult = prResult;
@@ -231,6 +237,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
           workingDirectory,
           result.autoPRResult.prNumber,
           execConfig.mergeCommitThreshold ?? 5,
+          targetBranch,
         );
 
         result.autoMergeResult = mergeResult;
