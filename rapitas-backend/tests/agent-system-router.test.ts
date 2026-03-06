@@ -23,8 +23,7 @@ interface ValidateConfigResponse {
 }
 
 describe("Agent System Router", () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let app: any;
+  let app: Elysia;
   const originalExit = process.exit;
   const originalSetTimeout = global.setTimeout;
 
@@ -34,7 +33,7 @@ describe("Agent System Router", () => {
     process.exit = mockExit as unknown as typeof process.exit;
 
     // Mock setTimeout to prevent delayed process.exit calls
-    global.setTimeout = mock((callback: (...args: any[]) => void, delay: number, ...args: any[]) => {
+    global.setTimeout = mock((callback: () => void, delay: number, ...args: unknown[]) => {
       // Check if the callback contains process.exit, if so don't execute it
       const callbackStr = callback.toString();
       if (callbackStr.includes('process.exit')) {

@@ -20,8 +20,7 @@ interface ExecutionLogResponse {
 }
 
 describe("Agent Audit Router", () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let app: any;
+  let app: Elysia;
 
   beforeEach(() => {
     app = new Elysia()

@@ -1,31 +1,32 @@
 {
   "metadata": {
-    "generatedAt": "2026-03-04T15:32:18.706Z",
-    "executionTimeMs": 20056,
-    "projectRoot": "C:\\Projects\\rapitas"
+    "generatedAt": "2026-03-05T08:00:55.219Z",
+    "executionTimeMs": 21409,
+    "projectRoot": "C:\\Projects\\rapitas",
+    "version": "2.0.0"
   },
   "codeMetrics": {
     "byExtension": [
       {
         "extension": ".ts",
-        "fileCount": 248,
-        "totalLines": 81615,
-        "totalSize": 2520155,
-        "avgLines": 329
+        "fileCount": 316,
+        "totalLines": 88082,
+        "totalSize": 2723059,
+        "avgLines": 279
       },
       {
         "extension": ".tsx",
-        "fileCount": 172,
-        "totalLines": 66065,
-        "totalSize": 2504840,
-        "avgLines": 384
+        "fileCount": 175,
+        "totalLines": 63894,
+        "totalSize": 2425949,
+        "avgLines": 365
       },
       {
         "extension": ".md",
-        "fileCount": 192,
-        "totalLines": 14649,
-        "totalSize": 612737,
-        "avgLines": 76
+        "fileCount": 204,
+        "totalLines": 15123,
+        "totalSize": 623978,
+        "avgLines": 74
       },
       {
         "extension": ".yaml",
@@ -37,9 +38,9 @@
       {
         "extension": ".json",
         "fileCount": 10,
-        "totalLines": 3263,
-        "totalSize": 105878,
-        "avgLines": 326
+        "totalLines": 5967,
+        "totalSize": 228772,
+        "avgLines": 597
       },
       {
         "extension": ".js",
@@ -104,13 +105,13 @@
       },
       "analysis-report.md": {
         "files": 1,
-        "lines": 800,
-        "size": 46585
+        "lines": 441,
+        "size": 20763
       },
       "analysis-result.json": {
         "files": 1,
-        "lines": 3003,
-        "size": 98462
+        "lines": 5707,
+        "size": 221356
       },
       "docs": {
         "files": 1,
@@ -138,9 +139,9 @@
         "size": 13941
       },
       "rapitas-backend": {
-        "files": 368,
-        "lines": 78394,
-        "size": 2593745
+        "files": 436,
+        "lines": 83193,
+        "size": 2757495
       },
       "rapitas-desktop": {
         "files": 141,
@@ -148,9 +149,9 @@
         "size": 4944167
       },
       "rapitas-frontend": {
-        "files": 261,
-        "lines": 94987,
-        "size": 3391606
+        "files": 276,
+        "lines": 95317,
+        "size": 3388932
       },
       "README.md": {
         "files": 1,
@@ -165,29 +166,19 @@
         "size": 370893
       },
       {
-        "path": "rapitas-backend\\services\\agents\\agent-orchestrator.ts",
-        "lines": 3936,
-        "size": 131483
-      },
-      {
         "path": "analysis-result.json",
-        "lines": 3003,
-        "size": 98462
+        "lines": 5707,
+        "size": 221356
       },
       {
-        "path": "rapitas-frontend\\src\\components\\note\\NoteEditor.tsx",
-        "lines": 2998,
-        "size": 107727
+        "path": "rapitas-frontend\\src\\components\\category\\icon-registry.ts",
+        "lines": 1934,
+        "size": 54782
       },
       {
-        "path": "rapitas-frontend\\src\\app\\tasks\\[id]\\TaskDetailClient.tsx",
-        "lines": 2060,
-        "size": 84904
-      },
-      {
-        "path": "rapitas-frontend\\src\\components\\category\\IconData.ts",
-        "lines": 2023,
-        "size": 55459
+        "path": "rapitas-backend\\scripts\\analyze-codebase.ts",
+        "lines": 1838,
+        "size": 72103
       },
       {
         "path": "rapitas-frontend\\src\\feature\\developer-mode\\components\\AIAccordionPanel.tsx",
@@ -200,9 +191,9 @@
         "size": 67049
       },
       {
-        "path": "rapitas-backend\\routes\\tasks\\tasks.ts",
-        "lines": 1568,
-        "size": 53685
+        "path": "rapitas-backend\\routes\\agents\\agent-execution-router.ts",
+        "lines": 1583,
+        "size": 58760
       },
       {
         "path": "rapitas-frontend\\src\\app\\HomeClient.tsx",
@@ -215,14 +206,19 @@
         "size": 58286
       },
       {
-        "path": "rapitas-backend\\routes\\agents\\agent-execution-router.ts",
-        "lines": 1557,
-        "size": 57589
-      },
-      {
         "path": "rapitas-backend\\routes\\agents\\ai-agent.ts",
         "lines": 1528,
         "size": 49681
+      },
+      {
+        "path": "rapitas-backend\\routes\\tasks\\tasks.ts",
+        "lines": 1462,
+        "size": 49000
+      },
+      {
+        "path": "rapitas-frontend\\src\\app\\tasks\\[id]\\TaskDetailClient.tsx",
+        "lines": 1426,
+        "size": 61425
       },
       {
         "path": "rapitas-frontend\\src\\feature\\developer-mode\\components\\AIAnalysisPanel.tsx",
@@ -258,11 +254,16 @@
         "path": "rapitas-frontend\\src\\app\\globals.css",
         "lines": 1177,
         "size": 24840
+      },
+      {
+        "path": "rapitas-desktop\\pnpm-lock.yaml",
+        "lines": 1176,
+        "size": 37720
       }
     ],
-    "totalFiles": 788,
-    "totalLines": 186935,
-    "totalSize": 11221872
+    "totalFiles": 871,
+    "totalLines": 194409,
+    "totalSize": 11480020
   },
   "architecture": {
     "backend": {
@@ -1989,11 +1990,6 @@
           "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
-          "method": "POST",
-          "path": "/tasks/:id/execute",
-          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
-        },
-        {
           "method": "GET",
           "path": "/workflow-roles",
           "file": "rapitas-backend\\routes\\workflow\\workflow-roles.ts"
@@ -2070,6 +2066,15 @@
         "rapitas-backend\\services\\agents\\abstraction\\providers\\claude-code-provider.ts",
         "rapitas-backend\\services\\agents\\abstraction\\providers\\index.ts",
         "rapitas-backend\\services\\agents\\abstraction\\registry.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\agent-identification.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\events.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\execution-context.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\execution-result.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\index.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\lifecycle-hooks.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\provider-config.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\task-definition.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\utility-types.ts",
         "rapitas-backend\\services\\agents\\abstraction\\types.ts",
         "rapitas-backend\\services\\agents\\agent-factory.ts",
         "rapitas-backend\\services\\agents\\agent-orchestrator.ts",
@@ -2080,16 +2085,44 @@
         "rapitas-backend\\services\\agents\\execution-file-logger.ts",
         "rapitas-backend\\services\\agents\\gemini-cli-agent.ts",
         "rapitas-backend\\services\\agents\\index.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\continuation-executor.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\event-manager.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\execution-helpers.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\git-operations.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\index.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\lifecycle-manager.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\question-timeout-manager.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\recovery-manager.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\task-executor.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\types.ts",
         "rapitas-backend\\services\\agents\\providers\\anthropic-api-provider.ts",
         "rapitas-backend\\services\\agents\\providers\\claude-code-provider.ts",
         "rapitas-backend\\services\\agents\\providers\\gemini-cli-provider.ts",
         "rapitas-backend\\services\\agents\\providers\\gemini-provider.ts",
         "rapitas-backend\\services\\agents\\providers\\index.ts",
         "rapitas-backend\\services\\agents\\providers\\openai-provider.ts",
-        "rapitas-backend\\services\\agents\\question-detection.ts",
-        "rapitas-backend\\services\\agents\\unified-interface.ts",
+        "rapitas-backend\\services\\agents\\question-detection\\constants.ts",
+        "rapitas-backend\\services\\agents\\question-detection\\detection.ts",
+        "rapitas-backend\\services\\agents\\question-detection\\index.ts",
+        "rapitas-backend\\services\\agents\\question-detection\\legacy.ts",
+        "rapitas-backend\\services\\agents\\question-detection\\timeout.ts",
+        "rapitas-backend\\services\\agents\\question-detection\\types.ts",
+        "rapitas-backend\\services\\agents\\question-detection\\validation.ts",
+        "rapitas-backend\\services\\agents\\unified-interface\\agent-config.ts",
+        "rapitas-backend\\services\\agents\\unified-interface\\errors.ts",
+        "rapitas-backend\\services\\agents\\unified-interface\\handlers.ts",
+        "rapitas-backend\\services\\agents\\unified-interface\\index.ts",
+        "rapitas-backend\\services\\agents\\unified-interface\\interfaces.ts",
+        "rapitas-backend\\services\\agents\\unified-interface\\provider-config.ts",
+        "rapitas-backend\\services\\agents\\unified-interface\\results.ts",
+        "rapitas-backend\\services\\agents\\unified-interface\\utilities.ts",
         "rapitas-backend\\services\\cache-service.ts",
-        "rapitas-backend\\services\\claude-agent.ts",
+        "rapitas-backend\\services\\claude-agent\\api-key-check.ts",
+        "rapitas-backend\\services\\claude-agent\\index.ts",
+        "rapitas-backend\\services\\claude-agent\\naming-service.ts",
+        "rapitas-backend\\services\\claude-agent\\prompt-optimizer.ts",
+        "rapitas-backend\\services\\claude-agent\\task-analyzer.ts",
+        "rapitas-backend\\services\\claude-agent\\types.ts",
         "rapitas-backend\\services\\github-service.ts",
         "rapitas-backend\\services\\notification-service.ts",
         "rapitas-backend\\services\\parallel-execution\\agent-coordinator.ts",
@@ -2464,14 +2497,22 @@
           "relations": []
         }
       ],
-      "totalRelations": 40
+      "totalRelations": 40,
+      "oversizedModels": [
+        {
+          "name": "Task",
+          "fieldCount": 51
+        }
+      ]
     },
     "frontend": {
       "components": [
         {
           "category": "shared-components",
-          "count": 66,
+          "count": 69,
           "files": [
+            "rapitas-frontend\\src\\app\\tasks\\[id]\\components\\TaskPomodoroButton.tsx",
+            "rapitas-frontend\\src\\app\\tasks\\[id]\\components\\TaskWorkflowSection.tsx",
             "rapitas-frontend\\src\\components\\AchievementToast.tsx",
             "rapitas-frontend\\src\\components\\AIAssistantPanel.tsx",
             "rapitas-frontend\\src\\components\\AppIcon.tsx",
@@ -2492,6 +2533,7 @@
             "rapitas-frontend\\src\\components\\icons\\ProviderIcons.tsx",
             "rapitas-frontend\\src\\components\\KeyboardShortcuts.tsx",
             "rapitas-frontend\\src\\components\\note\\DeleteNoteModal.tsx",
+            "rapitas-frontend\\src\\components\\note\\editor\\EditorToolbar.tsx",
             "rapitas-frontend\\src\\components\\note\\NoteEditor.tsx",
             "rapitas-frontend\\src\\components\\note\\NoteHoverSidebar.tsx",
             "rapitas-frontend\\src\\components\\note\\NoteModal.tsx",
@@ -2684,6 +2726,8 @@
         }
       ],
       "hooks": [
+        "useCommentSystem",
+        "useTaskActions",
         "index",
         "useAgentExecution",
         "useAIAnalysisMode",
@@ -2774,15 +2818,2353 @@
     }
   },
   "quality": {
-    "testFiles": 16,
-    "sourceFiles": 404,
-    "testRatio": 0.04,
-    "anyUsage": 19,
+    "testFiles": 26,
+    "sourceFiles": 465,
+    "testRatio": 0.06,
+    "anyUsage": 13,
     "todoCount": 0,
     "fixmeCount": 0,
     "hackCount": 0,
     "consoleLogCount": 5,
-    "tryCatchCount": 841
+    "tryCatchCount": 821,
+    "emptyTryCatchCount": 49,
+    "assertionCount": 961
+  },
+  "complexity": {
+    "warnings": [
+      {
+        "file": "rapitas-frontend\\src\\components\\category\\icon-registry.ts",
+        "type": "oversized",
+        "message": "Oversized: 1934 lines - consider splitting",
+        "lines": 1934,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\scripts\\analyze-codebase.ts",
+        "type": "oversized",
+        "message": "Oversized: 1838 lines - consider splitting",
+        "lines": 1838,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\scripts\\analyze-codebase.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 13 levels",
+        "lines": 1838,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\components\\AIAccordionPanel.tsx",
+        "type": "oversized",
+        "message": "Oversized: 1699 lines - consider splitting",
+        "lines": 1699,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\components\\AIAccordionPanel.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 10 levels",
+        "lines": 1699,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\claude-code-agent.ts",
+        "type": "oversized",
+        "message": "Oversized: 1639 lines - consider splitting",
+        "lines": 1639,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\claude-code-agent.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 10 levels",
+        "lines": 1639,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\routes\\agents\\agent-execution-router.ts",
+        "type": "oversized",
+        "message": "Oversized: 1583 lines - consider splitting",
+        "lines": 1583,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\routes\\agents\\agent-execution-router.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 10 levels",
+        "lines": 1583,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\HomeClient.tsx",
+        "type": "oversized",
+        "message": "Oversized: 1566 lines - consider splitting",
+        "lines": 1566,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\HomeClient.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 9 levels",
+        "lines": 1566,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\HomeClient.tsx",
+        "type": "too_many_imports",
+        "message": "31 imports - may indicate low cohesion",
+        "lines": 1566,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\components\\DeveloperModeConfig.tsx",
+        "type": "oversized",
+        "message": "Oversized: 1559 lines - consider splitting",
+        "lines": 1559,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\routes\\agents\\ai-agent.ts",
+        "type": "oversized",
+        "message": "Oversized: 1528 lines - consider splitting",
+        "lines": 1528,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\routes\\agents\\ai-agent.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 12 levels",
+        "lines": 1528,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\routes\\tasks\\tasks.ts",
+        "type": "oversized",
+        "message": "Oversized: 1462 lines - consider splitting",
+        "lines": 1462,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\routes\\tasks\\tasks.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 9 levels",
+        "lines": 1462,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\tasks\\[id]\\TaskDetailClient.tsx",
+        "type": "oversized",
+        "message": "Oversized: 1426 lines - consider splitting",
+        "lines": 1426,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\tasks\\[id]\\TaskDetailClient.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 12 levels",
+        "lines": 1426,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\tasks\\[id]\\TaskDetailClient.tsx",
+        "type": "too_many_imports",
+        "message": "35 imports - may indicate low cohesion",
+        "lines": 1426,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\components\\AIAnalysisPanel.tsx",
+        "type": "oversized",
+        "message": "Oversized: 1419 lines - consider splitting",
+        "lines": 1419,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\components\\AIAnalysisPanel.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 10 levels",
+        "lines": 1419,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\tasks\\components\\MemoSection.tsx",
+        "type": "oversized",
+        "message": "Oversized: 1408 lines - consider splitting",
+        "lines": 1408,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\tasks\\components\\MemoSection.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 9 levels",
+        "lines": 1408,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\Header.tsx",
+        "type": "oversized",
+        "message": "Oversized: 1282 lines - consider splitting",
+        "lines": 1282,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\Header.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 9 levels",
+        "lines": 1282,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\services\\parallel-execution\\sub-agent-controller.ts",
+        "type": "oversized",
+        "message": "Oversized: 1250 lines - consider splitting",
+        "lines": 1250,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\services\\parallel-execution\\sub-agent-controller.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 12 levels",
+        "lines": 1250,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\themes\\page.tsx",
+        "type": "oversized",
+        "message": "Oversized: 1193 lines - consider splitting",
+        "lines": 1193,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\themes\\page.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 9 levels",
+        "lines": 1193,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\gemini-cli-agent.ts",
+        "type": "oversized",
+        "message": "Oversized: 1140 lines - consider splitting",
+        "lines": 1140,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\gemini-cli-agent.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 14 levels",
+        "lines": 1140,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\components\\AgentExecutionPanel.tsx",
+        "type": "oversized",
+        "message": "Oversized: 1139 lines - consider splitting",
+        "lines": 1139,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\services\\screenshot-service.ts",
+        "type": "oversized",
+        "message": "Oversized: 1131 lines - consider splitting",
+        "lines": 1131,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\routes\\agents\\approvals.ts",
+        "type": "oversized",
+        "message": "Oversized: 1118 lines - consider splitting",
+        "lines": 1118,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\routes\\agents\\approvals.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 9 levels",
+        "lines": 1118,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\calendar\\page.tsx",
+        "type": "oversized",
+        "message": "Oversized: 1104 lines - consider splitting",
+        "lines": 1104,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\calendar\\page.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 10 levels",
+        "lines": 1104,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\learning-goals\\page.tsx",
+        "type": "oversized",
+        "message": "Oversized: 1101 lines - consider splitting",
+        "lines": 1101,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\types\\index.ts",
+        "type": "oversized",
+        "message": "Oversized: 1101 lines - consider splitting",
+        "lines": 1101,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\codex-cli-agent.ts",
+        "type": "oversized",
+        "message": "Oversized: 1089 lines - consider splitting",
+        "lines": 1089,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\codex-cli-agent.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 14 levels",
+        "lines": 1089,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\providers\\gemini-cli-provider.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 9 levels",
+        "lines": 837,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\kanban\\page.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 10 levels",
+        "lines": 726,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\categories\\page.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 11 levels",
+        "lines": 722,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\providers\\claude-code-provider.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 9 levels",
+        "lines": 700,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\tasks\\hooks\\useParallelExecutionStatus.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 9 levels",
+        "lines": 646,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\category\\CategoryManager.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 9 levels",
+        "lines": 624,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\orchestrator\\recovery-manager.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 9 levels",
+        "lines": 557,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\note\\editor\\editor-keydown.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 9 levels",
+        "lines": 368,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\utils\\prisma-optimization.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 9 levels",
+        "lines": 365,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-backend\\routes\\agents\\agent-session-router.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 12 levels",
+        "lines": 202,
+        "severity": "warning"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\components\\DeveloperModeConfig.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 1559,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\components\\AgentExecutionPanel.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 1139,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\screenshot-service.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 1131,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\learning-goals\\page.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 8 levels",
+        "lines": 1101,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\parallel-execution\\parallel-executor.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 8 levels",
+        "lines": 996,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\note\\NoteModal.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 8 levels",
+        "lines": 992,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\github-service.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 973,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\ui\\DirectoryPicker.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 8 levels",
+        "lines": 970,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\tasks\\new\\NewTaskClient.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 942,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\settings\\page.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 8 levels",
+        "lines": 919,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\components\\ExecutionReviewPanel.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 903,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useExecutionStream.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 888,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\settings\\cli-tools\\page.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 880,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\habits\\daily-schedule\\page.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 876,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\workflow\\workflow.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 8 levels",
+        "lines": 843,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\workflow\\workflow-orchestrator.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 842,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\ResumableExecutionsBanner.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 838,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\claude-md-generator\\page.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 829,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\approvals\\ApprovalsClient.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 817,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\tasks\\components\\CommentsSection.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 766,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\components\\PromptOptimizationPanel.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 763,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\settings\\shortcuts\\page.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 759,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useDeveloperMode.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 8 levels",
+        "lines": 755,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\orchestrator\\continuation-executor.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 8 levels",
+        "lines": 732,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\system-prompts\\page.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 728,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\components\\DependencyTree.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 726,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\workflow\\WorkflowViewer.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 721,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\parallel-execution\\dependency-analyzer.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 673,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\tasks\\components\\SubtaskList.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 673,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\execution-file-logger.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 665,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\tasks\\components\\TaskCard.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 645,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\providers\\anthropic-api-provider.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 639,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\note\\NoteEditor.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 617,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\system\\developer-mode.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 609,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\system\\settings.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 609,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\learning\\learning-goals.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 608,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\components\\ExecutionLogViewer.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 607,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\agents\\cli-tools-management.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 601,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\pomodoroStore.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 581,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\abstraction\\providers\\claude-code-agent-adapter.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 571,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\agent-config-service.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 569,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\agents\\parallel-execution.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 566,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\workers\\output-parser-worker.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 534,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\orchestrator\\git-operations.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 532,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\exam-goals\\page.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 531,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\tasks\\components\\TaskSuggestions.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 528,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\scripts\\dev.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 519,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\parallel-execution\\parallel-scheduler.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 519,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\note\\editor\\code-block.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 515,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\agents\\versions\\page.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 514,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\github\\pull-requests\\[id]\\PullRequestDetailClient.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 511,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\components\\TerminalPanel.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 510,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\agents\\agent-metrics.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 8 levels",
+        "lines": 508,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\calendar\\components\\ScheduleEventDialog.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 507,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\lib\\api-client-optimized.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 496,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\lib\\api-client.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 494,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\abstraction\\event-emitter.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 490,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\agent-execution-service.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 488,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\orchestrator\\execution-helpers.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 488,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\tasks\\task-dependency.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 8 levels",
+        "lines": 485,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\utils\\debug-log-parsers.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 477,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\parallel-execution\\agent-coordinator.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 467,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\abstraction\\error-handler.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 463,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\agents\\page.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 456,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\file-viewer\\FileViewer.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 443,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\tasks\\batch-v2.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 438,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\focus\\FocusClient.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 436,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\debug-log-analyzer\\DebugLogAnalyzer.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 435,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\workflow\\WorkflowRolesConfig.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 430,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\utils\\agent-config-schema.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 428,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\websocket-service.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 426,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\index-optimized.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 399,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\social\\comments.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 8 levels",
+        "lines": 398,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\abstraction\\registry.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 397,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\AIAssistantPanel.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 397,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\dashboard\\page.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 373,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\tasks\\components\\TaskTimerManagement.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 364,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\claude-agent\\prompt-optimizer.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 361,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\index.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 357,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\UsageRateLimitGraph.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 355,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\GlobalPomodoroModal.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 352,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\stores\\noteStore.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 351,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\NotificationBell.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 349,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\learning\\flashcards.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 8 levels",
+        "lines": 342,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\file-viewer\\MarkdownViewer.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 339,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\src\\services\\userBehaviorService.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 334,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\system\\directories.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 330,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\sse-utils.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 318,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\organization\\categories.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 313,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\organization\\templates.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 293,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\ai\\prompts.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 285,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\tasks\\hooks\\useSubtaskLogs.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 278,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\system\\search.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 271,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\utils\\debug-log-analyzer\\analyzer.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 270,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\components\\DiffViewer.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 270,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\ui\\AgentSwitcher.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 269,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\hooks\\use-sse.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 266,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\workflow\\WorkflowModeSelector.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 265,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\workflow\\PlanApprovalModal.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 244,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useRealtimeUpdates.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 242,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\tasks\\components\\TaskDetail.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 236,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\tasks\\batch.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 235,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\note\\editor\\text-color.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 229,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useCodeReview.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 229,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\hooks\\useDebugLogAnalyzer.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 219,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\middleware\\performance.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 211,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\services\\achievement-checker.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 207,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useErrorCapture.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 204,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\note\\aiService.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 192,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\system\\rate-limits.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 183,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\agents\\agent-audit-router.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 8 levels",
+        "lines": 179,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\hooks\\useExecutingTasksPolling.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 177,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\stores\\taskCacheStore.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 175,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\note\\editor\\link-card.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 8 levels",
+        "lines": 170,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useNotifications.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 163,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\system\\sse.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 156,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\tasks\\[id]\\components\\TaskWorkflowSection.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 132,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\utils\\ai-client\\claude-provider.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 131,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\system\\notifications.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 129,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\utils\\ai-client\\gemini-provider.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 125,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\components\\ModelSelector.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 122,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\utils\\ai-client\\chatgpt-provider.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 105,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\hooks\\use-schedule-reminders.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 82,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\ExternalLinksProvider.tsx",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 7 levels",
+        "lines": 79,
+        "severity": "info"
+      },
+      {
+        "file": "rapitas-backend\\routes\\system\\url-metadata.ts",
+        "type": "deep_nesting",
+        "message": "Max nesting depth: 6 levels",
+        "lines": 70,
+        "severity": "info"
+      }
+    ],
+    "godObjects": [],
+    "avgFileLines": 313,
+    "medianFileLines": 212,
+    "filesOver500Lines": 93,
+    "filesOver1000Lines": 23,
+    "longFunctions": [
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useDeveloperMode.ts",
+        "name": "useDeveloperMode",
+        "lines": 686
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useExecutionStream.ts",
+        "name": "useExecutionPolling",
+        "lines": 589
+      },
+      {
+        "file": "rapitas-backend\\scripts\\analyze-codebase.ts",
+        "name": "generateMarkdownReport",
+        "lines": 309
+      },
+      {
+        "file": "rapitas-frontend\\src\\app\\api\\generate-claude-md\\route.ts",
+        "name": "POST",
+        "lines": 296
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\orchestrator\\task-executor.ts",
+        "name": "executeTask",
+        "lines": 252
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useAIAnalysisMode.ts",
+        "name": "useDeveloperMode",
+        "lines": 245
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\note\\editor\\code-block.ts",
+        "name": "createCodeBlockNode",
+        "lines": 239
+      },
+      {
+        "file": "rapitas-backend\\routes\\workflow\\workflow.ts",
+        "name": "performAutoCommitAndPR",
+        "lines": 221
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useApprovals.ts",
+        "name": "useApprovals",
+        "lines": 219
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useGitHubIntegration.ts",
+        "name": "useGitHubIntegration",
+        "lines": 218
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useExecutionStream.ts",
+        "name": "useExecutionStream",
+        "lines": 217
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\note\\editor\\code-block.ts",
+        "name": "highlightCode",
+        "lines": 198
+      },
+      {
+        "file": "rapitas-frontend\\src\\hooks\\useDebugLogAnalyzer.ts",
+        "name": "useDebugLogAnalyzer",
+        "lines": 186
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useCodeReview.ts",
+        "name": "useCodeReview",
+        "lines": 179
+      },
+      {
+        "file": "rapitas-backend\\scripts\\analyze-codebase.ts",
+        "name": "computeScoring",
+        "lines": 171
+      },
+      {
+        "file": "rapitas-backend\\routes\\learning\\learning-goals.ts",
+        "name": "generateFallbackPlan",
+        "lines": 170
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\note\\editor\\editor-keydown.ts",
+        "name": "handleBackspace",
+        "lines": 164
+      },
+      {
+        "file": "rapitas-frontend\\src\\utils\\holidays.ts",
+        "name": "getHolidaysForYear",
+        "lines": 164
+      },
+      {
+        "file": "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useNotifications.ts",
+        "name": "useNotifications",
+        "lines": 153
+      },
+      {
+        "file": "rapitas-backend\\services\\agents\\orchestrator\\continuation-executor.ts",
+        "name": "handleQuestionTimeout",
+        "lines": 136
+      }
+    ]
+  },
+  "security": {
+    "findings": [
+      {
+        "file": "rapitas-frontend\\src\\app\\layout.tsx",
+        "line": 53,
+        "type": "xss_risk",
+        "message": "dangerouslySetInnerHTML usage - potential XSS risk. Ensure content is sanitized.",
+        "severity": "medium",
+        "snippet": "dangerouslySetInnerHTML={{"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\note\\NoteHoverSidebar.tsx",
+        "line": 241,
+        "type": "xss_risk",
+        "message": "dangerouslySetInnerHTML usage - potential XSS risk. Ensure content is sanitized.",
+        "severity": "medium",
+        "snippet": "dangerouslySetInnerHTML={{"
+      },
+      {
+        "file": "rapitas-frontend\\src\\components\\note\\NoteSidebar.tsx",
+        "line": 102,
+        "type": "xss_risk",
+        "message": "dangerouslySetInnerHTML usage - potential XSS risk. Ensure content is sanitized.",
+        "severity": "medium",
+        "snippet": "dangerouslySetInnerHTML={{"
+      }
+    ],
+    "summary": {
+      "high": 0,
+      "medium": 3,
+      "low": 0
+    }
+  },
+  "imports": {
+    "circularDependencies": [],
+    "highFanOutFiles": [
+      {
+        "file": "rapitas-frontend/src/app/tasks/[id]/TaskDetailClient.tsx",
+        "importCount": 30
+      },
+      {
+        "file": "rapitas-frontend/src/app/HomeClient.tsx",
+        "importCount": 26
+      },
+      {
+        "file": "rapitas-backend/routes/agents/ai-agent.ts",
+        "importCount": 17
+      },
+      {
+        "file": "rapitas-frontend/src/app/layout.tsx",
+        "importCount": 14
+      },
+      {
+        "file": "rapitas-frontend/src/app/tasks/new/NewTaskClient.tsx",
+        "importCount": 13
+      },
+      {
+        "file": "rapitas-frontend/src/feature/tasks/components/TaskCard.tsx",
+        "importCount": 13
+      },
+      {
+        "file": "rapitas-frontend/src/components/Header.tsx",
+        "importCount": 11
+      },
+      {
+        "file": "rapitas-frontend/src/components/note/NoteEditor.tsx",
+        "importCount": 11
+      }
+    ],
+    "highFanInFiles": [
+      {
+        "file": "rapitas-frontend/src/utils/api",
+        "importedByCount": 92
+      },
+      {
+        "file": "rapitas-frontend/src/lib/logger",
+        "importedByCount": 90
+      },
+      {
+        "file": "rapitas-backend/config/logger",
+        "importedByCount": 78
+      },
+      {
+        "file": "rapitas-backend/config/database",
+        "importedByCount": 46
+      },
+      {
+        "file": "rapitas-frontend/src/components/ui/LoadingSpinner",
+        "importedByCount": 32
+      },
+      {
+        "file": "rapitas-backend/utils/ai-client",
+        "importedByCount": 13
+      },
+      {
+        "file": "rapitas-backend/middleware/error-handler",
+        "importedByCount": 13
+      },
+      {
+        "file": "rapitas-frontend/src/types",
+        "importedByCount": 12
+      },
+      {
+        "file": "rapitas-backend/utils/encryption",
+        "importedByCount": 11
+      },
+      {
+        "file": "rapitas-frontend/src/contexts/AuthContext",
+        "importedByCount": 11
+      },
+      {
+        "file": "rapitas-frontend/src/utils/tauri",
+        "importedByCount": 11
+      },
+      {
+        "file": "rapitas-frontend/src/components/ui/toast/ToastContainer",
+        "importedByCount": 11
+      },
+      {
+        "file": "rapitas-frontend/src/components/category/IconData",
+        "importedByCount": 11
+      },
+      {
+        "file": "rapitas-backend/config",
+        "importedByCount": 10
+      },
+      {
+        "file": "rapitas-backend/utils/db-helpers",
+        "importedByCount": 10
+      }
+    ]
+  },
+  "apiConsistency": {
+    "issues": [
+      {
+        "endpoint": "PUT /agents/:id/set-default",
+        "file": "rapitas-backend\\routes\\agents\\agent-config-router.ts",
+        "type": "verb_in_url",
+        "message": "Verb \"set\" in URL with PUT method. REST prefers nouns in URLs with HTTP verbs indicating the action."
+      },
+      {
+        "endpoint": "DELETE /agents/default",
+        "file": "rapitas-backend\\routes\\agents\\agent-config-router.ts",
+        "type": "missing_id",
+        "message": "DELETE without resource identifier in path"
+      },
+      {
+        "endpoint": "GET /agents/validate-config",
+        "file": "rapitas-backend\\routes\\agents\\agent-system-router.ts",
+        "type": "verb_in_url",
+        "message": "Verb \"validate\" in URL with GET method. REST prefers nouns in URLs with HTTP verbs indicating the action."
+      },
+      {
+        "endpoint": "GET /api/execution-logs/:executionId/download",
+        "file": "rapitas-backend\\routes\\agents\\execution-logs.ts",
+        "type": "verb_in_url",
+        "message": "Verb \"download\" in URL with GET method. REST prefers nouns in URLs with HTTP verbs indicating the action."
+      },
+      {
+        "endpoint": "GET /parallel/tasks/:id/analyze",
+        "file": "rapitas-backend\\routes\\agents\\parallel-execution.ts",
+        "type": "verb_in_url",
+        "message": "Verb \"analyze\" in URL with GET method. REST prefers nouns in URLs with HTTP verbs indicating the action."
+      },
+      {
+        "endpoint": "GET /parallel/tasks/:id/analyze/stream",
+        "file": "rapitas-backend\\routes\\agents\\parallel-execution.ts",
+        "type": "verb_in_url",
+        "message": "Verb \"analyze\" in URL with GET method. REST prefers nouns in URLs with HTTP verbs indicating the action."
+      },
+      {
+        "endpoint": "GET /resources/download/:filename",
+        "file": "rapitas-backend\\routes\\learning\\resources.ts",
+        "type": "verb_in_url",
+        "message": "Verb \"download\" in URL with GET method. REST prefers nouns in URLs with HTTP verbs indicating the action."
+      },
+      {
+        "endpoint": "PATCH /categories/:id/set-default",
+        "file": "rapitas-backend\\routes\\organization\\categories.ts",
+        "type": "verb_in_url",
+        "message": "Verb \"set\" in URL with PATCH method. REST prefers nouns in URLs with HTTP verbs indicating the action."
+      },
+      {
+        "endpoint": "PATCH /categories/reorder",
+        "file": "rapitas-backend\\routes\\organization\\categories.ts",
+        "type": "missing_id",
+        "message": "PATCH without resource identifier in path"
+      },
+      {
+        "endpoint": "PATCH /labels/reorder",
+        "file": "rapitas-backend\\routes\\organization\\labels.ts",
+        "type": "missing_id",
+        "message": "PATCH without resource identifier in path"
+      },
+      {
+        "endpoint": "GET /themes/default/get",
+        "file": "rapitas-backend\\routes\\organization\\themes.ts",
+        "type": "verb_in_url",
+        "message": "Verb \"get\" in URL with GET method. REST prefers nouns in URLs with HTTP verbs indicating the action."
+      },
+      {
+        "endpoint": "PATCH /themes/reorder",
+        "file": "rapitas-backend\\routes\\organization\\themes.ts",
+        "type": "missing_id",
+        "message": "PATCH without resource identifier in path"
+      },
+      {
+        "endpoint": "PATCH /themes/:id/set-default",
+        "file": "rapitas-backend\\routes\\organization\\themes.ts",
+        "type": "verb_in_url",
+        "message": "Verb \"set\" in URL with PATCH method. REST prefers nouns in URLs with HTTP verbs indicating the action."
+      },
+      {
+        "endpoint": "GET /directories/browse",
+        "file": "rapitas-backend\\routes\\system\\directories.ts",
+        "type": "verb_in_url",
+        "message": "Verb \"browse\" in URL with GET method. REST prefers nouns in URLs with HTTP verbs indicating the action."
+      },
+      {
+        "endpoint": "DELETE /notifications/",
+        "file": "rapitas-backend\\routes\\system\\notifications.ts",
+        "type": "missing_id",
+        "message": "DELETE without resource identifier in path"
+      },
+      {
+        "endpoint": "PATCH /settings/",
+        "file": "rapitas-backend\\routes\\system\\settings.ts",
+        "type": "missing_id",
+        "message": "PATCH without resource identifier in path"
+      },
+      {
+        "endpoint": "DELETE /settings/api-key",
+        "file": "rapitas-backend\\routes\\system\\settings.ts",
+        "type": "missing_id",
+        "message": "DELETE without resource identifier in path"
+      },
+      {
+        "endpoint": "GET /batchthemeId",
+        "file": "rapitas-backend\\routes\\tasks\\batch.ts",
+        "type": "inconsistent_casing",
+        "message": "Path segment \"batchthemeId\" uses non-kebab-case. REST convention prefers kebab-case."
+      },
+      {
+        "endpoint": "DELETE /tasks/suggestions/ai/cache",
+        "file": "rapitas-backend\\routes\\tasks\\tasks.ts",
+        "type": "missing_id",
+        "message": "DELETE without resource identifier in path"
+      },
+      {
+        "endpoint": "GET /workflow/tasks/:taskId/analyze-complexity",
+        "file": "rapitas-backend\\routes\\workflow\\workflow.ts",
+        "type": "verb_in_url",
+        "message": "Verb \"analyze\" in URL with GET method. REST prefers nouns in URLs with HTTP verbs indicating the action."
+      }
+    ],
+    "restConformanceScore": 94,
+    "duplicateEndpoints": [
+      {
+        "path": "GET /agents/config-schemas",
+        "files": [
+          "rapitas-backend\\routes\\agents\\agent-config-router.ts",
+          "rapitas-backend\\routes\\agents\\agent-system-router.ts"
+        ]
+      },
+      {
+        "path": "GET /authx-forwarded-for",
+        "files": [
+          "rapitas-backend\\routes\\system\\auth.ts"
+        ]
+      }
+    ]
+  },
+  "testCoverage": {
+    "details": [
+      {
+        "featureName": "タスク管理",
+        "sourceFiles": [
+          "rapitas-backend\\routes\\tasks\\batch-v2.ts",
+          "rapitas-backend\\routes\\tasks\\batch.ts",
+          "rapitas-backend\\routes\\tasks\\statistics.ts",
+          "rapitas-backend\\routes\\tasks\\task-analysis-config.ts",
+          "rapitas-backend\\routes\\tasks\\task-dependency.ts",
+          "rapitas-backend\\routes\\tasks\\tasks.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\task-definition.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\task-executor.ts",
+          "rapitas-backend\\services\\claude-agent\\task-analyzer.ts",
+          "rapitas-frontend\\src\\app\\task-detail\\page.tsx",
+          "rapitas-frontend\\src\\app\\tasks\\detail\\page.tsx",
+          "rapitas-frontend\\src\\app\\tasks\\new\\NewTaskClient.tsx",
+          "rapitas-frontend\\src\\app\\tasks\\new\\page.tsx",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\components\\TaskPomodoroButton.tsx",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\components\\TaskWorkflowSection.tsx",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\hooks\\useCommentSystem.ts",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\hooks\\useTaskActions.ts",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\page.tsx",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\TaskDetailClient.tsx",
+          "rapitas-frontend\\src\\components\\TodayTaskProgressBar.example.tsx",
+          "rapitas-frontend\\src\\components\\TodayTaskProgressBar.stories.tsx",
+          "rapitas-frontend\\src\\components\\TodayTaskProgressBar.tsx",
+          "rapitas-frontend\\src\\components\\ui\\skeleton\\TaskDetailSkeleton.tsx",
+          "rapitas-frontend\\src\\feature\\developer-mode\\components\\SubtaskLogTabs.tsx",
+          "rapitas-frontend\\src\\feature\\developer-mode\\components\\TaskAnalysisPanel.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\CommentsSection.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\CompactTaskDetailCard.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\dialog\\ApplyTemplateDialog.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\dialog\\SaveAsTemplateDialog.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\dialog\\TimeEntryDialog.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\FileUploader.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\LabelSelector.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\MarkdownComponents.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\MemoSection.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\PomodoroTimer.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\PriorityIcon.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\SubtaskExecutionStatus.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\SubtaskList.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\SubtaskStatusButtons.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskCard.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskComments.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskCompleteOverlay.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskCompletionAnimation.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskDescription.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskDetail.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskHeader.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskSlidePanel.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskStatusChange.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskSuggestionDetail.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskSuggestions.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskTimerManagement.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskTitleAutocomplete.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\config\\StatusConfig.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\hooks\\useParallelExecutionStatus.ts",
+          "rapitas-frontend\\src\\feature\\tasks\\hooks\\useSubtaskLogs.ts",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\GlobalPomodoroModal.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\GlobalPomodoroWidget.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\PomodoroProvider.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\PomodoroStatistics.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\pomodoroStore.ts",
+          "rapitas-frontend\\src\\hooks\\useExecutingTasksPolling.ts",
+          "rapitas-frontend\\src\\hooks\\useFilteredTasks.ts",
+          "rapitas-frontend\\src\\hooks\\useTaskAutoSync.ts",
+          "rapitas-frontend\\src\\hooks\\useTaskSearch.ts",
+          "rapitas-frontend\\src\\hooks\\useTaskSorting.ts",
+          "rapitas-frontend\\src\\lib\\task-api.ts",
+          "rapitas-frontend\\src\\stores\\taskCacheStore.ts",
+          "rapitas-frontend\\src\\stores\\taskDetailVisibilityStore.ts"
+        ],
+        "testFiles": [],
+        "untestedFiles": [
+          "rapitas-backend\\routes\\tasks\\batch-v2.ts",
+          "rapitas-backend\\routes\\tasks\\batch.ts",
+          "rapitas-backend\\routes\\tasks\\statistics.ts",
+          "rapitas-backend\\routes\\tasks\\task-analysis-config.ts",
+          "rapitas-backend\\routes\\tasks\\task-dependency.ts",
+          "rapitas-backend\\routes\\tasks\\tasks.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\task-definition.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\task-executor.ts",
+          "rapitas-backend\\services\\claude-agent\\task-analyzer.ts",
+          "rapitas-frontend\\src\\app\\task-detail\\page.tsx",
+          "rapitas-frontend\\src\\app\\tasks\\detail\\page.tsx",
+          "rapitas-frontend\\src\\app\\tasks\\new\\NewTaskClient.tsx",
+          "rapitas-frontend\\src\\app\\tasks\\new\\page.tsx",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\components\\TaskPomodoroButton.tsx",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\components\\TaskWorkflowSection.tsx",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\hooks\\useCommentSystem.ts",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\hooks\\useTaskActions.ts",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\page.tsx",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\TaskDetailClient.tsx",
+          "rapitas-frontend\\src\\components\\TodayTaskProgressBar.example.tsx",
+          "rapitas-frontend\\src\\components\\TodayTaskProgressBar.stories.tsx",
+          "rapitas-frontend\\src\\components\\TodayTaskProgressBar.tsx",
+          "rapitas-frontend\\src\\components\\ui\\skeleton\\TaskDetailSkeleton.tsx",
+          "rapitas-frontend\\src\\feature\\developer-mode\\components\\SubtaskLogTabs.tsx",
+          "rapitas-frontend\\src\\feature\\developer-mode\\components\\TaskAnalysisPanel.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\CommentsSection.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\CompactTaskDetailCard.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\dialog\\ApplyTemplateDialog.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\dialog\\SaveAsTemplateDialog.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\dialog\\TimeEntryDialog.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\FileUploader.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\LabelSelector.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\MarkdownComponents.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\MemoSection.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\PomodoroTimer.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\PriorityIcon.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\SubtaskExecutionStatus.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\SubtaskList.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\SubtaskStatusButtons.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskCard.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskComments.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskCompleteOverlay.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskCompletionAnimation.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskDescription.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskDetail.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskHeader.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskSlidePanel.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskStatusChange.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskSuggestionDetail.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskSuggestions.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskTimerManagement.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskTitleAutocomplete.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\config\\StatusConfig.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\hooks\\useParallelExecutionStatus.ts",
+          "rapitas-frontend\\src\\feature\\tasks\\hooks\\useSubtaskLogs.ts",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\GlobalPomodoroModal.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\GlobalPomodoroWidget.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\PomodoroProvider.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\PomodoroStatistics.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\pomodoroStore.ts",
+          "rapitas-frontend\\src\\hooks\\useExecutingTasksPolling.ts",
+          "rapitas-frontend\\src\\hooks\\useFilteredTasks.ts",
+          "rapitas-frontend\\src\\hooks\\useTaskAutoSync.ts",
+          "rapitas-frontend\\src\\hooks\\useTaskSearch.ts",
+          "rapitas-frontend\\src\\hooks\\useTaskSorting.ts",
+          "rapitas-frontend\\src\\lib\\task-api.ts",
+          "rapitas-frontend\\src\\stores\\taskCacheStore.ts",
+          "rapitas-frontend\\src\\stores\\taskDetailVisibilityStore.ts"
+        ],
+        "coverageRatio": 0
+      },
+      {
+        "featureName": "ポモドーロ/時間管理",
+        "sourceFiles": [
+          "rapitas-backend\\routes\\scheduling\\pomodoro.ts",
+          "rapitas-backend\\routes\\scheduling\\time-entries.ts",
+          "rapitas-backend\\services\\pomodoro-service.ts",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\components\\TaskPomodoroButton.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\PomodoroTimer.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskTimerManagement.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\GlobalPomodoroModal.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\GlobalPomodoroWidget.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\PomodoroProvider.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\PomodoroStatistics.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\pomodoroStore.ts"
+        ],
+        "testFiles": [
+          "rapitas-backend\\tests\\pomodoro-service.test.ts"
+        ],
+        "untestedFiles": [
+          "rapitas-backend\\routes\\scheduling\\time-entries.ts",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\components\\TaskPomodoroButton.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\PomodoroTimer.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\components\\TaskTimerManagement.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\GlobalPomodoroModal.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\GlobalPomodoroWidget.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\PomodoroProvider.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\PomodoroStatistics.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\pomodoroStore.ts"
+        ],
+        "coverageRatio": 0.18
+      },
+      {
+        "featureName": "AIエージェント",
+        "sourceFiles": [
+          "rapitas-backend\\routes\\agents\\agent-audit-router.ts",
+          "rapitas-backend\\routes\\agents\\agent-config-router.ts",
+          "rapitas-backend\\routes\\agents\\agent-execution-config.ts",
+          "rapitas-backend\\routes\\agents\\agent-execution-router.ts",
+          "rapitas-backend\\routes\\agents\\agent-metrics.ts",
+          "rapitas-backend\\routes\\agents\\agent-session-router.ts",
+          "rapitas-backend\\routes\\agents\\agent-system-router.ts",
+          "rapitas-backend\\routes\\agents\\agent-version-management.ts",
+          "rapitas-backend\\routes\\agents\\ai-agent.ts",
+          "rapitas-backend\\routes\\agents\\approvals.ts",
+          "rapitas-backend\\routes\\agents\\cli-tools-management.ts",
+          "rapitas-backend\\routes\\agents\\execution-logs.ts",
+          "rapitas-backend\\routes\\agents\\parallel-execution.ts",
+          "rapitas-backend\\routes\\ai\\ai-chat.ts",
+          "rapitas-backend\\services\\agent-config-service.ts",
+          "rapitas-backend\\services\\agent-execution-service.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\abstract-agent.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\error-handler.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\event-emitter.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\execution-manager.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\index.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\interfaces.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\logger.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\metrics-collector.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\providers\\claude-code-agent-adapter.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\providers\\claude-code-provider.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\providers\\index.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\registry.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\agent-identification.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\events.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\execution-context.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\execution-result.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\index.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\lifecycle-hooks.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\provider-config.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\task-definition.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\utility-types.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types.ts",
+          "rapitas-backend\\services\\agents\\agent-factory.ts",
+          "rapitas-backend\\services\\agents\\agent-orchestrator.ts",
+          "rapitas-backend\\services\\agents\\agent-service.ts",
+          "rapitas-backend\\services\\agents\\base-agent.ts",
+          "rapitas-backend\\services\\agents\\claude-code-agent.ts",
+          "rapitas-backend\\services\\agents\\codex-cli-agent.ts",
+          "rapitas-backend\\services\\agents\\execution-file-logger.ts",
+          "rapitas-backend\\services\\agents\\gemini-cli-agent.ts",
+          "rapitas-backend\\services\\agents\\index.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\continuation-executor.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\event-manager.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\execution-helpers.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\git-operations.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\index.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\lifecycle-manager.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\question-timeout-manager.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\recovery-manager.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\task-executor.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\types.ts",
+          "rapitas-backend\\services\\agents\\providers\\anthropic-api-provider.ts",
+          "rapitas-backend\\services\\agents\\providers\\claude-code-provider.ts",
+          "rapitas-backend\\services\\agents\\providers\\gemini-cli-provider.ts",
+          "rapitas-backend\\services\\agents\\providers\\gemini-provider.ts",
+          "rapitas-backend\\services\\agents\\providers\\index.ts",
+          "rapitas-backend\\services\\agents\\providers\\openai-provider.ts",
+          "rapitas-backend\\services\\agents\\question-detection\\constants.ts",
+          "rapitas-backend\\services\\agents\\question-detection\\detection.ts",
+          "rapitas-backend\\services\\agents\\question-detection\\index.ts",
+          "rapitas-backend\\services\\agents\\question-detection\\legacy.ts",
+          "rapitas-backend\\services\\agents\\question-detection\\timeout.ts",
+          "rapitas-backend\\services\\agents\\question-detection\\types.ts",
+          "rapitas-backend\\services\\agents\\question-detection\\validation.ts",
+          "rapitas-backend\\services\\agents\\unified-interface\\agent-config.ts",
+          "rapitas-backend\\services\\agents\\unified-interface\\errors.ts",
+          "rapitas-backend\\services\\agents\\unified-interface\\handlers.ts",
+          "rapitas-backend\\services\\agents\\unified-interface\\index.ts",
+          "rapitas-backend\\services\\agents\\unified-interface\\interfaces.ts",
+          "rapitas-backend\\services\\agents\\unified-interface\\provider-config.ts",
+          "rapitas-backend\\services\\agents\\unified-interface\\results.ts",
+          "rapitas-backend\\services\\agents\\unified-interface\\utilities.ts",
+          "rapitas-backend\\services\\claude-agent\\api-key-check.ts",
+          "rapitas-backend\\services\\claude-agent\\index.ts",
+          "rapitas-backend\\services\\claude-agent\\naming-service.ts",
+          "rapitas-backend\\services\\claude-agent\\prompt-optimizer.ts",
+          "rapitas-backend\\services\\claude-agent\\task-analyzer.ts",
+          "rapitas-backend\\services\\claude-agent\\types.ts",
+          "rapitas-backend\\services\\parallel-execution\\agent-coordinator.ts",
+          "rapitas-backend\\services\\parallel-execution\\sub-agent-controller.ts",
+          "rapitas-backend\\types\\agent-execution-types.ts",
+          "rapitas-backend\\types\\agent-types.ts",
+          "rapitas-backend\\utils\\agent-audit-log.ts",
+          "rapitas-backend\\utils\\agent-config-schema.ts",
+          "rapitas-backend\\utils\\agent-executor-factory.ts",
+          "rapitas-backend\\utils\\agent-models.ts",
+          "rapitas-backend\\utils\\agent-response-cleaner.ts",
+          "rapitas-backend\\utils\\ai-client\\claude-provider.ts",
+          "rapitas-frontend\\src\\app\\agents\\metrics\\page.tsx",
+          "rapitas-frontend\\src\\app\\agents\\page.tsx",
+          "rapitas-frontend\\src\\app\\agents\\versions\\page.tsx",
+          "rapitas-frontend\\src\\app\\agents\\[id]\\settings\\AgentSettingsClient.tsx",
+          "rapitas-frontend\\src\\app\\agents\\[id]\\settings\\page.tsx",
+          "rapitas-frontend\\src\\app\\api\\generate-claude-md\\route.ts",
+          "rapitas-frontend\\src\\app\\claude-md-generator\\page.tsx",
+          "rapitas-frontend\\src\\components\\ui\\AgentSwitcher.tsx",
+          "rapitas-frontend\\src\\feature\\developer-mode\\components\\AgentExecutionPanel.tsx",
+          "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useAgentExecution.ts"
+        ],
+        "testFiles": [
+          "rapitas-backend\\tests\\agent-audit-router.test.ts",
+          "rapitas-backend\\tests\\agent-config-router.test.ts",
+          "rapitas-backend\\tests\\agent-execution-router.test.ts",
+          "rapitas-backend\\tests\\agent-response-cleaner.test.ts",
+          "rapitas-backend\\tests\\agent-session-router.test.ts",
+          "rapitas-backend\\tests\\agent-system-router.test.ts",
+          "rapitas-backend\\tests\\claude-code-agent.integration.test.ts"
+        ],
+        "untestedFiles": [
+          "rapitas-backend\\routes\\agents\\agent-execution-config.ts",
+          "rapitas-backend\\routes\\agents\\agent-metrics.ts",
+          "rapitas-backend\\routes\\agents\\agent-version-management.ts",
+          "rapitas-backend\\routes\\agents\\ai-agent.ts",
+          "rapitas-backend\\routes\\agents\\approvals.ts",
+          "rapitas-backend\\routes\\agents\\cli-tools-management.ts",
+          "rapitas-backend\\routes\\agents\\execution-logs.ts",
+          "rapitas-backend\\routes\\agents\\parallel-execution.ts",
+          "rapitas-backend\\routes\\ai\\ai-chat.ts",
+          "rapitas-backend\\services\\agent-config-service.ts",
+          "rapitas-backend\\services\\agent-execution-service.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\abstract-agent.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\error-handler.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\event-emitter.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\execution-manager.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\index.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\interfaces.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\logger.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\metrics-collector.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\providers\\claude-code-agent-adapter.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\providers\\claude-code-provider.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\providers\\index.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\registry.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\agent-identification.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\events.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\execution-context.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\execution-result.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\index.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\lifecycle-hooks.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\provider-config.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\task-definition.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types\\utility-types.ts",
+          "rapitas-backend\\services\\agents\\abstraction\\types.ts",
+          "rapitas-backend\\services\\agents\\agent-factory.ts",
+          "rapitas-backend\\services\\agents\\agent-orchestrator.ts",
+          "rapitas-backend\\services\\agents\\agent-service.ts",
+          "rapitas-backend\\services\\agents\\base-agent.ts",
+          "rapitas-backend\\services\\agents\\codex-cli-agent.ts",
+          "rapitas-backend\\services\\agents\\execution-file-logger.ts",
+          "rapitas-backend\\services\\agents\\gemini-cli-agent.ts",
+          "rapitas-backend\\services\\agents\\index.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\continuation-executor.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\event-manager.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\execution-helpers.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\git-operations.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\index.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\lifecycle-manager.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\question-timeout-manager.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\recovery-manager.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\task-executor.ts",
+          "rapitas-backend\\services\\agents\\orchestrator\\types.ts",
+          "rapitas-backend\\services\\agents\\providers\\anthropic-api-provider.ts",
+          "rapitas-backend\\services\\agents\\providers\\claude-code-provider.ts",
+          "rapitas-backend\\services\\agents\\providers\\gemini-cli-provider.ts",
+          "rapitas-backend\\services\\agents\\providers\\gemini-provider.ts",
+          "rapitas-backend\\services\\agents\\providers\\index.ts",
+          "rapitas-backend\\services\\agents\\providers\\openai-provider.ts",
+          "rapitas-backend\\services\\agents\\question-detection\\constants.ts",
+          "rapitas-backend\\services\\agents\\question-detection\\detection.ts",
+          "rapitas-backend\\services\\agents\\question-detection\\index.ts",
+          "rapitas-backend\\services\\agents\\question-detection\\legacy.ts",
+          "rapitas-backend\\services\\agents\\question-detection\\timeout.ts",
+          "rapitas-backend\\services\\agents\\question-detection\\types.ts",
+          "rapitas-backend\\services\\agents\\question-detection\\validation.ts",
+          "rapitas-backend\\services\\agents\\unified-interface\\errors.ts",
+          "rapitas-backend\\services\\agents\\unified-interface\\handlers.ts",
+          "rapitas-backend\\services\\agents\\unified-interface\\index.ts",
+          "rapitas-backend\\services\\agents\\unified-interface\\interfaces.ts",
+          "rapitas-backend\\services\\agents\\unified-interface\\provider-config.ts",
+          "rapitas-backend\\services\\agents\\unified-interface\\results.ts",
+          "rapitas-backend\\services\\agents\\unified-interface\\utilities.ts",
+          "rapitas-backend\\services\\claude-agent\\api-key-check.ts",
+          "rapitas-backend\\services\\claude-agent\\index.ts",
+          "rapitas-backend\\services\\claude-agent\\naming-service.ts",
+          "rapitas-backend\\services\\claude-agent\\prompt-optimizer.ts",
+          "rapitas-backend\\services\\claude-agent\\task-analyzer.ts",
+          "rapitas-backend\\services\\claude-agent\\types.ts",
+          "rapitas-backend\\services\\parallel-execution\\agent-coordinator.ts",
+          "rapitas-backend\\services\\parallel-execution\\sub-agent-controller.ts",
+          "rapitas-backend\\types\\agent-execution-types.ts",
+          "rapitas-backend\\types\\agent-types.ts",
+          "rapitas-backend\\utils\\agent-audit-log.ts",
+          "rapitas-backend\\utils\\agent-config-schema.ts",
+          "rapitas-backend\\utils\\agent-executor-factory.ts",
+          "rapitas-backend\\utils\\agent-models.ts",
+          "rapitas-backend\\utils\\ai-client\\claude-provider.ts",
+          "rapitas-frontend\\src\\app\\agents\\metrics\\page.tsx",
+          "rapitas-frontend\\src\\app\\agents\\page.tsx",
+          "rapitas-frontend\\src\\app\\agents\\versions\\page.tsx",
+          "rapitas-frontend\\src\\app\\agents\\[id]\\settings\\AgentSettingsClient.tsx",
+          "rapitas-frontend\\src\\app\\agents\\[id]\\settings\\page.tsx",
+          "rapitas-frontend\\src\\app\\claude-md-generator\\page.tsx",
+          "rapitas-frontend\\src\\components\\ui\\AgentSwitcher.tsx",
+          "rapitas-frontend\\src\\feature\\developer-mode\\components\\AgentExecutionPanel.tsx",
+          "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useAgentExecution.ts"
+        ],
+        "coverageRatio": 0.09
+      },
+      {
+        "featureName": "ワークフロー",
+        "sourceFiles": [
+          "rapitas-backend\\routes\\workflow\\workflow-roles.ts",
+          "rapitas-backend\\routes\\workflow\\workflow.ts",
+          "rapitas-backend\\services\\workflow\\complexity-analyzer.ts",
+          "rapitas-backend\\services\\workflow\\index.ts",
+          "rapitas-backend\\services\\workflow\\workflow-orchestrator.ts",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\components\\TaskWorkflowSection.tsx",
+          "rapitas-frontend\\src\\components\\workflow\\CompactWorkflowSelector.tsx",
+          "rapitas-frontend\\src\\components\\workflow\\ComplexityIndicator.tsx",
+          "rapitas-frontend\\src\\components\\workflow\\PlanApprovalModal.tsx",
+          "rapitas-frontend\\src\\components\\workflow\\WorkflowModeSelector.tsx",
+          "rapitas-frontend\\src\\components\\workflow\\WorkflowRolesConfig.tsx",
+          "rapitas-frontend\\src\\components\\workflow\\WorkflowStatusIndicator.tsx",
+          "rapitas-frontend\\src\\components\\workflow\\WorkflowViewer.tsx",
+          "rapitas-frontend\\src\\hooks\\useWorkflowApproval.ts",
+          "rapitas-frontend\\src\\hooks\\useWorkflowFiles.ts",
+          "rapitas-frontend\\src\\hooks\\useWorkflowRoles.ts"
+        ],
+        "testFiles": [],
+        "untestedFiles": [
+          "rapitas-backend\\routes\\workflow\\workflow-roles.ts",
+          "rapitas-backend\\routes\\workflow\\workflow.ts",
+          "rapitas-backend\\services\\workflow\\complexity-analyzer.ts",
+          "rapitas-backend\\services\\workflow\\index.ts",
+          "rapitas-backend\\services\\workflow\\workflow-orchestrator.ts",
+          "rapitas-frontend\\src\\app\\tasks\\[id]\\components\\TaskWorkflowSection.tsx",
+          "rapitas-frontend\\src\\components\\workflow\\CompactWorkflowSelector.tsx",
+          "rapitas-frontend\\src\\components\\workflow\\ComplexityIndicator.tsx",
+          "rapitas-frontend\\src\\components\\workflow\\PlanApprovalModal.tsx",
+          "rapitas-frontend\\src\\components\\workflow\\WorkflowModeSelector.tsx",
+          "rapitas-frontend\\src\\components\\workflow\\WorkflowRolesConfig.tsx",
+          "rapitas-frontend\\src\\components\\workflow\\WorkflowStatusIndicator.tsx",
+          "rapitas-frontend\\src\\components\\workflow\\WorkflowViewer.tsx",
+          "rapitas-frontend\\src\\hooks\\useWorkflowApproval.ts",
+          "rapitas-frontend\\src\\hooks\\useWorkflowFiles.ts",
+          "rapitas-frontend\\src\\hooks\\useWorkflowRoles.ts"
+        ],
+        "coverageRatio": 0
+      },
+      {
+        "featureName": "GitHub連携",
+        "sourceFiles": [
+          "rapitas-backend\\routes\\social\\github.ts",
+          "rapitas-backend\\schemas\\github.schema.ts",
+          "rapitas-backend\\services\\github-service.ts",
+          "rapitas-frontend\\src\\app\\github\\issues\\IssuesClient.tsx",
+          "rapitas-frontend\\src\\app\\github\\issues\\page.tsx",
+          "rapitas-frontend\\src\\app\\github\\page.tsx",
+          "rapitas-frontend\\src\\app\\github\\pull-requests\\page.tsx",
+          "rapitas-frontend\\src\\app\\github\\pull-requests\\PullRequestsClient.tsx",
+          "rapitas-frontend\\src\\app\\github\\pull-requests\\[id]\\page.tsx",
+          "rapitas-frontend\\src\\app\\github\\pull-requests\\[id]\\PullRequestDetailClient.tsx",
+          "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useGitHubIntegration.ts"
+        ],
+        "testFiles": [],
+        "untestedFiles": [
+          "rapitas-backend\\routes\\social\\github.ts",
+          "rapitas-backend\\schemas\\github.schema.ts",
+          "rapitas-backend\\services\\github-service.ts",
+          "rapitas-frontend\\src\\app\\github\\issues\\IssuesClient.tsx",
+          "rapitas-frontend\\src\\app\\github\\issues\\page.tsx",
+          "rapitas-frontend\\src\\app\\github\\page.tsx",
+          "rapitas-frontend\\src\\app\\github\\pull-requests\\page.tsx",
+          "rapitas-frontend\\src\\app\\github\\pull-requests\\PullRequestsClient.tsx",
+          "rapitas-frontend\\src\\app\\github\\pull-requests\\[id]\\page.tsx",
+          "rapitas-frontend\\src\\app\\github\\pull-requests\\[id]\\PullRequestDetailClient.tsx",
+          "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useGitHubIntegration.ts"
+        ],
+        "coverageRatio": 0
+      },
+      {
+        "featureName": "認証",
+        "sourceFiles": [
+          "rapitas-backend\\routes\\agents\\agent-session-router.ts",
+          "rapitas-backend\\routes\\system\\auth.ts",
+          "rapitas-frontend\\src\\app\\auth\\layout.tsx",
+          "rapitas-frontend\\src\\app\\auth\\login\\page.tsx",
+          "rapitas-frontend\\src\\app\\auth\\register\\page.tsx",
+          "rapitas-frontend\\src\\contexts\\AuthContext.tsx"
+        ],
+        "testFiles": [
+          "rapitas-backend\\tests\\agent-session-router.test.ts"
+        ],
+        "untestedFiles": [
+          "rapitas-backend\\routes\\system\\auth.ts",
+          "rapitas-frontend\\src\\app\\auth\\layout.tsx",
+          "rapitas-frontend\\src\\app\\auth\\login\\page.tsx",
+          "rapitas-frontend\\src\\app\\auth\\register\\page.tsx",
+          "rapitas-frontend\\src\\contexts\\AuthContext.tsx"
+        ],
+        "coverageRatio": 0.17
+      },
+      {
+        "featureName": "通知",
+        "sourceFiles": [
+          "rapitas-backend\\routes\\system\\notifications.ts",
+          "rapitas-backend\\services\\notification-service.ts",
+          "rapitas-frontend\\src\\components\\NotificationBell.tsx",
+          "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useNotifications.ts",
+          "rapitas-frontend\\src\\utils\\notification.ts"
+        ],
+        "testFiles": [
+          "rapitas-backend\\tests\\notification-service.test.ts"
+        ],
+        "untestedFiles": [
+          "rapitas-backend\\routes\\system\\notifications.ts",
+          "rapitas-frontend\\src\\components\\NotificationBell.tsx",
+          "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useNotifications.ts"
+        ],
+        "coverageRatio": 0.4
+      },
+      {
+        "featureName": "検索",
+        "sourceFiles": [
+          "rapitas-backend\\routes\\system\\search.ts",
+          "rapitas-frontend\\src\\app\\search\\page.tsx",
+          "rapitas-frontend\\src\\app\\search\\SearchClient.tsx",
+          "rapitas-frontend\\src\\components\\category\\icon-search.ts",
+          "rapitas-frontend\\src\\feature\\search\\components\\SearchResultCard.tsx",
+          "rapitas-frontend\\src\\hooks\\useGlobalSearch.ts",
+          "rapitas-frontend\\src\\hooks\\useTaskSearch.ts"
+        ],
+        "testFiles": [],
+        "untestedFiles": [
+          "rapitas-backend\\routes\\system\\search.ts",
+          "rapitas-frontend\\src\\app\\search\\page.tsx",
+          "rapitas-frontend\\src\\app\\search\\SearchClient.tsx",
+          "rapitas-frontend\\src\\components\\category\\icon-search.ts",
+          "rapitas-frontend\\src\\feature\\search\\components\\SearchResultCard.tsx",
+          "rapitas-frontend\\src\\hooks\\useGlobalSearch.ts",
+          "rapitas-frontend\\src\\hooks\\useTaskSearch.ts"
+        ],
+        "coverageRatio": 0
+      },
+      {
+        "featureName": "カレンダー/スケジュール",
+        "sourceFiles": [
+          "rapitas-backend\\routes\\scheduling\\daily-schedule.ts",
+          "rapitas-backend\\routes\\scheduling\\schedules.ts",
+          "rapitas-backend\\services\\parallel-execution\\parallel-scheduler.ts",
+          "rapitas-backend\\src\\services\\behaviorScheduler.ts",
+          "rapitas-frontend\\src\\app\\calendar\\page.tsx",
+          "rapitas-frontend\\src\\app\\habits\\daily-schedule\\page.tsx",
+          "rapitas-frontend\\src\\components\\ScheduleReminderProvider.tsx",
+          "rapitas-frontend\\src\\feature\\calendar\\components\\PaidLeaveDialog.tsx",
+          "rapitas-frontend\\src\\feature\\calendar\\components\\ScheduleEventDialog.tsx",
+          "rapitas-frontend\\src\\hooks\\use-schedule-reminders.ts"
+        ],
+        "testFiles": [],
+        "untestedFiles": [
+          "rapitas-backend\\routes\\scheduling\\daily-schedule.ts",
+          "rapitas-backend\\routes\\scheduling\\schedules.ts",
+          "rapitas-backend\\services\\parallel-execution\\parallel-scheduler.ts",
+          "rapitas-backend\\src\\services\\behaviorScheduler.ts",
+          "rapitas-frontend\\src\\app\\calendar\\page.tsx",
+          "rapitas-frontend\\src\\app\\habits\\daily-schedule\\page.tsx",
+          "rapitas-frontend\\src\\components\\ScheduleReminderProvider.tsx",
+          "rapitas-frontend\\src\\feature\\calendar\\components\\PaidLeaveDialog.tsx",
+          "rapitas-frontend\\src\\feature\\calendar\\components\\ScheduleEventDialog.tsx",
+          "rapitas-frontend\\src\\hooks\\use-schedule-reminders.ts"
+        ],
+        "coverageRatio": 0
+      },
+      {
+        "featureName": "学習/習慣",
+        "sourceFiles": [
+          "rapitas-backend\\routes\\learning\\exam-goals.ts",
+          "rapitas-backend\\routes\\learning\\flashcards.ts",
+          "rapitas-backend\\routes\\learning\\learning-goals.ts",
+          "rapitas-backend\\routes\\learning\\resources.ts",
+          "rapitas-backend\\routes\\learning\\study-streaks.ts",
+          "rapitas-backend\\routes\\lifestyle\\habits.ts",
+          "rapitas-frontend\\src\\app\\exam-goals\\page.tsx",
+          "rapitas-frontend\\src\\app\\flashcards\\page.tsx",
+          "rapitas-frontend\\src\\app\\habits\\daily-schedule\\page.tsx",
+          "rapitas-frontend\\src\\app\\habits\\page.tsx",
+          "rapitas-frontend\\src\\app\\learning-goals\\page.tsx",
+          "rapitas-frontend\\src\\components\\exam-countdown\\ExamCountdown.tsx",
+          "rapitas-frontend\\src\\components\\TodayTaskProgressBar.example.tsx",
+          "rapitas-frontend\\src\\components\\ui\\status-card\\StatusCard.example.tsx"
+        ],
+        "testFiles": [],
+        "untestedFiles": [
+          "rapitas-backend\\routes\\learning\\exam-goals.ts",
+          "rapitas-backend\\routes\\learning\\flashcards.ts",
+          "rapitas-backend\\routes\\learning\\learning-goals.ts",
+          "rapitas-backend\\routes\\learning\\resources.ts",
+          "rapitas-backend\\routes\\learning\\study-streaks.ts",
+          "rapitas-backend\\routes\\lifestyle\\habits.ts",
+          "rapitas-frontend\\src\\app\\exam-goals\\page.tsx",
+          "rapitas-frontend\\src\\app\\flashcards\\page.tsx",
+          "rapitas-frontend\\src\\app\\habits\\daily-schedule\\page.tsx",
+          "rapitas-frontend\\src\\app\\habits\\page.tsx",
+          "rapitas-frontend\\src\\app\\learning-goals\\page.tsx",
+          "rapitas-frontend\\src\\components\\exam-countdown\\ExamCountdown.tsx",
+          "rapitas-frontend\\src\\components\\TodayTaskProgressBar.example.tsx",
+          "rapitas-frontend\\src\\components\\ui\\status-card\\StatusCard.example.tsx"
+        ],
+        "coverageRatio": 0
+      },
+      {
+        "featureName": "分析/レポート",
+        "sourceFiles": [
+          "rapitas-backend\\routes\\analytics\\achievements.ts",
+          "rapitas-backend\\routes\\analytics\\reports.ts",
+          "rapitas-backend\\routes\\analytics\\statistics.ts",
+          "rapitas-backend\\routes\\tasks\\statistics.ts",
+          "rapitas-backend\\services\\achievement-checker.ts",
+          "rapitas-frontend\\src\\app\\achievements\\page.tsx",
+          "rapitas-frontend\\src\\app\\reports\\page.tsx",
+          "rapitas-frontend\\src\\components\\AchievementToast.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\PomodoroStatistics.tsx"
+        ],
+        "testFiles": [
+          "rapitas-backend\\tests\\achievement-checker.test.ts"
+        ],
+        "untestedFiles": [
+          "rapitas-backend\\routes\\analytics\\achievements.ts",
+          "rapitas-backend\\routes\\analytics\\reports.ts",
+          "rapitas-backend\\routes\\analytics\\statistics.ts",
+          "rapitas-backend\\routes\\tasks\\statistics.ts",
+          "rapitas-frontend\\src\\app\\achievements\\page.tsx",
+          "rapitas-frontend\\src\\app\\reports\\page.tsx",
+          "rapitas-frontend\\src\\components\\AchievementToast.tsx",
+          "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\PomodoroStatistics.tsx"
+        ],
+        "coverageRatio": 0.11
+      }
+    ],
+    "overallCoverageRatio": 0.06,
+    "untestedCriticalFiles": [
+      "rapitas-backend\\scripts\\analyze-codebase.ts (1838 lines)",
+      "rapitas-frontend\\src\\feature\\developer-mode\\components\\AIAccordionPanel.tsx (1699 lines)",
+      "rapitas-frontend\\src\\app\\HomeClient.tsx (1566 lines)",
+      "rapitas-frontend\\src\\feature\\developer-mode\\components\\DeveloperModeConfig.tsx (1559 lines)",
+      "rapitas-backend\\routes\\agents\\ai-agent.ts (1528 lines)",
+      "rapitas-backend\\routes\\tasks\\tasks.ts (1462 lines)",
+      "rapitas-frontend\\src\\app\\tasks\\[id]\\TaskDetailClient.tsx (1426 lines)",
+      "rapitas-frontend\\src\\feature\\developer-mode\\components\\AIAnalysisPanel.tsx (1419 lines)",
+      "rapitas-frontend\\src\\feature\\tasks\\components\\MemoSection.tsx (1408 lines)",
+      "rapitas-frontend\\src\\components\\Header.tsx (1282 lines)",
+      "rapitas-backend\\services\\parallel-execution\\sub-agent-controller.ts (1250 lines)",
+      "rapitas-frontend\\src\\app\\themes\\page.tsx (1193 lines)",
+      "rapitas-backend\\services\\agents\\gemini-cli-agent.ts (1140 lines)",
+      "rapitas-frontend\\src\\feature\\developer-mode\\components\\AgentExecutionPanel.tsx (1139 lines)",
+      "rapitas-backend\\services\\screenshot-service.ts (1131 lines)",
+      "rapitas-backend\\routes\\agents\\approvals.ts (1118 lines)",
+      "rapitas-frontend\\src\\app\\calendar\\page.tsx (1104 lines)",
+      "rapitas-frontend\\src\\app\\learning-goals\\page.tsx (1101 lines)",
+      "rapitas-frontend\\src\\types\\index.ts (1101 lines)",
+      "rapitas-backend\\services\\agents\\codex-cli-agent.ts (1089 lines)"
+    ]
+  },
+  "architectureHealth": {
+    "couplingScore": 49,
+    "cohesionScore": 100,
+    "modularity": 58,
+    "highCouplingFiles": [
+      {
+        "file": "rapitas-frontend/src/app/tasks/[id]/TaskDetailClient.tsx",
+        "importCount": 30,
+        "importedByCount": 0
+      },
+      {
+        "file": "rapitas-frontend/src/app/HomeClient.tsx",
+        "importCount": 26,
+        "importedByCount": 0
+      },
+      {
+        "file": "rapitas-backend/routes/agents/ai-agent.ts",
+        "importCount": 17,
+        "importedByCount": 0
+      },
+      {
+        "file": "rapitas-frontend/src/app/layout.tsx",
+        "importCount": 14,
+        "importedByCount": 0
+      },
+      {
+        "file": "rapitas-frontend/src/app/tasks/new/NewTaskClient.tsx",
+        "importCount": 13,
+        "importedByCount": 0
+      },
+      {
+        "file": "rapitas-frontend/src/feature/tasks/components/TaskCard.tsx",
+        "importCount": 13,
+        "importedByCount": 0
+      },
+      {
+        "file": "rapitas-frontend/src/components/Header.tsx",
+        "importCount": 11,
+        "importedByCount": 0
+      },
+      {
+        "file": "rapitas-frontend/src/components/note/NoteEditor.tsx",
+        "importCount": 11,
+        "importedByCount": 0
+      }
+    ],
+    "isolatedFiles": [
+      "rapitas-backend\\config\\index.ts",
+      "rapitas-backend\\global.d.ts",
+      "rapitas-backend\\middleware\\index.ts",
+      "rapitas-backend\\routes\\index.ts",
+      "rapitas-backend\\schemas\\index.ts",
+      "rapitas-backend\\services\\agents\\abstraction\\types\\agent-identification.ts",
+      "rapitas-backend\\services\\agents\\abstraction\\types\\index.ts",
+      "rapitas-backend\\services\\agents\\abstraction\\types\\task-definition.ts",
+      "rapitas-backend\\services\\agents\\abstraction\\types\\utility-types.ts",
+      "rapitas-backend\\services\\agents\\abstraction\\types.ts"
+    ],
+    "layerViolations": [
+      {
+        "file": "rapitas-backend\\services\\agent-execution-service.ts",
+        "message": "Service file imports from routes (inverted dependency)"
+      }
+    ]
   },
   "aiAgent": {
     "providers": [
@@ -2836,6 +5218,15 @@
       "rapitas-backend\\services\\agents\\abstraction\\providers\\claude-code-provider.ts",
       "rapitas-backend\\services\\agents\\abstraction\\providers\\index.ts",
       "rapitas-backend\\services\\agents\\abstraction\\registry.ts",
+      "rapitas-backend\\services\\agents\\abstraction\\types\\agent-identification.ts",
+      "rapitas-backend\\services\\agents\\abstraction\\types\\events.ts",
+      "rapitas-backend\\services\\agents\\abstraction\\types\\execution-context.ts",
+      "rapitas-backend\\services\\agents\\abstraction\\types\\execution-result.ts",
+      "rapitas-backend\\services\\agents\\abstraction\\types\\index.ts",
+      "rapitas-backend\\services\\agents\\abstraction\\types\\lifecycle-hooks.ts",
+      "rapitas-backend\\services\\agents\\abstraction\\types\\provider-config.ts",
+      "rapitas-backend\\services\\agents\\abstraction\\types\\task-definition.ts",
+      "rapitas-backend\\services\\agents\\abstraction\\types\\utility-types.ts",
       "rapitas-backend\\services\\agents\\abstraction\\types.ts",
       "rapitas-backend\\services\\agents\\agent-factory.ts",
       "rapitas-backend\\services\\agents\\agent-orchestrator.ts",
@@ -2846,15 +5237,43 @@
       "rapitas-backend\\services\\agents\\execution-file-logger.ts",
       "rapitas-backend\\services\\agents\\gemini-cli-agent.ts",
       "rapitas-backend\\services\\agents\\index.ts",
+      "rapitas-backend\\services\\agents\\orchestrator\\continuation-executor.ts",
+      "rapitas-backend\\services\\agents\\orchestrator\\event-manager.ts",
+      "rapitas-backend\\services\\agents\\orchestrator\\execution-helpers.ts",
+      "rapitas-backend\\services\\agents\\orchestrator\\git-operations.ts",
+      "rapitas-backend\\services\\agents\\orchestrator\\index.ts",
+      "rapitas-backend\\services\\agents\\orchestrator\\lifecycle-manager.ts",
+      "rapitas-backend\\services\\agents\\orchestrator\\question-timeout-manager.ts",
+      "rapitas-backend\\services\\agents\\orchestrator\\recovery-manager.ts",
+      "rapitas-backend\\services\\agents\\orchestrator\\task-executor.ts",
+      "rapitas-backend\\services\\agents\\orchestrator\\types.ts",
       "rapitas-backend\\services\\agents\\providers\\anthropic-api-provider.ts",
       "rapitas-backend\\services\\agents\\providers\\claude-code-provider.ts",
       "rapitas-backend\\services\\agents\\providers\\gemini-cli-provider.ts",
       "rapitas-backend\\services\\agents\\providers\\gemini-provider.ts",
       "rapitas-backend\\services\\agents\\providers\\index.ts",
       "rapitas-backend\\services\\agents\\providers\\openai-provider.ts",
-      "rapitas-backend\\services\\agents\\question-detection.ts",
-      "rapitas-backend\\services\\agents\\unified-interface.ts",
-      "rapitas-backend\\services\\claude-agent.ts",
+      "rapitas-backend\\services\\agents\\question-detection\\constants.ts",
+      "rapitas-backend\\services\\agents\\question-detection\\detection.ts",
+      "rapitas-backend\\services\\agents\\question-detection\\index.ts",
+      "rapitas-backend\\services\\agents\\question-detection\\legacy.ts",
+      "rapitas-backend\\services\\agents\\question-detection\\timeout.ts",
+      "rapitas-backend\\services\\agents\\question-detection\\types.ts",
+      "rapitas-backend\\services\\agents\\question-detection\\validation.ts",
+      "rapitas-backend\\services\\agents\\unified-interface\\agent-config.ts",
+      "rapitas-backend\\services\\agents\\unified-interface\\errors.ts",
+      "rapitas-backend\\services\\agents\\unified-interface\\handlers.ts",
+      "rapitas-backend\\services\\agents\\unified-interface\\index.ts",
+      "rapitas-backend\\services\\agents\\unified-interface\\interfaces.ts",
+      "rapitas-backend\\services\\agents\\unified-interface\\provider-config.ts",
+      "rapitas-backend\\services\\agents\\unified-interface\\results.ts",
+      "rapitas-backend\\services\\agents\\unified-interface\\utilities.ts",
+      "rapitas-backend\\services\\claude-agent\\api-key-check.ts",
+      "rapitas-backend\\services\\claude-agent\\index.ts",
+      "rapitas-backend\\services\\claude-agent\\naming-service.ts",
+      "rapitas-backend\\services\\claude-agent\\prompt-optimizer.ts",
+      "rapitas-backend\\services\\claude-agent\\task-analyzer.ts",
+      "rapitas-backend\\services\\claude-agent\\types.ts",
       "rapitas-backend\\services\\parallel-execution\\agent-coordinator.ts",
       "rapitas-backend\\services\\parallel-execution\\sub-agent-controller.ts"
     ]
@@ -2875,42 +5294,238 @@
     {
       "name": "タスク管理",
       "routes": 6,
-      "services": 0,
-      "components": 44,
-      "hooks": 7,
+      "services": 3,
+      "components": 46,
+      "hooks": 9,
       "models": 7,
       "tests": 0,
-      "score": 75
+      "untestedSourceFiles": [
+        "rapitas-backend\\routes\\tasks\\batch-v2.ts",
+        "rapitas-backend\\routes\\tasks\\batch.ts",
+        "rapitas-backend\\routes\\tasks\\statistics.ts",
+        "rapitas-backend\\routes\\tasks\\task-analysis-config.ts",
+        "rapitas-backend\\routes\\tasks\\task-dependency.ts",
+        "rapitas-backend\\routes\\tasks\\tasks.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\task-definition.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\task-executor.ts",
+        "rapitas-backend\\services\\claude-agent\\task-analyzer.ts",
+        "rapitas-frontend\\src\\app\\task-detail\\page.tsx",
+        "rapitas-frontend\\src\\app\\tasks\\detail\\page.tsx",
+        "rapitas-frontend\\src\\app\\tasks\\new\\NewTaskClient.tsx",
+        "rapitas-frontend\\src\\app\\tasks\\new\\page.tsx",
+        "rapitas-frontend\\src\\app\\tasks\\[id]\\components\\TaskPomodoroButton.tsx",
+        "rapitas-frontend\\src\\app\\tasks\\[id]\\components\\TaskWorkflowSection.tsx",
+        "rapitas-frontend\\src\\app\\tasks\\[id]\\hooks\\useCommentSystem.ts",
+        "rapitas-frontend\\src\\app\\tasks\\[id]\\hooks\\useTaskActions.ts",
+        "rapitas-frontend\\src\\app\\tasks\\[id]\\page.tsx",
+        "rapitas-frontend\\src\\app\\tasks\\[id]\\TaskDetailClient.tsx",
+        "rapitas-frontend\\src\\components\\TodayTaskProgressBar.example.tsx",
+        "rapitas-frontend\\src\\components\\TodayTaskProgressBar.stories.tsx",
+        "rapitas-frontend\\src\\components\\TodayTaskProgressBar.tsx",
+        "rapitas-frontend\\src\\components\\ui\\skeleton\\TaskDetailSkeleton.tsx",
+        "rapitas-frontend\\src\\feature\\developer-mode\\components\\SubtaskLogTabs.tsx",
+        "rapitas-frontend\\src\\feature\\developer-mode\\components\\TaskAnalysisPanel.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\CommentsSection.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\CompactTaskDetailCard.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\dialog\\ApplyTemplateDialog.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\dialog\\SaveAsTemplateDialog.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\dialog\\TimeEntryDialog.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\FileUploader.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\LabelSelector.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\MarkdownComponents.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\MemoSection.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\PomodoroTimer.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\PriorityIcon.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\SubtaskExecutionStatus.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\SubtaskList.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\SubtaskStatusButtons.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\TaskCard.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\TaskComments.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\TaskCompleteOverlay.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\TaskCompletionAnimation.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\TaskDescription.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\TaskDetail.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\TaskHeader.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\TaskSlidePanel.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\TaskStatusChange.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\TaskSuggestionDetail.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\TaskSuggestions.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\TaskTimerManagement.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\TaskTitleAutocomplete.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\config\\StatusConfig.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\hooks\\useParallelExecutionStatus.ts",
+        "rapitas-frontend\\src\\feature\\tasks\\hooks\\useSubtaskLogs.ts",
+        "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\GlobalPomodoroModal.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\GlobalPomodoroWidget.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\PomodoroProvider.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\PomodoroStatistics.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\pomodoroStore.ts",
+        "rapitas-frontend\\src\\hooks\\useExecutingTasksPolling.ts",
+        "rapitas-frontend\\src\\hooks\\useFilteredTasks.ts",
+        "rapitas-frontend\\src\\hooks\\useTaskAutoSync.ts",
+        "rapitas-frontend\\src\\hooks\\useTaskSearch.ts",
+        "rapitas-frontend\\src\\hooks\\useTaskSorting.ts",
+        "rapitas-frontend\\src\\lib\\task-api.ts",
+        "rapitas-frontend\\src\\stores\\taskCacheStore.ts",
+        "rapitas-frontend\\src\\stores\\taskDetailVisibilityStore.ts"
+      ],
+      "score": 80
     },
     {
       "name": "ポモドーロ/時間管理",
       "routes": 2,
       "services": 1,
-      "components": 6,
+      "components": 7,
       "hooks": 0,
       "models": 1,
-      "tests": 0,
-      "score": 85
+      "tests": 1,
+      "untestedSourceFiles": [
+        "rapitas-backend\\routes\\scheduling\\time-entries.ts",
+        "rapitas-frontend\\src\\app\\tasks\\[id]\\components\\TaskPomodoroButton.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\PomodoroTimer.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\components\\TaskTimerManagement.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\GlobalPomodoroModal.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\GlobalPomodoroWidget.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\PomodoroProvider.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\PomodoroStatistics.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\pomodoroStore.ts"
+      ],
+      "score": 45
     },
     {
       "name": "AIエージェント",
       "routes": 14,
-      "services": 35,
+      "services": 72,
       "components": 8,
       "hooks": 1,
       "models": 7,
       "tests": 7,
-      "score": 100
+      "untestedSourceFiles": [
+        "rapitas-backend\\routes\\agents\\agent-execution-config.ts",
+        "rapitas-backend\\routes\\agents\\agent-metrics.ts",
+        "rapitas-backend\\routes\\agents\\agent-version-management.ts",
+        "rapitas-backend\\routes\\agents\\ai-agent.ts",
+        "rapitas-backend\\routes\\agents\\approvals.ts",
+        "rapitas-backend\\routes\\agents\\cli-tools-management.ts",
+        "rapitas-backend\\routes\\agents\\execution-logs.ts",
+        "rapitas-backend\\routes\\agents\\parallel-execution.ts",
+        "rapitas-backend\\routes\\ai\\ai-chat.ts",
+        "rapitas-backend\\services\\agent-config-service.ts",
+        "rapitas-backend\\services\\agent-execution-service.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\abstract-agent.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\error-handler.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\event-emitter.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\execution-manager.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\index.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\interfaces.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\logger.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\metrics-collector.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\providers\\claude-code-agent-adapter.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\providers\\claude-code-provider.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\providers\\index.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\registry.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\agent-identification.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\events.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\execution-context.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\execution-result.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\index.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\lifecycle-hooks.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\provider-config.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\task-definition.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types\\utility-types.ts",
+        "rapitas-backend\\services\\agents\\abstraction\\types.ts",
+        "rapitas-backend\\services\\agents\\agent-factory.ts",
+        "rapitas-backend\\services\\agents\\agent-orchestrator.ts",
+        "rapitas-backend\\services\\agents\\agent-service.ts",
+        "rapitas-backend\\services\\agents\\base-agent.ts",
+        "rapitas-backend\\services\\agents\\codex-cli-agent.ts",
+        "rapitas-backend\\services\\agents\\execution-file-logger.ts",
+        "rapitas-backend\\services\\agents\\gemini-cli-agent.ts",
+        "rapitas-backend\\services\\agents\\index.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\continuation-executor.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\event-manager.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\execution-helpers.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\git-operations.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\index.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\lifecycle-manager.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\question-timeout-manager.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\recovery-manager.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\task-executor.ts",
+        "rapitas-backend\\services\\agents\\orchestrator\\types.ts",
+        "rapitas-backend\\services\\agents\\providers\\anthropic-api-provider.ts",
+        "rapitas-backend\\services\\agents\\providers\\claude-code-provider.ts",
+        "rapitas-backend\\services\\agents\\providers\\gemini-cli-provider.ts",
+        "rapitas-backend\\services\\agents\\providers\\gemini-provider.ts",
+        "rapitas-backend\\services\\agents\\providers\\index.ts",
+        "rapitas-backend\\services\\agents\\providers\\openai-provider.ts",
+        "rapitas-backend\\services\\agents\\question-detection\\constants.ts",
+        "rapitas-backend\\services\\agents\\question-detection\\detection.ts",
+        "rapitas-backend\\services\\agents\\question-detection\\index.ts",
+        "rapitas-backend\\services\\agents\\question-detection\\legacy.ts",
+        "rapitas-backend\\services\\agents\\question-detection\\timeout.ts",
+        "rapitas-backend\\services\\agents\\question-detection\\types.ts",
+        "rapitas-backend\\services\\agents\\question-detection\\validation.ts",
+        "rapitas-backend\\services\\agents\\unified-interface\\errors.ts",
+        "rapitas-backend\\services\\agents\\unified-interface\\handlers.ts",
+        "rapitas-backend\\services\\agents\\unified-interface\\index.ts",
+        "rapitas-backend\\services\\agents\\unified-interface\\interfaces.ts",
+        "rapitas-backend\\services\\agents\\unified-interface\\provider-config.ts",
+        "rapitas-backend\\services\\agents\\unified-interface\\results.ts",
+        "rapitas-backend\\services\\agents\\unified-interface\\utilities.ts",
+        "rapitas-backend\\services\\claude-agent\\api-key-check.ts",
+        "rapitas-backend\\services\\claude-agent\\index.ts",
+        "rapitas-backend\\services\\claude-agent\\naming-service.ts",
+        "rapitas-backend\\services\\claude-agent\\prompt-optimizer.ts",
+        "rapitas-backend\\services\\claude-agent\\task-analyzer.ts",
+        "rapitas-backend\\services\\claude-agent\\types.ts",
+        "rapitas-backend\\services\\parallel-execution\\agent-coordinator.ts",
+        "rapitas-backend\\services\\parallel-execution\\sub-agent-controller.ts",
+        "rapitas-backend\\types\\agent-execution-types.ts",
+        "rapitas-backend\\types\\agent-types.ts",
+        "rapitas-backend\\utils\\agent-audit-log.ts",
+        "rapitas-backend\\utils\\agent-config-schema.ts",
+        "rapitas-backend\\utils\\agent-executor-factory.ts",
+        "rapitas-backend\\utils\\agent-models.ts",
+        "rapitas-backend\\utils\\ai-client\\claude-provider.ts",
+        "rapitas-frontend\\src\\app\\agents\\metrics\\page.tsx",
+        "rapitas-frontend\\src\\app\\agents\\page.tsx",
+        "rapitas-frontend\\src\\app\\agents\\versions\\page.tsx",
+        "rapitas-frontend\\src\\app\\agents\\[id]\\settings\\AgentSettingsClient.tsx",
+        "rapitas-frontend\\src\\app\\agents\\[id]\\settings\\page.tsx",
+        "rapitas-frontend\\src\\app\\claude-md-generator\\page.tsx",
+        "rapitas-frontend\\src\\components\\ui\\AgentSwitcher.tsx",
+        "rapitas-frontend\\src\\feature\\developer-mode\\components\\AgentExecutionPanel.tsx",
+        "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useAgentExecution.ts"
+      ],
+      "score": 95
     },
     {
       "name": "ワークフロー",
       "routes": 2,
       "services": 3,
-      "components": 7,
+      "components": 8,
       "hooks": 3,
       "models": 2,
       "tests": 0,
-      "score": 95
+      "untestedSourceFiles": [
+        "rapitas-backend\\routes\\workflow\\workflow-roles.ts",
+        "rapitas-backend\\routes\\workflow\\workflow.ts",
+        "rapitas-backend\\services\\workflow\\complexity-analyzer.ts",
+        "rapitas-backend\\services\\workflow\\index.ts",
+        "rapitas-backend\\services\\workflow\\workflow-orchestrator.ts",
+        "rapitas-frontend\\src\\app\\tasks\\[id]\\components\\TaskWorkflowSection.tsx",
+        "rapitas-frontend\\src\\components\\workflow\\CompactWorkflowSelector.tsx",
+        "rapitas-frontend\\src\\components\\workflow\\ComplexityIndicator.tsx",
+        "rapitas-frontend\\src\\components\\workflow\\PlanApprovalModal.tsx",
+        "rapitas-frontend\\src\\components\\workflow\\WorkflowModeSelector.tsx",
+        "rapitas-frontend\\src\\components\\workflow\\WorkflowRolesConfig.tsx",
+        "rapitas-frontend\\src\\components\\workflow\\WorkflowStatusIndicator.tsx",
+        "rapitas-frontend\\src\\components\\workflow\\WorkflowViewer.tsx",
+        "rapitas-frontend\\src\\hooks\\useWorkflowApproval.ts",
+        "rapitas-frontend\\src\\hooks\\useWorkflowFiles.ts",
+        "rapitas-frontend\\src\\hooks\\useWorkflowRoles.ts"
+      ],
+      "score": 65
     },
     {
       "name": "GitHub連携",
@@ -2920,7 +5535,20 @@
       "hooks": 1,
       "models": 5,
       "tests": 0,
-      "score": 95
+      "untestedSourceFiles": [
+        "rapitas-backend\\routes\\social\\github.ts",
+        "rapitas-backend\\schemas\\github.schema.ts",
+        "rapitas-backend\\services\\github-service.ts",
+        "rapitas-frontend\\src\\app\\github\\issues\\IssuesClient.tsx",
+        "rapitas-frontend\\src\\app\\github\\issues\\page.tsx",
+        "rapitas-frontend\\src\\app\\github\\page.tsx",
+        "rapitas-frontend\\src\\app\\github\\pull-requests\\page.tsx",
+        "rapitas-frontend\\src\\app\\github\\pull-requests\\PullRequestsClient.tsx",
+        "rapitas-frontend\\src\\app\\github\\pull-requests\\[id]\\page.tsx",
+        "rapitas-frontend\\src\\app\\github\\pull-requests\\[id]\\PullRequestDetailClient.tsx",
+        "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useGitHubIntegration.ts"
+      ],
+      "score": 50
     },
     {
       "name": "認証",
@@ -2930,7 +5558,14 @@
       "hooks": 0,
       "models": 3,
       "tests": 1,
-      "score": 70
+      "untestedSourceFiles": [
+        "rapitas-backend\\routes\\system\\auth.ts",
+        "rapitas-frontend\\src\\app\\auth\\layout.tsx",
+        "rapitas-frontend\\src\\app\\auth\\login\\page.tsx",
+        "rapitas-frontend\\src\\app\\auth\\register\\page.tsx",
+        "rapitas-frontend\\src\\contexts\\AuthContext.tsx"
+      ],
+      "score": 42
     },
     {
       "name": "通知",
@@ -2939,8 +5574,13 @@
       "components": 1,
       "hooks": 1,
       "models": 1,
-      "tests": 0,
-      "score": 95
+      "tests": 1,
+      "untestedSourceFiles": [
+        "rapitas-backend\\routes\\system\\notifications.ts",
+        "rapitas-frontend\\src\\components\\NotificationBell.tsx",
+        "rapitas-frontend\\src\\feature\\developer-mode\\hooks\\useNotifications.ts"
+      ],
+      "score": 28
     },
     {
       "name": "検索",
@@ -2950,7 +5590,16 @@
       "hooks": 2,
       "models": 0,
       "tests": 0,
-      "score": 60
+      "untestedSourceFiles": [
+        "rapitas-backend\\routes\\system\\search.ts",
+        "rapitas-frontend\\src\\app\\search\\page.tsx",
+        "rapitas-frontend\\src\\app\\search\\SearchClient.tsx",
+        "rapitas-frontend\\src\\components\\category\\icon-search.ts",
+        "rapitas-frontend\\src\\feature\\search\\components\\SearchResultCard.tsx",
+        "rapitas-frontend\\src\\hooks\\useGlobalSearch.ts",
+        "rapitas-frontend\\src\\hooks\\useTaskSearch.ts"
+      ],
+      "score": 24
     },
     {
       "name": "カレンダー/スケジュール",
@@ -2960,7 +5609,19 @@
       "hooks": 1,
       "models": 2,
       "tests": 0,
-      "score": 95
+      "untestedSourceFiles": [
+        "rapitas-backend\\routes\\scheduling\\daily-schedule.ts",
+        "rapitas-backend\\routes\\scheduling\\schedules.ts",
+        "rapitas-backend\\services\\parallel-execution\\parallel-scheduler.ts",
+        "rapitas-backend\\src\\services\\behaviorScheduler.ts",
+        "rapitas-frontend\\src\\app\\calendar\\page.tsx",
+        "rapitas-frontend\\src\\app\\habits\\daily-schedule\\page.tsx",
+        "rapitas-frontend\\src\\components\\ScheduleReminderProvider.tsx",
+        "rapitas-frontend\\src\\feature\\calendar\\components\\PaidLeaveDialog.tsx",
+        "rapitas-frontend\\src\\feature\\calendar\\components\\ScheduleEventDialog.tsx",
+        "rapitas-frontend\\src\\hooks\\use-schedule-reminders.ts"
+      ],
+      "score": 50
     },
     {
       "name": "学習/習慣",
@@ -2970,7 +5631,23 @@
       "hooks": 0,
       "models": 7,
       "tests": 0,
-      "score": 65
+      "untestedSourceFiles": [
+        "rapitas-backend\\routes\\learning\\exam-goals.ts",
+        "rapitas-backend\\routes\\learning\\flashcards.ts",
+        "rapitas-backend\\routes\\learning\\learning-goals.ts",
+        "rapitas-backend\\routes\\learning\\resources.ts",
+        "rapitas-backend\\routes\\learning\\study-streaks.ts",
+        "rapitas-backend\\routes\\lifestyle\\habits.ts",
+        "rapitas-frontend\\src\\app\\exam-goals\\page.tsx",
+        "rapitas-frontend\\src\\app\\flashcards\\page.tsx",
+        "rapitas-frontend\\src\\app\\habits\\daily-schedule\\page.tsx",
+        "rapitas-frontend\\src\\app\\habits\\page.tsx",
+        "rapitas-frontend\\src\\app\\learning-goals\\page.tsx",
+        "rapitas-frontend\\src\\components\\exam-countdown\\ExamCountdown.tsx",
+        "rapitas-frontend\\src\\components\\TodayTaskProgressBar.example.tsx",
+        "rapitas-frontend\\src\\components\\ui\\status-card\\StatusCard.example.tsx"
+      ],
+      "score": 55
     },
     {
       "name": "分析/レポート",
@@ -2979,25 +5656,52 @@
       "components": 4,
       "hooks": 0,
       "models": 2,
-      "tests": 0,
-      "score": 85
+      "tests": 1,
+      "untestedSourceFiles": [
+        "rapitas-backend\\routes\\analytics\\achievements.ts",
+        "rapitas-backend\\routes\\analytics\\reports.ts",
+        "rapitas-backend\\routes\\analytics\\statistics.ts",
+        "rapitas-backend\\routes\\tasks\\statistics.ts",
+        "rapitas-frontend\\src\\app\\achievements\\page.tsx",
+        "rapitas-frontend\\src\\app\\reports\\page.tsx",
+        "rapitas-frontend\\src\\components\\AchievementToast.tsx",
+        "rapitas-frontend\\src\\feature\\tasks\\pomodoro\\PomodoroStatistics.tsx"
+      ],
+      "score": 52
     }
   ],
   "scoring": {
-    "qualityScore": 70,
-    "featureCoverageScore": 84,
+    "qualityScore": 58,
+    "featureCoverageScore": 53,
+    "architectureScore": 71,
+    "securityScore": 91,
+    "overallScore": 67,
     "strengths": [
-      "豊富なAPIエンドポイント（357件）",
+      "豊富なAPIエンドポイント（356件）",
       "充実したデータモデル（55モデル）",
       "多彩なフロントエンドページ（41ルート）",
-      "再利用可能なカスタムフック（33個）",
-      "高カバレッジ機能エリア: タスク管理, ポモドーロ/時間管理, AIエージェント, ワークフロー, GitHub連携, 通知, カレンダー/スケジュール, 分析/レポート"
+      "再利用可能なカスタムフック（35個）",
+      "型安全性が高い（any使用: 13箇所）",
+      "ログ出力が適切に管理されている",
+      "重大なセキュリティリスクが検出されていない",
+      "高カバレッジ機能: タスク管理, AIエージェント"
     ],
     "weaknesses": [
-      "テストカバレッジが低い（テスト比率: 0.04）"
+      "テストカバレッジが低い（テスト比率: 6.0%）",
+      "空のcatchブロック（49箇所）- エラーが無視されている",
+      "1000行超のファイルが23個",
+      "レイヤー違反: 1件",
+      "重複エンドポイント: 2件",
+      "巨大なPrismaモデル: Task(51フィールド)",
+      "低カバレッジ機能: ポモドーロ/時間管理, 認証, 通知, 検索"
     ],
     "suggestions": [
-      "テストの拡充（特にバックエンドのユニットテスト）"
+      "[P0] テスト拡充 - 246個の未テストソースファイル。特にバックエンドサービスのユニットテストを優先",
+      "[P1] 空のcatchブロックにエラーログまたはリスローを追加",
+      "[P1] レイヤー違反の解消 - 1件の不正なimportを修正",
+      "[P1] 重複エンドポイントの統合",
+      "[P2] 巨大Prismaモデルの正規化（Task: 51フィールド）",
+      "[P2] 機能拡充: ポモドーロ/時間管理, 認証, 通知, 検索"
     ]
   }
 }
