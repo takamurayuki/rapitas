@@ -460,6 +460,7 @@ export const usePomodoroStore = create<PomodoroState>()(
       onRehydrateStorage: () => (state) => {
         if (state) {
           state._setHasHydrated(true);
+          state._checkAndResetDailyStats();
           state._initializeTimer();
         }
       },
