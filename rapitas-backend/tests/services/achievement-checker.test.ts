@@ -25,7 +25,7 @@ const mockPrisma = {
   flashcard: { aggregate: mock(() => Promise.resolve({ _sum: { reviewCount: 0 } })) },
 };
 
-mock.module("../config/database", () => ({
+mock.module("../../config/database", () => ({
   prisma: mockPrisma,
 }));
 
@@ -33,7 +33,7 @@ mock.module("./notification-service", () => ({
   notifyAchievementUnlocked: mock(() => Promise.resolve()),
 }));
 
-const { checkAchievements } = await import("../services/achievement-checker");
+const { checkAchievements } = await import("../../services/achievement-checker");
 
 describe("checkAchievements", () => {
   beforeEach(() => {

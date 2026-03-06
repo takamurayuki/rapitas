@@ -28,8 +28,8 @@ const mockGenerateOptimizedPrompt = mock(() =>
   })
 );
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -37,19 +37,19 @@ mock.module("../config/logger", () => ({
     debug: () => {},
   }),
 }));
-mock.module("../services/claude-agent", () => ({
+mock.module("../../../services/claude-agent", () => ({
   generateOptimizedPrompt: mockGenerateOptimizedPrompt,
 }));
-mock.module("../utils/ai-client", () => ({
+mock.module("../../../utils/ai-client", () => ({
   getDefaultProvider: mock(() => Promise.resolve("claude")),
   getApiKeyForProvider: mock(() => Promise.resolve("sk-test-key")),
 }));
-mock.module("../utils/db-helpers", () => ({
+mock.module("../../../utils/db-helpers", () => ({
   getLabelsArray: mock(() => []),
   toJsonString: mock((v: unknown) => JSON.stringify(v)),
 }));
 
-const { promptsRoutes } = await import("../routes/ai/prompts");
+const { promptsRoutes } = await import("../../../routes/ai/prompts");
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {

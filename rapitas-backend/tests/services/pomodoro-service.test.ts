@@ -21,7 +21,7 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({
+mock.module("../../config/database", () => ({
   prisma: mockPrisma,
 }));
 
@@ -34,7 +34,7 @@ const {
   getActiveSession,
   getStatistics,
   getHistory,
-} = await import("../services/pomodoro-service");
+} = await import("../../services/pomodoro-service");
 
 describe("startPomodoro", () => {
   beforeEach(() => {

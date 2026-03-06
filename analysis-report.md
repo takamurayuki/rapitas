@@ -1,7 +1,7 @@
 # Rapitas Codebase Analysis Report
 
-> Generated: 2026-03-04T15:32:18.706Z
-> Execution time: 20056ms
+> Generated: 2026-03-06T06:47:39.959Z
+> Execution time: 23068ms
 > Project root: `C:\Projects\rapitas`
 
 ---
@@ -11,36 +11,36 @@
 ### サマリ
 | 項目 | 値 |
 |------|-----|
-| 総ファイル数 | 788 |
-| 総コード行数 | 186,935 |
-| 総サイズ | 10.7 MB |
+| 総ファイル数 | 890 |
+| 総コード行数 | 206,379 |
+| 総サイズ | 11.3 MB |
 
 ### 拡張子別
 | 拡張子 | ファイル数 | 行数 | サイズ | 平均行数 |
 |--------|-----------|------|--------|----------|
-| .ts | 248 | 81,615 | 2.4 MB | 329 |
-| .tsx | 172 | 66,065 | 2.4 MB | 384 |
-| .md | 192 | 14,649 | 598.4 KB | 76 |
+| .ts | 311 | 99,032 | 2.9 MB | 318 |
+| .tsx | 172 | 66,074 | 2.4 MB | 384 |
+| .md | 231 | 16,666 | 687.1 KB | 72 |
 | .yaml | 4 | 13,219 | 437.0 KB | 3305 |
-| .json | 10 | 3,263 | 103.4 KB | 326 |
+| .json | 10 | 3,263 | 106.3 KB | 326 |
 | .js | 95 | 2,745 | 3.7 MB | 29 |
 | .css | 8 | 1,769 | 299.2 KB | 221 |
 | .yml | 8 | 1,246 | 40.2 KB | 156 |
 | .html | 41 | 1,195 | 760.0 KB | 29 |
-| .prisma | 1 | 1,011 | 39.7 KB | 1011 |
+| .prisma | 1 | 1,012 | 39.8 KB | 1012 |
 | .sql | 8 | 154 | 5.3 KB | 19 |
 | .toml | 1 | 4 | 131 B | 4 |
 
 ### ディレクトリ別
 | ディレクトリ | ファイル数 | 行数 | サイズ |
 |-------------|-----------|------|--------|
-| rapitas-frontend | 261 | 94,987 | 3.2 MB |
-| rapitas-backend | 368 | 78,394 | 2.5 MB |
+| rapitas-backend | 470 | 97,828 | 3.1 MB |
+| rapitas-frontend | 261 | 94,997 | 3.2 MB |
 | rapitas-desktop | 141 | 5,134 | 4.7 MB |
-| analysis-result.json | 1 | 3,003 | 96.2 KB |
+| analysis-result.json | 1 | 3,003 | 99.1 KB |
 | .github | 9 | 1,441 | 47.4 KB |
 | docs | 1 | 839 | 22.9 KB |
-| analysis-report.md | 1 | 800 | 45.5 KB |
+| analysis-report.md | 1 | 800 | 46.3 KB |
 | pnpm-lock.yaml | 1 | 713 | 22.2 KB |
 | project-guide.md | 1 | 684 | 22.5 KB |
 | README.md | 1 | 473 | 13.9 KB |
@@ -52,18 +52,18 @@
 | # | ファイル | 行数 | サイズ |
 |---|---------|------|--------|
 | 1 | `rapitas-frontend\pnpm-lock.yaml` | 10,822 | 362.2 KB |
-| 2 | `rapitas-backend\services\agents\agent-orchestrator.ts` | 3,936 | 128.4 KB |
-| 3 | `analysis-result.json` | 3,003 | 96.2 KB |
-| 4 | `rapitas-frontend\src\components\note\NoteEditor.tsx` | 2,998 | 105.2 KB |
-| 5 | `rapitas-frontend\src\app\tasks\[id]\TaskDetailClient.tsx` | 2,060 | 82.9 KB |
-| 6 | `rapitas-frontend\src\components\category\IconData.ts` | 2,023 | 54.2 KB |
+| 2 | `rapitas-backend\services\agents\agent-orchestrator.ts` | 3,937 | 128.4 KB |
+| 3 | `analysis-result.json` | 3,003 | 99.1 KB |
+| 4 | `rapitas-frontend\src\components\note\NoteEditor.tsx` | 2,998 | 108.1 KB |
+| 5 | `rapitas-frontend\src\app\tasks\[id]\TaskDetailClient.tsx` | 2,060 | 84.9 KB |
+| 6 | `rapitas-frontend\src\components\category\IconData.ts` | 2,023 | 56.1 KB |
 | 7 | `rapitas-frontend\src\feature\developer-mode\components\AIAccordionPanel.tsx` | 1,699 | 70.1 KB |
 | 8 | `rapitas-backend\services\agents\claude-code-agent.ts` | 1,639 | 65.5 KB |
-| 9 | `rapitas-backend\routes\tasks\tasks.ts` | 1,568 | 52.4 KB |
-| 10 | `rapitas-frontend\src\app\HomeClient.tsx` | 1,566 | 65.0 KB |
-| 11 | `rapitas-frontend\src\feature\developer-mode\components\DeveloperModeConfig.tsx` | 1,559 | 56.9 KB |
-| 12 | `rapitas-backend\routes\agents\agent-execution-router.ts` | 1,557 | 56.2 KB |
-| 13 | `rapitas-backend\routes\agents\ai-agent.ts` | 1,528 | 48.5 KB |
+| 9 | `rapitas-frontend\src\app\HomeClient.tsx` | 1,566 | 65.0 KB |
+| 10 | `rapitas-frontend\src\feature\developer-mode\components\DeveloperModeConfig.tsx` | 1,559 | 56.9 KB |
+| 11 | `rapitas-backend\routes\agents\agent-execution-router.ts` | 1,557 | 56.2 KB |
+| 12 | `rapitas-backend\routes\agents\ai-agent.ts` | 1,528 | 48.5 KB |
+| 13 | `rapitas-backend\routes\tasks\tasks.ts` | 1,460 | 47.7 KB |
 | 14 | `rapitas-frontend\src\feature\developer-mode\components\AIAnalysisPanel.tsx` | 1,419 | 60.2 KB |
 | 15 | `rapitas-frontend\src\feature\tasks\components\MemoSection.tsx` | 1,408 | 52.5 KB |
 | 16 | `rapitas-desktop\scripts\dev.js` | 1,364 | 47.3 KB |
@@ -77,12 +77,12 @@
 ## 2. アーキテクチャ
 
 ### Backend
-- **ルートファイル数**: 58
-- **検出エンドポイント数**: 357
+- **ルートファイル数**: 104
+- **検出エンドポイント数**: 359
 - **サービス数**: 56
 
 <details>
-<summary>エンドポイント一覧 (357件)</summary>
+<summary>エンドポイント一覧 (359件)</summary>
 
 | メソッド | パス | ファイル |
 |----------|------|---------|
@@ -430,7 +430,6 @@
 | POST | `/tasks/cleanup-all-duplicates` | `rapitas-backend\routes\tasks\tasks.ts` |
 | DELETE | `/tasks/:id/subtasks` | `rapitas-backend\routes\tasks\tasks.ts` |
 | POST | `/tasks/:id/subtasks/delete-selected` | `rapitas-backend\routes\tasks\tasks.ts` |
-| POST | `/tasks/:id/execute` | `rapitas-backend\routes\tasks\tasks.ts` |
 | GET | `/workflow-roles` | `rapitas-backend\routes\workflow\workflow-roles.ts` |
 | GET | `/workflow-roles/:role` | `rapitas-backend\routes\workflow\workflow-roles.ts` |
 | PUT | `/workflow-roles/:role` | `rapitas-backend\routes\workflow\workflow-roles.ts` |
@@ -443,6 +442,9 @@
 | POST | `/workflow/tasks/:taskId/set-mode` | `rapitas-backend\routes\workflow\workflow.ts` |
 | GET | `/workflow/tasks/:taskId/analyze-complexity` | `rapitas-backend\routes\workflow\workflow.ts` |
 | GET | `/workflow/modes` | `rapitas-backend\routes\workflow\workflow.ts` |
+| GET | `Content-Type` | `rapitas-backend\tests\parallel-execution-routes.test.ts` |
+| GET | `Content-Type` | `rapitas-backend\tests\sse-routes.test.ts` |
+| GET | `Content-Type` | `rapitas-backend\tests\sse-routes.test.ts` |
 
 </details>
 
@@ -562,7 +564,7 @@
 | FavoriteDirectory | 6 | 0 |
 | TaskPrompt | 11 | 1 |
 | TaskAnalysisConfig | 22 | 2 |
-| AgentExecutionConfig | 28 | 2 |
+| AgentExecutionConfig | 29 | 2 |
 | SystemPrompt | 10 | 0 |
 | ScheduleEvent | 19 | 0 |
 | PaidLeaveBalance | 10 | 0 |
@@ -641,15 +643,15 @@
 
 | 指標 | 値 |
 |------|-----|
-| テストファイル数 | 16 |
+| テストファイル数 | 79 |
 | ソースファイル数 | 404 |
-| テスト比率 | 0.04 (4.0%) |
-| `any`型使用数 | 19 |
+| テスト比率 | 0.2 (20.0%) |
+| `any`型使用数 | 39 |
 | TODO コメント | 0 |
 | FIXME コメント | 0 |
 | HACK コメント | 0 |
 | console.log 使用数 | 5 |
-| try/catch ブロック数 | 841 |
+| try/catch ブロック数 | 849 |
 
 ---
 
@@ -659,7 +661,7 @@
 |------|-----|
 | AIプロバイダー | Anthropic (Claude), OpenAI, Google (Gemini) |
 | エージェントタイプ | manual, code_review, analysis, execution, implementation, codex, openai, gemini, custom |
-| エージェントルート数 | 18 |
+| エージェントルート数 | 21 |
 | エージェントサービス数 | 35 |
 
 <details>
@@ -681,9 +683,12 @@
 - `rapitas-backend\routes\agents\parallel-execution.ts`
 - `rapitas-backend\tests\agent-audit-router.test.ts`
 - `rapitas-backend\tests\agent-config-router.test.ts`
+- `rapitas-backend\tests\agent-execution-config-routes.test.ts`
 - `rapitas-backend\tests\agent-execution-router.test.ts`
+- `rapitas-backend\tests\agent-metrics-routes.test.ts`
 - `rapitas-backend\tests\agent-session-router.test.ts`
 - `rapitas-backend\tests\agent-system-router.test.ts`
+- `rapitas-backend\tests\agent-version-management-routes.test.ts`
 
 **サービス:**
 - `rapitas-backend\services\agent-config-service.ts`
@@ -740,19 +745,19 @@
 
 | エリア | ルート | サービス | コンポーネント | フック | モデル | テスト | スコア |
 |--------|--------|----------|--------------|--------|--------|--------|--------|
-| タスク管理 | 6 | 0 | 44 | 7 | 7 | 0 | **75/100** |
-| ポモドーロ/時間管理 | 2 | 1 | 6 | 0 | 1 | 0 | **85/100** |
-| AIエージェント | 14 | 35 | 8 | 1 | 7 | 7 | **100/100** |
-| ワークフロー | 2 | 3 | 7 | 3 | 2 | 0 | **95/100** |
-| GitHub連携 | 1 | 1 | 7 | 1 | 5 | 0 | **95/100** |
-| 認証 | 2 | 0 | 4 | 0 | 3 | 1 | **70/100** |
-| 通知 | 1 | 1 | 1 | 1 | 1 | 0 | **95/100** |
-| 検索 | 1 | 0 | 3 | 2 | 0 | 0 | **60/100** |
-| カレンダー/スケジュール | 2 | 2 | 5 | 1 | 2 | 0 | **95/100** |
-| 学習/習慣 | 6 | 0 | 8 | 0 | 7 | 0 | **65/100** |
-| 分析/レポート | 4 | 1 | 4 | 0 | 2 | 0 | **85/100** |
+| タスク管理 | 7 | 0 | 44 | 7 | 7 | 1 | **80/100** |
+| ポモドーロ/時間管理 | 4 | 1 | 6 | 0 | 1 | 3 | **90/100** |
+| AIエージェント | 18 | 35 | 8 | 1 | 7 | 15 | **100/100** |
+| ワークフロー | 3 | 3 | 7 | 3 | 2 | 1 | **100/100** |
+| GitHub連携 | 2 | 1 | 7 | 1 | 5 | 1 | **100/100** |
+| 認証 | 3 | 0 | 4 | 0 | 3 | 2 | **70/100** |
+| 通知 | 2 | 1 | 1 | 1 | 1 | 2 | **100/100** |
+| 検索 | 2 | 0 | 3 | 2 | 0 | 1 | **65/100** |
+| カレンダー/スケジュール | 4 | 2 | 5 | 1 | 2 | 2 | **100/100** |
+| 学習/習慣 | 11 | 0 | 8 | 0 | 7 | 5 | **70/100** |
+| 分析/レポート | 7 | 1 | 4 | 0 | 2 | 4 | **90/100** |
 
-**平均機能カバレッジスコア: 84/100**
+**平均機能カバレッジスコア: 88/100**
 
 ---
 
@@ -761,21 +766,21 @@
 ### スコア
 | 指標 | スコア |
 |------|--------|
-| 品質スコア | **70/100** |
-| 機能カバレッジスコア | **84/100** |
+| 品質スコア | **90/100** |
+| 機能カバレッジスコア | **88/100** |
 
 ### 強み
-- 豊富なAPIエンドポイント（357件）
+- 豊富なAPIエンドポイント（359件）
 - 充実したデータモデル（55モデル）
 - 多彩なフロントエンドページ（41ルート）
 - 再利用可能なカスタムフック（33個）
 - 高カバレッジ機能エリア: タスク管理, ポモドーロ/時間管理, AIエージェント, ワークフロー, GitHub連携, 通知, カレンダー/スケジュール, 分析/レポート
 
 ### 弱み
-- テストカバレッジが低い（テスト比率: 0.04）
+- 特記事項なし
 
 ### 改善提案
-- テストの拡充（特にバックエンドのユニットテスト）
+- any型を具体的な型に置き換える型安全性の向上
 
 ---
 

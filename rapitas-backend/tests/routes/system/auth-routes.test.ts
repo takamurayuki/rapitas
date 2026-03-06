@@ -24,7 +24,7 @@ const mockBcrypt = {
   compare: mock(() => Promise.resolve(true)),
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
 mock.module("bcryptjs", () => ({ default: mockBcrypt }));
 mock.module("googleapis", () => ({
   google: {
@@ -46,7 +46,7 @@ mock.module("googleapis", () => ({
     }),
   },
 }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -55,7 +55,7 @@ mock.module("../config/logger", () => ({
   }),
 }));
 
-const { authRoutes } = await import("../routes/system/auth");
+const { authRoutes } = await import("../../../routes/system/auth");
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {

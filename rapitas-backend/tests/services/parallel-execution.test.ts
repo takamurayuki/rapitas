@@ -15,7 +15,7 @@ import {
   type TaskNode,
   type ParallelExecutionPlan,
   type ParallelExecutionConfig,
-} from "../services/parallel-execution";
+} from "../../services/parallel-execution";
 
 describe("DependencyAnalyzer", () => {
   let analyzer: DependencyAnalyzer;

@@ -3,7 +3,7 @@
  * メモリキャッシュ戦略を使用したCacheServiceのテスト
  */
 import { describe, test, expect, beforeEach } from "bun:test";
-import { CacheService, CacheKeys } from "../services/cache-service";
+import { CacheService, CacheKeys } from "../../services/cache-service";
 
 describe("CacheService (memory strategy)", () => {
   let cache: CacheService;

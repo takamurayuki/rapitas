@@ -24,8 +24,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -33,7 +33,7 @@ mock.module("../config/logger", () => ({
     debug: () => {},
   }),
 }));
-mock.module("../utils/encryption", () => ({
+mock.module("../../../utils/encryption", () => ({
   encrypt: (value: string) => `encrypted_${value}`,
   decrypt: (value: string) => value.replace("encrypted_", ""),
   maskApiKey: (value: string) => `${value.slice(0, 4)}****`,
@@ -41,7 +41,7 @@ mock.module("../utils/encryption", () => ({
 }));
 
 const { flashcardsRoutes } = await import(
-  "../routes/learning/flashcards"
+  "../../../routes/learning/flashcards"
 );
 
 function resetAllMocks() {

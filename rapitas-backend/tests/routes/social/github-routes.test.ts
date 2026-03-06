@@ -77,8 +77,8 @@ class MockGitHubService {
   handleWebhook = mockHandleWebhook;
 }
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -86,14 +86,14 @@ mock.module("../config/logger", () => ({
     debug: () => {},
   }),
 }));
-mock.module("../services/github-service", () => ({
+mock.module("../../../services/github-service", () => ({
   GitHubService: MockGitHubService,
 }));
 // Re-export the real schemas - they use elysia's t() which needs to be real
 // No mock needed for schemas as they are just type definitions
 
 const { githubRoutes, taskGithubRoutes } = await import(
-  "../routes/social/github"
+  "../../../routes/social/github"
 );
 
 function resetAllMocks() {

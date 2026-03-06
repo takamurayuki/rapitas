@@ -21,8 +21,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -32,7 +32,7 @@ mock.module("../config/logger", () => ({
 }));
 
 const { agentExecutionConfigRoutes } = await import(
-  "../routes/agents/agent-execution-config"
+  "../../../routes/agents/agent-execution-config"
 );
 
 describe("Agent Execution Config Routes", () => {

@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, beforeEach, mock } from "bun:test";
-import type { QuestionType } from "../services/agents/base-agent";
-import type { QuestionDetails } from "../services/agents/question-detection";
+import type { QuestionType } from "../../services/agents/base-agent";
+import type { QuestionDetails } from "../../services/agents/question-detection";
 
 // モック版のClaudeCodeAgentの検出ロジックをテスト
 // 実際のプロセス起動なしでstream-json処理をシミュレート

@@ -4,7 +4,7 @@
  */
 import { describe, test, expect, mock } from "bun:test";
 
-mock.module("../config/logger", () => ({
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -53,10 +53,10 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
 
 // Mock the parallel execution service
-mock.module("../services/parallel-execution", () => ({
+mock.module("../../../services/parallel-execution", () => ({
   createParallelExecutor: mock(() => ({
     startSession: mock(() =>
       Promise.resolve({ sessionId: "sess-1", status: "running" })
@@ -89,7 +89,7 @@ mock.module("../services/parallel-execution", () => ({
   })),
 }));
 
-mock.module("../services/sse-utils", () => ({
+mock.module("../../../services/sse-utils", () => ({
   SSEStreamController: class {
     createStream() {
       return new ReadableStream({ start(c) { c.close(); } });
@@ -107,7 +107,7 @@ mock.module("../services/sse-utils", () => ({
 }));
 
 const { parallelExecutionRoutes } = await import(
-  "../routes/agents/parallel-execution"
+  "../../../routes/agents/parallel-execution"
 );
 
 import { Elysia } from "elysia";

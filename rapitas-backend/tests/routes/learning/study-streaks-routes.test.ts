@@ -13,8 +13,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -24,7 +24,7 @@ mock.module("../config/logger", () => ({
 }));
 
 const { studyStreaksRoutes } = await import(
-  "../routes/learning/study-streaks"
+  "../../../routes/learning/study-streaks"
 );
 
 function resetAllMocks() {

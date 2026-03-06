@@ -17,8 +17,8 @@ const mockPrisma = {
   $transaction: mock((ops: unknown[]) => Promise.resolve(ops)),
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -28,7 +28,7 @@ mock.module("../config/logger", () => ({
 }));
 
 const { dailyScheduleRoutes } = await import(
-  "../routes/scheduling/daily-schedule"
+  "../../../routes/scheduling/daily-schedule"
 );
 
 function resetAllMocks() {

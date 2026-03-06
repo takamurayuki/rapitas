@@ -18,7 +18,7 @@ const mockGetConfiguredProviders = mock(() =>
   ])
 );
 
-mock.module("../utils/ai-client", () => ({
+mock.module("../../../utils/ai-client", () => ({
   sendAIMessage: mockSendAIMessage,
   sendAIMessageStream: mockSendAIMessageStream,
   getConfiguredProviders: mockGetConfiguredProviders,
@@ -26,7 +26,7 @@ mock.module("../utils/ai-client", () => ({
   getDefaultModel: mock(() => Promise.resolve("claude-3-opus")),
   isAnyApiKeyConfigured: mock(() => Promise.resolve(true)),
 }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -35,7 +35,7 @@ mock.module("../config/logger", () => ({
   }),
 }));
 
-const { aiChatRoutes } = await import("../routes/ai/ai-chat");
+const { aiChatRoutes } = await import("../../../routes/ai/ai-chat");
 
 function resetAllMocks() {
   mockSendAIMessage.mockReset();

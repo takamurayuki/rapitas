@@ -3,7 +3,7 @@
  * JSON変換、ID解析などの純粋関数のテスト
  */
 import { describe, test, expect } from "bun:test";
-import { getLabelsArray, toJsonString, fromJsonString, parseId } from "../utils/db-helpers";
+import { getLabelsArray, toJsonString, fromJsonString, parseId } from "../../utils/db-helpers";
 
 describe("getLabelsArray", () => {
   test("null/undefinedで空配列を返すこと", () => {

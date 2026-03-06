@@ -9,7 +9,7 @@ import {
   expandRecurrence,
   RECURRENCE_PRESETS,
   type RRule,
-} from "../services/recurrence-service";
+} from "../../services/recurrence-service";
 
 describe("parseRRule", () => {
   test("基本的なDAILYルールをパースすること", () => {

@@ -26,19 +26,19 @@ const mockPrisma = {
 };
 
 // Mock modules
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../utils/db-helpers", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../utils/db-helpers", () => ({
   fromJsonString: mock((str) => str ? JSON.parse(str) : null),
 }));
-mock.module("../utils/agent-config-schema", () => ({
+mock.module("../../../utils/agent-config-schema", () => ({
   getAgentConfigSchema: mock(() => ({})),
   getAllAgentConfigSchemas: mock(() => ({})),
 }));
-mock.module("../utils/agent-audit-log", () => ({
+mock.module("../../../utils/agent-audit-log", () => ({
   logAgentConfigChange: mock(() => Promise.resolve()),
 }));
 
-const { agentConfigRouter } = await import("../routes/agents/agent-config-router");
+const { agentConfigRouter } = await import("../../../routes/agents/agent-config-router");
 
 describe("Agent Config Router", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

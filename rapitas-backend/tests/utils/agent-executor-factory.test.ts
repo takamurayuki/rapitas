@@ -8,7 +8,7 @@ class MockParallelExecutor {
   constructor(public prisma: any) {}
 }
 
-mock.module("../services/parallel-execution/parallel-executor", () => ({
+mock.module("../../services/parallel-execution/parallel-executor", () => ({
   ParallelExecutor: MockParallelExecutor,
 }));
 
@@ -20,7 +20,7 @@ const {
   getParallelExecutor,
   cleanupParallelExecutor,
   isParallelExecutorActive,
-} = await import("../utils/agent-executor-factory");
+} = await import("../../utils/agent-executor-factory");
 
 describe("Agent Executor Factory", () => {
   beforeEach(() => {

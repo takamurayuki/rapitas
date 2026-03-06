@@ -16,8 +16,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -26,7 +26,7 @@ mock.module("../config/logger", () => ({
   }),
 }));
 
-const { systemPromptsRoutes } = await import("../routes/ai/system-prompts");
+const { systemPromptsRoutes } = await import("../../../routes/ai/system-prompts");
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {

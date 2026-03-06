@@ -3,7 +3,7 @@
  * エージェントタイプ別モデル取得のテスト
  */
 import { describe, test, expect } from "bun:test";
-import { getModelsForAgentType, getAllModels } from "../utils/agent-models";
+import { getModelsForAgentType, getAllModels } from "../../utils/agent-models";
 
 describe("getModelsForAgentType", () => {
   test("claude-codeのモデル一覧を取得できること（フォールバック）", async () => {

@@ -30,8 +30,8 @@ const mockSendAIMessage = mock(() =>
 const mockGetDefaultProvider = mock(() => Promise.resolve("claude"));
 const mockIsAnyApiKeyConfigured = mock(() => Promise.resolve(true));
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -39,14 +39,14 @@ mock.module("../config/logger", () => ({
     debug: () => {},
   }),
 }));
-mock.module("../utils/ai-client", () => ({
+mock.module("../../../utils/ai-client", () => ({
   sendAIMessage: mockSendAIMessage,
   getDefaultProvider: mockGetDefaultProvider,
   isAnyApiKeyConfigured: mockIsAnyApiKeyConfigured,
 }));
 
 const { learningGoalsRoutes } = await import(
-  "../routes/learning/learning-goals"
+  "../../../routes/learning/learning-goals"
 );
 
 function resetAllMocks() {

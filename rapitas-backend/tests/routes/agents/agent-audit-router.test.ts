@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach } from "bun:test";
 import { Elysia } from "elysia";
-import { agentAuditRouter, taskExecutionLogsRouter } from "../routes/agents/agent-audit-router";
+import { agentAuditRouter, taskExecutionLogsRouter } from "../../../routes/agents/agent-audit-router";
 
 interface AuditLogResponse {
   logs: unknown[];

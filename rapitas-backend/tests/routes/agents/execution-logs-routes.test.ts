@@ -6,7 +6,7 @@ import { describe, test, expect, mock, beforeEach } from "bun:test";
 import { Elysia } from "elysia";
 
 // Mock logger
-mock.module("../config/logger", () => ({
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -35,7 +35,7 @@ const mockListExecutionLogFiles = mock(() =>
 
 const mockGetExecutionLogFile = mock(() => Promise.resolve(null));
 
-mock.module("../services/agents/execution-file-logger", () => ({
+mock.module("../../../services/agents/execution-file-logger", () => ({
   listExecutionLogFiles: mockListExecutionLogFiles,
   getExecutionLogFile: mockGetExecutionLogFile,
 }));
@@ -46,7 +46,7 @@ mock.module("fs/promises", () => ({
 }));
 
 const { executionLogsRoutes } = await import(
-  "../routes/agents/execution-logs"
+  "../../../routes/agents/execution-logs"
 );
 
 function createApp() {

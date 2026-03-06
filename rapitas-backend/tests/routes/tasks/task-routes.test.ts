@@ -39,14 +39,14 @@ const mockPrisma = {
   $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../services/achievement-checker", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../services/achievement-checker", () => ({
   checkAchievements: mock(() => Promise.resolve()),
 }));
-mock.module("../services/notification-service", () => ({
+mock.module("../../../services/notification-service", () => ({
   notifyTaskCompleted: mock(() => Promise.resolve()),
 }));
-mock.module("../src/services/userBehaviorService", () => ({
+mock.module("../../../src/services/userBehaviorService", () => ({
   UserBehaviorService: {
     recordTaskCreated: mock(() => Promise.resolve()),
     recordTaskStarted: mock(() => Promise.resolve()),
@@ -54,15 +54,15 @@ mock.module("../src/services/userBehaviorService", () => ({
     recordBehavior: mock(() => Promise.resolve()),
   },
 }));
-mock.module("../utils/ai-client", () => ({
+mock.module("../../../utils/ai-client", () => ({
   sendAIMessage: mock(() => Promise.resolve({ content: "{}", tokensUsed: 0 })),
   getDefaultProvider: mock(() => Promise.resolve("openai")),
   isAnyApiKeyConfigured: mock(() => Promise.resolve(false)),
 }));
-mock.module("../routes/agents/approvals", () => ({
+mock.module("../../../routes/agents/approvals", () => ({
   orchestrator: { execute: mock(() => Promise.resolve()) },
 }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -71,8 +71,8 @@ mock.module("../config/logger", () => ({
   }),
 }));
 
-const { tasksRoutes } = await import("../routes/tasks/tasks");
-const { AppError } = await import("../middleware/error-handler");
+const { tasksRoutes } = await import("../../../routes/tasks/tasks");
+const { AppError } = await import("../../../middleware/error-handler");
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {

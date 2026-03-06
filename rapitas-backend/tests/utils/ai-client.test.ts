@@ -20,8 +20,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -31,7 +31,7 @@ mock.module("../config/logger", () => ({
 }));
 
 const mockDecrypt = mock((val: string) => val);
-mock.module("../utils/encryption", () => ({
+mock.module("../../utils/encryption", () => ({
   decrypt: mockDecrypt,
   encrypt: mock((val: string) => `encrypted:${val}`),
   maskApiKey: mock((val: string) => `${val.slice(0, 4)}...`),
@@ -45,7 +45,7 @@ const {
   getConfiguredProviders,
   sendAIMessage,
   sendAIMessageStream,
-} = await import("../utils/ai-client");
+} = await import("../../utils/ai-client");
 
 describe("getApiKeyForProvider", () => {
   beforeEach(() => {

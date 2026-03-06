@@ -17,7 +17,7 @@ mock.module("@prisma/client", () => ({
   },
 }));
 
-mock.module("../config/logger", () => ({
+mock.module("../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -27,7 +27,7 @@ mock.module("../config/logger", () => ({
 }));
 
 const { logAgentConfigChange, getAgentConfigAuditLogs, getRecentAuditLogs, calculateChanges } =
-  await import("../utils/agent-audit-log");
+  await import("../../utils/agent-audit-log");
 
 describe("calculateChanges", () => {
   test("変更のないフィールドは含まないこと", () => {

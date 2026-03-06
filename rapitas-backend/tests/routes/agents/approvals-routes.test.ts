@@ -4,7 +4,7 @@
  */
 import { describe, test, expect, mock } from "bun:test";
 
-mock.module("../config/logger", () => ({
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -63,9 +63,9 @@ const mockPrisma = {
   $transaction: mock((fn: Function) => fn(mockPrisma)),
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
 
-mock.module("../services/agents/agent-orchestrator", () => ({
+mock.module("../../../services/agents/agent-orchestrator", () => ({
   createOrchestrator: mock(() => ({
     addEventListener: mock(() => {}),
     executeTask: mock(() => Promise.resolve()),
@@ -73,31 +73,31 @@ mock.module("../services/agents/agent-orchestrator", () => ({
   })),
 }));
 
-mock.module("../services/github-service", () => ({
+mock.module("../../../services/github-service", () => ({
   GitHubService: class {
     constructor() {}
     createPR() { return Promise.resolve({ url: "http://github.com/pr/1" }); }
   },
 }));
 
-mock.module("../services/realtime-service", () => ({
+mock.module("../../../services/realtime-service", () => ({
   realtimeService: {
     broadcast: mock(() => {}),
   },
 }));
 
-mock.module("../utils/db-helpers", () => ({
+mock.module("../../../utils/db-helpers", () => ({
   toJsonString: mock((v: unknown) => JSON.stringify(v)),
   fromJsonString: mock((v: string) => {
     try { return JSON.parse(v); } catch { return null; }
   }),
 }));
 
-mock.module("../services/screenshot-service", () => ({
+mock.module("../../../services/screenshot-service", () => ({
   captureScreenshotsForDiff: mock(() => Promise.resolve([])),
 }));
 
-const { approvalsRoutes } = await import("../routes/agents/approvals");
+const { approvalsRoutes } = await import("../../../routes/agents/approvals");
 
 import { Elysia } from "elysia";
 const app = new Elysia().use(approvalsRoutes);

@@ -3,7 +3,7 @@
  * API レスポンス作成ユーティリティのテスト
  */
 import { describe, test, expect } from "bun:test";
-import { createResponse, createErrorResponse } from "../utils/response";
+import { createResponse, createErrorResponse } from "../../utils/response";
 
 describe("createResponse", () => {
   test("データ付きの成功レスポンスを作成すること", () => {

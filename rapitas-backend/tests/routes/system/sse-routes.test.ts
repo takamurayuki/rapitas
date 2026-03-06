@@ -6,7 +6,7 @@ import { describe, test, expect, mock, beforeEach } from "bun:test";
 import { Elysia } from "elysia";
 
 // Mock logger
-mock.module("../config/logger", () => ({
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -26,11 +26,11 @@ const mockRealtimeService = {
   getChannelHistory: mock(() => []),
 };
 
-mock.module("../services/realtime-service", () => ({
+mock.module("../../../services/realtime-service", () => ({
   realtimeService: mockRealtimeService,
 }));
 
-const { sseRoutes } = await import("../routes/system/sse");
+const { sseRoutes } = await import("../../../routes/system/sse");
 
 function createApp() {
   return new Elysia().use(sseRoutes);

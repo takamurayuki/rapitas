@@ -23,7 +23,7 @@ import {
   type QuestionDetails,
   type QuestionDetectionResult,
   type QuestionWaitingState,
-} from "../services/agents/question-detection";
+} from "../../services/agents/question-detection";
 
 describe("質問検出ロジック", () => {
   describe("extractQuestionInfo", () => {

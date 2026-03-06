@@ -6,7 +6,7 @@ import { describe, test, expect, mock, beforeEach } from "bun:test";
 import { Elysia } from "elysia";
 
 // Mock logger
-mock.module("../config/logger", () => ({
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -34,7 +34,7 @@ mock.module("fs/promises", () => ({
 }));
 
 const { cliToolsManagementRoutes } = await import(
-  "../routes/agents/cli-tools-management"
+  "../../../routes/agents/cli-tools-management"
 );
 
 function createApp() {

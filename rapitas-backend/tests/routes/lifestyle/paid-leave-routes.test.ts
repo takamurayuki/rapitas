@@ -24,7 +24,7 @@ mock.module("@prisma/client", () => ({
     scheduleEvent = mockPrisma.scheduleEvent;
   },
 }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -32,13 +32,13 @@ mock.module("../config/logger", () => ({
     debug: () => {},
   }),
 }));
-mock.module("../utils/response", () => ({
+mock.module("../../../utils/response", () => ({
   createResponse: (data: unknown) => ({ success: true, data }),
   createErrorResponse: (error: string) => ({ success: false, error }),
 }));
 
 const { paidLeaveRoutes } = await import(
-  "../routes/lifestyle/paid-leave"
+  "../../../routes/lifestyle/paid-leave"
 );
 
 function resetAllMocks() {

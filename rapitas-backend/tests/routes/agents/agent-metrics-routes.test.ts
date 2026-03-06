@@ -25,7 +25,7 @@ mock.module("@prisma/client", () => ({
   Prisma: { validator: () => ({}) },
 }));
 
-mock.module("../config/logger", () => ({
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -35,7 +35,7 @@ mock.module("../config/logger", () => ({
 }));
 
 const { agentMetricsRouter } = await import(
-  "../routes/agents/agent-metrics"
+  "../../../routes/agents/agent-metrics"
 );
 
 describe("Agent Metrics Router", () => {

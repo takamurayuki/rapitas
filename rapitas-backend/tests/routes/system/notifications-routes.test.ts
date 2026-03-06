@@ -18,8 +18,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -27,14 +27,14 @@ mock.module("../config/logger", () => ({
     debug: () => {},
   }),
 }));
-mock.module("../services/realtime-service", () => ({
+mock.module("../../../services/realtime-service", () => ({
   realtimeService: {
     registerClient: mock(() => "client-1"),
     registerStreamController: mock(() => {}),
     broadcast: mock(() => {}),
   },
 }));
-mock.module("../services/cache-service", () => ({
+mock.module("../../../services/cache-service", () => ({
   cacheService: {
     get: mock(() => null),
     set: mock(() => {}),
@@ -43,9 +43,9 @@ mock.module("../services/cache-service", () => ({
 }));
 
 const { notificationsRoutes } = await import(
-  "../routes/system/notifications"
+  "../../../routes/system/notifications"
 );
-const { AppError } = await import("../middleware/error-handler");
+const { AppError } = await import("../../../middleware/error-handler");
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {

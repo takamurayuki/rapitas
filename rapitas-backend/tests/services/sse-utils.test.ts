@@ -4,7 +4,7 @@
  */
 import { describe, test, expect, mock } from "bun:test";
 
-mock.module("../config/logger", () => ({
+mock.module("../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -22,7 +22,7 @@ const {
   getUserFriendlyErrorMessage,
   SSEStreamController,
   DEFAULT_RETRY_CONFIG,
-} = await import("../services/sse-utils");
+} = await import("../../services/sse-utils");
 
 describe("createSSEHeaders", () => {
   test("Content-Typeがtext/event-streamであること", () => {

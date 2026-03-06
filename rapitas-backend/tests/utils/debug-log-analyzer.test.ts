@@ -11,7 +11,7 @@ import {
   NodeJSLogParser,
   LogType,
   LogLevel,
-} from "../utils/debug-log-analyzer";
+} from "../../utils/debug-log-analyzer";
 
 describe("JSONLogParser", () => {
   const parser = new JSONLogParser();

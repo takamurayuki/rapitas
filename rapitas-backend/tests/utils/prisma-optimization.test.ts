@@ -4,7 +4,7 @@
  */
 import { describe, test, expect, mock, beforeEach } from "bun:test";
 
-mock.module("../config/logger", () => ({
+mock.module("../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -14,7 +14,7 @@ mock.module("../config/logger", () => ({
 }));
 
 const { PrismaOptimizer, PrismaDataLoader, QueryOptimizers } = await import(
-  "../utils/prisma-optimization"
+  "../../utils/prisma-optimization"
 );
 
 describe("PrismaOptimizer", () => {

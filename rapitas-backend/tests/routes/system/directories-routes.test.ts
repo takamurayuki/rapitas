@@ -17,8 +17,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -35,7 +35,7 @@ mock.module("fs", () => ({
   mkdirSync: mock(() => {}),
 }));
 
-const { directoriesRoutes } = await import("../routes/system/directories");
+const { directoriesRoutes } = await import("../../../routes/system/directories");
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {

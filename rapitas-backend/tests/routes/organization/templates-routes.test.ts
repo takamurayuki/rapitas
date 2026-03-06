@@ -25,8 +25,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -34,7 +34,7 @@ mock.module("../config/logger", () => ({
     debug: () => {},
   }),
 }));
-mock.module("../utils/db-helpers", () => ({
+mock.module("../../../utils/db-helpers", () => ({
   toJsonString: (obj: unknown) => JSON.stringify(obj),
   fromJsonString: (str: string) => {
     try {
@@ -46,7 +46,7 @@ mock.module("../utils/db-helpers", () => ({
 }));
 
 const { templatesRoutes } = await import(
-  "../routes/organization/templates"
+  "../../../routes/organization/templates"
 );
 
 function resetAllMocks() {

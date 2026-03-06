@@ -24,8 +24,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -33,12 +33,12 @@ mock.module("../config/logger", () => ({
     debug: () => {},
   }),
 }));
-mock.module("../services/realtime-service", () => ({
+mock.module("../../../services/realtime-service", () => ({
   realtimeService: {
     broadcast: mock(() => {}),
   },
 }));
-mock.module("../services/cache-service", () => ({
+mock.module("../../../services/cache-service", () => ({
   cacheService: {
     get: mock(() => null),
     set: mock(() => {}),
@@ -46,8 +46,8 @@ mock.module("../services/cache-service", () => ({
   },
 }));
 
-const { commentsRoutes } = await import("../routes/social/comments");
-const { AppError } = await import("../middleware/error-handler");
+const { commentsRoutes } = await import("../../../routes/social/comments");
+const { AppError } = await import("../../../middleware/error-handler");
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {

@@ -9,7 +9,7 @@ import {
   NotFoundError,
   ValidationError,
   errorHandler,
-} from "../middleware/error-handler";
+} from "../../middleware/error-handler";
 
 interface ErrorResponseBody {
   success?: boolean;

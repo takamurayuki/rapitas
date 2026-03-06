@@ -1,31 +1,31 @@
 {
   "metadata": {
-    "generatedAt": "2026-03-04T15:32:18.706Z",
-    "executionTimeMs": 20056,
+    "generatedAt": "2026-03-06T06:47:39.959Z",
+    "executionTimeMs": 23068,
     "projectRoot": "C:\\Projects\\rapitas"
   },
   "codeMetrics": {
     "byExtension": [
       {
         "extension": ".ts",
-        "fileCount": 248,
-        "totalLines": 81615,
-        "totalSize": 2520155,
-        "avgLines": 329
+        "fileCount": 311,
+        "totalLines": 99032,
+        "totalSize": 3068830,
+        "avgLines": 318
       },
       {
         "extension": ".tsx",
         "fileCount": 172,
-        "totalLines": 66065,
-        "totalSize": 2504840,
+        "totalLines": 66074,
+        "totalSize": 2510917,
         "avgLines": 384
       },
       {
         "extension": ".md",
-        "fileCount": 192,
-        "totalLines": 14649,
-        "totalSize": 612737,
-        "avgLines": 76
+        "fileCount": 231,
+        "totalLines": 16666,
+        "totalSize": 703557,
+        "avgLines": 72
       },
       {
         "extension": ".yaml",
@@ -38,7 +38,7 @@
         "extension": ".json",
         "fileCount": 10,
         "totalLines": 3263,
-        "totalSize": 105878,
+        "totalSize": 108881,
         "avgLines": 326
       },
       {
@@ -72,9 +72,9 @@
       {
         "extension": ".prisma",
         "fileCount": 1,
-        "totalLines": 1011,
-        "totalSize": 40686,
-        "avgLines": 1011
+        "totalLines": 1012,
+        "totalSize": 40783,
+        "avgLines": 1012
       },
       {
         "extension": ".sql",
@@ -105,12 +105,12 @@
       "analysis-report.md": {
         "files": 1,
         "lines": 800,
-        "size": 46585
+        "size": 47385
       },
       "analysis-result.json": {
         "files": 1,
         "lines": 3003,
-        "size": 98462
+        "size": 101465
       },
       "docs": {
         "files": 1,
@@ -138,9 +138,9 @@
         "size": 13941
       },
       "rapitas-backend": {
-        "files": 368,
-        "lines": 78394,
-        "size": 2593745
+        "files": 470,
+        "lines": 97828,
+        "size": 3230471
       },
       "rapitas-desktop": {
         "files": 141,
@@ -149,8 +149,8 @@
       },
       "rapitas-frontend": {
         "files": 261,
-        "lines": 94987,
-        "size": 3391606
+        "lines": 94997,
+        "size": 3399749
       },
       "README.md": {
         "files": 1,
@@ -166,28 +166,28 @@
       },
       {
         "path": "rapitas-backend\\services\\agents\\agent-orchestrator.ts",
-        "lines": 3936,
-        "size": 131483
+        "lines": 3937,
+        "size": 131526
       },
       {
         "path": "analysis-result.json",
         "lines": 3003,
-        "size": 98462
+        "size": 101465
       },
       {
         "path": "rapitas-frontend\\src\\components\\note\\NoteEditor.tsx",
         "lines": 2998,
-        "size": 107727
+        "size": 110724
       },
       {
         "path": "rapitas-frontend\\src\\app\\tasks\\[id]\\TaskDetailClient.tsx",
         "lines": 2060,
-        "size": 84904
+        "size": 86963
       },
       {
         "path": "rapitas-frontend\\src\\components\\category\\IconData.ts",
         "lines": 2023,
-        "size": 55459
+        "size": 57481
       },
       {
         "path": "rapitas-frontend\\src\\feature\\developer-mode\\components\\AIAccordionPanel.tsx",
@@ -198,11 +198,6 @@
         "path": "rapitas-backend\\services\\agents\\claude-code-agent.ts",
         "lines": 1639,
         "size": 67049
-      },
-      {
-        "path": "rapitas-backend\\routes\\tasks\\tasks.ts",
-        "lines": 1568,
-        "size": 53685
       },
       {
         "path": "rapitas-frontend\\src\\app\\HomeClient.tsx",
@@ -223,6 +218,11 @@
         "path": "rapitas-backend\\routes\\agents\\ai-agent.ts",
         "lines": 1528,
         "size": 49681
+      },
+      {
+        "path": "rapitas-backend\\routes\\tasks\\tasks.ts",
+        "lines": 1460,
+        "size": 48891
       },
       {
         "path": "rapitas-frontend\\src\\feature\\developer-mode\\components\\AIAnalysisPanel.tsx",
@@ -260,13 +260,13 @@
         "size": 24840
       }
     ],
-    "totalFiles": 788,
-    "totalLines": 186935,
-    "totalSize": 11221872
+    "totalFiles": 890,
+    "totalLines": 206379,
+    "totalSize": 11870544
   },
   "architecture": {
     "backend": {
-      "routeFiles": 58,
+      "routeFiles": 104,
       "endpoints": [
         {
           "method": "GET",
@@ -1989,11 +1989,6 @@
           "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
         },
         {
-          "method": "POST",
-          "path": "/tasks/:id/execute",
-          "file": "rapitas-backend\\routes\\tasks\\tasks.ts"
-        },
-        {
           "method": "GET",
           "path": "/workflow-roles",
           "file": "rapitas-backend\\routes\\workflow\\workflow-roles.ts"
@@ -2052,6 +2047,21 @@
           "method": "GET",
           "path": "/workflow/modes",
           "file": "rapitas-backend\\routes\\workflow\\workflow.ts"
+        },
+        {
+          "method": "GET",
+          "path": "Content-Type",
+          "file": "rapitas-backend\\tests\\parallel-execution-routes.test.ts"
+        },
+        {
+          "method": "GET",
+          "path": "Content-Type",
+          "file": "rapitas-backend\\tests\\sse-routes.test.ts"
+        },
+        {
+          "method": "GET",
+          "path": "Content-Type",
+          "file": "rapitas-backend\\tests\\sse-routes.test.ts"
         }
       ],
       "services": [
@@ -2408,7 +2418,7 @@
         },
         {
           "name": "AgentExecutionConfig",
-          "fieldCount": 28,
+          "fieldCount": 29,
           "relations": [
             "taskId",
             "agentConfigId"
@@ -2774,15 +2784,15 @@
     }
   },
   "quality": {
-    "testFiles": 16,
+    "testFiles": 79,
     "sourceFiles": 404,
-    "testRatio": 0.04,
-    "anyUsage": 19,
+    "testRatio": 0.2,
+    "anyUsage": 39,
     "todoCount": 0,
     "fixmeCount": 0,
     "hackCount": 0,
     "consoleLogCount": 5,
-    "tryCatchCount": 841
+    "tryCatchCount": 849
   },
   "aiAgent": {
     "providers": [
@@ -2817,9 +2827,12 @@
       "rapitas-backend\\routes\\agents\\parallel-execution.ts",
       "rapitas-backend\\tests\\agent-audit-router.test.ts",
       "rapitas-backend\\tests\\agent-config-router.test.ts",
+      "rapitas-backend\\tests\\agent-execution-config-routes.test.ts",
       "rapitas-backend\\tests\\agent-execution-router.test.ts",
+      "rapitas-backend\\tests\\agent-metrics-routes.test.ts",
       "rapitas-backend\\tests\\agent-session-router.test.ts",
-      "rapitas-backend\\tests\\agent-system-router.test.ts"
+      "rapitas-backend\\tests\\agent-system-router.test.ts",
+      "rapitas-backend\\tests\\agent-version-management-routes.test.ts"
     ],
     "agentServices": [
       "rapitas-backend\\services\\agent-config-service.ts",
@@ -2874,130 +2887,128 @@
   "featureCompleteness": [
     {
       "name": "タスク管理",
-      "routes": 6,
+      "routes": 7,
       "services": 0,
       "components": 44,
       "hooks": 7,
       "models": 7,
-      "tests": 0,
-      "score": 75
+      "tests": 1,
+      "score": 80
     },
     {
       "name": "ポモドーロ/時間管理",
-      "routes": 2,
+      "routes": 4,
       "services": 1,
       "components": 6,
       "hooks": 0,
       "models": 1,
-      "tests": 0,
-      "score": 85
+      "tests": 3,
+      "score": 90
     },
     {
       "name": "AIエージェント",
-      "routes": 14,
+      "routes": 18,
       "services": 35,
       "components": 8,
       "hooks": 1,
       "models": 7,
-      "tests": 7,
+      "tests": 15,
       "score": 100
     },
     {
       "name": "ワークフロー",
-      "routes": 2,
+      "routes": 3,
       "services": 3,
       "components": 7,
       "hooks": 3,
       "models": 2,
-      "tests": 0,
-      "score": 95
+      "tests": 1,
+      "score": 100
     },
     {
       "name": "GitHub連携",
-      "routes": 1,
+      "routes": 2,
       "services": 1,
       "components": 7,
       "hooks": 1,
       "models": 5,
-      "tests": 0,
-      "score": 95
+      "tests": 1,
+      "score": 100
     },
     {
       "name": "認証",
-      "routes": 2,
+      "routes": 3,
       "services": 0,
       "components": 4,
       "hooks": 0,
       "models": 3,
-      "tests": 1,
+      "tests": 2,
       "score": 70
     },
     {
       "name": "通知",
-      "routes": 1,
+      "routes": 2,
       "services": 1,
       "components": 1,
       "hooks": 1,
       "models": 1,
-      "tests": 0,
-      "score": 95
+      "tests": 2,
+      "score": 100
     },
     {
       "name": "検索",
-      "routes": 1,
+      "routes": 2,
       "services": 0,
       "components": 3,
       "hooks": 2,
       "models": 0,
-      "tests": 0,
-      "score": 60
+      "tests": 1,
+      "score": 65
     },
     {
       "name": "カレンダー/スケジュール",
-      "routes": 2,
+      "routes": 4,
       "services": 2,
       "components": 5,
       "hooks": 1,
       "models": 2,
-      "tests": 0,
-      "score": 95
+      "tests": 2,
+      "score": 100
     },
     {
       "name": "学習/習慣",
-      "routes": 6,
+      "routes": 11,
       "services": 0,
       "components": 8,
       "hooks": 0,
       "models": 7,
-      "tests": 0,
-      "score": 65
+      "tests": 5,
+      "score": 70
     },
     {
       "name": "分析/レポート",
-      "routes": 4,
+      "routes": 7,
       "services": 1,
       "components": 4,
       "hooks": 0,
       "models": 2,
-      "tests": 0,
-      "score": 85
+      "tests": 4,
+      "score": 90
     }
   ],
   "scoring": {
-    "qualityScore": 70,
-    "featureCoverageScore": 84,
+    "qualityScore": 90,
+    "featureCoverageScore": 88,
     "strengths": [
-      "豊富なAPIエンドポイント（357件）",
+      "豊富なAPIエンドポイント（359件）",
       "充実したデータモデル（55モデル）",
       "多彩なフロントエンドページ（41ルート）",
       "再利用可能なカスタムフック（33個）",
       "高カバレッジ機能エリア: タスク管理, ポモドーロ/時間管理, AIエージェント, ワークフロー, GitHub連携, 通知, カレンダー/スケジュール, 分析/レポート"
     ],
-    "weaknesses": [
-      "テストカバレッジが低い（テスト比率: 0.04）"
-    ],
+    "weaknesses": [],
     "suggestions": [
-      "テストの拡充（特にバックエンドのユニットテスト）"
+      "any型を具体的な型に置き換える型安全性の向上"
     ]
   }
 }

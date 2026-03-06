@@ -6,7 +6,7 @@ import { describe, test, expect, mock, beforeEach } from "bun:test";
 import { Elysia } from "elysia";
 
 // Mock logger
-mock.module("../config/logger", () => ({
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -43,14 +43,14 @@ const mockDetectProjectInfo = mock(() => ({
 
 const mockDetectAllPages = mock(() => [{ path: "/", name: "Home" }]);
 
-mock.module("../services/screenshot-service", () => ({
+mock.module("../../../services/screenshot-service", () => ({
   captureScreenshots: mockCaptureScreenshots,
   captureAllScreenshots: mockCaptureAllScreenshots,
   detectProjectInfo: mockDetectProjectInfo,
   detectAllPages: mockDetectAllPages,
 }));
 
-const { screenshotsRoutes } = await import("../routes/system/screenshots");
+const { screenshotsRoutes } = await import("../../../routes/system/screenshots");
 
 function createApp() {
   return new Elysia().use(screenshotsRoutes);

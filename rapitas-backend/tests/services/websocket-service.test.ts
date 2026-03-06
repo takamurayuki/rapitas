@@ -4,7 +4,7 @@
  */
 import { describe, test, expect, beforeEach, mock } from "bun:test";
 
-mock.module("../config/logger", () => ({
+mock.module("../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -13,7 +13,7 @@ mock.module("../config/logger", () => ({
   }),
 }));
 
-mock.module("../config", () => ({
+mock.module("../../config", () => ({
   prisma: {
     task: { findUnique: mock(() => Promise.resolve(null)) },
     category: { findUnique: mock(() => Promise.resolve(null)) },
@@ -28,7 +28,7 @@ mock.module("./cache-service", () => ({
   },
 }));
 
-const { wsManager } = await import("../services/websocket-service");
+const { wsManager } = await import("../../services/websocket-service");
 
 function createMockWs(readyState: number = 1) {
   return {

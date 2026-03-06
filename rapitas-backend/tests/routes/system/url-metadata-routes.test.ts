@@ -17,7 +17,7 @@ const mockFetch = mock(() =>
 );
 globalThis.fetch = mockFetch as unknown as typeof fetch;
 
-const { urlMetadataRoutes } = await import("../routes/system/url-metadata");
+const { urlMetadataRoutes } = await import("../../../routes/system/url-metadata");
 
 // Restore fetch after all tests
 afterAll(() => {

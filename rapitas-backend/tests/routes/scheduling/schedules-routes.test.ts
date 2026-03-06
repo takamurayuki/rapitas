@@ -15,8 +15,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -24,7 +24,7 @@ mock.module("../config/logger", () => ({
     debug: () => {},
   }),
 }));
-mock.module("../services/recurrence-service", () => ({
+mock.module("../../../services/recurrence-service", () => ({
   parseRRule: mock(() => ({ freq: "WEEKLY", interval: 1 })),
   expandRecurrence: mock(() => []),
   RECURRENCE_PRESETS: [
@@ -33,9 +33,9 @@ mock.module("../services/recurrence-service", () => ({
   ],
 }));
 
-const { schedulesRoutes } = await import("../routes/scheduling/schedules");
+const { schedulesRoutes } = await import("../../../routes/scheduling/schedules");
 const { AppError, ValidationError, NotFoundError } = await import(
-  "../middleware/error-handler"
+  "../../../middleware/error-handler"
 );
 
 function resetAllMocks() {

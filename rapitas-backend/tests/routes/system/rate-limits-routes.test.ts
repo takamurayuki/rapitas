@@ -11,8 +11,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -20,15 +20,15 @@ mock.module("../config/logger", () => ({
     debug: () => {},
   }),
 }));
-mock.module("../utils/ai-client", () => ({
+mock.module("../../../utils/ai-client", () => ({
   getApiKeyForProvider: mock(() => Promise.resolve(null)),
 }));
-mock.module("../utils/encryption", () => ({
+mock.module("../../../utils/encryption", () => ({
   decrypt: mock((v: string) => `decrypted:${v}`),
 }));
 
-const { rateLimitRoutes } = await import("../routes/system/rate-limits");
-const { getApiKeyForProvider } = await import("../utils/ai-client");
+const { rateLimitRoutes } = await import("../../../routes/system/rate-limits");
+const { getApiKeyForProvider } = await import("../../../utils/ai-client");
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {

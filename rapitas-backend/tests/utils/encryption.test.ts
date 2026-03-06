@@ -12,7 +12,7 @@ import {
   decrypt,
   maskApiKey,
   isEncryptionKeyConfigured,
-} from "../utils/encryption";
+} from "../../utils/encryption";
 
 describe("encrypt / decrypt", () => {
   test("暗号化と復号化のラウンドトリップが正しく動作すること", () => {

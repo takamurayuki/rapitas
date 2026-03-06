@@ -24,7 +24,7 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config", () => ({
+mock.module("../../../config", () => ({
   prisma: mockPrisma,
   createLogger: () => ({
     info: () => {},
@@ -33,8 +33,8 @@ mock.module("../config", () => ({
     debug: () => {},
   }),
 }));
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -42,14 +42,14 @@ mock.module("../config/logger", () => ({
     debug: () => {},
   }),
 }));
-mock.module("../utils/mojibake-detector", () => ({
+mock.module("../../../utils/mojibake-detector", () => ({
   sanitizeMarkdownContent: (content: string) => ({
     content,
     wasFixed: false,
     issues: [],
   }),
 }));
-mock.module("../services/workflow/complexity-analyzer", () => ({
+mock.module("../../../services/workflow/complexity-analyzer", () => ({
   analyzeTaskComplexity: () => ({
     complexityScore: 5,
     recommendedMode: "standard",
@@ -61,7 +61,7 @@ mock.module("../services/workflow/complexity-analyzer", () => ({
     comprehensive: { name: "Comprehensive" },
   }),
 }));
-mock.module("../services/agents/agent-orchestrator", () => ({
+mock.module("../../../services/agents/agent-orchestrator", () => ({
   AgentOrchestrator: {
     getInstance: () => ({
       createBranch: mock(() => Promise.resolve()),
@@ -85,7 +85,7 @@ mock.module("fs/promises", () => ({
   ),
 }));
 
-const { workflowRoutes } = await import("../routes/workflow/workflow");
+const { workflowRoutes } = await import("../../../routes/workflow/workflow");
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {

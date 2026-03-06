@@ -19,8 +19,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -28,11 +28,11 @@ mock.module("../config/logger", () => ({
     debug: () => {},
   }),
 }));
-mock.module("../services/achievement-checker", () => ({
+mock.module("../../../services/achievement-checker", () => ({
   checkAchievements: mock(() => Promise.resolve()),
 }));
 
-const { habitsRoutes } = await import("../routes/lifestyle/habits");
+const { habitsRoutes } = await import("../../../routes/lifestyle/habits");
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {

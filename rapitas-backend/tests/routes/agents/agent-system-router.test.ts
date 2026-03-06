@@ -29,18 +29,18 @@ const mockRealtimeService = {
 };
 
 // Mock modules
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../routes/agents/approvals", () => ({ orchestrator: mockOrchestrator }));
-mock.module("../utils/encryption", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../routes/agents/approvals", () => ({ orchestrator: mockOrchestrator }));
+mock.module("../../../utils/encryption", () => ({
   isEncryptionKeyConfigured: mock(() => true),
 }));
-mock.module("../utils/agent-config-schema", () => ({
+mock.module("../../../utils/agent-config-schema", () => ({
   getAllAgentConfigSchemas: mock(() => ({})),
 }));
-mock.module("../services/realtime-service", () => ({
+mock.module("../../../services/realtime-service", () => ({
   realtimeService: mockRealtimeService,
 }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/logger", () => ({
   createLogger: mock(() => ({
     info: mock(() => {}),
     error: mock(() => {}),
@@ -60,7 +60,7 @@ mock.module("child_process", () => ({
   })),
 }));
 
-const { agentSystemRouter } = await import("../routes/agents/agent-system-router");
+const { agentSystemRouter } = await import("../../../routes/agents/agent-system-router");
 
 interface EncryptionStatusResponse {
   isConfigured: boolean;

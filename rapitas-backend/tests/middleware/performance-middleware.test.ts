@@ -4,7 +4,7 @@
  */
 import { describe, test, expect, mock } from "bun:test";
 
-mock.module("../config/logger", () => ({
+mock.module("../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -20,7 +20,7 @@ const {
   rateLimitMiddleware,
   performanceOptimization,
   connectionPooling,
-} = await import("../middleware/performance");
+} = await import("../../middleware/performance");
 
 describe("Performance Middleware exports", () => {
   test("compressionMiddlewareがElysiaインスタンスであること", () => {

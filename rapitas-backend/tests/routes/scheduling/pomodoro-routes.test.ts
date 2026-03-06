@@ -14,7 +14,7 @@ const mockCancelPomodoro = mock(() => Promise.resolve({ id: 1 }));
 const mockGetStatistics = mock(() => Promise.resolve({ totalSessions: 0, totalMinutes: 0 }));
 const mockGetHistory = mock(() => Promise.resolve({ sessions: [], total: 0 }));
 
-mock.module("../services/pomodoro-service", () => ({
+mock.module("../../../services/pomodoro-service", () => ({
   getActiveSession: mockGetActiveSession,
   startPomodoro: mockStartPomodoro,
   pausePomodoro: mockPausePomodoro,
@@ -24,7 +24,7 @@ mock.module("../services/pomodoro-service", () => ({
   getStatistics: mockGetStatistics,
   getHistory: mockGetHistory,
 }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -33,7 +33,7 @@ mock.module("../config/logger", () => ({
   }),
 }));
 
-const { pomodoroRoutes } = await import("../routes/scheduling/pomodoro");
+const { pomodoroRoutes } = await import("../../../routes/scheduling/pomodoro");
 
 function resetAllMocks() {
   mockGetActiveSession.mockReset();

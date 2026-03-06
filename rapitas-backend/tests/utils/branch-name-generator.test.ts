@@ -7,7 +7,7 @@ import {
   sanitizeBranchName,
   isValidBranchName,
   generateFallbackBranchName,
-} from "../utils/branch-name-generator";
+} from "../../utils/branch-name-generator";
 
 describe("sanitizeBranchName", () => {
   test("正常なブランチ名をそのまま返すこと", () => {

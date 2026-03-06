@@ -18,11 +18,11 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../utils/agent-audit-log", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../utils/agent-audit-log", () => ({
   logAgentConfigChange: mock(() => Promise.resolve()),
 }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -32,7 +32,7 @@ mock.module("../config/logger", () => ({
 }));
 
 const { agentVersionManagementRoutes } = await import(
-  "../routes/agents/agent-version-management"
+  "../../../routes/agents/agent-version-management"
 );
 
 describe("Agent Version Management Routes", () => {

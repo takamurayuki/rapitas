@@ -39,8 +39,8 @@ const mockPrisma = {
   ),
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -48,7 +48,7 @@ mock.module("../config/logger", () => ({
     debug: () => {},
   }),
 }));
-mock.module("../services/claude-agent", () => ({
+mock.module("../../../services/claude-agent", () => ({
   analyzeTask: mock(() =>
     Promise.resolve({
       result: {
@@ -86,18 +86,18 @@ mock.module("../services/claude-agent", () => ({
     Promise.resolve({ title: "Generated Title" })
   ),
 }));
-mock.module("../utils/ai-client", () => ({
+mock.module("../../../utils/ai-client", () => ({
   getDefaultProvider: mock(() => Promise.resolve("anthropic-api")),
   getApiKeyForProvider: mock(() => Promise.resolve("sk-test-key")),
 }));
-mock.module("../utils/db-helpers", () => ({
+mock.module("../../../utils/db-helpers", () => ({
   getLabelsArray: mock(() => []),
   toJsonString: mock((v: unknown) => JSON.stringify(v)),
   fromJsonString: mock((v: string) => JSON.parse(v)),
 }));
 
 const { developerModeRoutes } = await import(
-  "../routes/system/developer-mode"
+  "../../../routes/system/developer-mode"
 );
 
 function resetAllMocks() {

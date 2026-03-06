@@ -6,7 +6,7 @@ import { describe, test, expect, mock, beforeEach } from "bun:test";
 import { Elysia } from "elysia";
 
 // Mock logger
-mock.module("../config/logger", () => ({
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -15,7 +15,7 @@ mock.module("../config/logger", () => ({
   }),
 }));
 
-const { debugLogsRouter } = await import("../routes/system/debug-logs");
+const { debugLogsRouter } = await import("../../../routes/system/debug-logs");
 
 function createApp() {
   return new Elysia().use(debugLogsRouter);

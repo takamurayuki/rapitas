@@ -12,8 +12,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../config/logger", () => ({
+mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/logger", () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -22,8 +22,8 @@ mock.module("../config/logger", () => ({
   }),
 }));
 
-const { timeEntriesRoutes } = await import("../routes/scheduling/time-entries");
-const { AppError } = await import("../middleware/error-handler");
+const { timeEntriesRoutes } = await import("../../../routes/scheduling/time-entries");
+const { AppError } = await import("../../../middleware/error-handler");
 
 function resetAllMocks() {
   mockPrisma.timeEntry.findMany.mockReset();
