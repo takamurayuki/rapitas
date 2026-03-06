@@ -12,8 +12,6 @@ import {
   type AIMessage,
 } from "../../utils/ai-client";
 import { UserBehaviorService } from "../../src/services/userBehaviorService";
-import { orchestrator } from "../agents/approvals";
-import { toJsonString } from "../../utils/db-helpers";
 import { checkAchievements } from "../../services/achievement-checker";
 import { notifyTaskCompleted } from "../../services/notification-service";
 import { createLogger } from "../../config/logger";

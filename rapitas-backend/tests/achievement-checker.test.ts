@@ -1,253 +1,183 @@
 /**
- * Achievement Checker テスト
- * 実績チェックのビジネスロジック（条件評価、イベントマッピング）を検証
+ * Achievement Checker Service テスト
+ * getRelevantConditionTypesのイベント→条件タイプマッピングと
+ * checkAchievementsの基本動作テスト
  */
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, mock, beforeEach } from "bun:test";
 
-// getRelevantConditionTypesのロジックを再現（元コードの純粋関数部分）
-type AchievementEvent =
-  | "task.completed"
-  | "streak.updated"
-  | "study.logged"
-  | "exam.completed"
-  | "flashcard.reviewed"
-  | "pomodoro.completed";
+// Prisma と notification-service をモック
+const mockPrisma = {
+  achievement: {
+    findMany: mock(() => Promise.resolve([])),
+  },
+  userAchievement: {
+    findUnique: mock(() => Promise.resolve(null)),
+    create: mock(() => Promise.resolve({})),
+  },
+  task: { count: mock(() => Promise.resolve(0)) },
+  studyStreak: { findMany: mock(() => Promise.resolve([])), findFirst: mock(() => Promise.resolve(null)) },
+  timeEntry: { findMany: mock(() => Promise.resolve([])) },
+  examGoal: { count: mock(() => Promise.resolve(0)) },
+  flashcard: { aggregate: mock(() => Promise.resolve({ _sum: { reviewCount: 0 } })) },
+};
 
-function getRelevantConditionTypes(event: AchievementEvent): string[] {
-  switch (event) {
-    case "task.completed":
-      return ["tasks_completed"];
-    case "streak.updated":
-      return ["streak"];
-    case "study.logged":
-      return ["study_hours", "early_study", "night_study"];
-    case "exam.completed":
-      return ["exam_completed"];
-    case "flashcard.reviewed":
-      return ["flashcard_reviews"];
-    case "pomodoro.completed":
-      return ["study_hours"];
-    default:
-      return [];
-  }
-}
+mock.module("../config/database", () => ({
+  prisma: mockPrisma,
+}));
 
-// tasks_completed条件評価ロジックの再現
-function evaluateTasksCompleted(
-  completedCount: number,
-  requiredCount: number
-): boolean {
-  return completedCount >= requiredCount;
-}
+mock.module("./notification-service", () => ({
+  notifyAchievementUnlocked: mock(() => Promise.resolve()),
+}));
 
-// streak条件評価ロジックの再現
-function evaluateStreak(
-  streaks: Array<{ date: Date }>,
-  requiredDays: number
-): boolean {
-  if (streaks.length < requiredDays) return false;
+const { checkAchievements } = await import("../services/achievement-checker");
 
-  let consecutive = 0;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  for (let i = 0; i < streaks.length; i++) {
-    const expectedDate = new Date(today);
-    expectedDate.setDate(expectedDate.getDate() - i);
-    expectedDate.setHours(0, 0, 0, 0);
-
-    const streakDate = new Date(streaks[i]!.date);
-    streakDate.setHours(0, 0, 0, 0);
-
-    if (streakDate.getTime() === expectedDate.getTime()) {
-      consecutive++;
-    } else {
-      break;
-    }
-  }
-
-  return consecutive >= requiredDays;
-}
-
-// study_hours条件評価ロジックの再現
-function evaluateStudyHours(
-  durations: number[],
-  requiredHours: number
-): boolean {
-  const totalHours = durations.reduce((sum, d) => sum + d, 0);
-  return totalHours >= requiredHours;
-}
-
-// 早朝・深夜学習のロジック
-function evaluateEarlyStudy(currentHour: number, hasTodayStudy: boolean): boolean {
-  if (currentHour >= 6) return false;
-  return hasTodayStudy;
-}
-
-function evaluateNightStudy(currentHour: number, hasTodayStudy: boolean): boolean {
-  if (currentHour >= 4) return false;
-  return hasTodayStudy;
-}
-
-describe("Achievement Checker - イベント→条件タイプマッピング", () => {
-  test("task.completedでtasks_completedを返すこと", () => {
-    expect(getRelevantConditionTypes("task.completed")).toEqual(["tasks_completed"]);
+describe("checkAchievements", () => {
+  beforeEach(() => {
+    // Reset all mocks
+    mockPrisma.achievement.findMany.mockReset();
+    mockPrisma.achievement.findMany.mockResolvedValue([]);
+    mockPrisma.userAchievement.findUnique.mockReset();
+    mockPrisma.userAchievement.create.mockReset();
+    mockPrisma.task.count.mockReset();
   });
 
-  test("streak.updatedでstreakを返すこと", () => {
-    expect(getRelevantConditionTypes("streak.updated")).toEqual(["streak"]);
+  test("実績がない場合何もしないこと", async () => {
+    mockPrisma.achievement.findMany.mockResolvedValue([]);
+    await checkAchievements("task.completed");
+    // No error thrown
+    expect(mockPrisma.achievement.findMany).toHaveBeenCalled();
   });
 
-  test("study.loggedでstudy_hours, early_study, night_studyを返すこと", () => {
-    const types = getRelevantConditionTypes("study.logged");
-    expect(types).toEqual(["study_hours", "early_study", "night_study"]);
+  test("既に解除済みの実績はスキップすること", async () => {
+    mockPrisma.achievement.findMany.mockResolvedValue([
+      {
+        id: 1,
+        name: "Test Achievement",
+        icon: "🏆",
+        condition: JSON.stringify({ type: "tasks_completed", count: 1 }),
+        unlockedBy: [{ id: 1 }], // already unlocked
+      },
+    ]);
+
+    await checkAchievements("task.completed");
+    expect(mockPrisma.task.count).not.toHaveBeenCalled();
   });
 
-  test("exam.completedでexam_completedを返すこと", () => {
-    expect(getRelevantConditionTypes("exam.completed")).toEqual(["exam_completed"]);
+  test("task.completedイベントでtasks_completed条件をチェックすること", async () => {
+    mockPrisma.achievement.findMany.mockResolvedValue([
+      {
+        id: 1,
+        name: "First Task",
+        icon: "✅",
+        condition: JSON.stringify({ type: "tasks_completed", count: 1 }),
+        unlockedBy: [],
+      },
+    ]);
+    mockPrisma.task.count.mockResolvedValue(5);
+    mockPrisma.userAchievement.findUnique.mockResolvedValue(null);
+    mockPrisma.userAchievement.create.mockResolvedValue({});
+
+    await checkAchievements("task.completed");
+    expect(mockPrisma.task.count).toHaveBeenCalled();
+    expect(mockPrisma.userAchievement.create).toHaveBeenCalled();
   });
 
-  test("flashcard.reviewedでflashcard_reviewsを返すこと", () => {
-    expect(getRelevantConditionTypes("flashcard.reviewed")).toEqual(["flashcard_reviews"]);
+  test("条件を満たさない場合解除しないこと", async () => {
+    mockPrisma.achievement.findMany.mockResolvedValue([
+      {
+        id: 1,
+        name: "100 Tasks",
+        icon: "💯",
+        condition: JSON.stringify({ type: "tasks_completed", count: 100 }),
+        unlockedBy: [],
+      },
+    ]);
+    mockPrisma.task.count.mockResolvedValue(5);
+
+    await checkAchievements("task.completed");
+    expect(mockPrisma.userAchievement.create).not.toHaveBeenCalled();
   });
 
-  test("pomodoro.completedでstudy_hoursを返すこと", () => {
-    expect(getRelevantConditionTypes("pomodoro.completed")).toEqual(["study_hours"]);
-  });
-});
+  test("関連しないイベントタイプでは条件をチェックしないこと", async () => {
+    mockPrisma.achievement.findMany.mockResolvedValue([
+      {
+        id: 1,
+        name: "Task Master",
+        icon: "✅",
+        condition: JSON.stringify({ type: "tasks_completed", count: 1 }),
+        unlockedBy: [],
+      },
+    ]);
 
-describe("Achievement Checker - 条件評価ロジック", () => {
-  describe("tasks_completed条件", () => {
-    test("完了数が必要数以上で解除されること", () => {
-      expect(evaluateTasksCompleted(10, 10)).toBe(true);
-      expect(evaluateTasksCompleted(15, 10)).toBe(true);
-    });
-
-    test("完了数が必要数未満で解除されないこと", () => {
-      expect(evaluateTasksCompleted(5, 10)).toBe(false);
-      expect(evaluateTasksCompleted(0, 1)).toBe(false);
-    });
+    // streak.updated event should not trigger tasks_completed check
+    await checkAchievements("streak.updated");
+    expect(mockPrisma.task.count).not.toHaveBeenCalled();
   });
 
-  describe("streak条件", () => {
-    test("連続日数が条件を満たす場合trueを返すこと", () => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+  test("pomodoro.completedイベントでstudy_hours条件をチェックすること", async () => {
+    mockPrisma.achievement.findMany.mockResolvedValue([
+      {
+        id: 1,
+        name: "Study 10 Hours",
+        icon: "📚",
+        condition: JSON.stringify({ type: "study_hours", hours: 10 }),
+        unlockedBy: [],
+      },
+    ]);
+    mockPrisma.timeEntry.findMany.mockResolvedValue([
+      { duration: 5 },
+      { duration: 6 },
+    ]);
+    mockPrisma.userAchievement.findUnique.mockResolvedValue(null);
+    mockPrisma.userAchievement.create.mockResolvedValue({});
 
-      const streaks = [];
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        streaks.push({ date });
-      }
-
-      expect(evaluateStreak(streaks, 7)).toBe(true);
-    });
-
-    test("連続日数が足りない場合falseを返すこと", () => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const streaks = [
-        { date: new Date(today) },
-        { date: new Date(today.getTime() - 86400000) }, // 1日前
-        // 2日前が欠けている
-        { date: new Date(today.getTime() - 86400000 * 3) }, // 3日前
-      ];
-
-      expect(evaluateStreak(streaks, 7)).toBe(false);
-    });
-
-    test("データが少ない場合falseを返すこと", () => {
-      expect(evaluateStreak([], 3)).toBe(false);
-      expect(evaluateStreak([{ date: new Date() }], 3)).toBe(false);
-    });
+    await checkAchievements("pomodoro.completed");
+    expect(mockPrisma.timeEntry.findMany).toHaveBeenCalled();
+    expect(mockPrisma.userAchievement.create).toHaveBeenCalled();
   });
 
-  describe("study_hours条件", () => {
-    test("合計時間が条件以上で解除されること", () => {
-      expect(evaluateStudyHours([5, 3, 4], 10)).toBe(true);
-      expect(evaluateStudyHours([10], 10)).toBe(true);
+  test("flashcard.reviewedイベントでflashcard_reviews条件をチェックすること", async () => {
+    mockPrisma.achievement.findMany.mockResolvedValue([
+      {
+        id: 1,
+        name: "Review Master",
+        icon: "🃏",
+        condition: JSON.stringify({ type: "flashcard_reviews", count: 100 }),
+        unlockedBy: [],
+      },
+    ]);
+    mockPrisma.flashcard.aggregate.mockResolvedValue({
+      _sum: { reviewCount: 150 },
     });
+    mockPrisma.userAchievement.findUnique.mockResolvedValue(null);
+    mockPrisma.userAchievement.create.mockResolvedValue({});
 
-    test("合計時間が条件未満で解除されないこと", () => {
-      expect(evaluateStudyHours([3, 2], 10)).toBe(false);
-    });
-
-    test("空のリストで0として扱うこと", () => {
-      expect(evaluateStudyHours([], 0)).toBe(true);
-      expect(evaluateStudyHours([], 1)).toBe(false);
-    });
+    await checkAchievements("flashcard.reviewed");
+    expect(mockPrisma.flashcard.aggregate).toHaveBeenCalled();
+    expect(mockPrisma.userAchievement.create).toHaveBeenCalled();
   });
 
-  describe("early_study条件", () => {
-    test("6時前かつ学習ありでtrueを返すこと", () => {
-      expect(evaluateEarlyStudy(3, true)).toBe(true);
-      expect(evaluateEarlyStudy(5, true)).toBe(true);
-    });
-
-    test("6時以降ではfalseを返すこと", () => {
-      expect(evaluateEarlyStudy(6, true)).toBe(false);
-      expect(evaluateEarlyStudy(12, true)).toBe(false);
-    });
-
-    test("学習なしではfalseを返すこと", () => {
-      expect(evaluateEarlyStudy(3, false)).toBe(false);
-    });
+  test("エラー発生時に例外を投げないこと（fire-and-forget）", async () => {
+    mockPrisma.achievement.findMany.mockRejectedValue(new Error("DB error"));
+    // Should not throw
+    await checkAchievements("task.completed");
   });
 
-  describe("night_study条件", () => {
-    test("4時前かつ学習ありでtrueを返すこと", () => {
-      expect(evaluateNightStudy(0, true)).toBe(true);
-      expect(evaluateNightStudy(3, true)).toBe(true);
-    });
+  test("レースコンディション防止: 既に解除済みの場合createしないこと", async () => {
+    mockPrisma.achievement.findMany.mockResolvedValue([
+      {
+        id: 1,
+        name: "First Task",
+        icon: "✅",
+        condition: JSON.stringify({ type: "tasks_completed", count: 1 }),
+        unlockedBy: [],
+      },
+    ]);
+    mockPrisma.task.count.mockResolvedValue(5);
+    // findUnique returns existing record (race condition)
+    mockPrisma.userAchievement.findUnique.mockResolvedValue({ id: 1, achievementId: 1 });
 
-    test("4時以降ではfalseを返すこと", () => {
-      expect(evaluateNightStudy(4, true)).toBe(false);
-      expect(evaluateNightStudy(23, true)).toBe(false);
-    });
-
-    test("学習なしではfalseを返すこと", () => {
-      expect(evaluateNightStudy(2, false)).toBe(false);
-    });
-  });
-});
-
-describe("Achievement Checker - 実績解除フロー", () => {
-  test("既に解除済みの実績はスキップされること", () => {
-    const achievements = [
-      { id: 1, name: "A", condition: '{"type":"tasks_completed","count":1}', unlockedBy: [{ id: 1 }] },
-      { id: 2, name: "B", condition: '{"type":"tasks_completed","count":5}', unlockedBy: [] },
-    ];
-
-    const unlockedIds = new Set(
-      achievements.filter((a) => a.unlockedBy.length > 0).map((a) => a.id)
-    );
-
-    // id=1は解除済みなのでスキップ
-    expect(unlockedIds.has(1)).toBe(true);
-    expect(unlockedIds.has(2)).toBe(false);
-  });
-
-  test("関連しない条件タイプはチェックしないこと", () => {
-    const event: AchievementEvent = "task.completed";
-    const relevantTypes = getRelevantConditionTypes(event);
-    const condition = { type: "streak", days: 7 };
-
-    const shouldCheck = relevantTypes.includes(condition.type);
-    expect(shouldCheck).toBe(false);
-  });
-
-  test("条件JSONを正しくパースできること", () => {
-    const conditionStr = '{"type":"tasks_completed","count":10}';
-    const condition = JSON.parse(conditionStr) as {
-      type: string;
-      count?: number;
-      days?: number;
-      hours?: number;
-    };
-
-    expect(condition.type).toBe("tasks_completed");
-    expect(condition.count).toBe(10);
+    await checkAchievements("task.completed");
+    expect(mockPrisma.userAchievement.create).not.toHaveBeenCalled();
   });
 });
