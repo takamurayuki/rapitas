@@ -89,9 +89,22 @@ jobs:
         working-directory: rapitas-frontend
         run: pnpm install --no-frozen-lockfile
 
+      - name: Setup Bun for frontend tests
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: '1.1.42'
+
+      - name: Install frontend dependencies (bun)
+        working-directory: rapitas-frontend
+        run: bun install
+
       - name: Run TypeScript type check
         working-directory: rapitas-frontend
         run: pnpm tsc --noEmit
+
+      - name: Run frontend tests
+        working-directory: rapitas-frontend
+        run: bunx vitest run
 
   lint:
     name: Lint Code

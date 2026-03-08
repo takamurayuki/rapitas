@@ -10,6 +10,7 @@
     "start": "bun index.ts",
     "test": "bun test",
     "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
