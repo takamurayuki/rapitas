@@ -781,7 +781,9 @@ export class GeminiCliAgent extends BaseAgent {
           logger.error({ err: e }, `${this.logPrefix} taskkill failed`);
           try {
             this.process.kill();
-          } catch {}
+          } catch (killErr) {
+            logger.warn({ err: killErr }, `${this.logPrefix} process.kill() also failed`);
+          }
         }
       } else {
         this.process.kill("SIGINT");

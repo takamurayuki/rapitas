@@ -27,7 +27,7 @@ const log = createLogger("routes:ai-agent");
 import { toJsonString, fromJsonString } from "../../utils/db-helpers";
 import { ParallelExecutor } from "../../services/parallel-execution/parallel-executor";
 import type { TaskPriority } from "../../services/parallel-execution/types";
-import { orchestrator } from "./approvals";
+import { orchestrator } from "../../services/orchestrator-instance";
 import {
   encrypt,
   decrypt,

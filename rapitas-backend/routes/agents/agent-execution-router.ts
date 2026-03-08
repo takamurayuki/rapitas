@@ -6,7 +6,7 @@ import { Elysia, t } from "elysia";
 import { join } from "path";
 import { prisma } from "../../config/database";
 import { createLogger } from "../../config/logger";
-import { orchestrator } from "./approvals";
+import { orchestrator } from "../../services/orchestrator-instance";
 import { toJsonString, fromJsonString } from "../../utils/db-helpers";
 import {
   cleanImplementationSummary,
@@ -271,17 +271,15 @@ export const agentExecutionRouter = new Elysia()
       }
 
       // 二重実行防止: インメモリロックで同一タスクの同時実行を確実にブロック
-      const lockAcquired = !sessionId;
-      if (lockAcquired) {
-        if (!acquireTaskExecutionLock(taskIdNum)) {
-          log.warn(`[API] Duplicate execution rejected for task ${taskIdNum}: in-memory lock held`);
-          context.set.status = 409;
-          return {
-            error: "このタスクは既に実行中です。完了後に再実行してください。",
-          };
-        }
-        log.info(`[API] Execution lock acquired for task ${taskIdNum}`);
+      if (!acquireTaskExecutionLock(taskIdNum)) {
+        log.warn(`[API] Duplicate execution rejected for task ${taskIdNum}: in-memory lock held`);
+        context.set.status = 409;
+        return {
+          error: "このタスクは既に実行中です。完了後に再実行してください。",
+        };
       }
+      const lockAcquired = true;
+      log.info(`[API] Execution lock acquired for task ${taskIdNum}`);
 
       // ロック取得後のエラー時はロックを解放するヘルパー
       const earlyReturnWithLockRelease = (response: Record<string, unknown>) => {
@@ -1169,6 +1167,16 @@ export const agentExecutionRouter = new Elysia()
         return { error: "Instruction is required" };
       }
 
+      // 二重実行防止: インメモリロックで同一タスクの同時実行を確実にブロック
+      if (!acquireTaskExecutionLock(taskId)) {
+        log.warn(`[continue-execution] Duplicate execution rejected for task ${taskId}: in-memory lock held`);
+        context.set.status = 409;
+        return {
+          error: "このタスクは既に実行中です。完了後に再実行してください。",
+        };
+      }
+      log.info(`[continue-execution] Execution lock acquired for task ${taskId}`);
+
       try {
         // タスクと設定を取得
         const task = await prisma.task.findUnique({
@@ -1468,6 +1476,9 @@ export const agentExecutionRouter = new Elysia()
               .catch((e: unknown) => {
                 log.error({ err: e }, `[continue-execution] Failed to update session ${targetSessionId} status to failed`);
               });
+          })
+          .finally(() => {
+            releaseTaskExecutionLock(taskId);
           });
 
         return {
@@ -1477,6 +1488,7 @@ export const agentExecutionRouter = new Elysia()
           taskId,
         };
       } catch (error) {
+        releaseTaskExecutionLock(taskId);
         log.error({ err: error }, `[continue-execution] Error`);
         context.set.status = 500;
         return { error: "Internal server error" };

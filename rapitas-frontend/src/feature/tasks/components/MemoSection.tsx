@@ -1041,7 +1041,9 @@ export default function MemoSection({
       try {
         const saved = localStorage.getItem(`memo-data-${c.id}`);
         memoData = saved ? JSON.parse(saved) : {};
-      } catch {}
+      } catch (_) {
+        // Ignore malformed localStorage data
+      }
 
       return {
         ...c,

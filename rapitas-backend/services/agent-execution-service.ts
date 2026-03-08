@@ -3,7 +3,7 @@
  * エージェント実行のライフサイクル管理、セッション管理を行う
  */
 import { PrismaClient, AgentExecution, AgentSession } from "@prisma/client";
-import { orchestrator } from "../routes/agents/approvals";
+import { orchestrator } from "./orchestrator-instance";
 import type {
   ExecutionRequest,
   ExecutionResult,

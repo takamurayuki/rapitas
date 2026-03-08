@@ -3,7 +3,7 @@ import { prisma } from "../../config/database";
 import { createLogger } from "../../config/logger";
 
 const log = createLogger("routes:agent-session");
-import { orchestrator } from "./approvals";
+import { orchestrator } from "../../services/orchestrator-instance";
 import type { AgentExecutionWithExtras } from "../../types/agent-execution-types";
 
 /**

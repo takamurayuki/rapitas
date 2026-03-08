@@ -18,6 +18,11 @@ export function buildApiUrl(path: string): string {
   return `${API_BASE_URL}${normalizedPath}`;
 }
 
+type FetchWithRetryOptions = {
+  /** trueの場合、最終リトライ失敗時のログをerror→warnにダウングレード */
+  silent?: boolean;
+};
+
 /**
  * リトライ付きfetch
  * サーバー再起動中の一時的なネットワークエラー（TypeError: Failed to fetch）を自動リカバリ
@@ -29,6 +34,7 @@ export async function fetchWithRetry(
   maxRetries = 3,
   retryDelayMs = 300,
   timeoutMs = 10000,
+  options?: FetchWithRetryOptions,
 ): Promise<Response> {
   let lastError: Error | undefined;
   const url =
@@ -86,9 +92,10 @@ export async function fetchWithRetry(
       const isLastAttempt = attempt === maxRetries - 1;
 
       if (isLastAttempt) {
-        // 最後のリトライでも失敗した場合のみエラーレベル
+        // 最後のリトライでも失敗した場合
         const errorType = isTimeoutError ? 'Timeout' : isNetworkError ? 'NetworkError' : lastError.name;
-        logger.error(
+        const logFn = options?.silent ? logger.warn : logger.error;
+        logFn(
           `[fetchWithRetry] Final attempt ${attempt + 1}/${maxRetries} failed for ${url}: [${errorType}] ${lastError.message}`,
         );
       } else if (isNetworkError || isTimeoutError) {

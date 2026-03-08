@@ -383,7 +383,8 @@ const LinkModal = memo(function LinkModal({
         if (q.trim()) p.set('q', q.trim());
         const res = await fetch(`${API_BASE_URL}/comments/search?${p}`);
         if (res.ok) setResults(await res.json());
-      } catch {
+      } catch (_) {
+        // Search request failed - silently ignore
       } finally {
         setLoading(false);
       }

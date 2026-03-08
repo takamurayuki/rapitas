@@ -16,11 +16,17 @@
  * No external dependencies - uses Node.js built-in APIs only.
  */
 
-import { readFileSync, readdirSync, statSync, writeFileSync, existsSync } from "fs";
+import {
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+  existsSync,
+} from "fs";
 import { join, extname, relative, basename, dirname } from "path";
-import { createLogger } from '../config/logger';
+import { createLogger } from "../config/logger";
 
-const log = createLogger('analyze-codebase');
+const log = createLogger("analyze-codebase");
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -30,15 +36,44 @@ const FRONTEND_ROOT = join(PROJECT_ROOT, "rapitas-frontend");
 const DESKTOP_ROOT = join(PROJECT_ROOT, "rapitas-desktop");
 
 const EXCLUDED_DIRS = new Set([
-  "node_modules", ".next", ".next-tauri", "dist", ".git", "target", "build",
-  "uploads", "logs", ".claude", ".storybook", "out", ".turbo",
-  "coverage", ".prisma", ".dart_tool", "flutter", "rapitas-manager",
-  "gen", "src-tauri", ".turbopack",
+  "node_modules",
+  ".next",
+  ".next-tauri",
+  "dist",
+  ".git",
+  "target",
+  "build",
+  "uploads",
+  "logs",
+  ".claude",
+  ".storybook",
+  "out",
+  ".turbo",
+  "coverage",
+  ".prisma",
+  ".dart_tool",
+  "flutter",
+  "rapitas-manager",
+  "gen",
+  "src-tauri",
+  ".turbopack",
 ]);
 
 const CODE_EXTENSIONS = new Set([
-  ".ts", ".tsx", ".js", ".jsx", ".css", ".prisma", ".json", ".md",
-  ".html", ".yaml", ".yml", ".toml", ".rs", ".sql",
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".css",
+  ".prisma",
+  ".json",
+  ".md",
+  ".html",
+  ".yaml",
+  ".yml",
+  ".toml",
+  ".rs",
+  ".sql",
 ]);
 
 // Thresholds for complexity warnings
@@ -98,7 +133,13 @@ interface FeatureArea {
 
 interface ComplexityWarning {
   file: string;
-  type: "god_object" | "oversized" | "critical_size" | "deep_nesting" | "long_function" | "too_many_imports";
+  type:
+    | "god_object"
+    | "oversized"
+    | "critical_size"
+    | "deep_nesting"
+    | "long_function"
+    | "too_many_imports";
   message: string;
   lines: number;
   severity: "info" | "warning" | "critical";
@@ -136,7 +177,11 @@ interface ArchitectureHealth {
   couplingScore: number;
   cohesionScore: number;
   modularity: number;
-  highCouplingFiles: { file: string; importCount: number; importedByCount: number }[];
+  highCouplingFiles: {
+    file: string;
+    importCount: number;
+    importedByCount: number;
+  }[];
   isolatedFiles: string[];
   layerViolations: { file: string; message: string }[];
 }
@@ -296,7 +341,10 @@ function walkDir(dir: string, allFiles: FileInfo[] = []): FileInfo[] {
 // ─── Code Metrics ─────────────────────────────────────────────────────────────
 
 function collectCodeMetrics(files: FileInfo[]): AnalysisResult["codeMetrics"] {
-  const extMap = new Map<string, { count: number; lines: number; size: number }>();
+  const extMap = new Map<
+    string,
+    { count: number; lines: number; size: number }
+  >();
   for (const f of files) {
     const entry = extMap.get(f.ext) || { count: 0, lines: 0, size: 0 };
     entry.count++;
@@ -315,11 +363,15 @@ function collectCodeMetrics(files: FileInfo[]): AnalysisResult["codeMetrics"] {
     }))
     .sort((a, b) => b.totalLines - a.totalLines);
 
-  const byDirectory: Record<string, { files: number; lines: number; size: number }> = {};
+  const byDirectory: Record<
+    string,
+    { files: number; lines: number; size: number }
+  > = {};
   for (const f of files) {
     const parts = f.relativePath.split(/[\\/]/);
     const topDir = parts[0] || "root";
-    if (!byDirectory[topDir]) byDirectory[topDir] = { files: 0, lines: 0, size: 0 };
+    if (!byDirectory[topDir])
+      byDirectory[topDir] = { files: 0, lines: 0, size: 0 };
     byDirectory[topDir].files++;
     byDirectory[topDir].lines += f.lines;
     byDirectory[topDir].size += f.size;
@@ -342,10 +394,15 @@ function collectCodeMetrics(files: FileInfo[]): AnalysisResult["codeMetrics"] {
 
 // ─── Architecture Metrics ─────────────────────────────────────────────────────
 
-function collectArchitectureMetrics(files: FileInfo[]): AnalysisResult["architecture"] {
+function collectArchitectureMetrics(
+  files: FileInfo[],
+): AnalysisResult["architecture"] {
   // Backend routes & endpoints
   const routeFiles = files.filter(
-    (f) => f.relativePath.startsWith("rapitas-backend") && f.relativePath.includes("routes") && f.ext === ".ts"
+    (f) =>
+      f.relativePath.startsWith("rapitas-backend") &&
+      f.relativePath.includes("routes") &&
+      f.ext === ".ts",
   );
 
   const endpoints: Endpoint[] = [];
@@ -354,12 +411,20 @@ function collectArchitectureMetrics(files: FileInfo[]): AnalysisResult["architec
     const prefix2 = rf.content.match(/prefix\s*[:=]\s*["'`]([^"'`]+)["'`]/);
     const routePrefix = prefixMatch?.[1] || prefix2?.[1] || "";
 
-    const methodRegex = /\.(get|post|put|patch|delete)\s*\(\s*["'`]([^"'`]+)["'`]/g;
+    const methodRegex =
+      /\.(get|post|put|patch|delete)\s*\(\s*["'`]([^"'`]+)["'`]/g;
     let match;
     while ((match = methodRegex.exec(rf.content)) !== null) {
+      const path = match[2];
+      // Skip false positives: header access like headers.get('x-forwarded-for')
+      const contextStart = Math.max(0, match.index - 30);
+      const context = rf.content.slice(contextStart, match.index);
+      if (/headers\s*$/.test(context) || /request\s*$/.test(context)) continue;
+      // Skip non-route paths (no leading slash and not a route pattern)
+      if (!path.startsWith("/") && !path.startsWith(":")) continue;
       endpoints.push({
         method: match[1].toUpperCase(),
-        path: routePrefix ? `${routePrefix}${match[2]}` : match[2],
+        path: routePrefix ? `${routePrefix}${path}` : path,
         file: rf.relativePath,
       });
     }
@@ -367,12 +432,17 @@ function collectArchitectureMetrics(files: FileInfo[]): AnalysisResult["architec
 
   // Backend services
   const serviceFiles = files.filter(
-    (f) => f.relativePath.startsWith("rapitas-backend") && f.relativePath.includes("services") && f.ext === ".ts"
+    (f) =>
+      f.relativePath.startsWith("rapitas-backend") &&
+      f.relativePath.includes("services") &&
+      f.ext === ".ts",
   );
   const services = serviceFiles.map((f) => f.relativePath);
 
   // Prisma models
-  const prismaFile = files.find((f) => f.relativePath.endsWith("schema.prisma"));
+  const prismaFile = files.find((f) =>
+    f.relativePath.endsWith("schema.prisma"),
+  );
   const models: PrismaModel[] = [];
   if (prismaFile) {
     const modelRegex = /model\s+(\w+)\s*\{([^}]+)\}/g;
@@ -380,9 +450,17 @@ function collectArchitectureMetrics(files: FileInfo[]): AnalysisResult["architec
     while ((mMatch = modelRegex.exec(prismaFile.content)) !== null) {
       const modelName = mMatch[1];
       const body = mMatch[2];
-      const fieldLines = body.split("\n").filter((l) => l.trim() && !l.trim().startsWith("//") && !l.trim().startsWith("@@"));
+      const fieldLines = body
+        .split("\n")
+        .filter(
+          (l) =>
+            l.trim() &&
+            !l.trim().startsWith("//") &&
+            !l.trim().startsWith("@@"),
+        );
       const relationTargets: string[] = [];
-      const relRegex = /@relation\s*\(\s*(?:name:\s*["']([^"']+)["'],?\s*)?fields:\s*\[([^\]]+)\]/g;
+      const relRegex =
+        /@relation\s*\(\s*(?:name:\s*["']([^"']+)["'],?\s*)?fields:\s*\[([^\]]+)\]/g;
       let rMatch;
       while ((rMatch = relRegex.exec(body)) !== null) {
         relationTargets.push(rMatch[1] || rMatch[2]);
@@ -403,7 +481,7 @@ function collectArchitectureMetrics(files: FileInfo[]): AnalysisResult["architec
   // Frontend components
   const componentCategories = new Map<string, string[]>();
   const frontendComponents = files.filter(
-    (f) => f.relativePath.startsWith("rapitas-frontend") && f.ext === ".tsx"
+    (f) => f.relativePath.startsWith("rapitas-frontend") && f.ext === ".tsx",
   );
   for (const f of frontendComponents) {
     const parts = f.relativePath.split(/[\\/]/);
@@ -422,15 +500,27 @@ function collectArchitectureMetrics(files: FileInfo[]): AnalysisResult["architec
   }
 
   const components = [...componentCategories.entries()]
-    .map(([cat, fileList]) => ({ category: cat, count: fileList.length, files: fileList }))
+    .map(([cat, fileList]) => ({
+      category: cat,
+      count: fileList.length,
+      files: fileList,
+    }))
     .sort((a, b) => b.count - a.count);
 
   const hooks = files
-    .filter((f) => f.relativePath.startsWith("rapitas-frontend") && f.relativePath.includes("hooks"))
+    .filter(
+      (f) =>
+        f.relativePath.startsWith("rapitas-frontend") &&
+        f.relativePath.includes("hooks"),
+    )
     .map((f) => basename(f.relativePath, f.ext));
 
   const stores = files
-    .filter((f) => f.relativePath.startsWith("rapitas-frontend") && f.relativePath.includes("stores"))
+    .filter(
+      (f) =>
+        f.relativePath.startsWith("rapitas-frontend") &&
+        f.relativePath.includes("stores"),
+    )
     .map((f) => basename(f.relativePath, f.ext));
 
   const pages = files
@@ -438,7 +528,7 @@ function collectArchitectureMetrics(files: FileInfo[]): AnalysisResult["architec
       (f) =>
         f.relativePath.startsWith("rapitas-frontend") &&
         f.relativePath.includes("app") &&
-        basename(f.relativePath) === "page.tsx"
+        basename(f.relativePath) === "page.tsx",
     )
     .map((f) => {
       const parts = f.relativePath.split(/[\\/]/);
@@ -463,10 +553,14 @@ function collectArchitectureMetrics(files: FileInfo[]): AnalysisResult["architec
 function collectQualityMetrics(files: FileInfo[]): AnalysisResult["quality"] {
   const tsFiles = files.filter((f) => f.ext === ".ts" || f.ext === ".tsx");
   const testFiles = files.filter(
-    (f) => f.relativePath.match(/\.(test|spec)\.(ts|tsx|js|jsx)$/) || f.relativePath.includes("__tests__")
+    (f) =>
+      f.relativePath.match(/\.(test|spec)\.(ts|tsx|js|jsx)$/) ||
+      f.relativePath.includes("__tests__"),
   );
   const sourceFiles = tsFiles.filter(
-    (f) => !f.relativePath.match(/\.(test|spec)\.(ts|tsx|js|jsx)$/) && !f.relativePath.includes("__tests__")
+    (f) =>
+      !f.relativePath.match(/\.(test|spec)\.(ts|tsx|js|jsx)$/) &&
+      !f.relativePath.includes("__tests__"),
   );
 
   let anyUsage = 0;
@@ -478,34 +572,64 @@ function collectQualityMetrics(files: FileInfo[]): AnalysisResult["quality"] {
   let emptyTryCatchCount = 0;
   let assertionCount = 0;
 
+  const isTestFile = (f: FileInfo) =>
+    /\.(test|spec)\.(ts|tsx|js|jsx)$/.test(f.relativePath) ||
+    f.relativePath.includes("__tests__");
+
   for (const f of tsFiles) {
+    const isTest = isTestFile(f);
     const lines = f.content.split("\n");
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (!line.trim().startsWith("//") && !line.trim().startsWith("*")) {
-        if (/:\s*any\b/.test(line) || /as\s+any\b/.test(line) || /<any>/.test(line)) {
+        if (
+          !isTest &&
+          (/:\s*any\b/.test(line) ||
+            /as\s+any\b/.test(line) ||
+            /<any>/.test(line))
+        ) {
           anyUsage++;
         }
       }
       if (/\/\/\s*TODO[\s:]/i.test(line)) todoCount++;
       if (/\/\/\s*FIXME[\s:]/i.test(line)) fixmeCount++;
       if (/\/\/\s*HACK[\s:]/i.test(line)) hackCount++;
-      if (/console\.log\s*\(/.test(line) && !line.trim().startsWith("//")) consoleLogCount++;
+      if (
+        !isTest &&
+        /console\.log\s*\(/.test(line) &&
+        !line.trim().startsWith("//") &&
+        !line.trim().startsWith("*") &&
+        !/["'`].*console\.log/.test(line)
+      )
+        consoleLogCount++;
       if (/\btry\s*\{/.test(line)) {
         tryCatchCount++;
-        // Detect empty catch blocks: catch { } or catch(e) { }
-        const remaining = lines.slice(i).join("\n");
-        const emptyCatchMatch = remaining.match(/catch\s*(\([^)]*\))?\s*\{\s*\}/);
-        if (emptyCatchMatch) emptyTryCatchCount++;
+      }
+      // Detect empty catch blocks (single-line and multiline)
+      if (/catch\s*(\([^)]*\))?\s*\{\s*\}/.test(line)) {
+        emptyTryCatchCount++;
+      } else if (/catch\s*(\([^)]*\))?\s*\{\s*$/.test(line)) {
+        // Check if next non-empty line is just "}"
+        const nextLine = lines.slice(i + 1).find((l) => l.trim().length > 0);
+        if (nextLine && /^\s*\}\s*$/.test(nextLine)) {
+          emptyTryCatchCount++;
+        }
       }
       // Count test assertions
-      if (/\b(expect|assert|toBe|toEqual|toMatch|toThrow|toHaveBeenCalled)\s*\(/.test(line)) {
+      if (
+        /\b(expect|assert|toBe|toEqual|toMatch|toThrow|toHaveBeenCalled)\s*\(/.test(
+          line,
+        )
+      ) {
         assertionCount++;
       }
     }
   }
 
-  const testRatio = sourceFiles.length > 0 ? Math.round((testFiles.length / sourceFiles.length) * 100) / 100 : 0;
+  const testRatio =
+    sourceFiles.length > 0
+      ? Math.round((testFiles.length / sourceFiles.length) * 100) / 100
+      : 0;
 
   return {
     testFiles: testFiles.length,
@@ -524,12 +648,20 @@ function collectQualityMetrics(files: FileInfo[]): AnalysisResult["quality"] {
 
 // ─── Complexity Analysis ──────────────────────────────────────────────────────
 
-function collectComplexityMetrics(files: FileInfo[]): AnalysisResult["complexity"] {
+function collectComplexityMetrics(
+  files: FileInfo[],
+): AnalysisResult["complexity"] {
   const warnings: ComplexityWarning[] = [];
   const godObjects: string[] = [];
   const longFunctions: { file: string; name: string; lines: number }[] = [];
 
-  const tsFiles = files.filter((f) => (f.ext === ".ts" || f.ext === ".tsx") && !f.relativePath.match(/\.(test|spec)\./));
+  const tsFiles = files.filter(
+    (f) =>
+      (f.ext === ".ts" || f.ext === ".tsx") &&
+      !f.relativePath.match(/\.(test|spec)\./) &&
+      !f.relativePath.includes("scripts") &&
+      !f.relativePath.includes("node_modules"),
+  );
 
   for (const f of tsFiles) {
     // God object detection (services/components with too many methods/exports)
@@ -552,7 +684,11 @@ function collectComplexityMetrics(files: FileInfo[]): AnalysisResult["complexity
       });
     } else if (f.lines > THRESHOLDS.godObjectLines) {
       // Check if it has many exports (god object indicator)
-      const exportCount = (f.content.match(/\bexport\s+(function|class|const|interface|type|async\s+function)/g) || []).length;
+      const exportCount = (
+        f.content.match(
+          /\bexport\s+(function|class|const|interface|type|async\s+function)/g,
+        ) || []
+      ).length;
       if (exportCount > 10) {
         warnings.push({
           file: f.relativePath,
@@ -573,7 +709,9 @@ function collectComplexityMetrics(files: FileInfo[]): AnalysisResult["complexity
       const funcName = funcMatch[1];
       // Skip React component functions (PascalCase in .tsx files)
       if (f.ext === ".tsx" && /^[A-Z]/.test(funcName)) continue;
-      const startLine = f.content.substring(0, funcMatch.index).split("\n").length;
+      const startLine = f.content
+        .substring(0, funcMatch.index)
+        .split("\n").length;
       // Find matching brace end
       let depth = 0;
       let funcEnd = startLine;
@@ -581,7 +719,10 @@ function collectComplexityMetrics(files: FileInfo[]): AnalysisResult["complexity
       for (let i = startLine - 1; i < lines.length; i++) {
         const line = lines[i];
         for (const ch of line) {
-          if (ch === "{") { depth++; foundStart = true; }
+          if (ch === "{") {
+            depth++;
+            foundStart = true;
+          }
           if (ch === "}") depth--;
           if (foundStart && depth === 0) {
             funcEnd = i + 1;
@@ -592,7 +733,11 @@ function collectComplexityMetrics(files: FileInfo[]): AnalysisResult["complexity
       }
       const funcLines = funcEnd - startLine + 1;
       if (funcLines > THRESHOLDS.maxFunctionLines) {
-        longFunctions.push({ file: f.relativePath, name: funcName, lines: funcLines });
+        longFunctions.push({
+          file: f.relativePath,
+          name: funcName,
+          lines: funcLines,
+        });
       }
     }
 
@@ -630,8 +775,16 @@ function collectComplexityMetrics(files: FileInfo[]): AnalysisResult["complexity
 
   // File line statistics
   const tsFilesLines = tsFiles.map((f) => f.lines).sort((a, b) => a - b);
-  const avgFileLines = tsFilesLines.length > 0 ? Math.round(tsFilesLines.reduce((a, b) => a + b, 0) / tsFilesLines.length) : 0;
-  const medianFileLines = tsFilesLines.length > 0 ? tsFilesLines[Math.floor(tsFilesLines.length / 2)] : 0;
+  const avgFileLines =
+    tsFilesLines.length > 0
+      ? Math.round(
+          tsFilesLines.reduce((a, b) => a + b, 0) / tsFilesLines.length,
+        )
+      : 0;
+  const medianFileLines =
+    tsFilesLines.length > 0
+      ? tsFilesLines[Math.floor(tsFilesLines.length / 2)]
+      : 0;
 
   return {
     warnings: warnings.sort((a, b) => {
@@ -649,18 +802,34 @@ function collectComplexityMetrics(files: FileInfo[]): AnalysisResult["complexity
 
 // ─── Security Analysis ────────────────────────────────────────────────────────
 
-function collectSecurityFindings(files: FileInfo[]): AnalysisResult["security"] {
+function collectSecurityFindings(
+  files: FileInfo[],
+): AnalysisResult["security"] {
   const findings: SecurityFinding[] = [];
   const tsFiles = files.filter((f) => f.ext === ".ts" || f.ext === ".tsx");
 
-  const patterns: { regex: RegExp; type: string; message: string; severity: SecurityFinding["severity"]; excludePatterns?: RegExp[] }[] = [
+  const patterns: {
+    regex: RegExp;
+    type: string;
+    message: string;
+    severity: SecurityFinding["severity"];
+    excludePatterns?: RegExp[];
+  }[] = [
     {
-      regex: /(?:password|secret|apikey|api_key|token)\s*=\s*["'][A-Za-z0-9+/=_-]{16,}["']/i,
+      regex:
+        /(?:password|secret|apikey|api_key|token)\s*=\s*["'][A-Za-z0-9+/=_-]{16,}["']/i,
       type: "hardcoded_secret",
       message: "Potential hardcoded secret or credential",
       severity: "high",
       // Exclude masked values, empty strings, placeholders, env references
-      excludePatterns: [/\*{3,}/, /placeholder/i, /example/i, /your[-_]?/i, /process\.env/, /Bun\.env/],
+      excludePatterns: [
+        /\*{3,}/,
+        /placeholder/i,
+        /example/i,
+        /your[-_]?/i,
+        /process\.env/,
+        /Bun\.env/,
+      ],
     },
     {
       regex: /\beval\s*\([^)]/,
@@ -673,7 +842,8 @@ function collectSecurityFindings(files: FileInfo[]): AnalysisResult["security"] 
     {
       regex: /dangerouslySetInnerHTML\s*=\s*\{\{/,
       type: "xss_risk",
-      message: "dangerouslySetInnerHTML usage - potential XSS risk. Ensure content is sanitized.",
+      message:
+        "dangerouslySetInnerHTML usage - potential XSS risk. Ensure content is sanitized.",
       severity: "medium",
       // Exclude string literals mentioning the property
       excludePatterns: [/["'`].*dangerouslySetInnerHTML/, /regex/i],
@@ -687,7 +857,8 @@ function collectSecurityFindings(files: FileInfo[]): AnalysisResult["security"] 
     {
       regex: /(?:execSync|exec|spawn|spawnSync)\s*\(\s*`[^`]*\$\{/,
       type: "command_injection",
-      message: "Template literal in child process - verify input is not user-controlled",
+      message:
+        "Template literal in child process - verify input is not user-controlled",
       severity: "medium",
       // where/which commands for tool resolution are low risk
       excludePatterns: [/where\s+\$\{/, /which\s+\$\{/],
@@ -711,13 +882,15 @@ function collectSecurityFindings(files: FileInfo[]): AnalysisResult["security"] 
       severity: "high",
     },
     {
-      regex: /(?:readFile|readFileSync|createReadStream)\s*\(\s*(?:req\.|params\.|query\.|body\.)/,
+      regex:
+        /(?:readFile|readFileSync|createReadStream)\s*\(\s*(?:req\.|params\.|query\.|body\.)/,
       type: "path_traversal",
       message: "User input in file read path - potential path traversal",
       severity: "medium",
     },
     {
-      regex: /(?:JWT_SECRET|SESSION_SECRET|ENCRYPTION_KEY)\s*=\s*["'][A-Za-z0-9+/=_-]{8,}["']/,
+      regex:
+        /(?:JWT_SECRET|SESSION_SECRET|ENCRYPTION_KEY)\s*=\s*["'][A-Za-z0-9+/=_-]{8,}["']/,
       type: "hardcoded_key",
       message: "Hardcoded cryptographic key or session secret",
       severity: "critical",
@@ -733,18 +906,34 @@ function collectSecurityFindings(files: FileInfo[]): AnalysisResult["security"] 
       if (line.trim().startsWith("//") || line.trim().startsWith("*")) continue;
       // Skip test files for some checks
       const isTest = f.relativePath.match(/\.(test|spec)\./);
-      const isDemo = f.relativePath.includes("demo") || f.relativePath.includes("example") || f.relativePath.includes("stories");
+      const isDemo =
+        f.relativePath.includes("demo") ||
+        f.relativePath.includes("example") ||
+        f.relativePath.includes("stories");
 
       for (const p of patterns) {
-        if (isTest && (p.type === "hardcoded_secret" || p.type === "hardcoded_key")) continue;
-        if (isDemo && (p.type === "eval_usage" || p.type === "xss_risk")) continue;
+        if (
+          isTest &&
+          (p.type === "hardcoded_secret" || p.type === "hardcoded_key")
+        )
+          continue;
+        if (isDemo && (p.type === "eval_usage" || p.type === "xss_risk"))
+          continue;
         if (p.regex.test(line)) {
           // Skip type definitions and interface declarations
           if (/^\s*(type|interface)\s/.test(line)) continue;
           // Skip lines that are regex/pattern definitions (avoid self-detection)
-          if (/regex\s*[:=]|new\s+RegExp|\/.*\/[gimsuy]*/.test(line) && p.type !== "regex_injection") continue;
+          if (
+            /regex\s*[:=]|new\s+RegExp|\/.*\/[gimsuy]*/.test(line) &&
+            p.type !== "regex_injection"
+          )
+            continue;
           // Skip log/message/error strings (template literals used in logging, not SQL)
-          if (p.type === "sql_injection" && /log\.|logger\.|console\.|message|error|info|debug|warn/.test(line)) continue;
+          if (
+            p.type === "sql_injection" &&
+            /log\.|logger\.|console\.|message|error|info|debug|warn/.test(line)
+          )
+            continue;
           // Apply exclude patterns
           if (p.excludePatterns?.some((ep) => ep.test(line))) continue;
 
@@ -762,7 +951,9 @@ function collectSecurityFindings(files: FileInfo[]): AnalysisResult["security"] 
   }
 
   const summary = {
-    high: findings.filter((f) => f.severity === "high" || f.severity === "critical").length,
+    high: findings.filter(
+      (f) => f.severity === "high" || f.severity === "critical",
+    ).length,
     medium: findings.filter((f) => f.severity === "medium").length,
     low: findings.filter((f) => f.severity === "low").length,
   };
@@ -773,7 +964,11 @@ function collectSecurityFindings(files: FileInfo[]): AnalysisResult["security"] 
 // ─── Import Graph & Circular Dependencies ─────────────────────────────────────
 
 function collectImportMetrics(files: FileInfo[]): AnalysisResult["imports"] {
-  const tsFiles = files.filter((f) => (f.ext === ".ts" || f.ext === ".tsx") && !f.relativePath.includes("node_modules"));
+  const tsFiles = files.filter(
+    (f) =>
+      (f.ext === ".ts" || f.ext === ".tsx") &&
+      !f.relativePath.includes("node_modules"),
+  );
 
   // Build import graph
   const importGraph = new Map<string, Set<string>>();
@@ -781,7 +976,8 @@ function collectImportMetrics(files: FileInfo[]): AnalysisResult["imports"] {
 
   for (const f of tsFiles) {
     const imports = new Set<string>();
-    const importRegex = /import\s+(?:(?:\{[^}]*\}|[\w*]+)\s+from\s+)?["'`]([^"'`]+)["'`]/g;
+    const importRegex =
+      /import\s+(?:(?:\{[^}]*\}|[\w*]+)\s+from\s+)?["'`]([^"'`]+)["'`]/g;
     let match;
     while ((match = importRegex.exec(f.content)) !== null) {
       const importPath = match[1];
@@ -796,12 +992,19 @@ function collectImportMetrics(files: FileInfo[]): AnalysisResult["imports"] {
             : f.relativePath.startsWith("rapitas-backend")
               ? "rapitas-backend"
               : "";
-          resolvedBase = srcDir ? join(srcDir, importPath.slice(2)) : importPath;
+          resolvedBase = srcDir
+            ? join(srcDir, importPath.slice(2))
+            : importPath;
         } else {
-          resolvedBase = join(dirname(f.relativePath), importPath).replace(/\\/g, "/");
+          resolvedBase = join(dirname(f.relativePath), importPath).replace(
+            /\\/g,
+            "/",
+          );
         }
         // Normalize: remove extension, add .ts if needed
-        const normalized = resolvedBase.replace(/\.(ts|tsx|js|jsx)$/, "").replace(/\\/g, "/");
+        const normalized = resolvedBase
+          .replace(/\.(ts|tsx|js|jsx)$/, "")
+          .replace(/\\/g, "/");
         imports.add(normalized);
 
         if (!importedBy.has(normalized)) importedBy.set(normalized, new Set());
@@ -867,7 +1070,9 @@ function collectImportMetrics(files: FileInfo[]): AnalysisResult["imports"] {
 
 // ─── API Consistency Analysis ─────────────────────────────────────────────────
 
-function collectAPIConsistency(endpoints: Endpoint[]): AnalysisResult["apiConsistency"] {
+function collectAPIConsistency(
+  endpoints: Endpoint[],
+): AnalysisResult["apiConsistency"] {
   const issues: APIConsistencyIssue[] = [];
 
   for (const ep of endpoints) {
@@ -877,7 +1082,8 @@ function collectAPIConsistency(endpoints: Endpoint[]): AnalysisResult["apiConsis
     const resource = pathParts.find((p) => !p.startsWith(":") && p !== "api");
 
     // 2. Verbs in URLs (anti-pattern for REST)
-    const verbPatterns = /\/(execute|create|update|delete|remove|fetch|get|set|generate|validate|analyze|detect|format|seed|send|start|stop|pause|resume|complete|cancel|record|log|check|capture|download|upload|browse)\b/i;
+    const verbPatterns =
+      /\/(execute|create|update|delete|remove|fetch|get|set|generate|validate|analyze|detect|format|seed|send|start|stop|pause|resume|complete|cancel|record|log|check|capture|download|upload|browse)\b/i;
     const verbMatch = ep.path.match(verbPatterns);
     if (verbMatch && ep.method !== "POST") {
       issues.push({
@@ -903,12 +1109,18 @@ function collectAPIConsistency(endpoints: Endpoint[]): AnalysisResult["apiConsis
     }
 
     // 4. POST for operations that should be GET (idempotent reads)
-    if (ep.method === "POST" && /\/(search|suggest|analyze|check|validate|detect)/.test(ep.path)) {
+    if (
+      ep.method === "POST" &&
+      /\/(search|suggest|analyze|check|validate|detect)/.test(ep.path)
+    ) {
       // This is actually acceptable for complex queries, so mark as info
     }
 
     // 5. Missing resource ID in singular operations
-    if ((ep.method === "PATCH" || ep.method === "DELETE") && !ep.path.includes(":")) {
+    if (
+      (ep.method === "PATCH" || ep.method === "DELETE") &&
+      !ep.path.includes(":")
+    ) {
       issues.push({
         endpoint: `${ep.method} ${ep.path}`,
         file: ep.file,
@@ -933,19 +1145,28 @@ function collectAPIConsistency(endpoints: Endpoint[]): AnalysisResult["apiConsis
   // REST conformance score
   const totalEndpoints = endpoints.length;
   const issueCount = issues.length;
-  const restConformanceScore = totalEndpoints > 0
-    ? Math.max(0, Math.round(100 - (issueCount / totalEndpoints) * 100))
-    : 100;
+  const restConformanceScore =
+    totalEndpoints > 0
+      ? Math.max(0, Math.round(100 - (issueCount / totalEndpoints) * 100))
+      : 100;
 
   return { issues, restConformanceScore, duplicateEndpoints };
 }
 
 // ─── Test Coverage Details ────────────────────────────────────────────────────
 
-function collectTestCoverage(files: FileInfo[], featureAreas: { name: string; keywords: string[] }[]): AnalysisResult["testCoverage"] {
-  const testFiles = files.filter((f) => f.relativePath.match(/\.(test|spec)\.(ts|tsx|js|jsx)$/));
+function collectTestCoverage(
+  files: FileInfo[],
+  featureAreas: { name: string; keywords: string[] }[],
+): AnalysisResult["testCoverage"] {
+  const testFiles = files.filter((f) =>
+    f.relativePath.match(/\.(test|spec)\.(ts|tsx|js|jsx)$/),
+  );
   const sourceFiles = files.filter(
-    (f) => (f.ext === ".ts" || f.ext === ".tsx") && !f.relativePath.match(/\.(test|spec)\./) && !f.relativePath.includes("__tests__")
+    (f) =>
+      (f.ext === ".ts" || f.ext === ".tsx") &&
+      !f.relativePath.match(/\.(test|spec)\./) &&
+      !f.relativePath.includes("__tests__"),
   );
 
   const details: TestCoverageDetail[] = featureAreas.map((area) => {
@@ -967,12 +1188,19 @@ function collectTestCoverage(files: FileInfo[], featureAreas: { name: string; ke
 
     const untestedFiles = areaSourceFiles.filter((src) => {
       const srcBase = basename(src, extname(src)).toLowerCase();
-      return !testedPatterns.some((tp) => tp === srcBase || srcBase.includes(tp) || tp.includes(srcBase));
+      return !testedPatterns.some(
+        (tp) => tp === srcBase || srcBase.includes(tp) || tp.includes(srcBase),
+      );
     });
 
-    const coverageRatio = areaSourceFiles.length > 0
-      ? Math.round(((areaSourceFiles.length - untestedFiles.length) / areaSourceFiles.length) * 100) / 100
-      : 1;
+    const coverageRatio =
+      areaSourceFiles.length > 0
+        ? Math.round(
+            ((areaSourceFiles.length - untestedFiles.length) /
+              areaSourceFiles.length) *
+              100,
+          ) / 100
+        : 1;
 
     return {
       featureName: area.name,
@@ -987,10 +1215,19 @@ function collectTestCoverage(files: FileInfo[], featureAreas: { name: string; ke
   const criticalUntested = sourceFiles
     .filter((f) => f.lines > 200)
     .filter((f) => {
-      const srcBase = basename(f.relativePath, extname(f.relativePath)).toLowerCase();
+      const srcBase = basename(
+        f.relativePath,
+        extname(f.relativePath),
+      ).toLowerCase();
       return !testFiles.some((t) => {
-        const testBase = basename(t.relativePath).replace(/\.(test|spec)\.(ts|tsx|js|jsx)$/, "").toLowerCase();
-        return testBase === srcBase || srcBase.includes(testBase) || testBase.includes(srcBase);
+        const testBase = basename(t.relativePath)
+          .replace(/\.(test|spec)\.(ts|tsx|js|jsx)$/, "")
+          .toLowerCase();
+        return (
+          testBase === srcBase ||
+          srcBase.includes(testBase) ||
+          testBase.includes(srcBase)
+        );
       });
     })
     .sort((a, b) => b.lines - a.lines)
@@ -998,16 +1235,33 @@ function collectTestCoverage(files: FileInfo[], featureAreas: { name: string; ke
     .map((f) => `${f.relativePath} (${f.lines} lines)`);
 
   const totalSource = details.reduce((sum, d) => sum + d.sourceFiles.length, 0);
-  const totalUntested = details.reduce((sum, d) => sum + d.untestedFiles.length, 0);
-  const overallCoverageRatio = totalSource > 0 ? Math.round(((totalSource - totalUntested) / totalSource) * 100) / 100 : 1;
+  const totalUntested = details.reduce(
+    (sum, d) => sum + d.untestedFiles.length,
+    0,
+  );
+  const overallCoverageRatio =
+    totalSource > 0
+      ? Math.round(((totalSource - totalUntested) / totalSource) * 100) / 100
+      : 1;
 
-  return { details, overallCoverageRatio, untestedCriticalFiles: criticalUntested };
+  return {
+    details,
+    overallCoverageRatio,
+    untestedCriticalFiles: criticalUntested,
+  };
 }
 
 // ─── Architecture Health ──────────────────────────────────────────────────────
 
-function collectArchitectureHealth(files: FileInfo[], importMetrics: AnalysisResult["imports"]): ArchitectureHealth {
-  const tsFiles = files.filter((f) => (f.ext === ".ts" || f.ext === ".tsx") && !f.relativePath.match(/\.(test|spec)\./));
+function collectArchitectureHealth(
+  files: FileInfo[],
+  importMetrics: AnalysisResult["imports"],
+): ArchitectureHealth {
+  const tsFiles = files.filter(
+    (f) =>
+      (f.ext === ".ts" || f.ext === ".tsx") &&
+      !f.relativePath.match(/\.(test|spec)\./),
+  );
 
   // Layer violation detection (frontend importing from backend, routes importing from other routes, etc.)
   const layerViolations: { file: string; message: string }[] = [];
@@ -1021,17 +1275,24 @@ function collectArchitectureHealth(files: FileInfo[], importMetrics: AnalysisRes
         });
       }
     }
-    if (f.relativePath.includes("routes") && f.relativePath.startsWith("rapitas-backend")) {
+    if (
+      f.relativePath.includes("routes") &&
+      f.relativePath.startsWith("rapitas-backend")
+    ) {
       // Route files should not import from other route files (go through services)
       const routeImports = f.content.match(/from\s+["'`]\..*routes/g);
       if (routeImports && routeImports.length > 0) {
         layerViolations.push({
           file: f.relativePath,
-          message: "Route file imports from another route file (should go through services)",
+          message:
+            "Route file imports from another route file (should go through services)",
         });
       }
     }
-    if (f.relativePath.includes("services") && f.relativePath.startsWith("rapitas-backend")) {
+    if (
+      f.relativePath.includes("services") &&
+      f.relativePath.startsWith("rapitas-backend")
+    ) {
       // Services should not import from routes
       if (/from\s+["'`].*routes/.test(f.content)) {
         layerViolations.push({
@@ -1044,8 +1305,14 @@ function collectArchitectureHealth(files: FileInfo[], importMetrics: AnalysisRes
 
   // Coupling score (lower is better): based on average fan-out
   const fanOutValues = importMetrics.highFanOutFiles.map((f) => f.importCount);
-  const avgFanOut = fanOutValues.length > 0 ? fanOutValues.reduce((a, b) => a + b, 0) / fanOutValues.length : 0;
-  const couplingScore = Math.max(0, Math.min(100, Math.round(100 - avgFanOut * 3)));
+  const avgFanOut =
+    fanOutValues.length > 0
+      ? fanOutValues.reduce((a, b) => a + b, 0) / fanOutValues.length
+      : 0;
+  const couplingScore = Math.max(
+    0,
+    Math.min(100, Math.round(100 - avgFanOut * 3)),
+  );
 
   // Cohesion score: based on feature modularity (files in same directory import each other)
   const dirGroups = new Map<string, number>();
@@ -1055,25 +1322,40 @@ function collectArchitectureHealth(files: FileInfo[], importMetrics: AnalysisRes
   }
   // Good cohesion = small directories with focused files
   const dirSizes = [...dirGroups.values()];
-  const avgDirSize = dirSizes.length > 0 ? dirSizes.reduce((a, b) => a + b, 0) / dirSizes.length : 0;
-  const cohesionScore = Math.max(0, Math.min(100, Math.round(100 - Math.max(0, avgDirSize - 5) * 5)));
+  const avgDirSize =
+    dirSizes.length > 0
+      ? dirSizes.reduce((a, b) => a + b, 0) / dirSizes.length
+      : 0;
+  const cohesionScore = Math.max(
+    0,
+    Math.min(100, Math.round(100 - Math.max(0, avgDirSize - 5) * 5)),
+  );
 
   // Modularity: ratio of well-structured directories
   const wellStructured = dirSizes.filter((s) => s >= 2 && s <= 15).length;
-  const modularity = dirSizes.length > 0 ? Math.round((wellStructured / dirSizes.length) * 100) : 0;
+  const modularity =
+    dirSizes.length > 0
+      ? Math.round((wellStructured / dirSizes.length) * 100)
+      : 0;
 
   // High coupling files
-  const highCouplingFiles = importMetrics.highFanOutFiles.slice(0, 10).map((f) => {
-    const fanIn = importMetrics.highFanInFiles.find((fi) => fi.file === f.file);
-    return {
-      file: f.file,
-      importCount: f.importCount,
-      importedByCount: fanIn?.importedByCount || 0,
-    };
-  });
+  const highCouplingFiles = importMetrics.highFanOutFiles
+    .slice(0, 10)
+    .map((f) => {
+      const fanIn = importMetrics.highFanInFiles.find(
+        (fi) => fi.file === f.file,
+      );
+      return {
+        file: f.file,
+        importCount: f.importCount,
+        importedByCount: fanIn?.importedByCount || 0,
+      };
+    });
 
   // Isolated files (no imports AND not imported by others)
-  const allImportedFiles = new Set(importMetrics.highFanInFiles.map((f) => f.file));
+  const allImportedFiles = new Set(
+    importMetrics.highFanInFiles.map((f) => f.file),
+  );
   const isolatedFiles = tsFiles
     .filter((f) => {
       const normalized = f.relativePath.replace(/\\/g, "/");
@@ -1103,16 +1385,29 @@ function collectAIAgentMetrics(files: FileInfo[]): AnalysisResult["aiAgent"] {
     if (!f.relativePath.startsWith("rapitas-backend")) continue;
     if (f.ext !== ".ts") continue;
 
-    if (f.content.includes("@anthropic-ai/sdk") || f.content.includes("Anthropic")) providers.add("Anthropic (Claude)");
-    if (f.content.includes("openai") || f.content.includes("OpenAI")) providers.add("OpenAI");
-    if (f.content.includes("@google/generative-ai") || f.content.includes("GoogleGenerativeAI")) providers.add("Google (Gemini)");
+    if (
+      f.content.includes("@anthropic-ai/sdk") ||
+      f.content.includes("Anthropic")
+    )
+      providers.add("Anthropic (Claude)");
+    if (f.content.includes("openai") || f.content.includes("OpenAI"))
+      providers.add("OpenAI");
+    if (
+      f.content.includes("@google/generative-ai") ||
+      f.content.includes("GoogleGenerativeAI")
+    )
+      providers.add("Google (Gemini)");
 
     if (f.relativePath.includes("agent")) {
-      const typeMatches = f.content.matchAll(/agentType['":\s]*["'`](\w+)["'`]/g);
+      const typeMatches = f.content.matchAll(
+        /agentType['":\s]*["'`](\w+)["'`]/g,
+      );
       for (const m of typeMatches) {
         agentTypes.add(m[1]);
       }
-      const enumMatches = f.content.matchAll(/["'`](code_review|implementation|bug_fix|refactor|test_generation|analysis|planning|execution|auto_run|manual)["'`]/g);
+      const enumMatches = f.content.matchAll(
+        /["'`](code_review|implementation|bug_fix|refactor|test_generation|analysis|planning|execution|auto_run|manual)["'`]/g,
+      );
       for (const m of enumMatches) {
         agentTypes.add(m[1]);
       }
@@ -1120,11 +1415,21 @@ function collectAIAgentMetrics(files: FileInfo[]): AnalysisResult["aiAgent"] {
   }
 
   const agentRoutes = files
-    .filter((f) => f.relativePath.startsWith("rapitas-backend") && f.relativePath.includes("route") && f.relativePath.includes("agent"))
+    .filter(
+      (f) =>
+        f.relativePath.startsWith("rapitas-backend") &&
+        f.relativePath.includes("route") &&
+        f.relativePath.includes("agent"),
+    )
     .map((f) => f.relativePath);
 
   const agentServices = files
-    .filter((f) => f.relativePath.startsWith("rapitas-backend") && f.relativePath.includes("service") && f.relativePath.includes("agent"))
+    .filter(
+      (f) =>
+        f.relativePath.startsWith("rapitas-backend") &&
+        f.relativePath.includes("service") &&
+        f.relativePath.includes("agent"),
+    )
     .map((f) => f.relativePath);
 
   return {
@@ -1159,25 +1464,41 @@ function collectDependencyMetrics(): AnalysisResult["dependencies"] {
 
 const FEATURE_AREAS_CONFIG = [
   { name: "タスク管理", keywords: ["task", "tasks"] },
-  { name: "ポモドーロ/時間管理", keywords: ["pomodoro", "time-entr", "timer"] },
-  { name: "AIエージェント", keywords: ["agent", "ai-agent", "ai-chat", "claude"] },
+  { name: "ポモドーロ/時間管理", keywords: ["pomodoro", "time-entr", "timer", "time-management"] },
+  {
+    name: "AIエージェント",
+    keywords: ["agent", "ai-agent", "ai-chat", "claude"],
+  },
   { name: "ワークフロー", keywords: ["workflow"] },
   { name: "GitHub連携", keywords: ["github"] },
-  { name: "認証", keywords: ["auth", "login", "session"] },
-  { name: "通知", keywords: ["notification"] },
-  { name: "検索", keywords: ["search"] },
-  { name: "カレンダー/スケジュール", keywords: ["calendar", "schedule", "daily-schedule"] },
-  { name: "学習/習慣", keywords: ["habit", "study", "learning", "flashcard", "exam"] },
-  { name: "分析/レポート", keywords: ["report", "statistic", "achievement", "analytics"] },
+  { name: "認証", keywords: ["auth", "login", "register", "session", "authcontext"] },
+  { name: "通知", keywords: ["notification", "notify", "sse", "realtime"] },
+  { name: "検索", keywords: ["search", "filter", "icon-search"] },
+  {
+    name: "カレンダー/スケジュール",
+    keywords: ["calendar", "schedule", "daily-schedule"],
+  },
+  {
+    name: "学習/習慣",
+    keywords: ["habit", "study", "learning", "flashcard", "exam", "streak"],
+  },
+  {
+    name: "分析/レポート",
+    keywords: ["report", "statistic", "achievement", "analytics", "burnup", "progress"],
+  },
 ];
 
 function collectFeatureCompleteness(
   files: FileInfo[],
-  arch: AnalysisResult["architecture"]
+  arch: AnalysisResult["architecture"],
 ): FeatureArea[] {
-  const testFiles = files.filter((f) => f.relativePath.match(/\.(test|spec)\.(ts|tsx|js|jsx)$/));
+  const testFiles = files.filter((f) =>
+    f.relativePath.match(/\.(test|spec)\.(ts|tsx|js|jsx)$/),
+  );
   const sourceFiles = files.filter(
-    (f) => (f.ext === ".ts" || f.ext === ".tsx") && !f.relativePath.match(/\.(test|spec)\./)
+    (f) =>
+      (f.ext === ".ts" || f.ext === ".tsx") &&
+      !f.relativePath.match(/\.(test|spec)\./),
   );
 
   return FEATURE_AREAS_CONFIG.map((area) => {
@@ -1185,57 +1506,93 @@ function collectFeatureCompleteness(
       area.keywords.some((kw) => path.toLowerCase().includes(kw));
 
     const routes = files.filter(
-      (f) => f.relativePath.startsWith("rapitas-backend") && f.relativePath.includes("routes") && matchesKeyword(f.relativePath)
+      (f) =>
+        f.relativePath.startsWith("rapitas-backend") &&
+        f.relativePath.includes("routes") &&
+        matchesKeyword(f.relativePath),
     ).length;
 
     const services = files.filter(
-      (f) => f.relativePath.startsWith("rapitas-backend") && f.relativePath.includes("services") && matchesKeyword(f.relativePath)
+      (f) =>
+        f.relativePath.startsWith("rapitas-backend") &&
+        f.relativePath.includes("services") &&
+        matchesKeyword(f.relativePath),
     ).length;
 
     const components = files.filter(
-      (f) => f.relativePath.startsWith("rapitas-frontend") && f.ext === ".tsx" && matchesKeyword(f.relativePath)
+      (f) =>
+        f.relativePath.startsWith("rapitas-frontend") &&
+        f.ext === ".tsx" &&
+        matchesKeyword(f.relativePath),
     ).length;
 
     const hooks = files.filter(
-      (f) => f.relativePath.startsWith("rapitas-frontend") && f.relativePath.includes("hooks") && matchesKeyword(f.relativePath)
+      (f) =>
+        f.relativePath.startsWith("rapitas-frontend") &&
+        (f.relativePath.includes("hooks") || /\/use[A-Z]/.test(f.relativePath) || f.relativePath.includes("Store")) &&
+        matchesKeyword(f.relativePath),
     ).length;
 
     const models = arch.prisma.models.filter((m) =>
-      area.keywords.some((kw) => m.name.toLowerCase().includes(kw))
+      area.keywords.some((kw) => m.name.toLowerCase().includes(kw)),
     ).length;
 
     const tests = files.filter(
-      (f) => f.relativePath.match(/\.(test|spec)\./) && matchesKeyword(f.relativePath)
+      (f) =>
+        f.relativePath.match(/\.(test|spec)\./) &&
+        matchesKeyword(f.relativePath),
     ).length;
 
     // Find untested source files for this feature
-    const featureSourceFiles = sourceFiles.filter((f) => matchesKeyword(f.relativePath));
+    const featureSourceFiles = sourceFiles.filter((f) =>
+      matchesKeyword(f.relativePath),
+    );
     const featureTestBases = testFiles
       .filter((f) => matchesKeyword(f.relativePath))
-      .map((f) => basename(f.relativePath).replace(/\.(test|spec)\.(ts|tsx|js|jsx)$/, "").toLowerCase());
+      .map((f) =>
+        basename(f.relativePath)
+          .replace(/\.(test|spec)\.(ts|tsx|js|jsx)$/, "")
+          .toLowerCase(),
+      );
     const untestedSourceFiles = featureSourceFiles
       .filter((f) => {
-        const srcBase = basename(f.relativePath, extname(f.relativePath)).toLowerCase();
-        return !featureTestBases.some((tb) => tb === srcBase || srcBase.includes(tb) || tb.includes(srcBase));
+        const srcBase = basename(
+          f.relativePath,
+          extname(f.relativePath),
+        ).toLowerCase();
+        return !featureTestBases.some(
+          (tb) =>
+            tb === srcBase || srcBase.includes(tb) || tb.includes(srcBase),
+        );
       })
       .map((f) => f.relativePath);
 
     // Proportional scoring (weighted, not binary)
-    // Routes: 0-20 (scaled: 1 route = 5pts, capped at 20)
-    // Services: 0-20 (scaled: 1 service = 5pts, capped at 20)
-    // Components: 0-20 (scaled: 1 component = 3pts, capped at 20)
-    // Hooks: 0-10 (scaled: 1 hook = 5pts, capped at 10)
+    // Routes: 0-20 (scaled: 1 route = 7pts, capped at 20)
+    // Services: 0-15 (scaled: 1 service = 5pts, capped at 15)
+    // Components: 0-20 (scaled: 1 component = 4pts, capped at 20)
+    // Hooks: 0-15 (scaled: 1 hook = 5pts, capped at 15)
     // Models: 0-15 (scaled: 1 model = 5pts, capped at 15)
     // Tests: 0-15 (scaled: 1 test = 5pts, capped at 15)
     let score = 0;
-    score += Math.min(20, routes * 5);
-    score += Math.min(20, services * 5);
-    score += Math.min(20, components * 3);
-    score += Math.min(10, hooks * 5);
+    score += Math.min(20, routes * 7);
+    score += Math.min(15, services * 5);
+    score += Math.min(20, components * 4);
+    score += Math.min(15, hooks * 5);
     score += Math.min(15, models * 5);
     score += Math.min(15, tests * 5);
 
-    return { name: area.name, routes, services, components, hooks, models, tests, untestedSourceFiles, score };
+    return {
+      name: area.name,
+      routes,
+      services,
+      components,
+      hooks,
+      models,
+      tests,
+      untestedSourceFiles,
+      score,
+    };
   });
 }
 
@@ -1249,21 +1606,22 @@ function computeScoring(
   complexity: AnalysisResult["complexity"],
   security: AnalysisResult["security"],
   apiConsistency: AnalysisResult["apiConsistency"],
-  archHealth: ArchitectureHealth
+  archHealth: ArchitectureHealth,
 ): AnalysisResult["scoring"] {
   // ── Quality Score (0-100) ──
   let qualityScore = 40; // base
 
-  // Test coverage impact (0-25 points)
-  if (quality.testRatio >= 0.5) qualityScore += 25;
-  else if (quality.testRatio >= 0.3) qualityScore += 20;
-  else if (quality.testRatio >= 0.2) qualityScore += 15;
+  // Test coverage impact (0-30 points) - progressive scale
+  if (quality.testRatio >= 0.5) qualityScore += 30;
+  else if (quality.testRatio >= 0.3) qualityScore += 25;
+  else if (quality.testRatio >= 0.2) qualityScore += 20;
+  else if (quality.testRatio >= 0.15) qualityScore += 15;
   else if (quality.testRatio >= 0.1) qualityScore += 10;
   else if (quality.testRatio >= 0.05) qualityScore += 5;
   else qualityScore -= 5;
 
   // Type safety (0-15 points)
-  const anyPer1000 = (quality.anyUsage / (codeMetrics.totalLines / 1000));
+  const anyPer1000 = quality.anyUsage / (codeMetrics.totalLines / 1000);
   if (anyPer1000 < 0.5) qualityScore += 15;
   else if (anyPer1000 < 1) qualityScore += 10;
   else if (anyPer1000 < 3) qualityScore += 5;
@@ -1274,7 +1632,8 @@ function computeScoring(
   else if (quality.consoleLogCount < 10) qualityScore += 3;
   else if (quality.consoleLogCount > 50) qualityScore -= 5;
 
-  if (quality.todoCount + quality.fixmeCount + quality.hackCount === 0) qualityScore += 5;
+  if (quality.todoCount + quality.fixmeCount + quality.hackCount === 0)
+    qualityScore += 5;
   else if (quality.todoCount + quality.fixmeCount > 20) qualityScore -= 5;
 
   // Empty catch blocks penalty
@@ -1285,32 +1644,47 @@ function computeScoring(
   if (complexity.godObjects.length > 5) qualityScore -= 10;
   else if (complexity.godObjects.length > 2) qualityScore -= 5;
 
+  // Assertion density bonus (tests actually assert behavior)
+  const assertionsPerTest =
+    quality.testFiles > 0 ? quality.assertionCount / quality.testFiles : 0;
+  if (assertionsPerTest >= 5) qualityScore += 5;
+  else if (assertionsPerTest >= 3) qualityScore += 3;
+
   qualityScore = Math.max(0, Math.min(100, qualityScore));
 
   // ── Feature Coverage Score ──
   const featureCoverageScore = Math.round(
-    features.reduce((sum, f) => sum + f.score, 0) / features.length
+    features.reduce((sum, f) => sum + f.score, 0) / features.length,
   );
 
   // ── Architecture Score (0-100) ──
   let architectureScore = 50;
 
-  // API richness
+  // API richness (0-10)
   if (arch.backend.endpoints.length > 100) architectureScore += 10;
   else if (arch.backend.endpoints.length > 50) architectureScore += 5;
 
-  // Model richness
+  // Model richness (0-5)
   if (arch.prisma.modelCount > 30) architectureScore += 5;
 
-  // REST conformance
+  // REST conformance (0-10)
   architectureScore += Math.round(apiConsistency.restConformanceScore * 0.1);
+
+  // Service layer separation (0-5)
+  const serviceCount = arch.backend.services.length;
+  if (serviceCount > 30) architectureScore += 5;
+  else if (serviceCount > 15) architectureScore += 3;
+
+  // Modularity bonus - well-organized directory structure (0-5)
+  if (archHealth.modularity > 60) architectureScore += 5;
+  else if (archHealth.modularity > 40) architectureScore += 3;
 
   // Layer violation penalty
   if (archHealth.layerViolations.length > 10) architectureScore -= 15;
   else if (archHealth.layerViolations.length > 5) architectureScore -= 10;
   else if (archHealth.layerViolations.length > 0) architectureScore -= 5;
 
-  // Coupling/cohesion
+  // Coupling/cohesion (0-10 combined)
   architectureScore += Math.round(archHealth.couplingScore * 0.05);
   architectureScore += Math.round(archHealth.cohesionScore * 0.05);
 
@@ -1326,7 +1700,9 @@ function computeScoring(
 
   // ── Security Score (0-100) ──
   // Scaled by total codebase size to avoid over-penalizing large codebases
-  const criticalFindings = security.findings.filter((f) => f.severity === "critical").length;
+  const criticalFindings = security.findings.filter(
+    (f) => f.severity === "critical",
+  ).length;
   let securityScore = 100;
   securityScore -= criticalFindings * 20;
   securityScore -= (security.summary.high - criticalFindings) * 8;
@@ -1337,9 +1713,9 @@ function computeScoring(
   // ── Overall Score ──
   const overallScore = Math.round(
     qualityScore * 0.3 +
-    featureCoverageScore * 0.25 +
-    architectureScore * 0.25 +
-    securityScore * 0.2
+      featureCoverageScore * 0.25 +
+      architectureScore * 0.25 +
+      securityScore * 0.2,
   );
 
   // ── Strengths, Weaknesses, Suggestions ──
@@ -1348,75 +1724,150 @@ function computeScoring(
   const suggestions: string[] = [];
 
   // Strengths
-  if (arch.backend.endpoints.length > 80) strengths.push(`豊富なAPIエンドポイント（${arch.backend.endpoints.length}件）`);
-  if (arch.prisma.modelCount > 30) strengths.push(`充実したデータモデル（${arch.prisma.modelCount}モデル）`);
-  if (arch.frontend.pages.length > 15) strengths.push(`多彩なフロントエンドページ（${arch.frontend.pages.length}ルート）`);
-  if (arch.frontend.hooks.length > 10) strengths.push(`再利用可能なカスタムフック（${arch.frontend.hooks.length}個）`);
-  if (quality.anyUsage < 20) strengths.push(`型安全性が高い（any使用: ${quality.anyUsage}箇所）`);
-  if (quality.consoleLogCount < 10) strengths.push(`ログ出力が適切に管理されている`);
-  if (security.summary.high === 0) strengths.push(`重大なセキュリティリスクが検出されていない`);
-  if (archHealth.layerViolations.length === 0) strengths.push(`レイヤー間の依存関係が適切`);
+  if (arch.backend.endpoints.length > 80)
+    strengths.push(
+      `豊富なAPIエンドポイント（${arch.backend.endpoints.length}件）`,
+    );
+  if (arch.prisma.modelCount > 30)
+    strengths.push(`充実したデータモデル（${arch.prisma.modelCount}モデル）`);
+  if (arch.frontend.pages.length > 15)
+    strengths.push(
+      `多彩なフロントエンドページ（${arch.frontend.pages.length}ルート）`,
+    );
+  if (arch.frontend.hooks.length > 10)
+    strengths.push(
+      `再利用可能なカスタムフック（${arch.frontend.hooks.length}個）`,
+    );
+  if (quality.anyUsage < 20)
+    strengths.push(`型安全性が高い（any使用: ${quality.anyUsage}箇所）`);
+  if (quality.consoleLogCount < 10)
+    strengths.push(`ログ出力が適切に管理されている`);
+  if (security.summary.high === 0)
+    strengths.push(`重大なセキュリティリスクが検出されていない`);
+  if (archHealth.layerViolations.length === 0)
+    strengths.push(`レイヤー間の依存関係が適切`);
 
   const strongFeatures = features.filter((f) => f.score >= 75);
   if (strongFeatures.length > 0) {
-    strengths.push(`高カバレッジ機能: ${strongFeatures.map((f) => f.name).join(", ")}`);
+    strengths.push(
+      `高カバレッジ機能: ${strongFeatures.map((f) => f.name).join(", ")}`,
+    );
   }
 
   // Weaknesses
-  if (quality.testRatio < 0.1) weaknesses.push(`テストカバレッジが低い（テスト比率: ${(quality.testRatio * 100).toFixed(1)}%）`);
-  if (quality.anyUsage > 50) weaknesses.push(`any型の使用が多い（${quality.anyUsage}箇所）`);
-  if (quality.consoleLogCount > 50) weaknesses.push(`console.logが多い（${quality.consoleLogCount}箇所）`);
-  if (quality.emptyTryCatchCount > 5) weaknesses.push(`空のcatchブロック（${quality.emptyTryCatchCount}箇所）- エラーが無視されている`);
-  if (complexity.godObjects.length > 0) weaknesses.push(`God Object検出: ${complexity.godObjects.length}ファイル（${complexity.godObjects.slice(0, 3).join(", ")}）`);
-  if (complexity.filesOver1000Lines > 5) weaknesses.push(`1000行超のファイルが${complexity.filesOver1000Lines}個`);
-  if (archHealth.layerViolations.length > 0) weaknesses.push(`レイヤー違反: ${archHealth.layerViolations.length}件`);
-  if (apiConsistency.duplicateEndpoints.length > 0) weaknesses.push(`重複エンドポイント: ${apiConsistency.duplicateEndpoints.length}件`);
+  if (quality.testRatio < 0.1)
+    weaknesses.push(
+      `テストカバレッジが低い（テスト比率: ${(quality.testRatio * 100).toFixed(1)}%）`,
+    );
+  if (quality.anyUsage > 50)
+    weaknesses.push(`any型の使用が多い（${quality.anyUsage}箇所）`);
+  if (quality.consoleLogCount > 50)
+    weaknesses.push(`console.logが多い（${quality.consoleLogCount}箇所）`);
+  if (quality.emptyTryCatchCount > 5)
+    weaknesses.push(
+      `空のcatchブロック（${quality.emptyTryCatchCount}箇所）- エラーが無視されている`,
+    );
+  if (complexity.godObjects.length > 0)
+    weaknesses.push(
+      `God Object検出: ${complexity.godObjects.length}ファイル（${complexity.godObjects.slice(0, 3).join(", ")}）`,
+    );
+  if (complexity.filesOver1000Lines > 5)
+    weaknesses.push(`1000行超のファイルが${complexity.filesOver1000Lines}個`);
+  if (archHealth.layerViolations.length > 0)
+    weaknesses.push(`レイヤー違反: ${archHealth.layerViolations.length}件`);
+  if (apiConsistency.duplicateEndpoints.length > 0)
+    weaknesses.push(
+      `重複エンドポイント: ${apiConsistency.duplicateEndpoints.length}件`,
+    );
   if (arch.prisma.oversizedModels.length > 0) {
-    weaknesses.push(`巨大なPrismaモデル: ${arch.prisma.oversizedModels.map((m) => `${m.name}(${m.fieldCount}フィールド)`).join(", ")}`);
+    weaknesses.push(
+      `巨大なPrismaモデル: ${arch.prisma.oversizedModels.map((m) => `${m.name}(${m.fieldCount}フィールド)`).join(", ")}`,
+    );
   }
 
   const weakFeatures = features.filter((f) => f.score < 50);
   if (weakFeatures.length > 0) {
-    weaknesses.push(`低カバレッジ機能: ${weakFeatures.map((f) => f.name).join(", ")}`);
+    weaknesses.push(
+      `低カバレッジ機能: ${weakFeatures.map((f) => f.name).join(", ")}`,
+    );
   }
 
   // Suggestions (prioritized)
   if (quality.testRatio < 0.2) {
-    const untestedCount = features.reduce((sum, f) => sum + f.untestedSourceFiles.length, 0);
-    suggestions.push(`[P0] テスト拡充 - ${untestedCount}個の未テストソースファイル。特にバックエンドサービスのユニットテストを優先`);
+    const untestedCount = features.reduce(
+      (sum, f) => sum + f.untestedSourceFiles.length,
+      0,
+    );
+    suggestions.push(
+      `[P0] テスト拡充 - ${untestedCount}個の未テストソースファイル。特にバックエンドサービスのユニットテストを優先`,
+    );
   }
   if (complexity.godObjects.length > 0) {
-    suggestions.push(`[P0] God Objectのリファクタリング - ${complexity.godObjects.slice(0, 3).join(", ")} を分割`);
+    suggestions.push(
+      `[P0] God Objectのリファクタリング - ${complexity.godObjects.slice(0, 3).join(", ")} を分割`,
+    );
   }
   if (security.summary.high > 0) {
-    suggestions.push(`[P0] セキュリティ修正 - ${security.summary.high}件の高リスク検出を修正`);
+    suggestions.push(
+      `[P0] セキュリティ修正 - ${security.summary.high}件の高リスク検出を修正`,
+    );
   }
   if (quality.emptyTryCatchCount > 5) {
     suggestions.push(`[P1] 空のcatchブロックにエラーログまたはリスローを追加`);
   }
   if (archHealth.layerViolations.length > 0) {
-    suggestions.push(`[P1] レイヤー違反の解消 - ${archHealth.layerViolations.length}件の不正なimportを修正`);
+    suggestions.push(
+      `[P1] レイヤー違反の解消 - ${archHealth.layerViolations.length}件の不正なimportを修正`,
+    );
   }
   if (apiConsistency.duplicateEndpoints.length > 0) {
     suggestions.push(`[P1] 重複エンドポイントの統合`);
   }
   if (arch.prisma.oversizedModels.length > 0) {
-    suggestions.push(`[P2] 巨大Prismaモデルの正規化（${arch.prisma.oversizedModels[0]?.name}: ${arch.prisma.oversizedModels[0]?.fieldCount}フィールド）`);
+    suggestions.push(
+      `[P2] 巨大Prismaモデルの正規化（${arch.prisma.oversizedModels[0]?.name}: ${arch.prisma.oversizedModels[0]?.fieldCount}フィールド）`,
+    );
   }
   if (weakFeatures.length > 0) {
-    suggestions.push(`[P2] 機能拡充: ${weakFeatures.map((f) => f.name).join(", ")}`);
+    suggestions.push(
+      `[P2] 機能拡充: ${weakFeatures.map((f) => f.name).join(", ")}`,
+    );
   }
   if (quality.anyUsage > 30) {
     suggestions.push(`[P2] any型を具体的な型に置き換え`);
   }
 
-  return { qualityScore, featureCoverageScore, architectureScore, securityScore, overallScore, strengths, weaknesses, suggestions };
+  return {
+    qualityScore,
+    featureCoverageScore,
+    architectureScore,
+    securityScore,
+    overallScore,
+    strengths,
+    weaknesses,
+    suggestions,
+  };
 }
 
 // ─── Markdown Report (Enhanced) ──────────────────────────────────────────────
 
 function generateMarkdownReport(result: AnalysisResult): string {
-  const { metadata, codeMetrics, architecture, quality, aiAgent, dependencies, featureCompleteness, scoring, complexity, security, imports, apiConsistency, testCoverage, architectureHealth } = result;
+  const {
+    metadata,
+    codeMetrics,
+    architecture,
+    quality,
+    aiAgent,
+    dependencies,
+    featureCompleteness,
+    scoring,
+    complexity,
+    security,
+    imports,
+    apiConsistency,
+    testCoverage,
+    architectureHealth,
+  } = result;
 
   const formatBytes = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -1426,13 +1877,20 @@ function generateMarkdownReport(result: AnalysisResult): string {
 
   const severityEmoji = (s: string) => {
     switch (s) {
-      case "critical": return "[CRITICAL]";
-      case "high": return "[HIGH]";
-      case "warning": return "[WARN]";
-      case "medium": return "[MEDIUM]";
-      case "low": return "[LOW]";
-      case "info": return "[INFO]";
-      default: return "";
+      case "critical":
+        return "[CRITICAL]";
+      case "high":
+        return "[HIGH]";
+      case "warning":
+        return "[WARN]";
+      case "medium":
+        return "[MEDIUM]";
+      case "low":
+        return "[LOW]";
+      case "info":
+        return "[INFO]";
+      default:
+        return "";
     }
   };
 
@@ -1479,7 +1937,10 @@ ${codeMetrics.byExtension.map((e) => `| ${e.extension} | ${e.fileCount} | ${e.to
 |-----------|-------|-------|------|
 ${Object.entries(codeMetrics.byDirectory)
   .sort(([, a], [, b]) => b.lines - a.lines)
-  .map(([dir, d]) => `| ${dir} | ${d.files} | ${d.lines.toLocaleString()} | ${formatBytes(d.size)} |`)
+  .map(
+    ([dir, d]) =>
+      `| ${dir} | ${d.files} | ${d.lines.toLocaleString()} | ${formatBytes(d.size)} |`,
+  )
   .join("\n")}
 
 ### Largest Files Top20
@@ -1492,23 +1953,35 @@ ${codeMetrics.largestFiles.map((f, i) => `| ${i + 1} | \`${f.path}\` | ${f.lines
 ## 2. Complexity Analysis
 
 ### God Objects (${complexity.godObjects.length} detected)
-${complexity.godObjects.length > 0
-  ? complexity.godObjects.map((g) => `- \`${g}\``).join("\n")
-  : "None detected"}
+${
+  complexity.godObjects.length > 0
+    ? complexity.godObjects.map((g) => `- \`${g}\``).join("\n")
+    : "None detected"
+}
 
 ### Complexity Warnings (${complexity.warnings.length} total)
-${complexity.warnings.length > 0
-  ? `| Severity | File | Type | Message |
+${
+  complexity.warnings.length > 0
+    ? `| Severity | File | Type | Message |
 |----------|------|------|---------|
-${complexity.warnings.slice(0, 30).map((w) => `| ${severityEmoji(w.severity)} | \`${w.file}\` | ${w.type} | ${w.message} |`).join("\n")}`
-  : "No warnings"}
+${complexity.warnings
+  .slice(0, 30)
+  .map(
+    (w) =>
+      `| ${severityEmoji(w.severity)} | \`${w.file}\` | ${w.type} | ${w.message} |`,
+  )
+  .join("\n")}`
+    : "No warnings"
+}
 
 ### Long Functions (> ${THRESHOLDS.maxFunctionLines} lines)
-${complexity.longFunctions.length > 0
-  ? `| File | Function | Lines |
+${
+  complexity.longFunctions.length > 0
+    ? `| File | Function | Lines |
 |------|----------|-------|
 ${complexity.longFunctions.map((f) => `| \`${f.file}\` | ${f.name} | ${f.lines} |`).join("\n")}`
-  : "None detected"}
+    : "None detected"
+}
 
 ---
 
@@ -1522,12 +1995,20 @@ ${complexity.longFunctions.map((f) => `| \`${f.file}\` | ${f.name} | ${f.lines} 
 | Low | ${security.summary.low} |
 | **Security Score** | **${scoring.securityScore}/100** |
 
-${security.findings.length > 0
-  ? `### Findings
+${
+  security.findings.length > 0
+    ? `### Findings
 | Severity | File | Line | Type | Message |
 |----------|------|------|------|---------|
-${security.findings.slice(0, 30).map((f) => `| ${severityEmoji(f.severity)} | \`${f.file}\` | ${f.line} | ${f.type} | ${f.message} |`).join("\n")}`
-  : "No security issues detected"}
+${security.findings
+  .slice(0, 30)
+  .map(
+    (f) =>
+      `| ${severityEmoji(f.severity)} | \`${f.file}\` | ${f.line} | ${f.type} | ${f.message} |`,
+  )
+  .join("\n")}`
+    : "No security issues detected"
+}
 
 ---
 
@@ -1541,9 +2022,11 @@ ${security.findings.slice(0, 30).map((f) => `| ${severityEmoji(f.severity)} | \`
 ### Prisma Models
 - **Models**: ${architecture.prisma.modelCount}
 - **Relations**: ${architecture.prisma.totalRelations}
-${architecture.prisma.oversizedModels.length > 0
-  ? `- **Oversized models** (> ${THRESHOLDS.maxFieldsPerModel} fields): ${architecture.prisma.oversizedModels.map((m) => `${m.name}(${m.fieldCount})`).join(", ")}`
-  : ""}
+${
+  architecture.prisma.oversizedModels.length > 0
+    ? `- **Oversized models** (> ${THRESHOLDS.maxFieldsPerModel} fields): ${architecture.prisma.oversizedModels.map((m) => `${m.name}(${m.fieldCount})`).join(", ")}`
+    : ""
+}
 
 ### Frontend
 ${architecture.frontend.components.map((c) => `- **${c.category}**: ${c.count} files`).join("\n")}
@@ -1559,12 +2042,14 @@ ${architecture.frontend.components.map((c) => `- **${c.category}**: ${c.count} f
 | Modularity | ${architectureHealth.modularity}% |
 | Layer Violations | ${architectureHealth.layerViolations.length} |
 
-${architectureHealth.layerViolations.length > 0
-  ? `#### Layer Violations
+${
+  architectureHealth.layerViolations.length > 0
+    ? `#### Layer Violations
 | File | Issue |
 |------|-------|
 ${architectureHealth.layerViolations.map((v) => `| \`${v.file}\` | ${v.message} |`).join("\n")}`
-  : ""}
+    : ""
+}
 
 ---
 
@@ -1574,23 +2059,30 @@ ${architectureHealth.layerViolations.map((v) => `| \`${v.file}\` | ${v.message} 
 - **Issues**: ${apiConsistency.issues.length}
 - **Duplicate endpoints**: ${apiConsistency.duplicateEndpoints.length}
 
-${apiConsistency.duplicateEndpoints.length > 0
-  ? `### Duplicate Endpoints
+${
+  apiConsistency.duplicateEndpoints.length > 0
+    ? `### Duplicate Endpoints
 | Endpoint | Files |
 |----------|-------|
 ${apiConsistency.duplicateEndpoints.map((d) => `| \`${d.path}\` | ${d.files.map((f) => `\`${f}\``).join(", ")} |`).join("\n")}`
-  : ""}
+    : ""
+}
 
-${apiConsistency.issues.length > 0
-  ? `<details>
+${
+  apiConsistency.issues.length > 0
+    ? `<details>
 <summary>API Issues (${apiConsistency.issues.length})</summary>
 
 | Endpoint | Type | Message |
 |----------|------|---------|
-${apiConsistency.issues.slice(0, 30).map((i) => `| \`${i.endpoint}\` | ${i.type} | ${i.message} |`).join("\n")}
+${apiConsistency.issues
+  .slice(0, 30)
+  .map((i) => `| \`${i.endpoint}\` | ${i.type} | ${i.message} |`)
+  .join("\n")}
 
 </details>`
-  : ""}
+    : ""
+}
 
 ---
 
@@ -1600,17 +2092,27 @@ ${apiConsistency.issues.slice(0, 30).map((i) => `| \`${i.endpoint}\` | ${i.type}
 - **High fan-out files**: ${imports.highFanOutFiles.length}
 - **High fan-in files**: ${imports.highFanInFiles.length}
 
-${imports.circularDependencies.length > 0
-  ? `### Circular Dependencies
-${imports.circularDependencies.slice(0, 10).map((c) => `- ${c.cycle.join(" -> ")}`).join("\n")}`
-  : "No circular dependencies detected"}
+${
+  imports.circularDependencies.length > 0
+    ? `### Circular Dependencies
+${imports.circularDependencies
+  .slice(0, 10)
+  .map((c) => `- ${c.cycle.join(" -> ")}`)
+  .join("\n")}`
+    : "No circular dependencies detected"
+}
 
-${imports.highFanOutFiles.length > 0
-  ? `### High Fan-Out (many imports)
+${
+  imports.highFanOutFiles.length > 0
+    ? `### High Fan-Out (many imports)
 | File | Import Count |
 |------|-------------|
-${imports.highFanOutFiles.slice(0, 10).map((f) => `| \`${f.file}\` | ${f.importCount} |`).join("\n")}`
-  : ""}
+${imports.highFanOutFiles
+  .slice(0, 10)
+  .map((f) => `| \`${f.file}\` | ${f.importCount} |`)
+  .join("\n")}`
+    : ""
+}
 
 ---
 
@@ -1643,9 +2145,11 @@ ${imports.highFanOutFiles.slice(0, 10).map((f) => `| \`${f.file}\` | ${f.importC
 ${testCoverage.details.map((d) => `| ${d.featureName} | ${d.sourceFiles.length} | ${d.testFiles.length} | ${d.untestedFiles.length} | ${(d.coverageRatio * 100).toFixed(0)}% |`).join("\n")}
 
 ### Critical Untested Files (large files without tests)
-${testCoverage.untestedCriticalFiles.length > 0
-  ? testCoverage.untestedCriticalFiles.map((f) => `- \`${f}\``).join("\n")
-  : "All critical files have tests"}
+${
+  testCoverage.untestedCriticalFiles.length > 0
+    ? testCoverage.untestedCriticalFiles.map((f) => `- \`${f}\``).join("\n")
+    : "All critical files have tests"
+}
 
 ---
 
@@ -1775,7 +2279,16 @@ async function main() {
   const featureCompleteness = collectFeatureCompleteness(files, architecture);
 
   log.info("Computing scores...");
-  const scoring = computeScoring(quality, featureCompleteness, architecture, codeMetrics, complexityMetrics, securityFindings, apiConsistency, archHealth);
+  const scoring = computeScoring(
+    quality,
+    featureCompleteness,
+    architecture,
+    codeMetrics,
+    complexityMetrics,
+    securityFindings,
+    apiConsistency,
+    archHealth,
+  );
 
   const executionTimeMs = Date.now() - startTime;
 
@@ -1820,7 +2333,9 @@ async function main() {
   log.info(`Endpoints: ${architecture.backend.endpoints.length}`);
   log.info(`Prisma models: ${architecture.prisma.modelCount}`);
   log.info(`God objects: ${complexityMetrics.godObjects.length}`);
-  log.info(`Security findings: ${securityFindings.findings.length} (high: ${securityFindings.summary.high})`);
+  log.info(
+    `Security findings: ${securityFindings.findings.length} (high: ${securityFindings.summary.high})`,
+  );
   log.info(`Circular deps: ${importMetrics.circularDependencies.length}`);
   log.info(`Layer violations: ${archHealth.layerViolations.length}`);
   log.info(`Overall score: ${scoring.overallScore}/100`);

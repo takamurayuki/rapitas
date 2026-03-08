@@ -207,7 +207,9 @@ export class GeminiCliAgentV2 extends AbstractAgent {
         } catch {
           try {
             this.process.kill();
-          } catch {}
+          } catch (killErr) {
+            // Final fallback kill failed - process may already be terminated
+          }
         }
       } else {
         this.process.kill('SIGTERM');

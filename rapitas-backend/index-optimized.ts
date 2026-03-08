@@ -70,7 +70,7 @@ import { setupPrismaOptimizations } from "./utils/prisma-optimization";
 import { cacheService } from "./services/cache-service";
 
 // Import orchestrator for startup recovery
-import { orchestrator } from "./routes/agents/approvals";
+import { orchestrator } from "./services/orchestrator-instance";
 
 // Import realtime service for SSE cleanup on shutdown
 import { realtimeService } from "./services/realtime-service";
