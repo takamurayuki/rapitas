@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type { ExamGoal, ScheduleEvent, ScheduleEventInput } from '@/types';
 import {
   ChevronLeft,
@@ -46,6 +47,8 @@ type CalendarEvent = {
 
 export default function CalendarPage() {
   const router = useRouter();
+  const t = useTranslations('calendar');
+  const tc = useTranslations('common');
   const { showToast } = useToast();
   const cachedTasks = useTaskCacheStore((s) => s.tasks);
   const taskCacheInitialized = useTaskCacheStore((s) => s.initialized);
@@ -272,17 +275,17 @@ export default function CalendarPage() {
       });
 
       if (res.ok) {
-        showToast('タスクを作成しました', 'success');
+        showToast(t('taskCreated'), 'success');
         setNewTaskTitle('');
         setShowCreateModal(false);
         // Refresh task cache so new task appears on calendar
         await fetchTaskUpdates();
       } else {
-        showToast('タスクの作成に失敗しました', 'error');
+        showToast(t('taskCreateFailed'), 'error');
       }
     } catch (e) {
       logger.error('Failed to create task:', e);
-      showToast('エラーが発生しました', 'error');
+      showToast(tc('errorOccurred'), 'error');
     } finally {
       setCreating(false);
     }
@@ -297,15 +300,15 @@ export default function CalendarPage() {
       });
 
       if (res.ok) {
-        showToast('スケジュールを追加しました', 'success');
+        showToast(t('scheduleAdded'), 'success');
         setShowScheduleModal(false);
         fetchEvents();
       } else {
-        showToast('スケジュールの追加に失敗しました', 'error');
+        showToast(t('scheduleAddFailed'), 'error');
       }
     } catch (e) {
       logger.error('Failed to create schedule:', e);
-      showToast('エラーが発生しました', 'error');
+      showToast(tc('errorOccurred'), 'error');
     }
   };
 
@@ -318,15 +321,15 @@ export default function CalendarPage() {
       });
 
       if (res.ok) {
-        showToast('有給申請を登録しました', 'success');
+        showToast(t('paidLeaveCreated'), 'success');
         setShowPaidLeaveModal(false);
         fetchEvents(); // Will refresh paid leave balance too
       } else {
-        showToast('有給申請の登録に失敗しました', 'error');
+        showToast(t('paidLeaveCreateFailed'), 'error');
       }
     } catch (e) {
       logger.error('Failed to create paid leave:', e);
-      showToast('エラーが発生しました', 'error');
+      showToast(tc('errorOccurred'), 'error');
     }
   };
 
@@ -337,25 +340,25 @@ export default function CalendarPage() {
       });
 
       if (res.ok) {
-        showToast('スケジュールを削除しました', 'success');
+        showToast(t('scheduleDeleted'), 'success');
         fetchEvents();
       } else {
-        showToast('スケジュールの削除に失敗しました', 'error');
+        showToast(t('scheduleDeleteFailed'), 'error');
       }
     } catch (e) {
       logger.error('Failed to delete schedule:', e);
-      showToast('エラーが発生しました', 'error');
+      showToast(tc('errorOccurred'), 'error');
     }
   };
 
   const getReminderLabel = (minutes: number) => {
-    if (minutes < 60) return `${minutes}分前`;
-    if (minutes < 1440) return `${minutes / 60}時間前`;
-    return `${minutes / 1440}日前`;
+    if (minutes < 60) return t('reminderMinutesBefore', { count: minutes });
+    if (minutes < 1440) return t('reminderHoursBefore', { count: minutes / 60 });
+    return t('reminderDaysBefore', { count: minutes / 1440 });
   };
 
   const days = getDaysInMonth(currentDate);
-  const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
+  const weekDays = [t('weekSun'), t('weekMon'), t('weekTue'), t('weekWed'), t('weekThu'), t('weekFri'), t('weekSat')];
 
   // 祝日データ（月ごとにメモ化）
   const holidays = useMemo(() => {
@@ -501,10 +504,10 @@ export default function CalendarPage() {
           <CalendarIcon className="w-8 h-8 text-indigo-500" />
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              カレンダー
+              {t('title')}
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              スケジュール・締め切り・試験日を一覧表示
+              {t('subtitle')}
             </p>
           </div>
         </div>
@@ -514,13 +517,13 @@ export default function CalendarPage() {
           <div className="flex items-center gap-3">
             <div className="text-right">
               <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                有給残日数
+                {t('paidLeaveBalance')}
               </p>
               <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-                {paidLeaveBalance.remainingDays}日
+                {t('paidLeaveDays', { count: paidLeaveBalance.remainingDays })}
               </p>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                {paidLeaveBalance.fiscalYear}年度
+                {t('fiscalYear', { year: paidLeaveBalance.fiscalYear })}
               </p>
             </div>
             <button
@@ -528,13 +531,13 @@ export default function CalendarPage() {
                 if (selectedDate) {
                   setShowPaidLeaveModal(true);
                 } else {
-                  showToast('日付を選択してから有給申請してください', 'info');
+                  showToast(t('selectDateForPaidLeave'), 'info');
                 }
               }}
               className="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors text-sm font-medium flex items-center gap-2"
             >
               <Coffee className="w-4 h-4" />
-              有給申請
+              {t('paidLeaveRequest')}
             </button>
           </div>
         )}
@@ -553,7 +556,7 @@ export default function CalendarPage() {
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 min-w-[140px] text-center">
-                {currentDate.getFullYear()}年 {currentDate.getMonth() + 1}月
+                {t('yearMonth', { year: currentDate.getFullYear(), month: currentDate.getMonth() + 1 })}
               </h2>
               <button
                 onClick={nextMonth}
@@ -566,7 +569,7 @@ export default function CalendarPage() {
               onClick={goToToday}
               className="px-3 py-1.5 text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50"
             >
-              今日
+              {tc('today')}
             </button>
           </div>
 
@@ -748,7 +751,7 @@ export default function CalendarPage() {
                                 })}
                               {hiddenCount > 0 && (
                                 <div className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-1 leading-tight">
-                                  +{hiddenCount}件
+                                  +{hiddenCount}{tc('items')}
                                 </div>
                               )}
                             </div>
@@ -802,27 +805,27 @@ export default function CalendarPage() {
             <div className="flex items-center gap-4 flex-wrap">
               <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
                 <div className="w-8 h-3 rounded-sm bg-indigo-500 opacity-90" />
-                複数日
+                {t('legendMultiDay')}
               </div>
               <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
                 <div className="w-1 h-3 rounded-sm bg-indigo-500" />
-                スケジュール
+                {t('legendSchedule')}
               </div>
               <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
                 <div className="w-1 h-3 rounded-sm bg-blue-500" />
-                タスク
+                {t('legendTask')}
               </div>
               <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
                 <div className="w-1 h-3 rounded-sm bg-emerald-500" />
-                試験
+                {t('legendExam')}
               </div>
               <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                <span className="text-[10px] font-medium text-red-500">祝</span>
-                祝日
+                <span className="text-[10px] font-medium text-red-500">{t('legendHolidayIcon')}</span>
+                {t('legendHoliday')}
               </div>
             </div>
             <span className="text-xs text-zinc-400 dark:text-zinc-500 hidden sm:inline">
-              ダブルクリックで予定追加
+              {t('doubleClickToAdd')}
             </span>
           </div>
         </div>
@@ -839,7 +842,7 @@ export default function CalendarPage() {
                       day: 'numeric',
                       weekday: 'short',
                     })
-                  : '日付を選択'}
+                  : t('selectDate')}
               </h3>
               {selectedDate && holidayMap.get(selectedDate) && (
                 <p className="text-xs font-medium text-red-500 dark:text-red-400 mt-0.5">
@@ -854,21 +857,21 @@ export default function CalendarPage() {
                   className="flex items-center gap-1 px-2 py-1 text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
                 >
                   <Plus className="w-4 h-4" />
-                  予定
+                  {t('addScheduleShort')}
                 </button>
                 <button
                   onClick={openCreateModal}
                   className="flex items-center gap-1 px-2 py-1 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
                 >
                   <Plus className="w-4 h-4" />
-                  タスク
+                  {t('addTaskShort')}
                 </button>
                 <button
                   onClick={() => setShowPaidLeaveModal(true)}
                   className="flex items-center gap-1 px-2 py-1 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
                 >
                   <Coffee className="w-4 h-4" />
-                  有給
+                  {t('paidLeaveShort')}
                 </button>
               </div>
             )}
@@ -921,14 +924,14 @@ export default function CalendarPage() {
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           <p className="text-xs text-zinc-500 dark:text-zinc-400">
                             {event.type === 'exam'
-                              ? '試験'
+                              ? t('legendExam')
                               : event.type === 'schedule'
                                 ? schedules.find((s) => s.id === event.id)
                                     ?.type === 'PAID_LEAVE'
-                                  ? '有給休暇'
-                                  : 'スケジュール'
-                                : 'タスク'}
-                            {event.status === 'done' && ' ・ 完了'}
+                                  ? t('paidLeaveLabel')
+                                  : t('legendSchedule')
+                                : t('legendTask')}
+                            {event.status === 'done' && ` ・ ${tc('completed')}`}
                           </p>
                           {event.endDate && (
                             <span className="flex items-center gap-1 text-xs text-indigo-500 dark:text-indigo-400">
@@ -969,7 +972,7 @@ export default function CalendarPage() {
                       <button
                         onClick={() => deleteScheduleEvent(event.id)}
                         className="p-1 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
-                        title="削除"
+                        title={tc('delete')}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -983,7 +986,7 @@ export default function CalendarPage() {
                   <CalendarIcon className="w-6 h-6 text-zinc-400 dark:text-zinc-500" />
                 </div>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-                  この日の予定はありません
+                  {t('noEventsOnDay')}
                 </p>
                 <div className="flex flex-col gap-2">
                   <button
@@ -991,28 +994,28 @@ export default function CalendarPage() {
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors text-sm font-medium"
                   >
                     <Plus className="w-4 h-4" />
-                    スケジュールを追加
+                    {t('addSchedule')}
                   </button>
                   <button
                     onClick={() => setShowPaidLeaveModal(true)}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm font-medium"
                   >
                     <Coffee className="w-4 h-4" />
-                    有給申請
+                    {t('paidLeaveRequest')}
                   </button>
                   <button
                     onClick={openCreateModal}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2 text-zinc-500 dark:text-zinc-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700/50 transition-colors text-sm"
                   >
                     <Plus className="w-4 h-4" />
-                    タスクを追加
+                    {t('addTask')}
                   </button>
                 </div>
               </div>
             )
           ) : (
             <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center py-8">
-              カレンダーから日付を選択してください
+              {t('selectDateFromCalendar')}
             </p>
           )}
         </div>
@@ -1030,7 +1033,7 @@ export default function CalendarPage() {
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                タスクを追加
+                {t('addTask')}
               </h3>
               <button
                 onClick={() => setShowCreateModal(false)}
@@ -1041,7 +1044,7 @@ export default function CalendarPage() {
             </div>
 
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-              締め切り:{' '}
+              {t('deadline')}:{' '}
               {new Date(selectedDate).toLocaleDateString('ja-JP', {
                 year: 'numeric',
                 month: 'long',
@@ -1054,7 +1057,7 @@ export default function CalendarPage() {
                 type="text"
                 value={newTaskTitle}
                 onChange={(e) => setNewTaskTitle(e.target.value)}
-                placeholder="タスク名を入力..."
+                placeholder={t('taskNamePlaceholder')}
                 className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 autoFocus
               />
@@ -1065,14 +1068,14 @@ export default function CalendarPage() {
                   onClick={() => setShowCreateModal(false)}
                   className="flex-1 px-4 py-2.5 bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors"
                 >
-                  キャンセル
+                  {tc('cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={!newTaskTitle.trim() || creating}
                   className="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {creating ? '作成中...' : '作成'}
+                  {creating ? t('creating') : tc('create')}
                 </button>
               </div>
             </form>

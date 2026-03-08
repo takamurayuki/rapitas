@@ -1,38 +1,46 @@
 'use client';
 
-import { Settings, Code, GraduationCap, Layers } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { Settings, Code, GraduationCap, Layers, Globe } from 'lucide-react';
 import { useAppModeStore, type AppMode } from '@/stores/appModeStore';
+import { useLocaleStore } from '@/stores/localeStore';
+import { locales, type Locale } from '@/i18n/config';
 
 const MODE_OPTIONS: {
   value: AppMode;
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
   icon: React.ComponentType<{ className?: string }>;
 }[] = [
   {
     value: 'all',
-    label: 'すべて表示',
-    description: '開発・学習の両方のナビゲーションを表示します',
+    labelKey: 'showAll',
+    descriptionKey: 'showAllDescription',
     icon: Layers,
   },
   {
     value: 'development',
-    label: '開発モード',
-    description:
-      'GitHub連携・エージェント管理など開発関連のナビゲーションのみ表示します',
+    labelKey: 'devMode',
+    descriptionKey: 'devModeDescription',
     icon: Code,
   },
   {
     value: 'learning',
-    label: '学習モード',
-    description:
-      '試験目標・学習目標・フラッシュカードなど学習関連のナビゲーションのみ表示します',
+    labelKey: 'learningMode',
+    descriptionKey: 'learningModeDescription',
     icon: GraduationCap,
   },
 ];
 
+const LOCALE_LABELS: Record<Locale, string> = {
+  ja: '日本語',
+  en: 'English',
+};
+
 export default function GeneralSettingsPage() {
+  const t = useTranslations('settings');
   const { mode, setMode } = useAppModeStore();
+  const { locale, setLocale } = useLocaleStore();
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -43,10 +51,10 @@ export default function GeneralSettingsPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            全体設定
+            {t('generalTitle')}
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            アプリケーション全体の表示・動作を管理
+            {t('generalDescription')}
           </p>
         </div>
       </div>
@@ -59,10 +67,10 @@ export default function GeneralSettingsPage() {
               <Layers className="w-5 h-5 text-zinc-400" />
               <div>
                 <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                  表示モード
+                  {t('displayMode')}
                 </h2>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-                  ナビゲーションに表示する項目を用途に応じて切り替えます
+                  {t('displayModeDescription')}
                 </p>
               </div>
             </div>
@@ -102,7 +110,7 @@ export default function GeneralSettingsPage() {
                           : 'text-zinc-900 dark:text-zinc-100'
                       }`}
                     >
-                      {option.label}
+                      {t(option.labelKey)}
                     </h3>
                     <p
                       className={`text-xs mt-1 ${
@@ -111,11 +119,74 @@ export default function GeneralSettingsPage() {
                           : 'text-zinc-500 dark:text-zinc-400'
                       }`}
                     >
-                      {option.description}
+                      {t(option.descriptionKey)}
                     </p>
                   </button>
                 );
               })}
+            </div>
+          </div>
+        </div>
+
+        {/* 言語設定 */}
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-3">
+              <Globe className="w-5 h-5 text-zinc-400" />
+              <div>
+                <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  {t('languageTitle')}
+                </h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  {t('languageDescription')}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {locales.map((loc) => (
+                <button
+                  key={loc}
+                  onClick={() => setLocale(loc)}
+                  className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                    locale === loc
+                      ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
+                      : 'border-zinc-200 dark:border-zinc-700 hover:border-violet-300 dark:hover:border-violet-700 bg-white dark:bg-zinc-800'
+                  }`}
+                >
+                  {locale === loc && (
+                    <div className="absolute top-2 right-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
+                    </div>
+                  )}
+                  <Globe
+                    className={`w-6 h-6 mb-2 ${
+                      locale === loc
+                        ? 'text-violet-600 dark:text-violet-400'
+                        : 'text-zinc-400 dark:text-zinc-500'
+                    }`}
+                  />
+                  <h3
+                    className={`font-medium text-sm ${
+                      locale === loc
+                        ? 'text-violet-700 dark:text-violet-300'
+                        : 'text-zinc-900 dark:text-zinc-100'
+                    }`}
+                  >
+                    {LOCALE_LABELS[loc]}
+                  </h3>
+                  <p
+                    className={`text-xs mt-1 ${
+                      locale === loc
+                        ? 'text-violet-500 dark:text-violet-400'
+                        : 'text-zinc-500 dark:text-zinc-400'
+                    }`}
+                  >
+                    {loc.toUpperCase()}
+                  </p>
+                </button>
+              ))}
             </div>
           </div>
         </div>

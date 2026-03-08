@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import {
   Cpu,
@@ -68,6 +69,8 @@ function setCachedData<T>(key: string, data: T): void {
 }
 
 export default function AgentsPage() {
+  const t = useTranslations('agents');
+  const tc = useTranslations('common');
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -177,7 +180,7 @@ export default function AgentsPage() {
         bgColor: 'bg-blue-100 dark:bg-blue-900/30',
       },
       custom: {
-        name: 'カスタム',
+        name: t('custom'),
         icon: <Cpu className="w-5 h-5" />,
         color: 'text-zinc-500',
         bgColor: 'bg-zinc-100 dark:bg-zinc-700',
@@ -197,7 +200,7 @@ export default function AgentsPage() {
     const agent = agents.find((a) => a.id === agentId);
     if (!agent) return;
 
-    if (!confirm(`エージェント「${agent.name}」を削除しますか？`)) return;
+    if (!confirm(t('confirmDelete', { name: agent.name }))) return;
 
     setDeletingId(agentId);
     setError(null);
@@ -207,14 +210,14 @@ export default function AgentsPage() {
         method: 'DELETE',
       });
       if (!res.ok) {
-        throw new Error('エージェントの削除に失敗しました');
+        throw new Error(t('deleteFailed'));
       }
-      setSuccessMessage(`エージェント「${agent.name}」を削除しました`);
+      setSuccessMessage(t('deleted', { name: agent.name }));
       localStorage.removeItem(CACHE_KEYS.agents);
       await fetchData();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました');
+      setError(err instanceof Error ? err.message : tc('errorOccurred'));
     } finally {
       setDeletingId(null);
     }
@@ -228,10 +231,10 @@ export default function AgentsPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                AIエージェント管理
+                {t('pageTitle')}
               </h1>
               <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-                ワークフローの各フェーズにAIエージェントを割り当て、協調開発を管理します
+                {t('pageSubtitle')}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -240,7 +243,7 @@ export default function AgentsPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
               >
                 <Activity className="w-4 h-4" />
-                メトリクス
+                {t('metrics')}
               </Link>
             </div>
           </div>
@@ -285,10 +288,10 @@ export default function AgentsPage() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
             <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700">
               <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                ワークフローロール設定
+                {t('workflowRoles')}
               </h2>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                各フェーズを担当するAIエージェントとモデルを設定します。成果物（Markdown）をバトンとして渡し、複数のAIが協調して開発を進めます。
+                {t('workflowRolesDescription')}
               </p>
             </div>
             <div className="p-6">
@@ -300,7 +303,7 @@ export default function AgentsPage() {
         {/* 利用可能なエージェント一覧 */}
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
-            登録済みエージェント
+            {t('registeredAgents')}
           </h2>
           <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
             <div className="overflow-x-auto">
@@ -308,16 +311,16 @@ export default function AgentsPage() {
                 <thead className="border-b border-zinc-200 dark:border-zinc-700">
                   <tr>
                     <th className="text-left px-4 py-3 font-medium text-xs uppercase text-zinc-500 dark:text-zinc-400">
-                      エージェント
+                      {t('agent')}
                     </th>
                     <th className="text-left px-4 py-3 font-medium text-xs uppercase text-zinc-500 dark:text-zinc-400">
-                      モデル
+                      {t('model')}
                     </th>
                     <th className="text-left px-4 py-3 font-medium text-xs uppercase text-zinc-500 dark:text-zinc-400">
-                      ステータス
+                      {t('status')}
                     </th>
                     <th className="text-right px-4 py-3 font-medium text-xs uppercase text-zinc-500 dark:text-zinc-400">
-                      アクション
+                      {t('action')}
                     </th>
                   </tr>
                 </thead>
@@ -356,11 +359,11 @@ export default function AgentsPage() {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <span className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full">
-                                アクティブ
+                                {t('active')}
                               </span>
                               {agent.isDefault && (
                                 <span className="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full">
-                                  デフォルト
+                                  {t('default')}
                                 </span>
                               )}
                             </div>
@@ -370,7 +373,7 @@ export default function AgentsPage() {
                               <Link
                                 href={`/agents/${agent.id}/settings`}
                                 className="p-1.5 text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
-                                title="設定"
+                                title={t('settings')}
                               >
                                 <Settings className="w-4 h-4" />
                               </Link>
@@ -378,7 +381,7 @@ export default function AgentsPage() {
                                 onClick={() => handleDeleteAgent(agent.id)}
                                 disabled={deletingId === agent.id}
                                 className="p-1.5 text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
-                                title="削除"
+                                title={tc('delete')}
                               >
                                 {deletingId === agent.id ? (
                                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -395,7 +398,7 @@ export default function AgentsPage() {
               </table>
               {agents.filter((a) => a.isActive).length === 0 && (
                 <div className="p-8 text-center text-zinc-500 dark:text-zinc-400">
-                  アクティブなエージェントがありません
+                  {t('noActiveAgents')}
                 </div>
               )}
             </div>
@@ -405,7 +408,7 @@ export default function AgentsPage() {
         {/* 使い方ガイド */}
         <div className="p-6 bg-linear-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
-            ワークフローの使い方
+            {t('howToUse')}
           </h2>
           <div className="grid gap-4 md:grid-cols-3">
             <div className="flex gap-3">
@@ -414,10 +417,10 @@ export default function AgentsPage() {
               </div>
               <div>
                 <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
-                  ロールを設定
+                  {t('step1Title')}
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  各フェーズにAIエージェントとモデルを割り当て
+                  {t('step1Description')}
                 </p>
               </div>
             </div>
@@ -427,10 +430,10 @@ export default function AgentsPage() {
               </div>
               <div>
                 <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
-                  タスクで開始
+                  {t('step2Title')}
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  タスク詳細でワークフローを開始し、各フェーズを実行
+                  {t('step2Description')}
                 </p>
               </div>
             </div>
@@ -440,10 +443,10 @@ export default function AgentsPage() {
               </div>
               <div>
                 <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
-                  承認して完了
+                  {t('step3Title')}
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  計画を承認し実装、検証後にタスクを完了
+                  {t('step3Description')}
                 </p>
               </div>
             </div>

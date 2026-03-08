@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
 import {
   Play,
@@ -25,6 +26,8 @@ type FocusMode = 'work' | 'break';
 export default function FocusClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useTranslations('focus');
+  const tc = useTranslations('common');
   const { showToast } = useToast();
   const taskId = searchParams.get('taskId');
 
@@ -67,14 +70,14 @@ export default function FocusClient() {
               duration,
               startedAt: startTime.toISOString(),
               endedAt: endTime.toISOString(),
-              note: `フォーカスセッション ${sessionsCompleted + 1}`,
+              note: t('focusSessionNote', { number: sessionsCompleted + 1 }),
             }),
           },
         );
 
         if (res.ok) {
           setSessions((prev) => prev + 1);
-          showToast(`${customWorkTime}分の作業時間を記録しました`, 'success');
+          showToast(t('workTimeRecorded', { minutes: customWorkTime }), 'success');
         }
       }
 
@@ -123,11 +126,11 @@ export default function FocusClient() {
 
     // ブラウザ通知
     if (Notification.permission === 'granted') {
-      new Notification(mode === 'work' ? '作業時間終了！' : '休憩終了！', {
+      new Notification(mode === 'work' ? t('workTimeFinished') : t('breakFinished'), {
         body:
           mode === 'work'
-            ? 'お疲れ様でした。休憩しましょう。'
-            : '作業を再開しましょう。',
+            ? t('takeBreakMessage')
+            : t('resumeWorkMessage'),
         icon: '/favicon.ico',
       });
     }
@@ -224,14 +227,14 @@ export default function FocusClient() {
         body: JSON.stringify({ status: 'done' }),
       });
       if (res.ok) {
-        showToast('タスクを完了しました！', 'success');
+        showToast(t('taskCompleted'), 'success');
         router.push('/');
       } else {
-        showToast('タスクの完了に失敗しました', 'error');
+        showToast(t('taskCompleteFailed'), 'error');
       }
     } catch (e) {
       logger.error('Failed to complete task:', e);
-      showToast('エラーが発生しました', 'error');
+      showToast(tc('errorOccurred'), 'error');
     }
   };
 
@@ -273,7 +276,7 @@ export default function FocusClient() {
         {/* タスク情報 */}
         {task && (
           <div className="mb-8 text-center">
-            <p className="text-white/60 text-sm mb-1">現在のタスク</p>
+            <p className="text-white/60 text-sm mb-1">{t('currentTask')}</p>
             <h2 className="text-xl font-semibold text-white">{task.title}</h2>
           </div>
         )}
@@ -289,12 +292,12 @@ export default function FocusClient() {
           {mode === 'work' ? (
             <>
               <Target className="w-4 h-4" />
-              <span className="text-sm font-medium">集中タイム</span>
+              <span className="text-sm font-medium">{t('focusTime')}</span>
             </>
           ) : (
             <>
               <Coffee className="w-4 h-4" />
-              <span className="text-sm font-medium">休憩タイム</span>
+              <span className="text-sm font-medium">{t('breakTime')}</span>
             </>
           )}
         </div>
@@ -334,7 +337,7 @@ export default function FocusClient() {
               {formatTime(timeLeft)}
             </span>
             <span className="text-white/40 text-sm mt-2">
-              セッション {sessionsCompleted + 1}
+              {t('session', { number: sessionsCompleted + 1 })}
             </span>
           </div>
         </div>
@@ -367,7 +370,7 @@ export default function FocusClient() {
             <button
               onClick={completeTask}
               className="p-4 text-white/60 hover:text-emerald-400 hover:bg-white/10 rounded-full transition-colors"
-              title="タスクを完了"
+              title={t('completeTask')}
             >
               <Check className="w-6 h-6" />
             </button>
@@ -379,7 +382,7 @@ export default function FocusClient() {
           <div className="flex items-center gap-6 text-white/60">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4" />
-              <span className="text-sm">作業</span>
+              <span className="text-sm">{t('work')}</span>
               <select
                 value={customWorkTime}
                 onChange={(e) => {
@@ -389,16 +392,16 @@ export default function FocusClient() {
                 }}
                 className="bg-white/10 border-none rounded px-2 py-1 text-sm text-white"
               >
-                <option value={15}>15分</option>
-                <option value={25}>25分</option>
-                <option value={30}>30分</option>
-                <option value={45}>45分</option>
-                <option value={60}>60分</option>
+                <option value={15}>{t('minutes', { count: 15 })}</option>
+                <option value={25}>{t('minutes', { count: 25 })}</option>
+                <option value={30}>{t('minutes', { count: 30 })}</option>
+                <option value={45}>{t('minutes', { count: 45 })}</option>
+                <option value={60}>{t('minutes', { count: 60 })}</option>
               </select>
             </div>
             <div className="flex items-center gap-2">
               <Coffee className="w-4 h-4" />
-              <span className="text-sm">休憩</span>
+              <span className="text-sm">{t('break')}</span>
               <select
                 value={customBreakTime}
                 onChange={(e) => {
@@ -408,9 +411,9 @@ export default function FocusClient() {
                 }}
                 className="bg-white/10 border-none rounded px-2 py-1 text-sm text-white"
               >
-                <option value={5}>5分</option>
-                <option value={10}>10分</option>
-                <option value={15}>15分</option>
+                <option value={5}>{t('minutes', { count: 5 })}</option>
+                <option value={10}>{t('minutes', { count: 10 })}</option>
+                <option value={15}>{t('minutes', { count: 15 })}</option>
               </select>
             </div>
           </div>

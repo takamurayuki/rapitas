@@ -8,6 +8,7 @@ import WorkflowStatusIndicator, {
 import { Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { useTranslations } from 'next-intl';
 
 const logger = createLogger('TaskWorkflowSection');
 const API_BASE = API_BASE_URL;
@@ -41,13 +42,14 @@ export default function TaskWorkflowSection({
   onTaskUpdated,
   setTask,
 }: TaskWorkflowSectionProps) {
+  const t = useTranslations('workflow');
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden mb-6">
       <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              ワークフロー
+              {t('title')}
             </h3>
             <WorkflowStatusIndicator
               status={currentWorkflowStatus}

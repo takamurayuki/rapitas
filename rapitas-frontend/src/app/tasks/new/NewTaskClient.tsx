@@ -47,6 +47,7 @@ import { useAppModeStore } from '@/stores/appModeStore';
 import { requireAuth } from '@/contexts/AuthContext';
 import CompactWorkflowSelector from '@/components/workflow/CompactWorkflowSelector';
 import { createLogger } from '@/lib/logger';
+import { useTranslations } from 'next-intl';
 
 const logger = createLogger('NewTaskClient');
 const API_BASE = API_BASE_URL;
@@ -56,6 +57,8 @@ function NewTaskClient() {
   const searchParams = useSearchParams();
   const { showToast } = useToast();
   const appMode = useAppModeStore((state) => state.mode);
+  const t = useTranslations('task');
+  const tc = useTranslations('common');
 
   // 基本フィールド
   const [title, setTitle] = useState('');
@@ -227,14 +230,14 @@ function NewTaskClient() {
 
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.error || 'タイトル生成に失敗しました');
+        throw new Error(error.error || t('titleGenerateFailed'));
       }
 
       const data = await res.json();
       if (data.title) {
         setTitle(data.title);
         if (!fromAutoGenerate) {
-          showToast('タイトルを自動生成しました', 'success');
+          showToast(t('titleGeneratedSuccess'), 'success');
         }
 
         // タイトル生成後の自動作成が有効な場合（自動生成から呼ばれた場合のみ）
@@ -255,7 +258,7 @@ function NewTaskClient() {
     } catch (e) {
       logger.error(e);
       showToast(
-        e instanceof Error ? e.message : 'タイトル生成に失敗しました',
+        e instanceof Error ? e.message : t('titleGenerateFailed'),
         'error',
       );
     } finally {
@@ -360,7 +363,7 @@ function NewTaskClient() {
         body: JSON.stringify(taskData),
       });
 
-      if (!res.ok) throw new Error('作成に失敗しました');
+      if (!res.ok) throw new Error(t('createFailed'));
       const createdTask = await res.json();
 
       // サブタスク作成
@@ -400,19 +403,19 @@ function NewTaskClient() {
       }
 
       if (executeAfterCreate) {
-        showToast('タスクを作成しました。実行を開始します...', 'success');
+        showToast(t('taskCreatedAutoExecute'), 'success');
         const detailPath = getTaskDetailPath(createdTask.id);
         const separator = detailPath.includes('?') ? '&' : '?';
         router.push(
           `${detailPath}${separator}autoExecute=true&showHeader=true`,
         );
       } else {
-        showToast('タスクを作成しました', 'success');
+        showToast(t('taskCreated'), 'success');
         router.push('/');
       }
     } catch (e) {
       logger.error(e);
-      showToast('タスクの作成に失敗しました', 'error');
+      showToast(t('taskCreateFailed'), 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -454,7 +457,7 @@ function NewTaskClient() {
         }),
       });
 
-      if (!res.ok) throw new Error('作成に失敗しました');
+      if (!res.ok) throw new Error(t('createFailed'));
       const createdTask = await res.json();
 
       // サブタスク作成
@@ -494,19 +497,19 @@ function NewTaskClient() {
       }
 
       if (executeAfterCreate) {
-        showToast('タスクを作成しました。実行を開始します...', 'success');
+        showToast(t('taskCreatedAutoExecute'), 'success');
         const detailPath = getTaskDetailPath(createdTask.id);
         const separator = detailPath.includes('?') ? '&' : '?';
         router.push(
           `${detailPath}${separator}autoExecute=true&showHeader=true`,
         );
       } else {
-        showToast('タスクを作成しました', 'success');
+        showToast(t('taskCreated'), 'success');
         router.push('/');
       }
     } catch (e) {
       logger.error(e);
-      showToast('タスクの作成に失敗しました', 'error');
+      showToast(t('taskCreateFailed'), 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -531,34 +534,34 @@ function NewTaskClient() {
     if (suggestion.labelIds.length > 0) {
       setSelectedLabelIds(suggestion.labelIds);
     }
-    showToast('提案を適用しました', 'success');
+    showToast(t('suggestionApplied'), 'success');
   };
 
   const priorityOptions = [
     {
       value: 'urgent' as Priority,
-      label: '緊急',
+      label: t('priorityCritical'),
       icon: <ChevronsUp className="w-3.5 h-3.5" />,
       iconColor: 'text-red-500',
       bgColor: 'bg-red-500',
     },
     {
       value: 'high' as Priority,
-      label: '高',
+      label: t('priorityHigh'),
       icon: <ChevronUp className="w-3.5 h-3.5" />,
       iconColor: 'text-orange-500',
       bgColor: 'bg-orange-500',
     },
     {
       value: 'medium' as Priority,
-      label: '中',
+      label: t('priorityMedium'),
       icon: <ChevronsUpDown className="w-3.5 h-3.5" />,
       iconColor: 'text-blue-500',
       bgColor: 'bg-blue-500',
     },
     {
       value: 'low' as Priority,
-      label: '低',
+      label: t('priorityLow'),
       icon: <ChevronDown className="w-3.5 h-3.5" />,
       iconColor: 'text-zinc-400',
       bgColor: 'bg-zinc-500',
@@ -575,7 +578,7 @@ function NewTaskClient() {
             className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-medium">戻る</span>
+            <span className="text-sm font-medium">{tc('back')}</span>
           </button>
           <div className="flex items-center gap-2">
             <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${
@@ -594,7 +597,7 @@ function NewTaskClient() {
               >
                 <FileStack className="w-4 h-4" />
                 <span className="font-mono text-xs font-black tracking-tight">
-                  {appliedTemplate ? appliedTemplate.name : 'テンプレート'}
+                  {appliedTemplate ? appliedTemplate.name : t('template')}
                 </span>
               </button>
             </div>
@@ -610,7 +613,7 @@ function NewTaskClient() {
                   <Plus className="w-4 h-4" />
                 )}
                 <span className="font-mono text-xs font-black tracking-tight">
-                  作成
+                  {tc('create')}
                 </span>
               </button>
             </div>
@@ -629,7 +632,7 @@ function NewTaskClient() {
             <TaskTitleAutocomplete
               value={title}
               onChange={setTitle}
-              placeholder="タスクのタイトル"
+              placeholder={t('taskNamePlaceholder')}
               autoFocus
               themeId={themeId}
             />
@@ -640,7 +643,7 @@ function NewTaskClient() {
             <InlineFieldGroup>
               {/* Priority */}
               <FieldItem
-                label="優先度"
+                label={t('priority')}
                 icon={<Flag className="w-3.5 h-3.5" />}
                 className="flex-1"
               >
@@ -667,7 +670,7 @@ function NewTaskClient() {
 
               {/* Theme */}
               <FieldItem
-                label="テーマ"
+                label={t('theme')}
                 icon={<Layers className="w-3.5 h-3.5" />}
                 className="flex-1"
               >
@@ -733,7 +736,7 @@ function NewTaskClient() {
 
           {/* Description - Collapsible */}
           <CompactAccordionGroup
-            title="説明"
+            title={t('description')}
             icon={<FileText className="w-3.5 h-3.5" />}
             defaultExpanded={true}
             headerExtra={
@@ -742,21 +745,21 @@ function NewTaskClient() {
                 onClick={() => handleGenerateTitle(false)}
                 disabled={!description.trim() || isGeneratingTitle}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-900 disabled:opacity-40 disabled:cursor-not-allowed"
-                title="説明からタイトルを自動生成"
+                title={t('titleGenerateTooltip')}
               >
                 {isGeneratingTitle ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Sparkles className="w-4 h-4" />
                 )}
-                <span>タイトル生成</span>
+                <span>{t('titleGenerate')}</span>
               </button>
             }
           >
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="タスクの詳細を記入（マークダウン対応）"
+              placeholder={t('taskDetailPlaceholder')}
               rows={3}
               className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
             />
@@ -764,7 +767,7 @@ function NewTaskClient() {
 
           {/* Advanced Options - Collapsible */}
           <CompactAccordionGroup
-            title="詳細設定"
+            title={t('advancedSettings')}
             icon={<Settings2 className="w-3.5 h-3.5" />}
             defaultExpanded={false}
           >
@@ -772,7 +775,7 @@ function NewTaskClient() {
               {/* Due Date & Estimated Time - Inline */}
               <InlineFieldGroup>
                 <FieldItem
-                  label="締め切り日時"
+                  label={t('deadlineDate')}
                   icon={<Calendar className="w-3.5 h-3.5" />}
                   className="flex-1 min-w-[200px]"
                 >
@@ -795,7 +798,7 @@ function NewTaskClient() {
                   </div>
                 </FieldItem>
                 <FieldItem
-                  label="見積もり時間"
+                  label={t('estimatedTime')}
                   icon={<Clock className="w-3.5 h-3.5" />}
                   className="flex-1 min-w-[100px]"
                 >
@@ -810,7 +813,7 @@ function NewTaskClient() {
                       className="w-16 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                     />
                     <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                      時間
+                      {tc('hours')}
                     </span>
                   </div>
                 </FieldItem>
@@ -818,7 +821,7 @@ function NewTaskClient() {
 
               {/* Labels */}
               <FieldItem
-                label="ラベル"
+                label={t('labels')}
                 icon={<Tag className="w-3.5 h-3.5" />}
                 fullWidth
               >
@@ -832,7 +835,7 @@ function NewTaskClient() {
 
           {/* Subtasks Section - Collapsible */}
           <CompactAccordionGroup
-            title="サブタスク"
+            title={t('subtasks')}
             icon={<CheckCircle2 className="w-3.5 h-3.5" />}
             badge={
               subtasks.length > 0 ? (
@@ -877,7 +880,7 @@ function NewTaskClient() {
                       addSubtask();
                     }
                   }}
-                  placeholder="サブタスクを追加..."
+                  placeholder={t('addSubtaskPlaceholder')}
                   className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 />
                 <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!newSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'}`}>
@@ -896,7 +899,7 @@ function NewTaskClient() {
 
           {/* Workflow Mode Section - Collapsible */}
           <CompactAccordionGroup
-            title="ワークフローモード"
+            title={t('workflowModeTitle')}
             icon={<Settings2 className="w-3.5 h-3.5" />}
             defaultExpanded={false}
             className="border-b-0"
@@ -917,9 +920,7 @@ function NewTaskClient() {
               />
               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <p className="text-xs text-blue-700 dark:text-blue-300">
-                  <strong>ワークフローモードについて:</strong> タスクの複雑さに応じて、実行手順を調整できます。
-                  軽量モードは簡単な修正、標準モードは通常の機能開発、詳細モードは大規模な変更に適しています。
-                  タスク作成後に自動分析で最適なモードが提案されます。
+                  <strong>{t('workflowModeAbout')}</strong> {t('workflowModeExplanation')}
                 </p>
               </div>
             </div>

@@ -46,6 +46,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { useTaskAutoSync } from '@/hooks/useTaskAutoSync';
 import { requireAuth } from '@/contexts/AuthContext';
 import { useFilterDataStore } from '@/stores/filterDataStore';
+import { useTranslations } from 'next-intl';
 import {
   TaskCardsSkeleton,
   EnhancedSkeletonBlock,
@@ -61,6 +62,8 @@ function HomeClientPage() {
   const searchQuery = searchParams.get('search') || '';
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const { showToast } = useToast();
+  const t = useTranslations('home');
+  const tc = useTranslations('common');
   const { showTaskDetail, hideTaskDetail } = useTaskDetailVisibilityStore();
   const appMode = useAppModeStore((state) => state.mode);
   const tasks = useTaskCacheStore((s) => s.tasks);
@@ -262,7 +265,7 @@ function HomeClientPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-      if (!res.ok) throw new Error('更新に失敗しました');
+      if (!res.ok) throw new Error(t('updateFailed'));
     } catch (e) {
       logger.error(e);
       // Rollback on failure
@@ -327,12 +330,12 @@ function HomeClientPage() {
 
       setQuickTaskTitle('');
       setIsQuickAdding(false);
-      showToast('タスクを作成しました', 'success');
+      showToast(t('taskCreated'), 'success');
       // サーバーから最新データを再取得（theme情報を含む）
       await fetchTasks();
     } catch (e) {
       logger.error(e);
-      showToast('タスクの作成に失敗しました', 'error');
+      showToast(t('createFailed'), 'error');
     }
   };
 
@@ -362,16 +365,16 @@ function HomeClientPage() {
       for (const id of taskIds) {
         updateTaskLocally(id, { status: status as Status });
       }
-      showToast(`${taskIds.length}件のタスクを更新しました`, 'success');
+      showToast(`${taskIds.length}${t('bulkUpdated')}`, 'success');
       setSelectedTasks(new Set());
       setIsSelectionMode(false);
     } catch {
-      showToast('一括更新に失敗しました', 'error');
+      showToast(t('bulkUpdateFailed'), 'error');
     }
   };
 
   const bulkDelete = async () => {
-    if (!confirm(`${selectedTasks.size}件のタスクを削除しますか？`)) return;
+    if (!confirm(t('bulkDeleteConfirm', { count: selectedTasks.size }))) return;
 
     const taskIds = Array.from(selectedTasks);
     try {
@@ -383,11 +386,11 @@ function HomeClientPage() {
       for (const id of taskIds) {
         removeTaskLocally(id);
       }
-      showToast(`${taskIds.length}件のタスクを削除しました`, 'success');
+      showToast(`${taskIds.length}${t('bulkDeleted')}`, 'success');
       setSelectedTasks(new Set());
       setIsSelectionMode(false);
     } catch {
-      showToast('一括削除に失敗しました', 'error');
+      showToast(t('bulkDeleteFailed'), 'error');
     }
   };
 
@@ -680,14 +683,14 @@ function HomeClientPage() {
         <div className="flex items-center gap-2">
           <div className="text-red-600 dark:text-red-400">⚠️</div>
           <span className="text-sm text-red-700 dark:text-red-300">
-            フィルターデータの読み込みに失敗しました: {error}
+            {t('filterDataFailed')}{error}
           </span>
         </div>
         <button
           onClick={() => refreshFilterData(true)}
           className="px-3 py-1 text-xs bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-700 transition-colors"
         >
-          再試行
+          {t('retry')}
         </button>
       </div>
     </div>
@@ -786,7 +789,7 @@ function HomeClientPage() {
                         <button
                           onClick={() => bulkUpdateStatus(status)}
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-all cursor-pointer ${textColorClasses} ${bgHoverClasses}`}
-                          title={`${config.label}に変更`}
+                          title={t('changeToStatus', { status: config.label })}
                         >
                           <span className="w-3.5 h-3.5">
                             {renderStatusIcon(status)}
@@ -815,7 +818,7 @@ function HomeClientPage() {
                           ? 'text-green-600 dark:text-green-400'
                           : 'text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300'
                       }`}
-                      title="クイック追加 (Ctrl+Q)"
+                      title={`${t('quickAdd')} (Ctrl+Q)`}
                     >
                       <svg
                         className="w-4 h-4"
@@ -831,7 +834,7 @@ function HomeClientPage() {
                         />
                       </svg>
                       <span className="font-mono text-xs font-black tracking-tight">
-                        クイック
+                        {t('quickAdd')}
                       </span>
                     </button>
                   </div>
@@ -846,7 +849,7 @@ function HomeClientPage() {
                         );
                       }}
                       className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-all cursor-pointer"
-                      title="新規タスク (Ctrl+N)"
+                      title={`${t('newTask')} (Ctrl+N)`}
                     >
                       <svg
                         className="w-4 h-4"
@@ -862,7 +865,7 @@ function HomeClientPage() {
                         />
                       </svg>
                       <span className="font-mono text-xs font-black tracking-tight">
-                        新規
+                        {t('newTask')}
                       </span>
                     </button>
                   </div>
@@ -893,8 +896,8 @@ function HomeClientPage() {
                       }`}
                       title={
                         selectedTasks.size === paginatedTasks.length
-                          ? '全解除・選択モード終了'
-                          : '全選択'
+                          ? t('deselectAndExit')
+                          : t('selectAll')
                       }
                     >
                       <svg
@@ -925,8 +928,8 @@ function HomeClientPage() {
                       <span className="font-mono text-xs font-black tracking-tight">
                         {selectedTasks.size === paginatedTasks.length &&
                         paginatedTasks.length > 0
-                          ? '全解除'
-                          : '全選択'}
+                          ? t('deselectAll')
+                          : t('selectAll')}
                       </span>
                     </button>
                   </div>
@@ -937,7 +940,7 @@ function HomeClientPage() {
                       <button
                         onClick={bulkDelete}
                         className="flex items-center gap-2 transition-all cursor-pointer text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
-                        title="選択したタスクを削除"
+                        title={t('deleteSelected')}
                       >
                         <svg
                           className="w-4 h-4"
@@ -953,7 +956,7 @@ function HomeClientPage() {
                           />
                         </svg>
                         <span className="font-mono text-xs font-black tracking-tight">
-                          削除
+                          {tc('delete')}
                         </span>
                       </button>
                     </div>
@@ -973,7 +976,7 @@ function HomeClientPage() {
                       ? 'text-purple-600 dark:text-purple-400'
                       : 'text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300'
                   }`}
-                  title="一括選択モード (Ctrl+S)"
+                  title={t('bulkSelectionMode')}
                 >
                   <svg
                     className="w-4 h-4"
@@ -990,8 +993,8 @@ function HomeClientPage() {
                   </svg>
                   <span className="font-mono text-xs font-black tracking-tight">
                     {isSelectionMode
-                      ? `選択中 (${selectedTasks.size})`
-                      : '一括'}
+                      ? t('selecting', { count: selectedTasks.size })
+                      : t('bulk')}
                   </span>
                 </button>
               </div>
@@ -1014,7 +1017,7 @@ function HomeClientPage() {
                     setQuickTaskTitle('');
                   }
                 }}
-                placeholder="タスクタイトルを入力... (Enter で作成、Esc でキャンセル)"
+                placeholder={t('taskTitlePlaceholder')}
                 className="text-sm px-2 flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 autoFocus
               />
@@ -1023,7 +1026,7 @@ function HomeClientPage() {
                 disabled={!quickTaskTitle.trim()}
                 className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                作成
+                {tc('create')}
               </button>
             </div>
           </div>
@@ -1108,7 +1111,7 @@ function HomeClientPage() {
                         ? 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300'
                         : 'bg-slate-50 dark:bg-slate-800/50 text-slate-300 dark:text-slate-600 cursor-not-allowed'
                     }`}
-                    aria-label="左にスクロール"
+                    aria-label={t('scrollLeft')}
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -1181,7 +1184,7 @@ function HomeClientPage() {
                         ? 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300'
                         : 'bg-slate-50 dark:bg-slate-800/50 text-slate-300 dark:text-slate-600 cursor-not-allowed'
                     }`}
-                    aria-label="右にスクロール"
+                    aria-label={t('scrollRight')}
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -1232,7 +1235,7 @@ function HomeClientPage() {
                     </span>
                     <div className="flex items-center">
                       {[
-                        { value: 'all', label: '全て', color: 'amber' },
+                        { value: 'all', label: t('all'), color: 'amber' },
                         {
                           value: 'todo',
                           label: statusConfig.todo.label,
@@ -1313,7 +1316,7 @@ function HomeClientPage() {
                       {[
                         {
                           value: '',
-                          label: '全て',
+                          label: t('all'),
                           icon: null,
                           iconColor: '',
                           bgColor: 'amber',
@@ -1448,17 +1451,17 @@ function HomeClientPage() {
               <>
                 <SwatchBook className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
                 <p className="text-lg font-medium mb-2">
-                  テーマが登録されていません
+                  {t('noThemes')}
                 </p>
                 <p className="text-sm mb-4">
-                  このカテゴリにテーマを追加して、タスクを整理しましょう
+                  {t('noThemesDescription')}
                 </p>
                 <button
                   onClick={() => router.push('/themes')}
                   className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-colors inline-flex items-center gap-2"
                 >
                   <Plus className="w-5 h-5" />
-                  テーマを追加
+                  {t('addTheme')}
                 </button>
               </>
             ) : (
@@ -1476,8 +1479,8 @@ function HomeClientPage() {
                     d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
                   />
                 </svg>
-                <p className="text-lg font-medium mb-2">タスクがありません</p>
-                <p className="text-sm mb-4">新しいタスクを作成してみましょう</p>
+                <p className="text-lg font-medium mb-2">{t('noTasks')}</p>
+                <p className="text-sm mb-4">{t('noTasksDescription')}</p>
                 <button
                   onClick={() => {
                     const themeParam = themeFilter || defaultTheme?.id;
@@ -1500,7 +1503,7 @@ function HomeClientPage() {
                       d="M12 4v16m8-8H4"
                     />
                   </svg>
-                  タスクを作成
+                  {t('createTask')}
                 </button>
               </>
             )}

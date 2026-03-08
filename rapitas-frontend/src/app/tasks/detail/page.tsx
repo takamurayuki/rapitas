@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import TaskDetailClient from '../[id]/TaskDetailClient';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { useTranslations } from 'next-intl';
 
 /**
  * Tauri用タスク詳細ページ
@@ -12,6 +13,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
  */
 function TaskDetailContent() {
   const searchParams = useSearchParams();
+  const t = useTranslations('task');
   const taskId = searchParams.get('id');
 
   if (!taskId) {
@@ -22,7 +24,7 @@ function TaskDetailContent() {
             <span className="text-3xl">!</span>
           </div>
           <p className="text-red-600 dark:text-red-400 mb-4 font-medium">
-            タスクIDが指定されていません
+            {t('taskIdNotSpecified')}
           </p>
         </div>
       </div>

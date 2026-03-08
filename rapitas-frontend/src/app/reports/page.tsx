@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { WeeklyReport } from '@/types';
 import {
   FileText,
@@ -18,6 +19,8 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('ReportsPage');
 
 export default function ReportsPage() {
+  const t = useTranslations('reports');
+  const tc = useTranslations('common');
   const [report, setReport] = useState<WeeklyReport | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -82,7 +85,7 @@ export default function ReportsPage() {
       <div className="max-w-4xl mx-auto p-6 text-center py-12">
         <FileText className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
         <p className="text-zinc-500 dark:text-zinc-400">
-          レポートを取得できませんでした
+          {t('fetchFailed')}
         </p>
       </div>
     );
@@ -100,7 +103,7 @@ export default function ReportsPage() {
           <FileText className="w-8 h-8 text-indigo-500" />
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              週次レポート
+              {t('title')}
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               {new Date(report.period.start).toLocaleDateString('ja-JP')} 〜{' '}
@@ -113,7 +116,7 @@ export default function ReportsPage() {
           className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
         >
           <Download className="w-4 h-4" />
-          <span>エクスポート</span>
+          <span>{tc('export')}</span>
         </button>
       </div>
 
@@ -123,7 +126,7 @@ export default function ReportsPage() {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
               <CheckCircle2 className="w-5 h-5" />
-              <span className="text-sm">完了タスク</span>
+              <span className="text-sm">{t('completedTasks')}</span>
             </div>
             <div
               className={`flex items-center gap-1 text-sm ${tasksTrend.color}`}
@@ -136,7 +139,7 @@ export default function ReportsPage() {
             {report.summary.tasksCompleted}
           </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            先週比
+            {t('weekOverWeek')}
           </p>
         </div>
 
@@ -144,7 +147,7 @@ export default function ReportsPage() {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
               <Clock className="w-5 h-5" />
-              <span className="text-sm">学習時間</span>
+              <span className="text-sm">{t('studyHours')}</span>
             </div>
             <div
               className={`flex items-center gap-1 text-sm ${hoursTrend.color}`}
@@ -157,7 +160,7 @@ export default function ReportsPage() {
             {report.summary.studyHours}h
           </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            先週比
+            {t('weekOverWeek')}
           </p>
         </div>
       </div>
@@ -166,14 +169,14 @@ export default function ReportsPage() {
       <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 mb-6">
         <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
           <BarChart3 className="w-5 h-5" />
-          日別推移
+          {t('dailyTrend')}
         </h2>
 
         <div className="space-y-6">
           {/* タスク完了グラフ */}
           <div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">
-              タスク完了数
+              {t('taskCount')}
             </p>
             <div className="flex items-end gap-2 h-24">
               {report.dailyData.map((day) => (
@@ -201,7 +204,7 @@ export default function ReportsPage() {
           {/* 学習時間グラフ */}
           <div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">
-              学習時間
+              {t('studyHours')}
             </p>
             <div className="flex items-end gap-2 h-24">
               {report.dailyData.map((day) => (
@@ -233,7 +236,7 @@ export default function ReportsPage() {
       {report.subjectBreakdown.length > 0 && (
         <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
           <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4">
-            科目別内訳
+            {t('subjectBreakdown')}
           </h2>
           <div className="space-y-3">
             {report.subjectBreakdown.map((item) => {
@@ -247,10 +250,10 @@ export default function ReportsPage() {
                 <div key={item.subject || 'other'}>
                   <div className="flex items-center justify-between text-sm mb-1">
                     <span className="text-zinc-700 dark:text-zinc-300">
-                      {item.subject || 'その他'}
+                      {item.subject || tc('other')}
                     </span>
                     <span className="text-zinc-500 dark:text-zinc-400">
-                      {item.count}件 ({percentage}%)
+                      {item.count}{tc('items')} ({percentage}%)
                     </span>
                   </div>
                   <div className="h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">

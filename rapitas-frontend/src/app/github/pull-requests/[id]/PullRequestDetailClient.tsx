@@ -20,6 +20,7 @@ import {
   Plus,
   Minus,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest, FileDiff } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -28,6 +29,7 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('PullRequestDetailClient');
 
 export default function PullRequestDetailClient() {
+  const t = useTranslations('github');
   const params = useParams();
   const id = params.id as string;
 
@@ -150,7 +152,7 @@ export default function PullRequestDetailClient() {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8">
         <p className="text-center text-zinc-500 dark:text-zinc-400">
-          PRが見つかりません
+          {t('prNotFound')}
         </p>
       </div>
     );
@@ -186,7 +188,7 @@ export default function PullRequestDetailClient() {
               className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline"
             >
               <ExternalLink className="w-3 h-3" />
-              GitHubで開く
+              {t('openInGitHub')}
             </a>
           </div>
         </div>
@@ -204,7 +206,7 @@ export default function PullRequestDetailClient() {
         >
           <div className="flex items-center gap-2">
             <MessageSquare className="w-4 h-4" />
-            会話
+            {t('conversation')}
             {(pr.reviews?.length || 0) + (pr.comments?.length || 0) > 0 && (
               <span className="px-1.5 py-0.5 text-xs bg-zinc-100 dark:bg-zinc-700 rounded">
                 {(pr.reviews?.length || 0) + (pr.comments?.length || 0)}
@@ -222,7 +224,7 @@ export default function PullRequestDetailClient() {
         >
           <div className="flex items-center gap-2">
             <FileCode className="w-4 h-4" />
-            ファイル変更
+            {t('filesChanged')}
             {diff.length > 0 && (
               <span className="px-1.5 py-0.5 text-xs bg-zinc-100 dark:bg-zinc-700 rounded">
                 {diff.length}
@@ -315,7 +317,7 @@ export default function PullRequestDetailClient() {
                 <textarea
                   value={commentBody}
                   onChange={(e) => setCommentBody(e.target.value)}
-                  placeholder="コメントを入力..."
+                  placeholder={t('commentPlaceholder')}
                   rows={3}
                   className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
                 />
@@ -329,7 +331,7 @@ export default function PullRequestDetailClient() {
                           className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
                         >
                           <CheckCircle2 className="w-4 h-4" />
-                          承認
+                          {t('approve')}
                         </button>
                         <button
                           onClick={() => handleReview('request_changes')}
@@ -339,7 +341,7 @@ export default function PullRequestDetailClient() {
                           className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
                         >
                           <AlertCircle className="w-4 h-4" />
-                          変更をリクエスト
+                          {t('requestChanges')}
                         </button>
                       </>
                     )}
@@ -354,7 +356,7 @@ export default function PullRequestDetailClient() {
                     ) : (
                       <Send className="w-4 h-4" />
                     )}
-                    コメント
+                    {t('comment')}
                   </button>
                 </div>
               </div>
@@ -437,7 +439,7 @@ export default function PullRequestDetailClient() {
           {/* ステータス */}
           <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
             <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">
-              ステータス
+              {t('status')}
             </h3>
             <div
               className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
@@ -457,7 +459,7 @@ export default function PullRequestDetailClient() {
           {pr.reviews && pr.reviews.length > 0 && (
             <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
               <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">
-                レビュー
+                {t('reviews')}
               </h3>
               <div className="space-y-2">
                 {pr.reviews.map((review) => (
@@ -478,25 +480,25 @@ export default function PullRequestDetailClient() {
           {/* 変更統計 */}
           <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
             <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">
-              変更
+              {t('changes')}
             </h3>
             <div className="space-y-2 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-zinc-500 dark:text-zinc-400">
-                  ファイル数
+                  {t('fileCount')}
                 </span>
                 <span className="font-medium text-zinc-900 dark:text-zinc-100">
                   {diff.length}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-zinc-500 dark:text-zinc-400">追加</span>
+                <span className="text-zinc-500 dark:text-zinc-400">{t('additions')}</span>
                 <span className="font-medium text-green-600 dark:text-green-400">
                   +{diff.reduce((sum, f) => sum + f.additions, 0)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-zinc-500 dark:text-zinc-400">削除</span>
+                <span className="text-zinc-500 dark:text-zinc-400">{t('deletions')}</span>
                 <span className="font-medium text-red-600 dark:text-red-400">
                   -{diff.reduce((sum, f) => sum + f.deletions, 0)}
                 </span>

@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
   DragDropContext,
   Droppable,
@@ -34,27 +35,23 @@ const logger = createLogger('KanbanPage');
 
 type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
-const priorityConfig: Record<
+const priorityConfigStyles: Record<
   Priority,
-  { label: string; color: string; bg: string }
+  { color: string; bg: string }
 > = {
   low: {
-    label: '低',
     color: 'text-slate-600',
     bg: 'bg-slate-100 dark:bg-slate-800',
   },
   medium: {
-    label: '中',
     color: 'text-blue-600',
     bg: 'bg-blue-100 dark:bg-blue-900',
   },
   high: {
-    label: '高',
     color: 'text-amber-600',
     bg: 'bg-amber-100 dark:bg-amber-900',
   },
   urgent: {
-    label: '緊急',
     color: 'text-rose-600',
     bg: 'bg-rose-100 dark:bg-rose-900',
   },
@@ -62,14 +59,29 @@ const priorityConfig: Record<
 
 const API_BASE = API_BASE_URL;
 
-const columns = [
-  { id: 'todo', label: '未着手', color: 'bg-gray-100 dark:bg-gray-800' },
-  { id: 'in-progress', label: '進行中', color: 'bg-blue-100 dark:bg-blue-900' },
-  { id: 'done', label: '完了', color: 'bg-green-100 dark:bg-green-900' },
+const columnDefs = [
+  { id: 'todo', color: 'bg-gray-100 dark:bg-gray-800' },
+  { id: 'in-progress', color: 'bg-blue-100 dark:bg-blue-900' },
+  { id: 'done', color: 'bg-green-100 dark:bg-green-900' },
 ];
 
 export default function KanbanPage() {
   const router = useRouter();
+  const t = useTranslations('kanban');
+  const tt = useTranslations('task');
+
+  const priorityConfig: Record<Priority, { label: string; color: string; bg: string }> = {
+    low: { label: tt('priorityLow'), ...priorityConfigStyles.low },
+    medium: { label: tt('priorityMedium'), ...priorityConfigStyles.medium },
+    high: { label: tt('priorityHigh'), ...priorityConfigStyles.high },
+    urgent: { label: t('priorityUrgent'), ...priorityConfigStyles.urgent },
+  };
+
+  const columns = columnDefs.map((col) => ({
+    ...col,
+    label: col.id === 'todo' ? tt('statusTodo') : col.id === 'in-progress' ? tt('statusInProgress') : tt('statusDone'),
+  }));
+
   const tasks = useTaskCacheStore((s) => s.tasks);
   const taskCacheInitialized = useTaskCacheStore((s) => s.initialized);
   const taskCacheLoading = useTaskCacheStore((s) => s.loading);
@@ -238,7 +250,7 @@ export default function KanbanPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-      if (!res.ok) throw new Error('更新に失敗しました');
+      if (!res.ok) throw new Error(t('updateFailed'));
     } catch (e) {
       logger.error(e);
       if (oldTask) {
@@ -324,7 +336,7 @@ export default function KanbanPage() {
           badgeClass:
             'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300',
           dotClass: 'bg-blue-500',
-          label: '実行中',
+          label: tt('running'),
         };
       case 'waiting_for_input':
         return {
@@ -333,7 +345,7 @@ export default function KanbanPage() {
           badgeClass:
             'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300',
           dotClass: 'bg-amber-500',
-          label: '入力待ち',
+          label: tt('waitingForInput'),
         };
       default:
         return null;
@@ -352,11 +364,11 @@ export default function KanbanPage() {
     });
 
     if (currentWeek === 0) {
-      return `今週 (${start} - ${end})`;
+      return t('thisWeek', { start, end });
     } else if (currentWeek < 0) {
-      return `${Math.abs(currentWeek)}週間前 (${start} - ${end})`;
+      return t('weeksAgo', { count: Math.abs(currentWeek), start, end });
     } else {
-      return `${currentWeek}週間後 (${start} - ${end})`;
+      return t('weeksLater', { count: currentWeek, start, end });
     }
   };
 
@@ -369,14 +381,14 @@ export default function KanbanPage() {
             <button
               onClick={() => setCurrentWeek(currentWeek - 1)}
               className="p-2 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-              title="前の週"
+              title={t('prevWeek')}
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
             <button
               onClick={() => setCurrentWeek(0)}
               className="px-4 py-2 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors flex items-center gap-2"
-              title="今週に戻る"
+              title={t('backToThisWeek')}
             >
               <Calendar className="w-4 h-4" />
               <span className="text-sm font-medium">
@@ -386,7 +398,7 @@ export default function KanbanPage() {
             <button
               onClick={() => setCurrentWeek(currentWeek + 1)}
               className="p-2 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-              title="次の週"
+              title={t('nextWeek')}
             >
               <ChevronRight className="w-5 h-5" />
             </button>
@@ -402,7 +414,7 @@ export default function KanbanPage() {
                 onClick={clearFilters}
                 className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
               >
-                クリア
+                {t('clear')}
               </button>
             )}
           </div>
@@ -414,7 +426,7 @@ export default function KanbanPage() {
               <div>
                 <div className="flex items-center gap-2 mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
                   <Flag className="w-4 h-4" />
-                  優先度
+                  {tt('priority')}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {(Object.keys(priorityConfig) as Priority[]).map(
@@ -444,7 +456,7 @@ export default function KanbanPage() {
                 <div>
                   <div className="flex items-center gap-2 mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
                     <Tag className="w-4 h-4" />
-                    ラベル
+                    {tt('labels')}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {labels.map((label) => {
@@ -480,7 +492,7 @@ export default function KanbanPage() {
           {hasActiveFilters && (
             <div className="text-sm text-zinc-500 dark:text-zinc-400">
               {filteredTasks.filter((t) => !t.parentId).length}
-              件のタスクが見つかりました
+              {t('tasksFound')}
             </div>
           )}
         </div>
@@ -561,7 +573,7 @@ export default function KanbanPage() {
                                         {executionClasses && (
                                           <div
                                             className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${executionClasses.badgeClass}`}
-                                            title={`タスクが${executionClasses.label}です`}
+                                            title={t('taskStatus', { status: executionClasses.label })}
                                           >
                                             <div
                                               className={`w-1.5 h-1.5 rounded-full execution-dot-pulse ${executionClasses.dotClass}`}
@@ -577,7 +589,7 @@ export default function KanbanPage() {
                                             openTaskInPage(task.id);
                                           }}
                                           className="text-zinc-500 hover:text-blue-600 dark:text-zinc-400 dark:hover:text-blue-400 transition-colors"
-                                          title="ページで開く"
+                                          title={t('openInPage')}
                                         >
                                           <ExternalLink className="w-4 h-4" />
                                         </button>

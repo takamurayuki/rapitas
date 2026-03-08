@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Achievement } from '@/types';
 import {
   Trophy,
@@ -61,14 +62,8 @@ const RARITY_STYLES: Record<
   },
 };
 
-const RARITY_LABELS: Record<string, string> = {
-  common: 'コモン',
-  rare: 'レア',
-  epic: 'エピック',
-  legendary: 'レジェンダリー',
-};
-
 export default function AchievementsPage() {
+  const t = useTranslations('achievements');
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
@@ -105,15 +100,22 @@ export default function AchievementsPage() {
 
   const getCategoryLabel = (cat: string) => {
     const labels: Record<string, string> = {
-      all: 'すべて',
-      tasks: 'タスク',
-      streak: 'ストリーク',
-      study: '学習',
-      exam: '試験',
-      special: 'スペシャル',
-      flashcard: 'フラッシュカード',
+      all: t('categoryAll'),
+      tasks: t('categoryTasks'),
+      streak: t('categoryStreak'),
+      study: t('categoryStudy'),
+      exam: t('categoryExam'),
+      special: t('categorySpecial'),
+      flashcard: t('categoryFlashcard'),
     };
     return labels[cat] || cat;
+  };
+
+  const RARITY_LABELS: Record<string, string> = {
+    common: t('rarityCommon'),
+    rare: t('rarityRare'),
+    epic: t('rarityEpic'),
+    legendary: t('rarityLegendary'),
   };
 
   if (loading) {
@@ -141,10 +143,10 @@ export default function AchievementsPage() {
           <Trophy className="w-8 h-8 text-amber-500" />
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              実績
+              {t('title')}
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {unlockedCount} / {achievements.length} 解除済み
+              {unlockedCount} / {achievements.length} {t('unlocked')}
             </p>
           </div>
         </div>
@@ -248,7 +250,7 @@ export default function AchievementsPage() {
                     {new Date(achievement.unlockedAt).toLocaleDateString(
                       'ja-JP',
                     )}{' '}
-                    解除
+                    {t('unlockedLabel')}
                   </p>
                 )}
               </div>
@@ -261,7 +263,7 @@ export default function AchievementsPage() {
         <div className="text-center py-12">
           <Trophy className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
           <p className="text-zinc-500 dark:text-zinc-400">
-            このカテゴリの実績はありません
+            {t('noAchievementsInCategory')}
           </p>
         </div>
       )}

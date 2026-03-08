@@ -21,6 +21,7 @@ import {
   Draggable,
   type DropResult,
 } from '@hello-pangea/dnd';
+import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { ListSkeleton } from '@/components/ui/LoadingSpinner';
 import { searchIcons, getIconComponent } from '@/components/category/IconData';
@@ -57,16 +58,18 @@ const defaultFormData: FormData = {
 
 const MODE_OPTIONS: {
   value: CategoryMode;
-  label: string;
+  labelKey: string;
   icon: typeof Code;
   color: string;
 }[] = [
-  { value: 'development', label: '開発', icon: Code, color: '#3B82F6' },
-  { value: 'learning', label: '学習', icon: BookOpen, color: '#10B981' },
-  { value: 'both', label: '両方', icon: Layers, color: '#8B5CF6' },
+  { value: 'development', labelKey: 'modeDevelopment', icon: Code, color: '#3B82F6' },
+  { value: 'learning', labelKey: 'modeLearning', icon: BookOpen, color: '#10B981' },
+  { value: 'both', labelKey: 'modeBoth', icon: Layers, color: '#8B5CF6' },
 ];
 
 export default function CategoriesPage() {
+  const t = useTranslations('categories');
+  const tc = useTranslations('common');
   const { showToast } = useToast();
   const clearFilterCache = useFilterDataStore((s) => s.clearCache);
   const [items, setItems] = useState<CategoryWithThemes[]>([]);
@@ -107,15 +110,14 @@ export default function CategoriesPage() {
         method: 'PATCH',
       });
 
-      if (!res.ok) throw new Error('デフォルト設定に失敗しました');
+      if (!res.ok) throw new Error(t('setDefaultFailed'));
 
       setDefaultCategoryId(id);
-      // タスク一覧画面で新しいデフォルトが反映されるようlocalStorageを更新
       localStorage.setItem('selectedCategoryFilter', String(id));
-      showToast('デフォルトカテゴリを設定しました', 'success');
+      showToast(t('defaultCategorySet'), 'success');
     } catch (e) {
       logger.error(e);
-      showToast('デフォルトカテゴリの設定に失敗しました', 'error');
+      showToast(t('defaultCategorySetFailed'), 'error');
     }
   };
 
@@ -123,11 +125,11 @@ export default function CategoriesPage() {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/categories`);
-      if (!res.ok) throw new Error('取得に失敗しました');
+      if (!res.ok) throw new Error(tc('fetchFailed'));
       setItems(await res.json());
     } catch (e) {
       logger.error(e);
-      showToast('カテゴリの取得に失敗しました', 'error');
+      showToast(t('fetchFailed'), 'error');
     } finally {
       setLoading(false);
     }
@@ -142,7 +144,7 @@ export default function CategoriesPage() {
 
   const handleAdd = async () => {
     if (!formData.name.trim()) {
-      showToast('カテゴリ名を入力してください', 'error');
+      showToast(t('categoryNameRequired'), 'error');
       return;
     }
 
@@ -153,22 +155,22 @@ export default function CategoriesPage() {
         body: JSON.stringify(formData),
       });
 
-      if (!res.ok) throw new Error('作成に失敗しました');
+      if (!res.ok) throw new Error(tc('createFailed'));
 
-      showToast('カテゴリを作成しました', 'success');
+      showToast(t('created'), 'success');
       setIsAdding(false);
       resetForm();
       clearFilterCache();
       fetchItems();
     } catch (e) {
       logger.error(e);
-      showToast('カテゴリの作成に失敗しました', 'error');
+      showToast(t('createFailed'), 'error');
     }
   };
 
   const handleUpdate = async (id: number) => {
     if (!formData.name.trim()) {
-      showToast('カテゴリ名を入力してください', 'error');
+      showToast(t('categoryNameRequired'), 'error');
       return;
     }
 
@@ -179,24 +181,22 @@ export default function CategoriesPage() {
         body: JSON.stringify(formData),
       });
 
-      if (!res.ok) throw new Error('更新に失敗しました');
+      if (!res.ok) throw new Error(tc('updateFailed'));
 
-      showToast('カテゴリを更新しました', 'success');
+      showToast(t('updated'), 'success');
       setEditingId(null);
       setIconSearchQuery('');
       clearFilterCache();
       fetchItems();
     } catch (e) {
       logger.error(e);
-      showToast('カテゴリの更新に失敗しました', 'error');
+      showToast(t('updateFailed'), 'error');
     }
   };
 
   const handleDelete = async (id: number, name: string) => {
     if (
-      !confirm(
-        `「${name}」を削除しますか？所属するテーマは別のカテゴリに移動してください。`,
-      )
+      !confirm(t('deleteConfirm', { name }))
     )
       return;
 
@@ -205,14 +205,14 @@ export default function CategoriesPage() {
         method: 'DELETE',
       });
 
-      if (!res.ok) throw new Error('削除に失敗しました');
+      if (!res.ok) throw new Error(tc('deleteFailed'));
 
-      showToast('カテゴリを削除しました', 'success');
+      showToast(t('deleted'), 'success');
       clearFilterCache();
       fetchItems();
     } catch (e) {
       logger.error(e);
-      showToast('カテゴリの削除に失敗しました', 'error');
+      showToast(t('deleteFailed'), 'error');
     }
   };
 
@@ -260,11 +260,11 @@ export default function CategoriesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orders }),
       });
-      if (!res.ok) throw new Error('並び替えに失敗しました');
+      if (!res.ok) throw new Error(t('reorderFailed'));
       clearFilterCache();
     } catch (e) {
       logger.error(e);
-      showToast('並び替えに失敗しました', 'error');
+      showToast(t('reorderFailed'), 'error');
       fetchItems();
     }
   };
@@ -290,13 +290,13 @@ export default function CategoriesPage() {
     <div className="space-y-3">
       <div>
         <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-          カテゴリ名 <span className="text-red-500">*</span>
+          {t('categoryNameLabel')} <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="カテゴリ名を入力（例: 仕事、学習、生活）"
+          placeholder={t('categoryNamePlaceholder')}
           className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
           autoFocus
         />
@@ -304,14 +304,14 @@ export default function CategoriesPage() {
 
       <div>
         <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-          説明（任意）
+          {tc('descriptionOptional')}
         </label>
         <textarea
           value={formData.description}
           onChange={(e) =>
             setFormData({ ...formData, description: e.target.value })
           }
-          placeholder="カテゴリの説明を入力"
+          placeholder={t('categoryDescriptionPlaceholder')}
           rows={1}
           className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none"
         />
@@ -320,7 +320,7 @@ export default function CategoriesPage() {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            カラー
+            {tc('color')}
           </label>
           <div className="flex gap-2 items-center">
             <input
@@ -344,7 +344,7 @@ export default function CategoriesPage() {
 
         <div>
           <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            選択中のアイコン
+            {t('selectedIcon')}
           </label>
           <div
             className="h-9 rounded-lg border-2 flex items-center justify-center"
@@ -362,7 +362,7 @@ export default function CategoriesPage() {
 
       <div>
         <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-          アイコンを選択 {!formData.icon && '(未選択時: FolderKanban)'}
+          {t('selectIconLabel')} {!formData.icon && t('iconNotSelected')}
         </label>
 
         <div className="relative mb-2">
@@ -371,7 +371,7 @@ export default function CategoriesPage() {
             type="text"
             value={iconSearchQuery}
             onChange={(e) => setIconSearchQuery(e.target.value)}
-            placeholder="アイコンを検索...（例: フォルダ、仕事、星）"
+            placeholder={t('searchIconPlaceholder')}
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
           />
         </div>
@@ -379,7 +379,7 @@ export default function CategoriesPage() {
         <div className="max-h-36 overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
           {filteredIcons.length === 50 && debouncedIconSearchQuery && (
             <div className="p-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
-              表示数が多いため、最初の50件のみ表示しています。絞り込むには検索ワードを追加してください。
+              {t('iconLimitWarning')}
             </div>
           )}
           <div className="grid grid-cols-8 gap-1 p-2">
@@ -399,10 +399,10 @@ export default function CategoriesPage() {
       {/* モード選択 */}
       <div>
         <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-          モード
+          {t('modeLabel')}
         </label>
         <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1.5">
-          このカテゴリをどのモードで表示するか選択します
+          {t('modeDescription')}
         </p>
         <div className="flex gap-1.5">
           {MODE_OPTIONS.map((opt) => {
@@ -421,7 +421,7 @@ export default function CategoriesPage() {
                 style={isSelected ? { backgroundColor: opt.color } : undefined}
               >
                 <ModeIcon className="w-3.5 h-3.5" />
-                {opt.label}
+                {t(opt.labelKey)}
               </button>
             );
           })}
@@ -434,7 +434,7 @@ export default function CategoriesPage() {
           className="flex items-center gap-1.5 rounded-lg bg-zinc-200 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-all font-medium"
         >
           <X className="w-3.5 h-3.5" />
-          キャンセル
+          {tc('cancel')}
         </button>
         <button
           onClick={() =>
@@ -443,7 +443,7 @@ export default function CategoriesPage() {
           className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3 py-2 text-sm text-white transition-all shadow-lg hover:shadow-xl font-medium"
         >
           <Save className="w-3.5 h-3.5" />
-          {isEdit ? '保存' : '作成'}
+          {isEdit ? tc('save') : tc('create')}
         </button>
       </div>
     </div>
@@ -457,10 +457,10 @@ export default function CategoriesPage() {
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
               <FolderKanban className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-              カテゴリ一覧
+              {t('categoryList')}
             </h1>
             <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-              カテゴリはテーマの上位分類です。カテゴリ→テーマ→ラベルの順に分類されます。
+              {t('categoryListDescription')}
             </p>
           </div>
           {!isAdding && (
@@ -469,7 +469,7 @@ export default function CategoriesPage() {
               className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm text-white transition-all shadow-lg hover:shadow-xl font-medium"
             >
               <Plus className="w-4 h-4" />
-              新規カテゴリ
+              {t('newCategory')}
             </button>
           )}
         </div>
@@ -479,7 +479,7 @@ export default function CategoriesPage() {
           <div className="mb-4 rounded-xl border-2 border-indigo-500 bg-white dark:bg-indigo-dark-900 p-4 shadow-xl">
             <h2 className="mb-3 text-base font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
               <Plus className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              新規カテゴリ作成
+              {t('newCategoryCreate')}
             </h2>
             {renderForm(false)}
           </div>
@@ -491,9 +491,9 @@ export default function CategoriesPage() {
         ) : items.length === 0 ? (
           <div className="text-center py-16 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
             <FolderKanban className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
-            <p className="text-lg font-medium mb-2">カテゴリがありません</p>
+            <p className="text-lg font-medium mb-2">{t('noCategories')}</p>
             <p className="text-sm mb-4">
-              最初のカテゴリを作成してみましょう（例: 仕事、学習、生活）
+              {t('noCategoriesDescription')}
             </p>
           </div>
         ) : (
@@ -532,7 +532,7 @@ export default function CategoriesPage() {
                               <div className="p-4">
                                 <h2 className="mb-3 text-base font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
                                   <Edit2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                                  カテゴリを編集
+                                  {t('editCategory')}
                                 </h2>
                                 {renderForm(true, item.id)}
                               </div>
@@ -543,7 +543,7 @@ export default function CategoriesPage() {
                                     <div
                                       {...provided.dragHandleProps}
                                       className="flex items-center justify-center w-6 shrink-0 cursor-grab active:cursor-grabbing text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                                      title="ドラッグして並び替え"
+                                      title={t('dragToReorder')}
                                     >
                                       <GripVertical className="w-5 h-5" />
                                     </div>
@@ -564,7 +564,7 @@ export default function CategoriesPage() {
                                         {defaultCategoryId === item.id && (
                                           <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">
                                             <Star className="w-3 h-3 fill-current" />
-                                            <span className="hidden sm:inline">デフォルト</span>
+                                            <span className="hidden sm:inline">{t('default')}</span>
                                           </span>
                                         )}
                                         {(() => {
@@ -583,7 +583,7 @@ export default function CategoriesPage() {
                                               }}
                                             >
                                               <ModeIcon className="w-3 h-3" />
-                                              {modeOpt.label}
+                                              {t(modeOpt.labelKey)}
                                             </span>
                                           );
                                         })()}
@@ -616,7 +616,7 @@ export default function CategoriesPage() {
                                               item.themes?.length ??
                                               0}
                                           </span>
-                                          <span className="hidden sm:inline">テーマ</span>
+                                          <span className="hidden sm:inline">{t('themeName')}</span>
                                         </span>
                                       </div>
                                     </div>
@@ -633,8 +633,8 @@ export default function CategoriesPage() {
                                       }`}
                                       title={
                                         defaultCategoryId === item.id
-                                          ? 'タスク一覧のデフォルトカテゴリ'
-                                          : 'タスク一覧のデフォルトカテゴリに設定'
+                                          ? t('defaultCategoryLabel')
+                                          : t('setDefaultCategoryLabel')
                                       }
                                     >
                                       <Star
@@ -642,8 +642,8 @@ export default function CategoriesPage() {
                                       />
                                       <span className="hidden sm:inline">
                                         {defaultCategoryId === item.id
-                                          ? 'デフォルト'
-                                          : 'デフォルト設定'}
+                                          ? t('default')
+                                          : t('setAsDefault')}
                                       </span>
                                     </button>
                                     <button
@@ -651,7 +651,7 @@ export default function CategoriesPage() {
                                       className="flex items-center gap-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1.5 text-sm text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
                                     >
                                       <Edit2 className="w-3.5 h-3.5" />
-                                      <span className="hidden sm:inline">編集</span>
+                                      <span className="hidden sm:inline">{tc('edit')}</span>
                                     </button>
                                     {!item.isDefault && (
                                       <button
@@ -661,7 +661,7 @@ export default function CategoriesPage() {
                                         className="flex items-center gap-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 px-2.5 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
-                                        <span className="hidden sm:inline">削除</span>
+                                        <span className="hidden sm:inline">{tc('delete')}</span>
                                       </button>
                                     )}
                                   </div>

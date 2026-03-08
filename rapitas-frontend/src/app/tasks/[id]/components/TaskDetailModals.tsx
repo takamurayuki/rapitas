@@ -4,6 +4,7 @@ import GlobalPomodoroModal from '@/feature/tasks/pomodoro/GlobalPomodoroModal';
 import { DeveloperModeConfigModal } from '@/feature/developer-mode/components/DeveloperModeConfig';
 import SaveAsTemplateDialog from '@/feature/tasks/components/dialog/SaveAsTemplateDialog';
 import PlanApprovalModal from '@/components/workflow/PlanApprovalModal';
+import { useTranslations } from 'next-intl';
 
 interface TaskDetailModalsProps {
   task: Task;
@@ -42,6 +43,7 @@ export default function TaskDetailModals({
   planFile,
   onApprovalComplete,
 }: TaskDetailModalsProps) {
+  const t = useTranslations('task');
   return (
     <>
       <GlobalPomodoroModal
@@ -67,7 +69,7 @@ export default function TaskDetailModals({
           isOpen={showSaveTemplateDialog}
           onClose={onCloseSaveTemplateDialog}
           onSuccess={() => {
-            alert('テンプレートとして保存しました');
+            alert(t('templateSaved'));
           }}
         />
       )}

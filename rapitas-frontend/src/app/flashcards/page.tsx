@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { FlashcardDeck } from '@/types';
 import {
   Plus,
@@ -18,6 +19,8 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('FlashcardsPage');
 
 export default function FlashcardsPage() {
+  const t = useTranslations('flashcards');
+  const tc = useTranslations('common');
   const [decks, setDecks] = useState<FlashcardDeck[]>([]);
   const [selectedDeck, setSelectedDeck] = useState<FlashcardDeck | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,7 +91,7 @@ export default function FlashcardsPage() {
   };
 
   const handleDeleteDeck = async (id: number) => {
-    if (!confirm('このデッキを削除しますか？')) return;
+    if (!confirm(t('confirmDelete'))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/flashcard-decks/${id}`, {
         method: 'DELETE',
@@ -129,7 +132,7 @@ export default function FlashcardsPage() {
   };
 
   const handleDeleteCard = async (cardId: number) => {
-    if (!confirm('このカードを削除しますか？')) return;
+    if (!confirm(t('confirmDeleteCard'))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/flashcards/${cardId}`, {
         method: 'DELETE',
@@ -205,16 +208,14 @@ export default function FlashcardsPage() {
         setGenerateDifficulty('intermediate');
       } else {
         if (data.error === 'API key not configured') {
-          alert(
-            'APIキーが設定されていません。設定 > AI設定からClaude APIキーを設定してください。',
-          );
+          alert(t('apiKeyNotSet'));
         } else {
-          alert(data.error || 'カードの生成に失敗しました');
+          alert(data.error || t('generationFailed'));
         }
       }
     } catch (e) {
       logger.error('Failed to generate cards:', e);
-      alert('カードの生成に失敗しました');
+      alert(t('generationFailed'));
     } finally {
       setIsGenerating(false);
     }
@@ -254,7 +255,7 @@ export default function FlashcardsPage() {
             className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
           >
             <ChevronLeft className="w-5 h-5" />
-            戻る
+            {tc('back')}
           </button>
           <span className="text-sm text-zinc-500 dark:text-zinc-400">
             {currentCardIndex + 1} / {selectedDeck.cards.length}
@@ -268,14 +269,14 @@ export default function FlashcardsPage() {
         >
           <div className="text-center">
             <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-4">
-              {isFlipped ? '答え' : '問題'}
+              {isFlipped ? t('answer') : t('question')}
             </p>
             <p className="text-2xl font-medium text-zinc-900 dark:text-zinc-50">
               {isFlipped ? card.back : card.front}
             </p>
             {!isFlipped && (
               <p className="mt-6 text-sm text-zinc-400 dark:text-zinc-500">
-                タップして答えを見る
+                {t('tapToSeeAnswer')}
               </p>
             )}
           </div>
@@ -289,28 +290,28 @@ export default function FlashcardsPage() {
               className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
             >
               <X className="w-5 h-5 mx-auto mb-1" />
-              <span className="text-xs">忘れた</span>
+              <span className="text-xs">{t('forgot')}</span>
             </button>
             <button
               onClick={() => handleReview(3)}
               className="p-3 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-xl hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
             >
               <RotateCcw className="w-5 h-5 mx-auto mb-1" />
-              <span className="text-xs">難しい</span>
+              <span className="text-xs">{t('difficult')}</span>
             </button>
             <button
               onClick={() => handleReview(4)}
               className="p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-xl hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
             >
               <Check className="w-5 h-5 mx-auto mb-1" />
-              <span className="text-xs">覚えた</span>
+              <span className="text-xs">{t('remembered')}</span>
             </button>
             <button
               onClick={() => handleReview(5)}
               className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-xl hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors"
             >
               <Brain className="w-5 h-5 mx-auto mb-1" />
-              <span className="text-xs">完璧</span>
+              <span className="text-xs">{t('perfect')}</span>
             </button>
           </div>
         )}
@@ -344,7 +345,7 @@ export default function FlashcardsPage() {
                 {selectedDeck.name}
               </h1>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                {selectedDeck.cards?.length || 0} 枚のカード
+                {selectedDeck.cards?.length || 0} {t('cardsCount')}
               </p>
             </div>
           </div>
@@ -354,14 +355,14 @@ export default function FlashcardsPage() {
               className="flex items-center gap-2 px-3 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700"
             >
               <Sparkles className="w-4 h-4" />
-              AI生成
+              {t('aiGenerate')}
             </button>
             <button
               onClick={() => setIsCardModalOpen(true)}
               className="flex items-center gap-2 px-3 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700"
             >
               <Plus className="w-4 h-4" />
-              カード追加
+              {t('addCard')}
             </button>
             {(selectedDeck.cards?.length || 0) > 0 && (
               <button
@@ -369,7 +370,7 @@ export default function FlashcardsPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 <Brain className="w-4 h-4" />
-                学習開始
+                {t('startLearning')}
               </button>
             )}
           </div>
@@ -388,7 +389,7 @@ export default function FlashcardsPage() {
               <div className="flex-1 grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">
-                    問題
+                    {t('question')}
                   </p>
                   <p className="text-zinc-900 dark:text-zinc-100">
                     {card.front}
@@ -396,7 +397,7 @@ export default function FlashcardsPage() {
                 </div>
                 <div>
                   <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">
-                    答え
+                    {t('answer')}
                   </p>
                   <p className="text-zinc-900 dark:text-zinc-100">
                     {card.back}
@@ -417,7 +418,7 @@ export default function FlashcardsPage() {
           <div className="text-center py-12">
             <Layers className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
             <p className="text-zinc-500 dark:text-zinc-400 mb-4">
-              カードがありません
+              {t('noCards')}
             </p>
             <div className="flex gap-3 justify-center">
               <button
@@ -425,13 +426,13 @@ export default function FlashcardsPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 <Sparkles className="w-4 h-4" />
-                AIで生成
+                {t('generateWithAi')}
               </button>
               <button
                 onClick={() => setIsCardModalOpen(true)}
                 className="px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700"
               >
-                手動で追加
+                {t('addManually')}
               </button>
             </div>
           </div>
@@ -442,12 +443,12 @@ export default function FlashcardsPage() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md p-6">
               <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">
-                カードを追加
+                {t('addCardTitle')}
               </h2>
               <form onSubmit={handleAddCard} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    問題（表面）
+                    {t('questionFront')}
                   </label>
                   <textarea
                     value={cardFront}
@@ -459,7 +460,7 @@ export default function FlashcardsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    答え（裏面）
+                    {t('answerBack')}
                   </label>
                   <textarea
                     value={cardBack}
@@ -475,13 +476,13 @@ export default function FlashcardsPage() {
                     onClick={() => setIsCardModalOpen(false)}
                     className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg"
                   >
-                    キャンセル
+                    {tc('cancel')}
                   </button>
                   <button
                     type="submit"
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg"
                   >
-                    追加
+                    {tc('add')}
                   </button>
                 </div>
               </form>
@@ -496,19 +497,19 @@ export default function FlashcardsPage() {
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                 <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
-                  AIでフラッシュカードを生成
+                  {t('generateTitle')}
                 </h2>
               </div>
               <form onSubmit={handleGenerateCards} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    学習したいトピック
+                    {t('topic')}
                   </label>
                   <input
                     type="text"
                     value={generateTopic}
                     onChange={(e) => setGenerateTopic(e.target.value)}
-                    placeholder="例: 日本史の鎌倉時代、Python基礎文法"
+                    placeholder={t('topicExample')}
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
                     required
                     disabled={isGenerating}
@@ -517,7 +518,7 @@ export default function FlashcardsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                      生成枚数
+                      {t('generationCount')}
                     </label>
                     <select
                       value={generateCount}
@@ -525,16 +526,16 @@ export default function FlashcardsPage() {
                       className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
                       disabled={isGenerating}
                     >
-                      <option value={5}>5枚</option>
-                      <option value={10}>10枚</option>
-                      <option value={15}>15枚</option>
-                      <option value={20}>20枚</option>
-                      <option value={30}>30枚</option>
+                      <option value={5}>{t('cards5')}</option>
+                      <option value={10}>{t('cards10')}</option>
+                      <option value={15}>{t('cards15')}</option>
+                      <option value={20}>{t('cards20')}</option>
+                      <option value={30}>{t('cards30')}</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                      難易度
+                      {t('difficulty')}
                     </label>
                     <select
                       value={generateDifficulty}
@@ -549,15 +550,15 @@ export default function FlashcardsPage() {
                       className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
                       disabled={isGenerating}
                     >
-                      <option value="beginner">初級</option>
-                      <option value="intermediate">中級</option>
-                      <option value="advanced">上級</option>
+                      <option value="beginner">{tc('beginner')}</option>
+                      <option value="intermediate">{tc('intermediate')}</option>
+                      <option value="advanced">{tc('advanced')}</option>
                     </select>
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    言語
+                    {tc('language')}
                   </label>
                   <div className="flex gap-4">
                     <label className="flex items-center">
@@ -572,7 +573,7 @@ export default function FlashcardsPage() {
                         className="mr-2"
                         disabled={isGenerating}
                       />
-                      日本語
+                      {tc('japanese')}
                     </label>
                     <label className="flex items-center">
                       <input
@@ -586,7 +587,7 @@ export default function FlashcardsPage() {
                         className="mr-2"
                         disabled={isGenerating}
                       />
-                      英語
+                      {tc('english')}
                     </label>
                   </div>
                 </div>
@@ -597,7 +598,7 @@ export default function FlashcardsPage() {
                     disabled={isGenerating}
                     className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg disabled:opacity-50"
                   >
-                    キャンセル
+                    {tc('cancel')}
                   </button>
                   <button
                     type="submit"
@@ -607,12 +608,12 @@ export default function FlashcardsPage() {
                     {isGenerating ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        生成中...
+                        {t('generating')}
                       </>
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4" />
-                        生成
+                        {t('generate')}
                       </>
                     )}
                   </button>
@@ -633,10 +634,10 @@ export default function FlashcardsPage() {
           <Brain className="w-8 h-8 text-blue-500" />
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              フラッシュカード
+              {t('title')}
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              AIが自動生成する効率的な暗記学習
+              {t('subtitle')}
             </p>
           </div>
         </div>
@@ -645,7 +646,7 @@ export default function FlashcardsPage() {
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
           <Plus className="w-5 h-5" />
-          新規デッキ
+          {t('newDeck')}
         </button>
       </div>
 
@@ -680,7 +681,7 @@ export default function FlashcardsPage() {
               {deck.name}
             </h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {deck._count?.cards || 0} 枚
+              {deck._count?.cards || 0} {t('cardsUnit')}
             </p>
           </div>
         ))}
@@ -689,7 +690,7 @@ export default function FlashcardsPage() {
       {decks.length === 0 && (
         <div className="text-center py-12">
           <Brain className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-          <p className="text-zinc-500 dark:text-zinc-400">デッキがありません</p>
+          <p className="text-zinc-500 dark:text-zinc-400">{t('noDecks')}</p>
         </div>
       )}
 
@@ -698,18 +699,18 @@ export default function FlashcardsPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md p-6">
             <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">
-              新しいデッキ
+              {t('newDeckTitle')}
             </h2>
             <form onSubmit={handleCreateDeck} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  デッキ名
+                  {t('deckName')}
                 </label>
                 <input
                   type="text"
                   value={deckName}
                   onChange={(e) => setDeckName(e.target.value)}
-                  placeholder="例: 英単語、歴史年号"
+                  placeholder={t('deckExample')}
                   className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700"
                   required
                 />
@@ -717,7 +718,7 @@ export default function FlashcardsPage() {
               <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
                 <p className="text-sm text-blue-700 dark:text-blue-300 flex items-start gap-2">
                   <Sparkles className="w-4 h-4 mt-0.5 shrink-0" />
-                  デッキ作成後、AIが学習内容に最適なフラッシュカードを自動生成できます
+                  {t('deckInfo')}
                 </p>
               </div>
               <div className="flex gap-3">
@@ -726,13 +727,13 @@ export default function FlashcardsPage() {
                   onClick={() => setIsCreateModalOpen(false)}
                   className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg"
                 >
-                  キャンセル
+                  {tc('cancel')}
                 </button>
                 <button
                   type="submit"
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg"
                 >
-                  作成
+                  {tc('create')}
                 </button>
               </div>
             </form>

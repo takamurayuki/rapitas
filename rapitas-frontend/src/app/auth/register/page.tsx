@@ -14,6 +14,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 
 // Google アイコンコンポーネント
 function GoogleIcon() {
@@ -42,6 +43,8 @@ function GoogleIcon() {
 export default function RegisterPage() {
   const router = useRouter();
   const { register, loginWithGoogle, isAuthenticated, isLoading } = useAuth();
+  const t = useTranslations('auth');
+  const tc = useTranslations('common');
 
   const [formData, setFormData] = useState({
     username: '',
@@ -89,17 +92,17 @@ export default function RegisterPage() {
 
     // バリデーション
     if (formData.password !== formData.confirmPassword) {
-      setError('パスワードが一致しません');
+      setError(t('passwordMismatch'));
       return;
     }
 
     if (!Object.values(passwordStrength).every(Boolean)) {
-      setError('パスワードがセキュリティ要件を満たしていません');
+      setError(t('passwordInsufficient'));
       return;
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      setError('有効なメールアドレスを入力してください');
+      setError(t('invalidEmail'));
       return;
     }
 
@@ -115,10 +118,10 @@ export default function RegisterPage() {
       if (result.success) {
         router.push('/');
       } else {
-        setError(result.error || '登録に失敗しました');
+        setError(result.error || t('registrationFailed'));
       }
     } catch (err) {
-      setError('予期しないエラーが発生しました');
+      setError(tc('unexpectedError'));
     } finally {
       setIsSubmitting(false);
     }
@@ -138,11 +141,11 @@ export default function RegisterPage() {
     try {
       const result = await loginWithGoogle();
       if (!result.success) {
-        setError(result.error || 'Googleアカウント連携に失敗しました');
+        setError(result.error || t('googleConnectionFailed'));
       }
       // 成功の場合は、AuthContextによってリダイレクトが自動的に処理される
     } catch (err) {
-      setError('予期しないエラーが発生しました');
+      setError(tc('unexpectedError'));
     } finally {
       setIsGoogleLoading(false);
     }
@@ -196,15 +199,15 @@ export default function RegisterPage() {
             <UserPlus className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
           </div>
           <h2 className="mt-6 text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-            Rapitas アカウント作成
+            {t('registerTitle')}
           </h2>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            すでにアカウントをお持ちの場合は{' '}
+            {t('hasAccount')}{' '}
             <Link
               href="/auth/login"
               className="font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300"
             >
-              ログイン
+              {t('login')}
             </Link>
           </p>
         </div>
@@ -237,12 +240,12 @@ export default function RegisterPage() {
                 {isGoogleLoading ? (
                   <div className="flex items-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-zinc-400 mr-2"></div>
-                    Googleアカウントで作成中...
+                    {t('creatingWithGoogle')}
                   </div>
                 ) : (
                   <div className="flex items-center">
                     <GoogleIcon />
-                    <span className="ml-2">Googleアカウントで作成</span>
+                    <span className="ml-2">{t('createWithGoogle')}</span>
                   </div>
                 )}
               </button>
@@ -255,7 +258,7 @@ export default function RegisterPage() {
               </div>
               <div className="relative flex justify-center text-sm">
                 <span className="px-2 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
-                  または
+                  {tc('or')}
                 </span>
               </div>
             </div>
@@ -268,7 +271,7 @@ export default function RegisterPage() {
                 htmlFor="username"
                 className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
               >
-                ユーザー名
+                {t('username')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -283,7 +286,7 @@ export default function RegisterPage() {
                   value={formData.username}
                   onChange={handleInputChange}
                   className="appearance-none relative block w-full pl-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                  placeholder="ユーザー名を入力"
+                  placeholder={t('usernamePlaceholder')}
                 />
               </div>
             </div>
@@ -294,7 +297,7 @@ export default function RegisterPage() {
                 htmlFor="email"
                 className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
               >
-                メールアドレス
+                {t('email')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -320,7 +323,7 @@ export default function RegisterPage() {
                 htmlFor="password"
                 className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
               >
-                パスワード
+                {t('password')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -335,7 +338,7 @@ export default function RegisterPage() {
                   value={formData.password}
                   onChange={handleInputChange}
                   className="appearance-none relative block w-full pl-10 pr-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                  placeholder="パスワードを入力"
+                  placeholder={t('passwordPlaceholder')}
                 />
                 <button
                   type="button"
@@ -354,15 +357,15 @@ export default function RegisterPage() {
               {formData.password && (
                 <div className="mt-2 space-y-1">
                   <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                    パスワード要件:
+                    {t('passwordRequirements')}
                   </div>
                   <div className="space-y-1">
                     {[
-                      { key: 'length', label: '8文字以上' },
-                      { key: 'lowercase', label: '小文字を含む' },
-                      { key: 'uppercase', label: '大文字を含む' },
-                      { key: 'number', label: '数字を含む' },
-                      { key: 'special', label: '特殊文字を含む' },
+                      { key: 'length', label: t('requirement8Chars') },
+                      { key: 'lowercase', label: t('requirementLowercase') },
+                      { key: 'uppercase', label: t('requirementUppercase') },
+                      { key: 'number', label: t('requirementNumbers') },
+                      { key: 'special', label: t('requirementSpecial') },
                     ].map(({ key, label }) => (
                       <div key={key} className="flex items-center text-xs">
                         {passwordStrength[
@@ -396,7 +399,7 @@ export default function RegisterPage() {
                 htmlFor="confirmPassword"
                 className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
               >
-                パスワード確認
+                {t('confirmPassword')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -411,7 +414,7 @@ export default function RegisterPage() {
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
                   className="appearance-none relative block w-full pl-10 pr-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                  placeholder="パスワードを再入力"
+                  placeholder={t('confirmPasswordPlaceholder')}
                 />
                 <button
                   type="button"
@@ -428,7 +431,7 @@ export default function RegisterPage() {
               {formData.confirmPassword &&
                 formData.password !== formData.confirmPassword && (
                   <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                    パスワードが一致しません
+                    {t('passwordMismatch')}
                   </p>
                 )}
             </div>
@@ -443,12 +446,12 @@ export default function RegisterPage() {
                 {isSubmitting ? (
                   <div className="flex items-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    アカウント作成中...
+                    {t('creatingAccount')}
                   </div>
                 ) : (
                   <div className="flex items-center">
                     <UserPlus className="h-4 w-4 mr-2" />
-                    アカウント作成
+                    {t('createAccount')}
                   </div>
                 )}
               </button>

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ArrowLeft, AlertCircle, Code, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { useTranslations } from 'next-intl';
 import { useErrorCapture } from '@/feature/developer-mode/hooks/useErrorCapture';
 import { ErrorAnalysis } from '@/feature/developer-mode/services/errorAnalysisService';
 import Link from 'next/link';
@@ -12,6 +13,7 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('ErrorDemoPage');
 
 export default function ErrorDemoPage() {
+  const t = useTranslations('settings');
   const [lastError, setLastError] = useState<ErrorAnalysis | null>(null);
 
   const { manualCaptureError } = useErrorCapture({
@@ -97,7 +99,7 @@ export default function ErrorDemoPage() {
           className="inline-flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 mb-4"
         >
           <ArrowLeft className="h-4 w-4" />
-          開発者モードに戻る
+          {t('errorDemoBackToDevMode')}
         </Link>
 
         <div className="flex items-center gap-3">
@@ -106,10 +108,10 @@ export default function ErrorDemoPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              エラー解析デモ
+              {t('errorDemoTitle')}
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              さまざまなエラーを発生させて解析機能をテストできます
+              {t('errorDemoSubtitle')}
             </p>
           </div>
         </div>
@@ -122,10 +124,10 @@ export default function ErrorDemoPage() {
             <Zap className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
             <div className="flex-1">
               <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-1">
-                エラーがキャプチャされました
+                {t('errorDemoCaptured')}
               </h3>
               <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                カテゴリ: {lastError.category} | 重要度: {lastError.severity}
+                {t('errorDemoCategory')}: {lastError.category} | {t('errorDemoSeverity')}: {lastError.severity}
               </p>
               <p className="text-sm mt-1 font-mono">{lastError.message}</p>
             </div>
@@ -138,7 +140,7 @@ export default function ErrorDemoPage() {
         <Card className="p-6 dark:bg-gray-800 dark:border-gray-700">
           <div className="flex items-center gap-3 mb-4">
             <Code className="h-5 w-5 text-purple-500" />
-            <h2 className="font-semibold">構文・ランタイムエラー</h2>
+            <h2 className="font-semibold">{t('errorDemoSyntaxRuntime')}</h2>
           </div>
           <div className="space-y-3">
             <Button
@@ -146,21 +148,21 @@ export default function ErrorDemoPage() {
               variant="secondary"
               className="w-full justify-start"
             >
-              SyntaxError を発生
+              {t('errorDemoSyntaxBtn')}
             </Button>
             <Button
               onClickAction={triggerTypeError}
               variant="secondary"
               className="w-full justify-start"
             >
-              TypeError を発生
+              {t('errorDemoTypeBtn')}
             </Button>
             <Button
               onClickAction={triggerDependencyError}
               variant="secondary"
               className="w-full justify-start"
             >
-              Module Not Found エラー
+              {t('errorDemoModuleBtn')}
             </Button>
           </div>
         </Card>
@@ -168,7 +170,7 @@ export default function ErrorDemoPage() {
         <Card className="p-6 dark:bg-gray-800 dark:border-gray-700">
           <div className="flex items-center gap-3 mb-4">
             <AlertCircle className="h-5 w-5 text-blue-500" />
-            <h2 className="font-semibold">ネットワーク・非同期エラー</h2>
+            <h2 className="font-semibold">{t('errorDemoNetworkAsync')}</h2>
           </div>
           <div className="space-y-3">
             <Button
@@ -176,21 +178,21 @@ export default function ErrorDemoPage() {
               variant="secondary"
               className="w-full justify-start"
             >
-              Network Error を発生
+              {t('errorDemoNetworkBtn')}
             </Button>
             <Button
               onClickAction={triggerPromiseRejection}
               variant="secondary"
               className="w-full justify-start"
             >
-              Unhandled Promise Rejection
+              {t('errorDemoPromiseBtn')}
             </Button>
             <Button
               onClickAction={triggerTimeoutError}
               variant="secondary"
               className="w-full justify-start"
             >
-              Timeout Error を発生
+              {t('errorDemoTimeoutBtn')}
             </Button>
           </div>
         </Card>
@@ -198,7 +200,7 @@ export default function ErrorDemoPage() {
         <Card className="p-6 dark:bg-gray-800 dark:border-gray-700">
           <div className="flex items-center gap-3 mb-4">
             <AlertCircle className="h-5 w-5 text-orange-500" />
-            <h2 className="font-semibold">検証・データベースエラー</h2>
+            <h2 className="font-semibold">{t('errorDemoValidationDb')}</h2>
           </div>
           <div className="space-y-3">
             <Button
@@ -206,14 +208,14 @@ export default function ErrorDemoPage() {
               variant="secondary"
               className="w-full justify-start"
             >
-              Validation Error を発生
+              {t('errorDemoValidationBtn')}
             </Button>
             <Button
               onClickAction={triggerComplexError}
               variant="secondary"
               className="w-full justify-start"
             >
-              Prisma Database Error
+              {t('errorDemoPrismaBtn')}
             </Button>
           </div>
         </Card>
@@ -221,14 +223,14 @@ export default function ErrorDemoPage() {
         <Card className="p-6 dark:bg-gray-800 dark:border-gray-700">
           <div className="flex items-center gap-3 mb-4">
             <AlertCircle className="h-5 w-5 text-red-500" />
-            <h2 className="font-semibold">使い方</h2>
+            <h2 className="font-semibold">{t('errorDemoHowToUse')}</h2>
           </div>
           <div className="space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
-            <p>1. 上のボタンをクリックしてエラーを発生させます</p>
-            <p>2. エラーが自動的にキャプチャされ、解析されます</p>
-            <p>3. 開発者モードのエラー解析タブで詳細を確認できます</p>
+            <p>{t('errorDemoStep1')}</p>
+            <p>{t('errorDemoStep2')}</p>
+            <p>{t('errorDemoStep3')}</p>
             <p className="mt-3 text-xs">
-              注: ブラウザの開発者ツールのコンソールにもエラーが表示されます
+              {t('errorDemoNote')}
             </p>
           </div>
         </Card>
@@ -237,14 +239,14 @@ export default function ErrorDemoPage() {
       {/* 説明 */}
       <Card className="mt-6 p-6 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
         <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">
-          エラー解析機能について
+          {t('errorDemoAboutTitle')}
         </h3>
         <ul className="space-y-2 text-sm text-blue-700 dark:text-blue-300">
-          <li>• コンソールエラー、未処理のPromiseエラー、ネットワークエラーを自動的にキャプチャ</li>
-          <li>• エラーパターンを解析し、カテゴリと重要度を自動判定</li>
-          <li>• 一般的な原因と解決策を提案</li>
-          <li>• 関連するドキュメントへのリンクを提供</li>
-          <li>• エラーの傾向を時系列で可視化</li>
+          <li>{t('errorDemoAbout1')}</li>
+          <li>{t('errorDemoAbout2')}</li>
+          <li>{t('errorDemoAbout3')}</li>
+          <li>{t('errorDemoAbout4')}</li>
+          <li>{t('errorDemoAbout5')}</li>
         </ul>
       </Card>
     </div>

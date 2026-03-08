@@ -25,6 +25,7 @@ import {
   searchIcons,
   getIconComponent,
 } from './IconData';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { useDebounce } from '@/hooks/useDebounce';
 import { createLogger } from '@/lib/logger';
@@ -68,6 +69,8 @@ type Props = {
 };
 
 export default function CategoryManager({ config }: Props) {
+  const t = useTranslations('categories');
+  const tc = useTranslations('common');
   const { showToast } = useToast();
   const [items, setItems] = useState<CategoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,11 +114,11 @@ export default function CategoryManager({ config }: Props) {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/${config.endpoint}`);
-      if (!res.ok) throw new Error('取得に失敗しました');
+      if (!res.ok) throw new Error(tc('fetchFailed'));
       setItems(await res.json());
     } catch (e) {
       logger.error(e);
-      showToast(`${config.itemName}の取得に失敗しました`, 'error');
+      showToast(t('itemFetchFailed', { item: config.itemName }), 'error');
     } finally {
       setLoading(false);
     }
@@ -127,7 +130,7 @@ export default function CategoryManager({ config }: Props) {
 
   const handleAdd = async () => {
     if (!formData.name.trim()) {
-      showToast(`${config.itemName}名を入力してください`, 'error');
+      showToast(t('itemNameRequired', { item: config.itemName }), 'error');
       return;
     }
 
@@ -138,21 +141,21 @@ export default function CategoryManager({ config }: Props) {
         body: JSON.stringify(formData),
       });
 
-      if (!res.ok) throw new Error('作成に失敗しました');
+      if (!res.ok) throw new Error(tc('createFailed'));
 
-      showToast(`${config.itemName}を作成しました`, 'success');
+      showToast(t('itemCreated', { item: config.itemName }), 'success');
       setIsAdding(false);
       resetForm();
       fetchItems();
     } catch (e) {
       logger.error(e);
-      showToast(`${config.itemName}の作成に失敗しました`, 'error');
+      showToast(t('itemCreateFailed', { item: config.itemName }), 'error');
     }
   };
 
   const handleUpdate = async (id: number) => {
     if (!formData.name.trim()) {
-      showToast(`${config.itemName}名を入力してください`, 'error');
+      showToast(t('itemNameRequired', { item: config.itemName }), 'error');
       return;
     }
 
@@ -163,33 +166,33 @@ export default function CategoryManager({ config }: Props) {
         body: JSON.stringify(formData),
       });
 
-      if (!res.ok) throw new Error('更新に失敗しました');
+      if (!res.ok) throw new Error(tc('updateFailed'));
 
-      showToast(`${config.itemName}を更新しました`, 'success');
+      showToast(t('itemUpdated', { item: config.itemName }), 'success');
       setEditingId(null);
       setIconSearchQuery('');
       fetchItems();
     } catch (e) {
       logger.error(e);
-      showToast(`${config.itemName}の更新に失敗しました`, 'error');
+      showToast(t('itemUpdateFailed', { item: config.itemName }), 'error');
     }
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`「${name}」を削除しますか？`)) return;
+    if (!confirm(t('itemDeleteConfirm', { name }))) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/${config.endpoint}/${id}`, {
         method: 'DELETE',
       });
 
-      if (!res.ok) throw new Error('削除に失敗しました');
+      if (!res.ok) throw new Error(tc('deleteFailed'));
 
-      showToast(`${config.itemName}を削除しました`, 'success');
+      showToast(t('itemDeleted', { item: config.itemName }), 'success');
       fetchItems();
     } catch (e) {
       logger.error(e);
-      showToast(`${config.itemName}の削除に失敗しました`, 'error');
+      showToast(t('itemDeleteFailed', { item: config.itemName }), 'error');
     }
   };
 
@@ -202,13 +205,13 @@ export default function CategoryManager({ config }: Props) {
         },
       );
 
-      if (!res.ok) throw new Error('デフォルト設定に失敗しました');
+      if (!res.ok) throw new Error(t('setDefaultFailed'));
 
-      showToast(`デフォルト${config.itemName}を設定しました`, 'success');
+      showToast(t('itemDefaultSet', { item: config.itemName }), 'success');
       fetchItems();
     } catch (e) {
       logger.error(e);
-      showToast(`デフォルト${config.itemName}の設定に失敗しました`, 'error');
+      showToast(t('itemDefaultSetFailed', { item: config.itemName }), 'error');
     }
   };
 
@@ -260,10 +263,10 @@ export default function CategoryManager({ config }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orders }),
       });
-      if (!res.ok) throw new Error('並び替えに失敗しました');
+      if (!res.ok) throw new Error(t('reorderFailed'));
     } catch (e) {
       logger.error(e);
-      showToast('並び替えに失敗しました', 'error');
+      showToast(t('reorderFailed'), 'error');
       fetchItems();
     }
   };
@@ -293,13 +296,13 @@ export default function CategoryManager({ config }: Props) {
     <div className="space-y-3">
       <div>
         <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-          {config.itemName}名 <span className="text-red-500">*</span>
+          {config.itemName} <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder={`${config.itemName}名を入力`}
+          placeholder={t('itemNamePlaceholder', { item: config.itemName })}
           className={`w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all`}
           autoFocus
         />
@@ -307,14 +310,14 @@ export default function CategoryManager({ config }: Props) {
 
       <div>
         <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-          説明（任意）
+          {tc('descriptionOptional')}
         </label>
         <textarea
           value={formData.description}
           onChange={(e) =>
             setFormData({ ...formData, description: e.target.value })
           }
-          placeholder="説明を入力"
+          placeholder={t('descriptionPlaceholder')}
           rows={1}
           className={`w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all resize-none`}
         />
@@ -323,7 +326,7 @@ export default function CategoryManager({ config }: Props) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            カラー
+            {tc('color')}
           </label>
           <div className="flex gap-2 items-center">
             <input
@@ -347,7 +350,7 @@ export default function CategoryManager({ config }: Props) {
 
         <div>
           <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            選択中のアイコン
+            {t('selectedIcon')}
           </label>
           <div
             className="h-9 rounded-lg border-2 flex items-center justify-center"
@@ -365,7 +368,7 @@ export default function CategoryManager({ config }: Props) {
 
       <div>
         <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-          アイコンを選択 {!formData.icon && `(未選択時: ${config.defaultIcon})`}
+          {t('selectIconLabel')} {!formData.icon && t('iconNotSelectedDefault', { icon: config.defaultIcon })}
         </label>
 
         <div className="relative mb-2">
@@ -374,7 +377,7 @@ export default function CategoryManager({ config }: Props) {
             type="text"
             value={iconSearchQuery}
             onChange={(e) => setIconSearchQuery(e.target.value)}
-            placeholder="アイコンを検索...（例: 本、仕事、星）"
+            placeholder={t('searchIconPlaceholder')}
             className={`w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all`}
           />
         </div>
@@ -382,7 +385,7 @@ export default function CategoryManager({ config }: Props) {
         <div className="max-h-36 overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
           {filteredIcons.length === 50 && debouncedIconSearchQuery && (
             <div className="p-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
-              表示数が多いため、最初の50件のみ表示しています。絞り込むには検索ワードを追加してください。
+              {t('iconLimitWarning')}
             </div>
           )}
           <div className="grid grid-cols-8 gap-1 p-2">
@@ -405,7 +408,7 @@ export default function CategoryManager({ config }: Props) {
           className="flex items-center gap-1.5 rounded-lg bg-zinc-200 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-all font-medium"
         >
           <X className="w-3.5 h-3.5" />
-          キャンセル
+          {tc('cancel')}
         </button>
         <button
           onClick={() =>
@@ -414,7 +417,7 @@ export default function CategoryManager({ config }: Props) {
           className={`flex items-center gap-1.5 rounded-lg ${accent.bg} px-3 py-2 text-sm text-white transition-all shadow-lg hover:shadow-xl font-medium`}
         >
           <Save className="w-3.5 h-3.5" />
-          {isEdit ? '保存' : '作成'}
+          {isEdit ? tc('save') : tc('create')}
         </button>
       </div>
     </div>
@@ -433,7 +436,7 @@ export default function CategoryManager({ config }: Props) {
               {config.title}
             </h1>
             <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-              {config.itemName}を管理します
+              {t('manageItems', { item: config.itemName })}
             </p>
           </div>
           {!isAdding && (
@@ -442,7 +445,7 @@ export default function CategoryManager({ config }: Props) {
               className={`flex items-center gap-1.5 rounded-lg ${accent.bg} px-4 py-2 text-sm text-white transition-all shadow-lg hover:shadow-xl font-medium`}
             >
               <Plus className="w-4 h-4" />
-              新規{config.itemName}
+              {t('newItem', { item: config.itemName })}
             </button>
           )}
         </div>
@@ -454,7 +457,7 @@ export default function CategoryManager({ config }: Props) {
           >
             <h2 className="mb-3 text-base font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
               <Plus className={`w-4 h-4 ${accent.text}`} />
-              新規{config.itemName}作成
+              {t('newItemCreate', { item: config.itemName })}
             </h2>
             {renderForm(false)}
           </div>
@@ -467,10 +470,10 @@ export default function CategoryManager({ config }: Props) {
           <div className="text-center py-16 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
             <TitleIcon className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
             <p className="text-lg font-medium mb-2">
-              {config.itemName}がありません
+              {t('itemNone', { item: config.itemName })}
             </p>
             <p className="text-sm mb-4">
-              最初の{config.itemName}を作成してみましょう
+              {t('itemCreateFirst', { item: config.itemName })}
             </p>
           </div>
         ) : (
@@ -509,7 +512,7 @@ export default function CategoryManager({ config }: Props) {
                               <div className="p-4">
                                 <h2 className="mb-3 text-base font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
                                   <Edit2 className={`w-4 h-4 ${accent.text}`} />
-                                  {config.itemName}を編集
+                                  {t('editItem', { item: config.itemName })}
                                 </h2>
                                 {renderForm(true, item.id)}
                               </div>
@@ -519,7 +522,7 @@ export default function CategoryManager({ config }: Props) {
                                   <div
                                     {...provided.dragHandleProps}
                                     className="flex items-center justify-center w-6 shrink-0 cursor-grab active:cursor-grabbing text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                                    title="ドラッグして並び替え"
+                                    title={t('dragToReorder')}
                                   >
                                     <GripVertical className="w-5 h-5" />
                                   </div>
@@ -562,7 +565,7 @@ export default function CategoryManager({ config }: Props) {
                                           <span className="font-semibold">
                                             {item._count.tasks}
                                           </span>
-                                          <span className="hidden sm:inline">タスク</span>
+                                          <span className="hidden sm:inline">{t('tasks')}</span>
                                         </span>
                                       )}
                                     </div>
@@ -583,8 +586,8 @@ export default function CategoryManager({ config }: Props) {
                                       />
                                       <span className="hidden sm:inline">
                                         {item.isDefault
-                                          ? 'デフォルト'
-                                          : 'デフォルト設定'}
+                                          ? t('default')
+                                          : t('setAsDefault')}
                                       </span>
                                     </button>
                                   )}
@@ -593,7 +596,7 @@ export default function CategoryManager({ config }: Props) {
                                     className="flex items-center gap-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1.5 text-sm text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
                                   >
                                     <Edit2 className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline">編集</span>
+                                    <span className="hidden sm:inline">{tc('edit')}</span>
                                   </button>
                                   <button
                                     onClick={() =>
@@ -602,7 +605,7 @@ export default function CategoryManager({ config }: Props) {
                                     className="flex items-center gap-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 px-2.5 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline">削除</span>
+                                    <span className="hidden sm:inline">{tc('delete')}</span>
                                   </button>
                                 </div>
                               </div>

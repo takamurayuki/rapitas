@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { ExamGoal } from '@/types';
 import {
   Plus,
@@ -34,6 +35,8 @@ const PRESET_COLORS = [
 ];
 
 export default function ExamGoalsPage() {
+  const t = useTranslations('examGoals');
+  const tc = useTranslations('common');
   const [examGoals, setExamGoals] = useState<ExamGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -128,7 +131,7 @@ export default function ExamGoalsPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('この試験目標を削除しますか？')) return;
+    if (!confirm(t('confirmDeleteGoal'))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/exam-goals/${id}`, {
         method: 'DELETE',
@@ -142,7 +145,7 @@ export default function ExamGoalsPage() {
   };
 
   const handleComplete = async (goal: ExamGoal) => {
-    const actualScore = prompt('実際のスコア/結果を入力してください（任意）:');
+    const actualScore = prompt(t('actualScorePrompt'));
     try {
       const res = await fetch(`${API_BASE_URL}/exam-goals/${goal.id}`, {
         method: 'PATCH',
@@ -198,10 +201,10 @@ export default function ExamGoalsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            試験目標
+            {t('title')}
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            試験や資格の目標を管理してカウントダウンを表示
+            {t('subtitle')}
           </p>
         </div>
         <button
@@ -209,7 +212,7 @@ export default function ExamGoalsPage() {
           className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
         >
           <Plus className="w-5 h-5" />
-          <span>新規作成</span>
+          <span>{tc('createNew')}</span>
         </button>
       </div>
 
@@ -218,7 +221,7 @@ export default function ExamGoalsPage() {
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
             <Clock className="w-5 h-5" />
-            直近の試験目標
+            {t('upcoming')}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {upcomingGoals.map((goal) => {
@@ -244,7 +247,7 @@ export default function ExamGoalsPage() {
                         </h3>
                         {goal.targetScore && (
                           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                            目標: {goal.targetScore}
+                            {t('target')} {goal.targetScore}
                           </p>
                         )}
                       </div>
@@ -253,7 +256,7 @@ export default function ExamGoalsPage() {
                       <button
                         onClick={() => handleComplete(goal)}
                         className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
-                        title="達成済みにする"
+                        title={t('markComplete')}
                       >
                         <CheckCircle2 className="w-4 h-4" />
                       </button>
@@ -288,7 +291,7 @@ export default function ExamGoalsPage() {
                   {goal._count && goal._count.tasks > 0 && (
                     <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-700">
                       <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {goal._count.tasks}個の関連タスク
+                        {t('relatedTasks', { count: goal._count.tasks })}
                       </span>
                     </div>
                   )}
@@ -304,7 +307,7 @@ export default function ExamGoalsPage() {
         <div>
           <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
             <Trophy className="w-5 h-5 text-amber-500" />
-            達成済み
+            {t('completed')}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {completedGoals.map((goal) => (
@@ -329,7 +332,7 @@ export default function ExamGoalsPage() {
                       </h3>
                       {goal.actualScore && (
                         <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                          結果: {goal.actualScore}
+                          {t('result')} {goal.actualScore}
                         </p>
                       )}
                     </div>
@@ -357,7 +360,7 @@ export default function ExamGoalsPage() {
         <div className="text-center py-12">
           <Target className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
           <p className="text-zinc-500 dark:text-zinc-400">
-            試験目標がありません。新規作成から追加してください。
+            {t('none')}
           </p>
         </div>
       )}
@@ -368,13 +371,13 @@ export default function ExamGoalsPage() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">
-                {editingGoal ? '試験目標を編集' : '新しい試験目標'}
+                {editingGoal ? t('editTitle') : t('newTitle')}
               </h2>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    試験名 *
+                    {t('examName')}
                   </label>
                   <input
                     type="text"
@@ -382,7 +385,7 @@ export default function ExamGoalsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, name: e.target.value })
                     }
-                    placeholder="例: TOEIC、基本情報技術者試験"
+                    placeholder={t('examNameExample')}
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     required
                   />
@@ -390,7 +393,7 @@ export default function ExamGoalsPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    試験日 *
+                    {t('examDate')}
                   </label>
                   <input
                     type="date"
@@ -405,7 +408,7 @@ export default function ExamGoalsPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    目標スコア/点数
+                    {t('targetScore')}
                   </label>
                   <input
                     type="text"
@@ -413,21 +416,21 @@ export default function ExamGoalsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, targetScore: e.target.value })
                     }
-                    placeholder="例: 800点、合格"
+                    placeholder={t('scoreExample')}
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    説明（任意）
+                    {tc('descriptionOptional')}
                   </label>
                   <textarea
                     value={formData.description}
                     onChange={(e) =>
                       setFormData({ ...formData, description: e.target.value })
                     }
-                    placeholder="目標の詳細や意気込みなど"
+                    placeholder={t('descriptionPlaceholder')}
                     rows={2}
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
@@ -435,7 +438,7 @@ export default function ExamGoalsPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                    カラー
+                    {tc('color')}
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {PRESET_COLORS.map((color) => (
@@ -456,7 +459,7 @@ export default function ExamGoalsPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                    アイコン
+                    {tc('icon')}
                   </label>
                   <button
                     type="button"
@@ -467,7 +470,7 @@ export default function ExamGoalsPage() {
                       {renderIcon(formData.icon, 20)}
                     </span>
                     <span className="text-sm">
-                      {formData.icon || 'アイコンを選択'}
+                      {formData.icon || tc('selectIcon')}
                     </span>
                   </button>
 
@@ -477,7 +480,7 @@ export default function ExamGoalsPage() {
                         type="text"
                         value={iconSearch}
                         onChange={(e) => setIconSearch(e.target.value)}
-                        placeholder="アイコンを検索...（例: 本、仕事、星）"
+                        placeholder={tc('searchIcon')}
                         className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                       <div className="grid grid-cols-6 gap-1 max-h-40 overflow-y-auto">
@@ -511,13 +514,13 @@ export default function ExamGoalsPage() {
                     onClick={() => setIsModalOpen(false)}
                     className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
                   >
-                    キャンセル
+                    {tc('cancel')}
                   </button>
                   <button
                     type="submit"
                     className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
                   >
-                    {editingGoal ? '更新' : '作成'}
+                    {editingGoal ? tc('update') : tc('create')}
                   </button>
                 </div>
               </form>

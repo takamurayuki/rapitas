@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { Coffee, Pause, Hourglass } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import GlobalPomodoroModal from './GlobalPomodoroModal';
 import {
   usePomodoroStore,
@@ -16,6 +17,7 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('GlobalPomodoroWidget');
 
 export default function GlobalPomodoroWidget() {
+  const t = useTranslations('pomodoro');
   const [showModal, setShowModal] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -156,10 +158,10 @@ export default function GlobalPomodoroWidget() {
       <button
         onClick={() => setShowModal(true)}
         className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 border rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors ${getButtonStyle()}`}
-        title={`${taskTitle} - 時間管理`}
+        title={`${taskTitle} - ${t('timeManagement')}`}
       >
         {getIcon()}
-        <span>時間管理</span>
+        <span>{t('timeManagement')}</span>
         <span className="text-xs font-mono tabular-nums">
           {formatTime(remainingTime)}
         </span>

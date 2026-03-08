@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Eye, EyeOff, LogIn, User, Lock, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 
 // Google アイコンコンポーネント
 function GoogleIcon() {
@@ -33,6 +34,8 @@ function GoogleIcon() {
 export default function LoginPage() {
   const router = useRouter();
   const { login, loginWithGoogle, isAuthenticated, isLoading } = useAuth();
+  const t = useTranslations('auth');
+  const tc = useTranslations('common');
 
   const [formData, setFormData] = useState({
     username: '',
@@ -61,10 +64,10 @@ export default function LoginPage() {
       if (result.success) {
         router.push('/');
       } else {
-        setError(result.error || 'ログインに失敗しました');
+        setError(result.error || t('loginFailed'));
       }
     } catch (err) {
-      setError('予期しないエラーが発生しました');
+      setError(tc('unexpectedError'));
     } finally {
       setIsSubmitting(false);
     }
@@ -84,11 +87,11 @@ export default function LoginPage() {
     try {
       const result = await loginWithGoogle();
       if (!result.success) {
-        setError(result.error || 'Googleログインに失敗しました');
+        setError(result.error || t('loginFailed'));
       }
       // 成功の場合は、AuthContextによってリダイレクトが自動的に処理される
     } catch (err) {
-      setError('予期しないエラーが発生しました');
+      setError(tc('unexpectedError'));
     } finally {
       setIsGoogleLoading(false);
     }
@@ -133,15 +136,15 @@ export default function LoginPage() {
             <LogIn className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
           </div>
           <h2 className="mt-6 text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-            Rapitas にログイン
+            {t('loginTitle')}
           </h2>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            アカウントをお持ちでない場合は{' '}
+            {t('noAccount')}{' '}
             <Link
               href="/auth/register"
               className="font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300"
             >
-              新規登録
+              {t('signUp')}
             </Link>
           </p>
         </div>
@@ -169,7 +172,7 @@ export default function LoginPage() {
                 htmlFor="username"
                 className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
               >
-                ユーザー名
+                {t('username')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -184,7 +187,7 @@ export default function LoginPage() {
                   value={formData.username}
                   onChange={handleInputChange}
                   className="appearance-none relative block w-full pl-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                  placeholder="ユーザー名を入力"
+                  placeholder={t('usernamePlaceholder')}
                 />
               </div>
             </div>
@@ -195,7 +198,7 @@ export default function LoginPage() {
                 htmlFor="password"
                 className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
               >
-                パスワード
+                {t('password')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -210,7 +213,7 @@ export default function LoginPage() {
                   value={formData.password}
                   onChange={handleInputChange}
                   className="appearance-none relative block w-full pl-10 pr-10 px-3 py-2 border border-zinc-300 dark:border-zinc-600 placeholder-zinc-500 dark:placeholder-zinc-400 text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                  placeholder="パスワードを入力"
+                  placeholder={t('passwordPlaceholder')}
                 />
                 <button
                   type="button"
@@ -236,12 +239,12 @@ export default function LoginPage() {
                 {isSubmitting ? (
                   <div className="flex items-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    ログイン中...
+                    {t('loggingIn')}
                   </div>
                 ) : (
                   <div className="flex items-center">
                     <LogIn className="h-4 w-4 mr-2" />
-                    ログイン
+                    {t('login')}
                   </div>
                 )}
               </button>
@@ -254,7 +257,7 @@ export default function LoginPage() {
               </div>
               <div className="relative flex justify-center text-sm">
                 <span className="px-2 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
-                  または
+                  {tc('or')}
                 </span>
               </div>
             </div>
@@ -270,12 +273,12 @@ export default function LoginPage() {
                 {isGoogleLoading ? (
                   <div className="flex items-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-zinc-400 mr-2"></div>
-                    Googleでログイン中...
+                    {t('googleLoggingIn')}
                   </div>
                 ) : (
                   <div className="flex items-center">
                     <GoogleIcon />
-                    <span className="ml-2">Googleでログイン</span>
+                    <span className="ml-2">{t('loginWithGoogle')}</span>
                   </div>
                 )}
               </button>

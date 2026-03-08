@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { BarChart3, Timer, TrendingUp, Calendar } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 
@@ -19,6 +20,8 @@ type PomodoroStats = {
 };
 
 export default function PomodoroStatistics() {
+  const t = useTranslations('pomodoro');
+  const tc = useTranslations('common');
   const [stats, setStats] = useState<PomodoroStats | null>(null);
   const [period, setPeriod] = useState<'week' | 'month'>('week');
   const [loading, setLoading] = useState(true);
@@ -77,7 +80,7 @@ export default function PomodoroStatistics() {
               : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
           }`}
         >
-          週間
+          {tc('weekly')}
         </button>
         <button
           onClick={() => setPeriod('month')}
@@ -87,7 +90,7 @@ export default function PomodoroStatistics() {
               : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
           }`}
         >
-          月間
+          {tc('monthly')}
         </button>
       </div>
 
@@ -96,7 +99,7 @@ export default function PomodoroStatistics() {
         <div className="bg-white dark:bg-zinc-800 rounded-lg p-3 border border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-1">
             <Timer className="w-4 h-4" />
-            <span className="text-xs">完了数</span>
+            <span className="text-xs">{t('completedCount')}</span>
           </div>
           <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
             {stats.totalPomodoros}
@@ -106,7 +109,7 @@ export default function PomodoroStatistics() {
         <div className="bg-white dark:bg-zinc-800 rounded-lg p-3 border border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-1">
             <BarChart3 className="w-4 h-4" />
-            <span className="text-xs">合計時間</span>
+            <span className="text-xs">{t('totalTime')}</span>
           </div>
           <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
             {formatTime(stats.totalMinutes * 60)}
@@ -116,7 +119,7 @@ export default function PomodoroStatistics() {
         <div className="bg-white dark:bg-zinc-800 rounded-lg p-3 border border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-1">
             <TrendingUp className="w-4 h-4" />
-            <span className="text-xs">日平均</span>
+            <span className="text-xs">{t('dailyAverage')}</span>
           </div>
           <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
             {stats.averagePerDay}
@@ -129,7 +132,7 @@ export default function PomodoroStatistics() {
         <div className="bg-white dark:bg-zinc-800 rounded-lg p-4 border border-zinc-200 dark:border-zinc-700">
           <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
             <Calendar className="w-4 h-4" />
-            日別ポモドーロ数
+            {t('dailyPomodoroCount')}
           </h3>
           <div className="flex items-end gap-1 h-24">
             {stats.dailyStats.slice(-14).map((day) => (
@@ -142,7 +145,7 @@ export default function PomodoroStatistics() {
                   style={{
                     height: `${(day.count / maxDailyCount) * 100}%`,
                   }}
-                  title={`${day.date}: ${day.count}回 (${Math.round(day.minutes)}分)`}
+                  title={`${day.date}: ${day.count}${tc('times')} (${Math.round(day.minutes)}min)`}
                 />
                 <span className="text-[9px] text-zinc-400 dark:text-zinc-500">
                   {day.date.slice(-2)}
@@ -157,7 +160,7 @@ export default function PomodoroStatistics() {
       {stats.taskStats.length > 0 && (
         <div className="bg-white dark:bg-zinc-800 rounded-lg p-4 border border-zinc-200 dark:border-zinc-700">
           <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">
-            タスク別集中時間
+            {t('taskFocusTime')}
           </h3>
           <div className="space-y-2">
             {stats.taskStats.slice(0, 5).map((task) => (
@@ -176,7 +179,7 @@ export default function PomodoroStatistics() {
                   </div>
                 </div>
                 <span className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
-                  {task.count}回 / {Math.round(task.minutes)}分
+                  {task.count}{tc('times')} / {Math.round(task.minutes)}min
                 </span>
               </div>
             ))}

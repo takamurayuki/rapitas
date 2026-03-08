@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type {
   Task,
   TimeEntry,
@@ -63,6 +64,8 @@ function TaskDetailClient({
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useTranslations('task');
+  const tc = useTranslations('common');
 
   // ページモード（ヘッダー表示フラグ）の確認
   const isPageMode = searchParams.get('showHeader') === 'true';
@@ -332,7 +335,7 @@ function TaskDetailClient({
           }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'タスクの取得に失敗しました');
+        setError(err instanceof Error ? err.message : t('fetchFailed'));
       } finally {
         if (isInitialLoad) {
           setLoading(false);
@@ -575,13 +578,13 @@ function TaskDetailClient({
             <span className="text-3xl">!</span>
           </div>
           <p className="text-red-600 dark:text-red-400 mb-4 font-medium">
-            {error || 'タスクが見つかりません'}
+            {error || t('notFound')}
           </p>
           <button
             onClick={() => router.push('/')}
             className="px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors font-medium"
           >
-            ホームに戻る
+            {t('backToHome')}
           </button>
         </div>
       </div>
@@ -606,7 +609,7 @@ function TaskDetailClient({
                 className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
-                <span className="text-sm font-medium">戻る</span>
+                <span className="text-sm font-medium">{tc('back')}</span>
               </button>
             )}
           </div>
@@ -629,24 +632,24 @@ function TaskDetailClient({
                   >
                     <Pencil className="w-4 h-4" />
                     <span className="font-mono text-xs font-black tracking-tight">
-                      編集
+                      {tc('edit')}
                     </span>
                   </button>
                 </div>
                 <DropdownMenu
                   items={[
                     {
-                      label: '複製',
+                      label: t('duplicateTask'),
                       icon: <Copy className="w-4 h-4" />,
                       onClick: taskActions.duplicateTask,
                     },
                     {
-                      label: 'テンプレート保存',
+                      label: t('saveAsTemplate'),
                       icon: <FileStack className="w-4 h-4" />,
                       onClick: () => setShowSaveTemplateDialog(true),
                     },
                     {
-                      label: '削除',
+                      label: tc('delete'),
                       icon: <Trash2 className="w-4 h-4" />,
                       onClick: taskActions.deleteTask,
                       variant: 'danger',
@@ -663,7 +666,7 @@ function TaskDetailClient({
                   >
                     <Save className="w-4 h-4" />
                     <span className="font-mono text-xs font-black tracking-tight">
-                      保存
+                      {tc('save')}
                     </span>
                   </button>
                 </div>
@@ -674,7 +677,7 @@ function TaskDetailClient({
                   >
                     <X className="w-4 h-4" />
                     <span className="font-mono text-xs font-black tracking-tight">
-                      キャンセル
+                      {tc('cancel')}
                     </span>
                   </button>
                 </div>
