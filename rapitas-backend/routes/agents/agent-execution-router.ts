@@ -255,9 +255,14 @@ export const agentExecutionRouter = new Elysia()
           },
         });
       } catch (dbError) {
-        log.error({ err: dbError }, `[API] Database error fetching task ${taskIdNum}`);
+        const prismaCode = (dbError as Record<string, unknown>)?.code;
+        log.error({ err: dbError, prismaCode }, `[API] Database error fetching task ${taskIdNum}`);
         context.set.status = 500;
-        return { error: "データベースクエリエラーが発生しました", details: dbError instanceof Error ? dbError.message : String(dbError) };
+        return {
+          error: "データベースクエリエラーが発生しました",
+          code: prismaCode || undefined,
+          details: dbError instanceof Error ? dbError.message : String(dbError),
+        };
       }
 
       if (!task) {
@@ -429,10 +434,12 @@ export const agentExecutionRouter = new Elysia()
         });
         log.info(`[API] Updated task ${taskIdNum} status to 'in-progress'`);
       } catch (dbError) {
-        log.error({ err: dbError }, `[API] Database error during execution setup for task ${taskIdNum}`);
+        const prismaCode = (dbError as Record<string, unknown>)?.code;
+        log.error({ err: dbError, prismaCode }, `[API] Database error during execution setup for task ${taskIdNum}`);
         context.set.status = 500;
         return earlyReturnWithLockRelease({
           error: "データベースクエリエラーが発生しました",
+          code: prismaCode || undefined,
           details: dbError instanceof Error ? dbError.message : String(dbError),
         });
       }

@@ -5,6 +5,9 @@ import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
 import { ValidationError, NotFoundError } from "../../middleware/error-handler";
 import { realtimeService } from "../../services/realtime-service";
+import { createLogger } from "../../config/logger";
+
+const logger = createLogger("routes:notifications");
 
 export const notificationsRoutes = new Elysia({ prefix: "/notifications" })
   // SSEストリーム（リアルタイム通知配信）
@@ -43,7 +46,9 @@ export const notificationsRoutes = new Elysia({ prefix: "/notifications" })
               // ignore
             }
           })
-          .catch(() => {});
+          .catch((err) => {
+            logger.warn({ err }, "Failed to fetch initial unread count for SSE stream");
+          });
       },
     });
 

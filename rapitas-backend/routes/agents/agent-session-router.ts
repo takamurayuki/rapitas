@@ -38,7 +38,9 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
     // オーケストレーターで停止を試みる
     const executions = orchestrator.getSessionExecutions(sessionId);
     for (const execution of executions) {
-      await orchestrator.stopExecution(execution.executionId).catch(() => {});
+      await orchestrator.stopExecution(execution.executionId).catch((err) => {
+        log.warn({ err, executionId: execution.executionId }, "Failed to stop execution during session termination");
+      });
     }
 
     // DBで実行中/待機中の実行をすべてキャンセル

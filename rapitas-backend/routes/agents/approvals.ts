@@ -1076,35 +1076,41 @@ ${previousImplementation}
             subtasks: SubtaskProposal[];
           }>(approval.proposedChanges);
 
-          // 既存のサブタスクを取得して重複チェック
-          const existingSubtasks = await prisma.task.findMany({
-            where: { parentId: approval.config.taskId },
-            select: { title: true },
-          });
-          const existingTitles = new Set(existingSubtasks.map((st: { title: string }) => st.title.toLowerCase().trim()));
-
-          for (const subtask of proposedChanges?.subtasks || []) {
-            // タイトルが重複する場合はスキップ
-            const normalizedTitle = subtask.title.toLowerCase().trim();
-            if (existingTitles.has(normalizedTitle)) {
-              log.info(`[approvals:bulk] Skipping duplicate subtask: ${subtask.title}`);
-              continue;
-            }
-            existingTitles.add(normalizedTitle);
-
-            await prisma.task.create({
-              data: {
-                title: subtask.title,
-                description: subtask.description,
-                priority: subtask.priority,
-                estimatedHours: subtask.estimatedHours,
-                parentId: approval.config.taskId,
-                agentGenerated: true,
-              },
+          // トランザクションで重複チェックと作成を原子的に実行
+          const createdSubtasks = await prisma.$transaction(async (tx: typeof prisma) => {
+            const existingSubtasks = await tx.task.findMany({
+              where: { parentId: approval.config.taskId },
+              select: { title: true },
             });
-          }
+            const existingTitles = new Set(existingSubtasks.map((st: { title: string }) => st.title.toLowerCase().trim()));
 
-          results.push({ id, success: true });
+            const created = [];
+            for (const subtask of proposedChanges?.subtasks || []) {
+              const normalizedTitle = subtask.title.toLowerCase().trim();
+              if (existingTitles.has(normalizedTitle)) {
+                log.info(`[approvals:bulk] Skipping duplicate subtask: ${subtask.title}`);
+                continue;
+              }
+              existingTitles.add(normalizedTitle);
+
+              const newSubtask = await tx.task.create({
+                data: {
+                  title: subtask.title,
+                  description: subtask.description,
+                  priority: subtask.priority,
+                  estimatedHours: subtask.estimatedHours,
+                  parentId: approval.config.taskId,
+                  agentGenerated: true,
+                },
+              });
+              created.push(newSubtask);
+            }
+            return created;
+          }, {
+            isolationLevel: 'Serializable',
+          });
+
+          results.push({ id, success: true, createdCount: createdSubtasks.length });
         } else {
           results.push({ id, success: true });
         }

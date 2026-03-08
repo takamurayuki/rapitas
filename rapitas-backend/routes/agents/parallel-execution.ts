@@ -536,7 +536,8 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
               }
               controller.enqueue(value);
               pump();
-            }).catch(() => {
+            }).catch((err) => {
+              log.warn({ err }, "SSE stream read error, closing controller");
               controller.close();
               executor.removeEventListener(eventHandler);
             });

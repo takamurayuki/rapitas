@@ -28,7 +28,7 @@ export async function fetchWithRetry(
   init?: RequestInit,
   maxRetries = 3,
   retryDelayMs = 300,
-  timeoutMs = 5000,
+  timeoutMs = 10000,
 ): Promise<Response> {
   let lastError: Error | undefined;
   const url =
@@ -42,13 +42,27 @@ export async function fetchWithRetry(
     try {
       logger.debug(`[fetchWithRetry] Attempting ${attempt + 1}/${maxRetries} for ${url}`);
 
+      // 呼び出し元のsignalが既にabortされている場合は即座にエラー
+      if (init?.signal?.aborted) {
+        throw new DOMException('The operation was aborted.', 'AbortError');
+      }
+
       // タイムアウト処理のためのAbortController
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
+      // 呼び出し元のsignalとタイムアウトsignalを結合
+      const signals: AbortSignal[] = [controller.signal];
+      if (init?.signal) {
+        signals.push(init.signal);
+      }
+      const combinedSignal = signals.length > 1
+        ? AbortSignal.any(signals)
+        : controller.signal;
+
       const response = await fetch(input, {
         ...init,
-        signal: controller.signal,
+        signal: combinedSignal,
       });
 
       // タイムアウトをクリア
