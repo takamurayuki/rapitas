@@ -15,6 +15,7 @@ import {
   RotateCcw,
   Bot,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
 import { useBackendHealth } from '@/hooks/use-backend-health';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
@@ -42,6 +43,9 @@ type ResumableExecution = {
 };
 
 export function ResumableExecutionsBanner() {
+  const t = useTranslations('banner');
+  const tc = useTranslations('common');
+  const tNotification = useTranslations('notification');
   const pathname = usePathname();
 
   const [executions, setExecutions] = useState<ResumableExecution[]>([]);
@@ -159,7 +163,7 @@ export function ResumableExecutionsBanner() {
     onDisconnectAction: () => {
       logger.info('Backend disconnected');
       setConnectionError(
-        new Error('バックエンドサーバーとの接続が切断されました'),
+        new Error(t('backendDisconnected')),
       );
     },
   });
@@ -327,7 +331,7 @@ export function ResumableExecutionsBanner() {
         if (!isAutoResume) {
           // Show user-friendly error for manual resume attempts
           alert(
-            `実行の再開に失敗しました。${res.status} エラーが発生しました。`,
+            `${tc('errorOccurred')}: ${res.status}`,
           );
         }
       }
@@ -410,10 +414,10 @@ export function ResumableExecutionsBanner() {
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffDays > 0) return `${diffDays}日前`;
-    if (diffHours > 0) return `${diffHours}時間前`;
-    if (diffMins > 0) return `${diffMins}分前`;
-    return 'たった今';
+    if (diffDays > 0) return tNotification('daysAgo', { count: diffDays });
+    if (diffHours > 0) return tNotification('hoursAgo', { count: diffHours });
+    if (diffMins > 0) return tNotification('minutesAgo', { count: diffMins });
+    return tNotification('justNow');
   };
 
   // 実行中と中断の件数を集計
@@ -450,10 +454,10 @@ export function ResumableExecutionsBanner() {
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-sm text-red-900 dark:text-red-100">
-                  接続エラー
+                  {t('connectionError')}
                 </h3>
                 <p className="text-xs text-red-600 dark:text-red-400">
-                  バックエンドサーバーに接続できません
+                  {t('backendUnreachable')}
                 </p>
               </div>
               <button
@@ -531,7 +535,7 @@ export function ResumableExecutionsBanner() {
                     : 'text-amber-900 dark:text-amber-100'
                 }`}
               >
-                {hasRunning ? '進行中の作業' : '中断された作業'}
+                {hasRunning ? t('inProgressWork') : t('interruptedWork')}
               </h3>
               <p
                 className={`text-xs ${
@@ -540,9 +544,9 @@ export function ResumableExecutionsBanner() {
                     : 'text-amber-600 dark:text-amber-400/80'
                 }`}
               >
-                {runningCount > 0 && `${runningCount}件実行中`}
+                {runningCount > 0 && t('runningCount', { count: runningCount })}
                 {runningCount > 0 && interruptedCount > 0 && ' / '}
-                {interruptedCount > 0 && `${interruptedCount}件再開可能`}
+                {interruptedCount > 0 && t('resumableCount', { count: interruptedCount })}
               </p>
             </div>
           </div>
@@ -557,7 +561,7 @@ export function ResumableExecutionsBanner() {
                   ? 'hover:bg-blue-200/60 dark:hover:bg-blue-800/40'
                   : 'hover:bg-amber-200/60 dark:hover:bg-amber-800/40'
               }`}
-              title="すべて閉じる"
+              title={t('closeAll')}
             >
               <X
                 className={`w-4 h-4 ${
@@ -604,18 +608,18 @@ export function ResumableExecutionsBanner() {
                         href={`/tasks/${exec.taskId}?showHeader=true`}
                         className="font-medium text-sm text-zinc-900 dark:text-zinc-100 hover:text-amber-600 dark:hover:text-amber-400 truncate block transition-colors"
                       >
-                        {exec.taskTitle || `タスク #${exec.taskId}`}
+                        {exec.taskTitle || `${t('taskPrefix')}${exec.taskId}`}
                       </a>
                       {(exec.status === 'running' ||
                         exec.status === 'waiting_for_input') && (
                         <span className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[9px] font-medium rounded-full">
                           <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                          実行中
+                          {t('runningStatus')}
                         </span>
                       )}
                       {exec.status === 'interrupted' && (
                         <span className="shrink-0 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[9px] font-medium rounded-full">
-                          中断
+                          {t('interruptedStatus')}
                         </span>
                       )}
                     </div>
@@ -623,8 +627,8 @@ export function ResumableExecutionsBanner() {
                       <Clock className="w-3 h-3 text-zinc-400" />
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
                         {exec.status === 'interrupted'
-                          ? `${formatTimeAgo(exec.startedAt || exec.createdAt)}に中断`
-                          : `${formatTimeAgo(exec.startedAt || exec.createdAt)}に開始`}
+                          ? t('interruptedAt', { time: formatTimeAgo(exec.startedAt || exec.createdAt) })
+                          : t('startedAt', { time: formatTimeAgo(exec.startedAt || exec.createdAt) })}
                       </p>
                     </div>
                   </div>
@@ -650,7 +654,7 @@ export function ResumableExecutionsBanner() {
                       ) : (
                         <Play className="w-3.5 h-3.5" />
                       )}
-                      再開
+                      {tc('resume')}
                     </button>
                   ) : null}
                   <a
@@ -662,13 +666,13 @@ export function ResumableExecutionsBanner() {
                     }`}
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    詳細
+                    {t('details')}
                   </a>
                   <button
                     onClick={() => handleDismiss(exec.id)}
                     disabled={dismissingIds.has(exec.id)}
                     className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
-                    title="閉じる"
+                    title={tc('close')}
                   >
                     {dismissingIds.has(exec.id) ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" />
@@ -699,7 +703,7 @@ export function ResumableExecutionsBanner() {
                     ) : (
                       <Zap className="w-3.5 h-3.5" />
                     )}
-                    最新を再開
+                    {t('resumeLatest')}
                   </button>
                 ) : (
                   <a
@@ -707,7 +711,7 @@ export function ResumableExecutionsBanner() {
                     className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-linear-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-lg text-xs font-semibold transition-all shadow-sm hover:shadow-md"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    実行中のタスクを確認
+                    {t('viewRunningTask')}
                   </a>
                 )}
               </>
@@ -740,8 +744,8 @@ export function ResumableExecutionsBanner() {
                       <Bot className="w-3.5 h-3.5" />
                       <span>
                         {runningCount > 0
-                          ? `${runningCount}件実行中`
-                          : `${interruptedCount}件再開可能`}
+                          ? t('runningCount', { count: runningCount })
+                          : t('resumableCount', { count: interruptedCount })}
                       </span>
                     </div>
                     <ChevronDown
@@ -774,7 +778,7 @@ export function ResumableExecutionsBanner() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
-                                    {exec.taskTitle || `タスク #${exec.taskId}`}
+                                    {exec.taskTitle || `${t('taskPrefix')}${exec.taskId}`}
                                   </span>
                                   {(exec.status === 'running' ||
                                     exec.status === 'waiting_for_input') && (
@@ -784,7 +788,7 @@ export function ResumableExecutionsBanner() {
                                   )}
                                   {exec.status === 'interrupted' && (
                                     <span className="shrink-0 px-1 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[9px] font-medium rounded">
-                                      中断
+                                      {t('interruptedStatus')}
                                     </span>
                                   )}
                                 </div>
@@ -815,7 +819,7 @@ export function ResumableExecutionsBanner() {
                 }`}
               >
                 <Play className="w-3.5 h-3.5" />
-                全て再開
+                {t('resumeAll')}
               </button>
             )}
             {/* 1件の場合でも詳細ボタンを表示 */}
@@ -828,7 +832,7 @@ export function ResumableExecutionsBanner() {
                     : 'border-amber-200/50 dark:border-amber-700/30'
                 }`}
               >
-                詳細
+                {t('details')}
               </button>
             )}
           </div>

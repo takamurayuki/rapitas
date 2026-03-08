@@ -23,6 +23,7 @@ import {
   Activity,
   Globe,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { API_BASE_URL } from '@/utils/api';
 import {
@@ -78,7 +79,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     defaultModel: '',
     models: [],
     requiresApiKey: false,
-    apiKeyPlaceholder: 'Claude CodeはローカルCLIを使用（APIキー不要）',
+    apiKeyPlaceholder: 'claudeCodeLocalCli',
     endpointEditable: false,
   },
   'anthropic-api': {
@@ -100,8 +101,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     defaultModel: '',
     models: [],
     requiresApiKey: false,
-    apiKeyPlaceholder:
-      'Codex CLIはローカルCLIを使用（APIキー不要、ChatGPTアカウントで認証）',
+    apiKeyPlaceholder: 'codexLocalCli',
     endpointEditable: false,
   },
   openai: {
@@ -135,19 +135,18 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     defaultModel: '',
     models: [],
     requiresApiKey: false,
-    apiKeyPlaceholder:
-      'Gemini CLIはローカルCLIを使用（APIキー不要、Googleアカウントで認証）',
+    apiKeyPlaceholder: 'geminiLocalCli',
     endpointEditable: false,
   },
   custom: {
-    name: 'カスタム',
+    name: 'customProvider',
     icon: <Cpu className="w-5 h-5" />,
     color: 'text-zinc-500',
     defaultEndpoint: '',
     defaultModel: '',
     models: [],
     requiresApiKey: true,
-    apiKeyPlaceholder: 'APIキー',
+    apiKeyPlaceholder: 'apiKeyGeneric',
     endpointEditable: true,
   },
 };
@@ -158,6 +157,8 @@ export default function AgentSettingsClient({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const t = useTranslations('agents');
+  const tc = useTranslations('common');
   const router = useRouter();
   const [agent, setAgent] = useState<AgentConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -215,11 +216,11 @@ export default function AgentSettingsClient({
         // Fetch available models for this agent type
         fetchModels(data.agentType);
       } else {
-        setError('エージェントが見つかりません');
+        setError(t('agentNotFound'));
       }
     } catch (err) {
       logger.error('Failed to fetch agent:', err);
-      setError('エージェントの取得に失敗しました');
+      setError(t('agentFetchFailed'));
     } finally {
       setLoading(false);
     }
@@ -235,7 +236,7 @@ export default function AgentSettingsClient({
       case 'endpoint':
         result = validateUrl(
           value,
-          'エンドポイント',
+          t('settingsEndpoint'),
           agent?.agentType === 'custom' || agent?.agentType === 'azure-openai',
         );
         return result.valid ? null : (result.error ?? null);
@@ -276,7 +277,7 @@ export default function AgentSettingsClient({
     const endpointResult = provConfig.endpointEditable
       ? validateUrl(
           endpoint,
-          'エンドポイント',
+          t('settingsEndpoint'),
           agent.agentType === 'custom' || agent.agentType === 'azure-openai',
         )
       : ({ valid: true } as ValidationResult);
@@ -326,7 +327,7 @@ export default function AgentSettingsClient({
       });
 
       if (!configRes.ok) {
-        throw new Error('設定の保存に失敗しました');
+        throw new Error(t('settingsSaveFailed'));
       }
 
       // Save API key if provided
@@ -338,26 +339,26 @@ export default function AgentSettingsClient({
         });
 
         if (!keyRes.ok) {
-          throw new Error('APIキーの保存に失敗しました');
+          throw new Error(t('apiKeySaveFailed'));
         }
       }
 
       setFieldErrors({});
-      setSuccessMessage('設定を保存しました');
+      setSuccessMessage(t('settingsSaved'));
       setApiKey('');
       await fetchAgent();
 
       // Clear success message after 3 seconds
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存に失敗しました');
+      setError(err instanceof Error ? err.message : tc('saveFailed'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteApiKey = async () => {
-    if (!confirm('APIキーを削除しますか？')) return;
+    if (!confirm(t('confirmDeleteApiKey'))) return;
 
     setError('');
     setSuccessMessage('');
@@ -368,15 +369,15 @@ export default function AgentSettingsClient({
       });
 
       if (res.ok) {
-        setSuccessMessage('APIキーを削除しました');
+        setSuccessMessage(t('apiKeyDeleted'));
         await fetchAgent();
         // Clear success message after 3 seconds
         setTimeout(() => setSuccessMessage(''), 3000);
       } else {
-        throw new Error('APIキーの削除に失敗しました');
+        throw new Error(t('apiKeyDeleteFailed'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '削除に失敗しました');
+      setError(err instanceof Error ? err.message : tc('deleteFailed'));
     }
   };
 
@@ -392,13 +393,13 @@ export default function AgentSettingsClient({
       const data = await res.json();
       setTestResult({
         success: data.success,
-        message: data.message || (data.success ? '接続成功' : '接続失敗'),
+        message: data.message || (data.success ? t('connectionSuccess') : t('connectionFailed')),
       });
     } catch (err) {
       logger.error('Failed to test connection:', err);
       setTestResult({
         success: false,
-        message: '接続テストに失敗しました',
+        message: t('connectionTestFailed'),
       });
     } finally {
       setTesting(false);
@@ -406,7 +407,7 @@ export default function AgentSettingsClient({
   };
 
   const handleDelete = async () => {
-    if (!confirm('このエージェント設定を削除しますか？')) return;
+    if (!confirm(t('confirmDeleteAgent'))) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/agents/${id}`, {
@@ -416,10 +417,10 @@ export default function AgentSettingsClient({
       if (res.ok) {
         router.push('/agents');
       } else {
-        throw new Error('削除に失敗しました');
+        throw new Error(tc('deleteFailed'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '削除に失敗しました');
+      setError(err instanceof Error ? err.message : tc('deleteFailed'));
     }
   };
 
@@ -432,13 +433,13 @@ export default function AgentSettingsClient({
       <div className="flex flex-col items-center justify-center h-[calc(100vh-5rem)] bg-background">
         <XCircle className="w-12 h-12 text-red-500 mb-4" />
         <p className="text-zinc-600 dark:text-zinc-400">
-          {error || 'エージェントが見つかりません'}
+          {error || t('agentNotFound')}
         </p>
         <Link
           href="/agents"
           className="mt-4 text-indigo-600 dark:text-indigo-400 hover:underline"
         >
-          エージェント一覧に戻る
+          {t('backToAgentList')}
         </Link>
       </div>
     );
@@ -469,7 +470,7 @@ export default function AgentSettingsClient({
                 {agent.name}
               </h1>
               <p className="text-zinc-500 dark:text-zinc-400">
-                {providerConfig.name}の設定
+                {t('settingsFor', { name: providerConfig.name === 'customProvider' ? t('custom') : providerConfig.name })}
               </p>
             </div>
           </div>
@@ -496,21 +497,21 @@ export default function AgentSettingsClient({
         <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-6 mb-6">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4 flex items-center gap-2">
             <Settings className="w-5 h-5" />
-            基本設定
+            {t('basicSettings')}
           </h2>
 
           <div className="space-y-4">
             {availableModels.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  モデル
+                  {t('model')}
                 </label>
                 <select
                   value={modelId}
                   onChange={(e) => setModelId(e.target.value)}
                   className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 >
-                  <option value="">モデルを選択</option>
+                  <option value="">{t('selectModel')}</option>
                   {availableModels.map((model) => (
                     <option key={model.value} value={model.value}>
                       {model.label}{' '}
@@ -524,7 +525,7 @@ export default function AgentSettingsClient({
             {providerConfig.endpointEditable && (
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  エンドポイント
+                  {t('settingsEndpoint')}
                 </label>
                 <input
                   type="text"
@@ -564,7 +565,7 @@ export default function AgentSettingsClient({
           <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-6 mb-6">
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4 flex items-center gap-2">
               <Key className="w-5 h-5" />
-              APIキー
+              {t('apiKeyTitle')}
             </h2>
 
             {/* Current API Key Status */}
@@ -575,7 +576,7 @@ export default function AgentSettingsClient({
                     <>
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
                       <span className="text-sm text-green-600 dark:text-green-400">
-                        APIキー設定済み
+                        {t('apiKeyConfigured')}
                       </span>
                       {agent.maskedApiKey && (
                         <code className="text-xs bg-zinc-200 dark:bg-zinc-600 px-2 py-1 rounded">
@@ -587,7 +588,7 @@ export default function AgentSettingsClient({
                     <>
                       <XCircle className="w-4 h-4 text-zinc-400" />
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                        APIキー未設定
+                        {t('apiKeyNotConfigured')}
                       </span>
                     </>
                   )}
@@ -596,7 +597,7 @@ export default function AgentSettingsClient({
                   <button
                     onClick={handleDeleteApiKey}
                     className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 p-1 rounded"
-                    title="APIキーを削除"
+                    title={t('deleteApiKey')}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -607,7 +608,7 @@ export default function AgentSettingsClient({
             {/* New API Key Input */}
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                {agent.hasApiKey ? '新しいAPIキー（変更する場合）' : 'APIキー'}
+                {agent.hasApiKey ? t('newApiKey') : t('apiKeyTitle')}
               </label>
               <div className="relative">
                 <input
@@ -621,7 +622,7 @@ export default function AgentSettingsClient({
                       ? 'border-red-400 dark:border-red-600 focus:ring-red-500'
                       : 'border-zinc-300 dark:border-zinc-600 focus:ring-indigo-500'
                   }`}
-                  placeholder={providerConfig.apiKeyPlaceholder}
+                  placeholder={['claudeCodeLocalCli', 'codexLocalCli', 'geminiLocalCli', 'apiKeyGeneric'].includes(providerConfig.apiKeyPlaceholder) ? t(providerConfig.apiKeyPlaceholder as 'claudeCodeLocalCli') : providerConfig.apiKeyPlaceholder}
                 />
                 <button
                   type="button"
@@ -648,7 +649,7 @@ export default function AgentSettingsClient({
                     rel="noopener noreferrer"
                     className="text-indigo-600 dark:text-indigo-400 hover:underline"
                   >
-                    APIキーの取得方法
+                    {t('howToGetApiKey')}
                   </a>
                 </p>
               )}
@@ -659,8 +660,7 @@ export default function AgentSettingsClient({
               <div className="flex gap-2">
                 <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
                 <p className="text-xs text-blue-600 dark:text-blue-400">
-                  APIキーはAES-256-GCMで暗号化されてデータベースに保存されます。
-                  サーバー側で復号化されてAPIリクエストに使用されます。
+                  {t('apiKeyEncryptionInfo')}
                 </p>
               </div>
             </div>
@@ -678,14 +678,9 @@ export default function AgentSettingsClient({
               <div className="flex gap-2">
                 <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <div className="text-sm text-amber-700 dark:text-amber-300">
-                  <p className="font-medium mb-1">ローカルCLIモード</p>
+                  <p className="font-medium mb-1">{t('localCliMode')}</p>
                   <p className="text-xs">
-                    Claude Codeはローカルにインストールされた
-                    <code className="bg-amber-100 dark:bg-amber-800 px-1 rounded">
-                      claude
-                    </code>
-                    コマンドを使用します。 APIキーは不要ですが、Claude
-                    CLIが正しくインストールされている必要があります。
+                    {t('localCliDescription')}
                   </p>
                 </div>
               </div>
@@ -697,7 +692,7 @@ export default function AgentSettingsClient({
         <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-6 mb-6">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4 flex items-center gap-2">
             <TestTube2 className="w-5 h-5" />
-            接続テスト
+            {t('connectionTest')}
           </h2>
 
           <div className="flex items-center gap-4">
@@ -711,7 +706,7 @@ export default function AgentSettingsClient({
               ) : (
                 <TestTube2 className="w-4 h-4" />
               )}
-              接続をテスト
+              {t('testConnection')}
             </button>
 
             {testResult && (
@@ -736,7 +731,7 @@ export default function AgentSettingsClient({
             className="flex items-center gap-2 px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
           >
             <Trash2 className="w-4 h-4" />
-            削除
+            {tc('delete')}
           </button>
 
           <button
@@ -749,7 +744,7 @@ export default function AgentSettingsClient({
             ) : (
               <Save className="w-4 h-4" />
             )}
-            保存
+            {tc('save')}
           </button>
         </div>
       </div>

@@ -383,6 +383,8 @@ export function AIAccordionPanel({
   useEffect(() => {
     const restoreState = async () => {
       if (hasRestoredRef.current || !onRestoreExecutionState) return;
+      // 外部で既に実行が開始されている場合はスキップ（autoExecuteとの競合防止）
+      if (isExecuting) return;
       if (sessionId || executionResult?.sessionId) return;
 
       hasRestoredRef.current = true;

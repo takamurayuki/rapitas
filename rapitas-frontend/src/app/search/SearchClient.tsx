@@ -2,19 +2,22 @@
 
 import { useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Search, SearchX } from 'lucide-react';
 import { useGlobalSearch, type SearchResultType } from '@/hooks/useGlobalSearch';
 import SearchResultCard from '@/feature/search/components/SearchResultCard';
 import Pagination from '@/components/ui/pagination/Pagination';
 
-const TYPE_TABS: { key: SearchResultType | 'all'; label: string }[] = [
-  { key: 'all', label: 'すべて' },
-  { key: 'task', label: 'タスク' },
-  { key: 'comment', label: 'コメント' },
-  { key: 'resource', label: 'リソース' },
-];
-
 export default function SearchClient() {
+  const t = useTranslations('search');
+
+  const TYPE_TABS: { key: SearchResultType | 'all'; label: string }[] = [
+    { key: 'all', label: t('filterAll') },
+    { key: 'task', label: t('filterTask') },
+    { key: 'comment', label: t('filterComment') },
+    { key: 'resource', label: t('filterResource') },
+  ];
+
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialQuery = searchParams.get('q') || '';
@@ -125,7 +128,7 @@ export default function SearchClient() {
       {/* Results info */}
       {query && !loading && (
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 animate-in fade-in-0 duration-200">
-          「{query}」の検索結果: {total}件
+          {t('searchResultsFor', { query, total })}
         </p>
       )}
 
@@ -201,10 +204,10 @@ export default function SearchClient() {
           <div className="text-center py-16 animate-in fade-in-0 duration-300">
             <SearchX className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
             <p className="text-zinc-500 dark:text-zinc-400 mb-2">
-              「{query}」に一致する結果が見つかりませんでした
+              {t('noMatchResults', { query })}
             </p>
             <p className="text-sm text-zinc-400 dark:text-zinc-500">
-              別のキーワードで検索してみてください
+              {t('tryDifferentKeyword')}
             </p>
           </div>
         )}
@@ -214,7 +217,7 @@ export default function SearchClient() {
           <div className="text-center py-16 animate-in fade-in-0 duration-300">
             <Search className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
             <p className="text-zinc-500 dark:text-zinc-400">
-              キーワードを入力して検索を開始してください
+              {t('enterKeywordToSearch')}
             </p>
           </div>
         )}

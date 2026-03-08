@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   LineChart, Line, Area, AreaChart, PieChart, Pie, Cell, RadialBarChart, RadialBar
@@ -78,6 +79,7 @@ const COLORS = [
 ];
 
 function AgentMetricsPage() {
+  const t = useTranslations('agents');
   // State
   const [overview, setOverview] = useState<MetricsOverview | null>(null);
   const [agentMetrics, setAgentMetrics] = useState<AgentMetrics[]>([]);
@@ -138,8 +140,8 @@ function AgentMetricsPage() {
       }
 
     } catch (err) {
-      logger.error('メトリクスデータの取得に失敗しました:', err);
-      setError('メトリクスデータの取得に失敗しました');
+      logger.error('Failed to fetch metrics data:', err);
+      setError(t('metricsFetchFailed'));
     } finally {
       setLoading(false);
     }
@@ -180,10 +182,10 @@ function AgentMetricsPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-              AIエージェントメトリクス
+              {t('metricsTitle')}
             </h1>
             <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-              エージェントの使用状況と性能を詳細に分析
+              {t('metricsDescription')}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -192,7 +194,7 @@ function AgentMetricsPage() {
               className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
             >
               <Download className="w-4 h-4" />
-              データエクスポート
+              {t('dataExport')}
             </button>
           </div>
         </div>
@@ -215,13 +217,13 @@ function AgentMetricsPage() {
         <div className="mb-8 p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center gap-3 mb-4">
             <Filter className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">フィルター設定</h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{t('filterSettings')}</h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                開始日
+                {t('startDate')}
               </label>
               <input
                 type="date"
@@ -233,7 +235,7 @@ function AgentMetricsPage() {
 
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                終了日
+                {t('endDate')}
               </label>
               <input
                 type="date"
@@ -245,22 +247,22 @@ function AgentMetricsPage() {
 
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                期間
+                {t('period')}
               </label>
               <select
                 value={dateRange.period}
                 onChange={(e) => setDateRange(prev => ({ ...prev, period: e.target.value as 'day' | 'week' | 'month' }))}
                 className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
               >
-                <option value="day">日単位</option>
-                <option value="week">週単位</option>
-                <option value="month">月単位</option>
+                <option value="day">{t('periodDay')}</option>
+                <option value="week">{t('periodWeek')}</option>
+                <option value="month">{t('periodMonth')}</option>
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                トレンド期間（日）
+                {t('trendDays')}
               </label>
               <input
                 type="number"
@@ -280,7 +282,7 @@ function AgentMetricsPage() {
             <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-blue-100 text-sm">総実行回数</p>
+                  <p className="text-blue-100 text-sm">{t('totalExecutions')}</p>
                   <p className="text-2xl font-bold">{overview.totalExecutions.toLocaleString()}</p>
                 </div>
                 <Activity className="w-8 h-8 text-blue-200" />
@@ -290,7 +292,7 @@ function AgentMetricsPage() {
             <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-green-100 text-sm">成功率</p>
+                  <p className="text-green-100 text-sm">{t('successRate')}</p>
                   <p className="text-2xl font-bold">{overview.overallSuccessRate.toFixed(1)}%</p>
                 </div>
                 <CheckCircle2 className="w-8 h-8 text-green-200" />
@@ -300,7 +302,7 @@ function AgentMetricsPage() {
             <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-purple-100 text-sm">総トークン使用量</p>
+                  <p className="text-purple-100 text-sm">{t('totalTokenUsage')}</p>
                   <p className="text-2xl font-bold">{(overview.totalTokensUsed / 1000).toFixed(0)}K</p>
                 </div>
                 <Zap className="w-8 h-8 text-purple-200" />
@@ -310,7 +312,7 @@ function AgentMetricsPage() {
             <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-xl p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-orange-100 text-sm">アクティブエージェント</p>
+                  <p className="text-orange-100 text-sm">{t('activeAgents')}</p>
                   <p className="text-2xl font-bold">{overview.activeAgents} / {overview.totalAgents}</p>
                 </div>
                 <Users className="w-8 h-8 text-orange-200" />
@@ -319,11 +321,11 @@ function AgentMetricsPage() {
           </div>
         )}
 
-        {/* 実行トレンドチャート */}
+        {/* {t('executionTrend')}チャート */}
         <div className="mb-8">
           <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
-              実行トレンド
+              {t('executionTrend')}
             </h3>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
@@ -351,7 +353,7 @@ function AgentMetricsPage() {
                     stroke="#10b981"
                     fill="#10b981"
                     fillOpacity={0.6}
-                    name="成功"
+                    name={t('successful')}
                   />
                   <Area
                     type="monotone"
@@ -360,7 +362,7 @@ function AgentMetricsPage() {
                     stroke="#ef4444"
                     fill="#ef4444"
                     fillOpacity={0.6}
-                    name="失敗"
+                    name={t('failed')}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -368,12 +370,12 @@ function AgentMetricsPage() {
           </div>
         </div>
 
-        {/* エージェント性能比較とトークン使用量 */}
+        {/* {t('performanceComparison')}とトークン使用量 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* 性能比較 */}
           <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
-              エージェント性能比較
+              {t('performanceComparison')}
             </h3>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
@@ -397,17 +399,17 @@ function AgentMetricsPage() {
                     }}
                   />
                   <Legend />
-                  <Bar dataKey="executionCount" fill="#3b82f6" name="実行回数" />
-                  <Bar dataKey="successRate" fill="#10b981" name="成功率(%)" />
+                  <Bar dataKey="executionCount" fill="#3b82f6" name={t('executionCount')} />
+                  <Bar dataKey="successRate" fill="#10b981" name={t('successRatePercent')} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* トークン使用量分布 */}
+          {/* {t('tokenDistribution')} */}
           <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
-              トークン使用量分布
+              {t('tokenDistribution')}
             </h3>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
@@ -448,7 +450,7 @@ function AgentMetricsPage() {
         <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
           <div className="p-6 border-b border-zinc-200 dark:border-zinc-700">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              エージェント詳細メトリクス
+              {t('detailMetrics')}
             </h3>
           </div>
 
@@ -457,25 +459,25 @@ function AgentMetricsPage() {
               <thead className="bg-zinc-50 dark:bg-zinc-750">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    エージェント名
+                    {t('agentName')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    モデル
+                    {t('model')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    実行回数
+                    {t('executionCount')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    成功率
+                    {t('successRate')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    平均実行時間
+                    {t('averageExecutionTime')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    トークン使用量
+                    {t('tokenUsage')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    最終実行
+                    {t('lastExecution')}
                   </th>
                 </tr>
               </thead>
@@ -526,7 +528,7 @@ function AgentMetricsPage() {
             </table>
             {agentMetrics.length === 0 && (
               <div className="p-8 text-center text-zinc-500 dark:text-zinc-400">
-                メトリクスデータがありません
+                {t('noMetricsData')}
               </div>
             )}
           </div>

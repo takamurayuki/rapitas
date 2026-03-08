@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import {
   Key,
@@ -59,8 +60,8 @@ type ProviderConfig = {
 const PROVIDERS: ProviderConfig[] = [
   {
     key: 'claude',
-    label: 'Claude API キー',
-    description: 'Anthropic Claude APIを利用するために必要です',
+    label: 'claudeApiKey',
+    description: 'claudeDescription',
     placeholder: 'sk-ant-api...',
     consoleUrl: 'https://console.anthropic.com/',
     consoleName: 'Anthropic Console',
@@ -71,8 +72,8 @@ const PROVIDERS: ProviderConfig[] = [
   },
   {
     key: 'chatgpt',
-    label: 'OpenAI API キー',
-    description: 'ChatGPT / GPT-4 APIを利用するために必要です',
+    label: 'openaiApiKey',
+    description: 'openaiDescription',
     placeholder: 'sk-...',
     consoleUrl: 'https://platform.openai.com/api-keys',
     consoleName: 'OpenAI Platform',
@@ -83,8 +84,8 @@ const PROVIDERS: ProviderConfig[] = [
   },
   {
     key: 'gemini',
-    label: 'Gemini API キー',
-    description: 'Google Gemini APIを利用するために必要です',
+    label: 'geminiApiKey',
+    description: 'geminiDescription',
     placeholder: 'AIza...',
     consoleUrl: 'https://aistudio.google.com/apikey',
     consoleName: 'Google AI Studio',
@@ -152,6 +153,8 @@ function setCachedData<T>(key: string, data: T): void {
 }
 
 function SettingsPage() {
+  const t = useTranslations('settings');
+  const tc = useTranslations('common');
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -207,7 +210,7 @@ function SettingsPage() {
         setCachedData(CACHE_KEYS.settings, data);
       }
     } catch {
-      setError('設定の取得に失敗しました');
+      setError(t('fetchFailed'));
     } finally {
       setIsLoading(false);
     }
@@ -241,7 +244,7 @@ function SettingsPage() {
         }
       }
     } catch (err) {
-      logger.error('APIキー情報の取得に失敗:', err);
+      logger.error(t('apiKeysFetchFailed'), err);
     }
   }, []);
 
@@ -272,7 +275,7 @@ function SettingsPage() {
         setCachedData(CACHE_KEYS.models, data);
       }
     } catch (err) {
-      logger.error('モデル一覧の取得に失敗:', err);
+      logger.error(t('modelsFetchFailed'), err);
     }
   }, []);
 
@@ -292,16 +295,16 @@ function SettingsPage() {
             ? { ...prev, [provider?.modelField ?? '']: model || null }
             : prev,
         );
-        setSuccessMessage('デフォルトモデルを保存しました');
+        setSuccessMessage(t('modelSaved'));
         setTimeout(() => setSuccessMessage(null), 3000);
         // Clear cache to ensure fresh data
         localStorage.removeItem(CACHE_KEYS.settings);
       } else {
         const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error ?? 'モデルの保存に失敗しました');
+        throw new Error(errData?.error ?? t('modelSaveFailed'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました');
+      setError(err instanceof Error ? err.message : tc('errorOccurred'));
     }
   };
 
@@ -317,15 +320,15 @@ function SettingsPage() {
         setSettings((prev) =>
           prev ? { ...prev, defaultAiProvider: provider } : prev,
         );
-        setSuccessMessage('デフォルトAIプロバイダーを保存しました');
+        setSuccessMessage(t('providerSaved'));
         setTimeout(() => setSuccessMessage(null), 3000);
         // Clear cache to ensure fresh data
         localStorage.removeItem(CACHE_KEYS.settings);
       } else {
-        throw new Error('保存に失敗しました');
+        throw new Error(tc('saveFailed'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました');
+      setError(err instanceof Error ? err.message : tc('errorOccurred'));
     }
   };
 
@@ -341,15 +344,15 @@ function SettingsPage() {
         setSettings((prev) =>
           prev ? { ...prev, ...updates } : prev,
         );
-        setSuccessMessage('ワークフロー設定を保存しました');
+        setSuccessMessage(t('workflowSaved'));
         setTimeout(() => setSuccessMessage(null), 3000);
         // Clear cache to ensure fresh data
         localStorage.removeItem(CACHE_KEYS.settings);
       } else {
-        throw new Error('保存に失敗しました');
+        throw new Error(tc('saveFailed'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました');
+      setError(err instanceof Error ? err.message : tc('errorOccurred'));
     }
   };
 
@@ -391,17 +394,17 @@ function SettingsPage() {
           );
         }
 
-        setSuccessMessage(`${provider?.label ?? 'API'}キーを保存しました`);
+        setSuccessMessage(t('keySaved'));
         setTimeout(() => setSuccessMessage(null), 3000);
         // Clear cache to ensure fresh data
         localStorage.removeItem(CACHE_KEYS.apiKeys);
         localStorage.removeItem(CACHE_KEYS.models);
       } else {
         const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error ?? '保存に失敗しました');
+        throw new Error(errData?.error ?? tc('saveFailed'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました');
+      setError(err instanceof Error ? err.message : tc('errorOccurred'));
     } finally {
       updateProviderState(providerKey, { isSaving: false });
     }
@@ -409,7 +412,7 @@ function SettingsPage() {
 
   const deleteApiKey = async (providerKey: string) => {
     const provider = PROVIDERS.find((p) => p.key === providerKey);
-    if (!confirm(`${provider?.label ?? 'API'}キーを削除してもよろしいですか？`))
+    if (!confirm(t('confirmDeleteKey')))
       return;
 
     updateProviderState(providerKey, { isSaving: true });
@@ -433,16 +436,16 @@ function SettingsPage() {
           );
         }
 
-        setSuccessMessage(`${provider?.label ?? 'API'}キーを削除しました`);
+        setSuccessMessage(t('keyDeleted'));
         setTimeout(() => setSuccessMessage(null), 3000);
         // Clear cache to ensure fresh data
         localStorage.removeItem(CACHE_KEYS.apiKeys);
         localStorage.removeItem(CACHE_KEYS.models);
       } else {
-        throw new Error('削除に失敗しました');
+        throw new Error(tc('deleteFailed'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました');
+      setError(err instanceof Error ? err.message : tc('errorOccurred'));
     } finally {
       updateProviderState(providerKey, { isSaving: false });
     }
@@ -461,10 +464,10 @@ function SettingsPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            設定
+            {t('title')}
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            アプリケーションの動作を管理
+            {t('subtitle')}
           </p>
         </div>
       </div>
@@ -498,7 +501,7 @@ function SettingsPage() {
             <div className="flex items-center gap-3">
               <Key className="w-5 h-5 text-zinc-400" />
               <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                API設定
+                {t('apiConfig')}
               </h2>
             </div>
           </div>
@@ -520,10 +523,10 @@ function SettingsPage() {
                       </div>
                       <div>
                         <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                          {provider.label}
+                          {t(provider.label)}
                         </h3>
                         <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                          {provider.description}
+                          {t(provider.description)}
                         </p>
                       </div>
                     </div>
@@ -531,12 +534,12 @@ function SettingsPage() {
                       {isConfigured ? (
                         <span className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-sm font-medium">
                           <CheckCircle className="w-4 h-4" />
-                          設定済み
+                          {tc('configured')}
                         </span>
                       ) : (
                         <span className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-sm font-medium">
                           <AlertCircle className="w-4 h-4" />
-                          未設定
+                          {tc('notConfigured')}
                         </span>
                       )}
                     </div>
@@ -548,7 +551,7 @@ function SettingsPage() {
                       <div className="flex items-center justify-between gap-4">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">
-                            現在のAPIキー
+                            {t('currentApiKey')}
                           </p>
                           <code className="block px-2 py-1 bg-zinc-200 dark:bg-zinc-700 rounded text-sm font-mono truncate">
                             {state.maskedApiKey}
@@ -563,7 +566,7 @@ function SettingsPage() {
                             }
                             className="px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
                           >
-                            変更
+                            {tc('change')}
                           </button>
                           <button
                             onClick={() => deleteApiKey(provider.key)}
@@ -571,7 +574,7 @@ function SettingsPage() {
                             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors disabled:opacity-50"
                           >
                             <Trash2 className="w-4 h-4" />
-                            削除
+                            {tc('delete')}
                           </button>
                         </div>
                       </div>
@@ -585,7 +588,7 @@ function SettingsPage() {
                         htmlFor={`model-${provider.key}`}
                         className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
                       >
-                        デフォルトモデル
+                        {t('defaultModel')}
                       </label>
                       <div className="relative">
                         <select
@@ -601,7 +604,7 @@ function SettingsPage() {
                           }
                           className="w-full appearance-none px-4 py-2.5 pr-10 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-zinc-900 dark:text-zinc-100"
                         >
-                          <option value="">選択してください</option>
+                          <option value="">{tc('select')}</option>
                           {availableModels[provider.key].map((model) => (
                             <option key={model.value} value={model.value}>
                               {model.label}
@@ -621,7 +624,7 @@ function SettingsPage() {
                           htmlFor={`apiKey-${provider.key}`}
                           className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
                         >
-                          APIキー
+                          {t('apiKey')}
                         </label>
                         <div className="relative">
                           <input
@@ -661,7 +664,7 @@ function SettingsPage() {
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-2 text-sm text-violet-600 dark:text-violet-400 hover:underline"
                         >
-                          {provider.consoleName} でAPIキーを取得
+                          {provider.consoleName} {t('getApiKey')}
                           <ExternalLink className="w-3.5 h-3.5" />
                         </a>
                         <div className="flex items-center gap-2">
@@ -676,7 +679,7 @@ function SettingsPage() {
                               }}
                               className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
                             >
-                              キャンセル
+                              {tc('cancel')}
                             </button>
                           )}
                           <button
@@ -691,7 +694,7 @@ function SettingsPage() {
                             ) : (
                               <Save className="w-4 h-4" />
                             )}
-                            保存
+                            {tc('save')}
                           </button>
                         </div>
                       </div>
@@ -710,10 +713,10 @@ function SettingsPage() {
               <Settings className="w-5 h-5 text-zinc-400" />
               <div>
                 <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                  デフォルトAIプロバイダー
+                  {t('defaultAiProvider')}
                 </h2>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-                  フローティングAIやタスク分析で使用するAIを選択
+                  {t('selectDefaultAi')}
                 </p>
               </div>
             </div>
@@ -779,7 +782,7 @@ function SettingsPage() {
                         </p>
                         {!isConfigured && (
                           <p className="text-xs text-amber-500 mt-2">
-                            APIキー未設定
+                            {t('apiKeyNotConfigured')}
                           </p>
                         )}
                       </div>
@@ -798,10 +801,10 @@ function SettingsPage() {
               <ShieldCheck className="w-5 h-5 text-zinc-400" />
               <div>
                 <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                  ワークフロー設定
+                  {t('workflowConfig')}
                 </h2>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-                  AIエージェントのワークフロー動作を管理
+                  {t('manageWorkflow')}
                 </p>
               </div>
             </div>
@@ -810,10 +813,10 @@ function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                  計画の自動承認
+                  {t('autoApprovePlan')}
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                  AIエージェントが作成した計画（plan.md）を自動的に承認し、実装フェーズに移行します
+                  {t('autoApproveDescription')}
                 </p>
               </div>
               <button
@@ -840,10 +843,10 @@ function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                  複雑度の自動分析
+                  {t('autoComplexityAnalysis')}
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                  タスクの複雑度を自動的に分析し、ワークフローモードを設定します。ONの場合、手動でのモード変更はできません
+                  {t('autoComplexityDescription')}
                 </p>
               </div>
               <button
@@ -877,10 +880,10 @@ function SettingsPage() {
               <Terminal className="w-5 h-5 text-zinc-400" />
               <div>
                 <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                  開発ツール
+                  {t('devTools')}
                 </h2>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-                  CLI ツールの管理とセットアップ
+                  {t('cliSetup')}
                 </p>
               </div>
             </div>
@@ -897,10 +900,10 @@ function SettingsPage() {
                   </div>
                   <div>
                     <h3 className="font-medium text-zinc-900 dark:text-zinc-50 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      CLIツール管理
+                      {t('cliManagement')}
                     </h3>
                     <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-                      AI CLI ツールのインストール・認証・バージョン管理
+                      {t('cliDescription')}
                     </p>
                   </div>
                 </div>

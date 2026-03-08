@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Package,
   Download,
@@ -77,6 +78,7 @@ const statusIcons = {
 };
 
 function AgentVersionManagementPage() {
+  const t = useTranslations('agents');
   // State
   const [agentConfigs, setAgentConfigs] = useState<AgentConfig[]>([]);
   const [agentVersions, setAgentVersions] = useState<AgentVersion[]>([]);
@@ -110,8 +112,8 @@ function AgentVersionManagementPage() {
       }
 
     } catch (err) {
-      logger.error('データの取得に失敗しました:', err);
-      setError('データの取得に失敗しました');
+      logger.error('Failed to fetch data:', err);
+      setError(t('dataFetchFailed'));
     } finally {
       setLoading(false);
     }
@@ -140,11 +142,11 @@ function AgentVersionManagementPage() {
         // 成功時はデータを再取得
         await fetchData();
       } else {
-        setError(data.error || 'インストールに失敗しました');
+        setError(data.error || t('installFailed'));
       }
     } catch (err) {
       logger.error('インストールエラー:', err);
-      setError('インストール中にエラーが発生しました');
+      setError(t('installError'));
     } finally {
       setInstalling(prev => {
         const newSet = new Set(prev);
@@ -170,11 +172,11 @@ function AgentVersionManagementPage() {
       if (response.ok && data.success) {
         await fetchData();
       } else {
-        setError(data.error || 'アンインストールに失敗しました');
+        setError(data.error || t('uninstallFailed'));
       }
     } catch (err) {
       logger.error('アンインストールエラー:', err);
-      setError('アンインストール中にエラーが発生しました');
+      setError(t('uninstallError'));
     }
   };
 
@@ -194,11 +196,11 @@ function AgentVersionManagementPage() {
       if (response.ok && data.success) {
         await fetchData();
       } else {
-        setError(data.error || '自動更新設定の変更に失敗しました');
+        setError(data.error || t('autoUpdateFailed'));
       }
     } catch (err) {
       logger.error('自動更新設定エラー:', err);
-      setError('設定変更中にエラーが発生しました');
+      setError(t('autoUpdateError'));
     }
   };
 
@@ -240,10 +242,10 @@ function AgentVersionManagementPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
-              エージェントバージョン管理
+              {t('versionManagement')}
             </h1>
             <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-              AIエージェントのインストール、更新、バージョン管理
+              {t('versionManagementDescription')}
             </p>
           </div>
           <button
@@ -251,7 +253,7 @@ function AgentVersionManagementPage() {
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
-            更新
+            {t('refresh')}
           </button>
         </div>
 
@@ -277,7 +279,7 @@ function AgentVersionManagementPage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
               <input
                 type="text"
-                placeholder="エージェントを検索..."
+                placeholder={t('searchAgent')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
@@ -292,12 +294,12 @@ function AgentVersionManagementPage() {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="pl-10 pr-8 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
               >
-                <option value="all">すべてのステータス</option>
-                <option value="not_installed">未インストール</option>
-                <option value="installed">インストール済み</option>
-                <option value="update_available">更新あり</option>
-                <option value="installing">インストール中</option>
-                <option value="error">エラー</option>
+                <option value="all">{t('allStatuses')}</option>
+                <option value="not_installed">{t('notInstalled')}</option>
+                <option value="installed">{t('installed')}</option>
+                <option value="update_available">{t('updateAvailable')}</option>
+                <option value="installing">{t('installing')}</option>
+                <option value="error">{t('error')}</option>
               </select>
             </div>
           </div>
@@ -333,19 +335,19 @@ function AgentVersionManagementPage() {
                         <div className="flex items-center gap-4 mt-2">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyles[agent.installationStatus]}`}>
                             <StatusIcon className="w-3 h-3 mr-1" />
-                            {agent.installationStatus === 'not_installed' && '未インストール'}
-                            {agent.installationStatus === 'installing' && 'インストール中'}
-                            {agent.installationStatus === 'installed' && 'インストール済み'}
-                            {agent.installationStatus === 'update_available' && '更新あり'}
-                            {agent.installationStatus === 'error' && 'エラー'}
+                            {agent.installationStatus === 'not_installed' && t('notInstalled')}
+                            {agent.installationStatus === 'installing' && t('installing')}
+                            {agent.installationStatus === 'installed' && t('installed')}
+                            {agent.installationStatus === 'update_available' && t('updateAvailable')}
+                            {agent.installationStatus === 'error' && t('error')}
                           </span>
                           {agent.currentVersion && (
                             <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                              現在: v{agent.currentVersion}
+                              {t('current')}: v{agent.currentVersion}
                             </span>
                           )}
                           <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                            最新: v{agent.latestVersion}
+                            {t('latest')}: v{agent.latestVersion}
                           </span>
                         </div>
                       </div>
@@ -362,7 +364,7 @@ function AgentVersionManagementPage() {
                             : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400'
                         }`}
                       >
-                        自動更新: {agent.autoUpdate ? 'ON' : 'OFF'}
+                        {t('autoUpdate')}: {agent.autoUpdate ? 'ON' : 'OFF'}
                       </button>
 
                       {/* インストール/更新ボタン */}
@@ -374,14 +376,14 @@ function AgentVersionManagementPage() {
                         >
                           {isInstalling ? (
                             <>
-                              <RefreshCw className="w-4 h-4 animate-spin" />
-                              インストール中
-                            </>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            {t('installing')}
+                          </>
                           ) : (
                             <>
-                              <Download className="w-4 h-4" />
-                              インストール
-                            </>
+                            <Download className="w-4 h-4" />
+                            {t('install')}
+                          </>
                           )}
                         </button>
                       )}
@@ -394,14 +396,14 @@ function AgentVersionManagementPage() {
                         >
                           {isInstalling ? (
                             <>
-                              <RefreshCw className="w-4 h-4 animate-spin" />
-                              更新中
-                            </>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            {t('updating')}
+                          </>
                           ) : (
                             <>
-                              <RefreshCw className="w-4 h-4" />
-                              更新
-                            </>
+                            <RefreshCw className="w-4 h-4" />
+                            {t('refresh')}
+                          </>
                           )}
                         </button>
                       )}
@@ -412,7 +414,7 @@ function AgentVersionManagementPage() {
                           className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
                         >
                           <Trash2 className="w-4 h-4" />
-                          削除
+                          {t('delete')}
                         </button>
                       )}
 
@@ -436,7 +438,7 @@ function AgentVersionManagementPage() {
                   <div className="border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-750">
                     <div className="p-6">
                       <h4 className="text-md font-medium text-zinc-900 dark:text-zinc-100 mb-4">
-                        利用可能なバージョン
+                        {t('availableVersions')}
                       </h4>
                       <div className="space-y-3">
                         {versions.map((version) => (
@@ -452,12 +454,12 @@ function AgentVersionManagementPage() {
                                 </span>
                                 {version.isStable && (
                                   <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 rounded">
-                                    安定版
+                                    {t('stable')}
                                   </span>
                                 )}
                                 {version.isInstalled && (
                                   <span className="px-2 py-1 text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300 rounded">
-                                    インストール済み
+                                    {t('installed')}
                                   </span>
                                 )}
                               </div>
@@ -477,7 +479,7 @@ function AgentVersionManagementPage() {
                                   disabled={isInstalling}
                                   className="px-3 py-1 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                                 >
-                                  インストール
+                                  {t('install')}
                                 </button>
                               )}
                             </div>
@@ -485,7 +487,7 @@ function AgentVersionManagementPage() {
                         ))}
                         {versions.length === 0 && (
                           <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-                            バージョン情報がありません
+                            {t('noVersionInfo')}
                           </p>
                         )}
                       </div>
@@ -500,7 +502,7 @@ function AgentVersionManagementPage() {
             <div className="text-center py-12">
               <Package className="w-12 h-12 text-zinc-400 mx-auto mb-4" />
               <p className="text-zinc-500 dark:text-zinc-400">
-                条件に一致するエージェントが見つかりませんでした
+                {t('noMatchingAgents')}
               </p>
             </div>
           )}

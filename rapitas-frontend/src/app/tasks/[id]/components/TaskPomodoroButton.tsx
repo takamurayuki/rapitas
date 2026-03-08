@@ -5,6 +5,7 @@ import {
   formatTime,
   getRemainingTime,
 } from '@/feature/tasks/pomodoro/PomodoroProvider';
+import { useTranslations } from 'next-intl';
 
 /** The pomodoro state shape as returned by usePomodoro().state */
 export type PomodoroButtonState = ReturnType<typeof usePomodoro>['state'];
@@ -69,14 +70,15 @@ export default function TaskPomodoroButton({
   pomodoroState,
   onClick,
 }: TaskPomodoroButtonProps) {
+  const t = useTranslations('pomodoro');
   return (
     <button
       onClick={onClick}
       className={getTimerButtonStyle(isThisTaskTimer, pomodoroState)}
-      title={`${taskTitle} - 時間管理`}
+      title={`${taskTitle} - ${t('timeManagement')}`}
     >
       {getTimerIcon(isThisTaskTimer, pomodoroState)}
-      <span>時間管理</span>
+      <span>{t('timeManagement')}</span>
       {isThisTaskTimer && pomodoroState.isTimerRunning && (
         <span className="text-xs font-mono tabular-nums">
           {formatTime(getRemainingTime(pomodoroState))}

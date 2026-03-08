@@ -14,6 +14,7 @@ import NoteProvider from '@/components/note/NoteProvider';
 import CacheWarmupInitializer from '@/components/CacheWarmupInitializer';
 import { AuthProvider } from '@/contexts/AuthContext';
 import ConditionalHeader from '@/components/ConditionalHeader';
+import IntlProvider from '@/components/IntlProvider';
 // import WindowResizeOptimizer from '@/components/WindowResizeOptimizer';
 
 const geistSans = Geist({
@@ -72,33 +73,35 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthProvider>
-          <PomodoroProvider>
-            <ToastProvider>
-              <ExternalLinksProvider>
-                <Suspense fallback={<div className="h-16" />}>
+        <IntlProvider>
+          <AuthProvider>
+            <PomodoroProvider>
+              <ToastProvider>
+                <ExternalLinksProvider>
                   <Suspense fallback={<div className="h-16" />}>
-                    <ConditionalHeader />
+                    <Suspense fallback={<div className="h-16" />}>
+                      <ConditionalHeader />
+                    </Suspense>
+                    {/* <WindowResizeOptimizer /> */}
+                    {children}
+                    <Suspense fallback={null}>
+                      <KeyboardShortcuts />
+                    </Suspense>
+                    <AchievementNotifications />
+                    <Suspense fallback={null}>
+                      <ResumableExecutionsBanner />
+                    </Suspense>
+                    <ScheduleReminderProvider />
+                    <Suspense fallback={null}>
+                      <NoteProvider />
+                    </Suspense>
+                    <CacheWarmupInitializer />
                   </Suspense>
-                  {/* <WindowResizeOptimizer /> */}
-                  {children}
-                  <Suspense fallback={null}>
-                    <KeyboardShortcuts />
-                  </Suspense>
-                  <AchievementNotifications />
-                  <Suspense fallback={null}>
-                    <ResumableExecutionsBanner />
-                  </Suspense>
-                  <ScheduleReminderProvider />
-                  <Suspense fallback={null}>
-                    <NoteProvider />
-                  </Suspense>
-                  <CacheWarmupInitializer />
-                </Suspense>
-              </ExternalLinksProvider>
-            </ToastProvider>
-          </PomodoroProvider>
-        </AuthProvider>
+                </ExternalLinksProvider>
+              </ToastProvider>
+            </PomodoroProvider>
+          </AuthProvider>
+        </IntlProvider>
       </body>
     </html>
   );

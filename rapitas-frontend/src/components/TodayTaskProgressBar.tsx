@@ -2,6 +2,7 @@
 import React, { memo, useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cpu, Activity, Award, Zap, Trophy } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 // --- Cynical & Motivational Messages ---
 const PROGRESS_MESSAGES = [
@@ -107,19 +108,22 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
       Array.from({ length: 8 }, () => ({
         angle: Math.random() * Math.PI * 2,
         distance: 30 + Math.random() * 50,
-      }))
+      })),
     );
 
-    const [popupMsg] = useState(() =>
-      PROGRESS_MESSAGES[Math.floor(Math.random() * PROGRESS_MESSAGES.length)]
+    const [popupMsg] = useState(
+      () =>
+        PROGRESS_MESSAGES[Math.floor(Math.random() * PROGRESS_MESSAGES.length)],
     );
 
     const [rainEffectData] = useState(() =>
       Array.from({ length: 20 }, () => ({
         x: (Math.random() - 0.5) * 800,
         text: Math.random() > 0.5 ? '1010101' : 'TASK_COMPLETE',
-      }))
+      })),
     );
+
+    const t = useTranslations('home');
 
     if (compact) {
       return (
@@ -133,13 +137,13 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                 <motion.div
                   initial={{ scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
-                  transition={{ type: "spring", stiffness: 260, damping: 20 }}
+                  transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                 >
                   <Trophy size={14} className="text-amber-500" />
                 </motion.div>
               )}
               <p className="font-mono text-xs font-black tracking-tight text-slate-800 dark:text-slate-100">
-                本日のタスク
+                {t('todayTask')}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -208,19 +212,20 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                     <>
                       <motion.div
                         initial={{ scale: 0, rotate: -180 }}
-                        animate={{ 
+                        animate={{
                           scale: [1, 1.2, 1],
-                          rotate: 0
+                          rotate: 0,
                         }}
-                        transition={{ 
+                        transition={{
                           scale: { repeat: Infinity, duration: 1.5 },
-                          rotate: { type: "spring", stiffness: 260, damping: 20 }
+                          rotate: {
+                            type: 'spring',
+                            stiffness: 260,
+                            damping: 20,
+                          },
                         }}
                       >
-                        <Trophy
-                          size={16}
-                          className="text-amber-500"
-                        />
+                        <Trophy size={16} className="text-amber-500" />
                       </motion.div>
                       <span className="inline-flex items-center gap-1 px-3 py-1 text-[11px] font-mono font-bold uppercase tracking-wider bg-green-500 text-white rounded-full shadow-md animate-slide-in">
                         <svg

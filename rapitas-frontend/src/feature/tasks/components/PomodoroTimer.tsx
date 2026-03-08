@@ -10,6 +10,7 @@ import {
   Hourglass,
 } from 'lucide-react';
 import { fruit } from '@lucide/lab';
+import { useTranslations } from 'next-intl';
 import {
   usePomodoroStore,
   formatTime,
@@ -52,6 +53,7 @@ export default function PomodoroTimer({
   onStatusChange,
   showTaskTitle = false,
 }: PomodoroTimerProps) {
+  const t = useTranslations('pomodoro');
   const store = usePomodoroStore();
 
   // このタスクのタイマーかどうか
@@ -71,7 +73,7 @@ export default function PomodoroTimer({
   const handleStartTimer = async () => {
     try {
       // タイマー状態を開始
-      store.startTimer(taskId, taskTitle || 'タスク');
+      store.startTimer(taskId, taskTitle || t('taskDefaultName'));
 
       // タスクのstartedAtを更新
       await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
@@ -152,7 +154,7 @@ export default function PomodoroTimer({
         body: JSON.stringify({
           duration: workHours,
           breakDuration: breakHours,
-          note: 'タスク完了',
+          note: t('complete'),
           startedAt: startTime.toISOString(),
           endedAt: endTime.toISOString(),
         }),
@@ -204,7 +206,7 @@ export default function PomodoroTimer({
   const strokeDashoffset = circumference - (progress / 100) * circumference;
 
   const breakType =
-    pomodoroCount > 0 && pomodoroCount % 4 === 0 ? '長い休憩' : '短い休憩';
+    pomodoroCount > 0 && pomodoroCount % 4 === 0 ? t('longBreak') : t('shortBreak');
 
   // 別のタスクでタイマーが動いている場合
   const isOtherTaskRunning = store.isTimerRunning && !isThisTask;
@@ -214,7 +216,7 @@ export default function PomodoroTimer({
       {/* タスク名表示（グローバル表示時のみ） */}
       {showTaskTitle && store.taskTitle && (
         <div className="mb-4 text-sm text-zinc-600 dark:text-zinc-400 w-full text-center">
-          タスク:{' '}
+          {t('taskDefaultName')}:{' '}
           <span className="font-semibold text-zinc-900 dark:text-zinc-50">
             {store.taskTitle}
           </span>
@@ -225,7 +227,7 @@ export default function PomodoroTimer({
       {isOtherTaskRunning && (
         <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-950 rounded-xl border border-yellow-500 text-center">
           <p className="text-sm text-yellow-700 dark:text-yellow-300">
-            別のタスク「{store.taskTitle}」でタイマーが動作中です
+            {t('timerRunningOtherTask', { taskTitle: store.taskTitle ?? '' })}
           </p>
         </div>
       )}
@@ -234,11 +236,11 @@ export default function PomodoroTimer({
       <div className="flex gap-4 mb-4 text-sm text-zinc-600 dark:text-zinc-400">
         <div className="flex items-center gap-1">
           <Hourglass className="w-4 h-4" />
-          <span>作業時間: {formatTime(workSeconds)}</span>
+          <span>{t('workTimeLabel')} {formatTime(workSeconds)}</span>
         </div>
         <div className="flex items-center gap-1">
           <Coffee className="w-4 h-4" />
-          <span>休憩時間: {formatTime(accumulatedBreakSeconds)}</span>
+          <span>{t('breakTimeLabel')} {formatTime(accumulatedBreakSeconds)}</span>
         </div>
       </div>
 
@@ -292,12 +294,12 @@ export default function PomodoroTimer({
           </div>
           <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
             {isBreakTime
-              ? '休憩中'
+              ? t('onBreak')
               : isPaused
-                ? '一時停止'
+                ? t('paused')
                 : isTimerRunning
-                  ? '作業中'
-                  : '準備完了'}
+                  ? t('working')
+                  : t('ready')}
           </div>
         </div>
       </div>
@@ -307,10 +309,10 @@ export default function PomodoroTimer({
         <div className="mb-6 p-6 bg-green-50 dark:bg-green-950 rounded-xl border-2 border-green-500">
           <div className="text-center mb-4">
             <div className="text-lg font-semibold text-green-700 dark:text-green-300 mb-2">
-              25分完了！{breakType}を取りますか？
+              {t('breakPrompt', { breakType })}
             </div>
             <div className="text-sm text-zinc-600 dark:text-zinc-400">
-              ({pomodoroCount % 4 === 0 ? '15' : '5'}分)
+              ({pomodoroCount % 4 === 0 ? '15' : '5'}min)
             </div>
           </div>
           <div className="flex gap-3 justify-center">
@@ -318,13 +320,13 @@ export default function PomodoroTimer({
               onClick={handleTakeBreak}
               className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors"
             >
-              休憩する
+              {t('takeBreak')}
             </button>
             <button
               onClick={handleSkipBreak}
               className="px-6 py-3 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-900 dark:text-zinc-50 rounded-lg font-medium transition-colors"
             >
-              スキップ
+              {t('skip')}
             </button>
           </div>
         </div>
@@ -335,14 +337,14 @@ export default function PomodoroTimer({
         <div className="mb-6 p-6 bg-blue-50 dark:bg-blue-950 rounded-xl border-2 border-blue-500">
           <div className="text-center mb-4">
             <div className="text-lg font-semibold text-blue-700 dark:text-blue-300">
-              休憩終了！作業を再開しましょう
+              {t('breakEndMessage')}
             </div>
           </div>
           <button
             onClick={handleBreakEnd}
             className="w-full px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors"
           >
-            作業を再開
+            {t('resumeWork')}
           </button>
         </div>
       )}
@@ -358,7 +360,7 @@ export default function PomodoroTimer({
                   className="flex items-center gap-2 px-8 py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-semibold transition-all"
                 >
                   <Play className="w-5 h-5" />
-                  再開
+                  {t('resumeWork')}
                 </button>
               ) : (
                 <button
@@ -366,7 +368,7 @@ export default function PomodoroTimer({
                   className="flex items-center gap-2 px-8 py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-semibold transition-all"
                 >
                   <Pause className="w-5 h-5" />
-                  一時停止
+                  {t('pause')}
                 </button>
               )}
               <button
@@ -384,14 +386,14 @@ export default function PomodoroTimer({
                     clipRule="evenodd"
                   />
                 </svg>
-                完了
+                {t('complete')}
               </button>
               <button
                 onClick={handleStopTimer}
                 className="flex items-center gap-2 px-8 py-4 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold transition-all"
               >
                 <Square className="w-5 h-5" />
-                停止
+                {t('stop')}
               </button>
             </>
           ) : (
@@ -401,7 +403,7 @@ export default function PomodoroTimer({
               className="flex items-center gap-2 px-12 py-5 bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-400 disabled:cursor-not-allowed text-white rounded-xl font-bold text-lg transition-all"
             >
               <Play className="w-6 h-6" />
-              開始
+              {t('start')}
             </button>
           )}
         </div>

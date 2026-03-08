@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { ExamGoal, StudyStreak } from '@/types';
 import {
   BarChart3,
@@ -45,6 +46,8 @@ type StreakInfo = {
 };
 
 export default function DashboardPage() {
+  const t = useTranslations('dashboard');
+  const tc = useTranslations('common');
   const [overview, setOverview] = useState<OverviewStats | null>(null);
   const [dailyStudy, setDailyStudy] = useState<DailyStudy[]>([]);
   const [streakInfo, setStreakInfo] = useState<StreakInfo | null>(null);
@@ -129,10 +132,10 @@ export default function DashboardPage() {
         <BarChart3 className="w-8 h-8 text-indigo-500" />
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            ダッシュボード
+            {t('title')}
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            学習の進捗と統計を確認
+            {t('subtitle')}
           </p>
         </div>
       </div>
@@ -143,13 +146,13 @@ export default function DashboardPage() {
         <div className="bg-linear-to-br from-orange-500 to-red-500 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between mb-2">
             <Flame className="w-8 h-8" />
-            <span className="text-xs opacity-75">連続記録</span>
+            <span className="text-xs opacity-75">{t('streak')}</span>
           </div>
           <div className="text-3xl font-bold mb-1">
-            {streakInfo?.currentStreak || 0}日
+            {streakInfo?.currentStreak || 0}{t('consecutiveDays')}
           </div>
           <p className="text-sm opacity-75">
-            最長: {streakInfo?.longestStreak || 0}日
+            {t('streak')}: {streakInfo?.longestStreak || 0}{t('consecutiveDays')}
           </p>
         </div>
 
@@ -157,37 +160,37 @@ export default function DashboardPage() {
         <div className="bg-linear-to-br from-emerald-500 to-teal-500 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between mb-2">
             <CheckCircle2 className="w-8 h-8" />
-            <span className="text-xs opacity-75">今日</span>
+            <span className="text-xs opacity-75">{tc('today')}</span>
           </div>
           <div className="text-3xl font-bold mb-1">
             {overview?.tasks.todayCompleted || 0}
           </div>
-          <p className="text-sm opacity-75">タスク完了</p>
+          <p className="text-sm opacity-75">{t('taskComplete')}</p>
         </div>
 
         {/* 週間学習時間 */}
         <div className="bg-linear-to-br from-blue-500 to-indigo-500 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between mb-2">
             <Clock className="w-8 h-8" />
-            <span className="text-xs opacity-75">今週</span>
+            <span className="text-xs opacity-75">{t('thisWeek')}</span>
           </div>
           <div className="text-3xl font-bold mb-1">
             {overview?.studyTime.weekHours || 0}h
           </div>
-          <p className="text-sm opacity-75">学習時間</p>
+          <p className="text-sm opacity-75">{t('studyHours')}</p>
         </div>
 
         {/* 全体進捗 */}
         <div className="bg-linear-to-br from-violet-500 to-purple-500 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between mb-2">
             <TrendingUp className="w-8 h-8" />
-            <span className="text-xs opacity-75">全体</span>
+            <span className="text-xs opacity-75">{t('overall')}</span>
           </div>
           <div className="text-3xl font-bold mb-1">
             {overview?.tasks.completionRate || 0}%
           </div>
           <p className="text-sm opacity-75">
-            {overview?.tasks.completed || 0}/{overview?.tasks.total || 0} 完了
+            {overview?.tasks.completed || 0}/{overview?.tasks.total || 0} {t('taskComplete')}
           </p>
         </div>
       </div>
@@ -197,7 +200,7 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
           <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
             <Clock className="w-5 h-5" />
-            過去2週間の学習時間
+            {t('pastTwoWeeks')}
           </h2>
 
           {dailyStudy.length > 0 ? (
@@ -222,7 +225,7 @@ export default function DashboardPage() {
                               : 'bg-zinc-200 dark:bg-zinc-700'
                         }`}
                         style={{ height: `${height}%` }}
-                        title={`${day.hours}時間`}
+                        title={`${day.hours}${tc('hours')}`}
                       />
                     </div>
                   );
@@ -240,23 +243,21 @@ export default function DashboardPage() {
 
               <div className="flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400 mt-2">
                 <span>
-                  合計:{' '}
                   {dailyStudy.reduce((sum, d) => sum + d.hours, 0).toFixed(1)}
-                  時間
+                  {tc('hours')}
                 </span>
                 <span>
-                  平均:{' '}
                   {(
                     dailyStudy.reduce((sum, d) => sum + d.hours, 0) /
                     dailyStudy.length
                   ).toFixed(1)}
-                  時間/日
+                  {tc('hoursPerDay')}
                 </span>
               </div>
             </div>
           ) : (
             <div className="h-40 flex items-center justify-center text-zinc-400 dark:text-zinc-500">
-              学習記録がありません
+              {t('noRecords')}
             </div>
           )}
         </div>
@@ -265,7 +266,7 @@ export default function DashboardPage() {
         <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
           <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
             <Target className="w-5 h-5" />
-            直近の試験
+            {t('upcomingExams')}
           </h2>
 
           {overview?.upcomingExams && overview.upcomingExams.length > 0 ? (
@@ -281,7 +282,7 @@ export default function DashboardPage() {
                     </span>
                     {exam.targetScore && (
                       <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                        目標: {exam.targetScore}
+                        {t('target')}: {exam.targetScore}
                       </span>
                     )}
                   </div>
@@ -298,19 +299,19 @@ export default function DashboardPage() {
                   href="/exam-goals"
                   className="block text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
-                  他 {overview.upcomingExams.length - 3} 件を表示
+                  {tc('other')} {overview.upcomingExams.length - 3} {tc('items')}
                 </a>
               )}
             </div>
           ) : (
             <div className="h-32 flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500">
               <Target className="w-8 h-8 mb-2 opacity-50" />
-              <p className="text-sm">試験目標がありません</p>
+              <p className="text-sm">{t('noExamGoals')}</p>
               <a
                 href="/exam-goals"
                 className="mt-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
               >
-                試験目標を追加
+                {t('addExamGoal')}
               </a>
             </div>
           )}
@@ -321,7 +322,7 @@ export default function DashboardPage() {
       <div className="mt-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
         <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
           <Award className="w-5 h-5" />
-          今週のサマリー
+          {t('weeklySummary')}
         </h2>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -330,7 +331,7 @@ export default function DashboardPage() {
               {overview?.tasks.weekCompleted || 0}
             </div>
             <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              完了タスク
+              {t('completedTasks')}
             </div>
           </div>
 
@@ -339,7 +340,7 @@ export default function DashboardPage() {
               {overview?.studyTime.weekHours || 0}h
             </div>
             <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              学習時間
+              {t('studyHours')}
             </div>
           </div>
 
@@ -348,7 +349,7 @@ export default function DashboardPage() {
               {streakInfo?.currentStreak || 0}
             </div>
             <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              連続日数
+              {t('consecutiveDays')}
             </div>
           </div>
 
@@ -357,7 +358,7 @@ export default function DashboardPage() {
               {overview?.upcomingExams?.length || 0}
             </div>
             <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              控えている試験
+              {t('controllingExams')}
             </div>
           </div>
         </div>

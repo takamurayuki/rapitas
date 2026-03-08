@@ -25,6 +25,7 @@ import {
   Draggable,
   type DropResult,
 } from '@hello-pangea/dnd';
+import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { ListSkeleton } from '@/components/ui/LoadingSpinner';
 import { DirectoryPicker } from '@/components/ui/DirectoryPicker';
@@ -94,6 +95,8 @@ const defaultFormData: FormData = {
 };
 
 export default function ThemesPage() {
+  const t = useTranslations('themes');
+  const tc = useTranslations('common');
   const { showToast } = useToast();
   const clearFilterCache = useFilterDataStore((s) => s.clearCache);
   const [items, setItems] = useState<Theme[]>([]);
@@ -170,15 +173,15 @@ export default function ThemesPage() {
       const data = await res.json();
 
       if (data.success) {
-        showToast('フォルダを作成しました', 'success');
+        showToast(t('folderCreated'), 'success');
         setDirStatus({ checking: false, exists: true, isGitRepo: false });
         setShowCreateFolder(false);
         setNewFolderName('');
       } else {
-        showToast(data.error || 'フォルダの作成に失敗しました', 'error');
+        showToast(data.error || t('folderCreateFailed'), 'error');
       }
     } catch {
-      showToast('フォルダの作成に失敗しました', 'error');
+      showToast(t('folderCreateFailed'), 'error');
     } finally {
       setIsCreatingDir(false);
     }
@@ -187,14 +190,14 @@ export default function ThemesPage() {
   // 親ディレクトリ + 新フォルダ名でパスを構成して作成
   const handleCreateNewFolder = async () => {
     if (!newFolderName.trim()) {
-      showToast('フォルダ名を入力してください', 'error');
+      showToast(t('folderNameRequired'), 'error');
       return;
     }
 
     // フォルダ名のバリデーション
     const invalidChars = /[<>:"/\\|?*]/;
     if (invalidChars.test(newFolderName)) {
-      showToast('フォルダ名に使用できない文字が含まれています', 'error');
+      showToast(t('folderNameInvalid'), 'error');
       return;
     }
 
@@ -215,17 +218,17 @@ export default function ThemesPage() {
       const data = await res.json();
 
       if (data.success) {
-        showToast('フォルダを作成しました', 'success');
+        showToast(t('folderCreated'), 'success');
         // 作成したフォルダをworkingDirectoryに設定
         setFormData({ ...formData, workingDirectory: data.path });
         setDirStatus({ checking: false, exists: true, isGitRepo: false });
         setShowCreateFolder(false);
         setNewFolderName('');
       } else {
-        showToast(data.error || 'フォルダの作成に失敗しました', 'error');
+        showToast(data.error || t('folderCreateFailed'), 'error');
       }
     } catch {
-      showToast('フォルダの作成に失敗しました', 'error');
+      showToast(t('folderCreateFailed'), 'error');
     } finally {
       setIsCreatingDir(false);
     }
@@ -235,11 +238,11 @@ export default function ThemesPage() {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/themes`);
-      if (!res.ok) throw new Error('取得に失敗しました');
+      if (!res.ok) throw new Error(tc('fetchFailed'));
       setItems(await res.json());
     } catch (e) {
       logger.error(e);
-      showToast('テーマの取得に失敗しました', 'error');
+      showToast(t('fetchFailed'), 'error');
     } finally {
       setLoading(false);
     }
@@ -289,11 +292,11 @@ export default function ThemesPage() {
 
   const handleAdd = async () => {
     if (!formData.name.trim()) {
-      showToast('テーマ名を入力してください', 'error');
+      showToast(t('themeNameRequired'), 'error');
       return;
     }
     if (!formData.categoryId) {
-      showToast('カテゴリを選択してください', 'error');
+      showToast(t('categoryRequired'), 'error');
       return;
     }
 
@@ -304,31 +307,31 @@ export default function ThemesPage() {
         body: JSON.stringify(formData),
       });
 
-      if (!res.ok) throw new Error('作成に失敗しました');
+      if (!res.ok) throw new Error(tc('createFailed'));
 
       // 開発プロジェクトの場合、作業ディレクトリをお気に入りに自動登録
       if (formData.isDevelopment && formData.workingDirectory) {
         await addWorkingDirectoryToFavorites(formData.workingDirectory);
       }
 
-      showToast('テーマを作成しました', 'success');
+      showToast(t('created'), 'success');
       setIsAdding(false);
       resetForm();
       clearFilterCache();
       fetchItems();
     } catch (e) {
       logger.error(e);
-      showToast('テーマの作成に失敗しました', 'error');
+      showToast(t('createFailed'), 'error');
     }
   };
 
   const handleUpdate = async (id: number) => {
     if (!formData.name.trim()) {
-      showToast('テーマ名を入力してください', 'error');
+      showToast(t('themeNameRequired'), 'error');
       return;
     }
     if (!formData.categoryId) {
-      showToast('カテゴリを選択してください', 'error');
+      showToast(t('categoryRequired'), 'error');
       return;
     }
 
@@ -344,7 +347,7 @@ export default function ThemesPage() {
       logger.debug('Response status:', res.status, 'Response:', responseText);
 
       if (!res.ok) {
-        let errorMessage = `更新に失敗しました (${res.status})`;
+        let errorMessage = t('updateFailedStatus', { status: String(res.status) });
         try {
           const errorData = JSON.parse(responseText);
           if (errorData.error) {
@@ -364,7 +367,7 @@ export default function ThemesPage() {
         await addWorkingDirectoryToFavorites(formData.workingDirectory);
       }
 
-      showToast('テーマを更新しました', 'success');
+      showToast(t('updated'), 'success');
       setEditingId(null);
       setIconSearchQuery('');
       clearFilterCache();
@@ -372,28 +375,28 @@ export default function ThemesPage() {
     } catch (e) {
       logger.error('Theme update error:', e);
       showToast(
-        e instanceof Error ? e.message : 'テーマの更新に失敗しました',
+        e instanceof Error ? e.message : t('updateFailed'),
         'error',
       );
     }
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`「${name}」を削除しますか？`)) return;
+    if (!confirm(t('deleteConfirm', { name }))) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/themes/${id}`, {
         method: 'DELETE',
       });
 
-      if (!res.ok) throw new Error('削除に失敗しました');
+      if (!res.ok) throw new Error(tc('deleteFailed'));
 
-      showToast('テーマを削除しました', 'success');
+      showToast(t('deleted'), 'success');
       clearFilterCache();
       fetchItems();
     } catch (e) {
       logger.error(e);
-      showToast('テーマの削除に失敗しました', 'error');
+      showToast(t('deleteFailed'), 'error');
     }
   };
 
@@ -403,13 +406,13 @@ export default function ThemesPage() {
         method: 'PATCH',
       });
 
-      if (!res.ok) throw new Error('デフォルト設定に失敗しました');
+      if (!res.ok) throw new Error(t('defaultSetFailed'));
 
-      showToast('デフォルトテーマを設定しました', 'success');
+      showToast(t('defaultSet'), 'success');
       fetchItems();
     } catch (e) {
       logger.error(e);
-      showToast('デフォルトテーマの設定に失敗しました', 'error');
+      showToast(t('defaultSetFailed'), 'error');
     }
   };
 
@@ -494,11 +497,11 @@ export default function ThemesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orders }),
       });
-      if (!res.ok) throw new Error('並び替えに失敗しました');
+      if (!res.ok) throw new Error(t('reorderFailed'));
       clearFilterCache();
     } catch (e) {
       logger.error(e);
-      showToast('並び替えに失敗しました', 'error');
+      showToast(t('reorderFailed'), 'error');
       fetchItems();
     }
   };
@@ -532,13 +535,13 @@ export default function ThemesPage() {
       <div className="space-y-3">
         <div>
           <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            テーマ名 <span className="text-red-500">*</span>
+            {t('themeName')} <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="テーマ名を入力"
+            placeholder={t('themeNamePlaceholder')}
             className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
             autoFocus
           />
@@ -546,14 +549,14 @@ export default function ThemesPage() {
 
         <div>
           <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            説明（任意）
+            {tc('descriptionOptional')}
           </label>
           <textarea
             value={formData.description}
             onChange={(e) =>
               setFormData({ ...formData, description: e.target.value })
             }
-            placeholder="説明を入力"
+            placeholder={t('descriptionPlaceholder')}
             rows={1}
             className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none"
           />
@@ -562,7 +565,7 @@ export default function ThemesPage() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              カラー
+              {tc('color')}
             </label>
             <div className="flex gap-2 items-center">
               <input
@@ -586,7 +589,7 @@ export default function ThemesPage() {
 
           <div>
             <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              選択中のアイコン
+              {t('selectedIcon')}
             </label>
             <div
               className="h-9 rounded-lg border-2 flex items-center justify-center"
@@ -604,7 +607,7 @@ export default function ThemesPage() {
 
         <div>
           <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            アイコンを選択 {!formData.icon && '(未選択時: SwatchBook)'}
+            {t('selectIconLabel')} {!formData.icon && t('iconNotSelected')}
           </label>
 
           <div className="relative mb-2">
@@ -613,7 +616,7 @@ export default function ThemesPage() {
               type="text"
               value={iconSearchQuery}
               onChange={(e) => setIconSearchQuery(e.target.value)}
-              placeholder="アイコンを検索...（例: 本、仕事、星）"
+              placeholder={t('searchIconPlaceholder')}
               className="w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
             />
           </div>
@@ -621,7 +624,7 @@ export default function ThemesPage() {
           <div className="max-h-36 overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
             {filteredIcons.length === 50 && debouncedIconSearchQuery && (
               <div className="p-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
-                表示数が多いため、最初の50件のみ表示しています。絞り込むには検索ワードを追加してください。
+                {t('iconLimitWarning')}
               </div>
             )}
             <div className="grid grid-cols-8 gap-1 p-2">
@@ -643,7 +646,7 @@ export default function ThemesPage() {
       {categories.length > 0 && (
         <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4 space-y-3">
           <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-            所属カテゴリ <span className="text-red-500">*</span>
+            {t('belongsToCategory')} <span className="text-red-500">*</span>
           </label>
           {selectedCategoryId !== null ? (
             <div className="flex items-center gap-2">
@@ -679,7 +682,7 @@ export default function ThemesPage() {
               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
             >
               <option value="" disabled>
-                カテゴリを選択してください
+                {t('selectCategory')}
               </option>
               {categories.map((cat) => (
                 <option key={cat.id} value={cat.id}>
@@ -716,20 +719,20 @@ export default function ThemesPage() {
           />
           <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
             <Code className="w-3.5 h-3.5" />
-            開発プロジェクトとして設定
+            {t('devProject')}
           </span>
         </label>
 
         {formData.isDevelopment && (
           <div className="space-y-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
             <p className="text-xs text-purple-700 dark:text-purple-300 mb-2">
-              開発プロジェクトとして設定すると、このテーマのタスクでAI開発モードを使用する際に、以下の設定が自動適用されます。
+              {t('devProjectDescription')}
             </p>
 
             <div>
               <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1 flex items-center gap-1.5">
                 <FolderGit2 className="w-3.5 h-3.5" />
-                GitHubリポジトリURL
+                {t('githubRepoUrl')}
               </label>
               <input
                 type="text"
@@ -745,7 +748,7 @@ export default function ThemesPage() {
             <div>
               <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1 flex items-center gap-1.5">
                 <FolderOpen className="w-3.5 h-3.5" />
-                作業ディレクトリ（ローカルパス）
+                {t('workingDirectory')}
               </label>
               <DirectoryPicker
                 value={formData.workingDirectory}
@@ -753,7 +756,7 @@ export default function ThemesPage() {
                   setFormData({ ...formData, workingDirectory: path });
                   checkDirectory(path);
                 }}
-                placeholder="C:\Projects\my-project または /home/user/projects/my-project"
+                placeholder="C:\Projects\my-project / /home/user/projects/my-project"
               />
 
               {/* ディレクトリ存在チェック結果 */}
@@ -762,12 +765,12 @@ export default function ThemesPage() {
                   {dirStatus.checking ? (
                     <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      フォルダの存在を確認中...
+                      {t('checkingFolder')}
                     </div>
                   ) : dirStatus.exists === true ? (
                     <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
                       <CheckCircle className="w-3.5 h-3.5" />
-                      フォルダが見つかりました
+                      {t('folderFound')}
                       {dirStatus.isGitRepo && (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 rounded text-xs">
                           <GitBranch className="w-3 h-3" />
@@ -779,7 +782,7 @@ export default function ThemesPage() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
                         <AlertCircle className="w-3.5 h-3.5" />
-                        フォルダが存在しません
+                        {t('folderNotFound')}
                       </div>
 
                       {/* フォルダ作成UI */}
@@ -796,10 +799,10 @@ export default function ThemesPage() {
                             ) : (
                               <FolderPlus className="w-3 h-3" />
                             )}
-                            作成
+                            {t('createFolder')}
                           </button>
                           <span className="text-xs text-amber-700 dark:text-amber-300">
-                            このパスにフォルダを作成
+                            {t('createFolderAtPath')}
                           </span>
                         </div>
 
@@ -807,7 +810,7 @@ export default function ThemesPage() {
                         {showCreateFolder && (
                           <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800">
                             <p className="text-xs text-amber-700 dark:text-amber-300 mb-1">
-                              別のフォルダ名:
+                              {t('differentFolderName')}
                             </p>
                             <div className="flex items-center gap-1">
                               <input
@@ -821,7 +824,7 @@ export default function ThemesPage() {
                                     handleCreateNewFolder();
                                   }
                                 }}
-                                placeholder="フォルダ名..."
+                                placeholder={t('folderNamePlaceholder')}
                                 className="flex-1 px-2 py-1 text-xs bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
                                 disabled={isCreatingDir}
                               />
@@ -838,7 +841,7 @@ export default function ThemesPage() {
                                 ) : (
                                   <FolderPlus className="w-3 h-3" />
                                 )}
-                                作成
+                                {t('createFolder')}
                               </button>
                             </div>
                           </div>
@@ -850,15 +853,14 @@ export default function ThemesPage() {
               )}
 
               <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                Claude
-                Codeがコード変更を行うローカルのプロジェクトフォルダを指定してください。
+                {t('workingDirectoryHelp')}
               </p>
             </div>
 
             <div>
               <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1 flex items-center gap-1.5">
                 <GitBranch className="w-3.5 h-3.5" />
-                デフォルトブランチ
+                {t('defaultBranch')}
               </label>
               <input
                 type="text"
@@ -880,7 +882,7 @@ export default function ThemesPage() {
           className="flex items-center gap-1.5 rounded-lg bg-zinc-200 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-all font-medium"
         >
           <X className="w-3.5 h-3.5" />
-          キャンセル
+          {tc('cancel')}
         </button>
         <button
           onClick={() =>
@@ -889,7 +891,7 @@ export default function ThemesPage() {
           className="flex items-center gap-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 px-3 py-2 text-sm text-white transition-all shadow-lg hover:shadow-xl font-medium"
         >
           <Save className="w-3.5 h-3.5" />
-          {isEdit ? '保存' : '作成'}
+          {isEdit ? tc('save') : tc('create')}
         </button>
       </div>
     </div>
@@ -903,10 +905,10 @@ export default function ThemesPage() {
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
               <SwatchBook className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              テーマ一覧
+              {t('title')}
             </h1>
             <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-              テーマを管理します。開発プロジェクトの設定もここで行えます。
+              {t('subtitle')}
             </p>
           </div>
           {!isAdding && (
@@ -923,7 +925,7 @@ export default function ThemesPage() {
               className="flex items-center gap-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 px-4 py-2 text-sm text-white transition-all shadow-lg hover:shadow-xl font-medium"
             >
               <Plus className="w-4 h-4" />
-              新規テーマ
+              {t('newTheme')}
             </button>
           )}
         </div>
@@ -932,7 +934,7 @@ export default function ThemesPage() {
         {categories.length > 0 && (
           <div className="mb-4 flex items-center gap-1.5 overflow-x-auto pb-1">
             {categories.map((cat) => {
-              const count = items.filter((t) => t.categoryId === cat.id).length;
+              const count = items.filter((ti) => ti.categoryId === cat.id).length;
               const isSelected = selectedCategoryId === cat.id;
               return (
                 <button
@@ -1001,10 +1003,10 @@ export default function ThemesPage() {
                 <div className="text-center py-16 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
                   <SwatchBook className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
                   <p className="text-lg font-medium mb-2">
-                    このカテゴリにテーマがありません
+                    {t('noCategoryThemes')}
                   </p>
                   <p className="text-sm mb-4">
-                    新規テーマを作成して追加しましょう
+                    {t('noCategoryThemesDescription')}
                   </p>
                 </div>
               ) : (
@@ -1043,7 +1045,7 @@ export default function ThemesPage() {
                                   <div className="p-4">
                                     <h2 className="mb-3 text-base font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
                                       <Edit2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                                      テーマを編集
+                                      {t('editTheme')}
                                     </h2>
                                     {renderForm(true, item.id)}
                                   </div>
@@ -1053,7 +1055,7 @@ export default function ThemesPage() {
                                       <div
                                         {...provided.dragHandleProps}
                                         className="flex items-center justify-center w-6 shrink-0 cursor-grab active:cursor-grabbing text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                                        title="ドラッグして並び替え"
+                                        title={t('dragToReorder')}
                                       >
                                         <GripVertical className="w-5 h-5" />
                                       </div>
@@ -1075,7 +1077,7 @@ export default function ThemesPage() {
                                             <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
                                               <Code className="w-3 h-3" />
                                               <span className="hidden sm:inline">
-                                                開発
+                                                {t('development')}
                                               </span>
                                             </span>
                                           )}
@@ -1108,7 +1110,7 @@ export default function ThemesPage() {
                                                 {item._count.tasks}
                                               </span>
                                               <span className="hidden sm:inline">
-                                                タスク
+                                                {t('tasks')}
                                               </span>
                                             </span>
                                           )}
@@ -1138,8 +1140,8 @@ export default function ThemesPage() {
                                         }`}
                                         title={
                                           item.isDefault
-                                            ? `${item.category?.name ?? 'カテゴリ'}内のデフォルト`
-                                            : `${item.category?.name ?? 'カテゴリ'}内のデフォルトに設定`
+                                            ? t('defaultInCategory', { category: item.category?.name ?? 'Category' })
+                                            : t('setDefaultInCategory', { category: item.category?.name ?? 'Category' })
                                         }
                                       >
                                         <Star
@@ -1147,8 +1149,8 @@ export default function ThemesPage() {
                                         />
                                         <span className="hidden sm:inline">
                                           {item.isDefault
-                                            ? 'デフォルト'
-                                            : 'デフォルト設定'}
+                                            ? t('default')
+                                            : t('setAsDefault')}
                                         </span>
                                       </button>
                                       <button
@@ -1157,7 +1159,7 @@ export default function ThemesPage() {
                                       >
                                         <Edit2 className="w-3.5 h-3.5" />
                                         <span className="hidden sm:inline">
-                                          編集
+                                          {tc('edit')}
                                         </span>
                                       </button>
                                       <button
@@ -1168,7 +1170,7 @@ export default function ThemesPage() {
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
                                         <span className="hidden sm:inline">
-                                          削除
+                                          {tc('delete')}
                                         </span>
                                       </button>
                                     </div>

@@ -53,6 +53,7 @@ import AppIcon from '@/components/AppIcon';
 import GlobalPomodoroWidget from '@/feature/tasks/pomodoro/GlobalPomodoroWidget';
 import { OPEN_SHORTCUTS_EVENT } from '@/components/KeyboardShortcuts';
 import NotificationBell from '@/components/NotificationBell';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useDarkMode } from '@/hooks/use-dark-mode';
 import { isTauri, hideToTray } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
@@ -60,6 +61,7 @@ import { useShortcutStore, type ShortcutId } from '@/stores/shortcutStore';
 import { useAppModeStore, type AppMode } from '@/stores/appModeStore';
 import { useNoteStore } from '@/stores/noteStore';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslations } from 'next-intl';
 
 type NavItem = {
   href: string;
@@ -147,6 +149,8 @@ export default function Header() {
   const shortcutBindings = useShortcutStore((state) => state.shortcuts);
   const appMode = useAppModeStore((state) => state.mode);
   const { modalState, openModal, closeModal } = useNoteStore();
+  const t = useTranslations('nav');
+  const tc = useTranslations('common');
 
   // ショートカットIDからラベルを取得するヘルパー
   const getShortcutLabel = (id: ShortcutId): string | undefined => {
@@ -187,9 +191,7 @@ export default function Header() {
       }
       // タイムアウトした場合もリロードを試行
       setIsRestarting(false);
-      alert(
-        'サーバーの再起動がタイムアウトしました。手動でページをリロードしてください。',
-      );
+      alert(t('restartTimeout'));
     };
     waitForServer();
   };
@@ -380,104 +382,104 @@ export default function Header() {
   const navItems: NavItem[] = [
     {
       href: '/',
-      label: 'タスク一覧',
+      label: t('taskList'),
       icon: Home,
       shortcut: getShortcutLabel('home'),
       children: [
         {
           href: '#',
-          label: 'カテゴリ',
+          label: t('category'),
           icon: FolderOpen,
           children: [
             {
               href: '/categories',
-              label: 'カテゴリ一覧',
+              label: t('categoryList'),
               icon: FolderKanban,
             },
             {
               href: '/themes',
-              label: 'テーマ一覧',
+              label: t('themeList'),
               icon: SwatchBook,
             },
             {
               href: '/labels',
-              label: 'ラベル一覧',
+              label: t('labelList'),
               icon: Tags,
             },
           ],
         },
         {
           href: '/settings/developer-mode',
-          label: 'タスク設定',
+          label: t('taskSettings'),
           icon: Settings,
         },
       ],
     },
     {
       href: '/dashboard',
-      label: 'ダッシュボード',
+      label: t('dashboard'),
       icon: BarChart3,
       shortcut: getShortcutLabel('dashboard'),
     },
     {
       href: '/calendar',
-      label: 'カレンダー',
+      label: t('calendar'),
       icon: Calendar,
       shortcut: getShortcutLabel('calendar'),
     },
     {
       href: '#',
-      label: '学習',
+      label: t('learning'),
       icon: GraduationCap,
       mode: 'learning',
       children: [
         {
           href: '/learning-goals',
-          label: '学習目標',
+          label: t('learningGoals'),
           icon: BookMarked,
         },
         {
           href: '/exam-goals',
-          label: '試験目標',
+          label: t('examGoals'),
           icon: Target,
         },
         {
           href: '/flashcards',
-          label: 'フラッシュカード',
+          label: t('flashcards'),
           icon: Brain,
         },
       ],
     },
     {
       href: '#',
-      label: '習慣・実績',
+      label: t('habitsAchievements'),
       icon: Trophy,
       children: [
         {
           href: '/habits',
-          label: '習慣トラッカー',
+          label: t('habitTracker'),
           icon: Flame,
         },
         {
           href: '/habits/daily-schedule',
-          label: '一日のスケジュール',
+          label: t('dailySchedule'),
           icon: Clock,
         },
         {
           href: '/achievements',
-          label: '実績・バッジ',
+          label: t('achievementsBadges'),
           icon: Trophy,
         },
         {
           href: '/reports',
-          label: '週次レポート',
+          label: t('weeklyReport'),
           icon: FileText,
         },
       ],
     },
     {
       href: '#',
-      label: '開発',
+      label: t('development'),
       icon: Code,
       mode: 'development',
       children: [
@@ -488,7 +490,7 @@ export default function Header() {
           children: [
             {
               href: '/github',
-              label: 'ダッシュボード',
+              label: t('devDashboard'),
               icon: BarChart3,
             },
             {
@@ -505,66 +507,66 @@ export default function Header() {
         },
         {
           href: '#',
-          label: 'エージェント',
+          label: t('agent'),
           icon: Bot,
           children: [
             {
               href: '/agents',
-              label: 'エージェント管理',
+              label: t('agentManagement'),
               icon: Settings,
             },
             {
               href: '/agents/metrics',
-              label: 'メトリクス',
+              label: t('metrics'),
               icon: BarChart3,
             },
             {
               href: '/agents/versions',
-              label: 'バージョン管理',
+              label: t('versionControl'),
               icon: Package,
             },
           ],
         },
         {
           href: '/approvals',
-          label: '承認待ち',
+          label: t('approvals'),
           icon: CheckCircle,
         },
         {
           href: '/system-prompts',
-          label: 'プロンプト管理',
+          label: t('promptManagement'),
           icon: MessageSquare,
         },
         {
           href: '/claude-md-generator',
-          label: 'CLAUDE.md生成',
+          label: t('claudeGeneration'),
           icon: Sparkles,
         },
       ],
     },
     {
       href: '#',
-      label: '設定',
+      label: t('settings'),
       icon: Settings,
       children: [
         {
           href: '/settings/general',
-          label: '全体設定',
+          label: t('generalSettings'),
           icon: Settings,
         },
         {
           href: '/settings',
-          label: 'APIキー設定',
+          label: t('apiKeySettings'),
           icon: Key,
         },
         {
           href: '/settings/cli-tools',
-          label: 'CLIツール管理',
+          label: t('cliTools'),
           icon: Package,
         },
         {
           href: '/settings/shortcuts',
-          label: 'ショートカット設定',
+          label: t('shortcutSettings'),
           icon: Keyboard,
         },
       ],
@@ -893,7 +895,7 @@ export default function Header() {
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                aria-label="メニューを開く"
+                aria-label={t('openMenu')}
               >
                 {isMenuOpen ? (
                   <X className="w-6 h-6" />
@@ -924,7 +926,7 @@ export default function Header() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={handleSearchKeyDown}
-                  placeholder="検索... (Enterで横断検索)"
+                  placeholder={t('searchPlaceholder')}
                   className="w-full pl-10 pr-4 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-zinc-400 dark:placeholder-zinc-500 transition-all"
                 />
                 {searchQuery && (
@@ -966,7 +968,7 @@ export default function Header() {
                     }`}
                   >
                     <List className="w-4 h-4" />
-                    <span>リスト</span>
+                    <span>{t('list')}</span>
                   </button>
                   <button
                     onClick={() => !isListView || toggleView()}
@@ -977,10 +979,13 @@ export default function Header() {
                     }`}
                   >
                     <Columns3 className="w-4 h-4" />
-                    <span>カンバン</span>
+                    <span>{t('kanban')}</span>
                   </button>
                 </div>
               )}
+
+              {/* 言語切替 */}
+              <LanguageSwitcher />
 
               {/* 通知ベル */}
               <NotificationBell />
@@ -991,8 +996,8 @@ export default function Header() {
                   <button
                     onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                     className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                    aria-label="ユーザーメニュー"
-                    title={`${user.username} - ユーザーメニュー`}
+                    aria-label={t('userMenu')}
+                    title={t('userMenuTitle', { username: user.username })}
                   >
                     <User className="w-5 h-5" />
                   </button>
@@ -1007,7 +1012,7 @@ export default function Header() {
                           {user.email}
                         </p>
                         <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
-                          {user.role === 'admin' ? '管理者' : 'ユーザー'}
+                          {user.role === 'admin' ? t('admin') : t('user')}
                         </p>
                       </div>
                       {/* ログアウト */}
@@ -1016,7 +1021,7 @@ export default function Header() {
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                       >
                         <LogOut className="w-4 h-4" />
-                        <span>ログアウト</span>
+                        <span>{t('logout')}</span>
                       </button>
                     </div>
                   )}
@@ -1028,8 +1033,8 @@ export default function Header() {
                 <button
                   onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
                   className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                  aria-label="その他のメニュー"
-                  title="その他のメニュー"
+                  aria-label={t('moreMenu')}
+                  title={t('moreMenu')}
                 >
                   <EllipsisVertical className="w-5 h-5" />
                 </button>
@@ -1054,8 +1059,8 @@ export default function Header() {
                       )}
                       <span>
                         {modalState.isOpen
-                          ? 'ノート・AIを閉じる'
-                          : 'ノート・AI (Ctrl+E)'}
+                          ? t('closeNoteAI')
+                          : t('openNoteAI')}
                       </span>
                     </button>
                     {/* ダークモード切り替え */}
@@ -1072,8 +1077,8 @@ export default function Header() {
                       )}
                       <span>
                         {darkModeMounted && isDarkMode
-                          ? 'ライトモードに切替'
-                          : 'ダークモードに切替'}
+                          ? t('switchToLight')
+                          : t('switchToDark')}
                       </span>
                     </button>
                     {/* 全体設定 */}
@@ -1083,7 +1088,7 @@ export default function Header() {
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
                     >
                       <Settings className="w-4 h-4" />
-                      <span>全体設定</span>
+                      <span>{t('generalSettings')}</span>
                     </Link>
                     {/* トレイ格納ボタン（Tauri環境のみ表示） */}
                     {isTauriEnv && (
@@ -1095,7 +1100,7 @@ export default function Header() {
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
                       >
                         <SquareArrowDown className="w-4 h-4" />
-                        <span>タスクトレイに格納</span>
+                        <span>{t('minimizeToTray')}</span>
                       </button>
                     )}
                     {/* 区切り線 */}
@@ -1112,7 +1117,7 @@ export default function Header() {
                         <RotateCw className="w-4 h-4" />
                       )}
                       <span>
-                        {isRestarting ? '再起動中...' : 'サーバー再起動'}
+                        {isRestarting ? t('restarting') : t('restartServer')}
                       </span>
                     </button>
                   </div>
@@ -1148,9 +1153,9 @@ export default function Header() {
                 : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
             aria-label={
-              isMenuPinned ? 'メニューの固定を解除' : 'メニューを固定'
+              isMenuPinned ? t('unpinMenu') : t('pinMenu')
             }
-            title={isMenuPinned ? 'メニューの固定を解除' : 'メニューを固定'}
+            title={isMenuPinned ? t('unpinMenu') : t('pinMenu')}
           >
             {isMenuPinned ? (
               <PinOff className="w-5 h-5" />
@@ -1179,7 +1184,7 @@ export default function Header() {
             >
               <div className="flex items-center gap-3">
                 <Keyboard className="w-4 h-4" />
-                <span className="text-sm">キーボードショートカット</span>
+                <span className="text-sm">{t('keyboardShortcuts')}</span>
               </div>
               <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
                 {getShortcutLabel('shortcutHelp') || '⌘/'}
@@ -1194,14 +1199,13 @@ export default function Header() {
         <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/50">
           <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-2xl p-6 max-w-sm mx-4">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
-              サーバーを再起動しますか？
+              {t('restartConfirm')}
             </h3>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
-              現在{' '}
               <span className="font-semibold text-amber-600 dark:text-amber-400">
-                {restartConfirmDialog.activeExecutions}件
+                {restartConfirmDialog.activeExecutions}{t('tasksUnit')}
               </span>{' '}
-              のタスクが実行中です。再起動すると実行中のタスクは中断されます。
+              {t('restartWarning')}
             </p>
             <div className="flex gap-3 justify-end">
               <button
@@ -1210,13 +1214,13 @@ export default function Header() {
                 }
                 className="px-4 py-2 text-sm rounded-lg text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
               >
-                キャンセル
+                {tc('cancel')}
               </button>
               <button
                 onClick={executeRestart}
                 className="px-4 py-2 text-sm rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-medium transition-colors"
               >
-                再起動する
+                {t('restart')}
               </button>
             </div>
           </div>
@@ -1229,10 +1233,10 @@ export default function Header() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-2xl p-8 flex flex-col items-center gap-4">
             <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
             <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              サーバーを再起動しています...
+              {t('restartingOverlay')}
             </p>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              完了後に自動でページがリロードされます
+              {t('restartingMessage')}
             </p>
           </div>
         </div>

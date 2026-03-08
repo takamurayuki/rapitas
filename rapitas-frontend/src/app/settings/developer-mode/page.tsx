@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Bot, AlertCircle, Loader2, RotateCcw, Zap, Bug, ShieldCheck } from 'lucide-react';
 import type { UserSettings } from '@/types';
+import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
 import { LoadingSpinner, SkeletonBlock } from '@/components/ui/LoadingSpinner';
@@ -14,6 +15,7 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('DeveloperModePage');
 
 export default function DeveloperModeSettingsPage() {
+  const t = useTranslations('settings');
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -50,7 +52,7 @@ export default function DeveloperModeSettingsPage() {
         setLocalDelay(data.autoGenerateTitleDelay ?? 3);
       }
     } catch {
-      setError('設定の取得に失敗しました');
+      setError(t('fetchFailed'));
     } finally {
       setIsLoading(false);
     }
@@ -71,13 +73,13 @@ export default function DeveloperModeSettingsPage() {
       } else {
         const errorData = await res.json().catch(() => null);
         const errorMsg =
-          errorData?.message || errorData?.error || '更新に失敗しました';
+          errorData?.message || errorData?.error || t('devUpdateFailed');
         throw new Error(errorMsg);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました');
+      setError(err instanceof Error ? err.message : t('devErrorOccurred'));
       showToast(
-        err instanceof Error ? err.message : '設定の保存に失敗しました',
+        err instanceof Error ? err.message : t('devSaveFailed'),
         'error',
       );
     } finally {
@@ -143,11 +145,11 @@ export default function DeveloperModeSettingsPage() {
       } else {
         const errorData = await res.json().catch(() => null);
         const errorMsg =
-          errorData?.message || errorData?.error || '設定の保存に失敗しました';
+          errorData?.message || errorData?.error || t('devSaveFailed');
         setError(errorMsg);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '設定の保存に失敗しました');
+      setError(err instanceof Error ? err.message : t('devSaveFailed'));
     } finally {
       setIsSavingAutoResume(false);
     }
@@ -166,10 +168,10 @@ export default function DeveloperModeSettingsPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            開発者モード
+            {t('devModeTitle')}
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            AI設定とエラー解析ツール
+            {t('devModeSubtitle')}
           </p>
         </div>
       </div>
@@ -178,14 +180,14 @@ export default function DeveloperModeSettingsPage() {
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="ai-settings" className="flex items-center gap-2">
             <Bot className="w-4 h-4" />
-            AI設定
+            {t('devAiSettings')}
           </TabsTrigger>
           <TabsTrigger
             value="error-analysis"
             className="flex items-center gap-2"
           >
             <Bug className="w-4 h-4" />
-            エラー解析
+            {t('devErrorAnalysis')}
           </TabsTrigger>
         </TabsList>
 
@@ -207,7 +209,7 @@ export default function DeveloperModeSettingsPage() {
                 <div className="flex items-center gap-3">
                   <Bot className="w-5 h-5 text-violet-500" />
                   <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                    AIアシスタント設定
+                    {t('devAiAssistantSettings')}
                   </h2>
                 </div>
               </div>
@@ -216,10 +218,10 @@ export default function DeveloperModeSettingsPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                      AIアシスタントを有効にする
+                      {t('devEnableAiAssistant')}
                     </h3>
                     <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                      開発プロジェクトのタスク詳細画面でAIアシスタントパネルを表示します
+                      {t('devEnableAiAssistantDescription')}
                     </p>
                   </div>
                   <button
@@ -252,7 +254,7 @@ export default function DeveloperModeSettingsPage() {
               <div className="flex items-center gap-3">
                 <Zap className="w-5 h-5 text-violet-500" />
                 <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                  タスク作成時の設定
+                  {t('devTaskCreationSettings')}
                 </h2>
               </div>
             </div>
@@ -260,10 +262,10 @@ export default function DeveloperModeSettingsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                    作成後にすぐ実行
+                    {t('devAutoExecuteAfterCreate')}
                   </h3>
                   <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                    タスク作成後、自動的にAIエージェントによる実行を開始します
+                    {t('devAutoExecuteDescription')}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -296,10 +298,10 @@ export default function DeveloperModeSettingsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                    タイトルの自動生成
+                    {t('devAutoGenerateTitle')}
                   </h3>
                   <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                    説明を入力すると、AIが自動的にタスクのタイトルを生成します
+                    {t('devAutoGenerateTitleDescription')}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -333,10 +335,10 @@ export default function DeveloperModeSettingsPage() {
                   <div className="flex items-center justify-between mt-3 ml-4 pl-4 border-l-2 border-violet-200 dark:border-violet-800">
                     <div>
                       <h3 className="font-medium text-sm text-zinc-900 dark:text-zinc-50">
-                        自動生成までの待機時間
+                        {t('devAutoGenerateDelay')}
                       </h3>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                        入力が止まってから自動生成を開始するまでの秒数
+                        {t('devAutoGenerateDelayDescription')}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -350,17 +352,17 @@ export default function DeveloperModeSettingsPage() {
                         className="w-16 px-2 py-1 text-sm text-center rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-violet-500"
                       />
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                        秒
+                        {t('devSeconds')}
                       </span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-3 ml-4 pl-4 border-l-2 border-violet-200 dark:border-violet-800">
                     <div>
                       <h3 className="font-medium text-sm text-zinc-900 dark:text-zinc-50">
-                        タイトル生成後に自動作成
+                        {t('devAutoCreateAfterTitle')}
                       </h3>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                        AIによるタイトル生成が完了したら自動的にタスクを作成します
+                        {t('devAutoCreateAfterTitleDescription')}
                       </p>
                     </div>
                     <button
@@ -395,10 +397,10 @@ export default function DeveloperModeSettingsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                    AI提案の自動取得
+                    {t('devAutoFetchSuggestions')}
                   </h3>
                   <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                    テーマを選択した際に、AIによるタスク提案を自動的に取得します
+                    {t('devAutoFetchSuggestionsDescription')}
                   </p>
                 </div>
                 <button
@@ -435,7 +437,7 @@ export default function DeveloperModeSettingsPage() {
               <div className="flex items-center gap-3">
                 <RotateCcw className="w-5 h-5 text-violet-500" />
                 <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                  タスク自動再開設定
+                  {t('devAutoResumeSettings')}
                 </h2>
               </div>
             </div>
@@ -443,10 +445,10 @@ export default function DeveloperModeSettingsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                    中断タスク自動再開
+                    {t('devAutoResumeInterrupted')}
                   </h3>
                   <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                    アプリ起動時に中断されたAIエージェントのタスクを自動再開します
+                    {t('devAutoResumeDescription')}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -483,7 +485,7 @@ export default function DeveloperModeSettingsPage() {
               <div className="flex items-center gap-3">
                 <ShieldCheck className="w-5 h-5 text-violet-500" />
                 <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                  ワークフロー設定
+                  {t('workflowConfig')}
                 </h2>
               </div>
             </div>
@@ -491,10 +493,10 @@ export default function DeveloperModeSettingsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                    計画の自動承認
+                    {t('autoApprovePlan')}
                   </h3>
                   <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                    AIエージェントが作成した計画（plan.md）を自動的に承認し、実装フェーズに移行します
+                    {t('autoApproveDescription')}
                   </p>
                 </div>
                 <button
@@ -524,10 +526,10 @@ export default function DeveloperModeSettingsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-                    複雑度の自動分析
+                    {t('autoComplexityAnalysis')}
                   </h3>
                   <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                    タスクの複雑度を自動的に分析し、ワークフローモードを設定します。ONの場合、手動でのモード変更はできません
+                    {t('autoComplexityDescription')}
                   </p>
                 </div>
                 <button

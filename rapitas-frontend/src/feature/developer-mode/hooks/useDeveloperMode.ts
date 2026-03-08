@@ -116,6 +116,10 @@ export function useDeveloperMode(taskId: number) {
    * アプリ再起動後もログを復元できるようにDBからログ履歴を取得する
    */
   const restoreExecutionState = useCallback(async () => {
+    // 既に実行が開始されている場合はスキップ（autoExecuteとの競合防止）
+    if (isExecutingRef.current) {
+      return null;
+    }
     try {
       // まず実行ステータスを確認
       const statusRes = await fetch(

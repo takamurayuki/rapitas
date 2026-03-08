@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Habit } from '@/types';
 import Link from 'next/link';
 import { Plus, Edit2, Trash2, Check, Target, Flame, Clock } from 'lucide-react';
@@ -22,6 +23,8 @@ const PRESET_COLORS = [
 ];
 
 export default function HabitsPage() {
+  const t = useTranslations('habits');
+  const tc = useTranslations('common');
   const [habits, setHabits] = useState<Habit[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -107,7 +110,7 @@ export default function HabitsPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('この習慣を削除しますか？')) return;
+    if (!confirm(t('confirmDelete'))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/habits/${id}`, {
         method: 'DELETE',
@@ -158,10 +161,10 @@ export default function HabitsPage() {
           <Flame className="w-8 h-8 text-orange-500" />
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              習慣トラッカー
+              {t('title')}
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              毎日の習慣を記録して継続力をアップ
+              {t('subtitle')}
             </p>
           </div>
         </div>
@@ -171,14 +174,14 @@ export default function HabitsPage() {
             className="flex items-center gap-2 px-4 py-2 border border-indigo-300 dark:border-indigo-600 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
           >
             <Clock className="w-5 h-5" />
-            <span>一日のスケジュール</span>
+            <span>{t('dailySchedule')}</span>
           </Link>
           <button
             onClick={openCreateModal}
             className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
           >
             <Plus className="w-5 h-5" />
-            <span>新規作成</span>
+            <span>{tc('createNew')}</span>
           </button>
         </div>
       </div>
@@ -237,11 +240,11 @@ export default function HabitsPage() {
                 )}
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                    今日: {todayCount} / {habit.targetCount}
+                    {t('today')} {todayCount} / {habit.targetCount}
                   </span>
                   {habit._count && (
                     <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                      ・累計 {habit._count.logs} 回
+                      {t('totalPrefix')} {habit._count.logs} {tc('times')}
                     </span>
                   )}
                 </div>
@@ -284,7 +287,7 @@ export default function HabitsPage() {
         <div className="text-center py-12">
           <Flame className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
           <p className="text-zinc-500 dark:text-zinc-400">
-            習慣がありません。新規作成から追加してください。
+            {t('none')}
           </p>
         </div>
       )}
@@ -295,13 +298,13 @@ export default function HabitsPage() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md">
             <div className="p-6">
               <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">
-                {editingHabit ? '習慣を編集' : '新しい習慣'}
+                {editingHabit ? t('editTitle') : t('newTitle')}
               </h2>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    習慣名 *
+                    {t('habitName')}
                   </label>
                   <input
                     type="text"
@@ -309,7 +312,7 @@ export default function HabitsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, name: e.target.value })
                     }
-                    placeholder="例: 読書、運動、瞑想"
+                    placeholder={t('habitExample')}
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
                     required
                   />
@@ -317,7 +320,7 @@ export default function HabitsPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    1日の目標回数
+                    {t('dailyTarget')}
                   </label>
                   <input
                     type="number"
@@ -336,7 +339,7 @@ export default function HabitsPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    説明（任意）
+                    {tc('descriptionOptional')}
                   </label>
                   <input
                     type="text"
@@ -344,14 +347,14 @@ export default function HabitsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, description: e.target.value })
                     }
-                    placeholder="簡単な説明"
+                    placeholder={tc('shortDescription')}
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                    カラー
+                    {tc('color')}
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {PRESET_COLORS.map((color) => (
@@ -376,13 +379,13 @@ export default function HabitsPage() {
                     onClick={() => setIsModalOpen(false)}
                     className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
                   >
-                    キャンセル
+                    {tc('cancel')}
                   </button>
                   <button
                     type="submit"
                     className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
                   >
-                    {editingHabit ? '更新' : '作成'}
+                    {editingHabit ? tc('update') : tc('create')}
                   </button>
                 </div>
               </form>

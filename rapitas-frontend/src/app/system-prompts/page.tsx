@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import {
   MessageSquare,
@@ -33,33 +34,35 @@ type SystemPrompt = {
   updatedAt: string;
 };
 
-const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
+const CATEGORY_LABELS: Record<string, { labelKey: string; color: string }> = {
   general: {
-    label: '一般',
+    labelKey: 'categoryGeneral',
     color: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300',
   },
   analysis: {
-    label: '分析',
+    labelKey: 'categoryAnalysis',
     color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   },
   optimization: {
-    label: '最適化',
+    labelKey: 'categoryOptimization',
     color:
       'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
   },
   agent: {
-    label: 'エージェント',
+    labelKey: 'categoryAgent',
     color:
       'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
   },
   chat: {
-    label: 'チャット',
+    labelKey: 'categoryChat',
     color:
       'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
   },
 };
 
 export default function SystemPromptsPage() {
+  const t = useTranslations('prompts');
+  const tc = useTranslations('common');
   const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingPrompt, setEditingPrompt] = useState<SystemPrompt | null>(null);
@@ -119,7 +122,7 @@ export default function SystemPromptsPage() {
   };
 
   const handleReset = async (key: string) => {
-    if (!confirm('このプロンプトをデフォルトの内容にリセットしますか？'))
+    if (!confirm(t('confirmReset')))
       return;
     try {
       const res = await fetch(`${API_BASE_URL}/system-prompts/${key}/reset`, {
@@ -135,7 +138,7 @@ export default function SystemPromptsPage() {
   };
 
   const handleDelete = async (key: string) => {
-    if (!confirm('このプロンプトを削除しますか？')) return;
+    if (!confirm(t('confirmDelete'))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/system-prompts/${key}`, {
         method: 'DELETE',
@@ -144,7 +147,7 @@ export default function SystemPromptsPage() {
         fetchPrompts();
       } else {
         const data = await res.json();
-        alert(data.error || '削除に失敗しました');
+        alert(data.error || tc('deleteFailed'));
       }
     } catch (error) {
       logger.error('Failed to delete system prompt:', error);
@@ -201,10 +204,10 @@ export default function SystemPromptsPage() {
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-3">
               <MessageSquare className="w-7 h-7 text-indigo-500" />
-              システムプロンプト管理
+              {t('systemPromptManagement')}
             </h1>
             <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-              AIエージェントやチャットで使用するシステムプロンプトを管理します
+              {t('systemPromptSubtitle')}
             </p>
           </div>
           <button
@@ -212,7 +215,7 @@ export default function SystemPromptsPage() {
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            プロンプトを追加
+            {t('addPrompt')}
           </button>
         </div>
 
@@ -224,7 +227,7 @@ export default function SystemPromptsPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="プロンプトを検索..."
+              placeholder={t('searchPrompts')}
               className="w-full pl-10 pr-4 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
           </div>
@@ -237,9 +240,9 @@ export default function SystemPromptsPage() {
                   : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
               } border border-zinc-200 dark:border-zinc-700`}
             >
-              すべて
+              {t('all')}
             </button>
-            {Object.entries(CATEGORY_LABELS).map(([key, { label }]) => (
+            {Object.entries(CATEGORY_LABELS).map(([key, { labelKey }]) => (
               <button
                 key={key}
                 onClick={() => setFilterCategory(key)}
@@ -249,7 +252,7 @@ export default function SystemPromptsPage() {
                     : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                 } border border-zinc-200 dark:border-zinc-700`}
               >
-                {label}
+                {t(labelKey)}
               </button>
             ))}
           </div>
@@ -261,8 +264,8 @@ export default function SystemPromptsPage() {
             <MessageSquare className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
             <p className="text-zinc-500 dark:text-zinc-400">
               {searchQuery
-                ? '検索条件に一致するプロンプトがありません'
-                : 'プロンプトがありません'}
+                ? t('noSearchResults')
+                : t('noPrompts')}
             </p>
           </div>
         ) : (
@@ -270,7 +273,7 @@ export default function SystemPromptsPage() {
             {Object.entries(groupedPrompts).map(
               ([category, categoryPrompts]) => {
                 const categoryInfo = CATEGORY_LABELS[category] || {
-                  label: category,
+                  labelKey: category,
                   color:
                     'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300',
                 };
@@ -281,7 +284,7 @@ export default function SystemPromptsPage() {
                       <span
                         className={`px-2 py-0.5 rounded text-xs ${categoryInfo.color}`}
                       >
-                        {categoryInfo.label}
+                        {t(categoryInfo.labelKey)}
                       </span>
                       <span className="text-zinc-400 dark:text-zinc-600">
                         ({categoryPrompts.length})
@@ -353,6 +356,8 @@ function PromptCard({
   onDelete: () => void;
   onToggleActive: () => void;
 }) {
+  const t = useTranslations('prompts');
+  const tc = useTranslations('common');
   const [editContent, setEditContent] = useState('');
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -370,7 +375,7 @@ function PromptCard({
   }, [isEditing, prompt]);
 
   const categoryInfo = CATEGORY_LABELS[prompt.category] || {
-    label: prompt.category,
+    labelKey: prompt.category,
     color: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300',
   };
 
@@ -403,13 +408,13 @@ function PromptCard({
               {prompt.isDefault && (
                 <span className="flex items-center gap-1 px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded shrink-0">
                   <Shield className="w-3 h-3" />
-                  デフォルト
+                  {t('defaultLabel')}
                 </span>
               )}
               <span
                 className={`px-1.5 py-0.5 text-xs rounded shrink-0 ${categoryInfo.color}`}
               >
-                {categoryInfo.label}
+                {t(categoryInfo.labelKey)}
               </span>
             </div>
             {prompt.description && (
@@ -446,7 +451,7 @@ function PromptCard({
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  名前
+                  {t('name')}
                 </label>
                 <input
                   type="text"
@@ -457,7 +462,7 @@ function PromptCard({
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  説明
+                  {t('description')}
                 </label>
                 <input
                   type="text"
@@ -468,7 +473,7 @@ function PromptCard({
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  プロンプト内容
+                  {t('promptContent')}
                 </label>
                 <textarea
                   value={editContent}
@@ -485,7 +490,7 @@ function PromptCard({
                       className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
                     >
                       <RotateCcw className="w-4 h-4" />
-                      デフォルトに戻す
+                      {t('resetToDefault')}
                     </button>
                   )}
                 </div>
@@ -495,7 +500,7 @@ function PromptCard({
                     className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
                   >
                     <X className="w-4 h-4" />
-                    キャンセル
+                    {tc('cancel')}
                   </button>
                   <button
                     onClick={() =>
@@ -508,7 +513,7 @@ function PromptCard({
                     className="flex items-center gap-1.5 px-4 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                   >
                     <Save className="w-4 h-4" />
-                    保存
+                    {tc('save')}
                   </button>
                 </div>
               </div>
@@ -517,12 +522,12 @@ function PromptCard({
             <div>
               <div className="flex items-center justify-between mb-3">
                 <div className="text-xs text-zinc-400 dark:text-zinc-500">
-                  キー:{' '}
+                  {t('keyLabel')}{' '}
                   <code className="px-1 py-0.5 bg-zinc-100 dark:bg-zinc-700 rounded">
                     {prompt.key}
                   </code>
                   <span className="mx-2">|</span>
-                  更新: {new Date(prompt.updatedAt).toLocaleString('ja-JP')}
+                  {t('updatedLabel')} {new Date(prompt.updatedAt).toLocaleString('ja-JP')}
                 </div>
                 <div className="flex items-center gap-1">
                   <button
@@ -530,7 +535,7 @@ function PromptCard({
                     className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
                   >
                     <Pencil className="w-4 h-4" />
-                    編集
+                    {tc('edit')}
                   </button>
                   {!prompt.isDefault && (
                     <button
@@ -538,7 +543,7 @@ function PromptCard({
                       className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
-                      削除
+                      {tc('delete')}
                     </button>
                   )}
                   {prompt.isDefault && (
@@ -547,7 +552,7 @@ function PromptCard({
                       className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
                     >
                       <RotateCcw className="w-4 h-4" />
-                      リセット
+                      {t('reset')}
                     </button>
                   )}
                 </div>
@@ -570,6 +575,8 @@ function AddPromptModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const t = useTranslations('prompts');
+  const tc = useTranslations('common');
   const [key, setKey] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -583,13 +590,13 @@ function AddPromptModal({
     setError('');
 
     if (!key.trim() || !name.trim() || !content.trim()) {
-      setError('キー、名前、プロンプト内容は必須です');
+      setError(t('requiredFields'));
       return;
     }
 
     // キーのバリデーション
     if (!/^[a-z0-9_]+$/.test(key)) {
-      setError('キーは英小文字、数字、アンダースコアのみ使用できます');
+      setError(t('keyValidation'));
       return;
     }
 
@@ -605,10 +612,10 @@ function AddPromptModal({
         onSuccess();
       } else {
         const data = await res.json();
-        setError(data.error || 'プロンプトの追加に失敗しました');
+        setError(data.error || t('addFailed'));
       }
     } catch {
-      setError('プロンプトの追加に失敗しました');
+      setError(t('addFailed'));
     } finally {
       setSaving(false);
     }
@@ -619,30 +626,30 @@ function AddPromptModal({
       <div className="w-full max-w-2xl max-h-[90vh] overflow-auto bg-white dark:bg-zinc-800 rounded-lg shadow-xl">
         <div className="p-6">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
-            システムプロンプトを追加
+            {t('addSystemPrompt')}
           </h2>
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    キー（一意な識別子）
+                    {t('keyIdentifier')}
                   </label>
                   <input
                     type="text"
                     value={key}
                     onChange={(e) => setKey(e.target.value)}
-                    placeholder="例: custom_analysis"
+                    placeholder={t('keyPlaceholder')}
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
                     required
                   />
                   <p className="text-xs text-zinc-400 mt-1">
-                    英小文字、数字、アンダースコアのみ
+                    {t('keyHint')}
                   </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    カテゴリ
+                    {t('category')}
                   </label>
                   <select
                     value={category}
@@ -650,9 +657,9 @@ function AddPromptModal({
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   >
                     {Object.entries(CATEGORY_LABELS).map(
-                      ([value, { label }]) => (
+                      ([value, { labelKey }]) => (
                         <option key={value} value={value}>
-                          {label}
+                          {t(labelKey)}
                         </option>
                       ),
                     )}
@@ -661,38 +668,37 @@ function AddPromptModal({
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  名前
+                  {t('name')}
                 </label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="例: カスタム分析プロンプト"
+                  placeholder={t('namePlaceholder')}
                   className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   required
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  説明（任意）
-                </label>
+                  {tc('descriptionOptional')}</label>
                 <input
                   type="text"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="このプロンプトの用途を簡潔に説明"
+                  placeholder={t('descriptionPlaceholder')}
                   className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  プロンプト内容
+                  {t('promptContent')}
                 </label>
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   rows={10}
-                  placeholder="システムプロンプトの内容を入力..."
+                  placeholder={t('contentPlaceholder')}
                   className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 font-mono text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y"
                   required
                 />
@@ -709,14 +715,14 @@ function AddPromptModal({
                 onClick={onClose}
                 className="px-4 py-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
               >
-                キャンセル
+                {tc('cancel')}
               </button>
               <button
                 type="submit"
                 disabled={saving}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
               >
-                {saving ? '追加中...' : '追加'}
+                {saving ? tc('adding') : tc('add')}
               </button>
             </div>
           </form>

@@ -20,6 +20,7 @@ import {
   type ShortcutBinding,
 } from '@/stores/shortcutStore';
 import { createLogger } from '@/lib/logger';
+import { useTranslations } from 'next-intl';
 
 const logger = createLogger('ShortcutsPage');
 
@@ -108,6 +109,8 @@ function formatShortcutDisplay(binding: ShortcutBinding): string {
 
 export default function ShortcutSettingsPage() {
   const [isTauriEnv, setIsTauriEnv] = useState(false);
+  const t = useTranslations('shortcuts');
+  const tc = useTranslations('common');
 
   // --- グローバルショートカット (Tauri) ---
   const [currentGlobalShortcut, setCurrentGlobalShortcut] = useState(
@@ -265,7 +268,7 @@ export default function ShortcutSettingsPage() {
       // 重複チェック
       const dup = findDuplicate(editingId, binding);
       if (dup) {
-        setDuplicateWarning(`「${dup.label}」と重複しています`);
+        setDuplicateWarning(t('duplicateWith', { label: dup.label }));
       } else {
         setDuplicateWarning(null);
       }
@@ -286,7 +289,7 @@ export default function ShortcutSettingsPage() {
     if (globalModifiers.length === 0) {
       setGlobalMessage({
         type: 'error',
-        text: '修飾キーを1つ以上選択してください',
+        text: t('selectModifiers'),
       });
       return;
     }
@@ -300,7 +303,7 @@ export default function ShortcutSettingsPage() {
       setCurrentGlobalShortcut(newShortcut);
       setGlobalMessage({
         type: 'success',
-        text: `ショートカットを ${newShortcut} に変更しました`,
+        text: t('changedToShortcut', { shortcut: newShortcut }),
       });
       setIsSavingGlobal(false);
       return;
@@ -315,14 +318,14 @@ export default function ShortcutSettingsPage() {
         setCurrentGlobalShortcut(newShortcut);
         setGlobalMessage({
           type: 'success',
-          text: `ショートカットを ${newShortcut} に変更しました`,
+          text: t('changedToShortcut', { shortcut: newShortcut }),
         });
       }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
       setGlobalMessage({
         type: 'error',
-        text: `変更に失敗しました: ${errorMsg}`,
+        text: `${t('changeFailed')} ${errorMsg}`,
       });
     } finally {
       setIsSavingGlobal(false);
@@ -365,13 +368,13 @@ export default function ShortcutSettingsPage() {
     if (dup) {
       setInAppMessage({
         type: 'error',
-        text: `「${dup.label}」と重複しているため保存できません`,
+        text: t('cannotSaveDuplicate', { label: dup.label }),
       });
       return;
     }
 
     updateShortcut(editingId, editBinding);
-    setInAppMessage({ type: 'success', text: 'ショートカットを変更しました' });
+    setInAppMessage({ type: 'success', text: t('shortcutChanged') });
     setTimeout(() => setInAppMessage(null), 3000);
     setEditingId(null);
     setEditBinding(null);
@@ -386,7 +389,7 @@ export default function ShortcutSettingsPage() {
       if (dup) {
         setInAppMessage({
           type: 'error',
-          text: `デフォルト値が「${dup.label}」と重複しています`,
+          text: t('defaultConflictsWith', { label: dup.label }),
         });
         return;
       }
@@ -395,7 +398,7 @@ export default function ShortcutSettingsPage() {
     if (editingId === id) {
       cancelEditing();
     }
-    setInAppMessage({ type: 'success', text: 'デフォルトに戻しました' });
+    setInAppMessage({ type: 'success', text: t('resetDone') });
     setTimeout(() => setInAppMessage(null), 3000);
   };
 
@@ -404,7 +407,7 @@ export default function ShortcutSettingsPage() {
     cancelEditing();
     setInAppMessage({
       type: 'success',
-      text: 'すべてのショートカットをデフォルトに戻しました',
+      text: t('resetAllDone'),
     });
     setTimeout(() => setInAppMessage(null), 3000);
   };
@@ -425,10 +428,10 @@ export default function ShortcutSettingsPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            ショートカット設定
+            {t('title')}
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            グローバルショートカットとアプリ内ショートカットを管理できます
+            {t('description')}
           </p>
         </div>
       </div>
@@ -436,17 +439,17 @@ export default function ShortcutSettingsPage() {
       {/* ===== セクション1: グローバルショートカット ===== */}
       <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6 mb-6">
         <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
-          グローバルショートカット
+          {t('globalShortcuts')}
         </h2>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-          アプリがバックグラウンドにある時でもウィンドウを最前面に表示します
+          {t('globalDescription')}
         </p>
 
         {/* 現在の設定 */}
         <div className="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-4 mb-4">
           <div className="flex items-center justify-between">
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
-              現在の設定
+              {t('currentSetting')}
             </span>
             <kbd className="px-4 py-2 bg-zinc-100 dark:bg-zinc-700 rounded-lg text-lg font-mono font-semibold text-zinc-800 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-600 shadow-sm">
               {currentGlobalShortcut}
@@ -467,8 +470,8 @@ export default function ShortcutSettingsPage() {
             <Keyboard className="w-5 h-5" />
             <span className="text-sm font-medium">
               {isRecordingGlobal
-                ? 'キーを押してください...'
-                : 'クリックしてキーボードで入力'}
+                ? t('pressKey')
+                : t('clickToEnter')}
             </span>
           </button>
         </div>
@@ -476,7 +479,7 @@ export default function ShortcutSettingsPage() {
         <div className="flex items-center gap-4 mb-4">
           <div className="flex-1 border-t border-zinc-200 dark:border-zinc-700" />
           <span className="text-xs text-zinc-400 dark:text-zinc-500">
-            または手動で選択
+            {t('orSelectManually')}
           </span>
           <div className="flex-1 border-t border-zinc-200 dark:border-zinc-700" />
         </div>
@@ -484,7 +487,7 @@ export default function ShortcutSettingsPage() {
         {/* 修飾キー */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-            修飾キー
+            {t('modifierKeys')}
           </label>
           <div className="flex gap-3">
             {MODIFIER_KEYS.map((mod) => (
@@ -506,7 +509,7 @@ export default function ShortcutSettingsPage() {
         {/* キー選択 */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-            キー
+            {t('key')}
           </label>
           <select
             value={globalKey}
@@ -529,7 +532,7 @@ export default function ShortcutSettingsPage() {
           <div className="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                新しいショートカット:
+                {t('newShortcut')}
               </span>
               <kbd className="px-4 py-2 rounded-lg text-lg font-mono font-semibold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700">
                 {newGlobalShortcut}
@@ -572,14 +575,14 @@ export default function ShortcutSettingsPage() {
             ) : (
               <Save className="w-4 h-4" />
             )}
-            保存
+            {tc('save')}
           </button>
           <button
             onClick={handleResetGlobal}
             className="flex items-center gap-2 px-5 py-2.5 bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
-            デフォルトに戻す
+            {t('resetToDefault')}
           </button>
         </div>
       </div>
@@ -589,10 +592,10 @@ export default function ShortcutSettingsPage() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
-              アプリ内ショートカット
+              {t('inAppShortcuts')}
             </h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              アプリ内のナビゲーションや機能のショートカットキーを変更できます
+              {t('inAppDescription')}
             </p>
           </div>
           <button
@@ -600,7 +603,7 @@ export default function ShortcutSettingsPage() {
             className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 rounded-lg transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            すべてリセット
+            {t('resetAll')}
           </button>
         </div>
 
@@ -639,7 +642,7 @@ export default function ShortcutSettingsPage() {
                     </span>
                     {isModified && (
                       <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded">
-                        変更済み
+                        {t('modified')}
                       </span>
                     )}
                   </div>
@@ -653,13 +656,13 @@ export default function ShortcutSettingsPage() {
                           onClick={() => startEditing(shortcut.id)}
                           className="px-3 py-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
                         >
-                          変更
+                          {tc('change')}
                         </button>
                         {isModified && (
                           <button
                             onClick={() => handleResetInApp(shortcut.id)}
                             className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 rounded-lg transition-colors"
-                            title="デフォルトに戻す"
+                            title={t('resetToDefault')}
                           >
                             <RotateCcw className="w-3.5 h-3.5" />
                           </button>
@@ -684,15 +687,15 @@ export default function ShortcutSettingsPage() {
                       <Keyboard className="w-4 h-4" />
                       <span className="text-sm">
                         {isRecordingInApp
-                          ? 'キーを押してください...'
-                          : 'クリックしてキーボードで入力'}
+                          ? t('pressKey')
+                          : t('clickToEnter')}
                       </span>
                     </button>
 
                     {/* プレビュー */}
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                        新しいキー:
+                        {t('newKey')}
                       </span>
                       <kbd className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-sm font-mono font-semibold text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700">
                         {formatShortcutDisplay({ ...shortcut, ...editBinding })}
@@ -715,13 +718,13 @@ export default function ShortcutSettingsPage() {
                         className="flex items-center gap-1.5 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white disabled:text-zinc-500 dark:disabled:text-zinc-400 rounded-lg text-sm font-medium transition-colors"
                       >
                         <Save className="w-3.5 h-3.5" />
-                        保存
+                        {tc('save')}
                       </button>
                       <button
                         onClick={cancelEditing}
                         className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
                       >
-                        キャンセル
+                        {tc('cancel')}
                       </button>
                     </div>
                   </div>
@@ -738,16 +741,14 @@ export default function ShortcutSettingsPage() {
           <Info className="w-5 h-5 text-blue-500 dark:text-blue-400 shrink-0 mt-0.5" />
           <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
             <p>
-              グローバルショートカットは、アプリがバックグラウンドやシステムトレイにある時でも動作します。
+              {t('globalInfo')}
             </p>
             <p>
-              アプリ内ショートカットは、アプリがフォーカスされている時のみ有効です。
-              重複するキーの組み合わせは登録できません。
+              {t('inAppInfo')}
             </p>
             {!isTauriEnv && (
               <p className="text-amber-600 dark:text-amber-400">
-                デスクトップアプリ環境でのみグローバルショートカットが有効です。
-                Web環境では設定のみ保存されます。
+                {t('desktopOnly')}
               </p>
             )}
           </div>

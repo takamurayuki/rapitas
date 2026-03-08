@@ -12,6 +12,7 @@ import {
   GitMerge,
   XCircle,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest, GitHubIntegration } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -19,6 +20,7 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('PullRequestsClient');
 
 export default function PullRequestsClient() {
+  const t = useTranslations('github');
   const searchParams = useSearchParams();
   const integrationId = searchParams.get('integrationId');
 
@@ -110,7 +112,7 @@ export default function PullRequestsClient() {
               Pull Requests
             </h1>
             <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">
-              Pull Requestの確認・レビュー
+              {t('prsSubtitle')}
             </p>
           </div>
         </div>
@@ -124,7 +126,7 @@ export default function PullRequestsClient() {
               onChange={(e) => setSelectedIntegration(e.target.value)}
               className="px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             >
-              <option value="">リポジトリを選択</option>
+              <option value="">{t('selectRepository')}</option>
               {integrations.map((integration) => (
                 <option key={integration.id} value={integration.id}>
                   {integration.ownerName}/{integration.repositoryName}
@@ -145,10 +147,10 @@ export default function PullRequestsClient() {
                 }`}
               >
                 {state === 'open'
-                  ? 'Open'
+                  ? t('stateOpen')
                   : state === 'closed'
-                    ? 'Closed'
-                    : 'All'}
+                    ? t('stateClosed')
+                    : t('stateAll')}
               </button>
             ))}
           </div>
@@ -169,8 +171,8 @@ export default function PullRequestsClient() {
             <GitPullRequest className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
             <p className="text-zinc-500 dark:text-zinc-400">
               {selectedIntegration
-                ? 'Pull Requestがありません'
-                : 'リポジトリを選択してください'}
+                ? t('noPullRequests')
+                : t('selectRepositoryPrompt')}
             </p>
           </div>
         ) : (
@@ -211,7 +213,7 @@ export default function PullRequestsClient() {
                     {pr._count?.reviews ? (
                       <div
                         className="flex items-center gap-1"
-                        title="レビュー数"
+                        title={t('reviewCount')}
                       >
                         <Eye className="w-4 h-4" />
                         <span>{pr._count.reviews}</span>
@@ -220,7 +222,7 @@ export default function PullRequestsClient() {
                     {pr._count?.comments ? (
                       <div
                         className="flex items-center gap-1"
-                        title="コメント数"
+                        title={t('commentCount')}
                       >
                         <MessageSquare className="w-4 h-4" />
                         <span>{pr._count.comments}</span>

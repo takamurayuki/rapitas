@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Bell, Check, CheckCheck, X, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { useNotifications } from '@/feature/developer-mode/hooks/useNotifications';
 import type { Notification } from '@/types';
 
@@ -29,6 +30,8 @@ const typeIcons: Record<string, string> = {
 };
 
 export default function NotificationBell() {
+  const t = useTranslations('notification');
+  const tc = useTranslations('common');
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const {
@@ -84,10 +87,10 @@ export default function NotificationBell() {
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-    if (diffMins < 1) return 'たった今';
-    if (diffMins < 60) return `${diffMins}分前`;
-    if (diffHours < 24) return `${diffHours}時間前`;
-    if (diffDays < 7) return `${diffDays}日前`;
+    if (diffMins < 1) return t('justNow');
+    if (diffMins < 60) return t('minutesAgo', { count: diffMins });
+    if (diffHours < 24) return t('hoursAgo', { count: diffHours });
+    if (diffDays < 7) return t('daysAgo', { count: diffDays });
     return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
   };
 
@@ -96,7 +99,7 @@ export default function NotificationBell() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-        aria-label="通知"
+        aria-label={t('title')}
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
@@ -111,7 +114,7 @@ export default function NotificationBell() {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
             <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-              通知
+              {t('title')}
             </h3>
             <div className="flex items-center gap-2">
               {unreadCount > 0 && (
@@ -120,7 +123,7 @@ export default function NotificationBell() {
                   className="flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline"
                 >
                   <CheckCheck className="w-3.5 h-3.5" />
-                  すべて既読
+                  {t('markAllRead')}
                 </button>
               )}
               {notifications.length > 0 && (
@@ -129,7 +132,7 @@ export default function NotificationBell() {
                   className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400 hover:underline"
                 >
                   <X className="w-3.5 h-3.5" />
-                  すべて削除
+                  {t('deleteAll')}
                 </button>
               )}
             </div>
@@ -139,11 +142,11 @@ export default function NotificationBell() {
           <div className="max-h-80 overflow-y-auto">
             {isLoading ? (
               <div className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                読み込み中...
+                {tc('loading')}
               </div>
             ) : notifications.length === 0 ? (
               <div className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                通知はありません
+                {t('noNotifications')}
               </div>
             ) : (
               notifications.map((notification) => (
@@ -186,7 +189,7 @@ export default function NotificationBell() {
                           markAsRead(notification.id);
                         }}
                         className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded transition-colors"
-                        title="既読にする"
+                        title={t('markAsRead')}
                       >
                         <Check className="w-3.5 h-3.5" />
                       </button>
@@ -199,7 +202,7 @@ export default function NotificationBell() {
                         deleteNotification(notification.id);
                       }}
                       className="p-1 text-zinc-400 hover:text-red-500 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded transition-colors"
-                      title="削除"
+                      title={tc('delete')}
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -220,7 +223,7 @@ export default function NotificationBell() {
             onClick={() => setIsOpen(false)}
             className="flex items-center justify-center gap-2 px-4 py-3 text-sm text-violet-600 dark:text-violet-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-800 transition-colors"
           >
-            <span>承認待ち一覧を見る</span>
+            <span>{t('viewPendingApprovals')}</span>
             <ExternalLink className="w-3.5 h-3.5" />
           </Link>
         </div>

@@ -12,6 +12,7 @@ import {
   ArrowRightCircle,
 } from 'lucide-react';
 import type { GitHubIssue, GitHubIntegration } from '@/types';
+import { useTranslations } from 'next-intl';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
@@ -20,6 +21,7 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('IssuesClient');
 
 export default function IssuesPage() {
+  const t = useTranslations('github');
   const searchParams = useSearchParams();
   const integrationId = searchParams.get('integrationId');
 
@@ -112,7 +114,7 @@ export default function IssuesPage() {
               Issues
             </h1>
             <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">
-              Issueの確認・タスク化
+              {t('issuesSubtitle')}
             </p>
           </div>
         </div>
@@ -126,7 +128,7 @@ export default function IssuesPage() {
               onChange={(e) => setSelectedIntegration(e.target.value)}
               className="px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             >
-              <option value="">リポジトリを選択</option>
+              <option value="">{t('selectRepository')}</option>
               {integrations.map((integration) => (
                 <option key={integration.id} value={integration.id}>
                   {integration.ownerName}/{integration.repositoryName}
@@ -147,10 +149,10 @@ export default function IssuesPage() {
                 }`}
               >
                 {state === 'open'
-                  ? 'Open'
+                  ? t('stateOpen')
                   : state === 'closed'
-                    ? 'Closed'
-                    : 'All'}
+                    ? t('stateClosed')
+                    : t('stateAll')}
               </button>
             ))}
           </div>
@@ -171,8 +173,8 @@ export default function IssuesPage() {
             <CircleDot className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
             <p className="text-zinc-500 dark:text-zinc-400">
               {selectedIntegration
-                ? 'Issueがありません'
-                : 'リポジトリを選択してください'}
+                ? t('noIssues')
+                : t('selectRepositoryPrompt')}
             </p>
           </div>
         ) : (
@@ -240,7 +242,7 @@ export default function IssuesPage() {
                         className="flex items-center gap-1 px-3 py-1.5 text-sm text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
                       >
                         <ArrowRightCircle className="w-4 h-4" />
-                        タスクを見る
+                        {t('viewTask')}
                       </Link>
                     ) : (
                       <button
@@ -253,7 +255,7 @@ export default function IssuesPage() {
                         ) : (
                           <Plus className="w-4 h-4" />
                         )}
-                        タスク化
+                        {t('createTask')}
                       </button>
                     )}
                   </div>

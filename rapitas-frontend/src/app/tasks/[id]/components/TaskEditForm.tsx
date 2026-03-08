@@ -16,6 +16,7 @@ import {
   ChevronsUpDown,
   Flag,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface TaskEditFormProps {
   editTitle: string;
@@ -34,35 +35,35 @@ interface TaskEditFormProps {
 
 const PRIORITY_OPTIONS: Array<{
   value: Priority;
-  label: string;
+  labelKey: string;
   icon: React.ReactNode;
   iconColor: string;
   bgColor: string;
 }> = [
   {
     value: 'urgent',
-    label: '緊急',
+    labelKey: 'priorityCritical',
     icon: <ChevronsUp className="w-3.5 h-3.5" />,
     iconColor: 'text-red-500',
     bgColor: 'bg-red-500',
   },
   {
     value: 'high',
-    label: '高',
+    labelKey: 'priorityHigh',
     icon: <ChevronUp className="w-3.5 h-3.5" />,
     iconColor: 'text-orange-500',
     bgColor: 'bg-orange-500',
   },
   {
     value: 'medium',
-    label: '中',
+    labelKey: 'priorityMedium',
     icon: <ChevronsUpDown className="w-3.5 h-3.5" />,
     iconColor: 'text-blue-500',
     bgColor: 'bg-blue-500',
   },
   {
     value: 'low',
-    label: '低',
+    labelKey: 'priorityLow',
     icon: <ChevronDown className="w-3.5 h-3.5" />,
     iconColor: 'text-zinc-400',
     bgColor: 'bg-zinc-500',
@@ -83,6 +84,8 @@ export default function TaskEditForm({
   editEstimatedHours,
   setEditEstimatedHours,
 }: TaskEditFormProps) {
+  const t = useTranslations('task');
+  const tc = useTranslations('common');
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
       {/* Title Input with Status */}
@@ -93,7 +96,7 @@ export default function TaskEditForm({
             className="flex-1 min-w-0 text-2xl font-bold bg-transparent border-none outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-600"
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
-            placeholder="タスクのタイトル"
+            placeholder={t('taskNamePlaceholder')}
           />
           <div className="flex items-center gap-1 shrink-0">
             {(['todo', 'in-progress', 'done'] as const).map((status) => {
@@ -118,13 +121,13 @@ export default function TaskEditForm({
       <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-3">
           <FileText className="w-4 h-4" />
-          <span className="text-sm font-medium">説明</span>
+          <span className="text-sm font-medium">{t('description')}</span>
         </div>
         <textarea
           className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-violet-500/20 transition-all font-mono min-h-[200px]"
           value={editDescription}
           onChange={(e) => setEditDescription(e.target.value)}
-          placeholder="マークダウン形式で記述..."
+          placeholder={t('markdownPlaceholder')}
         />
       </div>
 
@@ -132,7 +135,7 @@ export default function TaskEditForm({
       <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-3">
           <Tag className="w-4 h-4" />
-          <span className="text-sm font-medium">ラベル</span>
+          <span className="text-sm font-medium">{t('labels')}</span>
         </div>
         <LabelSelector
           selectedLabelIds={editLabelIds}
@@ -144,7 +147,7 @@ export default function TaskEditForm({
       <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-3">
           <Flag className="w-4 h-4" />
-          <span className="text-sm font-medium">優先度</span>
+          <span className="text-sm font-medium">{t('priority')}</span>
         </div>
         <div className="flex items-center gap-1">
           {PRIORITY_OPTIONS.map((opt) => (
@@ -165,7 +168,7 @@ export default function TaskEditForm({
               >
                 {opt.icon}
               </span>
-              {opt.label}
+              {t(opt.labelKey)}
             </button>
           ))}
         </div>
@@ -175,7 +178,7 @@ export default function TaskEditForm({
       <div className="p-6">
         <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-3">
           <Clock className="w-4 h-4" />
-          <span className="text-sm font-medium">見積もり時間</span>
+          <span className="text-sm font-medium">{t('estimatedTime')}</span>
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -188,7 +191,7 @@ export default function TaskEditForm({
             onChange={(e) => setEditEstimatedHours(e.target.value)}
           />
           <span className="text-sm text-zinc-500 dark:text-zinc-400">
-            時間
+            {tc('hours')}
           </span>
         </div>
       </div>

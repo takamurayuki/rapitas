@@ -21,6 +21,7 @@ import {
   HelpCircle,
   Save,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import {
   requestNotificationPermission,
@@ -32,21 +33,21 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('DailySchedulePage');
 
 const CATEGORY_OPTIONS = [
-  { value: 'sleep', label: '睡眠', icon: Moon, defaultColor: '#6366F1' },
-  { value: 'work', label: '仕事', icon: Briefcase, defaultColor: '#3B82F6' },
-  { value: 'exercise', label: '運動', icon: Dumbbell, defaultColor: '#10B981' },
+  { value: 'sleep', labelKey: 'categorySleep' as const, icon: Moon, defaultColor: '#6366F1' },
+  { value: 'work', labelKey: 'categoryWork' as const, icon: Briefcase, defaultColor: '#3B82F6' },
+  { value: 'exercise', labelKey: 'categoryExercise' as const, icon: Dumbbell, defaultColor: '#10B981' },
   {
     value: 'meal',
-    label: '食事',
+    labelKey: 'categoryMeal' as const,
     icon: UtensilsCrossed,
     defaultColor: '#F59E0B',
   },
-  { value: 'commute', label: '通勤', icon: Train, defaultColor: '#8B5CF6' },
-  { value: 'study', label: '勉強', icon: BookOpen, defaultColor: '#EC4899' },
-  { value: 'hobby', label: '趣味', icon: Gamepad2, defaultColor: '#06B6D4' },
+  { value: 'commute', labelKey: 'categoryCommute' as const, icon: Train, defaultColor: '#8B5CF6' },
+  { value: 'study', labelKey: 'categoryStudy' as const, icon: BookOpen, defaultColor: '#EC4899' },
+  { value: 'hobby', labelKey: 'categoryHobby' as const, icon: Gamepad2, defaultColor: '#06B6D4' },
   {
     value: 'other',
-    label: 'その他',
+    labelKey: 'categoryOther' as const,
     icon: HelpCircle,
     defaultColor: '#94A3B8',
   },
@@ -87,7 +88,7 @@ function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   };
 }
 
-function formatDuration(startTime: string, endTime: string): string {
+function getDurationParts(startTime: string, endTime: string): { h: number; m: number } {
   const start = timeToMinutes(startTime);
   let end = timeToMinutes(endTime);
 
@@ -98,14 +99,20 @@ function formatDuration(startTime: string, endTime: string): string {
 
   // ブロックの長さを24時間以内に制限
   const diff = Math.min(end - start, 1440);
-  const h = Math.floor(diff / 60);
-  const m = diff % 60;
-  if (h === 0) return `${m}分`;
-  if (m === 0) return `${h}時間`;
-  return `${h}時間${m}分`;
+  return { h: Math.floor(diff / 60), m: diff % 60 };
 }
 
 export default function DailySchedulePage() {
+  const t = useTranslations('habits');
+  const tc = useTranslations('common');
+
+  const formatDuration = (startTime: string, endTime: string): string => {
+    const { h, m } = getDurationParts(startTime, endTime);
+    if (h === 0) return t('durationMinutes', { m });
+    if (m === 0) return t('durationHours', { h });
+    return t('durationHoursMinutes', { h, m });
+  };
+
   const [blocks, setBlocks] = useState<DailyScheduleBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -154,7 +161,7 @@ export default function DailySchedulePage() {
         if (block.startTime === currentTime) {
           const cat = CATEGORY_OPTIONS.find((c) => c.value === block.category);
           showDesktopNotification(`Rapitas - ${block.label}`, {
-            body: `${block.startTime}〜${block.endTime} ${cat?.label || ''}の時間です`,
+            body: `${block.startTime}〜${block.endTime} ${cat ? t(cat.labelKey) : ''}`,
             tag: `daily-schedule-${block.id}-${currentTime}`,
           });
         }
@@ -227,7 +234,7 @@ export default function DailySchedulePage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('このスケジュールブロックを削除しますか？')) return;
+    if (!confirm(t('confirmDeleteBlock'))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/daily-schedule/${id}`, {
         method: 'DELETE',
@@ -436,10 +443,10 @@ export default function DailySchedulePage() {
           <Clock className="w-8 h-8 text-indigo-500" />
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              一日のスケジュール
+              {t('dailyScheduleTitle')}
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              24時間の行動を円グラフで可視化
+              {t('dailyScheduleSubtitle')}
             </p>
           </div>
         </div>
@@ -448,7 +455,7 @@ export default function DailySchedulePage() {
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
         >
           <Plus className="w-5 h-5" />
-          <span>ブロック追加</span>
+          <span>{t('addBlock')}</span>
         </button>
       </div>
 
@@ -457,11 +464,10 @@ export default function DailySchedulePage() {
         <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              24時間チャート
+              {t('chart24h')}
             </h2>
             <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              {coveragePercent}% カバー（{totalHours}時間
-              {totalMins > 0 ? `${totalMins}分` : ''}）
+              {t('coveragePercent', { percent: coveragePercent, hours: totalHours, mins: totalMins > 0 ? `${totalMins}` : '' })}
             </div>
           </div>
 
@@ -535,7 +541,7 @@ export default function DailySchedulePage() {
                 fill="currentColor"
                 className="text-zinc-500 dark:text-zinc-400"
               >
-                スケジュール
+                {t('schedule')}
               </text>
 
               {/* Hour markers */}
@@ -578,17 +584,17 @@ export default function DailySchedulePage() {
         <div className="space-y-4">
           <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 mb-4">
-              スケジュールブロック一覧
+              {t('blockList')}
             </h2>
 
             {blocks.length === 0 ? (
               <div className="text-center py-8">
                 <Clock className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
                 <p className="text-zinc-500 dark:text-zinc-400">
-                  スケジュールブロックがありません。
+                  {t('noBlocks')}
                 </p>
                 <p className="text-sm text-zinc-400 dark:text-zinc-500 mt-1">
-                  「ブロック追加」から1日の行動を登録してください。
+                  {t('noBlocksHint')}
                 </p>
               </div>
             ) : (
@@ -662,7 +668,7 @@ export default function DailySchedulePage() {
           {/* Category legend */}
           <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-3">
-              カテゴリ別サマリー
+              {t('categorySummary')}
             </h3>
             <div className="space-y-2">
               {CATEGORY_OPTIONS.map((cat) => {
@@ -694,7 +700,7 @@ export default function DailySchedulePage() {
                   <div key={cat.value} className="flex items-center gap-3">
                     <CatIcon className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
                     <span className="text-sm text-zinc-700 dark:text-zinc-300 w-16">
-                      {cat.label}
+                      {t(cat.labelKey)}
                     </span>
                     <div className="flex-1 h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                       <div
@@ -722,13 +728,13 @@ export default function DailySchedulePage() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">
-                {editingBlock ? 'ブロックを編集' : '新しいブロック'}
+                {editingBlock ? t('editBlock') : t('newBlock')}
               </h2>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    ラベル *
+                    {t('blockLabel')}
                   </label>
                   <input
                     type="text"
@@ -736,7 +742,7 @@ export default function DailySchedulePage() {
                     onChange={(e) =>
                       setFormData({ ...formData, label: e.target.value })
                     }
-                    placeholder="例: 起床・朝の準備"
+                    placeholder={t('blockLabelPlaceholder')}
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     required
                   />
@@ -744,7 +750,7 @@ export default function DailySchedulePage() {
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                    カテゴリ
+                    {t('blockCategory')}
                   </label>
                   <div className="grid grid-cols-4 gap-2">
                     {CATEGORY_OPTIONS.map((cat) => {
@@ -762,7 +768,7 @@ export default function DailySchedulePage() {
                           }`}
                         >
                           <CatIcon className="w-5 h-5" />
-                          {cat.label}
+                          {t(cat.labelKey)}
                         </button>
                       );
                     })}
@@ -772,7 +778,7 @@ export default function DailySchedulePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                      開始時刻
+                      {t('startTime')}
                     </label>
                     <input
                       type="time"
@@ -785,7 +791,7 @@ export default function DailySchedulePage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                      終了時刻
+                      {t('endTime')}
                     </label>
                     <input
                       type="time"
@@ -800,7 +806,7 @@ export default function DailySchedulePage() {
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                    カラー
+                    {tc('color')}
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {PRESET_COLORS.map((color) => (
@@ -839,12 +845,12 @@ export default function DailySchedulePage() {
                   </button>
                   <div>
                     <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                      PC通知
+                      {t('pcNotification')}
                     </p>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
                       {formData.isNotify
-                        ? '開始時刻にデスクトップ通知を表示します'
-                        : '通知はオフです'}
+                        ? t('notifyOnDescription')
+                        : t('notifyOffDescription')}
                     </p>
                   </div>
                 </div>
@@ -855,14 +861,14 @@ export default function DailySchedulePage() {
                     onClick={() => setIsModalOpen(false)}
                     className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
                   >
-                    キャンセル
+                    {tc('cancel')}
                   </button>
                   <button
                     type="submit"
                     className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
                   >
                     <Save className="w-4 h-4" />
-                    {editingBlock ? '更新' : '作成'}
+                    {editingBlock ? tc('update') : tc('create')}
                   </button>
                 </div>
               </form>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Task } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -79,6 +80,8 @@ export default function SubtaskList({
   onDeleteAllSubtasks,
   onDeleteSelectedSubtasks,
 }: SubtaskListProps) {
+  const t = useTranslations('task');
+  const tc = useTranslations('common');
   const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [editingDescription, setEditingDescription] = useState('');
@@ -168,10 +171,10 @@ export default function SubtaskList({
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            サブタスク
+            {t('subtasks')}
             {totalSubtasks > 0 && (
               <span className="ml-3 text-base font-normal text-zinc-500">
-                {completedSubtasks.length}/{totalSubtasks}件完了
+                {t('subtasksCompleted', { count: `${completedSubtasks.length}/${totalSubtasks}` })}
               </span>
             )}
           </h2>
@@ -192,12 +195,12 @@ export default function SubtaskList({
                     {isSelectionMode ? (
                       <>
                         <X className="w-4 h-4" />
-                        選択解除
+                        {t('deselect')}
                       </>
                     ) : (
                       <>
                         <CheckSquare className="w-4 h-4" />
-                        選択
+                        {t('select')}
                       </>
                     )}
                   </button>
@@ -214,8 +217,8 @@ export default function SubtaskList({
                       className="px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                     >
                       {selectedSubtaskIds.size === totalSubtasks
-                        ? '全解除'
-                        : '全選択'}
+                        ? t('deselectAll')
+                        : t('selectAll')}
                     </button>
                     {selectedSubtaskIds.size > 0 && (
                       <button
@@ -223,7 +226,7 @@ export default function SubtaskList({
                         className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
-                        {selectedSubtaskIds.size}件削除
+                        {t('deleteCount', { count: selectedSubtaskIds.size })}
                       </button>
                     )}
                   </>
@@ -235,7 +238,7 @@ export default function SubtaskList({
                     className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
-                    全削除
+                    {t('deleteAll')}
                   </button>
                 )}
               </div>
@@ -247,8 +250,8 @@ export default function SubtaskList({
           <div className="mb-4 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
             <p className="text-sm text-red-700 dark:text-red-300 mb-3">
               {showDeleteConfirm === 'all'
-                ? `すべてのサブタスク（${totalSubtasks}件）を削除しますか？この操作は取り消せません。`
-                : `選択した${selectedSubtaskIds.size}件のサブタスクを削除しますか？この操作は取り消せません。`}
+                ? t('deleteAllConfirm', { count: totalSubtasks })
+                : t('deleteSelectedConfirm', { count: selectedSubtaskIds.size })}
             </p>
             <div className="flex gap-2">
               <button
@@ -259,13 +262,13 @@ export default function SubtaskList({
                 }
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
               >
-                削除する
+                {t('confirmDelete')}
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(null)}
                 className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
               >
-                キャンセル
+                {tc('cancel')}
               </button>
             </div>
           </div>
@@ -275,7 +278,7 @@ export default function SubtaskList({
         {totalSubtasks > 0 && (
           <div className="mb-4">
             <div className="flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400 mb-2">
-              <span>進捗状況</span>
+              <span>{t('progress')}</span>
               <span className="font-medium">{progressPercentage}%</span>
             </div>
             <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
@@ -292,7 +295,7 @@ export default function SubtaskList({
       {activeSubtasks.length > 0 && (
         <div className="mb-6">
           <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">
-            進行中・未着手
+            {t('activeSubtasks')}
           </h3>
           <div className="space-y-3">
             {activeSubtasks.map((subtask) => (
@@ -316,7 +319,7 @@ export default function SubtaskList({
                       ) : (
                         <Square className="w-5 h-5" />
                       )}
-                      <span>選択</span>
+                      <span>{t('select')}</span>
                     </button>
                   </div>
                 )}
@@ -328,14 +331,14 @@ export default function SubtaskList({
                       className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       value={editingTitle}
                       onChange={(e) => setEditingTitle(e.target.value)}
-                      placeholder="サブタスクタイトル"
+                      placeholder={t('subtaskTitle')}
                       autoFocus
                     />
                     <textarea
                       className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                       value={editingDescription}
                       onChange={(e) => setEditingDescription(e.target.value)}
-                      placeholder="説明（マークダウン対応）"
+                      placeholder={t('descriptionMarkdown')}
                       rows={3}
                     />
                     <div className="flex items-center gap-2">
@@ -345,14 +348,14 @@ export default function SubtaskList({
                         className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                       >
                         <Check className="w-4 h-4" />
-                        保存
+                        {tc('save')}
                       </button>
                       <button
                         onClick={cancelEditingSubtask}
                         className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors"
                       >
                         <X className="w-4 h-4" />
-                        キャンセル
+                        {tc('cancel')}
                       </button>
                     </div>
                   </div>
@@ -415,7 +418,7 @@ export default function SubtaskList({
                           <button
                             onClick={() => startEditingSubtask(subtask)}
                             className="w-6 h-6 rounded flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-                            title="編集"
+                            title={tc('edit')}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -424,7 +427,7 @@ export default function SubtaskList({
                         <button
                           onClick={() => onDeleteSubtask(subtask.id)}
                           className="w-6 h-6 rounded flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
-                          title="削除"
+                          title={tc('delete')}
                         >
                           <svg
                             className="w-3.5 h-3.5"
@@ -485,7 +488,7 @@ export default function SubtaskList({
                 clipRule="evenodd"
               />
             </svg>
-            完了 ({completedSubtasks.length}件)
+            {t('completedSubtasks', { count: completedSubtasks.length })}
           </h3>
           <div className="space-y-2">
             {completedSubtasks.map((subtask) => (
@@ -555,7 +558,7 @@ export default function SubtaskList({
                       <button
                         onClick={() => startEditingSubtask(subtask)}
                         className="w-6 h-6 rounded flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-                        title="編集"
+                        title={tc('edit')}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -564,7 +567,7 @@ export default function SubtaskList({
                     <button
                       onClick={() => onDeleteSubtask(subtask.id)}
                       className="w-6 h-6 rounded flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
-                      title="削除"
+                      title={tc('delete')}
                     >
                       <svg
                         className="w-3.5 h-3.5"
@@ -593,14 +596,14 @@ export default function SubtaskList({
         {isAddingSubtask ? (
           <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-4 bg-white dark:bg-indigo-dark-900 mb-4">
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-3">
-              新しいサブタスク
+              {t('newSubtask')}
             </h3>
             <div className="space-y-3">
               <div>
                 <input
                   type="text"
                   className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="サブタスクタイトル *"
+                  placeholder={t('subtaskTitleRequired')}
                   value={subtaskTitle}
                   onChange={(e) => onSubtaskTitleChange(e.target.value)}
                   autoFocus
@@ -610,7 +613,7 @@ export default function SubtaskList({
               <div>
                 <textarea
                   className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                  placeholder="説明（マークダウン対応）&#10;- [ ] チェックリスト&#10;`コード` **太字**"
+                  placeholder={t('descriptionMarkdown')}
                   value={subtaskDescription}
                   onChange={(e) => onSubtaskDescriptionChange(e.target.value)}
                   rows={3}
@@ -621,7 +624,7 @@ export default function SubtaskList({
                 <input
                   type="text"
                   className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="ラベル（カンマ区切り）"
+                  placeholder={t('labelsCommaSeparated')}
                   value={subtaskLabels}
                   onChange={(e) => onSubtaskLabelsChange(e.target.value)}
                 />
@@ -630,7 +633,7 @@ export default function SubtaskList({
                   step="0.5"
                   min="0"
                   className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="見積もり時間（h）"
+                  placeholder={t('estimatedHours')}
                   value={subtaskEstimatedHours}
                   onChange={(e) =>
                     onSubtaskEstimatedHoursChange(e.target.value)
@@ -645,14 +648,14 @@ export default function SubtaskList({
                   className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
                   disabled={!subtaskTitle.trim()}
                 >
-                  追加
+                  {tc('add')}
                 </button>
                 <button
                   type="button"
                   onClick={onCancelAddingSubtask}
                   className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                 >
-                  キャンセル
+                  {tc('cancel')}
                 </button>
               </div>
             </div>
@@ -663,7 +666,7 @@ export default function SubtaskList({
             onClick={onStartAddingSubtask}
             className="w-full rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 px-4 py-3 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
           >
-            + サブタスクを追加
+            {t('addSubtask')}
           </button>
         )}
       </div>

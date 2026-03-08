@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import type { LearningGoal, GeneratedLearningPlan, Category } from '@/types';
 import {
   Sparkles,
@@ -29,15 +30,17 @@ const logger = createLogger('LearningGoalsPage');
 // ウィザードのステップ
 type WizardStep = 'goal' | 'level' | 'schedule' | 'confirm';
 
-const WIZARD_STEPS: { key: WizardStep; label: string }[] = [
-  { key: 'goal', label: '学習目標' },
-  { key: 'level', label: 'レベル設定' },
-  { key: 'schedule', label: '期間・時間' },
-  { key: 'confirm', label: '確認' },
-];
-
 export default function LearningGoalsPage() {
+  const t = useTranslations('learning');
+  const tc = useTranslations('common');
   const { showToast } = useToast();
+
+  const WIZARD_STEPS: { key: WizardStep; label: string }[] = [
+    { key: 'goal', label: t('goal') },
+    { key: 'level', label: t('levelSetting') },
+    { key: 'schedule', label: t('durationTime') },
+    { key: 'confirm', label: t('confirm') },
+  ];
   const [goals, setGoals] = useState<LearningGoal[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,7 +129,7 @@ export default function LearningGoalsPage() {
 
       if (res.ok) {
         const newGoal = await res.json();
-        showToast('学習目標を作成しました', 'success');
+        showToast(t('goalCreated'), 'success');
         resetWizard();
         await fetchGoals();
         // 自動的にプラン生成を開始
@@ -134,7 +137,7 @@ export default function LearningGoalsPage() {
       }
     } catch (e) {
       logger.error('Failed to create learning goal:', e);
-      showToast('作成に失敗しました', 'error');
+      showToast(t('createFailed'), 'error');
     }
   };
 
@@ -156,8 +159,8 @@ export default function LearningGoalsPage() {
         const result = await res.json();
         showToast(
           result.source === 'ai'
-            ? 'AIが学習プランを生成しました'
-            : '学習プランを生成しました',
+            ? t('aiGeneratedPlan')
+            : t('planGenerated'),
           'success',
         );
         await fetchGoals();
@@ -167,11 +170,11 @@ export default function LearningGoalsPage() {
           setSelectedGoal(await updated.json());
         }
       } else {
-        showToast('プラン生成に失敗しました', 'error');
+        showToast(t('planGenerateFailed'), 'error');
       }
     } catch (e) {
       logger.error('Failed to generate plan:', e);
-      showToast('エラーが発生しました', 'error');
+      showToast(tc('errorOccurred'), 'error');
     } finally {
       setGenerating(false);
     }
@@ -179,13 +182,11 @@ export default function LearningGoalsPage() {
 
   const handleApplyPlan = async (goal: LearningGoal) => {
     if (goal.isApplied) {
-      showToast('このプランは既に適用済みです', 'info');
+      showToast(t('alreadyApplied'), 'info');
       return;
     }
     if (
-      !confirm(
-        'この学習プランをタスクとして登録しますか？\nテーマが自動作成され、タスク・サブタスクが登録されます。',
-      )
+      !confirm(t('applyConfirm'))
     )
       return;
 
@@ -201,7 +202,7 @@ export default function LearningGoalsPage() {
         const result = await res.json();
         if (result.success) {
           showToast(
-            `${result.createdTaskCount}件のタスクを登録しました（テーマ: ${result.themeName}）`,
+            t('tasksCreated', { count: result.createdTaskCount, theme: result.themeName }),
             'success',
           );
           await fetchGoals();
@@ -212,31 +213,31 @@ export default function LearningGoalsPage() {
             setSelectedGoal(await updated.json());
           }
         } else {
-          showToast(result.error || '適用に失敗しました', 'error');
+          showToast(result.error || t('applyFailed'), 'error');
         }
       }
     } catch (e) {
       logger.error('Failed to apply plan:', e);
-      showToast('エラーが発生しました', 'error');
+      showToast(tc('errorOccurred'), 'error');
     } finally {
       setApplying(false);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('この学習目標を削除しますか？')) return;
+    if (!confirm(t('deleteConfirm'))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/learning-goals/${id}`, {
         method: 'DELETE',
       });
       if (res.ok) {
-        showToast('学習目標を削除しました', 'success');
+        showToast(t('goalDeleted'), 'success');
         if (selectedGoal?.id === id) setSelectedGoal(null);
         await fetchGoals();
       }
     } catch (e) {
       logger.error('Failed to delete:', e);
-      showToast('削除に失敗しました', 'error');
+      showToast(t('deleteFailed'), 'error');
     }
   };
 
@@ -316,10 +317,10 @@ export default function LearningGoalsPage() {
           <BookMarked className="w-8 h-8 text-emerald-500" />
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              学習目標
+              {t('title')}
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              具体的な目標を設定し、AIが最適な学習プランを自動生成
+              {t('subtitle')}
             </p>
           </div>
         </div>
@@ -329,7 +330,7 @@ export default function LearningGoalsPage() {
             className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
           >
             <Target className="w-4 h-4" />
-            新しい目標を設定
+            {t('newGoal')}
           </button>
         )}
       </div>
@@ -385,15 +386,15 @@ export default function LearningGoalsPage() {
               <div className="space-y-4">
                 <div>
                   <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-1">
-                    何を学びたいですか？
+                    {t('whatToLearn')}
                   </h2>
                   <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-                    具体的な学習目標を入力してください。例:「競技プログラミングでレッドコーダーになる」「本当に市場価値が高いAIエンジニアになる」
+                    {t('whatToLearnDescription')}
                   </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    学習目標 *
+                    {t('goalLabel')}
                   </label>
                   <input
                     type="text"
@@ -401,21 +402,21 @@ export default function LearningGoalsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, title: e.target.value })
                     }
-                    placeholder="例: 競技プログラミングでレッドコーダーになる"
+                    placeholder={t('goalPlaceholder')}
                     className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-base focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     autoFocus
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    詳しい説明（任意）
+                    {t('detailedDescription')}
                   </label>
                   <textarea
                     value={formData.description}
                     onChange={(e) =>
                       setFormData({ ...formData, description: e.target.value })
                     }
-                    placeholder="例: AtCoderのレーティングを2800以上にしたい。アルゴリズムの基礎から応用まで体系的に学び、コンテストで安定して高得点を取れるようになりたい。"
+                    placeholder={t('detailedDescriptionPlaceholder')}
                     rows={3}
                     className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
                   />
@@ -428,15 +429,15 @@ export default function LearningGoalsPage() {
               <div className="space-y-4">
                 <div>
                   <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-1">
-                    現在のレベルと目標レベルを教えてください
+                    {t('levelSettingTitle')}
                   </h2>
                   <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-                    AIが最適なプランを作成するために、現在のスキルレベルと目指すレベルを入力してください。
+                    {t('levelSettingDescription')}
                   </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    現在のレベル
+                    {t('currentLevel')}
                   </label>
                   <input
                     type="text"
@@ -444,14 +445,14 @@ export default function LearningGoalsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, currentLevel: e.target.value })
                     }
-                    placeholder="例: 茶色コーダー、プログラミング歴1年、基本情報合格済み"
+                    placeholder={t('currentLevelPlaceholder')}
                     className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     autoFocus
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    目標レベル
+                    {t('targetLevel')}
                   </label>
                   <input
                     type="text"
@@ -459,7 +460,7 @@ export default function LearningGoalsPage() {
                     onChange={(e) =>
                       setFormData({ ...formData, targetLevel: e.target.value })
                     }
-                    placeholder="例: レッドコーダー、年収1000万円のAIエンジニア、TOEIC900点"
+                    placeholder={t('targetLevelPlaceholder')}
                     className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
@@ -471,15 +472,15 @@ export default function LearningGoalsPage() {
               <div className="space-y-4">
                 <div>
                   <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-1">
-                    いつまでに達成したいですか？
+                    {t('whenToAchieve')}
                   </h2>
                   <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-                    期限と1日の学習時間を設定してください。AIがその条件に合った学習プランを作成します。
+                    {t('whenToAchieveDescription')}
                   </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    達成期限
+                    {t('deadline')}
                   </label>
                   <input
                     type="date"
@@ -492,12 +493,12 @@ export default function LearningGoalsPage() {
                     autoFocus
                   />
                   <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
-                    未設定の場合、デフォルトで3ヶ月のプランが生成されます
+                    {t('deadlineDefault')}
                   </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    1日の学習時間
+                    {t('dailyStudyTime')}
                   </label>
                   <div className="flex items-center gap-3">
                     <input
@@ -515,14 +516,14 @@ export default function LearningGoalsPage() {
                       className="flex-1 accent-emerald-600"
                     />
                     <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 min-w-[4rem] text-center">
-                      {formData.dailyHours}h / 日
+                      {formData.dailyHours}{t('hoursPerDay')}
                     </span>
                   </div>
                 </div>
                 {categories.length > 0 && (
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                      カテゴリ（任意）
+                      {t('categoryOptional')}
                     </label>
                     <select
                       value={formData.categoryId ?? ''}
@@ -536,7 +537,7 @@ export default function LearningGoalsPage() {
                       }
                       className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     >
-                      <option value="">自動（学習カテゴリ）</option>
+                      <option value="">{t('categoryAuto')}</option>
                       {categories.map((cat) => (
                         <option key={cat.id} value={cat.id}>
                           {cat.name}
@@ -552,12 +553,12 @@ export default function LearningGoalsPage() {
             {currentStep === 'confirm' && (
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-1">
-                  内容を確認してください
+                  {t('confirmContent')}
                 </h2>
                 <div className="bg-zinc-50 dark:bg-zinc-700/50 rounded-lg p-4 space-y-3">
                   <div>
                     <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                      学習目標
+                      {t('goal')}
                     </span>
                     <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
                       {formData.title}
@@ -566,7 +567,7 @@ export default function LearningGoalsPage() {
                   {formData.description && (
                     <div>
                       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                        詳細
+                        {t('detail')}
                       </span>
                       <p className="text-sm text-zinc-700 dark:text-zinc-300">
                         {formData.description}
@@ -576,40 +577,40 @@ export default function LearningGoalsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                        現在のレベル
+                        {t('currentLevel')}
                       </span>
                       <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                        {formData.currentLevel || '未指定'}
+                        {formData.currentLevel || t('unspecified')}
                       </p>
                     </div>
                     <div>
                       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                        目標レベル
+                        {t('targetLevel')}
                       </span>
                       <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                        {formData.targetLevel || '未指定'}
+                        {formData.targetLevel || t('unspecified')}
                       </p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                        達成期限
+                        {t('deadline')}
                       </span>
                       <p className="text-sm text-zinc-700 dark:text-zinc-300">
                         {formData.deadline
                           ? new Date(formData.deadline).toLocaleDateString(
                               'ja-JP',
                             )
-                          : '未設定（3ヶ月）'}
+                          : t('deadlineUnset')}
                       </p>
                     </div>
                     <div>
                       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                        学習時間
+                        {t('studyTime')}
                       </span>
                       <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                        {formData.dailyHours}時間 / 日
+                        {formData.dailyHours}{t('hoursPerDayUnit')}
                       </p>
                     </div>
                   </div>
@@ -617,7 +618,7 @@ export default function LearningGoalsPage() {
                 <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3">
                   <p className="text-sm text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
                     <Sparkles className="w-4 h-4 shrink-0" />
-                    作成後、AIが自動で最適な学習プランを生成します
+                    {t('aiAutoGenerate')}
                   </p>
                 </div>
               </div>
@@ -632,14 +633,14 @@ export default function LearningGoalsPage() {
                     className="flex items-center gap-1.5 px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
                   >
                     <ChevronLeft className="w-4 h-4" />
-                    戻る
+                    {tc('back')}
                   </button>
                 ) : (
                   <button
                     onClick={resetWizard}
                     className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
                   >
-                    キャンセル
+                    {tc('cancel')}
                   </button>
                 )}
               </div>
@@ -650,7 +651,7 @@ export default function LearningGoalsPage() {
                     className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
                   >
                     <Sparkles className="w-4 h-4" />
-                    目標を作成して学習プランを生成
+                    {t('createAndGenerate')}
                   </button>
                 ) : (
                   <button
@@ -658,7 +659,7 @@ export default function LearningGoalsPage() {
                     disabled={!canProceed()}
                     className="flex items-center gap-1.5 px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    次へ
+                    {t('next')}
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 )}
@@ -675,7 +676,7 @@ export default function LearningGoalsPage() {
           {goals.length > 0 ? (
             <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
               <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-3">
-                目標一覧
+                {t('goalList')}
               </h2>
               <div className="space-y-2">
                 {goals.map((goal) => (
@@ -711,10 +712,10 @@ export default function LearningGoalsPage() {
                           }`}
                         >
                           {goal.status === 'active'
-                            ? '進行中'
+                            ? t('statusActive')
                             : goal.status === 'completed'
-                              ? '達成'
-                              : 'アーカイブ'}
+                              ? t('statusCompleted')
+                              : t('statusArchived')}
                         </span>
                         {goal.deadline && (
                           <span className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -736,9 +737,9 @@ export default function LearningGoalsPage() {
               <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-8 text-center">
                 <Target className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  まだ学習目標がありません。
+                  {t('noGoalsYet')}
                   <br />
-                  「新しい目標を設定」から始めましょう。
+                  {t('startFromNewGoal')}
                 </p>
               </div>
             )
@@ -751,10 +752,10 @@ export default function LearningGoalsPage() {
             <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-12 text-center">
               <Loader2 className="w-12 h-12 mx-auto text-emerald-500 animate-spin mb-4" />
               <h3 className="text-lg font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
-                AIが学習プランを生成しています...
+                {t('aiGenerating')}
               </h3>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                目標に最適な学習ソース、書籍、タスクを分析中です
+                {t('analyzingSources')}
               </p>
             </div>
           ) : selectedGoal ? (
@@ -772,10 +773,10 @@ export default function LearningGoalsPage() {
             <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-12 text-center">
               <BookMarked className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
               <h3 className="text-lg font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
-                学習目標を選択してください
+                {t('selectGoal')}
               </h3>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
-                左のリストから目標を選択するか、新しい目標を設定してAIに最適な学習プランを生成させましょう。
+                {t('selectGoalDescription')}
               </p>
             </div>
           )}
@@ -805,6 +806,7 @@ function GoalDetailPanel({
   onRegenerate: () => void;
   onDelete: () => void;
 }) {
+  const t = useTranslations('learning');
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
       {/* ヘッダー */}
@@ -814,7 +816,7 @@ function GoalDetailPanel({
             {goal.title}
             {goal.isApplied && (
               <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium rounded-full">
-                適用済み
+                {t('applied')}
               </span>
             )}
           </h2>
@@ -834,12 +836,12 @@ function GoalDetailPanel({
               {applying ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>適用中...</span>
+                  <span>{t('applying')}</span>
                 </>
               ) : (
                 <>
                   <ListTodo className="w-4 h-4" />
-                  <span>タスクに適用</span>
+                  <span>{t('applyToTasks')}</span>
                 </>
               )}
             </button>
@@ -850,7 +852,7 @@ function GoalDetailPanel({
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-zinc-300 dark:border-zinc-600 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors text-zinc-700 dark:text-zinc-300"
             >
               <Sparkles className="w-4 h-4" />
-              <span>再生成</span>
+              <span>{t('regenerate')}</span>
             </button>
           )}
           <button
@@ -868,7 +870,7 @@ function GoalDetailPanel({
           <div className="flex items-center gap-1.5">
             <ArrowRight className="w-4 h-4" />
             <span>
-              {goal.currentLevel} → {goal.targetLevel || '未設定'}
+              {goal.currentLevel} → {goal.targetLevel || t('unspecified')}
             </span>
           </div>
         )}
@@ -880,7 +882,7 @@ function GoalDetailPanel({
         )}
         <div className="flex items-center gap-1.5">
           <Clock className="w-4 h-4" />
-          <span>{goal.dailyHours}時間 / 日</span>
+          <span>{goal.dailyHours}{t('hoursPerDayUnit')}</span>
         </div>
       </div>
 
@@ -906,7 +908,7 @@ function GoalDetailPanel({
                       {phase.name}
                     </h3>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {phase.days}日間 ・ {phase.tasks.length}タスク
+                      {phase.days}{t('daysCount')} ・ {phase.tasks.length}{t('tasksCount')}
                       {phase.description && ` ・ ${phase.description}`}
                     </p>
                   </div>
@@ -950,10 +952,10 @@ function GoalDetailPanel({
                                   }`}
                                 >
                                   {task.priority === 'high'
-                                    ? '高'
+                                    ? t('priorityHigh')
                                     : task.priority === 'low'
-                                      ? '低'
-                                      : '中'}
+                                      ? t('priorityLow')
+                                      : t('priorityMedium')}
                                 </span>
                               )}
                             </div>
@@ -997,7 +999,7 @@ function GoalDetailPanel({
               <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4">
                 <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
                   <BookOpen className="w-4 h-4" />
-                  おすすめ学習リソース
+                  {t('recommendedResources')}
                 </h3>
                 <div className="space-y-2">
                   {plan.recommendedResources.map((resource, idx) => (
@@ -1016,14 +1018,14 @@ function GoalDetailPanel({
                         }`}
                       >
                         {resource.type === 'book'
-                          ? '書籍'
+                          ? t('resourceBook')
                           : resource.type === 'course'
-                            ? 'コース'
+                            ? t('resourceCourse')
                             : resource.type === 'video'
-                              ? '動画'
+                              ? t('resourceVideo')
                               : resource.type === 'practice'
-                                ? '演習'
-                                : 'Web'}
+                                ? t('resourcePractice')
+                                : t('resourceWeb')}
                       </span>
                       <div>
                         <span className="font-medium text-blue-800 dark:text-blue-200">
@@ -1055,7 +1057,7 @@ function GoalDetailPanel({
             <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 mb-4">
               <h3 className="font-semibold text-amber-800 dark:text-amber-200 mb-2 flex items-center gap-2">
                 <Lightbulb className="w-4 h-4" />
-                学習のヒント
+                {t('learningTips')}
               </h3>
               <ul className="space-y-1">
                 {plan.tips.map((tip, index) => (
@@ -1075,7 +1077,7 @@ function GoalDetailPanel({
             <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4">
               <p className="text-sm text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
                 <ListTodo className="w-4 h-4 shrink-0" />
-                「タスクに適用」ボタンを押すと、テーマが自動作成され、学習タスク・サブタスクが登録されます
+                {t('applyTaskGuide')}
               </p>
             </div>
           )}
@@ -1084,14 +1086,14 @@ function GoalDetailPanel({
         <div className="text-center py-8">
           <Sparkles className="w-10 h-10 mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            学習プランはまだ生成されていません
+            {t('noPlanYet')}
           </p>
           <button
             onClick={onRegenerate}
             className="mt-3 flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition-colors mx-auto"
           >
             <Sparkles className="w-4 h-4" />
-            学習プランを生成
+            {t('generatePlan')}
           </button>
         </div>
       )}

@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import TaskDetailClient from '@/app/tasks/[id]/TaskDetailClient';
 import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
+import { useTranslations } from 'next-intl';
 
 /**
  * Tauri用の静的タスク詳細ページ
@@ -12,6 +13,7 @@ import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
  */
 function TaskDetailContent() {
   const searchParams = useSearchParams();
+  const t = useTranslations('task');
   const taskIdParam = searchParams.get('id');
   const taskId = taskIdParam ? parseInt(taskIdParam, 10) : null;
 
@@ -23,10 +25,10 @@ function TaskDetailContent() {
             <span className="text-3xl">!</span>
           </div>
           <p className="text-red-600 dark:text-red-400 mb-4 font-medium">
-            タスクIDが指定されていません
+            {t('taskIdNotSpecified')}
           </p>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            URLパラメータで ?id=123 の形式でタスクIDを指定してください
+            {t('taskIdUrlHint')}
           </p>
         </div>
       </div>

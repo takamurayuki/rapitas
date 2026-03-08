@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -28,6 +29,7 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('ApprovalsClient');
 
 export default function ApprovalsClient() {
+  const t = useTranslations('approvals');
   const searchParams = useSearchParams();
   const expandParam = searchParams.get('expand');
   const {
@@ -229,10 +231,10 @@ export default function ApprovalsClient() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              承認待ち一覧
+              {t('pendingList')}
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              AIからの提案を確認・承認
+              {t('pendingSubtitle')}
             </p>
           </div>
         </div>
@@ -243,7 +245,7 @@ export default function ApprovalsClient() {
             className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium transition-colors"
           >
             <CheckCheck className="w-4 h-4" />
-            {selectedIds.size}件を一括承認
+            {t('bulkApprove', { count: selectedIds.size })}
           </button>
         )}
       </div>
@@ -251,9 +253,9 @@ export default function ApprovalsClient() {
       {/* Filters */}
       <div className="flex items-center gap-2 mb-6">
         {[
-          { value: 'pending', label: '承認待ち', icon: Clock },
-          { value: 'approved', label: '承認済み', icon: CheckCircle },
-          { value: 'rejected', label: '却下済み', icon: XCircle },
+          { value: 'pending', label: t('pending'), icon: Clock },
+          { value: 'approved', label: t('approved'), icon: CheckCircle },
+          { value: 'rejected', label: t('rejected'), icon: XCircle },
         ].map((f) => (
           <button
             key={f.value}
@@ -300,10 +302,10 @@ export default function ApprovalsClient() {
           </div>
           <p className="text-zinc-600 dark:text-zinc-400">
             {filter === 'pending'
-              ? '承認待ちの提案はありません'
+              ? t('noPendingApprovals')
               : filter === 'approved'
-                ? '承認済みの提案はありません'
-                : '却下済みの提案はありません'}
+                ? t('noApprovedApprovals')
+                : t('noRejectedApprovals')}
           </p>
         </div>
       )}
@@ -343,7 +345,7 @@ export default function ApprovalsClient() {
                     )}
                   </button>
                   <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                    全て選択 ({selectedIds.size}/{approvals.length})
+                    {t('selectAll')} ({selectedIds.size}/{approvals.length})
                   </span>
                 </div>
               )}
@@ -433,6 +435,7 @@ function ApprovalCard({
   onReject: () => void;
   formatDate: (date: string) => string;
 }) {
+  const t = useTranslations('approvals');
   const [selectedSubtasks, setSelectedSubtasks] = useState<Set<number>>(
     new Set(approval.proposedChanges.subtasks?.map((_, i) => i) || []),
   );
@@ -459,10 +462,10 @@ function ApprovalCard({
   };
 
   const statusLabels = {
-    pending: '承認待ち',
-    approved: '承認済み',
-    rejected: '却下済み',
-    expired: '期限切れ',
+    pending: t('pending'),
+    approved: t('approved'),
+    rejected: t('rejected'),
+    expired: t('expired'),
   };
 
   return (
@@ -504,7 +507,7 @@ function ApprovalCard({
                     href={getTaskDetailPath(approval.config.task.id)}
                     className="text-sm text-violet-600 dark:text-violet-400 hover:underline"
                   >
-                    タスク: {approval.config.task.title}
+                    {t('task')}: {approval.config.task.title}
                   </Link>
                 )}
               </div>
@@ -532,7 +535,7 @@ function ApprovalCard({
             <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
               <span className="flex items-center gap-1">
                 <ListChecks className="w-3.5 h-3.5" />
-                {approval.proposedChanges.subtasks?.length || 0}件のサブタスク
+                {t('subtaskCount', { count: approval.proposedChanges.subtasks?.length || 0 })}
               </span>
               <span className="flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" />
@@ -559,7 +562,7 @@ function ApprovalCard({
           {/* Subtasks List */}
           <div className="p-4">
             <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">
-              提案されたサブタスク
+              {t('proposedSubtasks')}
             </h4>
             <div className="space-y-2">
               {approval.proposedChanges.subtasks?.map((subtask, index) => (
@@ -610,7 +613,7 @@ function ApprovalCard({
                       </span>
                       {subtask.estimatedHours && (
                         <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                          約{subtask.estimatedHours}時間
+                          {t('approxHours', { hours: subtask.estimatedHours })}
                         </span>
                       )}
                     </div>
@@ -624,7 +627,7 @@ function ApprovalCard({
           {approval.proposedChanges.reasoning && (
             <div className="px-4 pb-4">
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                <span className="font-medium">分解理由:</span>{' '}
+                <span className="font-medium">{t('decompositionReason')}</span>{' '}
                 {approval.proposedChanges.reasoning}
               </p>
             </div>
@@ -639,7 +642,7 @@ function ApprovalCard({
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors disabled:opacity-50"
               >
                 <XCircle className="w-4 h-4" />
-                却下
+                {t('reject')}
               </button>
               <button
                 onClick={() =>
@@ -660,8 +663,8 @@ function ApprovalCard({
                 )}
                 {selectedSubtasks.size ===
                 (approval.proposedChanges.subtasks?.length || 0)
-                  ? '全て承認'
-                  : `${selectedSubtasks.size}件を承認`}
+                  ? t('approveAll')
+                  : t('approveCount', { count: selectedSubtasks.size })}
               </button>
             </div>
           )}
@@ -698,6 +701,7 @@ function CodeReviewCard({
   formatDate: (date: string) => string;
   error: string | null;
 }) {
+  const t = useTranslations('approvals');
   const statusColors = {
     pending:
       'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
@@ -708,10 +712,10 @@ function CodeReviewCard({
   };
 
   const statusLabels = {
-    pending: '承認待ち',
-    approved: '承認済み',
-    rejected: '却下済み',
-    expired: '期限切れ',
+    pending: t('pending'),
+    approved: t('approved'),
+    rejected: t('rejected'),
+    expired: t('expired'),
   };
 
   const defaultBranch = approval.config?.task?.theme?.defaultBranch || 'main';
@@ -735,7 +739,7 @@ function CodeReviewCard({
                   </h3>
                   <span className="flex items-center gap-1 px-2 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded text-xs font-medium">
                     <GitPullRequest className="w-3 h-3" />
-                    コードレビュー
+                    {t('codeReview')}
                   </span>
                 </div>
                 {approval.config?.task && (
@@ -743,7 +747,7 @@ function CodeReviewCard({
                     href={getTaskDetailPath(approval.config.task.id)}
                     className="text-sm text-violet-600 dark:text-violet-400 hover:underline"
                   >
-                    タスク: {approval.config.task.title}
+                    {t('task')}: {approval.config.task.title}
                   </Link>
                 )}
               </div>
@@ -761,8 +765,8 @@ function CodeReviewCard({
               <span className="flex items-center gap-1">
                 <Code2 className="w-3.5 h-3.5" />
                 {diffFiles.length > 0
-                  ? `${diffFiles.length}ファイル変更`
-                  : '変更を読み込み中...'}
+                  ? t('filesChanged', { count: diffFiles.length })
+                  : t('loadingChanges')}
               </span>
               <span className="flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" />

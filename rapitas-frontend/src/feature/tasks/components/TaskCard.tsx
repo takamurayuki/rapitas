@@ -17,6 +17,7 @@ import { CardLightSweep, useProgressColors } from './TaskCompletionAnimation';
 import { prefetch } from '@/lib/api-client';
 import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('TaskCard');
@@ -48,6 +49,9 @@ const TaskCard = memo(function TaskCard({
   onOpenInPage,
   sweepingTaskId,
 }: TaskCardProps) {
+  const t = useTranslations('task');
+  const tc = useTranslations('common');
+  const tHome = useTranslations('home');
   const cardRef = useRef<HTMLDivElement>(null);
   const [expandedSubtasks, setExpandedSubtasks] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -124,7 +128,7 @@ const TaskCard = memo(function TaskCard({
           badgeClass:
             'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300',
           dotClass: 'bg-blue-500',
-          label: '実行中',
+          label: t('running'),
         };
       case 'waiting_for_input':
         return {
@@ -132,7 +136,7 @@ const TaskCard = memo(function TaskCard({
           badgeClass:
             'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300',
           dotClass: 'bg-amber-500',
-          label: '入力待ち',
+          label: t('waitingForInput'),
         };
       default:
         return null;
@@ -168,7 +172,7 @@ const TaskCard = memo(function TaskCard({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: `${task.title} (コピー)`,
+          title: `${task.title} ${tc('copySuffix')}`,
           status: task.status,
           priority: task.priority,
           themeId: task.themeId,
@@ -177,32 +181,32 @@ const TaskCard = memo(function TaskCard({
         }),
       });
 
-      if (!res.ok) throw new Error('複製に失敗しました');
-      showToast('タスクを複製しました', 'success');
+      if (!res.ok) throw new Error(tHome('duplicateFailed'));
+      showToast(tHome('duplicated'), 'success');
       onTaskUpdated?.();
       setShowContextMenu(false);
     } catch (e) {
       logger.error(e);
-      showToast('タスクの複製に失敗しました', 'error');
+      showToast(tHome('duplicateFailed'), 'error');
     }
   };
 
   // タスクを削除
   const deleteTask = async () => {
-    if (!confirm('このタスクを削除しますか？')) return;
+    if (!confirm(tHome('deleteConfirm'))) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${task.id}`, {
         method: 'DELETE',
       });
 
-      if (!res.ok) throw new Error('削除に失敗しました');
-      showToast('タスクを削除しました', 'success');
+      if (!res.ok) throw new Error(tHome('deleteFailed'));
+      showToast(tHome('taskDeleted'), 'success');
       onTaskUpdated?.();
       setShowContextMenu(false);
     } catch (e) {
       logger.error(e);
-      showToast('タスクの削除に失敗しました', 'error');
+      showToast(tHome('deleteFailed'), 'error');
     }
   };
 
@@ -242,7 +246,7 @@ const TaskCard = memo(function TaskCard({
     color: 'text-amber-700 dark:text-amber-300',
     bgColor: 'bg-amber-50 dark:bg-amber-900/40',
     borderColor: 'border-l-amber-500 dark:border-l-amber-400',
-    label: '入力待ち',
+    label: t('waitingForInput'),
   };
 
   // カードの左ボーダー色（waiting_for_inputの時はamber）
@@ -372,7 +376,7 @@ const TaskCard = memo(function TaskCard({
               {executionClasses && (
                 <div
                   className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium shrink-0 ${executionClasses.badgeClass}`}
-                  title={`タスクが${executionClasses.label}です`}
+                  title={executionClasses.label}
                 >
                   <div
                     className={`w-1.5 h-1.5 rounded-full execution-dot-pulse ${executionClasses.dotClass}`}
@@ -529,7 +533,7 @@ const TaskCard = memo(function TaskCard({
                   onOpenInPage(task.id);
                 }}
                 className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all duration-200 ease-out hover:scale-110"
-                title="ページで開く"
+                title={tHome('openInPage')}
               >
                 <ExternalLink className="w-4 h-4" />
               </button>
@@ -556,14 +560,14 @@ const TaskCard = memo(function TaskCard({
             className="w-full flex items-center gap-2 px-3 py-2 text-sm font-mono text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             <Edit className="w-4 h-4" />
-            編集
+            {tc('edit')}
           </button>
           <button
             onClick={duplicateTask}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm font-mono text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             <Copy className="w-4 h-4" />
-            複製
+            {tHome('duplicate')}
           </button>
           <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
           <button
@@ -571,7 +575,7 @@ const TaskCard = memo(function TaskCard({
             className="w-full flex items-center gap-2 px-3 py-2 text-sm font-mono text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
             <Trash2 className="w-4 h-4" />
-            削除
+            {tc('delete')}
           </button>
         </div>
       )}
