@@ -66,7 +66,7 @@ import {
 import { prisma, ensureDatabaseConnection } from "./config";
 
 // Import orchestrator for startup recovery
-import { orchestrator } from "./routes/agents/approvals";
+import { orchestrator } from "./services/orchestrator-instance";
 
 // Import realtime service for SSE cleanup on shutdown
 import { realtimeService } from "./services/realtime-service";

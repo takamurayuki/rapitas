@@ -820,7 +820,9 @@ function runScreenshotWorker(
         if (!child.killed) {
           child.kill('SIGKILL');
         }
-      } catch {}
+      } catch (e) {
+        // Process cleanup errors are non-critical
+      }
     };
 
     child.stdout.on("data", (data: Buffer) => {

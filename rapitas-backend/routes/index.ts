@@ -18,7 +18,8 @@ export { taskAnalysisConfigRoutes } from "./tasks/task-analysis-config";
 export { batchRoutes } from "./tasks/batch";
 
 // Agents - エージェント関連
-export { approvalsRoutes, orchestrator } from "./agents/approvals";
+export { approvalsRoutes } from "./agents/approvals";
+export { orchestrator } from "../services/orchestrator-instance";
 export { aiAgentRoutes } from "./agents/ai-agent";
 export { parallelExecutionRoutes } from "./agents/parallel-execution";
 export { agentExecutionConfigRoutes } from "./agents/agent-execution-config";

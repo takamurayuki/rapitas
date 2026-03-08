@@ -7,9 +7,8 @@ import { prisma } from "../../config/database";
 import { createLogger } from "../../config/logger";
 
 const log = createLogger("routes:approvals");
-import { createOrchestrator } from "../../services/agents/agent-orchestrator";
+import { orchestrator } from "../../services/orchestrator-instance";
 import { GitHubService } from "../../services/github-service";
-import { realtimeService } from "../../services/realtime-service";
 import { toJsonString, fromJsonString } from "../../utils/db-helpers";
 import type { SubtaskProposal } from "../../services/claude-agent";
 import {
@@ -18,76 +17,9 @@ import {
 } from "../../services/screenshot-service";
 
 // Create service instances
-const orchestrator = createOrchestrator(prisma);
 const githubService = new GitHubService(prisma);
 
-// Forward orchestrator events to realtime service
-orchestrator.addEventListener((event) => {
-  const executionChannel = `execution:${event.executionId}`;
-  const sessionChannel = `session:${event.sessionId}`;
-
-  const broadcastToBoth = (
-    eventType: string,
-    data: Record<string, unknown>,
-  ) => {
-    realtimeService.broadcast(executionChannel, eventType, data);
-    realtimeService.broadcast(sessionChannel, eventType, data);
-  };
-
-  switch (event.type) {
-    case "execution_started":
-      broadcastToBoth("execution_started", {
-        executionId: event.executionId,
-        sessionId: event.sessionId,
-        taskId: event.taskId,
-        timestamp: event.timestamp.toISOString(),
-      });
-      break;
-    case "execution_output":
-      const outputData = event.data as { output: string; isError: boolean };
-      realtimeService.broadcast(executionChannel, "execution_output", {
-        executionId: event.executionId,
-        output: outputData.output,
-        isError: outputData.isError,
-        timestamp: new Date().toISOString(),
-      });
-      realtimeService.broadcast(sessionChannel, "execution_output", {
-        executionId: event.executionId,
-        output: outputData.output,
-        isError: outputData.isError,
-        timestamp: new Date().toISOString(),
-      });
-      break;
-    case "execution_completed":
-      broadcastToBoth("execution_completed", {
-        executionId: event.executionId,
-        sessionId: event.sessionId,
-        taskId: event.taskId,
-        result: event.data,
-        timestamp: event.timestamp.toISOString(),
-      });
-      break;
-    case "execution_failed":
-      broadcastToBoth("execution_failed", {
-        executionId: event.executionId,
-        sessionId: event.sessionId,
-        taskId: event.taskId,
-        error: event.data,
-        timestamp: event.timestamp.toISOString(),
-      });
-      break;
-    case "execution_cancelled":
-      broadcastToBoth("execution_cancelled", {
-        executionId: event.executionId,
-        sessionId: event.sessionId,
-        taskId: event.taskId,
-        timestamp: event.timestamp.toISOString(),
-      });
-      break;
-  }
-});
-
-// Export orchestrator for use in other modules
+// Re-export orchestrator for backward compatibility
 export { orchestrator };
 
 // Prisma の String 型で保存された JSON フィールドをパースするヘルパー
@@ -1076,35 +1008,41 @@ ${previousImplementation}
             subtasks: SubtaskProposal[];
           }>(approval.proposedChanges);
 
-          // 既存のサブタスクを取得して重複チェック
-          const existingSubtasks = await prisma.task.findMany({
-            where: { parentId: approval.config.taskId },
-            select: { title: true },
-          });
-          const existingTitles = new Set(existingSubtasks.map((st: { title: string }) => st.title.toLowerCase().trim()));
-
-          for (const subtask of proposedChanges?.subtasks || []) {
-            // タイトルが重複する場合はスキップ
-            const normalizedTitle = subtask.title.toLowerCase().trim();
-            if (existingTitles.has(normalizedTitle)) {
-              log.info(`[approvals:bulk] Skipping duplicate subtask: ${subtask.title}`);
-              continue;
-            }
-            existingTitles.add(normalizedTitle);
-
-            await prisma.task.create({
-              data: {
-                title: subtask.title,
-                description: subtask.description,
-                priority: subtask.priority,
-                estimatedHours: subtask.estimatedHours,
-                parentId: approval.config.taskId,
-                agentGenerated: true,
-              },
+          // トランザクションで重複チェックと作成を原子的に実行
+          const createdSubtasks = await prisma.$transaction(async (tx: typeof prisma) => {
+            const existingSubtasks = await tx.task.findMany({
+              where: { parentId: approval.config.taskId },
+              select: { title: true },
             });
-          }
+            const existingTitles = new Set(existingSubtasks.map((st: { title: string }) => st.title.toLowerCase().trim()));
 
-          results.push({ id, success: true });
+            const created = [];
+            for (const subtask of proposedChanges?.subtasks || []) {
+              const normalizedTitle = subtask.title.toLowerCase().trim();
+              if (existingTitles.has(normalizedTitle)) {
+                log.info(`[approvals:bulk] Skipping duplicate subtask: ${subtask.title}`);
+                continue;
+              }
+              existingTitles.add(normalizedTitle);
+
+              const newSubtask = await tx.task.create({
+                data: {
+                  title: subtask.title,
+                  description: subtask.description,
+                  priority: subtask.priority,
+                  estimatedHours: subtask.estimatedHours,
+                  parentId: approval.config.taskId,
+                  agentGenerated: true,
+                },
+              });
+              created.push(newSubtask);
+            }
+            return created;
+          }, {
+            isolationLevel: 'Serializable',
+          });
+
+          results.push({ id, success: true, createdCount: createdSubtasks.length });
         } else {
           results.push({ id, success: true });
         }

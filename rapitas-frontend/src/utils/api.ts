@@ -18,6 +18,11 @@ export function buildApiUrl(path: string): string {
   return `${API_BASE_URL}${normalizedPath}`;
 }
 
+type FetchWithRetryOptions = {
+  /** trueの場合、最終リトライ失敗時のログをerror→warnにダウングレード */
+  silent?: boolean;
+};
+
 /**
  * リトライ付きfetch
  * サーバー再起動中の一時的なネットワークエラー（TypeError: Failed to fetch）を自動リカバリ
@@ -28,7 +33,8 @@ export async function fetchWithRetry(
   init?: RequestInit,
   maxRetries = 3,
   retryDelayMs = 300,
-  timeoutMs = 5000,
+  timeoutMs = 10000,
+  options?: FetchWithRetryOptions,
 ): Promise<Response> {
   let lastError: Error | undefined;
   const url =
@@ -42,13 +48,27 @@ export async function fetchWithRetry(
     try {
       logger.debug(`[fetchWithRetry] Attempting ${attempt + 1}/${maxRetries} for ${url}`);
 
+      // 呼び出し元のsignalが既にabortされている場合は即座にエラー
+      if (init?.signal?.aborted) {
+        throw new DOMException('The operation was aborted.', 'AbortError');
+      }
+
       // タイムアウト処理のためのAbortController
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
+      // 呼び出し元のsignalとタイムアウトsignalを結合
+      const signals: AbortSignal[] = [controller.signal];
+      if (init?.signal) {
+        signals.push(init.signal);
+      }
+      const combinedSignal = signals.length > 1
+        ? AbortSignal.any(signals)
+        : controller.signal;
+
       const response = await fetch(input, {
         ...init,
-        signal: controller.signal,
+        signal: combinedSignal,
       });
 
       // タイムアウトをクリア
@@ -72,9 +92,10 @@ export async function fetchWithRetry(
       const isLastAttempt = attempt === maxRetries - 1;
 
       if (isLastAttempt) {
-        // 最後のリトライでも失敗した場合のみエラーレベル
+        // 最後のリトライでも失敗した場合
         const errorType = isTimeoutError ? 'Timeout' : isNetworkError ? 'NetworkError' : lastError.name;
-        logger.error(
+        const logFn = options?.silent ? logger.warn : logger.error;
+        logFn(
           `[fetchWithRetry] Final attempt ${attempt + 1}/${maxRetries} failed for ${url}: [${errorType}] ${lastError.message}`,
         );
       } else if (isNetworkError || isTimeoutError) {

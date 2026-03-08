@@ -82,6 +82,8 @@ export function ResumableExecutionsBanner() {
         undefined,
         2,
         500,
+        10000,
+        { silent: true },
       );
       if (res.ok) {
         const data = await res.json();
@@ -108,6 +110,7 @@ export function ResumableExecutionsBanner() {
         2,
         500,
         5000, // 5秒タイムアウト
+        { silent: true },
       );
       if (res.ok) {
         const data: ResumableExecution[] = await res.json();
@@ -176,11 +179,11 @@ export function ResumableExecutionsBanner() {
   // グローバルストアに新しい実行タスクが追加されたら即座にフェッチ
   const prevExecutingTasksSizeRef = useRef(executingTasksSize);
   useEffect(() => {
-    if (executingTasksSize > prevExecutingTasksSizeRef.current) {
+    if (executingTasksSize > prevExecutingTasksSizeRef.current && isConnected) {
       fetchResumableExecutions();
     }
     prevExecutingTasksSizeRef.current = executingTasksSize;
-  }, [executingTasksSize, fetchResumableExecutions]);
+  }, [executingTasksSize, isConnected, fetchResumableExecutions]);
 
   // 定期的にポーリングして新しい実行の開始や完了を検出する
   useEffect(() => {

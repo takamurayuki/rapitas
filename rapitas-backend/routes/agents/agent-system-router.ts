@@ -4,9 +4,8 @@
  */
 import { Elysia } from "elysia";
 import { prisma } from "../../config/database";
-import { orchestrator } from "./approvals";
+import { orchestrator } from "../../services/orchestrator-instance";
 import { isEncryptionKeyConfigured } from "../../utils/encryption";
-import { getAllAgentConfigSchemas } from "../../utils/agent-config-schema";
 import { realtimeService } from "../../services/realtime-service";
 import { createLogger } from "../../config/logger";
 
@@ -21,13 +20,6 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
       message: isEncryptionKeyConfigured()
         ? "暗号化キーが正しく設定されています"
         : "警告: 暗号化キーが環境変数に設定されていません。本番環境では必ず設定してください。",
-    };
-  })
-
-  // Get all agent configuration schemas
-  .get("/config-schemas", async () => {
-    return {
-      schemas: getAllAgentConfigSchemas(),
     };
   })
 

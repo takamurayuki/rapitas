@@ -286,7 +286,9 @@ export class ClaudeCodeAgent extends BaseAgent {
       const cleanupPromptFile = () => {
         try {
           unlinkSync(promptFile);
-        } catch {}
+        } catch (_) {
+          // Prompt file may already be deleted
+        }
       };
 
       try {
@@ -492,7 +494,9 @@ export class ClaudeCodeAgent extends BaseAgent {
                 );
                 try {
                   this.process.kill();
-                } catch {}
+                } catch (killErr) {
+                  logger.warn({ err: killErr }, `${this.logPrefix} process.kill() also failed (idle hang)`);
+                }
               }
             } else {
               this.process.kill("SIGTERM");
@@ -1162,7 +1166,9 @@ export class ClaudeCodeAgent extends BaseAgent {
         logger.error({ err: e }, `${this.logPrefix} taskkill failed (question detected)`);
         try {
           this.process.kill();
-        } catch {}
+        } catch (killErr) {
+          logger.warn({ err: killErr }, `${this.logPrefix} process.kill() also failed (question detected)`);
+        }
       }
     } else {
       this.process.kill("SIGTERM");
@@ -1191,7 +1197,9 @@ export class ClaudeCodeAgent extends BaseAgent {
           // フォールバックとして通常のkillを試行
           try {
             this.process.kill();
-          } catch {}
+          } catch (killErr) {
+            logger.warn({ err: killErr }, `${this.logPrefix} process.kill() also failed`);
+          }
         }
       } else {
         // Unix系OSではSIGINTを送信して丁寧に終了を試みる

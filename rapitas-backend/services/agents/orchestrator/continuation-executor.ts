@@ -717,7 +717,9 @@ export async function handleQuestionTimeout(
           where: { id: executionId },
           data: { status: "waiting_for_input" },
         })
-        .catch(() => {});
+        .catch((updateErr) => {
+          logger.warn({ err: updateErr, executionId }, "Failed to update execution status to waiting_for_input on error");
+        });
       throw error;
     } finally {
       ctx.releaseContinuationLock(executionId);

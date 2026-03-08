@@ -63,22 +63,24 @@ async function processRequest(request: {
 }) {
   const { method, url, body } = request;
 
-  // URLを解析してエンドポイントを特定
-  const path = url.replace(/^\//, ""); // 先頭の/を削除
+  // URLをパス部分とクエリ文字列に分離
+  const [rawPath, queryString] = url.split("?");
+  const path = rawPath.replace(/^\//, ""); // 先頭の/を削除
   const pathParts = path.split("/");
   const [resource, ...rest] = pathParts;
+  const query = new URLSearchParams(queryString || "");
 
   switch (resource) {
     case "tasks":
-      return handleTaskRequests(method, rest, body);
+      return handleTaskRequests(method, rest, body, query);
     case "categories":
-      return handleCategoryRequests(method, rest, body);
+      return handleCategoryRequests(method, rest, body, query);
     case "themes":
-      return handleThemeRequests(method, rest, body);
+      return handleThemeRequests(method, rest, body, query);
     case "statistics":
-      return handleStatisticsRequests(method, rest, body);
+      return handleStatisticsRequests(method, rest, body, query);
     default:
-      throw new Error(`Unknown resource: ${resource}`);
+      throw new Error(`Unknown resource: ${resource} (URL was: ${url})`);
   }
 }
 
@@ -88,17 +90,17 @@ async function processRequest(request: {
 async function handleTaskRequests(
   method: string,
   pathParts: string[],
-  body?: unknown
+  body?: unknown,
+  query?: URLSearchParams
 ) {
   const [id, subResource] = pathParts;
 
   if (method === "GET") {
     if (!id) {
       // GET /tasks
-      const queryParams = new URLSearchParams(pathParts.join("/"));
-      const themeId = queryParams.get("themeId");
-      const status = queryParams.get("status");
-      const since = queryParams.get("since");
+      const themeId = query?.get("themeId") ?? null;
+      const status = query?.get("status") ?? null;
+      const since = query?.get("since") ?? null;
 
       const where: Record<string, unknown> = {};
       if (themeId) where.themeId = parseInt(themeId);
@@ -170,7 +172,8 @@ async function handleTaskRequests(
 async function handleCategoryRequests(
   method: string,
   pathParts: string[],
-  body?: unknown
+  body?: unknown,
+  query?: URLSearchParams
 ) {
   if (method === "GET") {
     return prisma.category.findMany();
@@ -184,7 +187,8 @@ async function handleCategoryRequests(
 async function handleThemeRequests(
   method: string,
   pathParts: string[],
-  body?: unknown
+  body?: unknown,
+  query?: URLSearchParams
 ) {
   if (method === "GET") {
     return prisma.theme.findMany();
@@ -198,7 +202,8 @@ async function handleThemeRequests(
 async function handleStatisticsRequests(
   method: string,
   pathParts: string[],
-  body?: unknown
+  body?: unknown,
+  query?: URLSearchParams
 ) {
   if (method === "GET" && pathParts[0] === "tasks") {
     const [total, byStatus, byCategory] = await Promise.all([

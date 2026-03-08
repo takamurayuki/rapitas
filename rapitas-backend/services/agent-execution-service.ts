@@ -3,7 +3,7 @@
  * エージェント実行のライフサイクル管理、セッション管理を行う
  */
 import { PrismaClient, AgentExecution, AgentSession } from "@prisma/client";
-import { orchestrator } from "../routes/agents/approvals";
+import { orchestrator } from "./orchestrator-instance";
 import type {
   ExecutionRequest,
   ExecutionResult,
@@ -230,7 +230,9 @@ export class AgentExecutionService {
     // セッションの全実行を停止
     const executions = orchestrator.getSessionExecutions(sessionId);
     for (const execution of executions) {
-      await orchestrator.stopExecution(execution.executionId).catch(() => {});
+      await orchestrator.stopExecution(execution.executionId).catch((err) => {
+        log.warn({ err, executionId: execution.executionId }, "Failed to stop execution during session stop");
+      });
     }
 
     // データベースで実行中/待機中の実行をすべてキャンセル
@@ -293,7 +295,9 @@ export class AgentExecutionService {
 
     // 実行停止処理
     if (["running", "pending", "waiting_for_input"].includes(previousExecution.status)) {
-      await orchestrator.stopExecution(previousExecution.id).catch(() => {});
+      await orchestrator.stopExecution(previousExecution.id).catch((err) => {
+        log.warn({ err, executionId: previousExecution.id }, "Failed to stop previous execution before resume");
+      });
     }
 
     // 新しい実行エントリを作成
@@ -431,7 +435,9 @@ export class AgentExecutionService {
 
     // 実行中の場合は停止
     if (["running", "pending", "waiting_for_input"].includes(latestExecution.status)) {
-      await orchestrator.stopExecution(latestExecution.id).catch(() => {});
+      await orchestrator.stopExecution(latestExecution.id).catch((err) => {
+        log.warn({ err, executionId: latestExecution.id }, "Failed to stop execution before reset");
+      });
     }
 
     // 実行状態をリセット

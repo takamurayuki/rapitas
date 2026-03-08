@@ -27,7 +27,7 @@ const log = createLogger("routes:ai-agent");
 import { toJsonString, fromJsonString } from "../../utils/db-helpers";
 import { ParallelExecutor } from "../../services/parallel-execution/parallel-executor";
 import type { TaskPriority } from "../../services/parallel-execution/types";
-import { orchestrator } from "./approvals";
+import { orchestrator } from "../../services/orchestrator-instance";
 import {
   encrypt,
   decrypt,
@@ -1313,7 +1313,9 @@ export const aiAgentRoutes = new Elysia()
                   completedAt: new Date(),
                 },
               })
-              .catch(() => {});
+              .catch((err: unknown) => {
+                log.warn({ err, sessionId: execution.sessionId }, "[resume] Failed to mark session as completed");
+              });
 
             const diff = await orchestrator.getFullGitDiff(workingDirectory);
             if (diff && diff !== "No changes detected") {
@@ -1433,7 +1435,9 @@ export const aiAgentRoutes = new Elysia()
               where: { id: task.id },
               data: { status: "todo" },
             })
-            .catch(() => {});
+            .catch((err: unknown) => {
+              log.warn({ err, taskId: task.id }, "[resume] Failed to revert task status to 'todo'");
+            });
           log.info(
             `[resume] Reverted task ${task.id} status to 'todo' due to error`,
           );
@@ -1447,7 +1451,9 @@ export const aiAgentRoutes = new Elysia()
                 errorMessage: error.message || "Resume execution error",
               },
             })
-            .catch(() => {});
+            .catch((err: unknown) => {
+              log.warn({ err, sessionId: execution.sessionId }, "[resume] Failed to mark session as failed");
+            });
 
           await prisma.notification.create({
             data: {

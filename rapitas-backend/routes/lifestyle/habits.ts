@@ -4,6 +4,9 @@
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
 import { checkAchievements } from "../../services/achievement-checker";
+import { createLogger } from "../../config/logger";
+
+const logger = createLogger("routes:habits");
 
 /**
  * ストリーク計算ロジック
@@ -251,7 +254,9 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
     });
 
     // 実績チェック（非同期）
-    checkAchievements("streak.updated").catch(() => {});
+    checkAchievements("streak.updated").catch((err) => {
+      logger.warn({ err }, "Failed to check achievements for streak update");
+    });
 
     return log;
   })
