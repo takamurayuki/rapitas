@@ -22,6 +22,10 @@ import {
   handleExecutionError,
 } from "./execution-helpers";
 
+import { appendEvent } from "../../memory/timeline";
+import { memoryTaskQueue } from "../../memory";
+import { buildTaskRAGContext } from "../../memory/rag/context-builder";
+
 const logger = createLogger("task-executor");
 
 /**
@@ -233,9 +237,22 @@ export async function executeTask(
   });
 
   try {
+    // RAGコンテキストを注入
+    let ragContext = "";
+    try {
+      ragContext = await buildTaskRAGContext({
+        title: task.title,
+        description: task.description,
+        themeId: (task as any).themeId,
+      });
+    } catch (err) {
+      logger.debug({ err }, "[TaskExecutor] RAG context build failed, continuing without");
+    }
+
     const taskWithAnalysis: AgentTask = {
       ...task,
       analysisInfo: options.analysisInfo,
+      ...(ragContext ? { description: `${task.description ?? ""}\n\n${ragContext}` } : {}),
     };
 
     if (options.analysisInfo) {
@@ -263,6 +280,22 @@ export async function executeTask(
     );
     emitResultEvent(result, execution.id, options.sessionId, options.taskId,
       (event) => ctx.emitEvent(event));
+
+    // メモリシステム: タイムラインイベント + distillation
+    const eventType = result.success ? "agent_execution_completed" : "agent_execution_failed";
+    appendEvent({
+      eventType,
+      actorType: "agent",
+      actorId: agentConfig.type,
+      payload: { executionId: execution.id, taskId: options.taskId, success: result.success },
+      correlationId: `execution_${execution.id}`,
+    }).catch((err) => logger.debug({ err }, "[TaskExecutor] Timeline event failed"));
+
+    if (result.success) {
+      memoryTaskQueue.enqueue("distill", { executionId: execution.id }, 1).catch((err) => {
+        logger.debug({ err }, "[TaskExecutor] Distillation enqueue failed");
+      });
+    }
 
     return result;
   } catch (error) {

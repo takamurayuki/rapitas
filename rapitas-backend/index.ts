@@ -60,6 +60,8 @@ import {
   workflowRolesRoutes,
   pomodoroRoutes,
   searchRoutes,
+  knowledgeRoutes,
+  memorySystemRoutes,
 } from "./routes";
 
 // Import shared database client
@@ -188,10 +190,18 @@ app.use(workflowRoutes);
 app.use(workflowRolesRoutes);
 app.use(pomodoroRoutes);
 app.use(searchRoutes);
+app.use(knowledgeRoutes);
+app.use(memorySystemRoutes);
 
 // Start behavior scheduler
 import { BehaviorScheduler } from "./src/services/behaviorScheduler";
 BehaviorScheduler.start();
+
+// Initialize memory system
+import { initializeMemorySystem, shutdownMemorySystem } from "./services/memory";
+initializeMemorySystem().catch((error) => {
+  log.error({ err: error }, "Failed to initialize memory system");
+});
 
 // Start server
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -231,6 +241,10 @@ const handleProcessSignal = async (signal: string) => {
     } catch (error) {
       log.error({ err: error }, "Error stopping listener");
     }
+
+    // Step 1.5: Stop memory system
+    log.info("Step 1.5: Stopping memory system...");
+    shutdownMemorySystem();
 
     // Step 2: SSE接続を全て閉じる（既存接続のクリーンアップ）
     log.info("Step 2: Closing SSE connections...");

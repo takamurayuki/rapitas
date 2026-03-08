@@ -17,6 +17,8 @@ export type NotificationType =
   | "pomodoro_completed"
   | "habit_reminder"
   | "schedule_reminder"
+  | "contradiction_detected"
+  | "consolidation_completed"
   | "system";
 
 interface CreateNotificationParams {

@@ -546,6 +546,28 @@ export default function Header() {
     },
     {
       href: '#',
+      label: t('knowledgeBase'),
+      icon: Brain,
+      children: [
+        {
+          href: '/knowledge',
+          label: t('knowledgeBrowser'),
+          icon: Brain,
+        },
+        {
+          href: '/knowledge/contradictions',
+          label: t('contradictions'),
+          icon: NotebookTabs,
+        },
+        {
+          href: '/knowledge/admin',
+          label: t('memoryAdmin'),
+          icon: Settings,
+        },
+      ],
+    },
+    {
+      href: '#',
       label: t('settings'),
       icon: Settings,
       children: [

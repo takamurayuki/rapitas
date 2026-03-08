@@ -98,6 +98,10 @@
     "approvals": "承認待ち",
     "promptManagement": "プロンプト管理",
     "claudeGeneration": "CLAUDE.md生成",
+    "knowledgeBase": "知識ベース",
+    "knowledgeBrowser": "知識ブラウザ",
+    "contradictions": "矛盾管理",
+    "memoryAdmin": "メモリ管理",
     "settings": "設定",
     "generalSettings": "全体設定",
     "apiKeySettings": "APIキー設定",
@@ -1531,5 +1535,116 @@
     "prio_scale_desc": "急成長に備える",
     "prio_security": "セキュリティ",
     "prio_security_desc": "金融・医療・個人情報"
+  },
+  "knowledge": {
+    "title": "知識ベース",
+    "description": "AIエージェントが学んだ知識と学習データの管理",
+    "search": "知識を検索...",
+    "searchPlaceholder": "キーワードまたは自然文で検索",
+    "noResults": "知識エントリが見つかりません",
+    "noResultsDescription": "検索条件を変更するか、新しい知識を追加してください",
+    "createEntry": "知識を追加",
+    "editEntry": "知識を編集",
+    "deleteEntry": "知識をアーカイブ",
+    "pinEntry": "ピン留め",
+    "unpinEntry": "ピン留め解除",
+    "pinUntil": "ピン留め期限",
+    "entry": "エントリ",
+    "entries": "件のエントリ",
+    "confidence": "信頼度",
+    "similarity": "類似度",
+    "decayScore": "減衰スコア",
+    "accessCount": "アクセス回数",
+    "lastAccessed": "最終アクセス",
+    "sourceType": "ソースタイプ",
+    "category": "カテゴリ",
+    "stage": "ステージ",
+    "validation": "検証状態",
+    "tags": "タグ",
+    "content": "内容",
+    "sourceTypes": {
+      "agent_execution": "エージェント実行",
+      "user_learning": "ユーザー学習",
+      "task_pattern": "タスクパターン",
+      "distilled_procedure": "蒸留された手順",
+      "consolidated": "統合済み"
+    },
+    "categories": {
+      "procedure": "手順",
+      "fact": "事実",
+      "pattern": "パターン",
+      "preference": "設定・好み",
+      "insight": "洞察",
+      "general": "一般"
+    },
+    "stages": {
+      "active": "アクティブ",
+      "dormant": "休眠",
+      "archived": "アーカイブ"
+    },
+    "validationStatuses": {
+      "pending": "検証待ち",
+      "validated": "検証済み",
+      "rejected": "拒否",
+      "conflict": "矛盾あり"
+    },
+    "contradictions": {
+      "title": "矛盾管理",
+      "description": "検出された知識の矛盾を確認・解決",
+      "noContradictions": "未解決の矛盾はありません",
+      "entryA": "エントリA",
+      "entryB": "エントリB",
+      "type": "矛盾タイプ",
+      "resolution": "解決方法",
+      "keepA": "Aを採用",
+      "keepB": "Bを採用",
+      "merge": "マージ",
+      "dismiss": "無視",
+      "resolve": "解決",
+      "types": {
+        "factual": "事実の矛盾",
+        "procedural": "手順の矛盾",
+        "preference": "設定の矛盾"
+      }
+    },
+    "admin": {
+      "title": "メモリ管理",
+      "description": "メモリシステムの管理と監視",
+      "queueStatus": "キュー状態",
+      "consolidationHistory": "固定化履歴",
+      "forgettingPreview": "忘却プレビュー",
+      "ragTest": "RAGテスト",
+      "triggerConsolidation": "固定化を実行",
+      "triggerSweep": "忘却スイープを実行",
+      "testQuery": "テストクエリ",
+      "pending": "待機中",
+      "processing": "処理中",
+      "completed": "完了",
+      "failed": "失敗",
+      "deadLetter": "デッドレター",
+      "embeddingCount": "Embedding数",
+      "runDate": "実行日時",
+      "duration": "所要時間",
+      "processed": "処理数",
+      "merged": "統合数",
+      "created": "作成数"
+    },
+    "stats": {
+      "title": "知識ベース統計",
+      "totalEntries": "総エントリ数",
+      "averageConfidence": "平均信頼度",
+      "averageDecay": "平均減衰スコア",
+      "recentlyAccessed": "最近アクセス",
+      "byCategory": "カテゴリ別",
+      "byStage": "ステージ別",
+      "byValidation": "検証状態別",
+      "bySource": "ソース別"
+    },
+    "timeline": {
+      "title": "タイムライン",
+      "noEvents": "イベントがありません"
+    },
+    "relatedKnowledge": "関連する知識",
+    "noRelatedKnowledge": "関連する知識はありません"
   }
 }

@@ -10,3 +10,6 @@ migrations
 # Analysis reports (auto-generated)
 analysis-report.md
 analysis-result.json
+
+# Memory system vector DB
+rapitas-backend/data/
