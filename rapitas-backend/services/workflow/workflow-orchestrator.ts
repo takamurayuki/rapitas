@@ -13,9 +13,22 @@ import { createLogger } from '../../config/logger';
 
 const log = createLogger('workflow-orchestrator');
 
-type WorkflowRole = 'researcher' | 'planner' | 'reviewer' | 'implementer' | 'verifier' | 'auto_verifier';
+type WorkflowRole =
+  | 'researcher'
+  | 'planner'
+  | 'reviewer'
+  | 'implementer'
+  | 'verifier'
+  | 'auto_verifier';
 type WorkflowFileType = 'research' | 'question' | 'plan' | 'verify';
-type WorkflowStatus = 'draft' | 'research_done' | 'plan_created' | 'plan_approved' | 'in_progress' | 'verify_done' | 'completed';
+type WorkflowStatus =
+  | 'draft'
+  | 'research_done'
+  | 'plan_created'
+  | 'plan_approved'
+  | 'in_progress'
+  | 'verify_done'
+  | 'completed';
 type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
 
 interface RoleTransition {
@@ -26,25 +39,25 @@ interface RoleTransition {
 
 // 詳細モード (comprehensive) - 既存の5ステップワークフロー
 const COMPREHENSIVE_MODE: Record<string, RoleTransition> = {
-  'draft':         { role: 'researcher',   outputFile: 'research', nextStatus: 'research_done' },
-  'research_done': { role: 'planner',      outputFile: 'plan',     nextStatus: 'plan_created' },
-  'plan_created':  { role: 'reviewer',     outputFile: 'question', nextStatus: 'plan_created' }, // status stays
-  'plan_approved': { role: 'implementer',  outputFile: null,       nextStatus: 'in_progress' },
-  'in_progress':   { role: 'verifier',     outputFile: 'verify',   nextStatus: 'verify_done' },
+  draft: { role: 'researcher', outputFile: 'research', nextStatus: 'research_done' },
+  research_done: { role: 'planner', outputFile: 'plan', nextStatus: 'plan_created' },
+  plan_created: { role: 'reviewer', outputFile: 'question', nextStatus: 'plan_created' }, // status stays
+  plan_approved: { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
+  in_progress: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },
 };
 
 // 標準モード (standard) - 4ステップワークフロー
 const STANDARD_MODE: Record<string, RoleTransition> = {
-  'draft':         { role: 'planner',      outputFile: 'plan',     nextStatus: 'plan_created' },
-  'plan_created':  { role: 'reviewer',     outputFile: 'question', nextStatus: 'plan_created' }, // status stays
-  'plan_approved': { role: 'implementer',  outputFile: null,       nextStatus: 'in_progress' },
-  'in_progress':   { role: 'verifier',     outputFile: 'verify',   nextStatus: 'verify_done' },
+  draft: { role: 'planner', outputFile: 'plan', nextStatus: 'plan_created' },
+  plan_created: { role: 'reviewer', outputFile: 'question', nextStatus: 'plan_created' }, // status stays
+  plan_approved: { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
+  in_progress: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },
 };
 
 // 軽量モード (lightweight) - 2ステップワークフロー
 const LIGHTWEIGHT_MODE: Record<string, RoleTransition> = {
-  'draft':         { role: 'implementer',  outputFile: null,       nextStatus: 'in_progress' },
-  'in_progress':   { role: 'auto_verifier', outputFile: 'verify', nextStatus: 'verify_done' },
+  draft: { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
+  in_progress: { role: 'auto_verifier', outputFile: 'verify', nextStatus: 'verify_done' },
 };
 
 // 後方互換性のため既存のSTATUS_TO_ROLEを詳細モードとして保持
@@ -99,13 +112,20 @@ async function readWorkflowFile(dir: string, fileType: WorkflowFileType): Promis
 /**
  * ワークフローファイルに書き込む
  */
-async function writeWorkflowFile(dir: string, fileType: WorkflowFileType, content: string): Promise<void> {
+async function writeWorkflowFile(
+  dir: string,
+  fileType: WorkflowFileType,
+  content: string,
+): Promise<void> {
   await mkdir(dir, { recursive: true });
 
   // 文字化け検出・修正処理
   const sanitizeResult = sanitizeMarkdownContent(content);
   if (sanitizeResult.wasFixed) {
-    log.info({ issues: sanitizeResult.issues }, `[WorkflowOrchestrator] Fixed mojibake in ${fileType}.md`);
+    log.info(
+      { issues: sanitizeResult.issues },
+      `[WorkflowOrchestrator] Fixed mojibake in ${fileType}.md`,
+    );
   }
 
   const filePath = join(dir, `${fileType}.md`);
@@ -147,7 +167,12 @@ export class WorkflowOrchestrator {
       include: { theme: { include: { category: true } } },
     });
     if (!task) {
-      return { success: false, role: 'researcher', status: 'draft', error: 'タスクが見つかりません' };
+      return {
+        success: false,
+        role: 'researcher',
+        status: 'draft',
+        error: 'タスクが見つかりません',
+      };
     }
 
     // ワークフローモードに基づいて適切な遷移マップを選択
@@ -215,14 +240,21 @@ export class WorkflowOrchestrator {
     // ワークフローディレクトリ解決
     const workflowInfo = await resolveWorkflowDir(taskId);
     if (!workflowInfo) {
-      return { success: false, role: transition.role, status: currentStatus as WorkflowStatus, error: 'パス解決に失敗しました' };
+      return {
+        success: false,
+        role: transition.role,
+        status: currentStatus as WorkflowStatus,
+        error: 'パス解決に失敗しました',
+      };
     }
 
     // 出力ファイルが既に存在する場合はスキップしてステータスだけ進める
     if (transition.outputFile) {
       const existingContent = await readWorkflowFile(workflowInfo.dir, transition.outputFile);
       if (existingContent) {
-        log.info(`[WorkflowOrchestrator] ${transition.outputFile}.md already exists for task ${taskId}, skipping agent execution`);
+        log.info(
+          `[WorkflowOrchestrator] ${transition.outputFile}.md already exists for task ${taskId}, skipping agent execution`,
+        );
         // ステータスだけ進める
         await prisma.task.update({
           where: { id: taskId },
@@ -244,7 +276,8 @@ export class WorkflowOrchestrator {
     const agentType = agentConfig.agentType;
     const isCLI = CLI_AGENT_TYPES.has(agentType);
     // ロール固有のモデルIDがあればオーバーライド
-    const effectiveModelId = (roleConfig as { modelId?: string | null }).modelId || agentConfig.modelId;
+    const effectiveModelId =
+      (roleConfig as { modelId?: string | null }).modelId || agentConfig.modelId;
 
     // workflowStatusを更新（実行開始を示す）
     if (currentStatus === 'draft') {
@@ -314,7 +347,8 @@ export class WorkflowOrchestrator {
         if (research) {
           ctx += `\n\n# リサーチャーの調査結果 (research.md)\n\n${research}`;
         }
-        ctx += '\n\n上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。';
+        ctx +=
+          '\n\n上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。';
         return ctx;
       }
 
@@ -328,7 +362,8 @@ export class WorkflowOrchestrator {
         if (plan) {
           ctx += `\n\n# 実装計画 (plan.md)\n\n${plan}`;
         }
-        ctx += '\n\n上記の計画をレビューし、リスク・不明点・改善提案をquestion.mdとしてMarkdown形式で作成してください。5つ以上の指摘事項を含めてください。';
+        ctx +=
+          '\n\n上記の計画をレビューし、リスク・不明点・改善提案をquestion.mdとしてMarkdown形式で作成してください。5つ以上の指摘事項を含めてください。';
         return ctx;
       }
 
@@ -346,7 +381,8 @@ export class WorkflowOrchestrator {
         if (question) {
           ctx += `\n\n# レビュー指摘事項 (question.md)\n\n${question}`;
         }
-        ctx += '\n\n上記の計画に従って実装を完了してください。計画に記載されたファイルの作成・編集を行い、コードを実装してください。';
+        ctx +=
+          '\n\n上記の計画に従って実装を完了してください。計画に記載されたファイルの作成・編集を行い、コードを実装してください。';
         return ctx;
       }
 
@@ -370,7 +406,8 @@ export class WorkflowOrchestrator {
         } catch {
           // git diffが失敗しても続行
         }
-        ctx += '\n\n上記の計画と実装結果を検証し、verify.mdとしてMarkdown形式でレポートを作成してください。\n\n計画チェックリストの消化状況、テスト結果、品質メトリクスを含めてください。';
+        ctx +=
+          '\n\n上記の計画と実装結果を検証し、verify.mdとしてMarkdown形式でレポートを作成してください。\n\n計画チェックリストの消化状況、テスト結果、品質メトリクスを含めてください。';
         return ctx;
       }
 
@@ -425,7 +462,7 @@ export class WorkflowOrchestrator {
       fullPrompt += `**プロジェクトルートには絶対にファイルを作成しないでください。**\n\n`;
       fullPrompt += `**API保存コマンド**:\n`;
       fullPrompt += `\`\`\`bash\n`;
-      fullPrompt += `curl -X PUT http://localhost:3001/workflow/tasks/${taskId}/files/${transition.outputFile} \\\n`;
+      fullPrompt += `curl -X PUT http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${taskId}/files/${transition.outputFile} \\\n`;
       fullPrompt += `  -H 'Content-Type: application/json' \\\n`;
       fullPrompt += `  -d '{"content":"# ファイル内容をここに記述"}'`;
       fullPrompt += `\n\`\`\`\n\n`;
@@ -459,12 +496,19 @@ export class WorkflowOrchestrator {
       // フォールバック: エージェントがWriteツールでファイル保存しなかった場合、
       // エージェントの出力からMarkdownコンテンツを抽出してファイルに保存する
       if (!fileContent && result.output && result.output.trim().length > 100) {
-        log.info(`[WorkflowOrchestrator] ${transition.outputFile}.md not found, extracting content from agent output (${result.output.length} chars)`);
-        const extractedContent = this.extractMarkdownFromOutput(result.output, transition.outputFile);
+        log.info(
+          `[WorkflowOrchestrator] ${transition.outputFile}.md not found, extracting content from agent output (${result.output.length} chars)`,
+        );
+        const extractedContent = this.extractMarkdownFromOutput(
+          result.output,
+          transition.outputFile,
+        );
         if (extractedContent) {
           await writeWorkflowFile(workflowDir, transition.outputFile, extractedContent);
           fileContent = extractedContent;
-          log.info(`[WorkflowOrchestrator] Saved extracted content to ${transition.outputFile}.md (${extractedContent.length} chars)`);
+          log.info(
+            `[WorkflowOrchestrator] Saved extracted content to ${transition.outputFile}.md (${extractedContent.length} chars)`,
+          );
         }
       }
 
@@ -477,7 +521,9 @@ export class WorkflowOrchestrator {
         }
         // ファイルが保存されていれば、エージェントの成否に関わらずワークフローとしては成功
         if (!effectiveSuccess) {
-          log.info(`[WorkflowOrchestrator] Agent reported failure but ${transition.outputFile}.md exists, treating as success`);
+          log.info(
+            `[WorkflowOrchestrator] Agent reported failure but ${transition.outputFile}.md exists, treating as success`,
+          );
           effectiveSuccess = true;
         }
       }
@@ -501,7 +547,9 @@ export class WorkflowOrchestrator {
 
     // implementer完了後は自動的に検証フェーズを実行
     if (effectiveSuccess && transition.role === 'implementer') {
-      log.info('[WorkflowOrchestrator] Implementer completed successfully, automatically starting verifier...');
+      log.info(
+        '[WorkflowOrchestrator] Implementer completed successfully, automatically starting verifier...',
+      );
       try {
         // 非同期で検証フェーズを開始（レスポンスは即座に返す）
         setTimeout(async () => {
@@ -566,11 +614,27 @@ export class WorkflowOrchestrator {
       const startTime = Date.now();
 
       if (agentConfig.agentType === 'anthropic-api') {
-        output = await this.callAnthropicAPI(apiKey, agentConfig.modelId || 'claude-sonnet-4-20250514', systemPrompt, context);
+        output = await this.callAnthropicAPI(
+          apiKey,
+          agentConfig.modelId || 'claude-sonnet-4-20250514',
+          systemPrompt,
+          context,
+        );
       } else if (agentConfig.agentType === 'openai') {
-        output = await this.callOpenAIAPI(apiKey, agentConfig.modelId || 'gpt-4o', systemPrompt, context);
+        output = await this.callOpenAIAPI(
+          apiKey,
+          agentConfig.modelId || 'gpt-4o',
+          systemPrompt,
+          context,
+        );
       } else if (agentConfig.agentType === 'azure-openai') {
-        output = await this.callOpenAIAPI(apiKey, agentConfig.modelId || 'gpt-4o', systemPrompt, context, agentConfig.endpoint || undefined);
+        output = await this.callOpenAIAPI(
+          apiKey,
+          agentConfig.modelId || 'gpt-4o',
+          systemPrompt,
+          context,
+          agentConfig.endpoint || undefined,
+        );
       } else {
         throw new Error(`未対応のAPIエージェントタイプ: ${agentConfig.agentType}`);
       }
@@ -613,7 +677,9 @@ export class WorkflowOrchestrator {
 
       // implementer完了後は自動的に検証フェーズを実行
       if (transition.role === 'implementer') {
-        log.info('[WorkflowOrchestrator] Implementer completed successfully, automatically starting verifier...');
+        log.info(
+          '[WorkflowOrchestrator] Implementer completed successfully, automatically starting verifier...',
+        );
         try {
           // 非同期で検証フェーズを開始（レスポンスは即座に返す）
           setTimeout(async () => {
@@ -670,7 +736,7 @@ export class WorkflowOrchestrator {
       throw new Error(`Anthropic API error (${response.status}): ${errorBody}`);
     }
 
-    const data = await response.json() as { content: Array<{ type: string; text: string }> };
+    const data = (await response.json()) as { content: Array<{ type: string; text: string }> };
     return data.content
       .filter((block) => block.type === 'text')
       .map((block) => block.text)
@@ -692,7 +758,7 @@ export class WorkflowOrchestrator {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model,
@@ -709,7 +775,7 @@ export class WorkflowOrchestrator {
       throw new Error(`OpenAI API error (${response.status}): ${errorBody}`);
     }
 
-    const data = await response.json() as { choices: Array<{ message: { content: string } }> };
+    const data = (await response.json()) as { choices: Array<{ message: { content: string } }> };
     return data.choices[0]?.message?.content || '';
   }
 
@@ -752,7 +818,7 @@ export class WorkflowOrchestrator {
       'research_content.json',
       'verify_content.md',
       'API_OPTIMIZATION_GUIDE.md',
-      'SCREENSHOT_OPTIMIZATION_CHANGES.md'
+      'SCREENSHOT_OPTIMIZATION_CHANGES.md',
     ];
 
     try {
@@ -810,7 +876,11 @@ export class WorkflowOrchestrator {
         inToolBlock = true;
         continue;
       }
-      if (line.match(/^\[Result:\s/) || line.match(/^\[完了\]/) || line.match(/^\[フェーズ完了\]/)) {
+      if (
+        line.match(/^\[Result:\s/) ||
+        line.match(/^\[完了\]/) ||
+        line.match(/^\[フェーズ完了\]/)
+      ) {
         inToolBlock = false;
         continue;
       }

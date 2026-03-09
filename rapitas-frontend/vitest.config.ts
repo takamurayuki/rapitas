@@ -11,13 +11,19 @@ export default defineConfig({
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'json-summary', 'html'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'src/**/*.{test,spec}.{ts,tsx}',
         'src/__tests__/**',
         'src/types/**',
       ],
+      thresholds: {
+        lines: 10,
+        branches: 5,
+        functions: 10,
+        statements: 10,
+      },
     },
   },
   resolve: {

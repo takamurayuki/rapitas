@@ -15,7 +15,9 @@
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.ts\" --ignore-path .gitignore",
+    "format:check": "prettier --check \"**/*.ts\" --ignore-path .gitignore"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
@@ -23,6 +25,7 @@
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^8.56.1",
     "eslint": "^10.0.2",
+    "prettier": "^3.8.1",
     "prisma": "^6.19.0"
   },
   "peerDependencies": {

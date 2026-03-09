@@ -2,10 +2,10 @@
  * Analytics Aggregation Service
  * タスク統計の集約・生産性トレンド・週次レポート生成
  */
-import { prisma } from "../config/database";
-import { createLogger } from "../config/logger";
+import { prisma } from '../config/database';
+import { createLogger } from '../config/logger';
 
-const log = createLogger("analytics-aggregation-service");
+const log = createLogger('analytics-aggregation-service');
 
 export interface TaskStats {
   totalTasks: number;
@@ -31,11 +31,8 @@ export interface WeeklyReport {
 /**
  * タスク統計を集約する
  */
-export async function aggregateTaskStats(
-  from?: Date,
-  to?: Date,
-): Promise<TaskStats> {
-  log.info({ from, to }, "Aggregating task stats");
+export async function aggregateTaskStats(from?: Date, to?: Date): Promise<TaskStats> {
+  log.info({ from, to }, 'Aggregating task stats');
 
   const where: Record<string, unknown> = {};
   if (from || to) {
@@ -46,11 +43,11 @@ export async function aggregateTaskStats(
 
   const [totalTasks, completedTasks] = await Promise.all([
     prisma.task.count({ where }),
-    prisma.task.count({ where: { ...where, status: "done" } }),
+    prisma.task.count({ where: { ...where, status: 'done' } }),
   ]);
 
   const completedWithDates = await prisma.task.findMany({
-    where: { ...where, status: "done", completedAt: { not: null } },
+    where: { ...where, status: 'done', completedAt: { not: null } },
     select: { createdAt: true, completedAt: true },
   });
 
@@ -72,19 +69,19 @@ export async function aggregateTaskStats(
  * 生産性トレンドを取得する（直近N日分）
  */
 export async function getProductivityTrends(days = 14): Promise<ProductivityTrend[]> {
-  log.info({ days }, "Fetching productivity trends");
+  log.info({ days }, 'Fetching productivity trends');
 
   const since = new Date();
   since.setDate(since.getDate() - days);
 
   const [tasks, timeEntries] = await Promise.all([
     prisma.task.findMany({
-      where: { status: "done", completedAt: { gte: since } },
+      where: { status: 'done', completedAt: { gte: since } },
       select: { completedAt: true },
     }),
     prisma.timeEntry.findMany({
-      where: { startTime: { gte: since } },
-      select: { startTime: true, duration: true },
+      where: { startedAt: { gte: since } },
+      select: { startedAt: true, duration: true },
     }),
   ]);
 
@@ -105,20 +102,19 @@ export async function getProductivityTrends(days = 14): Promise<ProductivityTren
   }
 
   for (const te of timeEntries) {
-    const dateStr = te.startTime.toISOString().slice(0, 10);
+    const dateStr = te.startedAt.toISOString().slice(0, 10);
     const entry = trendMap.get(dateStr);
     if (entry) entry.hoursWorked += te.duration ?? 0;
   }
 
-  return Array.from(trendMap.values())
-    .sort((a, b) => a.date.localeCompare(b.date));
+  return Array.from(trendMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /**
  * 週次レポートを生成する
  */
 export async function generateWeeklyReport(): Promise<WeeklyReport> {
-  log.info("Generating weekly report");
+  log.info('Generating weekly report');
 
   const now = new Date();
   const weekStart = new Date(now);
@@ -132,14 +128,14 @@ export async function generateWeeklyReport(): Promise<WeeklyReport> {
     aggregateTaskStats(weekStart, weekEnd),
     getProductivityTrends(7),
     prisma.task.findMany({
-      where: { status: "done", completedAt: { gte: weekStart, lte: weekEnd } },
+      where: { status: 'done', completedAt: { gte: weekStart, lte: weekEnd } },
       select: { theme: { select: { category: { select: { name: true } } } } },
     }),
   ]);
 
   const categoryCount = new Map<string, number>();
   for (const task of categoryData) {
-    const name = task.theme?.category?.name ?? "未分類";
+    const name = task.theme?.category?.name ?? '未分類';
     categoryCount.set(name, (categoryCount.get(name) ?? 0) + 1);
   }
 

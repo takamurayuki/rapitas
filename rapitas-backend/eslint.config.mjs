@@ -4,7 +4,7 @@ import tsparser from "@typescript-eslint/parser";
 export default [
   {
     files: ["**/*.ts"],
-    ignores: ["node_modules/**", "dist/**"],
+    ignores: ["node_modules/**", "dist/**", "tests/**"],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
@@ -17,12 +17,24 @@ export default [
     },
     rules: {
       "no-console": "error",
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
     },
   },
   {
     files: ["scripts/**/*.ts"],
     rules: {
       "no-console": "warn",
+    },
+  },
+  {
+    files: ["tests/**/*.ts"],
+    rules: {
+      "no-console": "off",
+      "@typescript-eslint/no-explicit-any": "off",
     },
   },
 ];

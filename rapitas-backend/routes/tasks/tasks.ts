@@ -3,10 +3,10 @@
  * Core task CRUD operations
  * ビジネスロジックは task-service.ts に委譲
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
-import { AppError, ValidationError } from "../../middleware/error-handler";
-import { createLogger } from "../../config/logger";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
+import { AppError, ValidationError } from '../../middleware/error-handler';
+import { createLogger } from '../../config/logger';
 import {
   createTask,
   updateTask,
@@ -14,19 +14,19 @@ import {
   generateAISuggestions,
   cleanupDuplicateSubtasks,
   cleanupAllDuplicateSubtasks,
-} from "../../services/task-service";
+} from '../../services/task-service';
 
-const logger = createLogger("tasks");
+const logger = createLogger('tasks');
 
-export const tasksRoutes = new Elysia({ prefix: "/tasks" })
+export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   // Search task titles for autocomplete
   .get(
-    "/search",
+    '/search',
     async (context) => {
       const { query } = context;
       const { q, limit, themeId, projectId } = query;
-      const searchQuery = q?.trim() ?? "";
-      const resultLimit = Math.min(parseInt(limit ?? "10"), 20);
+      const searchQuery = q?.trim() ?? '';
+      const resultLimit = Math.min(parseInt(limit ?? '10'), 20);
 
       if (!searchQuery) {
         return [];
@@ -54,7 +54,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
             },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
         take: resultLimit,
       });
     },
@@ -70,11 +70,11 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
 
   // Get task suggestions based on past tasks for a theme (frequency-based fallback)
   .get(
-    "/suggestions",
+    '/suggestions',
     async (context) => {
       const { query } = context;
       const { themeId, limit } = query;
-      const resultLimit = Math.min(parseInt(limit ?? "10"), 20);
+      const resultLimit = Math.min(parseInt(limit ?? '10'), 20);
 
       if (!themeId) {
         return { suggestions: [] };
@@ -97,14 +97,14 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
 
   // AI-powered task suggestions: analyze past tasks and suggest new ones
   .get(
-    "/suggestions/ai",
+    '/suggestions/ai',
     async (context) => {
       const { query } = context;
       const { themeId, limit } = query;
-      const resultLimit = Math.min(parseInt(limit ?? "5"), 10);
+      const resultLimit = Math.min(parseInt(limit ?? '5'), 10);
 
       if (!themeId) {
-        return { suggestions: [], source: "none" };
+        return { suggestions: [], source: 'none' };
       }
 
       return await generateAISuggestions(prisma, parseInt(themeId), resultLimit);
@@ -119,36 +119,35 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
 
   // Get cached AI suggestions for a theme
   .get(
-    "/suggestions/ai/cache",
+    '/suggestions/ai/cache',
     async (context) => {
       const { query } = context;
       const { themeId } = query;
 
       if (!themeId) {
-        return { suggestions: [], analysis: null, source: "none" };
+        return { suggestions: [], analysis: null, source: 'none' };
       }
 
       const parsedThemeId = parseInt(themeId);
 
       if (!prisma.taskSuggestionCache) {
         logger.warn(
-          "[tasks/suggestions/ai/cache] taskSuggestionCache model not available - run prisma generate",
+          '[tasks/suggestions/ai/cache] taskSuggestionCache model not available - run prisma generate',
         );
-        return { suggestions: [], analysis: null, source: "none" };
+        return { suggestions: [], analysis: null, source: 'none' };
       }
 
       const cached = await prisma.taskSuggestionCache.findMany({
         where: { themeId: parsedThemeId },
-        orderBy: { id: "asc" },
+        orderBy: { id: 'asc' },
       });
 
       if (cached.length === 0) {
-        return { suggestions: [], analysis: null, source: "none" };
+        return { suggestions: [], analysis: null, source: 'none' };
       }
 
       const analysis =
-        cached.find((c: { analysis: string | null }) => c.analysis)?.analysis ||
-        null;
+        cached.find((c: { analysis: string | null }) => c.analysis)?.analysis || null;
 
       const suggestions = cached.map(
         (c: {
@@ -179,7 +178,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
         }),
       );
 
-      return { suggestions, analysis, source: "cache" };
+      return { suggestions, analysis, source: 'cache' };
     },
     {
       query: t.Object({
@@ -190,24 +189,24 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
 
   // Delete cached suggestions for a theme
   .delete(
-    "/suggestions/ai/cache",
+    '/suggestions/ai/cache',
     async (context) => {
       const { query } = context;
       const { themeId } = query;
 
       if (!themeId) {
-        return { success: false, message: "themeId is required" };
+        return { success: false, message: 'themeId is required' };
       }
 
       const parsedThemeId = parseInt(themeId);
 
       if (!prisma.taskSuggestionCache) {
         logger.warn(
-          "[tasks/suggestions/ai/cache] taskSuggestionCache model not available - run prisma generate",
+          '[tasks/suggestions/ai/cache] taskSuggestionCache model not available - run prisma generate',
         );
         return {
           success: false,
-          message: "taskSuggestionCache model not available",
+          message: 'taskSuggestionCache model not available',
         };
       }
 
@@ -228,7 +227,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
   )
 
   // Get all tasks (supports incremental fetch via `since` param)
-  .get("/", async (context) => {
+  .get('/', async (context) => {
     const { query } = context;
     const { projectId, milestoneId, priority, since } = query as {
       projectId?: string;
@@ -248,7 +247,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
     if (since) {
       const sinceDate = new Date(since);
       if (isNaN(sinceDate.getTime())) {
-        throw new ValidationError("Invalid `since` parameter");
+        throw new ValidationError('Invalid `since` parameter');
       }
 
       const [updated, totalCount, allIds] = await Promise.all([
@@ -259,7 +258,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
           },
           include: {
             subtasks: {
-              orderBy: { createdAt: "asc" },
+              orderBy: { createdAt: 'asc' },
             },
             theme: true,
             project: true,
@@ -271,7 +270,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
               },
             },
           },
-          orderBy: { createdAt: "desc" },
+          orderBy: { createdAt: 'desc' },
         }),
         prisma.task.count({ where: baseWhere }),
         // 現在存在する全タスクのIDを取得（削除検出用）
@@ -295,7 +294,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       where: baseWhere,
       include: {
         subtasks: {
-          orderBy: { createdAt: "asc" },
+          orderBy: { createdAt: 'asc' },
         },
         theme: true,
         project: true,
@@ -307,26 +306,25 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
           },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
     });
 
     return tasks;
   })
 
   // Get task by ID
-  .get("/:id", async (context) => {
+  .get('/:id', async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
-      throw new ValidationError("無効なIDです");
+      throw new ValidationError('無効なIDです');
     }
 
     return await prisma.task.findUnique({
       where: { id },
-      // @ts-ignore
       include: {
         subtasks: {
-          orderBy: { createdAt: "asc" },
+          orderBy: { createdAt: 'asc' },
         },
         theme: true,
         project: true,
@@ -343,18 +341,18 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
 
   // Create task
   .post(
-    "/",
+    '/',
     async (context) => {
       const { body } = context;
       try {
         return await createTask(prisma, body as Parameters<typeof createTask>[1]);
       } catch (error) {
         if (error instanceof AppError) throw error;
-        if (error instanceof Error && error.message.includes("見つかりません")) {
+        if (error instanceof Error && error.message.includes('見つかりません')) {
           throw new AppError(400, error.message);
         }
-        logger.error({ err: error }, "[tasks] Failed to create task");
-        throw new AppError(500, "タスクの作成に失敗しました");
+        logger.error({ err: error }, '[tasks] Failed to create task');
+        throw new AppError(500, 'タスクの作成に失敗しました');
       }
     },
     {
@@ -380,21 +378,21 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
   )
 
   // Update task
-  .patch("/:id", async (context) => {
+  .patch('/:id', async (context) => {
     const { params, body } = context;
     const taskId = parseInt(params.id);
     if (isNaN(taskId)) {
-      throw new ValidationError("無効なIDです");
+      throw new ValidationError('無効なIDです');
     }
     return await updateTask(prisma, taskId, body as Parameters<typeof updateTask>[2]);
   })
 
   // Delete task
-  .delete("/:id", async (context) => {
+  .delete('/:id', async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
-      throw new ValidationError("無効なIDです");
+      throw new ValidationError('無効なIDです');
     }
 
     return await prisma.task.delete({
@@ -403,16 +401,16 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
   })
 
   // 重複サブタスクを削除（特定のタスク配下）
-  .post("/:id/cleanup-duplicates", async (context) => {
+  .post('/:id/cleanup-duplicates', async (context) => {
     const { params } = context;
     const parentId = parseInt(params.id);
     if (isNaN(parentId)) {
-      throw new ValidationError("無効なIDです");
+      throw new ValidationError('無効なIDです');
     }
 
     const parentTask = await prisma.task.findUnique({ where: { id: parentId } });
     if (!parentTask) {
-      throw new ValidationError("タスクが見つかりません");
+      throw new ValidationError('タスクが見つかりません');
     }
 
     const deletedIds = await cleanupDuplicateSubtasks(prisma, parentId);
@@ -420,14 +418,15 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       success: true,
       deletedCount: deletedIds.length,
       deletedIds,
-      message: deletedIds.length > 0
-        ? `${deletedIds.length}件の重複サブタスクを削除しました`
-        : "重複サブタスクはありませんでした",
+      message:
+        deletedIds.length > 0
+          ? `${deletedIds.length}件の重複サブタスクを削除しました`
+          : '重複サブタスクはありませんでした',
     };
   })
 
   // 全タスクの重複サブタスクを一括削除
-  .post("/cleanup-all-duplicates", async () => {
+  .post('/cleanup-all-duplicates', async () => {
     const { deletedIds, affectedParents } = await cleanupAllDuplicateSubtasks(prisma);
     return {
       success: true,
@@ -435,18 +434,19 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       deletedIds,
       affectedParentCount: affectedParents.length,
       affectedParentIds: affectedParents,
-      message: deletedIds.length > 0
-        ? `${affectedParents.length}件のタスクから${deletedIds.length}件の重複サブタスクを削除しました`
-        : "重複サブタスクはありませんでした",
+      message:
+        deletedIds.length > 0
+          ? `${affectedParents.length}件のタスクから${deletedIds.length}件の重複サブタスクを削除しました`
+          : '重複サブタスクはありませんでした',
     };
   })
 
   // サブタスクの一括削除（特定のタスク配下のすべてのサブタスクを削除）
-  .delete("/:id/subtasks", async (context) => {
+  .delete('/:id/subtasks', async (context) => {
     const { params } = context;
     const parentId = parseInt(params.id);
     if (isNaN(parentId)) {
-      throw new ValidationError("無効なIDです");
+      throw new ValidationError('無効なIDです');
     }
 
     // 親タスクの存在確認
@@ -455,7 +455,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
     });
 
     if (!parentTask) {
-      throw new ValidationError("タスクが見つかりません");
+      throw new ValidationError('タスクが見つかりません');
     }
 
     // サブタスクを取得して削除数を確認
@@ -471,9 +471,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       where: { parentId },
     });
 
-    logger.info(
-      `[tasks] Deleted all ${deletedCount} subtasks for parent task ${parentId}`,
-    );
+    logger.info(`[tasks] Deleted all ${deletedCount} subtasks for parent task ${parentId}`);
 
     return {
       success: true,
@@ -481,23 +479,23 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       message:
         deletedCount > 0
           ? `${deletedCount}件のサブタスクを削除しました`
-          : "削除するサブタスクがありませんでした",
+          : '削除するサブタスクがありませんでした',
     };
   })
 
   // サブタスクの選択削除（指定されたIDのサブタスクを一括削除）
   .post(
-    "/:id/subtasks/delete-selected",
+    '/:id/subtasks/delete-selected',
     async ({ params, body }) => {
       const parentId = parseInt(params.id);
       if (isNaN(parentId)) {
-        throw new ValidationError("無効なIDです");
+        throw new ValidationError('無効なIDです');
       }
 
       const { subtaskIds } = body as { subtaskIds: number[] };
 
       if (!subtaskIds || subtaskIds.length === 0) {
-        throw new ValidationError("削除するサブタスクが指定されていません");
+        throw new ValidationError('削除するサブタスクが指定されていません');
       }
 
       // 親タスクの存在確認
@@ -506,7 +504,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
       });
 
       if (!parentTask) {
-        throw new ValidationError("タスクが見つかりません");
+        throw new ValidationError('タスクが見つかりません');
       }
 
       // 指定されたサブタスクが実際にこの親タスクに属しているか確認
@@ -523,7 +521,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
 
       if (invalidIds.length > 0) {
         logger.warn(
-          `[tasks] Some subtask IDs are invalid or don't belong to parent ${parentId}: ${invalidIds.join(", ")}`,
+          `[tasks] Some subtask IDs are invalid or don't belong to parent ${parentId}: ${invalidIds.join(', ')}`,
         );
       }
 
@@ -547,7 +545,7 @@ export const tasksRoutes = new Elysia({ prefix: "/tasks" })
         message:
           deleteResult.count > 0
             ? `${deleteResult.count}件のサブタスクを削除しました`
-            : "削除するサブタスクがありませんでした",
+            : '削除するサブタスクがありませんでした',
       };
     },
     {

@@ -4,16 +4,9 @@
     "module": "ESNext",
     "moduleResolution": "node",
     "lib": ["ES2020"],
-    "strict": false,
+    "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "noImplicitAny": false,
-    "strictNullChecks": false, // TODO: Enable after fixing 260+ pre-existing TS errors (missing imports in ai-agent.ts, agent-execution-service.ts)
-    "strictFunctionTypes": false,
-    "strictBindCallApply": false,
-    "strictPropertyInitialization": false,
-    "noImplicitThis": false,
-    "alwaysStrict": false,
     "noEmit": true,
     "typeRoots": ["./node_modules/@types", "./@types"],
     "types": []
@@ -21,7 +14,8 @@
   "exclude": [
     "node_modules/**/*",
     "**/*.d.ts",
-    "global.d.ts"
+    "global.d.ts",
+    "tests/**/*"
   ],
   "include": [
     "**/*.ts",

@@ -3,27 +3,19 @@
  * エージェント設定のCRUD操作、バリデーション、暗号化処理を管理
  */
 
-import { prisma } from "../config/database";
+import { prisma } from '../config/database';
 import { createLogger } from '../config/logger';
-import { toJsonString, fromJsonString } from "../utils/db-helpers";
+import { toJsonString, fromJsonString } from '../utils/db-helpers';
 
 const log = createLogger('agent-config-service');
-import {
-  encrypt,
-  decrypt,
-  maskApiKey,
-  isEncryptionKeyConfigured,
-} from "../utils/encryption";
+import { encrypt, decrypt, maskApiKey, isEncryptionKeyConfigured } from '../utils/encryption';
 import {
   validateApiKeyFormat,
   validateAgentConfig,
   getAgentConfigSchema,
-} from "../utils/agent-config-schema";
-import {
-  logAgentConfigChange,
-  calculateChanges,
-} from "../utils/agent-audit-log";
-import type { AIAgentConfig } from "@prisma/client";
+} from '../utils/agent-config-schema';
+import { logAgentConfigChange, calculateChanges } from '../utils/agent-audit-log';
+import type { AIAgentConfig } from '@prisma/client';
 
 export interface CreateAgentConfigRequest {
   agentType: string;
@@ -64,10 +56,7 @@ export class AgentConfigService {
       include: {
         _count: { select: { executions: true } },
       },
-      orderBy: [
-        { isDefault: "desc" },
-        { updatedAt: "desc" },
-      ],
+      orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
     });
   }
 
@@ -79,11 +68,7 @@ export class AgentConfigService {
       include: {
         _count: { select: { executions: true } },
       },
-      orderBy: [
-        { isDefault: "desc" },
-        { isActive: "desc" },
-        { updatedAt: "desc" },
-      ],
+      orderBy: [{ isDefault: 'desc' }, { isActive: 'desc' }, { updatedAt: 'desc' }],
     });
   }
 
@@ -108,14 +93,14 @@ export class AgentConfigService {
       // DBにデフォルトエージェントが設定されていない場合、組み込みのClaude Codeをフォールバックとして返す
       return {
         id: -1,
-        agentType: "claude-code",
-        name: "Claude Code (Built-in)",
+        agentType: 'claude-code',
+        name: 'Claude Code (Built-in)',
         isDefault: true,
         isActive: true,
         apiKeyEncrypted: null,
         endpoint: null,
         modelId: null,
-        capabilities: "{}",
+        capabilities: '{}',
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -140,7 +125,9 @@ export class AgentConfigService {
     });
 
     if (!validation.isValid) {
-      throw new Error(`Validation failed: ${validation.errors.map(e => `${e.field}: ${e.message}`).join(', ')}`);
+      throw new Error(
+        `Validation failed: ${validation.errors.map((e) => `${e.field}: ${e.message}`).join(', ')}`,
+      );
     }
 
     // デフォルトエージェントの場合、既存のデフォルトを解除
@@ -152,7 +139,7 @@ export class AgentConfigService {
     let apiKeyEncrypted: string | null = null;
     if (apiKey) {
       if (!isEncryptionKeyConfigured()) {
-        log.warn("[AgentConfigService] Encryption key not configured - storing API key as null");
+        log.warn('[AgentConfigService] Encryption key not configured - storing API key as null');
       } else {
         apiKeyEncrypted = encrypt(apiKey);
       }
@@ -165,7 +152,7 @@ export class AgentConfigService {
         apiKeyEncrypted,
         endpoint,
         modelId,
-        capabilities: toJsonString(capabilities || {}) ?? "{}",
+        capabilities: toJsonString(capabilities || {}) ?? '{}',
         isDefault: isDefault || false,
       },
     });
@@ -173,7 +160,7 @@ export class AgentConfigService {
     // 監査ログを記録
     await logAgentConfigChange({
       agentConfigId: created.id,
-      action: "create",
+      action: 'create',
       newValues: {
         agentType,
         name,
@@ -209,11 +196,11 @@ export class AgentConfigService {
     // APIキーの処理
     let apiKeyEncrypted: string | undefined = undefined;
     if (apiKey !== undefined) {
-      if (apiKey === null || apiKey === "") {
-        apiKeyEncrypted = null;
+      if (apiKey === null || apiKey === '') {
+        apiKeyEncrypted = undefined;
       } else {
         if (!isEncryptionKeyConfigured()) {
-          log.warn("[AgentConfigService] Encryption key not configured - not updating API key");
+          log.warn('[AgentConfigService] Encryption key not configured - not updating API key');
         } else {
           apiKeyEncrypted = encrypt(apiKey);
         }
@@ -227,7 +214,7 @@ export class AgentConfigService {
     if (endpoint !== undefined) updateData.endpoint = endpoint;
     if (modelId !== undefined) updateData.modelId = modelId;
     if (capabilities !== undefined) {
-      updateData.capabilities = toJsonString(capabilities) ?? "{}";
+      updateData.capabilities = toJsonString(capabilities) ?? '{}';
     }
     if (isDefault !== undefined) updateData.isDefault = isDefault;
 
@@ -241,7 +228,7 @@ export class AgentConfigService {
     if (Object.keys(changes).length > 0) {
       await logAgentConfigChange({
         agentConfigId: id,
-        action: "update",
+        action: 'update',
         previousValues: changes.previous,
         newValues: changes.new,
         changeDetails: changes.details,
@@ -269,13 +256,15 @@ export class AgentConfigService {
     // 監査ログを記録
     await logAgentConfigChange({
       agentConfigId: id,
-      action: "update",
+      action: 'update',
       changeDetails: {
         isActive: { from: agent.isActive, to: updated.isActive },
       },
     });
 
-    log.info(`[AgentConfigService] Toggled active state for agent: ${updated.name} -> ${updated.isActive}`);
+    log.info(
+      `[AgentConfigService] Toggled active state for agent: ${updated.name} -> ${updated.isActive}`,
+    );
     return updated;
   }
 
@@ -296,7 +285,7 @@ export class AgentConfigService {
     // 監査ログを記録
     await logAgentConfigChange({
       agentConfigId: id,
-      action: "delete",
+      action: 'delete',
       previousValues: {
         agentType: previous.agentType,
         name: previous.name,
@@ -329,7 +318,7 @@ export class AgentConfigService {
     // 監査ログを記録
     await logAgentConfigChange({
       agentConfigId: id,
-      action: "update",
+      action: 'update',
       previousValues: { isDefault: false },
       newValues: { isDefault: true },
       changeDetails: { isDefault: { from: false, to: true } },
@@ -359,7 +348,7 @@ export class AgentConfigService {
     }
 
     if (!isEncryptionKeyConfigured()) {
-      throw new Error("Encryption key is not configured");
+      throw new Error('Encryption key is not configured');
     }
 
     // APIキーフォーマットの検証
@@ -378,7 +367,7 @@ export class AgentConfigService {
     // 監査ログを記録
     await logAgentConfigChange({
       agentConfigId: id,
-      action: "api_key_set",
+      action: 'api_key_set',
       changeDetails: {
         hadApiKeyBefore: !!agent.apiKeyEncrypted,
       },
@@ -404,7 +393,7 @@ export class AgentConfigService {
     // 監査ログを記録
     await logAgentConfigChange({
       agentConfigId: id,
-      action: "api_key_delete",
+      action: 'api_key_delete',
     });
 
     log.info(`[AgentConfigService] API key deleted for agent: ${agent.name} (${agent.agentType})`);
@@ -420,7 +409,9 @@ export class AgentConfigService {
     }
 
     if (!isEncryptionKeyConfigured()) {
-      log.warn(`[AgentConfigService] Cannot decrypt API key for agent ${id} - encryption key not configured`);
+      log.warn(
+        `[AgentConfigService] Cannot decrypt API key for agent ${id} - encryption key not configured`,
+      );
       return null;
     }
 
@@ -447,19 +438,16 @@ export class AgentConfigService {
 
     try {
       // 基本的な検証
-      const basicValidation = validateAgentConfig(
-        agentType,
-        {
-          endpoint,
-          modelId,
-          additionalConfig
-        }
-      );
+      const basicValidation = validateAgentConfig(agentType, {
+        endpoint,
+        modelId,
+        additionalConfig,
+      });
 
       if (!basicValidation.valid) {
         errors.push({
           field: 'config',
-          message: basicValidation.errors.join(', ') || 'Invalid configuration'
+          message: basicValidation.errors.join(', ') || 'Invalid configuration',
         });
       }
 
@@ -469,7 +457,7 @@ export class AgentConfigService {
         if (!apiKeyValidation.valid) {
           errors.push({
             field: 'apiKey',
-            message: apiKeyValidation.message || 'Invalid API key format'
+            message: apiKeyValidation.message || 'Invalid API key format',
           });
         }
       }
@@ -481,7 +469,7 @@ export class AgentConfigService {
     } catch (error) {
       errors.push({
         field: 'general',
-        message: `Validation error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        message: `Validation error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       });
 
       return {
@@ -535,7 +523,10 @@ export class AgentConfigService {
   /**
    * エージェントの機能設定を更新
    */
-  async updateCapabilities(id: number, capabilities: Record<string, boolean>): Promise<AIAgentConfig> {
+  async updateCapabilities(
+    id: number,
+    capabilities: Record<string, boolean>,
+  ): Promise<AIAgentConfig> {
     const agent = await this.getAgentById(id);
     if (!agent) {
       throw new Error(`Agent config not found: ${id}`);
@@ -544,14 +535,14 @@ export class AgentConfigService {
     const updated = await prisma.aIAgentConfig.update({
       where: { id },
       data: {
-        capabilities: toJsonString(capabilities) ?? "{}",
+        capabilities: toJsonString(capabilities) ?? '{}',
       },
     });
 
     // 監査ログを記録
     await logAgentConfigChange({
       agentConfigId: id,
-      action: "update",
+      action: 'update',
       changeDetails: {
         capabilities: {
           from: fromJsonString(agent.capabilities) || {},

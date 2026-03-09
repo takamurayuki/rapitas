@@ -2,7 +2,7 @@
  * Knowledge API Routes
  * 知識エントリのCRUD、ベクトル検索、ピン留め、統計
  */
-import { Elysia, t } from "elysia";
+import { Elysia, t } from 'elysia';
 import {
   createKnowledgeEntry,
   updateKnowledgeEntry,
@@ -10,27 +10,66 @@ import {
   pinKnowledgeEntry,
   listKnowledgeEntries,
   getKnowledgeStats,
-} from "../../services/memory";
-import { searchKnowledge } from "../../services/memory/rag/search";
-import { boostDecayOnAccess } from "../../services/memory/forgetting";
-import { prisma } from "../../config/database";
+} from '../../services/memory';
+import { searchKnowledge } from '../../services/memory/rag/search';
+import { boostDecayOnAccess } from '../../services/memory/forgetting';
+import { prisma } from '../../config/database';
+import type {
+  KnowledgeSourceType,
+  KnowledgeCategory,
+  ForgettingStage,
+  ValidationStatus,
+} from '../../services/memory/types';
 
-export const knowledgeRoutes = new Elysia({ prefix: "/knowledge" })
+// Type definitions for request bodies
+interface CreateKnowledgeBody {
+  sourceType: string;
+  sourceId?: string;
+  title: string;
+  content: string;
+  category?: string;
+  tags?: string[];
+  confidence?: number;
+  themeId?: number;
+  taskId?: number;
+}
+
+interface UpdateKnowledgeBody {
+  title?: string;
+  content?: string;
+  category?: string;
+  tags?: string[];
+  confidence?: number;
+  themeId?: number;
+  taskId?: number;
+}
+
+interface PinKnowledgeBody {
+  until: string;
+}
+
+export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   // GET /knowledge - エントリ一覧
   .get(
-    "/",
+    '/',
     async ({ query }) => {
       const result = await listKnowledgeEntries({
         page: query.page ? parseInt(query.page) : undefined,
         limit: query.limit ? parseInt(query.limit) : undefined,
-        sourceType: query.sourceType as any,
-        category: query.category as any,
-        forgettingStage: query.forgettingStage as any,
-        validationStatus: query.validationStatus as any,
+        sourceType: query.sourceType as KnowledgeSourceType | undefined,
+        category: query.category as KnowledgeCategory | undefined,
+        forgettingStage: query.forgettingStage as ForgettingStage | undefined,
+        validationStatus: query.validationStatus as ValidationStatus | undefined,
         themeId: query.themeId ? parseInt(query.themeId) : undefined,
         search: query.search,
-        sortBy: query.sortBy as any,
-        sortOrder: query.sortOrder as any,
+        sortBy: query.sortBy as
+          | 'createdAt'
+          | 'updatedAt'
+          | 'confidence'
+          | 'accessCount'
+          | 'decayScore'
+          | undefined,
+        sortOrder: query.sortOrder as 'asc' | 'desc' | undefined,
       });
       return result;
     },
@@ -52,14 +91,14 @@ export const knowledgeRoutes = new Elysia({ prefix: "/knowledge" })
 
   // GET /knowledge/search - ベクトル類似検索
   .get(
-    "/search",
+    '/search',
     async ({ query }) => {
       const results = await searchKnowledge({
         query: query.q,
         limit: query.limit ? parseInt(query.limit) : 10,
         minSimilarity: query.minSimilarity ? parseFloat(query.minSimilarity) : 0.5,
-        forgettingStage: query.forgettingStage as any,
-        category: query.category as any,
+        forgettingStage: query.forgettingStage as ForgettingStage | undefined,
+        category: query.category as KnowledgeCategory | undefined,
         themeId: query.themeId ? parseInt(query.themeId) : undefined,
       });
       return { results };
@@ -77,13 +116,13 @@ export const knowledgeRoutes = new Elysia({ prefix: "/knowledge" })
   )
 
   // GET /knowledge/stats - 統計情報
-  .get("/stats", async () => {
+  .get('/stats', async () => {
     return getKnowledgeStats();
   })
 
   // GET /knowledge/:id - エントリ詳細
   .get(
-    "/:id",
+    '/:id',
     async ({ params }) => {
       const id = parseInt(params.id);
       const entry = await prisma.knowledgeEntry.findUnique({
@@ -96,14 +135,14 @@ export const knowledgeRoutes = new Elysia({ prefix: "/knowledge" })
             include: { entryA: { select: { id: true, title: true } } },
           },
           reconsolidations: {
-            orderBy: { createdAt: "desc" },
+            orderBy: { createdAt: 'desc' },
             take: 5,
           },
         },
       });
 
       if (!entry) {
-        return new Response(JSON.stringify({ error: "Not found" }), { status: 404 });
+        return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
       }
 
       // アクセスカウント更新
@@ -116,18 +155,19 @@ export const knowledgeRoutes = new Elysia({ prefix: "/knowledge" })
 
   // POST /knowledge - 作成
   .post(
-    "/",
+    '/',
     async ({ body }) => {
+      const typedBody = body as CreateKnowledgeBody;
       const entry = await createKnowledgeEntry({
-        sourceType: body.sourceType as any,
-        sourceId: body.sourceId,
-        title: body.title,
-        content: body.content,
-        category: body.category as any,
-        tags: body.tags,
-        confidence: body.confidence,
-        themeId: body.themeId,
-        taskId: body.taskId,
+        sourceType: typedBody.sourceType as KnowledgeSourceType,
+        sourceId: typedBody.sourceId,
+        title: typedBody.title,
+        content: typedBody.content,
+        category: typedBody.category as KnowledgeCategory | undefined,
+        tags: typedBody.tags,
+        confidence: typedBody.confidence,
+        themeId: typedBody.themeId,
+        taskId: typedBody.taskId,
       });
       return entry;
     },
@@ -148,17 +188,18 @@ export const knowledgeRoutes = new Elysia({ prefix: "/knowledge" })
 
   // PUT /knowledge/:id - 更新
   .put(
-    "/:id",
+    '/:id',
     async ({ params, body }) => {
       const id = parseInt(params.id);
+      const typedBody = body as UpdateKnowledgeBody;
       const entry = await updateKnowledgeEntry(id, {
-        title: body.title,
-        content: body.content,
-        category: body.category as any,
-        tags: body.tags,
-        confidence: body.confidence,
-        themeId: body.themeId,
-        taskId: body.taskId,
+        title: typedBody.title,
+        content: typedBody.content,
+        category: typedBody.category as KnowledgeCategory | undefined,
+        tags: typedBody.tags,
+        confidence: typedBody.confidence,
+        themeId: typedBody.themeId,
+        taskId: typedBody.taskId,
       });
       return entry;
     },
@@ -178,7 +219,7 @@ export const knowledgeRoutes = new Elysia({ prefix: "/knowledge" })
 
   // DELETE /knowledge/:id - アーカイブ
   .delete(
-    "/:id",
+    '/:id',
     async ({ params }) => {
       const id = parseInt(params.id);
       const entry = await archiveKnowledgeEntry(id);
@@ -189,10 +230,11 @@ export const knowledgeRoutes = new Elysia({ prefix: "/knowledge" })
 
   // POST /knowledge/:id/pin - ピン留め
   .post(
-    "/:id/pin",
+    '/:id/pin',
     async ({ params, body }) => {
       const id = parseInt(params.id);
-      const until = new Date(body.until);
+      const typedBody = body as PinKnowledgeBody;
+      const until = new Date(typedBody.until);
       const entry = await pinKnowledgeEntry(id, until);
       return entry;
     },

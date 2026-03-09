@@ -3,25 +3,25 @@
  * executeTask, executeContinuationInternal, resumeInterruptedExecution で
  * 重複していた出力ハンドラ・質問検出ハンドラ・ログ管理を共通化
  */
-import type { BaseAgent } from "../base-agent";
-import type { QuestionKey } from "../question-detection";
-import { DEFAULT_QUESTION_TIMEOUT_SECONDS } from "../question-detection";
-import type { ExecutionFileLogger } from "../execution-file-logger";
+import type { BaseAgent } from '../base-agent';
+import type { QuestionKey } from '../question-detection';
+import { DEFAULT_QUESTION_TIMEOUT_SECONDS } from '../question-detection';
+import type { ExecutionFileLogger } from '../execution-file-logger';
 import type {
   ExecutionState,
   OrchestratorEvent,
   ActiveAgentInfo,
   PrismaClientInstance,
-} from "./types";
-export type { ActiveAgentInfo } from "./types";
-import { createLogger } from "../../../config/logger";
+} from './types';
+export type { ActiveAgentInfo } from './types';
+import { createLogger } from '../../../config/logger';
 
-const logger = createLogger("execution-helpers");
+const logger = createLogger('execution-helpers');
 
 // JSONフィールドを文字列に変換するヘルパー関数
 export function toJsonString(value: unknown): string | null {
   if (value === null || value === undefined) return null;
-  if (typeof value === "string") return value;
+  if (typeof value === 'string') return value;
   return JSON.stringify(value);
 }
 
@@ -38,7 +38,9 @@ export type QuestionHandlerContext = {
   existingClaudeSessionId?: string | null;
   emitEvent: (event: OrchestratorEvent) => void;
   startQuestionTimeout: (executionId: number, taskId: number, questionKey?: QuestionKey) => void;
-  getQuestionTimeoutInfo: (executionId: number) => { remainingSeconds: number; deadline: Date; questionKey?: QuestionKey } | null;
+  getQuestionTimeoutInfo: (
+    executionId: number,
+  ) => { remainingSeconds: number; deadline: Date; questionKey?: QuestionKey } | null;
 };
 
 /**
@@ -84,7 +86,7 @@ export function createLogChunkManager(ctx: LogManagerContext) {
       const logEntries = chunksToSave.map((chunk) => ({
         executionId: ctx.executionId,
         logChunk: chunk.chunk,
-        logType: chunk.isError ? "stderr" : "stdout",
+        logType: chunk.isError ? 'stderr' : 'stdout',
         sequenceNumber: logSequenceNumber++,
         timestamp: chunk.timestamp,
       }));
@@ -93,7 +95,7 @@ export function createLogChunkManager(ctx: LogManagerContext) {
         data: logEntries,
       });
     } catch (e) {
-      logger.error({ err: e }, "Failed to save log chunks");
+      logger.error({ err: e }, 'Failed to save log chunks');
       pendingLogChunks = [...chunksToSave, ...pendingLogChunks];
     } finally {
       pendingLogSave = false;
@@ -117,26 +119,19 @@ export function createLogChunkManager(ctx: LogManagerContext) {
 /**
  * 質問検出ハンドラを設定
  */
-export function setupQuestionDetectedHandler(
-  agent: BaseAgent,
-  ctx: QuestionHandlerContext,
-): void {
+export function setupQuestionDetectedHandler(agent: BaseAgent, ctx: QuestionHandlerContext): void {
   agent.setQuestionDetectedHandler(async (info) => {
     logger.info(`[ExecutionHelpers] Question detected during streaming!`);
     logger.info(`[ExecutionHelpers] Question: ${info.question.substring(0, 100)}`);
     logger.info(`[ExecutionHelpers] Question type: ${info.questionType}`);
-    logger.info(`[ExecutionHelpers] Claude Session ID: ${info.claudeSessionId || "(なし)"}`);
-    ctx.fileLogger.logQuestionDetected(
-      info.question,
-      info.questionType,
-      info.claudeSessionId,
-    );
+    logger.info(`[ExecutionHelpers] Claude Session ID: ${info.claudeSessionId || '(なし)'}`);
+    ctx.fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
 
     try {
       await ctx.prisma.agentExecution.update({
         where: { id: ctx.executionId },
         data: {
-          status: "waiting_for_input",
+          status: 'waiting_for_input',
           question: info.question || null,
           questionType: info.questionType || null,
           questionDetails: toJsonString(info.questionDetails),
@@ -147,14 +142,14 @@ export function setupQuestionDetectedHandler(
         `[ExecutionHelpers] DB updated to waiting_for_input for execution ${ctx.executionId}`,
       );
 
-      ctx.state.status = "waiting_for_input";
+      ctx.state.status = 'waiting_for_input';
 
       ctx.startQuestionTimeout(ctx.executionId, ctx.taskId, info.questionKey);
 
       const timeoutInfo = ctx.getQuestionTimeoutInfo(ctx.executionId);
 
       ctx.emitEvent({
-        type: "execution_output",
+        type: 'execution_output',
         executionId: ctx.executionId,
         sessionId: ctx.sessionId,
         taskId: ctx.taskId,
@@ -165,17 +160,13 @@ export function setupQuestionDetectedHandler(
           questionType: info.questionType,
           questionDetails: info.questionDetails,
           questionKey: info.questionKey,
-          questionTimeoutSeconds:
-            timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
+          questionTimeoutSeconds: timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
           questionTimeoutDeadline: timeoutInfo?.deadline?.toISOString(),
         },
         timestamp: new Date(),
       });
     } catch (error) {
-      logger.error(
-        { err: error },
-        `[ExecutionHelpers] Failed to update DB on question detection`,
-      );
+      logger.error({ err: error }, `[ExecutionHelpers] Failed to update DB on question detection`);
     }
   });
 }
@@ -215,7 +206,7 @@ export function setupOutputHandler(
           });
           lastDbUpdate = Date.now();
         } catch (e) {
-          logger.error({ err: e }, "Failed to save error output immediately");
+          logger.error({ err: e }, 'Failed to save error output immediately');
         }
       }
 
@@ -223,13 +214,13 @@ export function setupOutputHandler(
         try {
           ctx.onOutput(output, isError);
         } catch (e) {
-          logger.error({ err: e }, "Error in onOutput callback");
+          logger.error({ err: e }, 'Error in onOutput callback');
         }
       }
 
       try {
         ctx.emitEvent({
-          type: "execution_output",
+          type: 'execution_output',
           executionId: ctx.executionId,
           sessionId: ctx.sessionId,
           taskId: ctx.taskId,
@@ -237,7 +228,7 @@ export function setupOutputHandler(
           timestamp: new Date(),
         });
       } catch (e) {
-        logger.error({ err: e }, "Error emitting event");
+        logger.error({ err: e }, 'Error emitting event');
       }
 
       // 定期的にDBを更新
@@ -251,13 +242,13 @@ export function setupOutputHandler(
             data: { output: ctx.state.output },
           });
         } catch (e) {
-          logger.error({ err: e }, "Failed to update execution output");
+          logger.error({ err: e }, 'Failed to update execution output');
         } finally {
           pendingDbUpdate = false;
         }
       }
     } catch (e) {
-      logger.error({ err: e }, "Critical error in output handler");
+      logger.error({ err: e }, 'Critical error in output handler');
     }
   });
 }
@@ -266,31 +257,37 @@ export function setupOutputHandler(
  * 実行結果のステータス判定とログ記録
  */
 export function determineExecutionStatus(
-  result: { success: boolean; waitingForInput?: boolean; tokensUsed?: number; executionTimeMs?: number; errorMessage?: string },
+  result: {
+    success: boolean;
+    waitingForInput?: boolean;
+    tokensUsed?: number;
+    executionTimeMs?: number;
+    errorMessage?: string;
+  },
   fileLogger: ExecutionFileLogger,
   state: ExecutionState,
 ): string {
   if (result.waitingForInput) {
-    state.status = "waiting_for_input";
-    fileLogger.logStatusChange("running", "waiting_for_input", "Question detected");
-    return "waiting_for_input";
+    state.status = 'waiting_for_input';
+    fileLogger.logStatusChange('running', 'waiting_for_input', 'Question detected');
+    return 'waiting_for_input';
   } else if (result.success) {
-    state.status = "completed";
-    fileLogger.logExecutionEnd("completed", {
+    state.status = 'completed';
+    fileLogger.logExecutionEnd('completed', {
       success: true,
       tokensUsed: result.tokensUsed,
       executionTimeMs: result.executionTimeMs,
     });
-    return "completed";
+    return 'completed';
   } else {
-    state.status = "failed";
-    fileLogger.logExecutionEnd("failed", {
+    state.status = 'failed';
+    fileLogger.logExecutionEnd('failed', {
       success: false,
       tokensUsed: result.tokensUsed,
       executionTimeMs: result.executionTimeMs,
       errorMessage: result.errorMessage,
     });
-    return "failed";
+    return 'failed';
   }
 }
 
@@ -344,14 +341,12 @@ export async function saveExecutionResult(
         : existingData?.artifacts || null,
       completedAt: result.waitingForInput ? null : new Date(),
       tokensUsed: (existingData?.tokensUsed || 0) + (result.tokensUsed || 0),
-      executionTimeMs:
-        (existingData?.executionTimeMs || 0) + (result.executionTimeMs || 0),
+      executionTimeMs: (existingData?.executionTimeMs || 0) + (result.executionTimeMs || 0),
       errorMessage: result.errorMessage,
       question: result.question || null,
       questionType: result.questionType || null,
       questionDetails: toJsonString(result.questionDetails),
-      claudeSessionId:
-        result.claudeSessionId || existingData?.claudeSessionId || null,
+      claudeSessionId: result.claudeSessionId || existingData?.claudeSessionId || null,
     },
   });
 
@@ -384,7 +379,7 @@ export async function saveExecutionResult(
           executionId,
           commitHash: commit.hash,
           message: commit.message,
-          branch: commit.branch,
+          branch: commit.branch ?? '',
           filesChanged: commit.filesChanged,
           additions: commit.additions,
           deletions: commit.deletions,
@@ -414,7 +409,7 @@ export function emitResultEvent(
 ): void {
   if (result.waitingForInput) {
     emitEvent({
-      type: "execution_output",
+      type: 'execution_output',
       executionId,
       sessionId,
       taskId,
@@ -430,7 +425,7 @@ export function emitResultEvent(
     });
   } else {
     emitEvent({
-      type: result.success ? "execution_completed" : "execution_failed",
+      type: result.success ? 'execution_completed' : 'execution_failed',
       executionId,
       sessionId,
       taskId,
@@ -455,13 +450,13 @@ export async function handleExecutionError(
   errorContext: string,
 ): Promise<void> {
   const errorMessage = error instanceof Error ? error.message : String(error);
-  state.status = "failed";
+  state.status = 'failed';
 
   fileLogger.logError(
     `${errorContext} failed with uncaught error`,
     error instanceof Error ? error : new Error(errorMessage),
   );
-  fileLogger.logExecutionEnd("failed", {
+  fileLogger.logExecutionEnd('failed', {
     success: false,
     errorMessage,
   });
@@ -469,7 +464,7 @@ export async function handleExecutionError(
   await prisma.agentExecution.update({
     where: { id: executionId },
     data: {
-      status: "failed",
+      status: 'failed',
       output: state.output,
       completedAt: new Date(),
       errorMessage,
@@ -477,7 +472,7 @@ export async function handleExecutionError(
   });
 
   emitEvent({
-    type: "execution_failed",
+    type: 'execution_failed',
     executionId,
     sessionId,
     taskId,

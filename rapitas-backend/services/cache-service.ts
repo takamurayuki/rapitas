@@ -1,5 +1,5 @@
-import { Redis } from "ioredis";
-import { LRUCache } from "lru-cache";
+import { Redis } from 'ioredis';
+import { LRUCache } from 'lru-cache';
 import { createLogger } from '../config/logger';
 
 const log = createLogger('cache-service');
@@ -15,10 +15,10 @@ interface CacheStrategy {
 
 // メモリキャッシュ戦略（開発環境用）
 class MemoryCacheStrategy implements CacheStrategy {
-  private cache: LRUCache<string, unknown>;
+  private cache: LRUCache<string, NonNullable<unknown>>;
 
   constructor(options: { max?: number; ttl?: number } = {}) {
-    this.cache = new LRUCache<string, unknown>({
+    this.cache = new LRUCache<string, NonNullable<unknown>>({
       max: options.max || 1000,
       ttl: options.ttl || 1000 * 60 * 5, // デフォルト5分
       updateAgeOnGet: true,
@@ -31,7 +31,7 @@ class MemoryCacheStrategy implements CacheStrategy {
   }
 
   async set<T>(key: string, value: T, ttl?: number): Promise<void> {
-    this.cache.set(key, value, { ttl });
+    this.cache.set(key, value as NonNullable<unknown>, { ttl });
   }
 
   async delete(key: string): Promise<void> {
@@ -60,14 +60,14 @@ class RedisCacheStrategy implements CacheStrategy {
   private redis: Redis;
 
   constructor(redisUrl?: string) {
-    this.redis = new Redis(redisUrl || process.env.REDIS_URL || "redis://localhost:6379");
+    this.redis = new Redis(redisUrl || process.env.REDIS_URL || 'redis://localhost:6379');
 
-    this.redis.on("error", (err: Error) => {
-      log.error({ err }, "Redis connection error");
+    this.redis.on('error', (err: Error) => {
+      log.error({ err }, 'Redis connection error');
     });
 
-    this.redis.on("connect", () => {
-      log.info("Redis connected successfully");
+    this.redis.on('connect', () => {
+      log.info('Redis connected successfully');
     });
   }
 
@@ -108,7 +108,7 @@ class RedisCacheStrategy implements CacheStrategy {
         await this.redis.flushdb();
       }
     } catch (error) {
-      log.error({ err: error }, "Cache clear error");
+      log.error({ err: error }, 'Cache clear error');
     }
   }
 
@@ -164,17 +164,11 @@ class MultiLevelCacheStrategy implements CacheStrategy {
   }
 
   async delete(key: string): Promise<void> {
-    await Promise.all([
-      this.l1Cache.delete(key),
-      this.l2Cache.delete(key),
-    ]);
+    await Promise.all([this.l1Cache.delete(key), this.l2Cache.delete(key)]);
   }
 
   async clear(pattern?: string): Promise<void> {
-    await Promise.all([
-      this.l1Cache.clear(pattern),
-      this.l2Cache.clear(pattern),
-    ]);
+    await Promise.all([this.l1Cache.clear(pattern), this.l2Cache.clear(pattern)]);
   }
 
   async has(key: string): Promise<boolean> {
@@ -189,26 +183,27 @@ export class CacheService {
   private strategy: CacheStrategy;
   private keyPrefix: string;
 
-  constructor(options: {
-    strategy?: "memory" | "redis" | "multi";
-    redisUrl?: string;
-    keyPrefix?: string;
-  } = {}) {
-    this.keyPrefix = options.keyPrefix || "rapitas:";
+  constructor(
+    options: {
+      strategy?: 'memory' | 'redis' | 'multi';
+      redisUrl?: string;
+      keyPrefix?: string;
+    } = {},
+  ) {
+    this.keyPrefix = options.keyPrefix || 'rapitas:';
 
     // 環境に基づいて戦略を選択
-    const strategyType = options.strategy || (process.env.NODE_ENV === "production" ? "multi" : "memory");
+    const strategyType =
+      options.strategy || (process.env.NODE_ENV === 'production' ? 'multi' : 'memory');
 
     switch (strategyType) {
-      case "redis":
+      case 'redis':
         this.strategy = new RedisCacheStrategy(options.redisUrl);
         break;
-      case "multi":
-        this.strategy = new MultiLevelCacheStrategy(
-          new RedisCacheStrategy(options.redisUrl)
-        );
+      case 'multi':
+        this.strategy = new MultiLevelCacheStrategy(new RedisCacheStrategy(options.redisUrl));
         break;
-      case "memory":
+      case 'memory':
       default:
         this.strategy = new MemoryCacheStrategy();
         break;
@@ -241,11 +236,7 @@ export class CacheService {
   }
 
   // 高度なキャッシュ操作
-  async getOrSet<T>(
-    key: string,
-    factory: () => Promise<T>,
-    ttl?: number
-  ): Promise<T> {
+  async getOrSet<T>(key: string, factory: () => Promise<T>, ttl?: number): Promise<T> {
     const cached = await this.get<T>(key);
     if (cached !== null) {
       return cached;
@@ -259,12 +250,7 @@ export class CacheService {
   // タグベースのキャッシュ無効化
   private taggedKeys = new Map<string, Set<string>>();
 
-  async setWithTags<T>(
-    key: string,
-    value: T,
-    tags: string[],
-    ttl?: number
-  ): Promise<void> {
+  async setWithTags<T>(key: string, value: T, tags: string[], ttl?: number): Promise<void> {
     await this.set(key, value, ttl);
 
     // タグとキーの関連を記録
@@ -287,18 +273,14 @@ export class CacheService {
       }
     });
 
-    await Promise.all(
-      Array.from(keysToInvalidate).map((key) => this.delete(key))
-    );
+    await Promise.all(Array.from(keysToInvalidate).map((key) => this.delete(key)));
   }
 
   // キャッシュウォーミング
   async warmup(
-    keys: Array<{ key: string; factory: () => Promise<unknown>; ttl?: number }>
+    keys: Array<{ key: string; factory: () => Promise<unknown>; ttl?: number }>,
   ): Promise<void> {
-    await Promise.all(
-      keys.map(({ key, factory, ttl }) => this.getOrSet(key, factory, ttl))
-    );
+    await Promise.all(keys.map(({ key, factory, ttl }) => this.getOrSet(key, factory, ttl)));
   }
 
   // キャッシュ統計
@@ -360,15 +342,13 @@ export const CacheKeys = {
 };
 
 // キャッシュデコレーター（TypeScript用）
-export function Cacheable(options: {
-  ttl?: number;
-  keyGenerator?: (...args: unknown[]) => string;
-} = {}) {
-  return function (
-    target: object,
-    propertyKey: string,
-    descriptor: PropertyDescriptor
-  ) {
+export function Cacheable(
+  options: {
+    ttl?: number;
+    keyGenerator?: (...args: unknown[]) => string;
+  } = {},
+) {
+  return function (target: object, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
 
     descriptor.value = async function (...args: unknown[]) {
@@ -376,11 +356,7 @@ export function Cacheable(options: {
         ? options.keyGenerator(...args)
         : `${target.constructor.name}:${propertyKey}:${JSON.stringify(args)}`;
 
-      return cacheService.getOrSet(
-        key,
-        () => originalMethod.apply(this, args),
-        options.ttl
-      );
+      return cacheService.getOrSet(key, () => originalMethod.apply(this, args), options.ttl);
     };
 
     return descriptor;

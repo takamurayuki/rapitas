@@ -123,6 +123,12 @@ model Task {
   complexityScore       Float?    // 自動判定による複雑度スコア (0-100)
   workflowModeOverride  Boolean   @default(false) // 手動でモード変更されたかどうか
   autoApprovePlan       Boolean   @default(false) // タスクレベルでplan.mdを自動承認するか
+
+  @@index([status])
+  @@index([themeId])
+  @@index([status, themeId])
+  @@index([parentId])
+  @@index([dueDate])
 }
 
 model TimeEntry {

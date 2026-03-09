@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
+import DOMPurify from 'dompurify';
 import { Save, Pin, Calendar } from 'lucide-react';
 import { Note, useNoteStore } from '@/stores/noteStore';
 import { API_BASE_URL } from '@/utils/api';
@@ -143,7 +144,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     setDraftTitle(note.title);
     setIsDirty(false);
     if (contentRef.current) {
-      contentRef.current.innerHTML = note.content;
+      contentRef.current.innerHTML = DOMPurify.sanitize(note.content);
       normalizeLinkCards(contentRef.current, handleContentChange);
     }
   }, [note.id]);

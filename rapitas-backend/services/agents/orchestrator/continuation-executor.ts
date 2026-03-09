@@ -2,19 +2,19 @@
  * 継続実行
  * 質問への回答後の継続実行、タイムアウトハンドリングを担当
  */
-import { agentFactory } from "../agent-factory";
-import type { AgentConfigInput, AgentType } from "../agent-factory";
-import type { AgentTask, AgentExecutionResult } from "../base-agent";
-import { DEFAULT_QUESTION_TIMEOUT_SECONDS } from "../question-detection";
-import { decrypt } from "../../../utils/encryption";
-import { ExecutionFileLogger } from "../execution-file-logger";
-import { createLogger } from "../../../config/logger";
+import { agentFactory } from '../agent-factory';
+import type { AgentConfigInput, AgentType } from '../agent-factory';
+import type { AgentTask, AgentExecutionResult } from '../base-agent';
+import { DEFAULT_QUESTION_TIMEOUT_SECONDS } from '../question-detection';
+import { decrypt } from '../../../utils/encryption';
+import { ExecutionFileLogger } from '../execution-file-logger';
+import { createLogger } from '../../../config/logger';
 import type {
   ExecutionOptions,
   ExecutionState,
   ActiveAgentInfo,
   OrchestratorContext,
-} from "./types";
+} from './types';
 import {
   toJsonString,
   createLogChunkManager,
@@ -23,9 +23,9 @@ import {
   saveExecutionResult,
   emitResultEvent,
   handleExecutionError,
-} from "./execution-helpers";
+} from './execution-helpers';
 
-const logger = createLogger("continuation-executor");
+const logger = createLogger('continuation-executor');
 
 /**
  * フォールバックエージェントにハンドラを設定する共通関数
@@ -45,28 +45,23 @@ function setupFallbackAgentHandlers(
 ): void {
   agent.setQuestionDetectedHandler(async (info) => {
     logger.info(`[ContinuationExecutor] Question detected during ${logPrefix}!`);
-    fileLogger.logQuestionDetected(
-      info.question,
-      info.questionType,
-      info.claudeSessionId,
-    );
+    fileLogger.logQuestionDetected(info.question, info.questionType, info.claudeSessionId);
     try {
       await ctx.prisma.agentExecution.update({
         where: { id: executionId },
         data: {
-          status: "waiting_for_input",
+          status: 'waiting_for_input',
           question: info.question || null,
           questionType: info.questionType || null,
           questionDetails: toJsonString(info.questionDetails),
-          claudeSessionId:
-            info.claudeSessionId || existingClaudeSessionId || null,
+          claudeSessionId: info.claudeSessionId || existingClaudeSessionId || null,
         },
       });
-      state.status = "waiting_for_input";
+      state.status = 'waiting_for_input';
       ctx.startQuestionTimeout(executionId, taskId, info.questionKey);
       const timeoutInfo = ctx.getQuestionTimeoutInfo(executionId);
       ctx.emitEvent({
-        type: "execution_output",
+        type: 'execution_output',
         executionId,
         sessionId,
         taskId,
@@ -77,8 +72,7 @@ function setupFallbackAgentHandlers(
           questionType: info.questionType,
           questionDetails: info.questionDetails,
           questionKey: info.questionKey,
-          questionTimeoutSeconds:
-            timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
+          questionTimeoutSeconds: timeoutInfo?.remainingSeconds || DEFAULT_QUESTION_TIMEOUT_SECONDS,
           questionTimeoutDeadline: timeoutInfo?.deadline?.toISOString(),
         },
         timestamp: new Date(),
@@ -99,7 +93,7 @@ function setupFallbackAgentHandlers(
     logManager.addChunk(output, isError ?? false);
     try {
       ctx.emitEvent({
-        type: "execution_output",
+        type: 'execution_output',
         executionId,
         sessionId,
         taskId,
@@ -138,14 +132,14 @@ export async function executeContinuation(
   response: string,
   options: Partial<ExecutionOptions> = {},
 ): Promise<AgentExecutionResult> {
-  if (!ctx.tryAcquireContinuationLock(executionId, "user_response")) {
+  if (!ctx.tryAcquireContinuationLock(executionId, 'user_response')) {
     logger.info(
       `[ContinuationExecutor] Skipping continuation for execution ${executionId} - already being processed`,
     );
     return {
       success: false,
-      output: "",
-      errorMessage: "This execution is already being processed",
+      output: '',
+      errorMessage: 'This execution is already being processed',
     };
   }
 
@@ -169,24 +163,22 @@ export async function executeContinuation(
       throw new Error(`Execution not found: ${executionId}`);
     }
 
-    if (execution.status === "running") {
-      logger.info(
-        `[ContinuationExecutor] Execution ${executionId} is already running, skipping`,
-      );
+    if (execution.status === 'running') {
+      logger.info(`[ContinuationExecutor] Execution ${executionId} is already running, skipping`);
       return {
         success: false,
-        output: "",
-        errorMessage: "Execution is already running",
+        output: '',
+        errorMessage: 'Execution is already running',
       };
     }
 
-    if (execution.status !== "waiting_for_input") {
+    if (execution.status !== 'waiting_for_input') {
       logger.info(
         `[ContinuationExecutor] Execution ${executionId} is not waiting for input (status: ${execution.status})`,
       );
       return {
         success: false,
-        output: "",
+        output: '',
         errorMessage: `Execution is not waiting for input: ${execution.status}`,
       };
     }
@@ -247,14 +239,12 @@ export async function executeContinuationInternal(
 
   const task = execution.session.config?.task;
   const claudeSessionId = execution.claudeSessionId;
-  logger.info(
-    `[ContinuationExecutor] Resuming execution with claudeSessionId: ${claudeSessionId}`,
-  );
+  logger.info(`[ContinuationExecutor] Resuming execution with claudeSessionId: ${claudeSessionId}`);
 
   // エージェント設定を取得
   let agentConfig: AgentConfigInput = {
-    type: "claude-code",
-    name: "Claude Code Agent",
+    type: 'claude-code',
+    name: 'Claude Code Agent',
     workingDirectory: task?.workingDirectory || undefined,
     timeout: options.timeout,
     dangerouslySkipPermissions: true,
@@ -280,7 +270,7 @@ export async function executeContinuationInternal(
       }
 
       agentConfig = {
-        type: (dbConfig.agentType as AgentType) || "claude-code",
+        type: (dbConfig.agentType as AgentType) || 'claude-code',
         name: dbConfig.name,
         endpoint: dbConfig.endpoint || undefined,
         apiKey: decryptedApiKey,
@@ -308,14 +298,11 @@ export async function executeContinuationInternal(
     agentConfig.name,
     agentConfig.modelId,
   );
-  fileLogger.logExecutionStart(
-    `[Continuation] User response: ${response.substring(0, 200)}`,
-    {
-      claudeSessionId,
-      previousStatus: execution.status,
-    },
-  );
-  fileLogger.logQuestionAnswered(response, "user");
+  fileLogger.logExecutionStart(`[Continuation] User response: ${response.substring(0, 200)}`, {
+    claudeSessionId,
+    previousStatus: execution.status,
+  });
+  fileLogger.logQuestionAnswered(response, 'user');
 
   // 実行状態を追跡
   const state: ExecutionState = {
@@ -323,9 +310,9 @@ export async function executeContinuationInternal(
     sessionId: execution.sessionId,
     agentId: agent.id,
     taskId,
-    status: "running",
+    status: 'running',
     startedAt: new Date(),
-    output: execution.output || "",
+    output: execution.output || '',
   };
   ctx.activeExecutions.set(execution.id, state);
 
@@ -335,7 +322,7 @@ export async function executeContinuationInternal(
     sessionId: execution.sessionId,
     taskId,
     state,
-    lastOutput: execution.output || "",
+    lastOutput: execution.output || '',
     lastSavedAt: new Date(),
     fileLogger,
   };
@@ -344,9 +331,9 @@ export async function executeContinuationInternal(
   if (ctx.isShuttingDown) {
     ctx.activeAgents.delete(execution.id);
     ctx.activeExecutions.delete(execution.id);
-    fileLogger.logError("Server is shutting down, cannot continue execution");
+    fileLogger.logError('Server is shutting down, cannot continue execution');
     await fileLogger.flush();
-    throw new Error("Server is shutting down, cannot continue execution");
+    throw new Error('Server is shutting down, cannot continue execution');
   }
 
   // 質問検出ハンドラを設定
@@ -366,7 +353,7 @@ export async function executeContinuationInternal(
   // ログチャンク管理
   const existingLogs = await ctx.prisma.agentExecutionLog.findMany({
     where: { executionId: execution.id },
-    orderBy: { sequenceNumber: "desc" },
+    orderBy: { sequenceNumber: 'desc' },
     take: 1,
   });
 
@@ -379,17 +366,21 @@ export async function executeContinuationInternal(
   const cleanupLogHandler = logManager.cleanup;
 
   // 出力ハンドラを設定
-  setupOutputHandler(agent, {
-    prisma: ctx.prisma,
-    executionId: execution.id,
-    sessionId: execution.sessionId,
-    taskId,
-    state,
-    agentInfo,
-    fileLogger,
-    onOutput: options.onOutput,
-    emitEvent: (event) => ctx.emitEvent(event),
-  }, logManager);
+  setupOutputHandler(
+    agent,
+    {
+      prisma: ctx.prisma,
+      executionId: execution.id,
+      sessionId: execution.sessionId,
+      taskId,
+      state,
+      agentInfo,
+      fileLogger,
+      onOutput: options.onOutput,
+      emitEvent: (event) => ctx.emitEvent(event),
+    },
+    logManager,
+  );
 
   // 継続メッセージを追加
   const continueMessage = `\n[継続] ユーザーからの回答を受け取りました。実行を継続します...\n`;
@@ -398,7 +389,7 @@ export async function executeContinuationInternal(
   await ctx.prisma.agentExecution.update({
     where: { id: execution.id },
     data: {
-      status: "running",
+      status: 'running',
       question: null,
       questionType: null,
       questionDetails: null,
@@ -419,14 +410,28 @@ export async function executeContinuationInternal(
     // --resume 失敗時のフォールバック処理
     if (isSessionResumeFailure(result, claudeSessionId)) {
       result = await handleResumeFailureFallbacks(
-        ctx, agent, agentConfig, agentTask, agentInfo,
-        execution, state, fileLogger, logManager, taskId, claudeSessionId!,
+        ctx,
+        agent,
+        agentConfig,
+        agentTask,
+        agentInfo,
+        execution,
+        state,
+        fileLogger,
+        logManager,
+        taskId,
+        claudeSessionId!,
       );
     }
 
     // 結果をDB保存・イベント発火
     await saveExecutionResult(
-      ctx.prisma, execution.id, execution.sessionId, state, result, fileLogger,
+      ctx.prisma,
+      execution.id,
+      execution.sessionId,
+      state,
+      result,
+      fileLogger,
       {
         artifacts: execution.artifacts,
         tokensUsed: execution.tokensUsed,
@@ -434,14 +439,22 @@ export async function executeContinuationInternal(
         claudeSessionId: execution.claudeSessionId,
       },
     );
-    emitResultEvent(result, execution.id, execution.sessionId, taskId,
-      (event) => ctx.emitEvent(event));
+    emitResultEvent(result, execution.id, execution.sessionId, taskId, (event) =>
+      ctx.emitEvent(event),
+    );
 
     return result;
   } catch (error) {
     await handleExecutionError(
-      ctx.prisma, execution.id, execution.sessionId, taskId,
-      state, error, fileLogger, (event) => ctx.emitEvent(event), "Continuation",
+      ctx.prisma,
+      execution.id,
+      execution.sessionId,
+      taskId,
+      state,
+      error,
+      fileLogger,
+      (event) => ctx.emitEvent(event),
+      'Continuation',
     );
     throw error;
   } finally {
@@ -463,16 +476,19 @@ async function handleResumeFailureFallbacks(
   agentConfig: AgentConfigInput,
   agentTask: AgentTask,
   agentInfo: ActiveAgentInfo,
-  execution: { id: number; sessionId: number; claudeSessionId: string | null; output: string | null },
+  execution: {
+    id: number;
+    sessionId: number;
+    claudeSessionId: string | null;
+    output: string | null;
+  },
   state: ExecutionState,
   fileLogger: ExecutionFileLogger,
   logManager: ReturnType<typeof createLogChunkManager>,
   taskId: number,
   claudeSessionId: string,
 ): Promise<AgentExecutionResult> {
-  logger.info(
-    `[ContinuationExecutor] Session resume failed. Retrying --resume after delay...`,
-  );
+  logger.info(`[ContinuationExecutor] Session resume failed. Retrying --resume after delay...`);
   fileLogger.logError(
     `Session resume failed with --resume ${claudeSessionId}. Retrying after 3s delay.`,
   );
@@ -483,8 +499,17 @@ async function handleResumeFailureFallbacks(
   // --resume で再試行
   const retryAgent = agentFactory.createAgent(agentConfig);
   setupFallbackAgentHandlers(
-    retryAgent, ctx, execution.id, execution.sessionId, taskId,
-    state, agentInfo, fileLogger, logManager, execution.claudeSessionId, "resume retry",
+    retryAgent,
+    ctx,
+    execution.id,
+    execution.sessionId,
+    taskId,
+    state,
+    agentInfo,
+    fileLogger,
+    logManager,
+    execution.claudeSessionId,
+    'resume retry',
   );
 
   agentInfo.agent = retryAgent;
@@ -492,7 +517,7 @@ async function handleResumeFailureFallbacks(
   const retryMessage = `\n[セッション再開] --resume の再試行を行っています...\n`;
   state.output += retryMessage;
   ctx.emitEvent({
-    type: "execution_output",
+    type: 'execution_output',
     executionId: execution.id,
     sessionId: execution.sessionId,
     taskId,
@@ -520,8 +545,17 @@ async function handleResumeFailureFallbacks(
   };
   const fallbackAgent = agentFactory.createAgent(fallbackConfig);
   setupFallbackAgentHandlers(
-    fallbackAgent, ctx, execution.id, execution.sessionId, taskId,
-    state, agentInfo, fileLogger, logManager, execution.claudeSessionId, "continuation fallback",
+    fallbackAgent,
+    ctx,
+    execution.id,
+    execution.sessionId,
+    taskId,
+    state,
+    agentInfo,
+    fileLogger,
+    logManager,
+    execution.claudeSessionId,
+    'continuation fallback',
   );
 
   agentInfo.agent = fallbackAgent;
@@ -529,7 +563,7 @@ async function handleResumeFailureFallbacks(
   const fallbackMessage = `\n[セッション再開] --resume が失敗したため、--continue で再試行しています...\n`;
   state.output += fallbackMessage;
   ctx.emitEvent({
-    type: "execution_output",
+    type: 'execution_output',
     executionId: execution.id,
     sessionId: execution.sessionId,
     taskId,
@@ -547,9 +581,7 @@ async function handleResumeFailureFallbacks(
   logger.info(
     `[ContinuationExecutor] --continue fallback also failed. Starting new session with context...`,
   );
-  fileLogger.logError(
-    `--continue fallback also failed. Starting new session with context.`,
-  );
+  fileLogger.logError(`--continue fallback also failed. Starting new session with context.`);
   await agentFactory.removeAgent(fallbackAgent.id);
 
   const newSessionConfig: AgentConfigInput = {
@@ -559,14 +591,23 @@ async function handleResumeFailureFallbacks(
   };
   const newAgent = agentFactory.createAgent(newSessionConfig);
   setupFallbackAgentHandlers(
-    newAgent, ctx, execution.id, execution.sessionId, taskId,
-    state, agentInfo, fileLogger, logManager, null, "new session",
+    newAgent,
+    ctx,
+    execution.id,
+    execution.sessionId,
+    taskId,
+    state,
+    agentInfo,
+    fileLogger,
+    logManager,
+    null,
+    'new session',
   );
 
   agentInfo.agent = newAgent;
 
   // コンテキスト付きのプロンプトを構築
-  const previousContext = (execution.output || "").slice(-2000);
+  const previousContext = (execution.output || '').slice(-2000);
   const contextPrompt = `以下は前回のタスク実行の継続です。前回のコンテキスト（最後の部分）:\n\n${previousContext}\n\n前回の質問に対するユーザーの回答: ${agentTask.title}\n\n上記の回答を踏まえて、タスクの実行を継続してください。`;
 
   const contextTask: AgentTask = {
@@ -579,7 +620,7 @@ async function handleResumeFailureFallbacks(
   const newSessionMessage = `\n[セッション再開] 新しいセッションでコンテキストを引き継いで実行を継続します...\n`;
   state.output += newSessionMessage;
   ctx.emitEvent({
-    type: "execution_output",
+    type: 'execution_output',
     executionId: execution.id,
     sessionId: execution.sessionId,
     taskId,
@@ -604,7 +645,7 @@ export async function handleQuestionTimeout(
   ) => string,
 ): Promise<void> {
   try {
-    if (!ctx.tryAcquireContinuationLock(executionId, "auto_timeout")) {
+    if (!ctx.tryAcquireContinuationLock(executionId, 'auto_timeout')) {
       logger.info(
         `[ContinuationExecutor] Skipping timeout handling for execution ${executionId} - already being processed`,
       );
@@ -624,7 +665,7 @@ export async function handleQuestionTimeout(
         return;
       }
 
-      if (execution.status !== "waiting_for_input") {
+      if (execution.status !== 'waiting_for_input') {
         logger.info(
           `[ContinuationExecutor] Execution ${executionId} is no longer waiting for input (status: ${execution.status})`,
         );
@@ -633,45 +674,40 @@ export async function handleQuestionTimeout(
 
       await ctx.prisma.agentExecution.update({
         where: { id: executionId },
-        data: { status: "running" },
+        data: { status: 'running' },
       });
 
-      logger.info(
-        `[ContinuationExecutor] Auto-continuing execution ${executionId} after timeout`,
-      );
+      logger.info(`[ContinuationExecutor] Auto-continuing execution ${executionId} after timeout`);
 
       const defaultResponse = generateDefaultResponse(
         undefined,
-        execution.question,
-        execution.questionDetails,
+        execution.question ?? undefined,
+        execution.questionDetails ?? undefined,
       );
 
       ctx.emitEvent({
-        type: "execution_output",
+        type: 'execution_output',
         executionId,
         sessionId: execution.sessionId,
         taskId,
         data: {
           questionTimeoutTriggered: true,
           autoResponse: defaultResponse,
-          message: "タイムアウトにより自動的に継続します",
+          message: 'タイムアウトにより自動的に継続します',
         },
         timestamp: new Date(),
       });
 
-      const result = await executeContinuationInternal(
-        ctx,
-        executionId,
-        defaultResponse,
-        { timeout: 900000 },
-      );
+      const result = await executeContinuationInternal(ctx, executionId, defaultResponse, {
+        timeout: 900000,
+      });
 
       // 結果に応じてタスクとセッションのステータスを更新
       if (result.success && !result.waitingForInput) {
         try {
           await ctx.prisma.task.update({
             where: { id: taskId },
-            data: { status: "done", completedAt: new Date() },
+            data: { status: 'done', completedAt: new Date() },
           });
           logger.info(
             `[ContinuationExecutor] Task ${taskId} updated to 'done' after timeout auto-continue`,
@@ -679,7 +715,7 @@ export async function handleQuestionTimeout(
 
           await ctx.prisma.agentSession.update({
             where: { id: execution.sessionId },
-            data: { status: "completed", completedAt: new Date() },
+            data: { status: 'completed', completedAt: new Date() },
           });
         } catch (updateError) {
           logger.error(
@@ -691,17 +727,15 @@ export async function handleQuestionTimeout(
         try {
           await ctx.prisma.task.update({
             where: { id: taskId },
-            data: { status: "todo" },
+            data: { status: 'todo' },
           });
 
           await ctx.prisma.agentSession.update({
             where: { id: execution.sessionId },
             data: {
-              status: "failed",
+              status: 'failed',
               completedAt: new Date(),
-              errorMessage:
-                result.errorMessage ||
-                "Execution failed after timeout auto-continue",
+              errorMessage: result.errorMessage || 'Execution failed after timeout auto-continue',
             },
           });
         } catch (updateError) {
@@ -715,10 +749,13 @@ export async function handleQuestionTimeout(
       await ctx.prisma.agentExecution
         .update({
           where: { id: executionId },
-          data: { status: "waiting_for_input" },
+          data: { status: 'waiting_for_input' },
         })
         .catch((updateErr) => {
-          logger.warn({ err: updateErr, executionId }, "Failed to update execution status to waiting_for_input on error");
+          logger.warn(
+            { err: updateErr, executionId },
+            'Failed to update execution status to waiting_for_input on error',
+          );
         });
       throw error;
     } finally {

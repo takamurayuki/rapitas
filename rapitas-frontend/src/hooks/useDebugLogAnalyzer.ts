@@ -12,6 +12,7 @@ import {
   ParsedLogEntry
 } from '@/types/debug-log';
 import { createLogger } from "@/lib/logger";
+import { API_BASE_URL } from "@/utils/api";
 
 const logger = createLogger("useDebugLogAnalyzer");
 
@@ -34,8 +35,6 @@ interface LogTypeInfo {
 export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
   // ログを解析
   const analyzeLog = useCallback(

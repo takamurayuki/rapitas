@@ -16,12 +16,28 @@
     "prisma:migrate": "cd rapitas-backend && npx prisma migrate dev",
     "prisma:push": "cd rapitas-backend && npx prisma db push",
     "prisma:generate": "cd rapitas-backend && npx prisma generate",
-    "prisma:studio": "cd rapitas-backend && npx prisma studio"
+    "prisma:studio": "cd rapitas-backend && npx prisma studio",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.4.3",
+    "@commitlint/config-conventional": "^20.4.3",
     "concurrently": "^9.1.2",
     "cross-env": "^10.1.0",
-    "get-port-cli": "^3.0.0"
+    "eslint": "^9.39.4",
+    "get-port-cli": "^3.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.3.2",
+    "prettier": "^3.8.1"
+  },
+  "lint-staged": {
+    "rapitas-frontend/src/**/*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix --no-warn-ignored --config rapitas-frontend/eslint.config.mjs"
+    ],
+    "rapitas-backend/**/*.ts": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "zustand": "^5.0.10"

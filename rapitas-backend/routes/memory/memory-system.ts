@@ -2,27 +2,36 @@
  * Memory System API Routes
  * タイムライン、固定化、矛盾管理、キュー状態、忘却スイープ、RAGテスト
  */
-import { Elysia, t } from "elysia";
-import { queryEvents } from "../../services/memory/timeline";
-import { getConsolidationRuns, runConsolidation } from "../../services/memory/consolidation";
+import { Elysia, t } from 'elysia';
+import { queryEvents } from '../../services/memory/timeline';
+import { getConsolidationRuns, runConsolidation } from '../../services/memory/consolidation';
 import {
   getUnresolvedContradictions,
   resolveContradiction,
-} from "../../services/memory/contradiction";
-import { memoryTaskQueue } from "../../services/memory";
-import { runForgettingSweep } from "../../services/memory/forgetting";
-import { buildRAGContext } from "../../services/memory/rag/context-builder";
-import { getEmbeddingCount } from "../../services/memory/rag/vector-index";
-import type { ContradictionResolution } from "../../services/memory/types";
+} from '../../services/memory/contradiction';
+import { memoryTaskQueue } from '../../services/memory';
+import { runForgettingSweep } from '../../services/memory/forgetting';
+import { buildRAGContext } from '../../services/memory/rag/context-builder';
+import { getEmbeddingCount } from '../../services/memory/rag/vector-index';
+import type {
+  ContradictionResolution,
+  TimelineEventType,
+  ActorType,
+} from '../../services/memory/types';
 
-export const memorySystemRoutes = new Elysia({ prefix: "/memory" })
+// Type definitions for request bodies
+interface ResolveContradictionBody {
+  resolution: ContradictionResolution;
+}
+
+export const memorySystemRoutes = new Elysia({ prefix: '/memory' })
   // GET /memory/timeline - イベント一覧
   .get(
-    "/timeline",
+    '/timeline',
     async ({ query }) => {
       return queryEvents({
-        eventType: query.eventType as any,
-        actorType: query.actorType as any,
+        eventType: query.eventType as TimelineEventType | undefined,
+        actorType: query.actorType as ActorType | undefined,
         correlationId: query.correlationId,
         since: query.since ? new Date(query.since) : undefined,
         until: query.until ? new Date(query.until) : undefined,
@@ -45,7 +54,7 @@ export const memorySystemRoutes = new Elysia({ prefix: "/memory" })
 
   // GET /memory/consolidation/runs - 固定化実行履歴
   .get(
-    "/consolidation/runs",
+    '/consolidation/runs',
     async ({ query }) => {
       const limit = query.limit ? parseInt(query.limit) : 20;
       return getConsolidationRuns(limit);
@@ -58,14 +67,14 @@ export const memorySystemRoutes = new Elysia({ prefix: "/memory" })
   )
 
   // POST /memory/consolidation/trigger - 手動トリガー
-  .post("/consolidation/trigger", async () => {
+  .post('/consolidation/trigger', async () => {
     const result = await runConsolidation();
     return result;
   })
 
   // GET /memory/contradictions - 未解決矛盾一覧
   .get(
-    "/contradictions",
+    '/contradictions',
     async ({ query }) => {
       const limit = query.limit ? parseInt(query.limit) : 20;
       return getUnresolvedContradictions(limit);
@@ -79,10 +88,11 @@ export const memorySystemRoutes = new Elysia({ prefix: "/memory" })
 
   // POST /memory/contradictions/:id/resolve - 矛盾解決
   .post(
-    "/contradictions/:id/resolve",
+    '/contradictions/:id/resolve',
     async ({ params, body }) => {
       const id = parseInt(params.id);
-      await resolveContradiction(id, body.resolution as ContradictionResolution);
+      const typedBody = body as ResolveContradictionBody;
+      await resolveContradiction(id, typedBody.resolution);
       return { success: true };
     },
     {
@@ -94,21 +104,21 @@ export const memorySystemRoutes = new Elysia({ prefix: "/memory" })
   )
 
   // GET /memory/queue/status - キュー状態
-  .get("/queue/status", async () => {
+  .get('/queue/status', async () => {
     const status = await memoryTaskQueue.getStatus();
     const embeddingCount = getEmbeddingCount();
     return { ...status, embeddingCount };
   })
 
   // POST /memory/forgetting/sweep - 忘却スイープ手動実行
-  .post("/forgetting/sweep", async () => {
+  .post('/forgetting/sweep', async () => {
     const result = await runForgettingSweep();
     return result;
   })
 
   // GET /memory/rag/test - RAGテスト
   .get(
-    "/rag/test",
+    '/rag/test',
     async ({ query }) => {
       const context = await buildRAGContext(query.q, {
         limit: query.limit ? parseInt(query.limit) : 5,

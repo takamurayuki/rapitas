@@ -7,13 +7,13 @@
 
 declare var self: Worker;
 
-import { detectQuestionFromToolCall } from "../services/agents/question-detection";
+import { detectQuestionFromToolCall } from '../services/agents/question-detection';
 
 // ==================== 型定義 ====================
 
-export type QuestionCategory = "clarification" | "confirmation" | "selection";
+export type QuestionCategory = 'clarification' | 'confirmation' | 'selection';
 
-export type QuestionDetectionMethod = "tool_call" | "key_based" | "none";
+export type QuestionDetectionMethod = 'tool_call' | 'key_based' | 'none';
 
 interface QuestionDetails {
   category: QuestionCategory;
@@ -38,7 +38,7 @@ interface ToolInfo {
 }
 
 interface AgentArtifact {
-  type: "file" | "diff";
+  type: 'file' | 'diff';
   name: string;
   content: string;
   path?: string;
@@ -57,28 +57,36 @@ interface GitCommitInfo {
 
 // 入力メッセージ型
 type WorkerInputMessage =
-  | { type: "configure"; config: { logPrefix?: string; timeoutSeconds: number } }
-  | { type: "parse-chunk"; data: string }
-  | { type: "parse-complete"; outputBuffer: string }
-  | { type: "terminate" };
+  | { type: 'configure'; config: { logPrefix?: string; timeoutSeconds: number } }
+  | { type: 'parse-chunk'; data: string }
+  | { type: 'parse-complete'; outputBuffer: string }
+  | { type: 'terminate' };
 
 // 出力メッセージ型
 type WorkerOutputMessage =
-  | { type: "system-event"; data: { sessionId?: string; error?: string } }
-  | { type: "assistant-message"; data: { text: string; tools: Array<{ name: string; id: string; info: string }> } }
-  | { type: "user-message"; data: { toolResults: Array<{ id: string; name: string; duration: number; isError: boolean }> } }
-  | { type: "result"; data: { duration?: number; cost?: number; sessionId?: string } }
-  | { type: "question-detected"; data: WaitingQuestionState & { questionText: string } }
-  | { type: "artifacts-parsed"; data: { artifacts: AgentArtifact[] } }
-  | { type: "commits-parsed"; data: { commits: GitCommitInfo[] } }
-  | { type: "tool-tracking"; data: { hasFileModifyingTools: boolean; toolName: string } }
-  | { type: "error"; error: string };
+  | { type: 'system-event'; data: { sessionId?: string; error?: string } }
+  | {
+      type: 'assistant-message';
+      data: { text: string; tools: Array<{ name: string; id: string; info: string }> };
+    }
+  | {
+      type: 'user-message';
+      data: {
+        toolResults: Array<{ id: string; name: string; duration: number; isError: boolean }>;
+      };
+    }
+  | { type: 'result'; data: { duration?: number; cost?: number; sessionId?: string } }
+  | { type: 'question-detected'; data: WaitingQuestionState & { questionText: string } }
+  | { type: 'artifacts-parsed'; data: { artifacts: AgentArtifact[] } }
+  | { type: 'commits-parsed'; data: { commits: GitCommitInfo[] } }
+  | { type: 'tool-tracking'; data: { hasFileModifyingTools: boolean; toolName: string } }
+  | { type: 'error'; error: string };
 
 // ==================== Worker内部状態 ====================
 
-let lineBuffer = "";
+let lineBuffer = '';
 const activeTools = new Map<string, ToolInfo>();
-const FILE_MODIFYING_TOOLS = new Set(["Write", "Edit", "NotebookEdit"]);
+const FILE_MODIFYING_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit']);
 let config: { logPrefix?: string; timeoutSeconds: number } = { timeoutSeconds: 300 };
 
 // ==================== アーティファクト・コミットパース ====================
@@ -98,11 +106,11 @@ function parseArtifacts(output: string): AgentArtifact[] {
       const captured = match[1];
       if (!captured) continue;
       const filePath = captured.trim();
-      if (filePath && !filePath.includes("...")) {
+      if (filePath && !filePath.includes('...')) {
         artifacts.push({
-          type: "file",
-          name: filePath.split("/").pop() || filePath,
-          content: "",
+          type: 'file',
+          name: filePath.split('/').pop() || filePath,
+          content: '',
           path: filePath,
         });
       }
@@ -114,9 +122,9 @@ function parseArtifacts(output: string): AgentArtifact[] {
   let diffMatch;
   while ((diffMatch = diffPattern.exec(output)) !== null) {
     artifacts.push({
-      type: "diff",
-      name: "changes.diff",
-      content: diffMatch[1] || "",
+      type: 'diff',
+      name: 'changes.diff',
+      content: diffMatch[1] || '',
     });
   }
 
@@ -130,9 +138,9 @@ function parseCommits(output: string): GitCommitInfo[] {
   let match;
   while ((match = commitPattern.exec(output)) !== null) {
     commits.push({
-      hash: match[1] || "",
-      message: "",
-      branch: "",
+      hash: match[1] || '',
+      message: '',
+      branch: '',
       filesChanged: 0,
       additions: 0,
       deletions: 0,
@@ -156,46 +164,41 @@ interface WorkerToolResult {
 
 // ==================== ツール情報フォーマット ====================
 
-function formatToolInfo(
-  toolName: string,
-  input: Record<string, unknown> | undefined,
-): string {
-  if (!input) return "";
+function formatToolInfo(toolName: string, input: Record<string, unknown> | undefined): string {
+  if (!input) return '';
 
   try {
     switch (toolName) {
-      case "Read":
-      case "Write":
-      case "Edit":
-        return input.file_path
-          ? `-> ${String(input.file_path).split(/[/\\]/).pop()}`
-          : "";
-      case "Glob":
-      case "Grep":
-        return input.pattern ? `pattern: ${input.pattern}` : "";
-      case "Bash": {
-        const cmd = String(input.command || "");
+      case 'Read':
+      case 'Write':
+      case 'Edit':
+        return input.file_path ? `-> ${String(input.file_path).split(/[/\\]/).pop()}` : '';
+      case 'Glob':
+      case 'Grep':
+        return input.pattern ? `pattern: ${input.pattern}` : '';
+      case 'Bash': {
+        const cmd = String(input.command || '');
         return cmd.length > 50 ? `$ ${cmd.substring(0, 50)}...` : `$ ${cmd}`;
       }
-      case "Task":
-        return input.description ? String(input.description) : "";
-      case "WebFetch":
-        return input.url ? `-> ${String(input.url).substring(0, 40)}...` : "";
-      case "WebSearch":
-        return input.query ? `"${input.query}"` : "";
-      case "LSP":
-        return input.operation ? String(input.operation) : "";
+      case 'Task':
+        return input.description ? String(input.description) : '';
+      case 'WebFetch':
+        return input.url ? `-> ${String(input.url).substring(0, 40)}...` : '';
+      case 'WebSearch':
+        return input.query ? `"${input.query}"` : '';
+      case 'LSP':
+        return input.operation ? String(input.operation) : '';
       default: {
         const firstKey = Object.keys(input)[0];
         if (firstKey && input[firstKey]) {
           const val = String(input[firstKey]);
           return val.length > 40 ? `${val.substring(0, 40)}...` : val;
         }
-        return "";
+        return '';
       }
     }
   } catch {
-    return "";
+    return '';
   }
 }
 
@@ -207,19 +210,19 @@ function processLine(line: string): void {
 
   try {
     const json = JSON.parse(trimmed);
-    const prefix = config.logPrefix || "[Worker]";
+    const prefix = config.logPrefix || '[Worker]';
 
     switch (json.type) {
-      case "assistant":
+      case 'assistant':
         processAssistantMessage(json, prefix);
         break;
-      case "user":
+      case 'user':
         processUserMessage(json);
         break;
-      case "result":
+      case 'result':
         processResultEvent(json);
         break;
-      case "system":
+      case 'system':
         processSystemEvent(json, prefix);
         break;
       default:
@@ -238,8 +241,8 @@ function processLine(line: string): void {
     }
     // 非JSON行をそのまま出力
     postResult({
-      type: "raw-output",
-      displayOutput: line + "\n",
+      type: 'raw-output',
+      displayOutput: line + '\n',
     });
   }
 }
@@ -268,16 +271,16 @@ interface ParsedJsonMessage {
 }
 
 function processAssistantMessage(json: ParsedJsonMessage, prefix: string): void {
-  let displayOutput = "";
+  let displayOutput = '';
   const toolUses: WorkerToolUse[] = [];
   let hasFileModifying = false;
 
   if (json.message?.content) {
     for (const block of json.message.content) {
-      if (block.type === "text" && block.text) {
+      if (block.type === 'text' && block.text) {
         displayOutput += block.text;
-      } else if (block.type === "tool_use") {
-        if (block.name === "AskUserQuestion") {
+      } else if (block.type === 'tool_use') {
+        if (block.name === 'AskUserQuestion') {
           // AskUserQuestion検出
           const detectionResult = detectQuestionFromToolCall(
             block.name,
@@ -288,31 +291,34 @@ function processAssistantMessage(json: ParsedJsonMessage, prefix: string): void 
           displayOutput += `\n[質問] ${detectionResult.questionText}\n`;
 
           postResult({
-            type: "question-detected",
-            detectionResult: detectionResult as unknown as WaitingQuestionState & { questionText: string },
+            type: 'question-detected',
+            detectionResult: detectionResult as unknown as WaitingQuestionState & {
+              questionText: string;
+            },
             displayOutput: `\n[質問] ${detectionResult.questionText}\n`,
           });
         } else {
           // 通常のツール呼び出し
-          const toolInfo = formatToolInfo(block.name, block.input);
-          displayOutput += `\n[Tool: ${block.name}] ${toolInfo}\n`;
+          const toolName = block.name ?? '';
+          const toolInfo = formatToolInfo(toolName, block.input);
+          displayOutput += `\n[Tool: ${toolName}] ${toolInfo}\n`;
 
-          if (FILE_MODIFYING_TOOLS.has(block.name)) {
+          if (FILE_MODIFYING_TOOLS.has(toolName)) {
             hasFileModifying = true;
           }
 
           if (block.id) {
             activeTools.set(block.id, {
-              name: block.name,
+              name: toolName,
               startTime: Date.now(),
               info: toolInfo,
             });
 
             toolUses.push({
               id: block.id,
-              name: block.name,
+              name: toolName,
               info: toolInfo,
-              isFileModifying: FILE_MODIFYING_TOOLS.has(block.name),
+              isFileModifying: FILE_MODIFYING_TOOLS.has(toolName),
             });
           }
         }
@@ -322,14 +328,14 @@ function processAssistantMessage(json: ParsedJsonMessage, prefix: string): void 
 
   if (hasFileModifying) {
     postResult({
-      type: "tool-tracking",
+      type: 'tool-tracking',
       hasFileModifyingToolCalls: true,
     });
   }
 
   if (displayOutput) {
     postResult({
-      type: "assistant-message",
+      type: 'assistant-message',
       displayOutput,
       toolUses,
     });
@@ -337,12 +343,12 @@ function processAssistantMessage(json: ParsedJsonMessage, prefix: string): void 
 }
 
 function processUserMessage(json: ParsedJsonMessage): void {
-  let displayOutput = "";
+  let displayOutput = '';
   const toolResults: WorkerToolResult[] = [];
 
   if (json.message?.content) {
     for (const block of json.message.content) {
-      if (block.type === "tool_result") {
+      if (block.type === 'tool_result') {
         const toolId = block.tool_use_id;
         const activeTool = toolId ? activeTools.get(toolId) : undefined;
 
@@ -353,9 +359,9 @@ function processUserMessage(json: ParsedJsonMessage): void {
           } else {
             displayOutput += `[Tool Done: ${activeTool.name}] (${duration}s)\n`;
           }
-          activeTools.delete(toolId);
+          activeTools.delete(toolId!);
         } else {
-          const toolIdShort = toolId ? `ID: ${toolId.substring(0, 8)}...` : "";
+          const toolIdShort = toolId ? `ID: ${toolId.substring(0, 8)}...` : '';
           if (block.is_error) {
             displayOutput += `[Tool Error ${toolIdShort}]\n`;
           } else {
@@ -364,7 +370,7 @@ function processUserMessage(json: ParsedJsonMessage): void {
         }
 
         toolResults.push({
-          toolUseId: toolId || "",
+          toolUseId: toolId || '',
           isError: !!block.is_error,
         });
       }
@@ -373,7 +379,7 @@ function processUserMessage(json: ParsedJsonMessage): void {
 
   if (displayOutput) {
     postResult({
-      type: "user-message",
+      type: 'user-message',
       displayOutput,
       toolResults,
     });
@@ -381,55 +387,53 @@ function processUserMessage(json: ParsedJsonMessage): void {
 }
 
 function processResultEvent(json: ParsedJsonMessage): void {
-  let displayOutput = "";
+  let displayOutput = '';
 
   if (json.result !== undefined) {
-    const duration = json.duration_ms
-      ? ` (${(json.duration_ms / 1000).toFixed(1)}s)`
-      : "";
-    const cost = json.cost_usd ? ` $${json.cost_usd.toFixed(4)}` : "";
-    displayOutput += `\n[Result: ${json.subtype || "completed"}${duration}${cost}]\n`;
-    if (json.result && typeof json.result === "string") {
-      displayOutput += json.result + "\n";
+    const duration = json.duration_ms ? ` (${(json.duration_ms / 1000).toFixed(1)}s)` : '';
+    const cost = json.cost_usd ? ` $${json.cost_usd.toFixed(4)}` : '';
+    displayOutput += `\n[Result: ${json.subtype || 'completed'}${duration}${cost}]\n`;
+    if (json.result && typeof json.result === 'string') {
+      displayOutput += json.result + '\n';
     }
   }
 
   postResult({
-    type: "result-event",
+    type: 'result-event',
     displayOutput,
     subtype: json.subtype,
     durationMs: json.duration_ms,
     costUsd: json.cost_usd,
-    result: typeof json.result === "string" ? json.result : undefined,
+    result: typeof json.result === 'string' ? json.result : undefined,
   });
 }
 
 function processSystemEvent(json: ParsedJsonMessage, prefix: string): void {
-  let displayOutput = "";
+  let displayOutput = '';
   let sessionId: string | undefined;
   let sessionMismatchWarning: string | undefined;
 
-  if (json.subtype === "init" && json.session_id) {
+  if (json.subtype === 'init' && json.session_id) {
     sessionId = json.session_id;
   }
 
-  if (json.subtype === "error") {
-    const errorMsg =
-      typeof json.message === "string"
-        ? json.message
-        : json.error || "unknown";
+  if (json.subtype === 'error') {
+    const errorMsg = typeof json.message === 'string' ? json.message : json.error || 'unknown';
     displayOutput = `[System Error: ${errorMsg}]\n`;
   } else {
-    displayOutput = `[System: ${json.subtype || "info"}]\n`;
+    displayOutput = `[System: ${json.subtype || 'info'}]\n`;
   }
 
   postResult({
-    type: "system-event",
-    subtype: json.subtype || "info",
+    type: 'system-event',
+    subtype: json.subtype || 'info',
     sessionId,
-    errorMessage: json.subtype === "error"
-      ? (typeof json.message === "string" ? json.message : json.error)
-      : undefined,
+    errorMessage:
+      json.subtype === 'error'
+        ? typeof json.message === 'string'
+          ? json.message
+          : json.error
+        : undefined,
     displayOutput,
     sessionMismatchWarning,
   });
@@ -466,15 +470,15 @@ self.onmessage = (event: MessageEvent<WorkerInputMessage>) => {
 
   try {
     switch (msg.type) {
-      case "configure":
+      case 'configure':
         config = msg.config;
         break;
 
-      case "parse-chunk": {
+      case 'parse-chunk': {
         // チャンクをバッファに追加し、完全な行を処理
         lineBuffer += msg.data;
-        const lines = lineBuffer.split("\n");
-        lineBuffer = lines.pop() || ""; // 最後の不完全な行を保持
+        const lines = lineBuffer.split('\n');
+        lineBuffer = lines.pop() || ''; // 最後の不完全な行を保持
 
         for (const line of lines) {
           processLine(line);
@@ -482,7 +486,7 @@ self.onmessage = (event: MessageEvent<WorkerInputMessage>) => {
         break;
       }
 
-      case "parse-complete": {
+      case 'parse-complete': {
         // 残りのバッファをフラッシュ
         if (lineBuffer.trim()) {
           processLine(lineBuffer);
@@ -494,29 +498,29 @@ self.onmessage = (event: MessageEvent<WorkerInputMessage>) => {
 
         if (artifacts.length > 0) {
           postResult({
-            type: "artifacts-parsed",
+            type: 'artifacts-parsed',
             data: { artifacts },
           });
         }
         if (commits.length > 0) {
           postResult({
-            type: "commits-parsed",
+            type: 'commits-parsed',
             data: { commits },
           });
         }
 
         postResult({
-          type: "parse-complete",
+          type: 'parse-complete',
           remainingBuffer: lineBuffer,
         });
-        lineBuffer = "";
+        lineBuffer = '';
         activeTools.clear();
         break;
       }
 
-      case "terminate":
+      case 'terminate':
         // Worker終了（メインスレッドからworker.terminate()で停止される）
-        lineBuffer = "";
+        lineBuffer = '';
         activeTools.clear();
         // Bun Workerではself.close()が存在しないため、状態リセットのみ
         process.exit(0);
@@ -525,7 +529,7 @@ self.onmessage = (event: MessageEvent<WorkerInputMessage>) => {
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     postResult({
-      type: "error",
+      type: 'error',
       message: err.message,
       stack: err.stack,
     });
