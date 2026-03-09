@@ -1,6 +1,6 @@
-import { Elysia, t } from "elysia";
-import { prisma } from "../config";
-import { cacheService } from "./cache-service";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../config';
+import { cacheService } from './cache-service';
 import { createLogger } from '../config/logger';
 
 const log = createLogger('websocket-service');
@@ -45,7 +45,11 @@ class WebSocketManager {
   }
 
   // クライアントの追加
-  addClient(id: string, ws: WebSocketInstance, metadata?: { userId?: string; sessionId?: string }): void {
+  addClient(
+    id: string,
+    ws: WebSocketInstance,
+    metadata?: { userId?: string; sessionId?: string },
+  ): void {
     const client: WSClient = {
       id,
       ws,
@@ -123,7 +127,8 @@ class WebSocketManager {
 
     for (const clientId of room.clients) {
       const client = this.clients.get(clientId);
-      if (client?.ws.readyState === 1) { // WebSocket.OPEN
+      if (client?.ws.readyState === 1) {
+        // WebSocket.OPEN
         client.ws.send(JSON.stringify(message));
         client.lastActivity = Date.now();
       }
@@ -160,7 +165,7 @@ class WebSocketManager {
         this.removeClient(id);
       } else if (client.ws.readyState === 1) {
         // Ping送信
-        client.ws.send(JSON.stringify({ type: "ping", timestamp: now }));
+        client.ws.send(JSON.stringify({ type: 'ping', timestamp: now }));
       }
     }
   }
@@ -191,8 +196,8 @@ class WebSocketManager {
 
     // すべてのクライアントに終了通知
     this.broadcast({
-      type: "server-shutdown",
-      message: "Server is shutting down",
+      type: 'server-shutdown',
+      message: 'Server is shutting down',
     });
 
     // 接続を閉じる
@@ -212,7 +217,7 @@ const wsManager = new WebSocketManager();
 type WebSocketHandler<T = unknown> = (
   ws: WebSocketInstance,
   clientId: string,
-  data: T
+  data: T,
 ) => void | Promise<void>;
 
 // WebSocketイベントハンドラー
@@ -233,7 +238,7 @@ const webSocketHandlers = {
 
     if (task) {
       wsManager.sendToClient(clientId, {
-        type: "task-data",
+        type: 'task-data',
         data: task,
       });
     }
@@ -246,7 +251,7 @@ const webSocketHandlers = {
 
   // 統計情報の購読
   subscribeStatistics: (ws: WebSocketInstance, clientId: string) => {
-    wsManager.joinRoom(clientId, "statistics");
+    wsManager.joinRoom(clientId, 'statistics');
   },
 
   // リアルタイムコラボレーション
@@ -255,16 +260,20 @@ const webSocketHandlers = {
 
     // 他のクライアントに参加を通知
     wsManager.sendToRoom(`collab:${data.sessionId}`, {
-      type: "user-joined",
+      type: 'user-joined',
       clientId,
       timestamp: new Date().toISOString(),
     });
   },
 
   // カーソル位置の共有
-  updateCursor: (ws: WebSocketInstance, clientId: string, data: { sessionId: string; position: { x: number; y: number } }) => {
+  updateCursor: (
+    ws: WebSocketInstance,
+    clientId: string,
+    data: { sessionId: string; position: { x: number; y: number } },
+  ) => {
     wsManager.sendToRoom(`collab:${data.sessionId}`, {
-      type: "cursor-update",
+      type: 'cursor-update',
       clientId,
       position: data.position,
       timestamp: new Date().toISOString(),
@@ -272,9 +281,13 @@ const webSocketHandlers = {
   },
 
   // タイピング状態の共有
-  setTypingStatus: (ws: WebSocketInstance, clientId: string, data: { sessionId: string; isTyping: boolean }) => {
+  setTypingStatus: (
+    ws: WebSocketInstance,
+    clientId: string,
+    data: { sessionId: string; isTyping: boolean },
+  ) => {
     wsManager.sendToRoom(`collab:${data.sessionId}`, {
-      type: "typing-status",
+      type: 'typing-status',
       clientId,
       isTyping: data.isTyping,
       timestamp: new Date().toISOString(),
@@ -293,12 +306,12 @@ const webSocketHandlers = {
 // データ変更の通知
 export const notifyDataChange = {
   // タスクが更新された場合
-  taskUpdated: async (taskId: number, changeType: "created" | "updated" | "deleted") => {
+  taskUpdated: async (taskId: number, changeType: 'created' | 'updated' | 'deleted') => {
     const roomName = `task:${taskId}`;
 
-    if (changeType === "deleted") {
+    if (changeType === 'deleted') {
       wsManager.sendToRoom(roomName, {
-        type: "task-deleted",
+        type: 'task-deleted',
         taskId,
         timestamp: new Date().toISOString(),
       });
@@ -315,7 +328,7 @@ export const notifyDataChange = {
 
       if (task) {
         wsManager.sendToRoom(roomName, {
-          type: "task-updated",
+          type: 'task-updated',
           data: task,
           changeType,
           timestamp: new Date().toISOString(),
@@ -324,7 +337,7 @@ export const notifyDataChange = {
         // カテゴリルームにも通知（themeのcategoryIdがある場合のみ）
         if (task.theme?.categoryId) {
           wsManager.sendToRoom(`category:${task.theme.categoryId}`, {
-            type: "category-task-updated",
+            type: 'category-task-updated',
             taskId,
             changeType,
             timestamp: new Date().toISOString(),
@@ -335,12 +348,12 @@ export const notifyDataChange = {
 
     // キャッシュを無効化
     await cacheService.clear(`task:${taskId}`);
-    await cacheService.clear("tasks:");
+    await cacheService.clear('tasks:');
 
     // 統計情報の更新を通知
-    wsManager.sendToRoom("statistics", {
-      type: "statistics-invalidated",
-      reason: "task-change",
+    wsManager.sendToRoom('statistics', {
+      type: 'statistics-invalidated',
+      reason: 'task-change',
       timestamp: new Date().toISOString(),
     });
   },
@@ -353,20 +366,20 @@ export const notifyDataChange = {
 
     if (category) {
       wsManager.sendToRoom(`category:${categoryId}`, {
-        type: "category-updated",
+        type: 'category-updated',
         data: category,
         timestamp: new Date().toISOString(),
       });
     }
 
     // キャッシュを無効化
-    await cacheService.clear("categories:");
+    await cacheService.clear('categories:');
   },
 
   // バッチ更新通知
   batchUpdated: (updates: Array<{ type: string; id: string | number; data?: unknown }>) => {
     wsManager.broadcast({
-      type: "batch-update",
+      type: 'batch-update',
       updates,
       timestamp: new Date().toISOString(),
     });
@@ -375,40 +388,50 @@ export const notifyDataChange = {
 
 // WebSocketルート
 export const websocketRoutes = new Elysia()
-  .ws("/ws", {
+  .ws('/ws', {
     async message(ws, message) {
       const clientId = (ws as unknown as { id?: string }).id || `client-${Date.now()}`;
 
       try {
-        const data = JSON.parse(message.toString());
+        const data = JSON.parse(String(message));
         const handler = webSocketHandlers[data.type as keyof typeof webSocketHandlers];
 
         if (handler) {
           await handler(ws as unknown as WebSocketInstance, clientId, data.data || {});
         } else {
-          ws.send(JSON.stringify({
-            type: "error",
-            message: `Unknown message type: ${data.type}`,
-          }));
+          ws.send(
+            JSON.stringify({
+              type: 'error',
+              message: `Unknown message type: ${data.type}`,
+            }),
+          );
         }
       } catch (error) {
-        ws.send(JSON.stringify({
-          type: "error",
-          message: error instanceof Error ? error.message : "Invalid message format",
-        }));
+        ws.send(
+          JSON.stringify({
+            type: 'error',
+            message: error instanceof Error ? error.message : 'Invalid message format',
+          }),
+        );
       }
     },
 
     open(ws) {
       const wsWithId = ws as unknown as WebSocketInstance & { id?: string };
       const clientId = wsWithId.id || `client-${Date.now()}`;
-      wsManager.addClient(clientId, ws as unknown as WebSocketInstance, wsWithId.data as { userId?: string; sessionId?: string } | undefined);
-
-      ws.send(JSON.stringify({
-        type: "connected",
+      wsManager.addClient(
         clientId,
-        timestamp: new Date().toISOString(),
-      }));
+        ws as unknown as WebSocketInstance,
+        wsWithId.data as { userId?: string; sessionId?: string } | undefined,
+      );
+
+      ws.send(
+        JSON.stringify({
+          type: 'connected',
+          clientId,
+          timestamp: new Date().toISOString(),
+        }),
+      );
     },
 
     close(ws) {
@@ -416,9 +439,9 @@ export const websocketRoutes = new Elysia()
       if (clientId) {
         wsManager.removeClient(clientId);
       }
-    }
+    },
   })
-  .get("/ws/stats", () => {
+  .get('/ws/stats', () => {
     return wsManager.getStats();
   });
 

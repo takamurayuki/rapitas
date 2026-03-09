@@ -1,5 +1,6 @@
 import { UserBehaviorService } from './userBehaviorService';
 import { createLogger } from '../../config/logger';
+import { memoryTaskQueue } from '../../services/memory';
 
 const log = createLogger('behavior-scheduler');
 
@@ -39,7 +40,29 @@ export class BehaviorScheduler {
       }
     }, 60 * 1000); // 1分ごとにチェック
 
-    this.intervalIds.push(dailyInterval, weeklyInterval, monthlyInterval);
+    // 毎日0時に知識固定化を実行
+    const consolidationInterval = setInterval(async () => {
+      const now = new Date();
+      if (now.getHours() === 0 && now.getMinutes() === 0) {
+        log.info('[BehaviorScheduler] Triggering knowledge consolidation');
+        await memoryTaskQueue.enqueue('consolidate', {}).catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Failed to enqueue consolidation');
+        });
+      }
+    }, 60 * 1000);
+
+    // 毎日2時に忘却スイープを実行
+    const forgettingSweepInterval = setInterval(async () => {
+      const now = new Date();
+      if (now.getHours() === 2 && now.getMinutes() === 0) {
+        log.info('[BehaviorScheduler] Triggering forgetting sweep');
+        await memoryTaskQueue.enqueue('forget_sweep', {}).catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Failed to enqueue forgetting sweep');
+        });
+      }
+    }, 60 * 1000);
+
+    this.intervalIds.push(dailyInterval, weeklyInterval, monthlyInterval, consolidationInterval, forgettingSweepInterval);
 
     // 初回実行（サーバー起動時）
     this.runInitialUpdate();

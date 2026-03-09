@@ -98,6 +98,10 @@
     "approvals": "Approvals",
     "promptManagement": "Prompt Management",
     "claudeGeneration": "CLAUDE.md Generation",
+    "knowledgeBase": "Knowledge Base",
+    "knowledgeBrowser": "Knowledge Browser",
+    "contradictions": "Contradictions",
+    "memoryAdmin": "Memory Admin",
     "settings": "Settings",
     "generalSettings": "General Settings",
     "apiKeySettings": "API Key Settings",
@@ -1531,5 +1535,116 @@
     "prio_scale_desc": "Prepare for rapid growth",
     "prio_security": "Security",
     "prio_security_desc": "Finance, healthcare, PII"
+  },
+  "knowledge": {
+    "title": "Knowledge Base",
+    "description": "Manage knowledge learned by AI agents and user learning data",
+    "search": "Search knowledge...",
+    "searchPlaceholder": "Search by keyword or natural language",
+    "noResults": "No knowledge entries found",
+    "noResultsDescription": "Try changing your search criteria or add new knowledge",
+    "createEntry": "Add Knowledge",
+    "editEntry": "Edit Knowledge",
+    "deleteEntry": "Archive Knowledge",
+    "pinEntry": "Pin",
+    "unpinEntry": "Unpin",
+    "pinUntil": "Pin Until",
+    "entry": "Entry",
+    "entries": "entries",
+    "confidence": "Confidence",
+    "similarity": "Similarity",
+    "decayScore": "Decay Score",
+    "accessCount": "Access Count",
+    "lastAccessed": "Last Accessed",
+    "sourceType": "Source Type",
+    "category": "Category",
+    "stage": "Stage",
+    "validation": "Validation",
+    "tags": "Tags",
+    "content": "Content",
+    "sourceTypes": {
+      "agent_execution": "Agent Execution",
+      "user_learning": "User Learning",
+      "task_pattern": "Task Pattern",
+      "distilled_procedure": "Distilled Procedure",
+      "consolidated": "Consolidated"
+    },
+    "categories": {
+      "procedure": "Procedure",
+      "fact": "Fact",
+      "pattern": "Pattern",
+      "preference": "Preference",
+      "insight": "Insight",
+      "general": "General"
+    },
+    "stages": {
+      "active": "Active",
+      "dormant": "Dormant",
+      "archived": "Archived"
+    },
+    "validationStatuses": {
+      "pending": "Pending",
+      "validated": "Validated",
+      "rejected": "Rejected",
+      "conflict": "Conflict"
+    },
+    "contradictions": {
+      "title": "Contradiction Management",
+      "description": "Review and resolve detected knowledge contradictions",
+      "noContradictions": "No unresolved contradictions",
+      "entryA": "Entry A",
+      "entryB": "Entry B",
+      "type": "Contradiction Type",
+      "resolution": "Resolution",
+      "keepA": "Keep A",
+      "keepB": "Keep B",
+      "merge": "Merge",
+      "dismiss": "Dismiss",
+      "resolve": "Resolve",
+      "types": {
+        "factual": "Factual Contradiction",
+        "procedural": "Procedural Contradiction",
+        "preference": "Preference Contradiction"
+      }
+    },
+    "admin": {
+      "title": "Memory Administration",
+      "description": "Monitor and manage the memory system",
+      "queueStatus": "Queue Status",
+      "consolidationHistory": "Consolidation History",
+      "forgettingPreview": "Forgetting Preview",
+      "ragTest": "RAG Test",
+      "triggerConsolidation": "Run Consolidation",
+      "triggerSweep": "Run Forgetting Sweep",
+      "testQuery": "Test Query",
+      "pending": "Pending",
+      "processing": "Processing",
+      "completed": "Completed",
+      "failed": "Failed",
+      "deadLetter": "Dead Letter",
+      "embeddingCount": "Embedding Count",
+      "runDate": "Run Date",
+      "duration": "Duration",
+      "processed": "Processed",
+      "merged": "Merged",
+      "created": "Created"
+    },
+    "stats": {
+      "title": "Knowledge Base Stats",
+      "totalEntries": "Total Entries",
+      "averageConfidence": "Avg Confidence",
+      "averageDecay": "Avg Decay Score",
+      "recentlyAccessed": "Recently Accessed",
+      "byCategory": "By Category",
+      "byStage": "By Stage",
+      "byValidation": "By Validation",
+      "bySource": "By Source"
+    },
+    "timeline": {
+      "title": "Timeline",
+      "noEvents": "No events"
+    },
+    "relatedKnowledge": "Related Knowledge",
+    "noRelatedKnowledge": "No related knowledge found"
   }
 }

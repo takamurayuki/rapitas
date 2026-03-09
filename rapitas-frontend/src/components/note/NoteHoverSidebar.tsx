@@ -236,14 +236,9 @@ export default function NoteHoverSidebar() {
                             {note.title}
                           </h4>
                         </div>
-                        <p
-                          className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 mb-1"
-                          dangerouslySetInnerHTML={{
-                            __html:
-                              note.content.replace(/<[^>]*>/g, '') ||
-                              '内容なし',
-                          }}
-                        />
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 mb-1">
+                          {note.content.replace(/<[^>]*>/g, '') || '内容なし'}
+                        </p>
                         <div className="flex items-center gap-2">
                           {note.tags?.length > 0 && (
                             <div className="flex items-center gap-1">

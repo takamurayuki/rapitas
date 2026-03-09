@@ -123,6 +123,12 @@ model Task {
   complexityScore       Float?    // 自動判定による複雑度スコア (0-100)
   workflowModeOverride  Boolean   @default(false) // 手動でモード変更されたかどうか
   autoApprovePlan       Boolean   @default(false) // タスクレベルでplan.mdを自動承認するか
+
+  @@index([status])
+  @@index([themeId])
+  @@index([status, themeId])
+  @@index([parentId])
+  @@index([dueDate])
 }
 
 model TimeEntry {
@@ -1007,5 +1013,147 @@ model WorkflowModeConfig {
   updatedAt       DateTime  @updatedAt
 
   @@index([mode])
+}
+
+// ==========================================
+// メモリ/知識管理システム
+// ==========================================
+
+// 知識エントリ（メモリシステムの中核）
+model KnowledgeEntry {
+  id              Int       @id @default(autoincrement())
+  sourceType      String    // "agent_execution" | "user_learning" | "task_pattern" | "distilled_procedure" | "consolidated"
+  sourceId        String?
+  title           String
+  content         String
+  contentHash     String
+  category        String    @default("general") // "procedure" | "fact" | "pattern" | "preference" | "insight"
+  tags            String    @default("[]")
+  confidence      Float     @default(1.0)
+  accessCount     Int       @default(0)
+  lastAccessedAt  DateTime?
+  forgettingStage String    @default("active") // "active" | "dormant" | "archived"
+  decayScore      Float     @default(1.0)
+  lastDecayAt     DateTime  @default(now())
+  pinnedUntil     DateTime?
+  validationStatus String   @default("pending") // "pending" | "validated" | "rejected" | "conflict"
+  validatedAt     DateTime?
+  validationMethod String?
+  themeId         Int?
+  taskId          Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  contradictions    KnowledgeContradiction[] @relation("EntryA")
+  contradictedBy    KnowledgeContradiction[] @relation("EntryB")
+  reconsolidations  KnowledgeReconsolidation[]
+
+  @@index([sourceType, sourceId])
+  @@index([category])
+  @@index([forgettingStage])
+  @@index([contentHash])
+  @@index([themeId])
+  @@index([decayScore])
+}
+
+// タイムラインイベント（メモリシステムのイベントログ基盤）
+model TimelineEvent {
+  id              Int       @id @default(autoincrement())
+  eventType       String    // "task_completed" | "agent_execution" | "knowledge_created" | "consolidation" | etc.
+  actorType       String    @default("system") // "user" | "agent" | "system"
+  actorId         String?
+  payload         String    @default("{}") // JSON
+  correlationId   String?   // 関連イベントのグループ化用
+  createdAt       DateTime  @default(now())
+
+  @@index([eventType])
+  @@index([correlationId])
+  @@index([createdAt])
+}
+
+// 固定化実行記録（日次の知識統合処理ログ）
+model ConsolidationRun {
+  id                Int       @id @default(autoincrement())
+  runDate           DateTime
+  status            String    @default("running") // "running" | "completed" | "failed"
+  entriesProcessed  Int       @default(0)
+  entriesMerged     Int       @default(0)
+  entriesCreated    Int       @default(0)
+  errorMessage      String?
+  durationMs        Int?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([runDate])
+  @@index([status])
+}
+
+// 知識矛盾追跡（矛盾するエントリペアの管理）
+model KnowledgeContradiction {
+  id                Int       @id @default(autoincrement())
+  entryAId          Int
+  entryA            KnowledgeEntry @relation("EntryA", fields: [entryAId], references: [id], onDelete: Cascade)
+  entryBId          Int
+  entryB            KnowledgeEntry @relation("EntryB", fields: [entryBId], references: [id], onDelete: Cascade)
+  contradictionType String    // "factual" | "procedural" | "preference"
+  description       String?
+  resolution        String?   // "keep_a" | "keep_b" | "merge" | "dismiss" | null (unresolved)
+  resolvedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([entryAId, entryBId])
+  @@index([resolution])
+}
+
+// 知識再固定化記録（予測誤差に基づく知識更新履歴）
+model KnowledgeReconsolidation {
+  id                Int       @id @default(autoincrement())
+  entryId           Int
+  entry             KnowledgeEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  predictionError   String    // 予測誤差の内容
+  errorMagnitude    Float     // 誤差の大きさ (0.0-1.0)
+  previousContent   String    // 更新前の内容
+  newContent        String    // 更新後の内容
+  triggerSource     String?   // 再固定化のトリガー源
+  createdAt         DateTime  @default(now())
+
+  @@index([entryId])
+  @@index([errorMagnitude])
+}
+
+// メモリシステムのバックグラウンドジョブキュー
+model MemoryTaskQueue {
+  id              Int       @id @default(autoincrement())
+  taskType        String    // "embed" | "consolidate" | "validate" | "forget_sweep" | "distill" | "detect_contradiction"
+  payload         String    @default("{}") // JSON
+  priority        Int       @default(0)    // 高い値 = 高い優先度
+  status          String    @default("pending") // "pending" | "processing" | "completed" | "failed" | "dead_letter"
+  attempts        Int       @default(0)
+  maxAttempts     Int       @default(3)
+  errorMessage    String?
+  scheduledAt     DateTime  @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status, priority])
+  @@index([taskType])
+  @@index([scheduledAt])
+}
+
+// メモリジャーナルエントリ（WALクラッシュ耐性）
+model MemoryJournalEntry {
+  id              Int       @id @default(autoincrement())
+  operationType   String    // "create" | "update" | "delete"
+  targetTable     String    // "KnowledgeEntry" | "TimelineEvent" | etc.
+  targetId        Int?
+  payload         String    @default("{}") // JSON
+  status          String    @default("pending") // "pending" | "committed" | "failed"
+  errorMessage    String?
+  createdAt       DateTime  @default(now())
+
+  @@index([status])
+  @@index([createdAt])
 }
 

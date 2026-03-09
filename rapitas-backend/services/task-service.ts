@@ -2,25 +2,25 @@
  * Task Service
  * ルーターから分離されたタスク関連のビジネスロジック
  */
-import { PrismaClient } from "@prisma/client";
-import { createLogger } from "../config/logger";
-import { UserBehaviorService } from "../src/services/userBehaviorService";
-import { checkAchievements } from "./achievement-checker";
-import { notifyTaskCompleted } from "./notification-service";
+import { PrismaClient } from '@prisma/client';
+import { createLogger } from '../config/logger';
+import { UserBehaviorService } from '../src/services/userBehaviorService';
+import { checkAchievements } from './achievement-checker';
+import { notifyTaskCompleted } from './notification-service';
 import {
   sendAIMessage,
   getDefaultProvider,
   isAnyApiKeyConfigured,
   type AIMessage,
-} from "../utils/ai-client";
+} from '../utils/ai-client';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;
 
-const logger = createLogger("task-service");
+const logger = createLogger('task-service');
 
 // タスク作成時の共通include
 const TASK_FULL_INCLUDE = {
-  subtasks: { orderBy: { createdAt: "asc" as const } },
+  subtasks: { orderBy: { createdAt: 'asc' as const } },
   theme: true,
   project: true,
   milestone: true,
@@ -64,7 +64,7 @@ async function createSubtask(
   parentId: number,
   title: string,
   labelIds: number[] | undefined,
-  data: Omit<CreateTaskInput, "title" | "parentId" | "labelIds">,
+  data: Omit<CreateTaskInput, 'title' | 'parentId' | 'labelIds'>,
 ) {
   const parentTask = await prisma.task.findUnique({
     where: { id: parentId },
@@ -76,9 +76,9 @@ async function createSubtask(
   }
 
   return prisma.$transaction(
-    async (tx: typeof prisma) => {
+    async (tx) => {
       const existingSubtask = await tx.task.findFirst({
-        where: { parentId, title: { equals: title, mode: "insensitive" } },
+        where: { parentId, title: { equals: title, mode: 'insensitive' } },
       });
 
       if (existingSubtask) {
@@ -87,7 +87,6 @@ async function createSubtask(
         );
         return tx.task.findUnique({
           where: { id: existingSubtask.id },
-          // @ts-ignore
           include: TASK_FULL_INCLUDE,
         });
       }
@@ -96,9 +95,8 @@ async function createSubtask(
         data: {
           title,
           ...(data.description && { description: data.description }),
-          status: data.status ?? "todo",
-          // @ts-ignore
-          priority: data.priority ?? "medium",
+          status: data.status ?? 'todo',
+          priority: data.priority ?? 'medium',
           ...(data.labels && { labels: data.labels }),
           ...(data.estimatedHours && { estimatedHours: data.estimatedHours }),
           ...(data.dueDate && { dueDate: new Date(data.dueDate) }),
@@ -121,11 +119,10 @@ async function createSubtask(
 
       return tx.task.findUnique({
         where: { id: task.id },
-        // @ts-ignore
         include: TASK_FULL_INCLUDE,
       });
     },
-    { isolationLevel: "Serializable" },
+    { isolationLevel: 'Serializable' },
   );
 }
 
@@ -133,15 +130,14 @@ async function createParentTask(
   prisma: PrismaInstance,
   title: string,
   labelIds: number[] | undefined,
-  data: Omit<CreateTaskInput, "title" | "parentId" | "labelIds">,
+  data: Omit<CreateTaskInput, 'title' | 'parentId' | 'labelIds'>,
 ) {
   const task = await prisma.task.create({
     data: {
       title,
       ...(data.description && { description: data.description }),
-      status: data.status ?? "todo",
-      // @ts-ignore
-      priority: data.priority ?? "medium",
+      status: data.status ?? 'todo',
+      priority: data.priority ?? 'medium',
       ...(data.labels && { labels: data.labels }),
       ...(data.estimatedHours && { estimatedHours: data.estimatedHours }),
       ...(data.dueDate && { dueDate: new Date(data.dueDate) }),
@@ -161,7 +157,6 @@ async function createParentTask(
     });
   }
 
-  // @ts-ignore
   const createdTask = await prisma.task.findUnique({
     where: { id: task.id },
     include: TASK_FULL_INCLUDE,
@@ -206,7 +201,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   }
 
   // ストリーク記録
-  if (fields.status === "done") {
+  if (fields.status === 'done') {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     await prisma.studyStreak.upsert({
@@ -215,11 +210,10 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       create: { date: today, studyMinutes: 0, tasksCompleted: 1 },
     });
 
-    fetch(
-      `http://localhost:${process.env.PORT || "3001"}/achievements/check`,
-      { method: "POST" },
-    ).catch((err) => {
-      logger.warn({ err }, "Failed to trigger achievement check");
+    fetch(`http://localhost:${process.env.PORT || '3001'}/achievements/check`, {
+      method: 'POST',
+    }).catch((err) => {
+      logger.warn({ err }, 'Failed to trigger achievement check');
     });
   }
 
@@ -230,10 +224,9 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.description !== undefined && { description: fields.description }),
       ...(fields.themeId !== undefined && { themeId: fields.themeId }),
       ...(fields.status && { status: fields.status }),
-      ...(fields.status === "done" && { completedAt: new Date() }),
-      ...(fields.status === "in-progress" &&
-        currentTask?.status !== "in-progress" && { startedAt: new Date() }),
-      // @ts-ignore
+      ...(fields.status === 'done' && { completedAt: new Date() }),
+      ...(fields.status === 'in-progress' &&
+        currentTask?.status !== 'in-progress' && { startedAt: new Date() }),
       ...(fields.priority && { priority: fields.priority }),
       ...(fields.labels && { labels: fields.labels }),
       ...(fields.estimatedHours !== undefined && { estimatedHours: fields.estimatedHours }),
@@ -260,22 +253,21 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
 
   const updatedTask = await prisma.task.findUnique({
     where: { id: taskId },
-    // @ts-ignore
     include: TASK_FULL_INCLUDE,
   });
 
   // ユーザー行動記録（親タスクのみ）
   if (!currentTask?.parentId && updatedTask) {
     if (fields.status && currentTask?.status !== fields.status) {
-      if (fields.status === "in-progress" && currentTask?.status !== "in-progress") {
+      if (fields.status === 'in-progress' && currentTask?.status !== 'in-progress') {
         await UserBehaviorService.recordTaskStarted(taskId, updatedTask);
-      } else if (fields.status === "done" && currentTask?.status !== "done") {
+      } else if (fields.status === 'done' && currentTask?.status !== 'done') {
         await UserBehaviorService.recordTaskCompleted(taskId, updatedTask);
-        checkAchievements("task.completed").catch((err) => {
-          logger.warn({ err }, "Failed to check achievements on task completion");
+        checkAchievements('task.completed').catch((err) => {
+          logger.warn({ err }, 'Failed to check achievements on task completion');
         });
         notifyTaskCompleted(taskId, updatedTask.title).catch((err) => {
-          logger.warn({ err, taskId }, "Failed to send task completion notification");
+          logger.warn({ err, taskId }, 'Failed to send task completion notification');
         });
       }
     }
@@ -286,9 +278,9 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       fields.priority ||
       fields.themeId !== undefined
     ) {
-      await UserBehaviorService.recordBehavior("task_updated", {
+      await UserBehaviorService.recordBehavior('task_updated', {
         taskId,
-        themeId: updatedTask.themeId,
+        themeId: updatedTask.themeId ?? undefined,
         metadata: {
           changes: {
             title: fields.title !== undefined,
@@ -312,18 +304,22 @@ export async function getFrequencyBasedSuggestions(
   limit: number,
 ) {
   const completedTasks = await prisma.task.findMany({
-    where: { themeId, parentId: null, status: "done" },
+    where: { themeId, parentId: null, status: 'done' },
     select: {
-      id: true, title: true, description: true, priority: true,
-      estimatedHours: true, completedAt: true,
+      id: true,
+      title: true,
+      description: true,
+      priority: true,
+      estimatedHours: true,
+      completedAt: true,
       taskLabels: { include: { label: true } },
     },
-    orderBy: { completedAt: "desc" },
+    orderBy: { completedAt: 'desc' },
     take: 50,
   });
 
   const existingTasks = await prisma.task.findMany({
-    where: { themeId, parentId: null, status: { in: ["todo", "in-progress"] } },
+    where: { themeId, parentId: null, status: { in: ['todo', 'in-progress'] } },
     select: { title: true },
   });
 
@@ -334,9 +330,13 @@ export async function getFrequencyBasedSuggestions(
   const titleFrequency = new Map<
     string,
     {
-      title: string; count: number; lastPriority: string;
-      lastEstimatedHours: number | null; lastDescription: string | null;
-      lastCompletedAt: Date | null; labelIds: number[];
+      title: string;
+      count: number;
+      lastPriority: string;
+      lastEstimatedHours: number | null;
+      lastDescription: string | null;
+      lastCompletedAt: Date | null;
+      labelIds: number[];
     }
   >();
 
@@ -383,7 +383,7 @@ export async function getFrequencyBasedSuggestions(
 export async function cleanupDuplicateSubtasks(prisma: PrismaInstance, parentId: number) {
   const subtasks = await prisma.task.findMany({
     where: { parentId },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: 'asc' },
   });
 
   const titleMap = new Map<string, typeof subtasks>();
@@ -402,7 +402,9 @@ export async function cleanupDuplicateSubtasks(prisma: PrismaInstance, parentId:
       for (const subtask of toDelete) {
         await prisma.task.delete({ where: { id: subtask.id } });
         deletedIds.push(subtask.id);
-        logger.info(`[task-service] Deleted duplicate subtask: "${subtask.title}" (id: ${subtask.id})`);
+        logger.info(
+          `[task-service] Deleted duplicate subtask: "${subtask.title}" (id: ${subtask.id})`,
+        );
       }
     }
   }
@@ -413,7 +415,7 @@ export async function cleanupDuplicateSubtasks(prisma: PrismaInstance, parentId:
 export async function cleanupAllDuplicateSubtasks(prisma: PrismaInstance) {
   const allSubtasks = await prisma.task.findMany({
     where: { parentId: { not: null } },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: 'asc' },
   });
 
   const parentMap = new Map<number, typeof allSubtasks>();
@@ -524,64 +526,99 @@ interface AISuggestionItem {
   frequency: number;
 }
 
-function buildTaskSummary(completedTasks: Array<{
-  title: string; description: string | null; priority: string;
-  estimatedHours: number | null; actualHours: number | null;
-  taskLabels?: Array<{ label: { name: string } }>;
-}>): string {
-  if (completedTasks.length === 0) return "（まだ完了タスクがありません）";
+function buildTaskSummary(
+  completedTasks: Array<{
+    title: string;
+    description: string | null;
+    priority: string;
+    estimatedHours: number | null;
+    actualHours: number | null;
+    taskLabels?: Array<{ label: { name: string } }>;
+  }>,
+): string {
+  if (completedTasks.length === 0) return '（まだ完了タスクがありません）';
 
   return completedTasks
     .map((t, i) => {
-      const labels = t.taskLabels?.map((tl) => tl.label.name).join(", ") || "なし";
-      const accuracy = t.estimatedHours && t.actualHours
-        ? `見積精度: ${Math.round((t.actualHours / t.estimatedHours) * 100)}%`
-        : "";
-      return `${i + 1}. "${t.title}" (優先度: ${t.priority}, 見積: ${t.estimatedHours ?? "未設定"}h, 実績: ${t.actualHours ?? "未記録"}h ${accuracy}, ラベル: ${labels})${t.description ? ` - ${t.description.slice(0, 80)}` : ""}`;
+      const labels = t.taskLabels?.map((tl) => tl.label.name).join(', ') || 'なし';
+      const accuracy =
+        t.estimatedHours && t.actualHours
+          ? `見積精度: ${Math.round((t.actualHours / t.estimatedHours) * 100)}%`
+          : '';
+      return `${i + 1}. "${t.title}" (優先度: ${t.priority}, 見積: ${t.estimatedHours ?? '未設定'}h, 実績: ${t.actualHours ?? '未記録'}h ${accuracy}, ラベル: ${labels})${t.description ? ` - ${t.description.slice(0, 80)}` : ''}`;
     })
-    .join("\n");
+    .join('\n');
 }
 
-function buildPatternSummary(taskPatterns: Array<{
-  taskTitle: string; frequency: number; priority: string;
-  averageTimeToStart: number | null; averageTimeToComplete: number | null;
-  labelIds: string | null;
-}>): string {
-  if (taskPatterns.length === 0) return "";
+function buildPatternSummary(
+  taskPatterns: Array<{
+    taskTitle: string;
+    frequency: number;
+    priority: string;
+    averageTimeToStart: number | null;
+    averageTimeToComplete: number | null;
+    labelIds: string | null;
+  }>,
+): string {
+  if (taskPatterns.length === 0) return '';
 
-  return "\n\n【頻繁に実行されるタスクパターン】\n" +
+  return (
+    '\n\n【頻繁に実行されるタスクパターン】\n' +
     taskPatterns
       .map((p, i) => {
-        const avgStart = p.averageTimeToStart ? `平均開始時間: ${Math.round(p.averageTimeToStart)}時間後` : "";
-        const avgComplete = p.averageTimeToComplete ? `平均完了時間: ${Math.round(p.averageTimeToComplete)}時間` : "";
+        const avgStart = p.averageTimeToStart
+          ? `平均開始時間: ${Math.round(p.averageTimeToStart)}時間後`
+          : '';
+        const avgComplete = p.averageTimeToComplete
+          ? `平均完了時間: ${Math.round(p.averageTimeToComplete)}時間`
+          : '';
         return `${i + 1}. "${p.taskTitle}" (頻度: ${p.frequency}回, 優先度: ${p.priority}, ${avgStart}, ${avgComplete})`;
       })
-      .join("\n");
+      .join('\n')
+  );
 }
 
-function buildPreferenceSummary(behaviorSummary: {
-  preferredTimeOfDay: string | null;
-  mostUsedLabels: string | null;
-  taskPriorities: string | null;
-  averageCompletionTime: number | null;
-} | null): string {
-  if (!behaviorSummary) return "";
+function buildPreferenceSummary(
+  behaviorSummary: {
+    preferredTimeOfDay: string | null;
+    mostUsedLabels: string | null;
+    taskPriorities: string | null;
+    averageCompletionTime: number | null;
+  } | null,
+): string {
+  if (!behaviorSummary) return '';
 
   const prefs = {
     preferredTimeOfDay: behaviorSummary.preferredTimeOfDay,
-    mostUsedLabels: behaviorSummary.mostUsedLabels ? JSON.parse(behaviorSummary.mostUsedLabels) : [],
-    taskPriorities: behaviorSummary.taskPriorities ? JSON.parse(behaviorSummary.taskPriorities) : {},
+    mostUsedLabels: behaviorSummary.mostUsedLabels
+      ? JSON.parse(behaviorSummary.mostUsedLabels)
+      : [],
+    taskPriorities: behaviorSummary.taskPriorities
+      ? JSON.parse(behaviorSummary.taskPriorities)
+      : {},
     averageCompletionTime: behaviorSummary.averageCompletionTime,
   };
 
   return `\n\n【ユーザーの作業傾向】
-- 好みの作業時間帯: ${prefs.preferredTimeOfDay || "不明"}
-- 平均完了時間: ${prefs.averageCompletionTime ? `${Math.round(prefs.averageCompletionTime)}時間` : "不明"}
-- よく使うラベル: ${prefs.mostUsedLabels.slice(0, 3).map((l: { labelId: string }) => `${l.labelId}`).join(", ") || "なし"}
-- 優先度の傾向: ${Object.entries(prefs.taskPriorities).map(([p, c]) => `${p}: ${c}`).join(", ") || "不明"}`;
+- 好みの作業時間帯: ${prefs.preferredTimeOfDay || '不明'}
+- 平均完了時間: ${prefs.averageCompletionTime ? `${Math.round(prefs.averageCompletionTime)}時間` : '不明'}
+- よく使うラベル: ${
+    prefs.mostUsedLabels
+      .slice(0, 3)
+      .map((l: { labelId: string }) => `${l.labelId}`)
+      .join(', ') || 'なし'
+  }
+- 優先度の傾向: ${
+    Object.entries(prefs.taskPriorities)
+      .map(([p, c]) => `${p}: ${c}`)
+      .join(', ') || '不明'
+  }`;
 }
 
-function parseSuggestionResponse(content: string, limit: number): {
+function parseSuggestionResponse(
+  content: string,
+  limit: number,
+): {
   suggestions: AISuggestionItem[];
   analysis: string | null;
 } {
@@ -596,10 +633,10 @@ function parseSuggestionResponse(content: string, limit: number): {
     .map((s: Record<string, unknown>) => ({
       title: s.title as string,
       description: (s.description as string) || null,
-      priority: (s.priority as string) || "medium",
+      priority: (s.priority as string) || 'medium',
       estimatedHours: (s.estimatedHours as number) || null,
       reason: (s.reason as string) || null,
-      category: (s.category as string) || "new",
+      category: (s.category as string) || 'new',
       completionCriteria: (s.completionCriteria as string) || null,
       measurableOutcome: (s.measurableOutcome as string) || null,
       dependencies: (s.dependencies as string) || null,
@@ -623,7 +660,7 @@ export async function generateAISuggestions(
 }> {
   const aiAvailable = await isAnyApiKeyConfigured();
   if (!aiAvailable) {
-    return { suggestions: [], source: "insufficient_data" };
+    return { suggestions: [], source: 'insufficient_data' };
   }
 
   const theme = await prisma.theme.findUnique({
@@ -632,52 +669,58 @@ export async function generateAISuggestions(
   });
 
   if (!theme) {
-    return { suggestions: [], source: "none" };
+    return { suggestions: [], source: 'none' };
   }
 
   // データ収集を並列実行
   const [completedTasks, taskPatterns, behaviorSummary, existingTasks] = await Promise.all([
     prisma.task.findMany({
-      where: { themeId, parentId: null, status: "done" },
+      where: { themeId, parentId: null, status: 'done' },
       select: {
-        title: true, description: true, priority: true,
-        estimatedHours: true, actualHours: true, completedAt: true,
+        title: true,
+        description: true,
+        priority: true,
+        estimatedHours: true,
+        actualHours: true,
+        completedAt: true,
         taskLabels: { include: { label: true } },
       },
-      orderBy: { completedAt: "desc" },
+      orderBy: { completedAt: 'desc' },
       take: 30,
     }),
     prisma.taskPattern.findMany({
       where: { themeId, frequency: { gte: 2 } },
-      orderBy: [{ frequency: "desc" }, { lastOccurrence: "desc" }],
+      orderBy: [{ frequency: 'desc' }, { lastOccurrence: 'desc' }],
       take: 10,
     }),
     prisma.userBehaviorSummary.findFirst({
-      where: { themeId, periodType: { in: ["weekly", "monthly"] } },
-      orderBy: { periodEnd: "desc" },
+      where: { themeId, periodType: { in: ['weekly', 'monthly'] } },
+      orderBy: { periodEnd: 'desc' },
     }),
     prisma.task.findMany({
-      where: { themeId, parentId: null, status: { in: ["todo", "in-progress"] } },
+      where: { themeId, parentId: null, status: { in: ['todo', 'in-progress'] } },
       select: { title: true },
     }),
   ]);
 
   const existingTitles = existingTasks.map((t: { title: string }) => t.title);
-  const existingTaskList = existingTitles.length > 0
-    ? `\n\n## 現在進行中・未着手のタスク（これらと重複しないこと）\n${existingTitles.map((t: string) => `- ${t}`).join("\n")}`
-    : "";
+  const existingTaskList =
+    existingTitles.length > 0
+      ? `\n\n## 現在進行中・未着手のタスク（これらと重複しないこと）\n${existingTitles.map((t: string) => `- ${t}`).join('\n')}`
+      : '';
 
   const taskSummary = buildTaskSummary(completedTasks);
   const patternSummaryText = buildPatternSummary(taskPatterns);
   const preferenceSummaryText = buildPreferenceSummary(behaviorSummary);
 
-  const userPrompt = completedTasks.length > 0
-    ? `## テーマ: ${theme.name}${theme.description ? ` (${theme.description})` : ""}\n\n## 過去の完了タスク（新しい順）\n${taskSummary}${patternSummaryText}${preferenceSummaryText}${existingTaskList}\n\n上記の過去タスクとユーザーの行動パターンを分析し、パーソナライズされた次に取り組むべきタスクを${limit}件提案してください。\n既存の進行中・未着手タスクと重複しない提案をお願いします。`
-    : `## テーマ: ${theme.name}${theme.description ? ` (${theme.description})` : ""}\n\nこのテーマに関するタスクはまだありません。${existingTaskList}\n\nテーマの内容から推測して、最初に取り組むべきタスクを${limit}件提案してください。\n既存の進行中・未着手タスクと重複しない提案をお願いします。`;
+  const userPrompt =
+    completedTasks.length > 0
+      ? `## テーマ: ${theme.name}${theme.description ? ` (${theme.description})` : ''}\n\n## 過去の完了タスク（新しい順）\n${taskSummary}${patternSummaryText}${preferenceSummaryText}${existingTaskList}\n\n上記の過去タスクとユーザーの行動パターンを分析し、パーソナライズされた次に取り組むべきタスクを${limit}件提案してください。\n既存の進行中・未着手タスクと重複しない提案をお願いします。`
+      : `## テーマ: ${theme.name}${theme.description ? ` (${theme.description})` : ''}\n\nこのテーマに関するタスクはまだありません。${existingTaskList}\n\nテーマの内容から推測して、最初に取り組むべきタスクを${limit}件提案してください。\n既存の進行中・未着手タスクと重複しない提案をお願いします。`;
 
   try {
     const provider = await getDefaultProvider();
-    const messages: AIMessage[] = [{ role: "user", content: userPrompt }];
+    const messages: AIMessage[] = [{ role: 'user', content: userPrompt }];
 
     const response = await sendAIMessage({
       provider,
@@ -689,17 +732,17 @@ export async function generateAISuggestions(
     const { suggestions, analysis } = parseSuggestionResponse(response.content, limit);
 
     if (suggestions.length === 0) {
-      logger.error("[task-service] Failed to parse AI response");
-      return { suggestions: [], source: "ai_error" };
+      logger.error('[task-service] Failed to parse AI response');
+      return { suggestions: [], source: 'ai_error' };
     }
 
     // キャッシュ保存
     await cacheSuggestions(prisma, themeId, suggestions, analysis);
 
-    return { suggestions, analysis, source: "ai", tokensUsed: response.tokensUsed };
+    return { suggestions, analysis, source: 'ai', tokensUsed: response.tokensUsed };
   } catch (error) {
-    logger.error({ err: error }, "[task-service] AI suggestion failed");
-    return { suggestions: [], source: "ai_error" };
+    logger.error({ err: error }, '[task-service] AI suggestion failed');
+    return { suggestions: [], source: 'ai_error' };
   }
 }
 
@@ -734,6 +777,6 @@ async function cacheSuggestions(
       });
     }
   } catch (cacheError) {
-    logger.error({ err: cacheError }, "[task-service] Failed to cache suggestions");
+    logger.error({ err: cacheError }, '[task-service] Failed to cache suggestions');
   }
 }

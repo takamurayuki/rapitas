@@ -2,10 +2,10 @@
  * Error Handler Middleware
  * Centralized error handling for the API
  */
-import { Elysia } from "elysia";
-import { createLogger } from "../config/logger";
+import { Elysia } from 'elysia';
+import { createLogger } from '../config/logger';
 
-const log = createLogger("error-handler");
+const log = createLogger('error-handler');
 
 /**
  * Custom application error class
@@ -14,10 +14,10 @@ export class AppError extends Error {
   constructor(
     public statusCode: number,
     message: string,
-    public code?: string
+    public code?: string,
   ) {
     super(message);
-    this.name = "AppError";
+    this.name = 'AppError';
   }
 }
 
@@ -25,9 +25,9 @@ export class AppError extends Error {
  * Not Found Error
  */
 export class NotFoundError extends AppError {
-  constructor(message: string = "リソースが見つかりません", code?: string) {
+  constructor(message: string = 'リソースが見つかりません', code?: string) {
     super(404, message, code);
-    this.name = "NotFoundError";
+    this.name = 'NotFoundError';
   }
 }
 
@@ -35,9 +35,9 @@ export class NotFoundError extends AppError {
  * Validation Error
  */
 export class ValidationError extends AppError {
-  constructor(message: string = "バリデーションエラー", code?: string) {
+  constructor(message: string = 'バリデーションエラー', code?: string) {
     super(400, message, code);
-    this.name = "ValidationError";
+    this.name = 'ValidationError';
   }
 }
 
@@ -47,37 +47,37 @@ export class ValidationError extends AppError {
 function isPrismaError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
 
-  const name = error.name || "";
-  const message = error.message || "";
+  const name = error.name || '';
+  const message = error.message || '';
 
   // Prismaエラーのクラス名検出
-  if (name.includes("PrismaClient")) return true;
-  if (name.includes("PrismaKnown")) return true;
-  if (name.includes("PrismaUnknown")) return true;
-  if (name.includes("PrismaValidation")) return true;
+  if (name.includes('PrismaClient')) return true;
+  if (name.includes('PrismaKnown')) return true;
+  if (name.includes('PrismaUnknown')) return true;
+  if (name.includes('PrismaValidation')) return true;
 
   // Prismaエラーメッセージの検出
-  if (message.includes("Invalid `prisma")) return true;
-  if (message.includes("prisma.") && message.includes("invocation")) return true;
-  if (message.includes("Prisma schema")) return true;
-  if (message.includes("Unknown argument")) return true;
-  if (message.includes("Database connection")) return true;
-  if (message.includes("prisma client")) return true;
+  if (message.includes('Invalid `prisma')) return true;
+  if (message.includes('prisma.') && message.includes('invocation')) return true;
+  if (message.includes('Prisma schema')) return true;
+  if (message.includes('Unknown argument')) return true;
+  if (message.includes('Database connection')) return true;
+  if (message.includes('prisma client')) return true;
 
   // 追加のPrismaエラーパターン
-  if (message.includes("PrismaClientKnownRequestError")) return true;
-  if (message.includes("PrismaClientUnknownRequestError")) return true;
-  if (message.includes("PrismaClientRustPanicError")) return true;
-  if (message.includes("PrismaClientInitializationError")) return true;
-  if (message.includes("PrismaClientValidationError")) return true;
+  if (message.includes('PrismaClientKnownRequestError')) return true;
+  if (message.includes('PrismaClientUnknownRequestError')) return true;
+  if (message.includes('PrismaClientRustPanicError')) return true;
+  if (message.includes('PrismaClientInitializationError')) return true;
+  if (message.includes('PrismaClientValidationError')) return true;
 
   // スタックトレースベースのフォールバック検出
-  const stack = error.stack || "";
-  if (stack.includes("@prisma/client")) return true;
-  if (stack.includes("PrismaClient")) return true;
+  const stack = error.stack || '';
+  if (stack.includes('@prisma/client')) return true;
+  if (stack.includes('PrismaClient')) return true;
 
   // Prisma固有のエラーコードプロパティ（P2001-P2034等）
-  if ("code" in error && typeof (error as Record<string, unknown>).code === "string") {
+  if ('code' in error && typeof (error as Record<string, unknown>).code === 'string') {
     const code = (error as Record<string, unknown>).code as string;
     if (/^P\d{4}$/.test(code)) return true;
   }
@@ -88,10 +88,10 @@ function isPrismaError(error: unknown): boolean {
 /**
  * Error handler middleware plugin
  */
-export const errorHandler = new Elysia({ name: "error-handler" }).onError(
+export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
   ({ code, error, set }) => {
     // Ensure JSON content type for all error responses
-    set.headers["Content-Type"] = "application/json; charset=utf-8";
+    set.headers['Content-Type'] = 'application/json; charset=utf-8';
 
     // Custom AppError
     if (error instanceof AppError) {
@@ -103,46 +103,38 @@ export const errorHandler = new Elysia({ name: "error-handler" }).onError(
     }
 
     // Elysia validation error
-    if (code === "VALIDATION") {
+    if (code === 'VALIDATION') {
       set.status = 400;
       return {
-        error: "バリデーションエラー",
-        details: ('message' in error && typeof error.message === 'string') ? error.message : String(error),
+        error: 'バリデーションエラー',
+        details:
+          'message' in error && typeof error.message === 'string' ? error.message : String(error),
       };
     }
 
     // Not found
-    if (code === "NOT_FOUND") {
+    if (code === 'NOT_FOUND') {
       set.status = 404;
-      return { error: "リソースが見つかりません" };
+      return { error: 'リソースが見つかりません' };
     }
 
     // Prisma related errors (all types)
     if (isPrismaError(error)) {
-      log.error({ err: error }, "Prisma Error");
+      log.error({ err: error }, 'Prisma Error');
       set.status = 400;
       return {
-        error: "データベースクエリエラー",
-        details: error instanceof Error ? error.message : String(error),
+        error: 'データベースクエリエラー',
       };
     }
 
     // Generic server error
-    log.error({ err: error }, "Unhandled error");
+    log.error({ err: error }, 'Unhandled error');
     set.status = 500;
 
-    // Ensure error response is always JSON
-    const errorMessage = error instanceof Error
-      ? error.message
-      : typeof error === 'string'
-        ? error
-        : "サーバーエラーが発生しました";
-
     return {
-      error: errorMessage,
-      type: (error instanceof Error && error.name) ? error.name : "UnknownError"
+      error: 'サーバーエラーが発生しました',
     };
-  }
+  },
 );
 
 /**
@@ -150,11 +142,11 @@ export const errorHandler = new Elysia({ name: "error-handler" }).onError(
  * Should be called once at application startup
  */
 export function setupGlobalErrorHandlers(): void {
-  process.on("uncaughtException", (error) => {
-    log.fatal({ err: error }, "Uncaught Exception");
+  process.on('uncaughtException', (error) => {
+    log.fatal({ err: error }, 'Uncaught Exception');
   });
 
-  process.on("unhandledRejection", (reason, promise) => {
-    log.fatal({ reason, promise }, "Unhandled Rejection");
+  process.on('unhandledRejection', (reason, promise) => {
+    log.fatal({ reason, promise }, 'Unhandled Rejection');
   });
 }

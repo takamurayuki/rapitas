@@ -3,7 +3,6 @@
  * 将来的に他のエージェント（Codex, Gemini等）を追加できるよう設計
  */
 
-
 export type AgentCapability = {
   codeGeneration: boolean;
   codeReview: boolean;
@@ -14,7 +13,14 @@ export type AgentCapability = {
   webSearch?: boolean;
 };
 
-export type AgentStatus = 'idle' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'waiting_for_input';
+export type AgentStatus =
+  | 'idle'
+  | 'running'
+  | 'paused'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'waiting_for_input';
 
 /**
  * AIタスク分析結果（構造化プロンプト用）
@@ -42,6 +48,8 @@ export type AgentTask = {
   context?: string;
   workingDirectory?: string;
   repositoryUrl?: string;
+  /** タスクが属するテーマのID */
+  themeId?: number | null;
   /** AIタスク分析が有効な場合の分析結果 */
   analysisInfo?: TaskAnalysisInfo;
   /** 最適化されたプロンプト（AIによる構造化・最適化済み） */
@@ -77,9 +85,9 @@ export type AgentExecutionResult = {
   /** 質問の検出方法（tool_call: AskUserQuestionツール, none: 質問なし） */
   questionType?: QuestionType;
   /** 質問の詳細情報（選択肢など） */
-  questionDetails?: import("./question-detection").QuestionDetails;
+  questionDetails?: import('./question-detection').QuestionDetails;
   /** 構造化キー情報（新方式） */
-  questionKey?: import("./question-detection").QuestionKey;
+  questionKey?: import('./question-detection').QuestionKey;
   /** Claude Code CLIのセッションID（--resumeで会話を継続するため） */
   claudeSessionId?: string;
 };
@@ -109,8 +117,8 @@ export type AgentOutputHandler = (output: string, isError?: boolean) => void;
 export type QuestionDetectedHandler = (info: {
   question: string;
   questionType: QuestionType;
-  questionDetails?: import("./question-detection").QuestionDetails;
-  questionKey?: import("./question-detection").QuestionKey;
+  questionDetails?: import('./question-detection').QuestionDetails;
+  questionKey?: import('./question-detection').QuestionKey;
   /** Claude Code CLIのセッションID（再開時に使用） */
   claudeSessionId?: string;
 }) => void;
@@ -123,7 +131,7 @@ export abstract class BaseAgent {
   constructor(
     public readonly id: string,
     public readonly name: string,
-    public readonly type: string
+    public readonly type: string,
   ) {}
 
   /**
@@ -141,7 +149,10 @@ export abstract class BaseAgent {
   /**
    * タスクを実行する
    */
-  abstract execute(task: AgentTask, options?: Record<string, unknown>): Promise<AgentExecutionResult>;
+  abstract execute(
+    task: AgentTask,
+    options?: Record<string, unknown>,
+  ): Promise<AgentExecutionResult>;
 
   /**
    * 実行を停止する
@@ -197,7 +208,7 @@ export abstract class BaseAgent {
    * 出力を送信
    */
   protected emitOutput(output: string, isError: boolean = false): void {
-    if (this.outputHandler && output != null && output !== "null" && output !== "undefined") {
+    if (this.outputHandler && output != null && output !== 'null' && output !== 'undefined') {
       this.outputHandler(output, isError);
     }
   }

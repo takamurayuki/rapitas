@@ -2,18 +2,18 @@
  * リカバリ管理
  * 中断された実行の検出、復旧、再開を担当
  */
-import { agentFactory } from "../agent-factory";
-import type { AgentConfigInput, AgentType } from "../agent-factory";
-import type { AgentTask, AgentExecutionResult } from "../base-agent";
-import { decrypt } from "../../../utils/encryption";
-import { ExecutionFileLogger } from "../execution-file-logger";
-import { createLogger } from "../../../config/logger";
+import { agentFactory } from '../agent-factory';
+import type { AgentConfigInput, AgentType } from '../agent-factory';
+import type { AgentTask, AgentExecutionResult } from '../base-agent';
+import { decrypt } from '../../../utils/encryption';
+import { ExecutionFileLogger } from '../execution-file-logger';
+import { createLogger } from '../../../config/logger';
 import type {
   ExecutionState,
   ExecutionOptions,
   ActiveAgentInfo,
   OrchestratorContext,
-} from "./types";
+} from './types';
 import {
   createLogChunkManager,
   setupQuestionDetectedHandler,
@@ -21,16 +21,14 @@ import {
   saveExecutionResult,
   emitResultEvent,
   handleExecutionError,
-} from "./execution-helpers";
+} from './execution-helpers';
 
-const logger = createLogger("recovery-manager");
+const logger = createLogger('recovery-manager');
 
 /**
  * 中断されたセッションを取得
  */
-export async function getInterruptedExecutions(
-  prisma: OrchestratorContext["prisma"],
-): Promise<
+export async function getInterruptedExecutions(prisma: OrchestratorContext['prisma']): Promise<
   Array<{
     id: number;
     sessionId: number;
@@ -40,27 +38,30 @@ export async function getInterruptedExecutions(
     createdAt: Date;
   }>
 > {
-  return await prisma.agentExecution.findMany({
-    where: { status: "interrupted" },
-    orderBy: { createdAt: "desc" },
+  return (await prisma.agentExecution.findMany({
+    where: { status: 'interrupted' },
+    orderBy: { createdAt: 'desc' },
     take: 50,
-  });
+  })) as Array<{
+    id: number;
+    sessionId: number;
+    status: string;
+    claudeSessionId: string | null;
+    output: string;
+    createdAt: Date;
+  }>;
 }
 
 /**
  * サーバー起動時のリカバリ処理
  */
-export async function recoverStaleExecutions(
-  ctx: OrchestratorContext,
-): Promise<{
+export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<{
   recoveredExecutions: number;
   updatedTasks: number;
   updatedSessions: number;
   interruptedExecutionIds: number[];
 }> {
-  logger.info(
-    "[RecoveryManager] Starting startup recovery of stale executions...",
-  );
+  logger.info('[RecoveryManager] Starting startup recovery of stale executions...');
 
   let recoveredExecutions = 0;
   let updatedTasks = 0;
@@ -68,13 +69,11 @@ export async function recoverStaleExecutions(
   const interruptedExecutionIds: number[] = [];
 
   try {
-    const activeExecutionIds = Array.from(ctx.activeExecutions.values()).map(
-      (e) => e.executionId,
-    );
+    const activeExecutionIds = Array.from(ctx.activeExecutions.values()).map((e) => e.executionId);
 
     const staleExecutions = await ctx.prisma.agentExecution.findMany({
       where: {
-        status: { in: ["running", "pending", "waiting_for_input"] },
+        status: { in: ['running', 'pending', 'waiting_for_input'] },
         id: { notIn: activeExecutionIds },
         createdAt: { lt: ctx.serverStartedAt },
       },
@@ -94,9 +93,7 @@ export async function recoverStaleExecutions(
     });
 
     if (staleExecutions.length === 0) {
-      logger.info(
-        "[RecoveryManager] No stale executions found. Recovery complete.",
-      );
+      logger.info('[RecoveryManager] No stale executions found. Recovery complete.');
       return {
         recoveredExecutions: 0,
         updatedTasks: 0,
@@ -105,9 +102,7 @@ export async function recoverStaleExecutions(
       };
     }
 
-    logger.info(
-      `[RecoveryManager] Found ${staleExecutions.length} stale executions to recover`,
-    );
+    logger.info(`[RecoveryManager] Found ${staleExecutions.length} stale executions to recover`);
 
     const affectedSessionIds = new Set<number>();
     const affectedTaskIds = new Set<number>();
@@ -117,9 +112,9 @@ export async function recoverStaleExecutions(
         await ctx.prisma.agentExecution.update({
           where: { id: exec.id },
           data: {
-            status: "interrupted",
+            status: 'interrupted',
             completedAt: new Date(),
-            errorMessage: `サーバー再起動により中断されました。\n\n【最後の出力】\n${(exec.output || "").slice(-1000)}`,
+            errorMessage: `サーバー再起動により中断されました。\n\n【最後の出力】\n${(exec.output || '').slice(-1000)}`,
           },
         });
         recoveredExecutions++;
@@ -132,9 +127,7 @@ export async function recoverStaleExecutions(
           affectedTaskIds.add(taskId);
         }
 
-        logger.info(
-          `[RecoveryManager] Execution ${exec.id} marked as interrupted`,
-        );
+        logger.info(`[RecoveryManager] Execution ${exec.id} marked as interrupted`);
       } catch (error) {
         logger.error(
           { err: error, executionId: exec.id },
@@ -149,7 +142,7 @@ export async function recoverStaleExecutions(
         const activeCount = await ctx.prisma.agentExecution.count({
           where: {
             sessionId,
-            status: { in: ["running", "pending", "waiting_for_input"] },
+            status: { in: ['running', 'pending', 'waiting_for_input'] },
           },
         });
 
@@ -157,20 +150,15 @@ export async function recoverStaleExecutions(
           await ctx.prisma.agentSession.update({
             where: { id: sessionId },
             data: {
-              status: "interrupted",
+              status: 'interrupted',
               lastActivityAt: new Date(),
             },
           });
           updatedSessions++;
-          logger.info(
-            `[RecoveryManager] Session ${sessionId} marked as interrupted`,
-          );
+          logger.info(`[RecoveryManager] Session ${sessionId} marked as interrupted`);
         }
       } catch (error) {
-        logger.error(
-          { err: error, sessionId },
-          `[RecoveryManager] Failed to update session`,
-        );
+        logger.error({ err: error, sessionId }, `[RecoveryManager] Failed to update session`);
       }
     }
 
@@ -182,19 +170,16 @@ export async function recoverStaleExecutions(
           select: { id: true, status: true },
         });
 
-        if (task && task.status === "in-progress") {
+        if (task && task.status === 'in-progress') {
           await ctx.prisma.task.update({
             where: { id: taskId },
-            data: { status: "todo" },
+            data: { status: 'todo' },
           });
           updatedTasks++;
           logger.info(`[RecoveryManager] Task ${taskId} reverted to 'todo'`);
         }
       } catch (error) {
-        logger.error(
-          { err: error, taskId },
-          `[RecoveryManager] Failed to update task`,
-        );
+        logger.error({ err: error, taskId }, `[RecoveryManager] Failed to update task`);
       }
     }
 
@@ -203,10 +188,10 @@ export async function recoverStaleExecutions(
       try {
         await ctx.prisma.notification.create({
           data: {
-            type: "agent_execution_interrupted",
-            title: "サーバー再起動による中断",
+            type: 'agent_execution_interrupted',
+            title: 'サーバー再起動による中断',
             message: `サーバー再起動により${recoveredExecutions}件のエージェント実行が中断されました。バナーから再開できます。`,
-            link: "/",
+            link: '/',
             metadata: JSON.stringify({
               recoveredExecutions,
               updatedTasks,
@@ -215,10 +200,7 @@ export async function recoverStaleExecutions(
           },
         });
       } catch (error) {
-        logger.error(
-          { err: error },
-          "[RecoveryManager] Failed to create recovery notification",
-        );
+        logger.error({ err: error }, '[RecoveryManager] Failed to create recovery notification');
       }
     }
 
@@ -226,7 +208,7 @@ export async function recoverStaleExecutions(
       `[RecoveryManager] Recovery complete: ${recoveredExecutions} executions, ${updatedTasks} tasks, ${updatedSessions} sessions updated`,
     );
   } catch (error) {
-    logger.error({ err: error }, "[RecoveryManager] Startup recovery failed");
+    logger.error({ err: error }, '[RecoveryManager] Startup recovery failed');
   }
 
   return {
@@ -260,7 +242,7 @@ export async function resumeInterruptedExecution(
         },
       },
       executionLogs: {
-        orderBy: { sequenceNumber: "asc" },
+        orderBy: { sequenceNumber: 'asc' },
       },
     },
   });
@@ -269,10 +251,8 @@ export async function resumeInterruptedExecution(
     throw new Error(`Execution not found: ${executionId}`);
   }
 
-  if (execution.status !== "interrupted") {
-    throw new Error(
-      `Execution is not in interrupted state: ${execution.status}`,
-    );
+  if (execution.status !== 'interrupted') {
+    throw new Error(`Execution is not in interrupted state: ${execution.status}`);
   }
 
   const task = execution.session.config?.task;
@@ -287,7 +267,7 @@ export async function resumeInterruptedExecution(
   logger.info(`[RecoveryManager] Resuming interrupted execution ${executionId}`);
   logger.info(`[RecoveryManager] Task: ${task.title} (ID: ${task.id})`);
   logger.info(
-    `[RecoveryManager] Claude Session ID: ${claudeSessionId || "(なし - 新規セッションで開始)"}`,
+    `[RecoveryManager] Claude Session ID: ${claudeSessionId || '(なし - 新規セッションで開始)'}`,
   );
   logger.info(`[RecoveryManager] Working Directory: ${workingDirectory}`);
 
@@ -298,13 +278,13 @@ export async function resumeInterruptedExecution(
   }
 
   // 前回の実行ログを取得して要約を作成
-  const previousOutput = execution.output || "";
+  const previousOutput = execution.output || '';
   const lastOutput = previousOutput.slice(-3000);
 
   const logSummary = execution.executionLogs
     .slice(-50)
     .map((log: { logChunk: string }) => log.logChunk)
-    .join("");
+    .join('');
 
   const resumePrompt = buildResumePrompt(
     task,
@@ -315,8 +295,8 @@ export async function resumeInterruptedExecution(
 
   // エージェント設定を取得
   let agentConfig: AgentConfigInput = {
-    type: "claude-code",
-    name: "Claude Code Agent",
+    type: 'claude-code',
+    name: 'Claude Code Agent',
     workingDirectory,
     timeout: options.timeout || 900000,
     dangerouslySkipPermissions: true,
@@ -342,7 +322,7 @@ export async function resumeInterruptedExecution(
       }
 
       agentConfig = {
-        type: (dbConfig.agentType as AgentType) || "claude-code",
+        type: (dbConfig.agentType as AgentType) || 'claude-code',
         name: dbConfig.name,
         endpoint: dbConfig.endpoint || undefined,
         apiKey: decryptedApiKey,
@@ -383,7 +363,7 @@ export async function resumeInterruptedExecution(
     sessionId: execution.sessionId,
     agentId: agent.id,
     taskId,
-    status: "running",
+    status: 'running',
     startedAt: new Date(),
     output: previousOutput,
   };
@@ -404,9 +384,9 @@ export async function resumeInterruptedExecution(
   if (ctx.isShuttingDown) {
     ctx.activeAgents.delete(execution.id);
     ctx.activeExecutions.delete(execution.id);
-    fileLogger.logError("Server is shutting down, cannot resume execution");
+    fileLogger.logError('Server is shutting down, cannot resume execution');
     await fileLogger.flush();
-    throw new Error("Server is shutting down, cannot resume execution");
+    throw new Error('Server is shutting down, cannot resume execution');
   }
 
   // 質問検出ハンドラを設定
@@ -426,7 +406,7 @@ export async function resumeInterruptedExecution(
   // ログチャンク管理
   const existingLogs = await ctx.prisma.agentExecutionLog.findMany({
     where: { executionId: execution.id },
-    orderBy: { sequenceNumber: "desc" },
+    orderBy: { sequenceNumber: 'desc' },
     take: 1,
   });
 
@@ -439,17 +419,21 @@ export async function resumeInterruptedExecution(
   const cleanupLogHandler = logManager.cleanup;
 
   // 出力ハンドラを設定
-  setupOutputHandler(agent, {
-    prisma: ctx.prisma,
-    executionId: execution.id,
-    sessionId: execution.sessionId,
-    taskId,
-    state,
-    agentInfo,
-    fileLogger,
-    onOutput: options.onOutput,
-    emitEvent: (event) => ctx.emitEvent(event),
-  }, logManager);
+  setupOutputHandler(
+    agent,
+    {
+      prisma: ctx.prisma,
+      executionId: execution.id,
+      sessionId: execution.sessionId,
+      taskId,
+      state,
+      agentInfo,
+      fileLogger,
+      onOutput: options.onOutput,
+      emitEvent: (event) => ctx.emitEvent(event),
+    },
+    logManager,
+  );
 
   // 再開メッセージを追加
   const resumeMessage = `\n[再開] 中断された作業を再開します...\n`;
@@ -458,7 +442,7 @@ export async function resumeInterruptedExecution(
   await ctx.prisma.agentExecution.update({
     where: { id: execution.id },
     data: {
-      status: "running",
+      status: 'running',
       errorMessage: null,
       output: state.output,
     },
@@ -466,7 +450,7 @@ export async function resumeInterruptedExecution(
 
   // 実行開始イベント
   ctx.emitEvent({
-    type: "execution_started",
+    type: 'execution_started',
     executionId: execution.id,
     sessionId: execution.sessionId,
     taskId,
@@ -485,7 +469,12 @@ export async function resumeInterruptedExecution(
     const result = await agent.execute(agentTask);
 
     await saveExecutionResult(
-      ctx.prisma, execution.id, execution.sessionId, state, result, fileLogger,
+      ctx.prisma,
+      execution.id,
+      execution.sessionId,
+      state,
+      result,
+      fileLogger,
       {
         artifacts: execution.artifacts,
         tokensUsed: execution.tokensUsed,
@@ -493,14 +482,22 @@ export async function resumeInterruptedExecution(
         claudeSessionId: execution.claudeSessionId,
       },
     );
-    emitResultEvent(result, execution.id, execution.sessionId, taskId,
-      (event) => ctx.emitEvent(event));
+    emitResultEvent(result, execution.id, execution.sessionId, taskId, (event) =>
+      ctx.emitEvent(event),
+    );
 
     return result;
   } catch (error) {
     await handleExecutionError(
-      ctx.prisma, execution.id, execution.sessionId, taskId,
-      state, error, fileLogger, (event) => ctx.emitEvent(event), "Resume execution",
+      ctx.prisma,
+      execution.id,
+      execution.sessionId,
+      taskId,
+      state,
+      error,
+      fileLogger,
+      (event) => ctx.emitEvent(event),
+      'Resume execution',
     );
     throw error;
   } finally {
@@ -527,7 +524,7 @@ export function buildResumePrompt(
 
 ## タスク情報
 - タイトル: ${task.title}
-- 説明: ${task.description || "なし"}
+- 説明: ${task.description || 'なし'}
 
 ## 前回の作業状況
 以下は中断前の出力の最後の部分です：

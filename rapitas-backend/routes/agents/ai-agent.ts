@@ -19,47 +19,33 @@
  * - 実行 acknowledge/resume
  * - 実行中タスク一覧
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config";
-import { createLogger } from "../../config/logger";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config';
+import { createLogger } from '../../config/logger';
 
-const log = createLogger("routes:ai-agent");
-import { toJsonString, fromJsonString } from "../../utils/db-helpers";
-import { ParallelExecutor } from "../../services/parallel-execution/parallel-executor";
-import type { TaskPriority } from "../../services/parallel-execution/types";
-import { orchestrator } from "../../services/orchestrator-instance";
-import {
-  encrypt,
-  decrypt,
-  maskApiKey,
-  isEncryptionKeyConfigured,
-} from "../../utils/encryption";
-import {
-  logAgentConfigChange,
-  calculateChanges,
-} from "../../utils/agent-audit-log";
-import { agentFactory } from "../../services/agents/agent-factory";
-import { getModelsForAgentType, getAllModels } from "../../utils/agent-models";
-import {
-  validateApiKeyFormat,
-  validateAgentConfig,
-} from "../../utils/agent-config-schema";
+const log = createLogger('routes:ai-agent');
+import { toJsonString, fromJsonString } from '../../utils/db-helpers';
+import { ParallelExecutor } from '../../services/parallel-execution/parallel-executor';
+import type { TaskPriority } from '../../services/parallel-execution/types';
+import { orchestrator } from '../../services/orchestrator-instance';
+import { encrypt, decrypt, maskApiKey, isEncryptionKeyConfigured } from '../../utils/encryption';
+import { logAgentConfigChange, calculateChanges } from '../../utils/agent-audit-log';
+import { agentFactory } from '../../services/agents/agent-factory';
+import { getModelsForAgentType, getAllModels } from '../../utils/agent-models';
+import { validateApiKeyFormat, validateAgentConfig } from '../../utils/agent-config-schema';
 import {
   cleanImplementationSummary,
   sanitizeScreenshots,
-} from "../../utils/agent-response-cleaner";
-import { captureScreenshotsForDiff } from "../../services/screenshot-service";
-import type { ScreenshotResult } from "../../services/screenshot-service";
+} from '../../utils/agent-response-cleaner';
+import { captureScreenshotsForDiff } from '../../services/screenshot-service';
+import type { ScreenshotResult } from '../../services/screenshot-service';
 
 // 機能別ルーターのインポート
-import { agentConfigRouter } from "./agent-config-router";
-import { agentExecutionRouter } from "./agent-execution-router";
-import { agentSessionRouter } from "./agent-session-router";
-import {
-  agentAuditRouter,
-  taskExecutionLogsRouter,
-} from "./agent-audit-router";
-import { agentSystemRouter } from "./agent-system-router";
+import { agentConfigRouter } from './agent-config-router';
+import { agentExecutionRouter } from './agent-execution-router';
+import { agentSessionRouter } from './agent-session-router';
+import { agentAuditRouter, taskExecutionLogsRouter } from './agent-audit-router';
+import { agentSystemRouter } from './agent-system-router';
 
 // Parallel executor instance
 let parallelExecutor: ParallelExecutor | null = null;
@@ -87,25 +73,18 @@ export const aiAgentRoutes = new Elysia()
 
   // Create agent configuration
   .post(
-    "/agents",
+    '/agents',
     async (context) => {
-      const {
-        agentType,
-        name,
-        apiKey,
-        endpoint,
-        modelId,
-        capabilities,
-        isDefault,
-      } = context.body as {
-        agentType: string;
-        name: string;
-        apiKey?: string;
-        endpoint?: string;
-        modelId?: string;
-        capabilities?: Record<string, unknown>;
-        isDefault?: boolean;
-      };
+      const { agentType, name, apiKey, endpoint, modelId, capabilities, isDefault } =
+        context.body as {
+          agentType: string;
+          name: string;
+          apiKey?: string;
+          endpoint?: string;
+          modelId?: string;
+          capabilities?: Record<string, unknown>;
+          isDefault?: boolean;
+        };
 
       if (isDefault) {
         await prisma.aIAgentConfig.updateMany({
@@ -119,7 +98,7 @@ export const aiAgentRoutes = new Elysia()
       if (apiKey) {
         if (!isEncryptionKeyConfigured()) {
           log.warn(
-            "[agents] Encryption key not configured. API keys should be set via environment variables in production.",
+            '[agents] Encryption key not configured. API keys should be set via environment variables in production.',
           );
         }
         apiKeyEncrypted = encrypt(apiKey);
@@ -132,7 +111,7 @@ export const aiAgentRoutes = new Elysia()
           apiKeyEncrypted,
           endpoint,
           modelId,
-          capabilities: toJsonString(capabilities || {}) ?? "{}",
+          capabilities: toJsonString(capabilities || {}) ?? '{}',
           isDefault: isDefault || false,
         },
       });
@@ -140,7 +119,7 @@ export const aiAgentRoutes = new Elysia()
       // 監査ログを記録
       await logAgentConfigChange({
         agentConfigId: created.id,
-        action: "create",
+        action: 'create',
         newValues: {
           agentType,
           name,
@@ -168,28 +147,20 @@ export const aiAgentRoutes = new Elysia()
 
   // Update agent configuration
   .patch(
-    "/agents/:id",
+    '/agents/:id',
     async (context) => {
       const { id } = context.params as { id: string };
-      const {
-        name,
-        apiKey,
-        clearApiKey,
-        endpoint,
-        modelId,
-        capabilities,
-        isDefault,
-        isActive,
-      } = context.body as {
-        name?: string;
-        apiKey?: string;
-        clearApiKey?: boolean;
-        endpoint?: string;
-        modelId?: string;
-        capabilities?: Record<string, unknown>;
-        isDefault?: boolean;
-        isActive?: boolean;
-      };
+      const { name, apiKey, clearApiKey, endpoint, modelId, capabilities, isDefault, isActive } =
+        context.body as {
+          name?: string;
+          apiKey?: string;
+          clearApiKey?: boolean;
+          endpoint?: string;
+          modelId?: string;
+          capabilities?: Record<string, unknown>;
+          isDefault?: boolean;
+          isActive?: boolean;
+        };
 
       if (isDefault) {
         await prisma.aIAgentConfig.updateMany({
@@ -210,7 +181,7 @@ export const aiAgentRoutes = new Elysia()
       } else if (apiKey) {
         if (!isEncryptionKeyConfigured()) {
           log.warn(
-            "[agents] Encryption key not configured. API keys should be set via environment variables in production.",
+            '[agents] Encryption key not configured. API keys should be set via environment variables in production.',
           );
         }
         apiKeyEncrypted = encrypt(apiKey);
@@ -224,7 +195,7 @@ export const aiAgentRoutes = new Elysia()
           ...(endpoint !== undefined && { endpoint }),
           ...(modelId !== undefined && { modelId }),
           ...(capabilities && {
-            capabilities: toJsonString(capabilities) ?? "{}",
+            capabilities: toJsonString(capabilities) ?? '{}',
           }),
           ...(isDefault !== undefined && { isDefault }),
           ...(isActive !== undefined && { isActive }),
@@ -255,7 +226,7 @@ export const aiAgentRoutes = new Elysia()
         if (Object.keys(changes).length > 0) {
           await logAgentConfigChange({
             agentConfigId: parseInt(id),
-            action: "update",
+            action: 'update',
             changeDetails: changes,
             previousValues: {
               name: previous.name,
@@ -296,7 +267,7 @@ export const aiAgentRoutes = new Elysia()
 
   // Get single agent configuration with masked API key
   .get(
-    "/agents/:id",
+    '/agents/:id',
     async (context) => {
       const { set } = context;
       const { id } = context.params as { id: string };
@@ -309,7 +280,7 @@ export const aiAgentRoutes = new Elysia()
 
       if (!agent) {
         set.status = 404;
-        return { error: "Agent not found" };
+        return { error: 'Agent not found' };
       }
 
       // APIキーが設定されているかどうかと、マスクされた値を返す
@@ -322,7 +293,7 @@ export const aiAgentRoutes = new Elysia()
           hasApiKey = true;
         } catch (e) {
           log.error({ err: e }, `[agents] Failed to decrypt API key for agent ${id}`);
-          maskedApiKey = "*** (decryption failed)";
+          maskedApiKey = '*** (decryption failed)';
           hasApiKey = true;
         }
       }
@@ -345,7 +316,7 @@ export const aiAgentRoutes = new Elysia()
 
   // Delete agent configuration
   .delete(
-    "/agents/:id",
+    '/agents/:id',
     async (context) => {
       const { id } = context.params as { id: string };
 
@@ -363,7 +334,7 @@ export const aiAgentRoutes = new Elysia()
       if (previous) {
         await logAgentConfigChange({
           agentConfigId: parseInt(id),
-          action: "delete",
+          action: 'delete',
           previousValues: {
             name: previous.name,
             agentType: previous.agentType,
@@ -383,7 +354,7 @@ export const aiAgentRoutes = new Elysia()
 
   // Save API key for agent
   .post(
-    "/agents/:id/api-key",
+    '/agents/:id/api-key',
     async (context) => {
       const { set } = context;
       const { id } = context.params as { id: string };
@@ -391,12 +362,12 @@ export const aiAgentRoutes = new Elysia()
 
       if (!apiKey) {
         set.status = 400;
-        return { error: "API key is required" };
+        return { error: 'API key is required' };
       }
 
       if (!isEncryptionKeyConfigured()) {
         log.warn(
-          "[agents] Encryption key not configured. API keys should be set via environment variables in production.",
+          '[agents] Encryption key not configured. API keys should be set via environment variables in production.',
         );
       }
 
@@ -406,7 +377,7 @@ export const aiAgentRoutes = new Elysia()
 
       if (!agent) {
         set.status = 404;
-        return { error: "Agent not found" };
+        return { error: 'Agent not found' };
       }
 
       const apiKeyEncrypted = encrypt(apiKey);
@@ -419,7 +390,7 @@ export const aiAgentRoutes = new Elysia()
       // 監査ログを記録
       await logAgentConfigChange({
         agentConfigId: parseInt(id),
-        action: "api_key_set",
+        action: 'api_key_set',
         changeDetails: {
           hadApiKeyBefore: !!agent.apiKeyEncrypted,
         },
@@ -427,7 +398,7 @@ export const aiAgentRoutes = new Elysia()
 
       return {
         success: true,
-        message: "API key saved successfully",
+        message: 'API key saved successfully',
         apiKeyMasked: maskApiKey(apiKey),
       };
     },
@@ -443,7 +414,7 @@ export const aiAgentRoutes = new Elysia()
 
   // Delete API key for agent
   .delete(
-    "/agents/:id/api-key",
+    '/agents/:id/api-key',
     async (context) => {
       const { set } = context;
       const { id } = context.params as { id: string };
@@ -454,7 +425,7 @@ export const aiAgentRoutes = new Elysia()
 
       if (!agent) {
         set.status = 404;
-        return { error: "Agent not found" };
+        return { error: 'Agent not found' };
       }
 
       await prisma.aIAgentConfig.update({
@@ -465,12 +436,12 @@ export const aiAgentRoutes = new Elysia()
       // 監査ログを記録
       await logAgentConfigChange({
         agentConfigId: parseInt(id),
-        action: "api_key_delete",
+        action: 'api_key_delete',
       });
 
       return {
         success: true,
-        message: "API key deleted successfully",
+        message: 'API key deleted successfully',
       };
     },
     {
@@ -482,7 +453,7 @@ export const aiAgentRoutes = new Elysia()
 
   // Test connection for agent
   .post(
-    "/agents/:id/test",
+    '/agents/:id/test',
     async (context) => {
       const { set } = context;
       const { id } = context.params as { id: string };
@@ -492,36 +463,36 @@ export const aiAgentRoutes = new Elysia()
 
       if (!agent) {
         set.status = 404;
-        return { success: false, message: "Agent not found" };
+        return { success: false, message: 'Agent not found' };
       }
 
       try {
         switch (agent.agentType) {
-          case "claude-code": {
-            const { spawn } = await import("child_process");
-            const claudePath = process.env.CLAUDE_CODE_PATH || "claude";
+          case 'claude-code': {
+            const { spawn } = await import('child_process');
+            const claudePath = process.env.CLAUDE_CODE_PATH || 'claude';
 
             const result = await new Promise<{
               success: boolean;
               message: string;
             }>((resolve) => {
-              const proc = spawn(claudePath, ["--version"], { shell: true });
-              let stdout = "";
-              let stderr = "";
+              const proc = spawn(claudePath, ['--version'], { shell: true });
+              let stdout = '';
+              let stderr = '';
 
               const timeout = setTimeout(() => {
                 proc.kill();
-                resolve({ success: false, message: "Claude CLI timeout" });
+                resolve({ success: false, message: 'Claude CLI timeout' });
               }, 10000);
 
-              proc.stdout?.on("data", (data) => {
+              proc.stdout?.on('data', (data) => {
                 stdout += data.toString();
               });
-              proc.stderr?.on("data", (data) => {
+              proc.stderr?.on('data', (data) => {
                 stderr += data.toString();
               });
 
-              proc.on("close", (code) => {
+              proc.on('close', (code) => {
                 clearTimeout(timeout);
                 if (code === 0) {
                   resolve({
@@ -536,7 +507,7 @@ export const aiAgentRoutes = new Elysia()
                 }
               });
 
-              proc.on("error", (err) => {
+              proc.on('error', (err) => {
                 clearTimeout(timeout);
                 resolve({
                   success: false,
@@ -547,39 +518,33 @@ export const aiAgentRoutes = new Elysia()
             return result;
           }
 
-          case "anthropic-api": {
+          case 'anthropic-api': {
             if (!agent.apiKeyEncrypted) {
-              return { success: false, message: "APIキーが設定されていません" };
+              return { success: false, message: 'APIキーが設定されていません' };
             }
 
             const apiKey = decrypt(agent.apiKeyEncrypted);
-            const response = await fetch(
-              "https://api.anthropic.com/v1/messages",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "x-api-key": apiKey,
-                  "anthropic-version": "2023-06-01",
-                },
-                body: JSON.stringify({
-                  model: agent.modelId || "claude-sonnet-4-20250514",
-                  max_tokens: 10,
-                  messages: [{ role: "user", content: "Hi" }],
-                }),
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
               },
-            );
+              body: JSON.stringify({
+                model: agent.modelId || 'claude-sonnet-4-20250514',
+                max_tokens: 10,
+                messages: [{ role: 'user', content: 'Hi' }],
+              }),
+            });
 
             if (response.ok) {
-              return { success: true, message: "Anthropic API接続成功" };
+              return { success: true, message: 'Anthropic API接続成功' };
             } else {
               const errorBody = await response.json().catch(() => ({}));
               const errorMessage =
-                errorBody &&
-                typeof errorBody === "object" &&
-                "error" in errorBody
-                  ? (errorBody as { error?: { message?: string } }).error
-                      ?.message
+                errorBody && typeof errorBody === 'object' && 'error' in errorBody
+                  ? (errorBody as { error?: { message?: string } }).error?.message
                   : undefined;
               return {
                 success: false,
@@ -588,13 +553,13 @@ export const aiAgentRoutes = new Elysia()
             }
           }
 
-          case "openai": {
+          case 'openai': {
             if (!agent.apiKeyEncrypted) {
-              return { success: false, message: "APIキーが設定されていません" };
+              return { success: false, message: 'APIキーが設定されていません' };
             }
 
             const apiKey = decrypt(agent.apiKeyEncrypted);
-            const endpoint = agent.endpoint || "https://api.openai.com/v1";
+            const endpoint = agent.endpoint || 'https://api.openai.com/v1';
 
             const response = await fetch(`${endpoint}/models`, {
               headers: {
@@ -603,15 +568,12 @@ export const aiAgentRoutes = new Elysia()
             });
 
             if (response.ok) {
-              return { success: true, message: "OpenAI API接続成功" };
+              return { success: true, message: 'OpenAI API接続成功' };
             } else {
               const errorBody = await response.json().catch(() => ({}));
               const errorMessage =
-                errorBody &&
-                typeof errorBody === "object" &&
-                "error" in errorBody
-                  ? (errorBody as { error?: { message?: string } }).error
-                      ?.message
+                errorBody && typeof errorBody === 'object' && 'error' in errorBody
+                  ? (errorBody as { error?: { message?: string } }).error?.message
                   : undefined;
               return {
                 success: false,
@@ -620,26 +582,23 @@ export const aiAgentRoutes = new Elysia()
             }
           }
 
-          case "azure-openai": {
+          case 'azure-openai': {
             if (!agent.apiKeyEncrypted || !agent.endpoint) {
               return {
                 success: false,
-                message: "APIキーまたはエンドポイントが設定されていません",
+                message: 'APIキーまたはエンドポイントが設定されていません',
               };
             }
 
             const apiKey = decrypt(agent.apiKeyEncrypted);
-            const response = await fetch(
-              `${agent.endpoint}?api-version=2024-02-15-preview`,
-              {
-                headers: {
-                  "api-key": apiKey,
-                },
+            const response = await fetch(`${agent.endpoint}?api-version=2024-02-15-preview`, {
+              headers: {
+                'api-key': apiKey,
               },
-            );
+            });
 
             if (response.ok || response.status === 404) {
-              return { success: true, message: "Azure OpenAI API接続成功" };
+              return { success: true, message: 'Azure OpenAI API接続成功' };
             } else {
               return {
                 success: false,
@@ -648,29 +607,29 @@ export const aiAgentRoutes = new Elysia()
             }
           }
 
-          case "gemini": {
+          case 'gemini': {
             if (!agent.apiKeyEncrypted) {
               // Gemini CLIの場合はAPIキーなしでもCLI確認を実施
-              const { spawn } = await import("child_process");
-              const geminiPath = process.env.GEMINI_CLI_PATH || "gemini";
+              const { spawn } = await import('child_process');
+              const geminiPath = process.env.GEMINI_CLI_PATH || 'gemini';
               const cliResult = await new Promise<{
                 success: boolean;
                 message: string;
               }>((resolve) => {
-                const proc = spawn(geminiPath, ["--version"], { shell: true });
-                let stdout = "";
-                let stderr = "";
+                const proc = spawn(geminiPath, ['--version'], { shell: true });
+                let stdout = '';
+                let stderr = '';
                 const timeout = setTimeout(() => {
                   proc.kill();
-                  resolve({ success: false, message: "Gemini CLI timeout" });
+                  resolve({ success: false, message: 'Gemini CLI timeout' });
                 }, 10000);
-                proc.stdout?.on("data", (data) => {
+                proc.stdout?.on('data', (data) => {
                   stdout += data.toString();
                 });
-                proc.stderr?.on("data", (data) => {
+                proc.stderr?.on('data', (data) => {
                   stderr += data.toString();
                 });
-                proc.on("close", (code) => {
+                proc.on('close', (code) => {
                   clearTimeout(timeout);
                   if (code === 0) {
                     resolve({
@@ -684,7 +643,7 @@ export const aiAgentRoutes = new Elysia()
                     });
                   }
                 });
-                proc.on("error", (err) => {
+                proc.on('error', (err) => {
                   clearTimeout(timeout);
                   resolve({
                     success: false,
@@ -701,15 +660,12 @@ export const aiAgentRoutes = new Elysia()
             );
 
             if (response.ok) {
-              return { success: true, message: "Gemini API接続成功" };
+              return { success: true, message: 'Gemini API接続成功' };
             } else {
               const errorBody = await response.json().catch(() => ({}));
               const errorMessage =
-                errorBody &&
-                typeof errorBody === "object" &&
-                "error" in errorBody
-                  ? (errorBody as { error?: { message?: string } }).error
-                      ?.message
+                errorBody && typeof errorBody === 'object' && 'error' in errorBody
+                  ? (errorBody as { error?: { message?: string } }).error?.message
                   : undefined;
               return {
                 success: false,
@@ -718,31 +674,31 @@ export const aiAgentRoutes = new Elysia()
             }
           }
 
-          case "codex": {
-            const { spawn } = await import("child_process");
-            const codexPath = process.env.CODEX_CLI_PATH || "codex";
+          case 'codex': {
+            const { spawn } = await import('child_process');
+            const codexPath = process.env.CODEX_CLI_PATH || 'codex';
 
             const result = await new Promise<{
               success: boolean;
               message: string;
             }>((resolve) => {
-              const proc = spawn(codexPath, ["--version"], { shell: true });
-              let stdout = "";
-              let stderr = "";
+              const proc = spawn(codexPath, ['--version'], { shell: true });
+              let stdout = '';
+              let stderr = '';
 
               const timeout = setTimeout(() => {
                 proc.kill();
-                resolve({ success: false, message: "Codex CLI timeout" });
+                resolve({ success: false, message: 'Codex CLI timeout' });
               }, 10000);
 
-              proc.stdout?.on("data", (data) => {
+              proc.stdout?.on('data', (data) => {
                 stdout += data.toString();
               });
-              proc.stderr?.on("data", (data) => {
+              proc.stderr?.on('data', (data) => {
                 stderr += data.toString();
               });
 
-              proc.on("close", (code) => {
+              proc.on('close', (code) => {
                 clearTimeout(timeout);
                 if (code === 0) {
                   resolve({
@@ -757,7 +713,7 @@ export const aiAgentRoutes = new Elysia()
                 }
               });
 
-              proc.on("error", (err) => {
+              proc.on('error', (err) => {
                 clearTimeout(timeout);
                 resolve({
                   success: false,
@@ -778,16 +734,16 @@ export const aiAgentRoutes = new Elysia()
         // 接続テスト失敗時も監査ログを記録
         await logAgentConfigChange({
           agentConfigId: parseInt(id),
-          action: "test_connection",
+          action: 'test_connection',
           changeDetails: {
             success: false,
-            error: error instanceof Error ? error.message : "Unknown error",
+            error: error instanceof Error ? error.message : 'Unknown error',
           },
         });
 
         return {
           success: false,
-          message: `Connection test failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+          message: `Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         };
       }
     },
@@ -799,7 +755,7 @@ export const aiAgentRoutes = new Elysia()
   )
 
   // Available agent types
-  .get("/agents/types", async () => {
+  .get('/agents/types', async () => {
     const registered = agentFactory.getRegisteredAgents();
     const available = await agentFactory.getAvailableAgents();
     return {
@@ -809,7 +765,7 @@ export const aiAgentRoutes = new Elysia()
   })
 
   // Get available models for a specific agent type
-  .get("/agents/models", async (context) => {
+  .get('/agents/models', async (context) => {
     const { query } = context;
     if (query.type) {
       const models = await getModelsForAgentType(query.type);
@@ -823,7 +779,7 @@ export const aiAgentRoutes = new Elysia()
 
   // Set development agent configuration
   .post(
-    "/agents/development",
+    '/agents/development',
     async (context) => {
       const { type, model } = context.body as { type: string; model: string };
 
@@ -887,7 +843,7 @@ export const aiAgentRoutes = new Elysia()
 
   // Set review agent configuration
   .post(
-    "/agents/review",
+    '/agents/review',
     async (context) => {
       const body = context.body as { type: string; model: string };
       const { type, model } = body;
@@ -896,7 +852,7 @@ export const aiAgentRoutes = new Elysia()
       let agent = await prisma.aIAgentConfig.findFirst({
         where: {
           agentType: type,
-          name: { contains: "Review" },
+          name: { contains: 'Review' },
           isActive: true,
         },
       });
@@ -939,15 +895,14 @@ export const aiAgentRoutes = new Elysia()
   )
 
   // Validate agent configuration
-  .post("/agents/validate-config", async ({ body, set }) => {
-    const { agentType, apiKey, endpoint, modelId, additionalConfig } =
-      body as {
-        agentType: string;
-        apiKey?: string;
-        endpoint?: string;
-        modelId?: string;
-        additionalConfig?: Record<string, unknown>;
-      };
+  .post('/agents/validate-config', async ({ body, set }) => {
+    const { agentType, apiKey, endpoint, modelId, additionalConfig } = body as {
+      agentType: string;
+      apiKey?: string;
+      endpoint?: string;
+      modelId?: string;
+      additionalConfig?: Record<string, unknown>;
+    };
 
     const errors: string[] = [];
 
@@ -979,7 +934,7 @@ export const aiAgentRoutes = new Elysia()
   })
 
   // Test API key connection for an agent
-  .post("/agents/:id/test-connection", async (context) => {
+  .post('/agents/:id/test-connection', async (context) => {
     const { id } = context.params as { id: string };
     const agent = await prisma.aIAgentConfig.findUnique({
       where: { id: parseInt(id) },
@@ -987,49 +942,47 @@ export const aiAgentRoutes = new Elysia()
 
     if (!agent) {
       context.set.status = 404;
-      return { success: false, error: "Agent not found" };
+      return { success: false, error: 'Agent not found' };
     }
 
     // エージェントタイプに応じた接続テスト
     try {
-      if (agent.agentType === "claude-code") {
+      if (agent.agentType === 'claude-code') {
         // Claude Code CLIは--versionで動作確認
-        const { spawn } = await import("child_process");
-        const claudePath = process.env.CLAUDE_CODE_PATH || "claude";
+        const { spawn } = await import('child_process');
+        const claudePath = process.env.CLAUDE_CODE_PATH || 'claude';
 
         const testResult = await new Promise<{
           success: boolean;
           output?: string;
           error?: string;
         }>((resolve) => {
-          const proc = spawn(claudePath, ["--version"], { shell: true });
-          let stdout = "";
-          let stderr = "";
+          const proc = spawn(claudePath, ['--version'], { shell: true });
+          let stdout = '';
+          let stderr = '';
 
           const timeout = setTimeout(() => {
             proc.kill();
-            resolve({ success: false, error: "Timeout (10s)" });
+            resolve({ success: false, error: 'Timeout (10s)' });
           }, 10000);
 
-          proc.stdout?.on("data", (data) => {
+          proc.stdout?.on('data', (data) => {
             stdout += data.toString();
           });
-          proc.stderr?.on("data", (data) => {
+          proc.stderr?.on('data', (data) => {
             stderr += data.toString();
           });
 
-          proc.on("close", (code) => {
+          proc.on('close', (code) => {
             clearTimeout(timeout);
             resolve({
               success: code === 0,
               output: stdout.trim(),
-              error:
-                stderr.trim() ||
-                (code !== 0 ? `Exit code: ${code}` : undefined),
+              error: stderr.trim() || (code !== 0 ? `Exit code: ${code}` : undefined),
             });
           });
 
-          proc.on("error", (err) => {
+          proc.on('error', (err) => {
             clearTimeout(timeout);
             resolve({ success: false, error: err.message });
           });
@@ -1050,7 +1003,7 @@ export const aiAgentRoutes = new Elysia()
         return {
           success: false,
           agentType: agent.agentType,
-          message: "APIキーが設定されていません",
+          message: 'APIキーが設定されていません',
         };
       }
 
@@ -1072,7 +1025,7 @@ export const aiAgentRoutes = new Elysia()
   })
 
   // Mark interrupted execution as acknowledged (to clear it from the list)
-  .post("/agents/executions/:id/acknowledge", async (context) => {
+  .post('/agents/executions/:id/acknowledge', async (context) => {
     const { params } = context;
     const executionId = parseInt(params.id);
 
@@ -1081,27 +1034,27 @@ export const aiAgentRoutes = new Elysia()
     });
 
     if (!execution) {
-      return { success: false, error: "Execution not found" };
+      return { success: false, error: 'Execution not found' };
     }
 
-    if (execution.status !== "interrupted") {
-      return { success: false, error: "Execution is not interrupted" };
+    if (execution.status !== 'interrupted') {
+      return { success: false, error: 'Execution is not interrupted' };
     }
 
     // ステータスを「確認済み」として更新
     await prisma.agentExecution.update({
       where: { id: executionId },
       data: {
-        status: "acknowledged",
+        status: 'acknowledged',
         completedAt: new Date(),
       },
     });
 
-    return { success: true, message: "Execution acknowledged" };
+    return { success: true, message: 'Execution acknowledged' };
   })
 
   // Resume interrupted execution
-  .post("/agents/executions/:id/resume", async (context) => {
+  .post('/agents/executions/:id/resume', async (context) => {
     const params = context.params as { id: string };
     const body = context.body as { timeout?: number } | undefined;
     const executionId = parseInt(params.id);
@@ -1135,10 +1088,10 @@ export const aiAgentRoutes = new Elysia()
       });
 
       if (!execution) {
-        return { success: false, error: "Execution not found" };
+        return { success: false, error: 'Execution not found' };
       }
 
-      if (execution.status !== "interrupted") {
+      if (execution.status !== 'interrupted') {
         return {
           success: false,
           error: `Cannot resume execution with status: ${execution.status}`,
@@ -1147,7 +1100,7 @@ export const aiAgentRoutes = new Elysia()
 
       const task = execution.session.config?.task;
       if (!task) {
-        return { success: false, error: "Task not found for this execution" };
+        return { success: false, error: 'Task not found for this execution' };
       }
 
       const workingDirectory = task.theme?.workingDirectory || process.cwd();
@@ -1156,22 +1109,20 @@ export const aiAgentRoutes = new Elysia()
       const subtasks = await prisma.task.findMany({
         where: {
           parentId: task.id,
-          status: "in-progress", // 進行中のサブタスクのみ
+          status: 'in-progress', // 進行中のサブタスクのみ
         },
-        orderBy: { id: "asc" },
+        orderBy: { id: 'asc' },
       });
 
       const hasSubtasks = subtasks.length > 0;
-      log.info(
-        `[resume] Task ${task.id} has ${subtasks.length} in-progress subtasks`,
-      );
+      log.info(`[resume] Task ${task.id} has ${subtasks.length} in-progress subtasks`);
 
       // 通知を作成
       await prisma.notification.create({
         data: {
-          type: "agent_execution_resumed",
-          title: "エージェント実行再開",
-          message: `「${task.title}」の中断された作業を再開しています${hasSubtasks ? `（進行中のサブタスク${subtasks.length}件を並列実行）` : ""}`,
+          type: 'agent_execution_resumed',
+          title: 'エージェント実行再開',
+          message: `「${task.title}」の中断された作業を再開しています${hasSubtasks ? `（進行中のサブタスク${subtasks.length}件を並列実行）` : ''}`,
           link: `/tasks/${task.id}`,
           metadata: toJsonString({
             executionId,
@@ -1197,9 +1148,9 @@ export const aiAgentRoutes = new Elysia()
           subtasks: subtasks.map((st: (typeof subtasks)[number]) => ({
             id: st.id,
             title: st.title,
-            description: st.description || "",
+            description: st.description || '',
             estimatedHours: st.estimatedHours || 1,
-            priority: (st.priority || "medium") as TaskPriority,
+            priority: (st.priority || 'medium') as TaskPriority,
             explicitDependencies: [] as number[],
           })),
         });
@@ -1213,16 +1164,14 @@ export const aiAgentRoutes = new Elysia()
             workingDirectory,
           )
           .then(async (session) => {
-            log.info(
-              `[resume] Parallel execution session started: ${session.sessionId}`,
-            );
+            log.info(`[resume] Parallel execution session started: ${session.sessionId}`);
           })
           .catch(async (error) => {
-            log.error({ err: error }, "[resume] Parallel execution error");
+            log.error({ err: error }, '[resume] Parallel execution error');
             await prisma.notification.create({
               data: {
-                type: "agent_error",
-                title: "並列実行エラー",
+                type: 'agent_error',
+                title: '並列実行エラー',
                 message: `「${task.title}」の並列実行中にエラーが発生しました: ${error.message}`,
                 link: `/tasks/${task.id}`,
               },
@@ -1244,7 +1193,7 @@ export const aiAgentRoutes = new Elysia()
       await prisma.task.update({
         where: { id: task.id },
         data: {
-          status: "in-progress",
+          status: 'in-progress',
           startedAt: new Date(),
         },
       });
@@ -1262,42 +1211,26 @@ export const aiAgentRoutes = new Elysia()
               where: { id: task.id },
             });
             const wfStatus = currentTask?.workflowStatus;
-            if (
-              wfStatus &&
-              ["plan_created", "research_done", "verify_done"].includes(
-                wfStatus,
-              )
-            ) {
+            if (wfStatus && ['plan_created', 'research_done', 'verify_done'].includes(wfStatus)) {
               await prisma.task.update({
                 where: { id: task.id },
-                data: { status: "in-progress" },
+                data: { status: 'in-progress' },
               });
-              log.info(
-                `[resume] Task ${task.id} kept as in-progress (workflow: ${wfStatus})`,
-              );
-            } else if (
-              wfStatus === "in_progress" ||
-              wfStatus === "plan_approved"
-            ) {
-              log.info(
-                `[resume] Task ${task.id} kept as in-progress (workflow: ${wfStatus})`,
-              );
-            } else if (wfStatus === "completed") {
+              log.info(`[resume] Task ${task.id} kept as in-progress (workflow: ${wfStatus})`);
+            } else if (wfStatus === 'in_progress' || wfStatus === 'plan_approved') {
+              log.info(`[resume] Task ${task.id} kept as in-progress (workflow: ${wfStatus})`);
+            } else if (wfStatus === 'completed') {
               await prisma.task.update({
                 where: { id: task.id },
-                data: { status: "done", completedAt: new Date() },
+                data: { status: 'done', completedAt: new Date() },
               });
-              log.info(
-                `[resume] Updated task ${task.id} status to 'done'`,
-              );
-            } else if (!wfStatus || wfStatus === "draft") {
+              log.info(`[resume] Updated task ${task.id} status to 'done'`);
+            } else if (!wfStatus || wfStatus === 'draft') {
               await prisma.task.update({
                 where: { id: task.id },
-                data: { status: "done", completedAt: new Date() },
+                data: { status: 'done', completedAt: new Date() },
               });
-              log.info(
-                `[resume] Updated task ${task.id} status to 'done'`,
-              );
+              log.info(`[resume] Updated task ${task.id} status to 'done'`);
             } else {
               log.info(
                 `[resume] Task ${task.id} kept as in-progress (unknown workflow: ${wfStatus})`,
@@ -1309,20 +1242,22 @@ export const aiAgentRoutes = new Elysia()
               .update({
                 where: { id: execution.sessionId },
                 data: {
-                  status: "completed",
+                  status: 'completed',
                   completedAt: new Date(),
                 },
               })
               .catch((err: unknown) => {
-                log.warn({ err, sessionId: execution.sessionId }, "[resume] Failed to mark session as completed");
+                log.warn(
+                  { err, sessionId: execution.sessionId },
+                  '[resume] Failed to mark session as completed',
+                );
               });
 
             const diff = await orchestrator.getFullGitDiff(workingDirectory);
-            if (diff && diff !== "No changes detected") {
-              const structuredDiff =
-                await orchestrator.getDiff(workingDirectory);
+            if (diff && diff !== 'No changes detected') {
+              const structuredDiff = await orchestrator.getDiff(workingDirectory);
               const implementationSummary = cleanImplementationSummary(
-                result.output || "再開した作業が完了しました。",
+                result.output || '再開した作業が完了しました。',
               );
 
               // UI変更がある場合はスクリーンショットを撮影
@@ -1330,40 +1265,44 @@ export const aiAgentRoutes = new Elysia()
               try {
                 screenshots = await captureScreenshotsForDiff(structuredDiff, {
                   workingDirectory,
-                  agentOutput: result.output || "",
+                  agentOutput: result.output || '',
                 });
                 if (screenshots.length > 0) {
                   log.info(
-                    `[agent-resume] Captured ${screenshots.length} screenshots for task ${task.id}: ${screenshots.map((s) => s.page).join(", ")}`,
+                    `[agent-resume] Captured ${screenshots.length} screenshots for task ${task.id}: ${screenshots.map((s) => s.page).join(', ')}`,
                   );
                 }
               } catch (screenshotErr) {
-                log.warn({ err: screenshotErr }, "[agent-resume] Screenshot capture failed (non-fatal)");
+                log.warn(
+                  { err: screenshotErr },
+                  '[agent-resume] Screenshot capture failed (non-fatal)',
+                );
               }
 
               const screenshotData = sanitizeScreenshots(screenshots);
               const config = execution.session.config;
               if (config) {
                 log.info(
-                  `[agent-resume] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s) => s.url).join(", ")}`,
+                  `[agent-resume] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s) => s.url).join(', ')}`,
                 );
                 const approvalRequest = await prisma.approvalRequest.create({
                   data: {
                     configId: config.id,
-                    requestType: "code_review",
+                    requestType: 'code_review',
                     title: `「${task.title}」のコードレビュー（再開後）`,
                     description: implementationSummary,
-                    proposedChanges: toJsonString({
-                      taskId: task.id,
-                      sessionId: execution.sessionId,
-                      workingDirectory,
-                      structuredDiff,
-                      implementationSummary,
-                      executionTimeMs: result.executionTimeMs,
-                      resumed: true,
-                      screenshots: screenshotData,
-                    }),
-                    executionType: "code_review",
+                    proposedChanges:
+                      toJsonString({
+                        taskId: task.id,
+                        sessionId: execution.sessionId,
+                        workingDirectory,
+                        structuredDiff,
+                        implementationSummary,
+                        executionTimeMs: result.executionTimeMs,
+                        resumed: true,
+                        screenshots: screenshotData,
+                      }) ?? '',
+                    executionType: 'code_review',
                     estimatedChanges: toJsonString({
                       filesChanged: structuredDiff.length,
                       summary: implementationSummary.substring(0, 500),
@@ -1374,8 +1313,8 @@ export const aiAgentRoutes = new Elysia()
 
                 await prisma.notification.create({
                   data: {
-                    type: "pr_review_requested",
-                    title: "コードレビュー依頼（再開後）",
+                    type: 'pr_review_requested',
+                    title: 'コードレビュー依頼（再開後）',
                     message: `「${task.title}」の再開した作業が完了しました。レビューをお願いします。`,
                     link: `/approvals/${approvalRequest.id}`,
                   },
@@ -1384,43 +1323,38 @@ export const aiAgentRoutes = new Elysia()
             } else {
               await prisma.notification.create({
                 data: {
-                  type: "agent_execution_complete",
-                  title: "エージェント実行完了（変更なし）",
+                  type: 'agent_execution_complete',
+                  title: 'エージェント実行完了（変更なし）',
                   message: `「${task.title}」の再開した作業が完了しましたが、コード変更はありませんでした。`,
                   link: `/tasks/${task.id}`,
                 },
               });
             }
           } else if (result.waitingForInput) {
-            log.info(
-              `[resume] Task ${task.id} is waiting for input after resume`,
-            );
+            log.info(`[resume] Task ${task.id} is waiting for input after resume`);
           } else {
             // 失敗の場合はタスクステータスを todo に戻す
             await prisma.task.update({
               where: { id: task.id },
-              data: { status: "todo" },
+              data: { status: 'todo' },
             });
-            log.info(
-              `[resume] Reverted task ${task.id} status to 'todo' due to failure`,
-            );
+            log.info(`[resume] Reverted task ${task.id} status to 'todo' due to failure`);
 
             await prisma.agentSession
               .update({
                 where: { id: execution.sessionId },
                 data: {
-                  status: "failed",
+                  status: 'failed',
                   completedAt: new Date(),
-                  errorMessage:
-                    result.errorMessage || "Execution failed after resume",
+                  errorMessage: result.errorMessage || 'Execution failed after resume',
                 },
               })
               .catch(() => {});
 
             await prisma.notification.create({
               data: {
-                type: "agent_error",
-                title: "再開した実行が失敗",
+                type: 'agent_error',
+                title: '再開した実行が失敗',
                 message: `「${task.title}」の再開した作業が失敗しました: ${result.errorMessage}`,
                 link: `/tasks/${task.id}`,
               },
@@ -1428,37 +1362,38 @@ export const aiAgentRoutes = new Elysia()
           }
         })
         .catch(async (error) => {
-          log.error({ err: error }, "[resume] Resume execution error");
+          log.error({ err: error }, '[resume] Resume execution error');
 
           await prisma.task
             .update({
               where: { id: task.id },
-              data: { status: "todo" },
+              data: { status: 'todo' },
             })
             .catch((err: unknown) => {
               log.warn({ err, taskId: task.id }, "[resume] Failed to revert task status to 'todo'");
             });
-          log.info(
-            `[resume] Reverted task ${task.id} status to 'todo' due to error`,
-          );
+          log.info(`[resume] Reverted task ${task.id} status to 'todo' due to error`);
 
           await prisma.agentSession
             .update({
               where: { id: execution.sessionId },
               data: {
-                status: "failed",
+                status: 'failed',
                 completedAt: new Date(),
-                errorMessage: error.message || "Resume execution error",
+                errorMessage: error.message || 'Resume execution error',
               },
             })
             .catch((err: unknown) => {
-              log.warn({ err, sessionId: execution.sessionId }, "[resume] Failed to mark session as failed");
+              log.warn(
+                { err, sessionId: execution.sessionId },
+                '[resume] Failed to mark session as failed',
+              );
             });
 
           await prisma.notification.create({
             data: {
-              type: "agent_error",
-              title: "実行再開エラー",
+              type: 'agent_error',
+              title: '実行再開エラー',
               message: `「${task.title}」の再開中にエラーが発生しました: ${error.message}`,
               link: `/tasks/${task.id}`,
             },
@@ -1470,26 +1405,24 @@ export const aiAgentRoutes = new Elysia()
         executionId,
         taskId: task.id,
         taskTitle: task.title,
-        message:
-          "中断された実行を再開しています。進捗はリアルタイムで確認できます。",
+        message: '中断された実行を再開しています。進捗はリアルタイムで確認できます。',
       };
     } catch (error) {
-      log.error({ err: error }, "[resume] Error");
+      log.error({ err: error }, '[resume] Error');
       return {
         success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to resume execution",
+        error: error instanceof Error ? error.message : 'Failed to resume execution',
       };
     }
   })
 
   // Get all currently executing tasks (for real-time panel display)
-  .get("/tasks/executing", async () => {
+  .get('/tasks/executing', async () => {
     try {
       const executingTasks = await prisma.agentExecution.findMany({
         where: {
           status: {
-            in: ["running", "waiting_for_input"],
+            in: ['running', 'waiting_for_input'],
           },
         },
         select: {
@@ -1507,26 +1440,22 @@ export const aiAgentRoutes = new Elysia()
             },
           },
         },
-        orderBy: { startedAt: "desc" },
+        orderBy: { startedAt: 'desc' },
       });
 
-      return executingTasks.map(
-        (execution: (typeof executingTasks)[number]) => ({
-          executionId: execution.id,
-          sessionId: execution.session.id,
-          taskId: execution.session.config.taskId,
-          executionStatus: execution.status,
-          startedAt: execution.startedAt,
-        }),
-      );
+      return executingTasks.map((execution: (typeof executingTasks)[number]) => ({
+        executionId: execution.id,
+        sessionId: execution.session.id,
+        taskId: execution.session.config.taskId,
+        executionStatus: execution.status,
+        startedAt: execution.startedAt,
+      }));
     } catch (error) {
       const errObj = error as { code?: string; message?: string };
-      if (errObj?.code === "P1001") {
-        log.warn("[executing-tasks] Database unreachable, skipping");
+      if (errObj?.code === 'P1001') {
+        log.warn('[executing-tasks] Database unreachable, skipping');
       } else {
-        log.error({ err: error },
-          "[executing-tasks] Error",
-        );
+        log.error({ err: error }, '[executing-tasks] Error');
       }
       return [];
     }

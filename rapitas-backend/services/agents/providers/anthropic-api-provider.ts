@@ -4,8 +4,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-// @ts-ignore - APIError is exported from @anthropic-ai/sdk
-const { APIError } = require('@anthropic-ai/sdk');
+import { APIError } from '@anthropic-ai/sdk';
 import { getApiKeyForProvider } from '../../../utils/ai-client';
 import type {
   AgentCapabilities,
@@ -150,18 +149,25 @@ export class AnthropicApiAgent extends AbstractAgent {
 
     const apiKey = await this.getApiKey();
     if (!apiKey) {
-      errors.push('API key is not configured. Set ANTHROPIC_API_KEY environment variable or provide apiKey in config.');
+      errors.push(
+        'API key is not configured. Set ANTHROPIC_API_KEY environment variable or provide apiKey in config.',
+      );
     }
 
     if (this.config.model && !CLAUDE_MODELS[this.config.model as ClaudeModelId]) {
-      errors.push(`Unknown model: ${this.config.model}. Available models: ${Object.keys(CLAUDE_MODELS).join(', ')}`);
+      errors.push(
+        `Unknown model: ${this.config.model}. Available models: ${Object.keys(CLAUDE_MODELS).join(', ')}`,
+      );
     }
 
     if (this.config.maxTokens && this.config.maxTokens < 1) {
       errors.push('maxTokens must be a positive number');
     }
 
-    if (this.config.temperature !== undefined && (this.config.temperature < 0 || this.config.temperature > 1)) {
+    if (
+      this.config.temperature !== undefined &&
+      (this.config.temperature < 0 || this.config.temperature > 1)
+    ) {
       errors.push('temperature must be between 0 and 1');
     }
 
@@ -194,7 +200,7 @@ export class AnthropicApiAgent extends AbstractAgent {
         max_tokens: maxTokens,
         temperature: this.config.temperature,
         system: this.config.systemPrompt || this.getDefaultSystemPrompt(context),
-        messages: this.conversationHistory.map(msg => ({
+        messages: this.conversationHistory.map((msg) => ({
           role: msg.role,
           content: msg.content,
         })),
@@ -287,14 +293,16 @@ export class AnthropicApiAgent extends AbstractAgent {
       // ユーザーの応答を履歴に追加
       this.conversationHistory.push({ role: 'user', content: userResponse });
 
-      this.log('info', 'Continuing conversation', { historyLength: this.conversationHistory.length });
+      this.log('info', 'Continuing conversation', {
+        historyLength: this.conversationHistory.length,
+      });
 
       const response = await client.messages.create({
         model: modelId,
         max_tokens: maxTokens,
         temperature: this.config.temperature,
         system: this.config.systemPrompt || this.getDefaultSystemPrompt(context),
-        messages: this.conversationHistory.map(msg => ({
+        messages: this.conversationHistory.map((msg) => ({
           role: msg.role,
           content: msg.content,
         })),
@@ -379,7 +387,7 @@ export class AnthropicApiAgent extends AbstractAgent {
     // config に直接指定されたキーを最優先
     if (this.config.apiKey) return this.config.apiKey;
     // DB保存キーを優先取得（getApiKeyForProvider経由で復号化・検証・環境変数フォールバック含む）
-    const dbKey = await getApiKeyForProvider("claude");
+    const dbKey = await getApiKeyForProvider('claude');
     if (dbKey) return dbKey;
     // 最後にANTHROPIC_API_KEY環境変数
     return process.env.ANTHROPIC_API_KEY;
@@ -389,11 +397,7 @@ export class AnthropicApiAgent extends AbstractAgent {
     if (!this.client) {
       const apiKey = await this.getApiKey();
       if (!apiKey) {
-        throw new AgentError(
-          'Anthropic API key is not configured',
-          'authentication',
-          false,
-        );
+        throw new AgentError('Anthropic API key is not configured', 'authentication', false);
       }
       this.client = new Anthropic({ apiKey });
     }
@@ -455,15 +459,11 @@ Current time: ${new Date().toISOString()}`;
     const message = error.message;
 
     if (status === 401) {
-      return new AgentError(
-        `Authentication failed: ${message}`,
-        'authentication',
-        false,
-      );
+      return new AgentError(`Authentication failed: ${message}`, 'authentication', false);
     }
 
     if (status === 429) {
-      const retryAfter = parseInt(error.headers?.['retry-after'] || '60', 10);
+      const retryAfter = parseInt(error.headers?.get('retry-after') || '60', 10);
       return new AgentError(
         `Rate limit exceeded: ${message}`,
         'rate_limit',
@@ -473,27 +473,14 @@ Current time: ${new Date().toISOString()}`;
     }
 
     if (status === 500 || status === 502 || status === 503) {
-      return new AgentError(
-        `Anthropic API error: ${message}`,
-        'network',
-        true,
-        5000,
-      );
+      return new AgentError(`Anthropic API error: ${message}`, 'network', true, 5000);
     }
 
     if (status === 400) {
-      return new AgentError(
-        `Invalid request: ${message}`,
-        'validation',
-        false,
-      );
+      return new AgentError(`Invalid request: ${message}`, 'validation', false);
     }
 
-    return new AgentError(
-      `Anthropic API error: ${message}`,
-      'execution',
-      false,
-    );
+    return new AgentError(`Anthropic API error: ${message}`, 'execution', false);
   }
 }
 
@@ -538,7 +525,10 @@ export class AnthropicApiProvider implements IAgentProvider {
   }
 
   async isAvailable(): Promise<boolean> {
-    const apiKey = this.defaultConfig.apiKey || await getApiKeyForProvider("claude") || process.env.ANTHROPIC_API_KEY;
+    const apiKey =
+      this.defaultConfig.apiKey ||
+      (await getApiKeyForProvider('claude')) ||
+      process.env.ANTHROPIC_API_KEY;
     return !!apiKey;
   }
 
@@ -550,7 +540,10 @@ export class AnthropicApiProvider implements IAgentProvider {
     }
 
     const anthropicConfig = config as AnthropicApiConfig;
-    const apiKey = anthropicConfig.apiKey || await getApiKeyForProvider("claude") || process.env.ANTHROPIC_API_KEY;
+    const apiKey =
+      anthropicConfig.apiKey ||
+      (await getApiKeyForProvider('claude')) ||
+      process.env.ANTHROPIC_API_KEY;
 
     if (!apiKey) {
       errors.push('API key is required');
@@ -567,7 +560,10 @@ export class AnthropicApiProvider implements IAgentProvider {
     const startTime = Date.now();
 
     try {
-      const apiKey = this.defaultConfig.apiKey || await getApiKeyForProvider("claude") || process.env.ANTHROPIC_API_KEY;
+      const apiKey =
+        this.defaultConfig.apiKey ||
+        (await getApiKeyForProvider('claude')) ||
+        process.env.ANTHROPIC_API_KEY;
 
       if (!apiKey) {
         return {

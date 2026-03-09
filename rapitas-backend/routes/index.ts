@@ -74,3 +74,7 @@ export { achievementsRoutes } from "./analytics/achievements";
 // Lifestyle - 生活管理
 export { habitsRoutes } from "./lifestyle/habits";
 export { paidLeaveRoutes } from "./lifestyle/paid-leave";
+
+// Memory - メモリ/知識管理
+export { knowledgeRoutes } from "./memory/knowledge";
+export { memorySystemRoutes } from "./memory/memory-system";
