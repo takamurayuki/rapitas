@@ -1,6 +1,9 @@
 'use client';
 
 import { useMemo } from 'react';
+import { useTranslations } from 'next-intl';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 type ExamCountdownProps = {
   examDate: string;
@@ -13,6 +16,10 @@ export function ExamCountdown({
   color,
   compact = false,
 }: ExamCountdownProps) {
+  const t = useTranslations('examCountdown');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
+
   const { daysRemaining, examDateObj, isUrgent, isNear, isPast, isToday } =
     useMemo(() => {
       const now = new Date();
@@ -34,7 +41,7 @@ export function ExamCountdown({
 
   const month = examDateObj.getMonth() + 1;
   const day = examDateObj.getDate();
-  const weekday = examDateObj.toLocaleDateString('ja-JP', {
+  const weekday = examDateObj.toLocaleDateString(dateLocale, {
     weekday: 'short',
   });
   const year = examDateObj.getFullYear();
@@ -62,7 +69,7 @@ export function ExamCountdown({
             className="w-full text-center text-[10px] font-bold text-white py-0.5 leading-tight"
             style={{ backgroundColor: statusColor }}
           >
-            {month}月
+            {t('monthLabel', { month })}
           </div>
           {/* 日付 */}
           <div className="w-full text-center bg-white dark:bg-zinc-800 py-1 px-1">
@@ -78,10 +85,10 @@ export function ExamCountdown({
         <div>
           <span className="text-lg font-bold" style={{ color: statusColor }}>
             {isToday
-              ? '今日!'
+              ? t('today')
               : isPast
-                ? `${Math.abs(daysRemaining)}日経過`
-                : `あと${daysRemaining}日`}
+                ? t('daysElapsed', { count: Math.abs(daysRemaining) })
+                : t('daysLeft', { count: daysRemaining })}
           </span>
         </div>
       </div>
@@ -100,7 +107,7 @@ export function ExamCountdown({
           className="w-full text-center text-xs font-bold text-white py-1"
           style={{ backgroundColor: statusColor }}
         >
-          {year}年{month}月
+          {t('yearMonthLabel', { year, month })}
         </div>
         {/* 中央: 日付（大きく） */}
         <div className="w-full text-center bg-white dark:bg-zinc-800 py-2 px-2">
@@ -108,7 +115,7 @@ export function ExamCountdown({
             {day}
           </div>
           <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            {weekday}曜日
+            {weekday}{t('weekdayLabel')}
           </div>
         </div>
         {/* 下部: ちぎり線風の装飾 */}
@@ -128,7 +135,7 @@ export function ExamCountdown({
               className="text-3xl font-extrabold"
               style={{ color: statusColor }}
             >
-              当日
+              {t('examDay')}
             </span>
           </div>
         ) : isPast ? (
@@ -136,12 +143,12 @@ export function ExamCountdown({
             <span className="text-3xl font-extrabold text-zinc-400">
               {Math.abs(daysRemaining)}
             </span>
-            <span className="text-sm font-medium text-zinc-400">日経過</span>
+            <span className="text-sm font-medium text-zinc-400">{t('daysElapsedUnit')}</span>
           </div>
         ) : (
           <>
             <div className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-              あと
+              {t('remaining')}
             </div>
             <div className="flex items-baseline gap-1">
               <span
@@ -154,13 +161,12 @@ export function ExamCountdown({
                 className="text-sm font-medium"
                 style={{ color: statusColor }}
               >
-                日
+                {t('dayUnit')}
               </span>
             </div>
             {daysRemaining > 7 && (
               <div className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">
-                ({Math.floor(daysRemaining / 7)}週
-                {daysRemaining % 7 > 0 ? `${daysRemaining % 7}日` : ''})
+                {t('weeksAndDays', { weeks: Math.floor(daysRemaining / 7), days: daysRemaining % 7 })}
               </div>
             )}
           </>

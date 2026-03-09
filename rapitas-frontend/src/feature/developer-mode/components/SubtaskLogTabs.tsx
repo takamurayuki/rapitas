@@ -10,6 +10,8 @@ import {
   Pause,
   Terminal,
   RefreshCw,
+  GitBranch,
+  ArrowRight,
 } from 'lucide-react';
 import type { Task } from '@/types';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
@@ -17,6 +19,7 @@ import {
   ExecutionLogViewer,
   type ExecutionLogStatus,
 } from './ExecutionLogViewer';
+import { WorkflowLogViewer } from './WorkflowLogViewer';
 
 interface SubtaskLogTabsProps {
   /** サブタスクのリスト */
@@ -34,6 +37,34 @@ interface SubtaskLogTabsProps {
   onRefreshLogs?: (taskId?: number) => void;
   /** 最大高さ */
   maxHeight?: number;
+  /** ワークフローモードで実行中か */
+  useWorkflow?: boolean;
+}
+
+/** ワークフローステータスからフェーズラベルを取得 */
+function getPhaseLabel(workflowStatus?: string): string {
+  switch (workflowStatus) {
+    case 'draft': return '初期化';
+    case 'research_done': return '調査完了';
+    case 'plan_created': return '計画作成';
+    case 'plan_approved': return '計画承認済';
+    case 'in_progress': return '実装中';
+    case 'completed': return '完了';
+    default: return workflowStatus || '待機中';
+  }
+}
+
+/** ワークフローステータスに応じたスタイル */
+function getPhaseStyle(workflowStatus?: string): string {
+  switch (workflowStatus) {
+    case 'completed': return 'text-green-400';
+    case 'in_progress':
+    case 'plan_approved': return 'text-blue-400';
+    case 'plan_created': return 'text-amber-400';
+    case 'research_done': return 'text-cyan-400';
+    case 'draft': return 'text-zinc-400';
+    default: return 'text-zinc-500';
+  }
 }
 
 /**
@@ -46,9 +77,12 @@ export function SubtaskLogTabs({
   isRunning,
   onRefreshLogs,
   maxHeight = 200,
+  useWorkflow = false,
 }: SubtaskLogTabsProps) {
   // 「全体」タブ + サブタスクタブ
   const [activeTab, setActiveTab] = useState<number | 'all'>('all');
+  // ワークフロー表示モード切り替え
+  const [showWorkflowView, setShowWorkflowView] = useState(useWorkflow);
 
   // ステータスに応じたアイコンを取得
   const getStatusIcon = (status?: ParallelExecutionStatus) => {
@@ -159,6 +193,27 @@ export function SubtaskLogTabs({
     }
   };
 
+  // 完了数
+  const completedCount = subtasks.filter(
+    (s) => getSubtaskStatus?.(s.id) === 'completed',
+  ).length;
+
+  // 開始時間の推定（最初のログのタイムスタンプ）
+  const startTime = useMemo(() => {
+    if (allLogs.length === 0) return null;
+    return new Date(allLogs[0].timestamp);
+  }, [allLogs]);
+
+  // 経過時間の計算
+  const elapsedTime = useMemo(() => {
+    if (!startTime) return null;
+    const now = new Date();
+    const elapsed = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    return `${minutes}分${seconds}秒`;
+  }, [startTime]);
+
   if (subtasks.length === 0) {
     return null;
   }
@@ -212,6 +267,21 @@ export function SubtaskLogTabs({
           );
         })}
 
+        {/* ワークフロー表示切り替えボタン */}
+        {useWorkflow && (
+          <button
+            onClick={() => setShowWorkflowView((prev) => !prev)}
+            className={`p-1.5 rounded transition-colors shrink-0 ml-1 ${
+              showWorkflowView
+                ? 'text-indigo-400 bg-indigo-900/30'
+                : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-800'
+            }`}
+            title={showWorkflowView ? 'フラット表示に切替' : 'ワークフロー表示に切替'}
+          >
+            <GitBranch className="w-3 h-3" />
+          </button>
+        )}
+
         {/* 更新ボタン */}
         {onRefreshLogs && (
           <button
@@ -228,7 +298,19 @@ export function SubtaskLogTabs({
 
       {/* ログ表示エリア */}
       <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
-        {formattedLogs.length > 0 ? (
+        {activeTab !== 'all' && showWorkflowView && useWorkflow ? (
+          // ワークフローフェーズ別表示（個別タブ選択時）
+          <div className="p-2">
+            <WorkflowLogViewer
+              taskTitle={subtasks.find((s) => s.id === activeTab)?.title || ''}
+              taskId={activeTab as number}
+              logs={currentLogs}
+              workflowStatus={subtasks.find((s) => s.id === activeTab)?.workflowStatus ?? undefined}
+              isRunning={getSubtaskStatus?.(activeTab as number) === 'running'}
+              maxHeight={maxHeight}
+            />
+          </div>
+        ) : formattedLogs.length > 0 ? (
           <ExecutionLogViewer
             logs={formattedLogs}
             status={
@@ -254,28 +336,69 @@ export function SubtaskLogTabs({
         )}
       </div>
 
-      {/* サブタスク進捗サマリー */}
-      <div className="flex items-center gap-2 text-[10px] text-zinc-500 dark:text-zinc-400">
-        <span>進捗:</span>
-        {subtasks.map((subtask) => {
-          const status = getSubtaskStatus?.(subtask.id);
-          return (
-            <div
-              key={subtask.id}
-              className="flex items-center gap-0.5"
-              title={`${subtask.title}: ${status || 'pending'}`}
-            >
-              {getStatusIcon(status)}
-            </div>
-          );
-        })}
-        <span className="ml-auto">
-          {
-            subtasks.filter((s) => getSubtaskStatus?.(s.id) === 'completed')
-              .length
-          }
-          /{subtasks.length} 完了
-        </span>
+      {/* 強化されたサブタスク進捗サマリー */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-[10px] text-zinc-500 dark:text-zinc-400">
+          <span className="font-medium">進捗:</span>
+          <span>
+            {completedCount}/{subtasks.length} 完了
+            {elapsedTime && isRunning && (
+              <span className="ml-2 text-zinc-600">経過: {elapsedTime}</span>
+            )}
+          </span>
+        </div>
+
+        {/* 詳細な進捗表示 */}
+        <div className="space-y-1">
+          {subtasks.map((subtask) => {
+            const status = getSubtaskStatus?.(subtask.id);
+            const workflowStatus = (subtask as Task & { workflowStatus?: string }).workflowStatus;
+            const hasWorkflowInfo = useWorkflow && workflowStatus;
+            // 依存関係の表示（parentIdがあるかで簡易的に判定）
+            const parentTask = subtask.parentId
+              ? subtasks.find((s) => s.id === subtask.parentId)
+              : null;
+
+            return (
+              <div
+                key={subtask.id}
+                className="flex items-center gap-2 text-[10px] px-2 py-1 rounded bg-zinc-50 dark:bg-zinc-900/50"
+              >
+                {getStatusIcon(status)}
+                <span className="truncate flex-1 text-zinc-700 dark:text-zinc-300" title={subtask.title}>
+                  {subtask.title}
+                </span>
+                {hasWorkflowInfo && (
+                  <span className={`shrink-0 ${getPhaseStyle(workflowStatus)}`}>
+                    {getPhaseLabel(workflowStatus)}
+                  </span>
+                )}
+                {!hasWorkflowInfo && status && (
+                  <span className={`shrink-0 ${
+                    status === 'completed' ? 'text-green-400' :
+                    status === 'running' ? 'text-blue-400' :
+                    status === 'failed' ? 'text-red-400' :
+                    status === 'blocked' ? 'text-orange-400' :
+                    'text-zinc-500'
+                  }`}>
+                    {status === 'completed' ? '完了' :
+                     status === 'running' ? '実行中' :
+                     status === 'failed' ? '失敗' :
+                     status === 'blocked' ? 'ブロック中' :
+                     status === 'scheduled' ? 'スケジュール済' :
+                     '待機中'}
+                  </span>
+                )}
+                {parentTask && (
+                  <span className="flex items-center gap-0.5 text-zinc-500 shrink-0" title={`依存先: ${parentTask.title}`}>
+                    <ArrowRight className="w-2.5 h-2.5" />
+                    <span className="truncate max-w-[60px]">{parentTask.title}</span>
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

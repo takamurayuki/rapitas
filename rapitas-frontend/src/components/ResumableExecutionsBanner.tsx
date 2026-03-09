@@ -98,7 +98,7 @@ export function ResumableExecutionsBanner() {
         );
       }
     } catch (error) {
-      logger.error('Failed to fetch auto-resume setting:', error);
+      logger.warn('Failed to fetch auto-resume setting:', error);
       // バックエンドが利用できない場合はデフォルト値を使用
       setAutoResume(false);
     }
@@ -336,7 +336,7 @@ export function ResumableExecutionsBanner() {
         }
       }
     } catch (error) {
-      logger.error('Error resuming execution:', error);
+      logger.warn('Error resuming execution:', error);
     } finally {
       setResumingIds((prev) => {
         const newSet = new Set(prev);
@@ -378,7 +378,7 @@ export function ResumableExecutionsBanner() {
         );
       }
     } catch (error) {
-      logger.error('Error dismissing execution:', error);
+      logger.warn('Error dismissing execution:', error);
     } finally {
       setDismissingIds((prev) => {
         const newSet = new Set(prev);

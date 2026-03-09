@@ -15,6 +15,8 @@ import { API_BASE_URL } from '@/utils/api';
 import BurnupChart from '@/components/BurnupChart';
 import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
 import { createLogger } from '@/lib/logger';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('DashboardPage');
 
@@ -48,6 +50,8 @@ type StreakInfo = {
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const [overview, setOverview] = useState<OverviewStats | null>(null);
   const [dailyStudy, setDailyStudy] = useState<DailyStudy[]>([]);
   const [streakInfo, setStreakInfo] = useState<StreakInfo | null>(null);
@@ -60,7 +64,7 @@ export default function DashboardPage() {
         setOverview(await res.json());
       }
     } catch (e) {
-      logger.error('Failed to fetch overview:', e);
+      logger.transientError('Failed to fetch overview:', e);
     }
   }, []);
 
@@ -72,7 +76,7 @@ export default function DashboardPage() {
         setDailyStudy(Array.isArray(data) ? data : []);
       }
     } catch (e) {
-      logger.error('Failed to fetch daily study:', e);
+      logger.transientError('Failed to fetch daily study:', e);
     }
   }, []);
 
@@ -83,7 +87,7 @@ export default function DashboardPage() {
         setStreakInfo(await res.json());
       }
     } catch (e) {
-      logger.error('Failed to fetch streak info:', e);
+      logger.transientError('Failed to fetch streak info:', e);
     }
   }, []);
 
@@ -102,7 +106,7 @@ export default function DashboardPage() {
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
   };
 
   const maxHours = Math.max(...dailyStudy.map((d) => d.hours), 1);

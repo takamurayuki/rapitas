@@ -28,6 +28,8 @@ import { API_BASE_URL } from '@/utils/api';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { requireAuth } from '@/contexts/AuthContext';
 import { createLogger } from '@/lib/logger';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('AgentVersionManagementPage');
 
@@ -79,6 +81,8 @@ const statusIcons = {
 
 function AgentVersionManagementPage() {
   const t = useTranslations('agents');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   // State
   const [agentConfigs, setAgentConfigs] = useState<AgentConfig[]>([]);
   const [agentVersions, setAgentVersions] = useState<AgentVersion[]>([]);
@@ -464,7 +468,7 @@ function AgentVersionManagementPage() {
                                 )}
                               </div>
                               <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                                {new Date(version.createdAt).toLocaleDateString('ja-JP')}
+                                {new Date(version.createdAt).toLocaleDateString(dateLocale)}
                               </div>
                             </div>
                             <div className="flex items-center gap-2">

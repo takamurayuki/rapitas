@@ -40,6 +40,43 @@ import { createLogger } from "../../config/logger";
 const logger = createLogger("parallel-executor");
 
 /**
+ * コーディネーターメッセージのペイロードを人間が読みやすい形式に変換
+ */
+function formatCoordinatorPayload(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return String(payload ?? "");
+
+  const obj = payload as Record<string, unknown>;
+  const parts: string[] = [];
+
+  // メッセージ系
+  const msg = obj.message || obj.msg || obj.description;
+  if (msg && typeof msg === "string") parts.push(msg);
+
+  // ステータス系
+  if (obj.status && typeof obj.status === "string") parts.push(`status=${obj.status}`);
+
+  // タスク・エージェント情報
+  if (obj.taskId) parts.push(`task=${obj.taskId}`);
+  if (obj.agentId && typeof obj.agentId === "string") parts.push(`agent=${obj.agentId}`);
+
+  // エラー系
+  if (obj.error && typeof obj.error === "string") parts.push(`error: ${obj.error}`);
+
+  // その他のフィールド
+  const skipKeys = new Set(["message", "msg", "description", "status", "taskId", "agentId", "error", "timestamp"]);
+  for (const [key, value] of Object.entries(obj)) {
+    if (skipKeys.has(key) || value === null || value === undefined) continue;
+    if (typeof value === "object") {
+      parts.push(`${key}=${JSON.stringify(value)}`);
+    } else {
+      parts.push(`${key}=${value}`);
+    }
+  }
+
+  return parts.length > 0 ? parts.join(", ") : JSON.stringify(payload).slice(0, 200);
+}
+
+/**
  * 並列実行イベント
  */
 type ParallelExecutionEvent = {
@@ -255,7 +292,7 @@ export class ParallelExecutor extends EventEmitter {
         agentId: message.fromAgentId,
         taskId: 0,
         level: "debug",
-        message: `[${message.type}] ${JSON.stringify(message.payload).slice(0, 200)}`,
+        message: `[${message.type}] ${formatCoordinatorPayload(message.payload)}`,
       });
     });
   }

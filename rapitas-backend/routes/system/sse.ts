@@ -16,7 +16,6 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
-      "Access-Control-Allow-Origin": "*",
     };
 
     const clientId = realtimeService.registerClient(
@@ -79,8 +78,7 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
-        "Access-Control-Allow-Origin": "*",
-      };
+        };
 
       log.info(`[SSE] Client connecting to channel: ${channel}`);
 
@@ -139,8 +137,7 @@ export const sseRoutes = new Elysia({ prefix: "/events" })
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
             Connection: "keep-alive",
-            "Access-Control-Allow-Origin": "*",
-          },
+                },
         },
       );
     },

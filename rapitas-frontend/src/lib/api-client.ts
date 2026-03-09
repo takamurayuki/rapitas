@@ -260,6 +260,7 @@ class APIClient {
   private async performFetch<T>(url: string, options: RequestOptions): Promise<T> {
     const response = await fetch(url, {
       ...options,
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
@@ -287,6 +288,7 @@ class APIClient {
     try {
       const response = await fetch(`${API_BASE_URL}/batch`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },

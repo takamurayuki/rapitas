@@ -41,20 +41,38 @@ node scripts/dev.js --watch
 # 初回セットアップ
 npm install
 
-# Web版開発サーバー起動
+# プリフライトチェック + Web版開発サーバー起動
 npm run dev
+```
+
+起動時に **プリフライトチェック** が自動実行され、以下を検証します：
+- bun / pnpm / node のインストール確認
+- `.env` ファイルの存在確認と `DATABASE_URL` の設定確認
+- `node_modules` の存在確認
+- ポート 3000 / 3001 の空き確認
+
+バックエンドまたはフロントエンドのどちらかが起動に失敗した場合、もう一方も自動的に停止します（`--kill-others-on-fail`）。これにより、片方だけ起動してエラーになる事態を防ぎます。
+
+```bash
+# プリフライトチェックのみ実行
+npm run check
+
+# チェックをスキップして高速起動（2回目以降）
+npm run dev:skip-check
 ```
 
 ### 方法 3: 個別起動（高度なユーザー向け）
 
+> **注意**: 個別起動の場合、バックエンド（ポート3001）を先に起動してからフロントエンドを起動してください。フロントエンドのみの起動ではAPI通信がエラーになります。
+
 ```bash
-# バックエンド
+# バックエンド（先に起動）
 cd rapitas-backend
 bun run dev
 
 # フロントエンド（別ターミナル）
 cd rapitas-frontend
-npm run dev
+pnpm run dev
 
 # Tauriデスクトップアプリ（別ターミナル）
 cd rapitas-desktop
@@ -76,14 +94,24 @@ npm run tauri
 # 統合開発環境（推奨）
 cd rapitas-desktop && node scripts/dev.js
 
-# Web版開発サーバー
+# Web版開発サーバー（プリフライトチェック付き）
 npm run dev
+
+# プリフライトチェックをスキップして起動
+npm run dev:skip-check
+
+# プリフライトチェックのみ
+npm run check
 
 # バックエンドのみ
 npm run dev:backend
 
 # フロントエンドのみ
 npm run dev:frontend
+
+# Tauri統合開発をルートから起動
+npm run dev:tauri          # 通常モード
+npm run dev:tauri:watch    # ファイル監視付き
 
 # 依存関係を一括インストール
 npm run install:all
@@ -121,14 +149,21 @@ cd rapitas-desktop && npm run build
 ### 🧪 テスト・品質管理
 
 ```bash
-# バックエンドテスト
+# 全テスト一括実行（バックエンド + フロントエンド並列）
+npm run test:all
+
+# 全リンター一括実行
+npm run lint:all
+
+# 個別実行
 cd rapitas-backend && bun test
+cd rapitas-frontend && pnpm test
 
 # フロントエンド linting
-cd rapitas-frontend && npm run lint
+cd rapitas-frontend && pnpm run lint
 
 # フロントエンド フォーマット確認
-cd rapitas-frontend && npm run prettier:check
+cd rapitas-frontend && pnpm run prettier:check
 ```
 
 ## 📦 初期セットアップ

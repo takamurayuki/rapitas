@@ -13,7 +13,6 @@ export type NotificationType =
   | "agent_execution_resumed"
   | "approval_requested"
   | "approval_completed"
-  | "achievement_unlocked"
   | "pomodoro_completed"
   | "habit_reminder"
   | "schedule_reminder"
@@ -98,21 +97,6 @@ export async function notifyApprovalRequested(
     message: `「${title}」の承認が必要です`,
     link: `/approvals`,
     metadata: { approvalId },
-  });
-}
-
-/**
- * 実績解除通知
- */
-export async function notifyAchievementUnlocked(
-  achievementName: string,
-  achievementIcon: string
-) {
-  return createNotification({
-    type: "achievement_unlocked",
-    title: "実績解除！",
-    message: `${achievementIcon} 「${achievementName}」を達成しました！`,
-    link: `/achievements`,
   });
 }
 

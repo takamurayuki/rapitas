@@ -17,7 +17,7 @@ import {
   ChevronRight,
   Target,
   BarChart3,
-  Trophy,
+  CalendarClock,
   Flame,
   Brain,
   FileText,
@@ -48,6 +48,7 @@ import {
   User,
   LogOut,
   Package,
+  Activity,
 } from 'lucide-react';
 import AppIcon from '@/components/AppIcon';
 import GlobalPomodoroWidget from '@/feature/tasks/pomodoro/GlobalPomodoroWidget';
@@ -422,12 +423,6 @@ export default function Header() {
       shortcut: getShortcutLabel('dashboard'),
     },
     {
-      href: '/calendar',
-      label: t('calendar'),
-      icon: Calendar,
-      shortcut: getShortcutLabel('calendar'),
-    },
-    {
       href: '#',
       label: t('learning'),
       icon: GraduationCap,
@@ -453,8 +448,14 @@ export default function Header() {
     {
       href: '#',
       label: t('habitsAchievements'),
-      icon: Trophy,
+      icon: CalendarClock,
       children: [
+        {
+          href: '/calendar',
+          label: t('calendar'),
+          icon: Calendar,
+          shortcut: getShortcutLabel('calendar'),
+        },
         {
           href: '/habits',
           label: t('habitTracker'),
@@ -464,11 +465,6 @@ export default function Header() {
           href: '/habits/daily-schedule',
           label: t('dailySchedule'),
           icon: Clock,
-        },
-        {
-          href: '/achievements',
-          label: t('achievementsBadges'),
-          icon: Trophy,
         },
         {
           href: '/reports',
@@ -525,7 +521,34 @@ export default function Header() {
               label: t('versionControl'),
               icon: Package,
             },
+            {
+              href: '#',
+              label: t('knowledgeBase'),
+              icon: Brain,
+              children: [
+                {
+                  href: '/knowledge',
+                  label: t('knowledgeBrowser'),
+                  icon: Brain,
+                },
+                {
+                  href: '/knowledge/contradictions',
+                  label: t('contradictions'),
+                  icon: NotebookTabs,
+                },
+                {
+                  href: '/knowledge/admin',
+                  label: t('memoryAdmin'),
+                  icon: Settings,
+                },
+              ],
+            },
           ],
+        },
+        {
+          href: '/orchestra',
+          label: t('orchestra'),
+          icon: Activity,
         },
         {
           href: '/approvals',
@@ -541,28 +564,6 @@ export default function Header() {
           href: '/claude-md-generator',
           label: t('claudeGeneration'),
           icon: Sparkles,
-        },
-      ],
-    },
-    {
-      href: '#',
-      label: t('knowledgeBase'),
-      icon: Brain,
-      children: [
-        {
-          href: '/knowledge',
-          label: t('knowledgeBrowser'),
-          icon: Brain,
-        },
-        {
-          href: '/knowledge/contradictions',
-          label: t('contradictions'),
-          icon: NotebookTabs,
-        },
-        {
-          href: '/knowledge/admin',
-          label: t('memoryAdmin'),
-          icon: Settings,
         },
       ],
     },

@@ -57,10 +57,12 @@ export { urlMetadataRoutes } from "./system/url-metadata";
 export { screenshotsRoutes } from "./system/screenshots";
 export { rateLimitRoutes } from "./system/rate-limits";
 export { directoriesRoutes } from "./system/directories";
+export { smartActionRoutes } from "./system/smart-action";
 
 // Workflow - ワークフロー関連
 export { workflowRoutes } from "./workflow/workflow";
 export { workflowRolesRoutes } from "./workflow/workflow-roles";
+export { orchestraRoutes } from "./workflow/orchestra";
 
 // Social - コミュニケーション・外部連携
 export { commentsRoutes } from "./social/comments";
@@ -69,7 +71,6 @@ export { githubRoutes, taskGithubRoutes } from "./social/github";
 // Analytics - 分析・レポート
 export { statisticsRoutes } from "./analytics/statistics";
 export { reportsRoutes } from "./analytics/reports";
-export { achievementsRoutes } from "./analytics/achievements";
 
 // Lifestyle - 生活管理
 export { habitsRoutes } from "./lifestyle/habits";

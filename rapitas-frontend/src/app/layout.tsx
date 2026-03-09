@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
 import KeyboardShortcuts from '@/components/KeyboardShortcuts';
-import AchievementNotifications from '@/components/AchievementToast';
 import { ResumableExecutionsBanner } from '@/components/ResumableExecutionsBanner';
 import ScheduleReminderProvider from '@/components/ScheduleReminderProvider';
 import { Suspense } from 'react';
@@ -12,6 +11,7 @@ import { PomodoroProvider } from '@/feature/tasks/pomodoro/PomodoroProvider';
 import ExternalLinksProvider from '@/components/ExternalLinksProvider';
 import NoteProvider from '@/components/note/NoteProvider';
 import CacheWarmupInitializer from '@/components/CacheWarmupInitializer';
+import SmartCommandBar from '@/components/smart-command-bar/SmartCommandBar';
 import { AuthProvider } from '@/contexts/AuthContext';
 import ConditionalHeader from '@/components/ConditionalHeader';
 import IntlProvider from '@/components/IntlProvider';
@@ -87,7 +87,6 @@ export default function RootLayout({
                     <Suspense fallback={null}>
                       <KeyboardShortcuts />
                     </Suspense>
-                    <AchievementNotifications />
                     <Suspense fallback={null}>
                       <ResumableExecutionsBanner />
                     </Suspense>
@@ -96,6 +95,9 @@ export default function RootLayout({
                       <NoteProvider />
                     </Suspense>
                     <CacheWarmupInitializer />
+                    <Suspense fallback={null}>
+                      <SmartCommandBar />
+                    </Suspense>
                   </Suspense>
                 </ExternalLinksProvider>
               </ToastProvider>

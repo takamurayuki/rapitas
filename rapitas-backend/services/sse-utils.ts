@@ -46,8 +46,6 @@ export function createSSEHeaders(): Headers {
   headers.set("Content-Type", "text/event-stream");
   headers.set("Cache-Control", "no-cache");
   headers.set("Connection", "keep-alive");
-  headers.set("Access-Control-Allow-Origin", "*");
-  headers.set("Access-Control-Allow-Headers", "Content-Type");
   return headers;
 }
 

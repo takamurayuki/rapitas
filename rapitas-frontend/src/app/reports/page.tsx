@@ -15,12 +15,16 @@ import {
 import { API_BASE_URL } from '@/utils/api';
 import BurnupChart from '@/components/BurnupChart';
 import { createLogger } from '@/lib/logger';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('ReportsPage');
 
 export default function ReportsPage() {
   const t = useTranslations('reports');
   const tc = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const [report, setReport] = useState<WeeklyReport | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -106,8 +110,8 @@ export default function ReportsPage() {
               {t('title')}
             </h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {new Date(report.period.start).toLocaleDateString('ja-JP')} 〜{' '}
-              {new Date(report.period.end).toLocaleDateString('ja-JP')}
+              {new Date(report.period.start).toLocaleDateString(dateLocale)} 〜{' '}
+              {new Date(report.period.end).toLocaleDateString(dateLocale)}
             </p>
           </div>
         </div>
@@ -192,7 +196,7 @@ export default function ReportsPage() {
                     }}
                   />
                   <span className="text-xs text-zinc-400 mt-1">
-                    {new Date(day.date).toLocaleDateString('ja-JP', {
+                    {new Date(day.date).toLocaleDateString(dateLocale, {
                       weekday: 'short',
                     })}
                   </span>

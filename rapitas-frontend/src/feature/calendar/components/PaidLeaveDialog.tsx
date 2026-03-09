@@ -9,6 +9,8 @@ import {
   Coffee,
 } from 'lucide-react';
 import type { ScheduleEventInput } from '@/types';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const REMINDER_OPTIONS = [
   { value: null, label: 'なし' },
@@ -59,6 +61,8 @@ export default function PaidLeaveDialog({
   onSubmit,
   remainingDays = 20,
 }: Props) {
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const defaults = getDefaultTimes();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -168,7 +172,7 @@ export default function PaidLeaveDialog({
     }
   };
 
-  const formattedStartDate = new Date(startDate).toLocaleDateString('ja-JP', {
+  const formattedStartDate = new Date(startDate).toLocaleDateString(dateLocale, {
     month: 'long',
     day: 'numeric',
     weekday: 'short',
@@ -176,7 +180,7 @@ export default function PaidLeaveDialog({
 
   const formattedEndDate =
     isMultiDay && endDate > startDate
-      ? new Date(endDate).toLocaleDateString('ja-JP', {
+      ? new Date(endDate).toLocaleDateString(dateLocale, {
           month: 'long',
           day: 'numeric',
           weekday: 'short',

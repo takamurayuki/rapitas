@@ -47,7 +47,7 @@ export function useAnalyticsDashboard(initialRange?: DateRange) {
       const result = await res.json();
       setData(result);
     } catch (error) {
-      logger.error('Failed to fetch analytics data:', error);
+      logger.transientError('Failed to fetch analytics data:', error);
     } finally {
       setIsLoading(false);
     }

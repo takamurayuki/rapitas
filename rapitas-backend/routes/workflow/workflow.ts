@@ -6,6 +6,7 @@ import { Elysia } from 'elysia';
 import { readFile, writeFile, mkdir, stat } from 'fs/promises';
 import { join } from 'path';
 import { prisma } from '../../config';
+import { NotFoundError, ValidationError, parseId } from '../../middleware/error-handler';
 import { sanitizeMarkdownContent } from '../../utils/mojibake-detector';
 import { analyzeTaskComplexity, getWorkflowModeConfig, type TaskComplexityInput } from '../../services/workflow/complexity-analyzer';
 import { AgentOrchestrator } from '../../services/agents/agent-orchestrator';
@@ -311,16 +312,11 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
   // ワークフローファイル一覧取得
   .get('/tasks/:taskId/files', async ({ params, set }) => {
     try {
-      const taskId = parseInt(params.taskId);
-      if (isNaN(taskId)) {
-        set.status = 400;
-        return { error: 'Invalid task ID' };
-      }
+      const taskId = parseId(params.taskId, 'task ID');
 
       const resolved = await resolveWorkflowDir(taskId);
       if (!resolved) {
-        set.status = 404;
-        return { error: 'Task not found' };
+        throw new NotFoundError('Task not found');
       }
 
       const { task, dir, categoryId, themeId } = resolved;
@@ -346,38 +342,31 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         },
       };
     } catch (err) {
+      if (err instanceof ValidationError || err instanceof NotFoundError) throw err;
       log.error({ err: err }, 'Error fetching workflow files');
-      set.status = 500;
-      return { error: 'Failed to fetch workflow files' };
+      throw err;
     }
   })
 
   // ワークフローファイル保存
   .put('/tasks/:taskId/files/:fileType', async ({ params, body, set }) => {
     try {
-      const taskId = parseInt(params.taskId);
-      if (isNaN(taskId)) {
-        set.status = 400;
-        return { error: 'Invalid task ID' };
-      }
+      const taskId = parseId(params.taskId, 'task ID');
 
       const fileType = params.fileType as WorkflowFileType;
       if (!VALID_FILE_TYPES.includes(fileType)) {
-        set.status = 400;
-        return { error: `Invalid file type. Must be one of: ${VALID_FILE_TYPES.join(', ')}` };
+        throw new ValidationError(`Invalid file type. Must be one of: ${VALID_FILE_TYPES.join(', ')}`);
       }
 
       const resolved = await resolveWorkflowDir(taskId);
       if (!resolved) {
-        set.status = 404;
-        return { error: 'Task not found' };
+        throw new NotFoundError('Task not found');
       }
 
       const { dir } = resolved;
       const parsedBody = body as { content: string };
       if (!parsedBody?.content && parsedBody?.content !== '') {
-        set.status = 400;
-        return { error: 'content is required' };
+        throw new ValidationError('content is required');
       }
 
       // ディレクトリ作成（再帰的）
@@ -430,11 +419,19 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         const userSettings = await prisma.userSettings.findFirst();
         const task = await prisma.task.findUnique({
           where: { id: taskId },
-          select: { autoApprovePlan: true }
+          select: { autoApprovePlan: true, parentId: true }
         });
 
-        // タスクレベルまたはグローバルのいずれかがtrueなら自動承認
-        if (task?.autoApprovePlan || userSettings?.autoApprovePlan) {
+        // サブタスク判定
+        const isSubtask = task?.parentId !== null && task?.parentId !== undefined;
+
+        // タスクレベル / グローバル / サブタスク自動承認のいずれかがtrueなら自動承認
+        const shouldAutoApprove =
+          task?.autoApprovePlan ||
+          userSettings?.autoApprovePlan ||
+          (isSubtask && (userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan);
+
+        if (shouldAutoApprove) {
           // 自動承認: plan_approved に遷移
           await prisma.task.update({
             where: { id: taskId },
@@ -446,7 +443,9 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
           // ActivityLog に自動承認を記録
           const approvalReason = task?.autoApprovePlan
             ? 'task-level autoApprovePlan setting enabled'
-            : 'global autoApprovePlan setting enabled';
+            : isSubtask && (userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan
+              ? 'subtask autoApproveSubtaskPlan setting enabled'
+              : 'global autoApprovePlan setting enabled';
 
           await prisma.activityLog.create({
             data: {
@@ -458,6 +457,8 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
                 reason: approvalReason,
                 taskLevelSetting: task?.autoApprovePlan || false,
                 globalLevelSetting: userSettings?.autoApprovePlan || false,
+                subtaskAutoApprove: isSubtask && !!(userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan,
+                isSubtask,
               }),
               createdAt: new Date(),
             },
@@ -525,31 +526,25 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 
       return response;
     } catch (err) {
+      if (err instanceof ValidationError || err instanceof NotFoundError) throw err;
       log.error({ err: err }, 'Error saving workflow file');
-      set.status = 500;
-      return { error: 'Failed to save workflow file' };
+      throw err;
     }
   })
 
   // プラン承認
   .post('/tasks/:taskId/approve-plan', async ({ params, body, set }) => {
     try {
-      const taskId = parseInt(params.taskId);
-      if (isNaN(taskId)) {
-        set.status = 400;
-        return { error: 'Invalid task ID' };
-      }
+      const taskId = parseId(params.taskId, 'task ID');
 
       const parsedBody = body as { approved: boolean; reason?: string };
       if (typeof parsedBody?.approved !== 'boolean') {
-        set.status = 400;
-        return { error: 'approved (boolean) is required' };
+        throw new ValidationError('approved (boolean) is required');
       }
 
       const task = await prisma.task.findUnique({ where: { id: taskId } });
       if (!task) {
-        set.status = 404;
-        return { error: 'Task not found' };
+        throw new NotFoundError('Task not found');
       }
 
       let newStatus: string;
@@ -583,6 +578,12 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       // 承認された場合、自動的に実装フェーズを開始する
       if (parsedBody.approved) {
         try {
+          // オーケストラキュー内のタスクであれば、キュー経由で再開
+          const { AIOrchestra } = await import('../../services/workflow/ai-orchestra');
+          AIOrchestra.getInstance().handlePlanApproved(taskId).catch((err) => {
+            log.warn({ err }, `[Workflow] Orchestra resume failed for task ${taskId}, falling back to direct advance`);
+          });
+
           const { WorkflowOrchestrator } = await import('../../services/workflow/workflow-orchestrator');
           const orchestrator = WorkflowOrchestrator.getInstance();
           // 非同期で実装フェーズを開始（レスポンスを待たない）
@@ -603,31 +604,25 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         autoAdvance: parsedBody.approved, // フロントエンドにauto-advanceが開始されたことを通知
       };
     } catch (err) {
+      if (err instanceof ValidationError || err instanceof NotFoundError) throw err;
       log.error({ err: err }, 'Error approving plan');
-      set.status = 500;
-      return { error: 'Failed to approve plan' };
+      throw err;
     }
   })
 
   // ワークフローステータス更新
   .put('/tasks/:taskId/status', async ({ params, body, set }) => {
     try {
-      const taskId = parseInt(params.taskId);
-      if (isNaN(taskId)) {
-        set.status = 400;
-        return { error: 'Invalid task ID' };
-      }
+      const taskId = parseId(params.taskId, 'task ID');
 
       const parsedBody = body as { status: string };
       if (!parsedBody?.status || !(VALID_WORKFLOW_STATUSES as readonly string[]).includes(parsedBody.status)) {
-        set.status = 400;
-        return { error: `Invalid status. Must be one of: ${VALID_WORKFLOW_STATUSES.join(', ')}` };
+        throw new ValidationError(`Invalid status. Must be one of: ${VALID_WORKFLOW_STATUSES.join(', ')}`);
       }
 
       const task = await prisma.task.findUnique({ where: { id: taskId } });
       if (!task) {
-        set.status = 404;
-        return { error: 'Task not found' };
+        throw new NotFoundError('Task not found');
       }
 
       const updatedTask = await prisma.task.update({
@@ -654,20 +649,16 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         workflowStatus: parsedBody.status,
       };
     } catch (err) {
+      if (err instanceof ValidationError || err instanceof NotFoundError) throw err;
       log.error({ err: err }, 'Error updating workflow status');
-      set.status = 500;
-      return { error: 'Failed to update workflow status' };
+      throw err;
     }
   })
 
   // ワークフローの次のフェーズを実行
   .post('/workflow/tasks/:taskId/advance', async ({ params, set }) => {
     try {
-      const taskId = parseInt(params.taskId);
-      if (isNaN(taskId)) {
-        set.status = 400;
-        return { error: 'Invalid task ID' };
-      }
+      const taskId = parseId(params.taskId, 'task ID');
 
       const { WorkflowOrchestrator } = await import('../../services/workflow/workflow-orchestrator');
       const orchestrator = WorkflowOrchestrator.getInstance();
@@ -704,33 +695,27 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         async: true,
       };
     } catch (err) {
+      if (err instanceof ValidationError || err instanceof NotFoundError) throw err;
       log.error({ err: err }, 'Error advancing workflow');
-      set.status = 500;
-      return { error: 'Failed to advance workflow' };
+      throw err;
     }
   })
 
   // ワークフローモード手動設定
   .post('/tasks/:taskId/set-mode', async ({ params, body, set }) => {
     try {
-      const taskId = parseInt(params.taskId);
-      if (isNaN(taskId)) {
-        set.status = 400;
-        return { error: 'Invalid task ID' };
-      }
+      const taskId = parseId(params.taskId, 'task ID');
 
       const parsedBody = body as { mode: 'lightweight' | 'standard' | 'comprehensive'; override?: boolean };
       const validModes = ['lightweight', 'standard', 'comprehensive'];
 
       if (!parsedBody?.mode || !validModes.includes(parsedBody.mode)) {
-        set.status = 400;
-        return { error: `Invalid mode. Must be one of: ${validModes.join(', ')}` };
+        throw new ValidationError(`Invalid mode. Must be one of: ${validModes.join(', ')}`);
       }
 
       const task = await prisma.task.findUnique({ where: { id: taskId } });
       if (!task) {
-        set.status = 404;
-        return { error: 'Task not found' };
+        throw new NotFoundError('Task not found');
       }
 
       const updatedTask = await prisma.task.update({
@@ -764,20 +749,16 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         task: updatedTask,
       };
     } catch (err) {
+      if (err instanceof ValidationError || err instanceof NotFoundError) throw err;
       log.error({ err: err }, 'Error setting workflow mode');
-      set.status = 500;
-      return { error: 'Failed to set workflow mode' };
+      throw err;
     }
   })
 
   // タスク複雑度自動分析
   .get('/tasks/:taskId/analyze-complexity', async ({ params, set }) => {
     try {
-      const taskId = parseInt(params.taskId);
-      if (isNaN(taskId)) {
-        set.status = 400;
-        return { error: 'Invalid task ID' };
-      }
+      const taskId = parseId(params.taskId, 'task ID');
 
       const task = await prisma.task.findUnique({
         where: { id: taskId },
@@ -790,8 +771,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       });
 
       if (!task) {
-        set.status = 404;
-        return { error: 'Task not found' };
+        throw new NotFoundError('Task not found');
       }
 
       // TaskComplexityInput を構築
@@ -825,9 +805,9 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         wasOverridden: !!task.workflowModeOverride,
       };
     } catch (err) {
+      if (err instanceof ValidationError || err instanceof NotFoundError) throw err;
       log.error({ err: err }, 'Error analyzing task complexity');
-      set.status = 500;
-      return { error: 'Failed to analyze task complexity' };
+      throw err;
     }
   })
 
@@ -843,7 +823,6 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       };
     } catch (err) {
       log.error({ err: err }, 'Error fetching workflow modes');
-      set.status = 500;
-      return { error: 'Failed to fetch workflow modes' };
+      throw err;
     }
   });

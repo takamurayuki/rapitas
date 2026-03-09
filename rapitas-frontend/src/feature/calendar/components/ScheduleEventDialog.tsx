@@ -2,6 +2,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { X, Clock, Bell, ChevronDown, CalendarDays } from 'lucide-react';
 import type { ScheduleEventInput } from '@/types';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const REMINDER_OPTIONS = [
   { value: null, label: 'なし' },
@@ -68,6 +70,8 @@ export default function ScheduleEventDialog({
   onClose,
   onSubmit,
 }: Props) {
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const defaults = getDefaultTimes();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -171,7 +175,7 @@ export default function ScheduleEventDialog({
     }
   };
 
-  const formattedStartDate = new Date(startDate).toLocaleDateString('ja-JP', {
+  const formattedStartDate = new Date(startDate).toLocaleDateString(dateLocale, {
     month: 'long',
     day: 'numeric',
     weekday: 'short',
@@ -179,7 +183,7 @@ export default function ScheduleEventDialog({
 
   const formattedEndDate =
     isMultiDay && endDate > startDate
-      ? new Date(endDate).toLocaleDateString('ja-JP', {
+      ? new Date(endDate).toLocaleDateString(dateLocale, {
           month: 'long',
           day: 'numeric',
           weekday: 'short',
@@ -222,7 +226,7 @@ export default function ScheduleEventDialog({
                 style={{ backgroundColor: color }}
               >
                 <span className="text-[10px] leading-none opacity-80 uppercase">
-                  {new Date(startDate).toLocaleDateString('ja-JP', {
+                  {new Date(startDate).toLocaleDateString(dateLocale, {
                     month: 'short',
                   })}
                 </span>

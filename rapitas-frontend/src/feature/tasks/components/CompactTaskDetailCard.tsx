@@ -26,6 +26,8 @@ import {
   StickyNote,
 } from 'lucide-react';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 interface CompactTaskDetailCardProps {
   task: Task;
@@ -59,6 +61,8 @@ export default function CompactTaskDetailCard({
   onCreateLink,
   onDeleteLink,
 }: CompactTaskDetailCardProps) {
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const fileResources = resources.filter(
     (r) =>
       r.filePath || r.type === 'file' || r.type === 'image' || r.type === 'pdf',
@@ -169,7 +173,7 @@ export default function CompactTaskDetailCard({
             icon={<Info className="w-4 h-4" />}
             badge={
               <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                更新: {new Date(task.updatedAt).toLocaleDateString('ja-JP')}
+                更新: {new Date(task.updatedAt).toLocaleDateString(dateLocale)}
               </span>
             }
           >
@@ -181,13 +185,13 @@ export default function CompactTaskDetailCard({
               <div className="flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5" />
                 <span>
-                  作成: {new Date(task.createdAt).toLocaleString('ja-JP')}
+                  作成: {new Date(task.createdAt).toLocaleString(dateLocale)}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
                 <span>
-                  更新: {new Date(task.updatedAt).toLocaleString('ja-JP')}
+                  更新: {new Date(task.updatedAt).toLocaleString(dateLocale)}
                 </span>
               </div>
             </div>

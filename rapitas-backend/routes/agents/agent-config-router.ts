@@ -12,6 +12,7 @@ import {
 import {
   logAgentConfigChange,
 } from "../../utils/agent-audit-log";
+import { NotFoundError, ValidationError, parseId } from '../../middleware/error-handler';
 
 export const agentConfigRouter = new Elysia()
   // Agent configuration list (active only)
@@ -65,24 +66,20 @@ export const agentConfigRouter = new Elysia()
     "/agents/:id/toggle-active",
     async (context) => {
       const { params } = context;
-      const agentId = parseInt(params.id, 10);
-      if (isNaN(agentId)) {
-        return { error: "Invalid agent ID" };
-      }
+      const agentId = parseId(params.id, 'agent ID');
 
       const agent = await prisma.aIAgentConfig.findUnique({
         where: { id: agentId },
       });
       if (!agent) {
-        return { error: "Agent not found" };
+        throw new NotFoundError("Agent not found");
       }
 
       // デフォルトエージェントは無効化できない
       if (agent.isDefault && agent.isActive) {
-        return {
-          error:
-            "デフォルトエージェントは無効化できません。先に別のエージェントをデフォルトに設定してください。",
-        };
+        throw new ValidationError(
+          "デフォルトエージェントは無効化できません。先に別のエージェントをデフォルトに設定してください。",
+        );
       }
 
       const updated = await prisma.aIAgentConfig.update({
@@ -138,20 +135,17 @@ export const agentConfigRouter = new Elysia()
     "/agents/:id/set-default",
     async (context) => {
       const { params } = context;
-      const agentId = parseInt(params.id, 10);
-      if (isNaN(agentId)) {
-        return { error: "Invalid agent ID" };
-      }
+      const agentId = parseId(params.id, 'agent ID');
 
       // エージェントが存在し、アクティブであることを確認
       const agent = await prisma.aIAgentConfig.findUnique({
         where: { id: agentId },
       });
       if (!agent) {
-        return { error: "Agent not found" };
+        throw new NotFoundError("Agent not found");
       }
       if (!agent.isActive) {
-        return { error: "Cannot set inactive agent as default" };
+        throw new ValidationError("Cannot set inactive agent as default");
       }
 
       // トランザクション内で実行して、同時に1つのエージェントだけがデフォルトであることを保証
@@ -197,7 +191,7 @@ export const agentConfigRouter = new Elysia()
     });
 
     if (!defaultAgent) {
-      return { error: "No default agent is currently set" };
+      throw new NotFoundError("No default agent is currently set");
     }
 
     const updated = await prisma.aIAgentConfig.update({
@@ -228,13 +222,12 @@ export const agentConfigRouter = new Elysia()
   // Get configuration schema for a specific agent type
   .get(
     "/agents/config-schema/:agentType",
-    async ({ params, set }) => {
+    async ({ params }) => {
       const { agentType } = params;
       const schema = getAgentConfigSchema(agentType);
 
       if (!schema) {
-        set.status = 404;
-        return { error: `Unknown agent type: ${agentType}` };
+        throw new NotFoundError(`Unknown agent type: ${agentType}`);
       }
 
       return { schema };

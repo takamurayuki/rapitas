@@ -1,9 +1,11 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import DOMPurify from 'dompurify';
-import { Save, Pin, Calendar } from 'lucide-react';
+import { Save, Pin, Calendar, Layers, Loader2 } from 'lucide-react';
 import { Note, useNoteStore } from '@/stores/noteStore';
 import { API_BASE_URL } from '@/utils/api';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 import { highlightStyles } from './editor/constants';
 import {
@@ -32,6 +34,8 @@ interface NoteEditorProps {
 
 export default function NoteEditor({ note }: NoteEditorProps) {
   const { updateNote } = useNoteStore();
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const contentRef = useRef<HTMLDivElement>(null);
   const [draftTitle, setDraftTitle] = useState(note.title);
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -50,6 +54,41 @@ export default function NoteEditor({ note }: NoteEditorProps) {
   const [currentFontSize, setCurrentFontSize] = useState('16');
   const [currentFont, setCurrentFont] = useState('inherit');
   const [currentTextColor, setCurrentTextColor] = useState('#000000');
+
+  const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false);
+  const [flashcardResult, setFlashcardResult] = useState<{ deckId: number; deckName: string; cardsCreated: number } | null>(null);
+
+  // ノートからフラッシュカードを生成
+  const handleGenerateFlashcards = useCallback(async () => {
+    const content = contentRef.current?.innerHTML;
+    if (!content || content.trim().length < 20) return;
+
+    setIsGeneratingFlashcards(true);
+    setFlashcardResult(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/flashcards/generate-from-text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: content,
+          deckName: note.title || undefined,
+          count: 10,
+          language: locale,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to generate flashcards');
+      const data = await res.json();
+      setFlashcardResult({
+        deckId: data.deckId,
+        deckName: data.deckName,
+        cardsCreated: data.cardsCreated,
+      });
+    } catch {
+      setFlashcardResult(null);
+    } finally {
+      setIsGeneratingFlashcards(false);
+    }
+  }, [note.title, locale]);
 
   // 現在アクティブな色のspanを追跡
   const activeColorSpanRef = useRef<HTMLSpanElement | null>(null);
@@ -537,6 +576,21 @@ export default function NoteEditor({ note }: NoteEditorProps) {
           <Pin className="w-4 h-4" />
         </button>
         <button
+          onClick={handleGenerateFlashcards}
+          disabled={isGeneratingFlashcards}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-wait"
+          title={locale === 'ja' ? 'フラッシュカード生成' : 'Generate Flashcards'}
+        >
+          {isGeneratingFlashcards ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Layers className="w-3.5 h-3.5" />
+          )}
+          {isGeneratingFlashcards
+            ? (locale === 'ja' ? '生成中...' : 'Generating...')
+            : (locale === 'ja' ? 'カード生成' : 'Flashcards')}
+        </button>
+        <button
           onClick={handleSave}
           disabled={!isDirty}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${
@@ -550,6 +604,23 @@ export default function NoteEditor({ note }: NoteEditorProps) {
           {isDirty ? '保存' : '保存済み'}
         </button>
       </div>
+
+      {/* フラッシュカード生成結果 */}
+      {flashcardResult && (
+        <div className="mx-4 mb-2 flex items-center justify-between px-3 py-2 rounded-lg bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700">
+          <span className="text-sm text-violet-700 dark:text-violet-300">
+            {locale === 'ja'
+              ? `「${flashcardResult.deckName}」に${flashcardResult.cardsCreated}枚のカードを生成しました`
+              : `Generated ${flashcardResult.cardsCreated} cards in "${flashcardResult.deckName}"`}
+          </span>
+          <a
+            href="/flashcards"
+            className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline"
+          >
+            {locale === 'ja' ? '確認する →' : 'View →'}
+          </a>
+        </div>
+      )}
 
       {/* ツールバー */}
       <EditorToolbar
@@ -614,13 +685,13 @@ export default function NoteEditor({ note }: NoteEditorProps) {
         <div className="flex items-center gap-1">
           <Calendar className="w-3 h-3" />
           <span>
-            作成: {new Date(note.createdAt).toLocaleDateString('ja-JP')}
+            作成: {new Date(note.createdAt).toLocaleDateString(dateLocale)}
           </span>
         </div>
         <div className="flex items-center gap-1">
           <Calendar className="w-3 h-3" />
           <span>
-            更新: {new Date(note.updatedAt).toLocaleDateString('ja-JP')}
+            更新: {new Date(note.updatedAt).toLocaleDateString(dateLocale)}
           </span>
         </div>
       </div>

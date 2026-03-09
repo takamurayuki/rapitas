@@ -5,7 +5,7 @@
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
 import { categorySchema } from "../../schemas/category.schema";
-import { NotFoundError, ValidationError } from "../../middleware/error-handler";
+import { NotFoundError, ValidationError, parseId } from "../../middleware/error-handler";
 
 // Default category definitions
 const DEFAULT_CATEGORIES = [

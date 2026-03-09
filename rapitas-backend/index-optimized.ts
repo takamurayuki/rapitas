@@ -26,7 +26,6 @@ import {
   resourcesRoutes,
   directoriesRoutes,
   statisticsRoutes,
-  achievementsRoutes,
   habitsRoutes,
   flashcardsRoutes,
   templatesRoutes,
@@ -160,7 +159,6 @@ app.use(studyStreaksRoutes);
 app.use(resourcesRoutes);
 app.use(directoriesRoutes);
 app.use(statisticsRoutes);
-app.use(achievementsRoutes);
 app.use(habitsRoutes);
 app.use(flashcardsRoutes);
 app.use(templatesRoutes);

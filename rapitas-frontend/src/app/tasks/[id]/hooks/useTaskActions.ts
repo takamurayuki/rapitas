@@ -49,6 +49,9 @@ export function useTaskActions({
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
   const [editingSubtaskDescription, setEditingSubtaskDescription] =
     useState('');
+  const [editingSubtaskPriority, setEditingSubtaskPriority] = useState<Priority>('medium');
+  const [editingSubtaskLabels, setEditingSubtaskLabels] = useState('');
+  const [editingSubtaskEstimatedHours, setEditingSubtaskEstimatedHours] = useState('');
   const [isSubtaskSelectionMode, setIsSubtaskSelectionMode] = useState(false);
   const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<Set<number>>(
     new Set(),
@@ -238,18 +241,24 @@ export function useTaskActions({
     setEditingSubtaskId(subtask.id);
     setEditingSubtaskTitle(subtask.title);
     setEditingSubtaskDescription(subtask.description || '');
+    setEditingSubtaskPriority((subtask.priority as Priority) || 'medium');
+    setEditingSubtaskLabels(getLabelsArray(subtask.labels).join(', '));
+    setEditingSubtaskEstimatedHours(subtask.estimatedHours?.toString() || '');
   }, []);
 
   const cancelEditingSubtask = useCallback(() => {
     setEditingSubtaskId(null);
     setEditingSubtaskTitle('');
     setEditingSubtaskDescription('');
+    setEditingSubtaskPriority('medium');
+    setEditingSubtaskLabels('');
+    setEditingSubtaskEstimatedHours('');
   }, []);
 
   const updateSubtask = useCallback(
     async (
       subtaskId: number,
-      data: { title?: string; description?: string },
+      data: { title?: string; description?: string; priority?: string; labels?: string[]; estimatedHours?: number | null },
     ) => {
       try {
         const res = await fetch(`${API_BASE}/tasks/${subtaskId}`, {
@@ -276,12 +285,21 @@ export function useTaskActions({
 
   const saveSubtaskEdit = useCallback(() => {
     if (editingSubtaskId && editingSubtaskTitle.trim()) {
+      const labelArray = editingSubtaskLabels
+        .split(',')
+        .map((l) => l.trim())
+        .filter(Boolean);
       updateSubtask(editingSubtaskId, {
         title: editingSubtaskTitle,
         description: editingSubtaskDescription || undefined,
+        priority: editingSubtaskPriority,
+        labels: labelArray.length > 0 ? labelArray : undefined,
+        estimatedHours: editingSubtaskEstimatedHours
+          ? parseFloat(editingSubtaskEstimatedHours)
+          : null,
       });
     }
-  }, [editingSubtaskId, editingSubtaskTitle, editingSubtaskDescription, updateSubtask]);
+  }, [editingSubtaskId, editingSubtaskTitle, editingSubtaskDescription, editingSubtaskPriority, editingSubtaskLabels, editingSubtaskEstimatedHours, updateSubtask]);
 
   const toggleSubtaskSelectionMode = useCallback(() => {
     if (isSubtaskSelectionMode) {
@@ -431,6 +449,12 @@ export function useTaskActions({
     setEditingSubtaskTitle,
     editingSubtaskDescription,
     setEditingSubtaskDescription,
+    editingSubtaskPriority,
+    setEditingSubtaskPriority,
+    editingSubtaskLabels,
+    setEditingSubtaskLabels,
+    editingSubtaskEstimatedHours,
+    setEditingSubtaskEstimatedHours,
     isSubtaskSelectionMode,
     selectedSubtaskIds,
     showSubtaskDeleteConfirm,

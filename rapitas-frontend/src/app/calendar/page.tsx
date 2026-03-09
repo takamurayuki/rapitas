@@ -27,6 +27,8 @@ import PaidLeaveDialog from '@/feature/calendar/components/PaidLeaveDialog';
 import { getHolidaysForMonth } from '@/utils/holidays';
 import type { PaidLeaveBalance } from '@/types';
 import { createLogger } from '@/lib/logger';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('CalendarPage');
 const API_BASE = API_BASE_URL;
@@ -49,6 +51,8 @@ export default function CalendarPage() {
   const router = useRouter();
   const t = useTranslations('calendar');
   const tc = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const { showToast } = useToast();
   const cachedTasks = useTaskCacheStore((s) => s.tasks);
   const taskCacheInitialized = useTaskCacheStore((s) => s.initialized);
@@ -836,7 +840,7 @@ export default function CalendarPage() {
             <div>
               <h3 className="font-semibold text-zinc-800 dark:text-zinc-200">
                 {selectedDate
-                  ? new Date(selectedDate).toLocaleDateString('ja-JP', {
+                  ? new Date(selectedDate).toLocaleDateString(dateLocale, {
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric',
@@ -937,12 +941,12 @@ export default function CalendarPage() {
                             <span className="flex items-center gap-1 text-xs text-indigo-500 dark:text-indigo-400">
                               <CalendarIcon className="w-3 h-3" />
                               {new Date(event.date).toLocaleDateString(
-                                'ja-JP',
+                                dateLocale,
                                 { month: 'short', day: 'numeric' },
                               )}
                               {' 〜 '}
                               {new Date(event.endDate).toLocaleDateString(
-                                'ja-JP',
+                                dateLocale,
                                 { month: 'short', day: 'numeric' },
                               )}
                             </span>
@@ -1045,7 +1049,7 @@ export default function CalendarPage() {
 
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
               {t('deadline')}:{' '}
-              {new Date(selectedDate).toLocaleDateString('ja-JP', {
+              {new Date(selectedDate).toLocaleDateString(dateLocale, {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',

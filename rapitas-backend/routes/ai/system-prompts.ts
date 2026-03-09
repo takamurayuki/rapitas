@@ -4,6 +4,7 @@
  */
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
+import { NotFoundError, ValidationError, ConflictError } from '../../middleware/error-handler';
 
 // デフォルトのシステムプロンプト定義
 const DEFAULT_SYSTEM_PROMPTS = [
@@ -499,14 +500,13 @@ export const systemPromptsRoutes = new Elysia()
 
   // システムプロンプト取得（キーで）
   .get("/system-prompts/:key", async (context) => {
-      const { params, set  } = context;
+      const { params } = context;
     const prompt = await prisma.systemPrompt.findUnique({
       where: { key: params.key },
     });
 
     if (!prompt) {
-      set.status = 404;
-      return { error: "システムプロンプトが見つかりません" };
+      throw new NotFoundError("システムプロンプトが見つかりません");
     }
 
     return prompt;
@@ -516,7 +516,7 @@ export const systemPromptsRoutes = new Elysia()
   .post(
     "/system-prompts",
     async (context) => {
-      const { body, set } = context;
+      const { body } = context;
       const { key, name, description, content, category } = body as {
         key: string;
         name: string;
@@ -526,8 +526,7 @@ export const systemPromptsRoutes = new Elysia()
       };
 
       if (!key || !name || !content) {
-        set.status = 400;
-        return { error: "key, name, content は必須です" };
+        throw new ValidationError("key, name, content は必須です");
       }
 
       const existing = await prisma.systemPrompt.findUnique({
@@ -535,8 +534,7 @@ export const systemPromptsRoutes = new Elysia()
       });
 
       if (existing) {
-        set.status = 409;
-        return { error: "同じキーのプロンプトが既に存在します" };
+        throw new ConflictError("同じキーのプロンプトが既に存在します");
       }
 
       const prompt = await prisma.systemPrompt.create({
@@ -558,14 +556,13 @@ export const systemPromptsRoutes = new Elysia()
   .patch(
     "/system-prompts/:key",
     async (context) => {
-      const { params, body, set } = context;
+      const { params, body } = context;
       const existing = await prisma.systemPrompt.findUnique({
         where: { key: params.key },
       });
 
       if (!existing) {
-        set.status = 404;
-        return { error: "システムプロンプトが見つかりません" };
+        throw new NotFoundError("システムプロンプトが見つかりません");
       }
 
       const { name, description, content, category, isActive } = body as {
@@ -595,19 +592,17 @@ export const systemPromptsRoutes = new Elysia()
   .delete(
     "/system-prompts/:key",
     async (context) => {
-      const { params, set  } = context;
+      const { params } = context;
       const existing = await prisma.systemPrompt.findUnique({
         where: { key: params.key },
       });
 
       if (!existing) {
-        set.status = 404;
-        return { error: "システムプロンプトが見つかりません" };
+        throw new NotFoundError("システムプロンプトが見つかりません");
       }
 
       if (existing.isDefault) {
-        set.status = 400;
-        return { error: "デフォルトプロンプトは削除できません。無効化してください。" };
+        throw new ValidationError("デフォルトプロンプトは削除できません。無効化してください。");
       }
 
       await prisma.systemPrompt.delete({
@@ -622,11 +617,10 @@ export const systemPromptsRoutes = new Elysia()
   .post(
     "/system-prompts/:key/reset",
     async (context) => {
-      const { params, set  } = context;
+      const { params } = context;
       const defaultPrompt = DEFAULT_SYSTEM_PROMPTS.find((p) => p.key === params.key);
       if (!defaultPrompt) {
-        set.status = 404;
-        return { error: "デフォルトプロンプトが見つかりません" };
+        throw new NotFoundError("デフォルトプロンプトが見つかりません");
       }
 
       const updated = await prisma.systemPrompt.upsert({

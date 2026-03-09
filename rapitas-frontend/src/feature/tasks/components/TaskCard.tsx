@@ -19,6 +19,8 @@ import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
 import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('TaskCard');
 
@@ -52,6 +54,8 @@ const TaskCard = memo(function TaskCard({
   const t = useTranslations('task');
   const tc = useTranslations('common');
   const tHome = useTranslations('home');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const cardRef = useRef<HTMLDivElement>(null);
   const [expandedSubtasks, setExpandedSubtasks] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -386,45 +390,45 @@ const TaskCard = memo(function TaskCard({
               )}
             </div>
           </div>
-
           {/* メタ情報 */}
           <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-            {/* 作成日 */}
-            <span className="shrink-0">
-              {new Date(task.createdAt).toLocaleDateString('ja-JP', {
-                month: 'numeric',
-                day: 'numeric',
-              })}
-            </span>
-
             {localSubtasks.length > 0 && (
               <>
-                <span className="text-zinc-300 dark:text-zinc-700">•</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setExpandedSubtasks(!expandedSubtasks);
-                  }}
-                  className="shrink-0 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1 transition-all duration-200 ease-out hover:scale-105"
-                >
-                  <svg
-                    className={`w-3 h-3 transition-transform duration-300 ease-out ${
-                      expandedSubtasks ? 'rotate-90' : ''
-                    }`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                <div className="shrink-0 flex items-center gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedSubtasks(!expandedSubtasks);
+                    }}
+                    className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1 transition-all duration-200 ease-out hover:scale-105"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                  {localSubtasks.filter((s) => s.status === 'done').length}/
-                  {localSubtasks.length}
-                </button>
+                    <svg
+                      className={`w-3 h-3 transition-transform duration-300 ease-out ${
+                        expandedSubtasks ? 'rotate-90' : ''
+                      }`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                    {localSubtasks.filter((s) => s.status === 'done').length}/
+                    {localSubtasks.length}
+                  </button>
+                  {completionRate !== null && (
+                    <div className="w-75 h-1 ml-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${getProgressBarColor(completionRate)} transition-all duration-700 ease-out`}
+                        style={{ width: `${completionRate}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
               </>
             )}
 
@@ -475,18 +479,6 @@ const TaskCard = memo(function TaskCard({
               </>
             ) : null}
           </div>
-
-          {/* プログレスバー */}
-          {localSubtasks.length > 0 && completionRate !== null && (
-            <div className="mt-1.5 h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-              <div
-                className={`h-full ${getProgressBarColor(
-                  completionRate,
-                )} transition-all duration-700 ease-out`}
-                style={{ width: `${completionRate}%` }}
-              />
-            </div>
-          )}
         </div>
 
         {/* 右: クイックアクション（常に表示） */}

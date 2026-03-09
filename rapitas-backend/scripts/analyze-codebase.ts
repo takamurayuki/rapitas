@@ -186,6 +186,17 @@ interface ArchitectureHealth {
   layerViolations: { file: string; message: string }[];
 }
 
+interface MaintainabilityMetrics {
+  fileSizeScore: number; // % of files under 500 lines
+  functionLengthScore: number; // % of functions under 100 lines
+  nestingScore: number; // based on avg max nesting depth
+  duplicationScore: number; // based on duplicated block ratio
+  duplicatedBlocks: { hash: string; files: { path: string; startLine: number }[]; lines: number }[];
+  totalDuplicatedLines: number;
+  duplicationRatio: number; // duplicated lines / total lines
+  avgCyclomaticComplexity: number; // proxy based on branching
+}
+
 interface AnalysisResult {
   metadata: {
     generatedAt: string;
@@ -262,6 +273,7 @@ interface AnalysisResult {
     untestedCriticalFiles: string[];
   };
   architectureHealth: ArchitectureHealth;
+  maintainability: MaintainabilityMetrics;
   aiAgent: {
     providers: string[];
     agentTypes: string[];
@@ -275,6 +287,7 @@ interface AnalysisResult {
   featureCompleteness: FeatureArea[];
   scoring: {
     qualityScore: number;
+    maintainabilityScore: number;
     featureCoverageScore: number;
     architectureScore: number;
     securityScore: number;
@@ -1484,7 +1497,7 @@ const FEATURE_AREAS_CONFIG = [
   },
   {
     name: "分析/レポート",
-    keywords: ["report", "statistic", "achievement", "analytics", "burnup", "progress"],
+    keywords: ["report", "statistic", "analytics", "burnup", "progress"],
   },
 ];
 
@@ -1596,7 +1609,163 @@ function collectFeatureCompleteness(
   });
 }
 
-// ─── Scoring (Enhanced Multi-dimensional) ─────────────────────────────────────
+// ─── Maintainability Metrics ──────────────────────────────────────────────────
+
+function collectMaintainabilityMetrics(
+  files: FileInfo[],
+  complexity: AnalysisResult["complexity"],
+): MaintainabilityMetrics {
+  const tsFiles = files.filter(
+    (f) =>
+      (f.ext === ".ts" || f.ext === ".tsx") &&
+      !f.relativePath.match(/\.(test|spec)\./) &&
+      !f.relativePath.includes("__tests__") &&
+      !f.relativePath.includes("scripts/"),
+  );
+
+  // 1. File size distribution score (% under 500 lines)
+  const filesUnder500 = tsFiles.filter((f) => f.lines <= 500).length;
+  const fileSizeScore =
+    tsFiles.length > 0 ? Math.round((filesUnder500 / tsFiles.length) * 100) : 100;
+
+  // 2. Function length score (% of detected functions under 100 lines)
+  const totalLongFunctions = complexity.longFunctions.length;
+  // Estimate total functions from file count (rough heuristic: ~3 functions per file)
+  const estimatedTotalFunctions = tsFiles.length * 3;
+  const functionLengthScore =
+    estimatedTotalFunctions > 0
+      ? Math.round(
+          ((estimatedTotalFunctions - totalLongFunctions) /
+            estimatedTotalFunctions) *
+            100,
+        )
+      : 100;
+
+  // 3. Nesting depth score
+  const nestingWarnings = complexity.warnings.filter(
+    (w) => w.type === "deep_nesting",
+  );
+  const avgMaxNesting =
+    nestingWarnings.length > 0
+      ? nestingWarnings.reduce((sum, w) => {
+          const depthMatch = w.message.match(/(\d+)\s*levels/);
+          return sum + (depthMatch ? parseInt(depthMatch[1]) : 5);
+        }, 0) / nestingWarnings.length
+      : 3;
+  // Score: depth 3 = 100, depth 5 = 80, depth 8 = 50, depth 12+ = 0
+  const nestingScore = Math.max(0, Math.min(100, Math.round(140 - avgMaxNesting * 12)));
+
+  // 4. Code duplication detection (normalized line hashing)
+  const BLOCK_SIZE = 6; // consecutive lines to form a block
+  const blockMap = new Map<string, { path: string; startLine: number }[]>();
+  let totalSourceLines = 0;
+
+  for (const f of tsFiles) {
+    const lines = f.content.split("\n");
+    totalSourceLines += lines.length;
+
+    for (let i = 0; i <= lines.length - BLOCK_SIZE; i++) {
+      const block = lines
+        .slice(i, i + BLOCK_SIZE)
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0 && !l.startsWith("//") && !l.startsWith("*") && !l.startsWith("import "));
+
+      // Skip blocks with too few meaningful lines
+      if (block.length < 4) continue;
+
+      const normalized = block
+        .map((l) =>
+          l
+            .replace(/\s+/g, " ")
+            .replace(/["'`][^"'`]*["'`]/g, '""') // normalize strings
+            .replace(/\d+/g, "0") // normalize numbers
+        )
+        .join("\n");
+
+      // Skip trivial blocks (just braces, returns, etc.)
+      if (normalized.length < 80) continue;
+
+      // Simple hash
+      let hash = 0;
+      for (let c = 0; c < normalized.length; c++) {
+        hash = ((hash << 5) - hash + normalized.charCodeAt(c)) | 0;
+      }
+      const hashStr = hash.toString(36);
+
+      if (!blockMap.has(hashStr)) blockMap.set(hashStr, []);
+      blockMap.get(hashStr)!.push({ path: f.relativePath, startLine: i + 1 });
+    }
+  }
+
+  // Filter to only blocks that appear in 2+ different files
+  const duplicatedBlocks: MaintainabilityMetrics["duplicatedBlocks"] = [];
+  let totalDuplicatedLines = 0;
+
+  for (const [hash, locations] of blockMap.entries()) {
+    // Get unique files
+    const uniqueFiles = new Set(locations.map((l) => l.path));
+    if (uniqueFiles.size >= 2) {
+      // Deduplicate locations per file (keep first occurrence)
+      const deduped = new Map<string, { path: string; startLine: number }>();
+      for (const loc of locations) {
+        if (!deduped.has(loc.path)) deduped.set(loc.path, loc);
+      }
+      const dedupedLocs = [...deduped.values()];
+
+      duplicatedBlocks.push({
+        hash,
+        files: dedupedLocs,
+        lines: BLOCK_SIZE,
+      });
+      totalDuplicatedLines += BLOCK_SIZE * (dedupedLocs.length - 1);
+    }
+  }
+
+  // Cap and sort
+  duplicatedBlocks.sort((a, b) => b.files.length - a.files.length);
+  const topDuplicates = duplicatedBlocks.slice(0, 30);
+
+  const duplicationRatio =
+    totalSourceLines > 0
+      ? Math.round((totalDuplicatedLines / totalSourceLines) * 10000) / 10000
+      : 0;
+
+  // duplicationScore: 0% = 100, 5% = 75, 10% = 50, 20%+ = 0
+  const duplicationScore = Math.max(
+    0,
+    Math.min(100, Math.round(100 - duplicationRatio * 500)),
+  );
+
+  // 5. Cyclomatic complexity proxy (count branches per file)
+  let totalBranches = 0;
+  let fileCount = 0;
+  for (const f of tsFiles) {
+    const branches = (
+      f.content.match(
+        /\b(if|else if|switch|case|for|while|do|catch|\?\?|&&|\|\||ternary)\b/g,
+      ) || []
+    ).length;
+    // Also count ternary operators
+    const ternaries = (f.content.match(/\?[^?:]*:/g) || []).length;
+    totalBranches += branches + ternaries;
+    fileCount++;
+  }
+  const avgCyclomaticComplexity =
+    fileCount > 0 ? Math.round((totalBranches / fileCount) * 10) / 10 : 0;
+
+  return {
+    fileSizeScore,
+    functionLengthScore,
+    nestingScore,
+    duplicationScore,
+    duplicatedBlocks: topDuplicates,
+    totalDuplicatedLines,
+    duplicationRatio,
+    avgCyclomaticComplexity,
+  };
+}
+
+// ─── Scoring (Enhanced Multi-dimensional v3) ──────────────────────────────────
 
 function computeScoring(
   quality: AnalysisResult["quality"],
@@ -1607,115 +1776,157 @@ function computeScoring(
   security: AnalysisResult["security"],
   apiConsistency: AnalysisResult["apiConsistency"],
   archHealth: ArchitectureHealth,
+  maintainability: MaintainabilityMetrics,
 ): AnalysisResult["scoring"] {
-  // ── Quality Score (0-100) ──
-  let qualityScore = 40; // base
+  // ══════════════════════════════════════════════════════════════════════════════
+  // v3 Scoring — No base scores. Every point is earned.
+  // Weights: Quality 25% | Maintainability 20% | Architecture 20% | Features 15% | Security 20%
+  // ══════════════════════════════════════════════════════════════════════════════
 
-  // Test coverage impact (0-30 points) - progressive scale
-  if (quality.testRatio >= 0.5) qualityScore += 30;
-  else if (quality.testRatio >= 0.3) qualityScore += 25;
-  else if (quality.testRatio >= 0.2) qualityScore += 20;
-  else if (quality.testRatio >= 0.15) qualityScore += 15;
-  else if (quality.testRatio >= 0.1) qualityScore += 10;
-  else if (quality.testRatio >= 0.05) qualityScore += 5;
-  else qualityScore -= 5;
+  // ── Quality Score (0-100, earned only) ──
+  let qualityScore = 0;
 
-  // Type safety (0-15 points)
-  const anyPer1000 = quality.anyUsage / (codeMetrics.totalLines / 1000);
-  if (anyPer1000 < 0.5) qualityScore += 15;
-  else if (anyPer1000 < 1) qualityScore += 10;
-  else if (anyPer1000 < 3) qualityScore += 5;
-  else if (anyPer1000 > 10) qualityScore -= 10;
+  // Test coverage (0-35 pts) — stricter, linear scale
+  const testCoveragePoints = Math.min(35, Math.round(quality.testRatio * 70));
+  qualityScore += testCoveragePoints;
 
-  // Code hygiene (0-10 points)
-  if (quality.consoleLogCount === 0) qualityScore += 5;
-  else if (quality.consoleLogCount < 10) qualityScore += 3;
-  else if (quality.consoleLogCount > 50) qualityScore -= 5;
-
-  if (quality.todoCount + quality.fixmeCount + quality.hackCount === 0)
-    qualityScore += 5;
-  else if (quality.todoCount + quality.fixmeCount > 20) qualityScore -= 5;
-
-  // Empty catch blocks penalty
-  if (quality.emptyTryCatchCount > 20) qualityScore -= 10;
-  else if (quality.emptyTryCatchCount > 5) qualityScore -= 5;
-
-  // Complexity penalty
-  if (complexity.godObjects.length > 5) qualityScore -= 10;
-  else if (complexity.godObjects.length > 2) qualityScore -= 5;
-
-  // Assertion density bonus (tests actually assert behavior)
+  // Assertion quality (0-15 pts) — tests must actually assert things
   const assertionsPerTest =
     quality.testFiles > 0 ? quality.assertionCount / quality.testFiles : 0;
-  if (assertionsPerTest >= 5) qualityScore += 5;
-  else if (assertionsPerTest >= 3) qualityScore += 3;
+  if (assertionsPerTest >= 10) qualityScore += 15;
+  else if (assertionsPerTest >= 5) qualityScore += 10;
+  else if (assertionsPerTest >= 3) qualityScore += 7;
+  else if (assertionsPerTest >= 1) qualityScore += 3;
+
+  // Type safety (0-20 pts)
+  const anyPer1000 = quality.anyUsage / (codeMetrics.totalLines / 1000);
+  if (anyPer1000 < 0.1) qualityScore += 20;
+  else if (anyPer1000 < 0.5) qualityScore += 15;
+  else if (anyPer1000 < 1) qualityScore += 10;
+  else if (anyPer1000 < 3) qualityScore += 5;
+  // >3 per 1000 lines = 0 pts
+
+  // Code hygiene (0-15 pts)
+  if (quality.consoleLogCount === 0) qualityScore += 8;
+  else if (quality.consoleLogCount < 5) qualityScore += 5;
+  else if (quality.consoleLogCount < 20) qualityScore += 2;
+
+  if (quality.todoCount + quality.fixmeCount + quality.hackCount === 0)
+    qualityScore += 7;
+  else if (quality.todoCount + quality.fixmeCount + quality.hackCount < 5)
+    qualityScore += 4;
+  else if (quality.todoCount + quality.fixmeCount + quality.hackCount < 15)
+    qualityScore += 2;
+
+  // Empty catch blocks penalty (0 to -15)
+  if (quality.emptyTryCatchCount > 20) qualityScore -= 15;
+  else if (quality.emptyTryCatchCount > 10) qualityScore -= 10;
+  else if (quality.emptyTryCatchCount > 5) qualityScore -= 5;
+  else if (quality.emptyTryCatchCount > 0) qualityScore -= 2;
+
+  // God objects penalty (0 to -15)
+  if (complexity.godObjects.length > 5) qualityScore -= 15;
+  else if (complexity.godObjects.length > 2) qualityScore -= 10;
+  else if (complexity.godObjects.length > 0) qualityScore -= 5;
 
   qualityScore = Math.max(0, Math.min(100, qualityScore));
 
-  // ── Feature Coverage Score ──
-  const featureCoverageScore = Math.round(
-    features.reduce((sum, f) => sum + f.score, 0) / features.length,
+  // ── Maintainability Score (0-100, earned only) ──
+  // Directly from metrics: weighted average of sub-scores
+  const maintainabilityScore = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        maintainability.fileSizeScore * 0.25 +
+          maintainability.functionLengthScore * 0.20 +
+          maintainability.nestingScore * 0.15 +
+          maintainability.duplicationScore * 0.25 +
+          // Cyclomatic complexity proxy: avg <20 = 100, avg 40 = 50, avg 60+ = 0
+          Math.max(0, Math.min(100, Math.round(150 - maintainability.avgCyclomaticComplexity * 2.5))) * 0.15,
+      ),
+    ),
   );
 
-  // ── Architecture Score (0-100) ──
-  let architectureScore = 50;
+  // ── Feature Coverage Score (0-100, quality-weighted) ──
+  // v3: Multiply raw quantity score by test coverage ratio per feature
+  // A feature with 0 tests gets its score halved
+  const featureScores = features.map((f) => {
+    const rawScore = f.score;
+    const featureTestRatio =
+      f.untestedSourceFiles.length > 0 && (f.routes + f.services + f.components + f.hooks) > 0
+        ? 1 -
+          f.untestedSourceFiles.length /
+            (f.routes + f.services + f.components + f.hooks + f.untestedSourceFiles.length)
+        : 1;
+    // Quality multiplier: 0.5 (no tests) → 1.0 (full coverage)
+    const qualityMultiplier = 0.5 + featureTestRatio * 0.5;
+    return Math.round(rawScore * qualityMultiplier);
+  });
+  const featureCoverageScore = Math.round(
+    featureScores.reduce((sum, s) => sum + s, 0) / featureScores.length,
+  );
 
-  // API richness (0-10)
-  if (arch.backend.endpoints.length > 100) architectureScore += 10;
-  else if (arch.backend.endpoints.length > 50) architectureScore += 5;
+  // ── Architecture Score (0-100, earned only) ──
+  let architectureScore = 0;
 
-  // Model richness (0-5)
-  if (arch.prisma.modelCount > 30) architectureScore += 5;
+  // REST conformance (0-25 pts) — largest single factor
+  architectureScore += Math.round(apiConsistency.restConformanceScore * 0.25);
 
-  // REST conformance (0-10)
-  architectureScore += Math.round(apiConsistency.restConformanceScore * 0.1);
+  // Layer separation (0-25 pts)
+  if (archHealth.layerViolations.length === 0) architectureScore += 25;
+  else if (archHealth.layerViolations.length <= 2) architectureScore += 15;
+  else if (archHealth.layerViolations.length <= 5) architectureScore += 8;
+  // >5 = 0 pts
 
-  // Service layer separation (0-5)
-  const serviceCount = arch.backend.services.length;
-  if (serviceCount > 30) architectureScore += 5;
-  else if (serviceCount > 15) architectureScore += 3;
+  // Coupling/Cohesion (0-20 pts)
+  architectureScore += Math.round(archHealth.couplingScore * 0.10);
+  architectureScore += Math.round(archHealth.cohesionScore * 0.10);
 
-  // Modularity bonus - well-organized directory structure (0-5)
-  if (archHealth.modularity > 60) architectureScore += 5;
-  else if (archHealth.modularity > 40) architectureScore += 3;
+  // Modularity (0-15 pts)
+  if (archHealth.modularity > 70) architectureScore += 15;
+  else if (archHealth.modularity > 50) architectureScore += 10;
+  else if (archHealth.modularity > 30) architectureScore += 5;
 
-  // Layer violation penalty
-  if (archHealth.layerViolations.length > 10) architectureScore -= 15;
-  else if (archHealth.layerViolations.length > 5) architectureScore -= 10;
-  else if (archHealth.layerViolations.length > 0) architectureScore -= 5;
+  // Service layer presence (0-5 pts) — minimal quantity bonus, capped low
+  if (arch.backend.services.length >= 10) architectureScore += 5;
+  else if (arch.backend.services.length >= 5) architectureScore += 3;
 
-  // Coupling/cohesion (0-10 combined)
-  architectureScore += Math.round(archHealth.couplingScore * 0.05);
-  architectureScore += Math.round(archHealth.cohesionScore * 0.05);
+  // Circular dependencies penalty (0 to -15)
+  // (imported from imports metrics)
 
-  // God object penalty
+  // God object penalty (0 to -10)
   if (complexity.godObjects.length > 3) architectureScore -= 10;
   else if (complexity.godObjects.length > 0) architectureScore -= 5;
 
-  // Duplicate endpoints penalty
+  // Duplicate endpoints penalty (0 to -10)
   if (apiConsistency.duplicateEndpoints.length > 5) architectureScore -= 10;
   else if (apiConsistency.duplicateEndpoints.length > 0) architectureScore -= 5;
 
+  // Oversized models penalty (0 to -5)
+  if (arch.prisma.oversizedModels.length > 0) architectureScore -= 5;
+
   architectureScore = Math.max(0, Math.min(100, architectureScore));
 
-  // ── Security Score (0-100) ──
-  // Scaled by total codebase size to avoid over-penalizing large codebases
+  // ── Security Score (0-100) — unchanged, starts at 100 with deductions ──
   const criticalFindings = security.findings.filter(
     (f) => f.severity === "critical",
   ).length;
   let securityScore = 100;
-  securityScore -= criticalFindings * 20;
-  securityScore -= (security.summary.high - criticalFindings) * 8;
-  securityScore -= security.summary.medium * 3;
+  securityScore -= criticalFindings * 25;
+  securityScore -= (security.summary.high - criticalFindings) * 10;
+  securityScore -= security.summary.medium * 4;
   securityScore -= security.summary.low * 1;
   securityScore = Math.max(0, Math.min(100, securityScore));
 
   // ── Overall Score ──
+  // Quality 25% | Maintainability 20% | Architecture 20% | Features 15% | Security 20%
   const overallScore = Math.round(
-    qualityScore * 0.3 +
-      featureCoverageScore * 0.25 +
-      architectureScore * 0.25 +
-      securityScore * 0.2,
+    qualityScore * 0.25 +
+      maintainabilityScore * 0.20 +
+      architectureScore * 0.20 +
+      featureCoverageScore * 0.15 +
+      securityScore * 0.20,
   );
 
   // ── Strengths, Weaknesses, Suggestions ──
@@ -1724,20 +1935,10 @@ function computeScoring(
   const suggestions: string[] = [];
 
   // Strengths
-  if (arch.backend.endpoints.length > 80)
-    strengths.push(
-      `豊富なAPIエンドポイント（${arch.backend.endpoints.length}件）`,
-    );
-  if (arch.prisma.modelCount > 30)
-    strengths.push(`充実したデータモデル（${arch.prisma.modelCount}モデル）`);
-  if (arch.frontend.pages.length > 15)
-    strengths.push(
-      `多彩なフロントエンドページ（${arch.frontend.pages.length}ルート）`,
-    );
-  if (arch.frontend.hooks.length > 10)
-    strengths.push(
-      `再利用可能なカスタムフック（${arch.frontend.hooks.length}個）`,
-    );
+  if (qualityScore >= 70) strengths.push(`高い品質スコア（${qualityScore}/100）`);
+  if (maintainabilityScore >= 70) strengths.push(`良好な保守性（${maintainabilityScore}/100）`);
+  if (maintainability.duplicationRatio < 0.03)
+    strengths.push(`コード重複が少ない（重複率: ${(maintainability.duplicationRatio * 100).toFixed(1)}%）`);
   if (quality.anyUsage < 20)
     strengths.push(`型安全性が高い（any使用: ${quality.anyUsage}箇所）`);
   if (quality.consoleLogCount < 10)
@@ -1746,6 +1947,8 @@ function computeScoring(
     strengths.push(`重大なセキュリティリスクが検出されていない`);
   if (archHealth.layerViolations.length === 0)
     strengths.push(`レイヤー間の依存関係が適切`);
+  if (assertionsPerTest >= 5)
+    strengths.push(`テストの品質が高い（平均${assertionsPerTest.toFixed(1)}アサーション/テストファイル）`);
 
   const strongFeatures = features.filter((f) => f.score >= 75);
   if (strongFeatures.length > 0) {
@@ -1755,30 +1958,36 @@ function computeScoring(
   }
 
   // Weaknesses
-  if (quality.testRatio < 0.1)
+  if (quality.testRatio < 0.3)
     weaknesses.push(
-      `テストカバレッジが低い（テスト比率: ${(quality.testRatio * 100).toFixed(1)}%）`,
+      `テストカバレッジが不十分（テスト比率: ${(quality.testRatio * 100).toFixed(1)}%、推奨: 50%+）`,
+    );
+  if (maintainability.duplicationRatio > 0.05)
+    weaknesses.push(
+      `コード重複が多い（重複率: ${(maintainability.duplicationRatio * 100).toFixed(1)}%、${maintainability.totalDuplicatedLines}行）`,
+    );
+  if (maintainability.fileSizeScore < 70)
+    weaknesses.push(
+      `大きすぎるファイルが多い（500行以下のファイル率: ${maintainability.fileSizeScore}%）`,
+    );
+  if (maintainability.avgCyclomaticComplexity > 40)
+    weaknesses.push(
+      `循環的複雑度が高い（平均: ${maintainability.avgCyclomaticComplexity}）`,
     );
   if (quality.anyUsage > 50)
     weaknesses.push(`any型の使用が多い（${quality.anyUsage}箇所）`);
-  if (quality.consoleLogCount > 50)
-    weaknesses.push(`console.logが多い（${quality.consoleLogCount}箇所）`);
-  if (quality.emptyTryCatchCount > 5)
+  if (quality.emptyTryCatchCount > 0)
     weaknesses.push(
       `空のcatchブロック（${quality.emptyTryCatchCount}箇所）- エラーが無視されている`,
     );
   if (complexity.godObjects.length > 0)
     weaknesses.push(
-      `God Object検出: ${complexity.godObjects.length}ファイル（${complexity.godObjects.slice(0, 3).join(", ")}）`,
+      `God Object検出: ${complexity.godObjects.length}ファイル`,
     );
   if (complexity.filesOver1000Lines > 5)
     weaknesses.push(`1000行超のファイルが${complexity.filesOver1000Lines}個`);
   if (archHealth.layerViolations.length > 0)
     weaknesses.push(`レイヤー違反: ${archHealth.layerViolations.length}件`);
-  if (apiConsistency.duplicateEndpoints.length > 0)
-    weaknesses.push(
-      `重複エンドポイント: ${apiConsistency.duplicateEndpoints.length}件`,
-    );
   if (arch.prisma.oversizedModels.length > 0) {
     weaknesses.push(
       `巨大なPrismaモデル: ${arch.prisma.oversizedModels.map((m) => `${m.name}(${m.fieldCount}フィールド)`).join(", ")}`,
@@ -1793,13 +2002,18 @@ function computeScoring(
   }
 
   // Suggestions (prioritized)
-  if (quality.testRatio < 0.2) {
+  if (quality.testRatio < 0.3) {
     const untestedCount = features.reduce(
       (sum, f) => sum + f.untestedSourceFiles.length,
       0,
     );
     suggestions.push(
-      `[P0] テスト拡充 - ${untestedCount}個の未テストソースファイル。特にバックエンドサービスのユニットテストを優先`,
+      `[P0] テスト拡充 - ${untestedCount}個の未テストソースファイル（現在${(quality.testRatio * 100).toFixed(0)}% → 目標50%+）`,
+    );
+  }
+  if (maintainability.duplicationRatio > 0.05) {
+    suggestions.push(
+      `[P0] コード重複の解消 - ${maintainability.duplicatedBlocks.length}箇所の重複ブロックを共通化`,
     );
   }
   if (complexity.godObjects.length > 0) {
@@ -1807,21 +2021,23 @@ function computeScoring(
       `[P0] God Objectのリファクタリング - ${complexity.godObjects.slice(0, 3).join(", ")} を分割`,
     );
   }
+  if (complexity.filesOver1000Lines > 10) {
+    suggestions.push(
+      `[P0] 大ファイルの分割 - 1000行超のファイル${complexity.filesOver1000Lines}個を500行以下に分割`,
+    );
+  }
   if (security.summary.high > 0) {
     suggestions.push(
       `[P0] セキュリティ修正 - ${security.summary.high}件の高リスク検出を修正`,
     );
   }
-  if (quality.emptyTryCatchCount > 5) {
-    suggestions.push(`[P1] 空のcatchブロックにエラーログまたはリスローを追加`);
+  if (quality.emptyTryCatchCount > 0) {
+    suggestions.push(`[P1] 空のcatchブロック${quality.emptyTryCatchCount}箇所にエラーハンドリングを追加`);
   }
   if (archHealth.layerViolations.length > 0) {
     suggestions.push(
       `[P1] レイヤー違反の解消 - ${archHealth.layerViolations.length}件の不正なimportを修正`,
     );
-  }
-  if (apiConsistency.duplicateEndpoints.length > 0) {
-    suggestions.push(`[P1] 重複エンドポイントの統合`);
   }
   if (arch.prisma.oversizedModels.length > 0) {
     suggestions.push(
@@ -1833,12 +2049,10 @@ function computeScoring(
       `[P2] 機能拡充: ${weakFeatures.map((f) => f.name).join(", ")}`,
     );
   }
-  if (quality.anyUsage > 30) {
-    suggestions.push(`[P2] any型を具体的な型に置き換え`);
-  }
 
   return {
     qualityScore,
+    maintainabilityScore,
     featureCoverageScore,
     architectureScore,
     securityScore,
@@ -1908,8 +2122,9 @@ function generateMarkdownReport(result: AnalysisResult): string {
 |--------|-------|
 | Overall Score | **${scoring.overallScore}/100** |
 | Quality Score | ${scoring.qualityScore}/100 |
-| Feature Coverage | ${scoring.featureCoverageScore}/100 |
+| Maintainability Score | ${scoring.maintainabilityScore}/100 |
 | Architecture Score | ${scoring.architectureScore}/100 |
+| Feature Coverage | ${scoring.featureCoverageScore}/100 |
 | Security Score | ${scoring.securityScore}/100 |
 
 ---
@@ -2012,7 +2227,40 @@ ${security.findings
 
 ---
 
-## 4. Architecture
+`;
+
+  // Build maintainability section
+  md += `## 4. Maintainability
+
+| Metric | Value |
+|--------|-------|
+| File Size Score | ${result.maintainability.fileSizeScore}% (files <= 500 lines) |
+| Function Length Score | ${result.maintainability.functionLengthScore}% |
+| Nesting Score | ${result.maintainability.nestingScore}/100 |
+| Duplication Score | ${result.maintainability.duplicationScore}/100 |
+| Duplicated Lines | ${result.maintainability.totalDuplicatedLines.toLocaleString()} (${(result.maintainability.duplicationRatio * 100).toFixed(1)}%) |
+| Avg Cyclomatic Complexity | ${result.maintainability.avgCyclomaticComplexity} |
+| **Maintainability Score** | **${scoring.maintainabilityScore}/100** |
+
+`;
+
+  if (result.maintainability.duplicatedBlocks.length > 0) {
+    md += `### Top Duplicated Blocks
+| # | Files | Locations |
+|---|-------|-----------|
+`;
+    result.maintainability.duplicatedBlocks.slice(0, 15).forEach((d, i) => {
+      const locs = d.files.map((f) => "`" + f.path + ":" + f.startLine + "`").join(", ");
+      md += `| ${i + 1} | ${d.files.length} files | ${locs} |\n`;
+    });
+  } else {
+    md += "No significant code duplication detected\n";
+  }
+
+  md += `
+---
+
+## 5. Architecture
 
 ### Backend
 - **Route files**: ${architecture.backend.routeFiles}
@@ -2053,7 +2301,7 @@ ${architectureHealth.layerViolations.map((v) => `| \`${v.file}\` | ${v.message} 
 
 ---
 
-## 5. API Consistency
+## 6. API Consistency
 
 - **REST Conformance Score**: ${apiConsistency.restConformanceScore}/100
 - **Issues**: ${apiConsistency.issues.length}
@@ -2086,7 +2334,7 @@ ${apiConsistency.issues
 
 ---
 
-## 6. Import Graph
+## 7. Import Graph
 
 - **Circular dependencies**: ${imports.circularDependencies.length}
 - **High fan-out files**: ${imports.highFanOutFiles.length}
@@ -2116,7 +2364,7 @@ ${imports.highFanOutFiles
 
 ---
 
-## 7. Quality Metrics
+## 8. Quality Metrics
 
 | Metric | Value |
 |--------|-------|
@@ -2135,7 +2383,7 @@ ${imports.highFanOutFiles
 
 ---
 
-## 8. Test Coverage Details
+## 9. Test Coverage Details
 
 **Overall test coverage ratio**: ${(testCoverage.overallCoverageRatio * 100).toFixed(1)}%
 
@@ -2153,7 +2401,7 @@ ${
 
 ---
 
-## 9. Feature Completeness
+## 10. Feature Completeness
 
 | Area | Routes | Services | Components | Hooks | Models | Tests | Untested | Score |
 |------|--------|----------|------------|-------|--------|-------|----------|-------|
@@ -2163,7 +2411,7 @@ ${featureCompleteness.map((f) => `| ${f.name} | ${f.routes} | ${f.services} | ${
 
 ---
 
-## 10. AI/Agent System
+## 11. AI/Agent System
 
 | Item | Value |
 |------|-------|
@@ -2174,7 +2422,7 @@ ${featureCompleteness.map((f) => `| ${f.name} | ${f.routes} | ${f.services} | ${
 
 ---
 
-## 11. Dependencies
+## 12. Dependencies
 
 | Package | Production | Dev | Total |
 |---------|-----------|-----|-------|
@@ -2184,15 +2432,16 @@ ${featureCompleteness.map((f) => `| ${f.name} | ${f.routes} | ${f.services} | ${
 
 ---
 
-## 12. Overall Assessment
+## 13. Overall Assessment
 
 ### Scores
 | Metric | Score |
 |--------|-------|
 | Overall | **${scoring.overallScore}/100** |
 | Quality | ${scoring.qualityScore}/100 |
-| Feature Coverage | ${scoring.featureCoverageScore}/100 |
+| Maintainability | ${scoring.maintainabilityScore}/100 |
 | Architecture | ${scoring.architectureScore}/100 |
+| Feature Coverage | ${scoring.featureCoverageScore}/100 |
 | Security | ${scoring.securityScore}/100 |
 
 ### Strengths
@@ -2206,7 +2455,7 @@ ${scoring.suggestions.length > 0 ? scoring.suggestions.map((s) => `- ${s}`).join
 
 ---
 
-## 13. AI Evaluation Prompt
+## 14. AI Evaluation Prompt
 
 Use the following prompt with \`analysis-result.json\` for detailed AI evaluation:
 
@@ -2233,7 +2482,7 @@ Use the following prompt with \`analysis-result.json\` for detailed AI evaluatio
 
 async function main() {
   const startTime = Date.now();
-  log.info("Rapitas Codebase Analysis (Enhanced v2) - Starting...");
+  log.info("Rapitas Codebase Analysis (v3 - Strict Scoring) - Starting...");
   log.info(`Project root: ${PROJECT_ROOT}`);
 
   // Walk all files
@@ -2278,6 +2527,9 @@ async function main() {
   log.info("Collecting feature completeness...");
   const featureCompleteness = collectFeatureCompleteness(files, architecture);
 
+  log.info("Collecting maintainability metrics...");
+  const maintainabilityMetrics = collectMaintainabilityMetrics(files, complexityMetrics);
+
   log.info("Computing scores...");
   const scoring = computeScoring(
     quality,
@@ -2288,6 +2540,7 @@ async function main() {
     securityFindings,
     apiConsistency,
     archHealth,
+    maintainabilityMetrics,
   );
 
   const executionTimeMs = Date.now() - startTime;
@@ -2297,7 +2550,7 @@ async function main() {
       generatedAt: new Date().toISOString(),
       executionTimeMs,
       projectRoot: PROJECT_ROOT,
-      version: "2.0.0",
+      version: "3.0.0",
     },
     codeMetrics,
     architecture,
@@ -2308,6 +2561,7 @@ async function main() {
     apiConsistency,
     testCoverage,
     architectureHealth: archHealth,
+    maintainability: maintainabilityMetrics,
     aiAgent,
     dependencies: deps,
     featureCompleteness,
@@ -2340,9 +2594,11 @@ async function main() {
   log.info(`Layer violations: ${archHealth.layerViolations.length}`);
   log.info(`Overall score: ${scoring.overallScore}/100`);
   log.info(`  Quality: ${scoring.qualityScore}/100`);
-  log.info(`  Features: ${scoring.featureCoverageScore}/100`);
+  log.info(`  Maintainability: ${scoring.maintainabilityScore}/100`);
   log.info(`  Architecture: ${scoring.architectureScore}/100`);
+  log.info(`  Features: ${scoring.featureCoverageScore}/100`);
   log.info(`  Security: ${scoring.securityScore}/100`);
+  log.info(`  Code duplication: ${(maintainabilityMetrics.duplicationRatio * 100).toFixed(1)}%`);
   log.info(`Execution time: ${executionTimeMs}ms`);
 }
 

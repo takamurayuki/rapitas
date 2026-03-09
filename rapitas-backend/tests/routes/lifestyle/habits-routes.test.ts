@@ -28,10 +28,6 @@ mock.module("../../../config/logger", () => ({
     debug: () => {},
   }),
 }));
-mock.module("../../../services/achievement-checker", () => ({
-  checkAchievements: mock(() => Promise.resolve()),
-}));
-
 const { habitsRoutes } = await import("../../../routes/lifestyle/habits");
 
 function resetAllMocks() {

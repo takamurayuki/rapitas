@@ -904,6 +904,9 @@ function TaskDetailClient({
                 editingSubtaskId={taskActions.editingSubtaskId}
                 editingSubtaskTitle={taskActions.editingSubtaskTitle}
                 editingSubtaskDescription={taskActions.editingSubtaskDescription}
+                editingSubtaskPriority={taskActions.editingSubtaskPriority}
+                editingSubtaskLabels={taskActions.editingSubtaskLabels}
+                editingSubtaskEstimatedHours={taskActions.editingSubtaskEstimatedHours}
                 isParallelExecutionRunning={isParallelExecutionRunning}
                 getSubtaskStatus={getSubtaskStatus}
                 onToggleSelectionMode={taskActions.toggleSubtaskSelectionMode}
@@ -916,6 +919,9 @@ function TaskDetailClient({
                 onStartEditingSubtask={taskActions.startEditingSubtask}
                 onSetEditingSubtaskTitle={taskActions.setEditingSubtaskTitle}
                 onSetEditingSubtaskDescription={taskActions.setEditingSubtaskDescription}
+                onSetEditingSubtaskPriority={taskActions.setEditingSubtaskPriority}
+                onSetEditingSubtaskLabels={taskActions.setEditingSubtaskLabels}
+                onSetEditingSubtaskEstimatedHours={taskActions.setEditingSubtaskEstimatedHours}
                 onSaveSubtaskEdit={taskActions.saveSubtaskEdit}
                 onCancelEditingSubtask={taskActions.cancelEditingSubtask}
                 onUpdateStatus={taskActions.updateStatus}

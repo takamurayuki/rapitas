@@ -393,12 +393,147 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
       data: { isApplied: true, themeId: theme.id },
     });
 
+    // 5. フェーズごとにフラッシュカードデッキを作成（fire-and-forget）
+    const deckIds: number[] = [];
+    const aiAvailable = await isAnyApiKeyConfigured();
+
+    for (let phaseIdx = 0; phaseIdx < plan.phases.length; phaseIdx++) {
+      const phase = plan.phases[phaseIdx];
+      const deck = await prisma.flashcardDeck.create({
+        data: {
+          name: `${goal.title} - ${phase.name}`,
+          description: phase.description || `${goal.title}のフェーズ${phaseIdx + 1}: ${phase.name}`,
+          color: "#8B5CF6",
+          learningGoalId: id,
+          phaseIndex: phaseIdx,
+        },
+      });
+      deckIds.push(deck.id);
+
+      // AI でフラッシュカードを非同期生成（fire-and-forget）
+      if (aiAvailable) {
+        generateFlashcardsForPhase(deck.id, phase, goal.title).catch((err) => {
+          log.error({ err }, `[learning-goals] Failed to generate flashcards for phase ${phaseIdx}`);
+        });
+      }
+    }
+
     return {
       success: true,
       themeId: theme.id,
       themeName: theme.name,
       createdTaskCount: createdTasks.length,
+      createdDeckCount: deckIds.length,
+      deckIds,
     };
+  })
+
+  // 進捗に基づく計画適応
+  .post("/:id/adapt", async (context) => {
+    const { params } = context;
+    const id = parseInt(params.id);
+
+    const goal = await prisma.learningGoal.findUnique({
+      where: { id },
+    });
+
+    if (!goal) {
+      return { error: "Learning goal not found" };
+    }
+
+    if (!goal.generatedPlan || !goal.themeId) {
+      return { error: "No applied plan found. Please generate and apply a plan first." };
+    }
+
+    const aiAvailable = await isAnyApiKeyConfigured();
+    if (!aiAvailable) {
+      return { error: "AI is not configured. Please set up an API key." };
+    }
+
+    // テーマ配下のタスク進捗を取得
+    const tasks = await prisma.task.findMany({
+      where: { themeId: goal.themeId, parentId: null },
+      include: { subtasks: true },
+    });
+
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter((t) => t.status === "done").length;
+    const progressRate = totalTasks > 0 ? completedTasks / totalTasks : 0;
+
+    // 残り日数を計算
+    let remainingDays = 30;
+    if (goal.deadline) {
+      const now = new Date();
+      remainingDays = Math.max(1, Math.ceil((goal.deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+    }
+
+    const plan = JSON.parse(goal.generatedPlan as string) as GeneratedLearningPlan;
+
+    const completedTaskTitles = tasks
+      .filter((t) => t.status === "done")
+      .map((t) => t.title);
+    const remainingTaskTitles = tasks
+      .filter((t) => t.status !== "done")
+      .map((t) => t.title);
+
+    const provider = await getDefaultProvider();
+    const messages: AIMessage[] = [
+      {
+        role: "user",
+        content: `## 学習目標の計画適応
+
+**学習目標:** ${goal.title}
+**進捗率:** ${Math.round(progressRate * 100)}% (${completedTasks}/${totalTasks}タスク完了)
+**残り日数:** ${remainingDays}日
+**1日の学習時間:** ${goal.dailyHours}時間
+
+### 完了済みタスク
+${completedTaskTitles.length > 0 ? completedTaskTitles.map((t) => `- ${t}`).join("\n") : "なし"}
+
+### 未完了タスク
+${remainingTaskTitles.length > 0 ? remainingTaskTitles.map((t) => `- ${t}`).join("\n") : "なし"}
+
+### 元の計画
+${JSON.stringify(plan, null, 2)}
+
+上記の進捗状況と残り日数を考慮して、残りのフェーズの最適化された学習計画を生成してください。
+完了済みのタスクはスキップし、未完了タスクの優先順位を調整してください。
+
+必ず元の計画と同じJSON形式で回答してください。`,
+      },
+    ];
+
+    try {
+      const response = await sendAIMessage({
+        provider,
+        messages,
+        systemPrompt: "あなたは学習計画の最適化専門家です。進捗状況に基づいて、残りの学習計画を最適化してください。必ずJSON形式で回答してください。",
+        maxTokens: 4096,
+      });
+
+      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return { error: "Failed to parse AI response" };
+      }
+
+      const adaptedPlan = JSON.parse(jsonMatch[0]);
+
+      await prisma.learningGoal.update({
+        where: { id },
+        data: { generatedPlan: JSON.stringify(adaptedPlan) },
+      });
+
+      return {
+        success: true,
+        adaptedPlan,
+        progressRate: Math.round(progressRate * 100),
+        remainingDays,
+        tokensUsed: response.tokensUsed,
+      };
+    } catch (error) {
+      log.error({ err: error }, "[learning-goals] Plan adaptation failed");
+      return { error: "Failed to adapt plan" };
+    }
   });
 
 // --- Helper Types & Functions ---
@@ -433,6 +568,58 @@ type GeneratedLearningPlan = {
 
 function buildTaskDescription(phaseName: string, description: string, goalTitle: string): string {
   return `**学習目標:** ${goalTitle}\n**フェーズ:** ${phaseName}\n\n${description}`;
+}
+
+async function generateFlashcardsForPhase(
+  deckId: number,
+  phase: GeneratedLearningPlan["phases"][0],
+  goalTitle: string
+): Promise<void> {
+  const taskSummary = phase.tasks
+    .map((t) => `- ${t.title}: ${t.description}`)
+    .join("\n");
+
+  const provider = await getDefaultProvider();
+  const messages: AIMessage[] = [
+    {
+      role: "user",
+      content: `以下の学習フェーズの内容から、復習用のフラッシュカード（Q&Aペア）を8枚作成してください。
+
+**学習目標:** ${goalTitle}
+**フェーズ:** ${phase.name}
+**内容:**
+${taskSummary}
+
+以下のJSON形式のみで出力（余計なテキスト不要）：
+{"cards":[{"front":"質問","back":"回答"}]}`,
+    },
+  ];
+
+  const response = await sendAIMessage({
+    provider,
+    messages,
+    systemPrompt: "フラッシュカード生成専門AIです。学習内容から重要な概念を抽出し、効果的なQ&Aペアを作成してください。JSON形式のみで回答してください。",
+    maxTokens: 2048,
+  });
+
+  const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    log.error("[learning-goals] Failed to parse flashcard AI response");
+    return;
+  }
+
+  const data = JSON.parse(jsonMatch[0]);
+  if (!Array.isArray(data.cards) || data.cards.length === 0) return;
+
+  await prisma.flashcard.createMany({
+    data: data.cards.map((card: { front: string; back: string }) => ({
+      deckId,
+      front: card.front,
+      back: card.back,
+    })),
+  });
+
+  log.info(`[learning-goals] Generated ${data.cards.length} flashcards for deck ${deckId}`);
 }
 
 function generateFallbackPlan(

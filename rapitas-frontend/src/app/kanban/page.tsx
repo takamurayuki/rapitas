@@ -27,9 +27,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar,
+  Search,
+  SlidersHorizontal,
+  X,
 } from 'lucide-react';
 import type { Label } from '@/types';
 import { createLogger } from '@/lib/logger';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('KanbanPage');
 
@@ -69,6 +74,9 @@ export default function KanbanPage() {
   const router = useRouter();
   const t = useTranslations('kanban');
   const tt = useTranslations('task');
+  const tc = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
 
   const priorityConfig: Record<Priority, { label: string; color: string; bg: string }> = {
     low: { label: tt('priorityLow'), ...priorityConfigStyles.low },
@@ -100,7 +108,7 @@ export default function KanbanPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPriorities, setSelectedPriorities] = useState<Priority[]>([]);
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
-  const [showFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [labels, setLabels] = useState<Label[]>([]);
 
   // 週間表示の状態
@@ -354,11 +362,11 @@ export default function KanbanPage() {
 
   // 週の表示文字列を生成
   const getWeekDisplayText = () => {
-    const start = currentWeekRange.start.toLocaleDateString('ja-JP', {
+    const start = currentWeekRange.start.toLocaleDateString(dateLocale, {
       month: 'numeric',
       day: 'numeric',
     });
-    const end = currentWeekRange.end.toLocaleDateString('ja-JP', {
+    const end = currentWeekRange.end.toLocaleDateString(dateLocale, {
       month: 'numeric',
       day: 'numeric',
     });
@@ -408,6 +416,36 @@ export default function KanbanPage() {
         {/* Filter Bar */}
         <div className="mb-6 space-y-3">
           <div className="flex items-center gap-3">
+            {/* Search */}
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={tc('search')}
+                className="w-full pl-9 pr-8 py-2 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                >
+                  <X className="w-3.5 h-3.5 text-zinc-400" />
+                </button>
+              )}
+            </div>
+            {/* Filter Toggle */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors ${
+                showFilters
+                  ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400'
+                  : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700'
+              }`}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+            </button>
             {/* Clear Filters */}
             {hasActiveFilters && (
               <button
@@ -615,7 +653,7 @@ export default function KanbanPage() {
                                         </svg>
                                         {new Date(
                                           task.createdAt,
-                                        ).toLocaleDateString('ja-JP')}
+                                        ).toLocaleDateString(dateLocale)}
                                       </span>
 
                                       {/* サブタスク */}

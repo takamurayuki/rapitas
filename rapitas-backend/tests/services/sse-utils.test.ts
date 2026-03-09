@@ -40,9 +40,9 @@ describe("createSSEHeaders", () => {
     expect(headers.get("Connection")).toBe("keep-alive");
   });
 
-  test("CORSヘッダーが設定されていること", () => {
+  test("CORSヘッダーはグローバルCORSミドルウェアに委任されていること", () => {
     const headers = createSSEHeaders();
-    expect(headers.get("Access-Control-Allow-Origin")).toBe("*");
+    expect(headers.get("Access-Control-Allow-Origin")).toBeNull();
   });
 });
 

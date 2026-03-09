@@ -5,7 +5,6 @@
 import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../config/logger';
 import { UserBehaviorService } from '../src/services/userBehaviorService';
-import { checkAchievements } from './achievement-checker';
 import { notifyTaskCompleted } from './notification-service';
 import {
   sendAIMessage,
@@ -210,11 +209,6 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       create: { date: today, studyMinutes: 0, tasksCompleted: 1 },
     });
 
-    fetch(`http://localhost:${process.env.PORT || '3001'}/achievements/check`, {
-      method: 'POST',
-    }).catch((err) => {
-      logger.warn({ err }, 'Failed to trigger achievement check');
-    });
   }
 
   await prisma.task.update({
@@ -263,9 +257,6 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
         await UserBehaviorService.recordTaskStarted(taskId, updatedTask);
       } else if (fields.status === 'done' && currentTask?.status !== 'done') {
         await UserBehaviorService.recordTaskCompleted(taskId, updatedTask);
-        checkAchievements('task.completed').catch((err) => {
-          logger.warn({ err }, 'Failed to check achievements on task completion');
-        });
         notifyTaskCompleted(taskId, updatedTask.title).catch((err) => {
           logger.warn({ err, taskId }, 'Failed to send task completion notification');
         });

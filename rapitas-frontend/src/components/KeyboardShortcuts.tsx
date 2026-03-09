@@ -49,6 +49,9 @@ export default function KeyboardShortcuts() {
         noteStore.openModal('ai');
       }
     },
+    commandBar: () => {
+      // SmartCommandBar handles its own keyboard shortcut
+    },
   };
 
   useEffect(() => {

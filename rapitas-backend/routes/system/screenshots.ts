@@ -43,7 +43,6 @@ export const screenshotsRoutes = new Elysia()
       headers: {
         'Content-Type': 'image/png',
         'Cache-Control': 'public, max-age=86400',
-        'Access-Control-Allow-Origin': '*',
       },
     });
   })

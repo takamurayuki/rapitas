@@ -15,7 +15,6 @@ export const notificationsRoutes = new Elysia({ prefix: "/notifications" })
     set.headers["Content-Type"] = "text/event-stream";
     set.headers["Cache-Control"] = "no-cache";
     set.headers["Connection"] = "keep-alive";
-    set.headers["Access-Control-Allow-Origin"] = "*";
 
     const stream = new ReadableStream({
       start(controller) {
@@ -65,10 +64,13 @@ export const notificationsRoutes = new Elysia({ prefix: "/notifications" })
       const { query  } = context;
     const { unreadOnly, limit  } = query as { unreadOnly?: string; limit?: string };
 
+    const maxLimit = 200;
+    const take = limit ? Math.min(parseInt(limit), maxLimit) : 50;
+
     return await prisma.notification.findMany({
       where: unreadOnly === "true" ? { isRead: false } : undefined,
       orderBy: { createdAt: "desc" },
-      take: limit ? parseInt(limit) : 50,
+      take,
     });
   })
 

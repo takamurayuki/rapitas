@@ -1,7 +1,10 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { TrendingUp, Calendar, Target, Zap, Award } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 import type { Theme } from '@/types';
 import { createLogger } from '@/lib/logger';
 const logger = createLogger('BurnupChart');
@@ -40,6 +43,9 @@ export default function BurnupChart({
   days = 14,
   className = '',
 }: BurnupChartProps) {
+  const t = useTranslations('burnupChart');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const [data, setData] = useState<BurnupData | null>(null);
   const [loading, setLoading] = useState(true);
   const [themes, setThemes] = useState<Theme[]>([]);
@@ -168,7 +174,7 @@ export default function BurnupChart({
     return (
       <div className={`bg-white dark:bg-zinc-900 rounded-xl p-4 ${className}`}>
         <p className="text-zinc-500 dark:text-zinc-400 text-center text-sm">
-          データがありません
+          {t('noData')}
         </p>
       </div>
     );
@@ -187,29 +193,29 @@ export default function BurnupChart({
             <div className="flex items-center gap-1.5">
               <TrendingUp className="w-4 h-4 text-emerald-500" />
               <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-50">
-                バーンアップ
+                {t('title')}
               </h2>
             </div>
             {/* インラインサマリー */}
             <div className="hidden sm:flex items-center gap-3 text-xs">
               <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                 <Award className="w-3 h-3" />
-                完了
+                {t('completed')}
                 <span className="font-semibold">{summary.totalCompleted}</span>
               </span>
               <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
                 <Calendar className="w-3 h-3" />
-                追加<span className="font-semibold">{summary.totalAdded}</span>
+                {t('added')}<span className="font-semibold">{summary.totalAdded}</span>
               </span>
               <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
-                <Target className="w-3 h-3" />残
+                <Target className="w-3 h-3" />{t('remaining')}
                 <span className="font-semibold text-zinc-900 dark:text-zinc-100">
                   {summary.currentRemaining}
                 </span>
               </span>
               <span className="flex items-center gap-1 text-violet-600 dark:text-violet-400">
                 <Zap className="w-3 h-3" />
-                <span className="font-semibold">{summary.velocity}</span>/日
+                <span className="font-semibold">{summary.velocity}</span>{t('perDay')}
               </span>
             </div>
           </div>
@@ -225,7 +231,7 @@ export default function BurnupChart({
               }
               className="px-2 py-1 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md"
             >
-              <option value="">全テーマ</option>
+              <option value="">{t('allThemes')}</option>
               {themes.map((theme) => (
                 <option key={theme.id} value={theme.id}>
                   {theme.name}
@@ -243,7 +249,7 @@ export default function BurnupChart({
                       : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                   }`}
                 >
-                  {d}日
+                  {t('days', { count: d })}
                 </button>
               ))}
             </div>
@@ -252,19 +258,19 @@ export default function BurnupChart({
         {/* モバイル用サマリー */}
         <div className="flex sm:hidden items-center gap-3 mt-2 text-xs">
           <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-            完了<span className="font-semibold">{summary.totalCompleted}</span>
+            {t('completed')}<span className="font-semibold">{summary.totalCompleted}</span>
           </span>
           <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-            追加<span className="font-semibold">{summary.totalAdded}</span>
+            {t('added')}<span className="font-semibold">{summary.totalAdded}</span>
           </span>
           <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
-            残
+            {t('remaining')}
             <span className="font-semibold text-zinc-900 dark:text-zinc-100">
               {summary.currentRemaining}
             </span>
           </span>
           <span className="flex items-center gap-1 text-violet-600 dark:text-violet-400">
-            <span className="font-semibold">{summary.velocity}</span>/日
+            <span className="font-semibold">{summary.velocity}</span>{t('perDay')}
           </span>
         </div>
       </div>
@@ -316,7 +322,7 @@ export default function BurnupChart({
                   textAnchor="middle"
                   className="text-[9px] fill-zinc-400"
                 >
-                  {new Date(d.date).toLocaleDateString('ja-JP', {
+                  {new Date(d.date).toLocaleDateString(dateLocale, {
                     month: 'numeric',
                     day: 'numeric',
                   })}
@@ -365,8 +371,7 @@ export default function BurnupChart({
                 className="cursor-pointer"
               >
                 <title>
-                  {new Date(d.date).toLocaleDateString('ja-JP')}: 累積完了
-                  {d.cumulativeCompleted}件
+                  {t('cumulativeTooltip', { date: new Date(d.date).toLocaleDateString(dateLocale), count: d.cumulativeCompleted })}
                 </title>
               </circle>
             );
@@ -378,13 +383,13 @@ export default function BurnupChart({
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 bg-emerald-500 rounded" />
             <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
-              累積完了
+              {t('cumulativeCompleted')}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 bg-zinc-400 rounded border-dashed" />
             <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
-              理想ペース
+              {t('idealPace')}
             </span>
           </div>
         </div>

@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useNotifications } from '@/feature/developer-mode/hooks/useNotifications';
 import type { Notification } from '@/types';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const typeIcons: Record<string, string> = {
   approval_request:
@@ -32,6 +34,8 @@ const typeIcons: Record<string, string> = {
 export default function NotificationBell() {
   const t = useTranslations('notification');
   const tc = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const {
@@ -91,7 +95,7 @@ export default function NotificationBell() {
     if (diffMins < 60) return t('minutesAgo', { count: diffMins });
     if (diffHours < 24) return t('hoursAgo', { count: diffHours });
     if (diffDays < 7) return t('daysAgo', { count: diffDays });
-    return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
   };
 
   return (

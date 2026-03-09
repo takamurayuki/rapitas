@@ -332,30 +332,6 @@ export const priorityLabels = {
   urgent: '緊急',
 };
 
-// 実績/バッジ
-export type AchievementCondition = {
-  type: string;
-  value?: number;
-  count?: number;
-  threshold?: number;
-  [key: string]: unknown;
-};
-
-export type Achievement = {
-  id: number;
-  key: string;
-  name: string;
-  description: string;
-  icon: string;
-  color: string;
-  category: string;
-  condition: AchievementCondition;
-  rarity: 'common' | 'rare' | 'epic' | 'legendary';
-  isUnlocked: boolean;
-  unlockedAt: string | null;
-  createdAt: string;
-};
-
 // 習慣
 export type Habit = {
   id: number;
@@ -671,6 +647,7 @@ export type UserSettings = {
   autoCreateAfterTitleGeneration: boolean;
   autoFetchTaskSuggestions: boolean;
   autoApprovePlan: boolean;
+  autoApproveSubtaskPlan: boolean;
   autoComplexityAnalysis: boolean;
   defaultCategoryId?: number | null;
   activeMode: ActiveMode;

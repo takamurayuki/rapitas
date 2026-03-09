@@ -18,6 +18,7 @@ import {
   SSEStreamController,
   getUserFriendlyErrorMessage,
 } from "../../services/sse-utils";
+import { AIOrchestra } from "../../services/workflow/ai-orchestra";
 
 // パラレル実行オーケストレーターのシングルトンインスタンス
 let parallelExecutor: ReturnType<typeof createParallelExecutor> | null = null;
@@ -178,7 +179,6 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
-        "Access-Control-Allow-Origin": "*",
       };
 
       const sseController = new SSEStreamController({
@@ -244,8 +244,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
           Connection: "keep-alive",
-          "Access-Control-Allow-Origin": "*",
-        },
+          },
       });
     },
     {
@@ -323,7 +322,61 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
           },
         });
 
-        // 並列実行を開始
+        // useWorkflow フラグ判定（デフォルトtrue）
+        const useWorkflow = (body as Record<string, unknown>).useWorkflow !== false;
+        const subtaskIds = task.subtasks.map((s) => s.id);
+
+        if (useWorkflow) {
+          // ワークフロー経由で実行
+          const userSettings = await prisma.userSettings.findFirst();
+          const autoApprove = (userSettings as Record<string, unknown> | null)?.autoApproveSubtaskPlan as boolean | undefined ?? true;
+
+          // サブタスクにworkflowMode + autoApprovePlan設定
+          await prisma.task.updateMany({
+            where: { id: { in: subtaskIds } },
+            data: {
+              workflowMode: 'lightweight',
+              workflowStatus: 'draft',
+              autoApprovePlan: autoApprove,
+            },
+          });
+
+          // AIOrchestra.conductWorkflow() で実行
+          const orchestra = AIOrchestra.getInstance();
+          const result = await orchestra.conductWorkflow(subtaskIds, {
+            maxConcurrency: config?.maxConcurrentAgents || 3,
+            priorityStrategy: 'dependency_aware',
+          });
+
+          log.info(
+            { taskId, sessionId: result.sessionId, enqueuedTasks: result.enqueuedTasks },
+            "[ParallelExecution] Started workflow-based execution"
+          );
+
+          return {
+            success: true,
+            data: {
+              sessionId: result.sessionId,
+              agentSessionId: agentSession.id,
+              orchestraSessionId: result.sessionId,
+              plan: {
+                id: analysisResult.plan.id,
+                groups: analysisResult.plan.groups.length,
+                maxConcurrency: analysisResult.plan.maxConcurrency,
+                estimatedTotalDuration: analysisResult.plan.estimatedTotalDuration,
+                parallelEfficiency: analysisResult.plan.parallelEfficiency,
+              },
+              workflow: {
+                enqueuedTasks: result.enqueuedTasks,
+                skippedTasks: result.skippedTasks,
+                errors: result.errors,
+              },
+              status: 'running',
+            },
+          };
+        }
+
+        // 従来のParallelExecutor動作
         const executor = getParallelExecutor();
         const session = await executor.startSession(
           taskId,
@@ -372,6 +425,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
             coordinationEnabled: t.Optional(t.Boolean()),
           })
         ),
+        useWorkflow: t.Optional(t.Boolean()),
       }),
     }
   )
@@ -491,7 +545,6 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
-        "Access-Control-Allow-Origin": "*",
       };
 
       const sseController = new SSEStreamController({
@@ -554,8 +607,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: "/parallel" })
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
           Connection: "keep-alive",
-          "Access-Control-Allow-Origin": "*",
-        },
+          },
       });
     },
     {

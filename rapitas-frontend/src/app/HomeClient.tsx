@@ -536,7 +536,7 @@ function HomeClientPage() {
       setGlobalSettings(data);
       return data;
     } catch (e) {
-      logger.error('Failed to fetch global settings:', e);
+      logger.transientError('Failed to fetch global settings:', e);
     }
     return null;
   };
