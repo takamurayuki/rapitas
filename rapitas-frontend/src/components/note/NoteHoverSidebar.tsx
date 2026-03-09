@@ -20,7 +20,6 @@ import { toDateLocale } from '@/lib/utils';
 
 export default function NoteHoverSidebar() {
   const {
-    notes,
     currentNoteId,
     searchQuery,
     selectedTags,
@@ -35,8 +34,6 @@ export default function NoteHoverSidebar() {
   } = useNoteStore();
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
-
-  const { isDarkMode } = useDarkMode();
   const { currentMode } = useUIModeStore();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);

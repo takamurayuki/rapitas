@@ -55,7 +55,6 @@ const TaskCard = memo(function TaskCard({
   const tc = useTranslations('common');
   const tHome = useTranslations('home');
   const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
   const cardRef = useRef<HTMLDivElement>(null);
   const [expandedSubtasks, setExpandedSubtasks] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
