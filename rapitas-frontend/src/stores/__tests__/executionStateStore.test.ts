@@ -108,7 +108,9 @@ describe('executionStateStore', () => {
     });
 
     it('should return false for non-existent tasks', () => {
-      expect(useExecutionStateStore.getState().isTaskExecuting(999)).toBe(false);
+      expect(useExecutionStateStore.getState().isTaskExecuting(999)).toBe(
+        false,
+      );
     });
   });
 
@@ -118,7 +120,9 @@ describe('executionStateStore', () => {
         taskId: 1,
         status: 'running',
       });
-      expect(useExecutionStateStore.getState().getExecutingTaskStatus(1)).toBe('running');
+      expect(useExecutionStateStore.getState().getExecutingTaskStatus(1)).toBe(
+        'running',
+      );
     });
 
     it('should return "waiting_for_input" for waiting tasks', () => {
@@ -126,7 +130,9 @@ describe('executionStateStore', () => {
         taskId: 1,
         status: 'waiting_for_input',
       });
-      expect(useExecutionStateStore.getState().getExecutingTaskStatus(1)).toBe('waiting_for_input');
+      expect(useExecutionStateStore.getState().getExecutingTaskStatus(1)).toBe(
+        'waiting_for_input',
+      );
     });
 
     it('should return null for completed tasks', () => {
@@ -134,11 +140,15 @@ describe('executionStateStore', () => {
         taskId: 1,
         status: 'completed',
       });
-      expect(useExecutionStateStore.getState().getExecutingTaskStatus(1)).toBe(null);
+      expect(useExecutionStateStore.getState().getExecutingTaskStatus(1)).toBe(
+        null,
+      );
     });
 
     it('should return null for non-existent tasks', () => {
-      expect(useExecutionStateStore.getState().getExecutingTaskStatus(999)).toBe(null);
+      expect(
+        useExecutionStateStore.getState().getExecutingTaskStatus(999),
+      ).toBe(null);
     });
   });
 });

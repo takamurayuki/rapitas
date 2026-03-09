@@ -18,8 +18,20 @@ describe('useContradictions', () => {
       resolution: null,
       resolvedAt: null,
       createdAt: '2026-01-01',
-      entryA: { id: 10, title: 'Entry A', content: 'Content A', category: 'fact', confidence: 0.8 },
-      entryB: { id: 20, title: 'Entry B', content: 'Content B', category: 'fact', confidence: 0.7 },
+      entryA: {
+        id: 10,
+        title: 'Entry A',
+        content: 'Content A',
+        category: 'fact',
+        confidence: 0.8,
+      },
+      entryB: {
+        id: 20,
+        title: 'Entry B',
+        content: 'Content B',
+        category: 'fact',
+        confidence: 0.7,
+      },
     },
   ];
 
@@ -48,7 +60,9 @@ describe('useContradictions', () => {
 
     expect(result.current.contradictions).toEqual(mockContradictions);
     expect(result.current.error).toBeNull();
-    expect(mockFetch).toHaveBeenCalledWith('http://test:3001/memory/contradictions?limit=20');
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://test:3001/memory/contradictions?limit=20',
+    );
   });
 
   it('should use custom limit', async () => {
@@ -60,7 +74,9 @@ describe('useContradictions', () => {
     renderHook(() => useContradictions(5));
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith('http://test:3001/memory/contradictions?limit=5');
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test:3001/memory/contradictions?limit=5',
+      );
     });
   });
 

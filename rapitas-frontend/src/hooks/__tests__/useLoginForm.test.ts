@@ -55,7 +55,9 @@ describe('useLoginForm', () => {
     });
 
     await act(async () => {
-      await result.current.handleSubmit({ preventDefault: vi.fn() } as unknown as React.FormEvent);
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent);
     });
 
     expect(result.current.errors.username).toBeDefined();
@@ -70,7 +72,9 @@ describe('useLoginForm', () => {
     });
 
     await act(async () => {
-      await result.current.handleSubmit({ preventDefault: vi.fn() } as unknown as React.FormEvent);
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent);
     });
 
     expect(result.current.errors.password).toBeDefined();
@@ -86,7 +90,9 @@ describe('useLoginForm', () => {
     });
 
     await act(async () => {
-      await result.current.handleSubmit({ preventDefault: vi.fn() } as unknown as React.FormEvent);
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent);
     });
 
     expect(result.current.errors.password).toContain('6');
@@ -102,7 +108,9 @@ describe('useLoginForm', () => {
     });
 
     await act(async () => {
-      await result.current.handleSubmit({ preventDefault: vi.fn() } as unknown as React.FormEvent);
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent);
     });
 
     expect(fetch).toHaveBeenCalledWith('/api/auth/login', {
@@ -131,7 +139,9 @@ describe('useLoginForm', () => {
     });
 
     await act(async () => {
-      await result.current.handleSubmit({ preventDefault: vi.fn() } as unknown as React.FormEvent);
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent);
     });
 
     expect(result.current.errors.form).toBe('Invalid credentials');
@@ -154,14 +164,19 @@ describe('useLoginForm', () => {
     });
 
     await act(async () => {
-      await result.current.handleSubmit({ preventDefault: vi.fn() } as unknown as React.FormEvent);
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent);
     });
 
     expect(result.current.errors.form).toBeDefined();
   });
 
   it('should handle network error', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new Error('Network error')),
+    );
 
     const { result } = renderHook(() => useLoginForm());
 
@@ -171,7 +186,9 @@ describe('useLoginForm', () => {
     });
 
     await act(async () => {
-      await result.current.handleSubmit({ preventDefault: vi.fn() } as unknown as React.FormEvent);
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent);
     });
 
     expect(result.current.errors.form).toBe('Network error');
@@ -182,7 +199,9 @@ describe('useLoginForm', () => {
     const { result } = renderHook(() => useLoginForm());
 
     await act(async () => {
-      await result.current.handleSubmit({ preventDefault } as unknown as React.FormEvent);
+      await result.current.handleSubmit({
+        preventDefault,
+      } as unknown as React.FormEvent);
     });
 
     expect(preventDefault).toHaveBeenCalled();
@@ -193,7 +212,9 @@ describe('useLoginForm', () => {
 
     // Trigger validation errors
     await act(async () => {
-      await result.current.handleSubmit({ preventDefault: vi.fn() } as unknown as React.FormEvent);
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent);
     });
 
     expect(Object.keys(result.current.errors).length).toBeGreaterThan(0);
@@ -214,7 +235,9 @@ describe('useLoginForm', () => {
     });
 
     await act(async () => {
-      await result.current.handleSubmit({ preventDefault: vi.fn() } as unknown as React.FormEvent);
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent);
     });
 
     expect(result.current.errors.username).toBeDefined();

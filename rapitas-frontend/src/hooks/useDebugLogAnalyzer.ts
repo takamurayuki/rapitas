@@ -9,20 +9,28 @@ import {
   AnalyzeOptions,
   AnalyzeLogRequest,
   AnalyzeLogResponse,
-  ParsedLogEntry
+  ParsedLogEntry,
 } from '@/types/debug-log';
-import { createLogger } from "@/lib/logger";
-import { API_BASE_URL } from "@/utils/api";
+import { createLogger } from '@/lib/logger';
+import { API_BASE_URL } from '@/utils/api';
 
-const logger = createLogger("useDebugLogAnalyzer");
+const logger = createLogger('useDebugLogAnalyzer');
 
 interface UseDebugLogAnalyzerResult {
   isAnalyzing: boolean;
   error: string | null;
-  analyzeLog: (content: string, type?: LogType, options?: AnalyzeOptions) => Promise<LogAnalysisResult | null>;
+  analyzeLog: (
+    content: string,
+    type?: LogType,
+    options?: AnalyzeOptions,
+  ) => Promise<LogAnalysisResult | null>;
   detectLogType: (content: string) => Promise<LogType>;
   getSupportedTypes: () => Promise<LogTypeInfo[]>;
-  analyzeFromUrl: (url: string, type?: LogType, options?: AnalyzeOptions) => Promise<LogAnalysisResult | null>;
+  analyzeFromUrl: (
+    url: string,
+    type?: LogType,
+    options?: AnalyzeOptions,
+  ) => Promise<LogAnalysisResult | null>;
 }
 
 interface LogTypeInfo {
@@ -41,7 +49,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
     async (
       content: string,
       type?: LogType,
-      options?: AnalyzeOptions
+      options?: AnalyzeOptions,
     ): Promise<LogAnalysisResult | null> => {
       setIsAnalyzing(true);
       setError(null);
@@ -55,14 +63,18 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
           body: JSON.stringify({
             content,
             type,
-            options: options ? {
-              ...options,
-              filter: options.filter ? {
-                ...options.filter,
-                startTime: options.filter.startTime?.toISOString(),
-                endTime: options.filter.endTime?.toISOString(),
-              } : undefined
-            } : undefined
+            options: options
+              ? {
+                  ...options,
+                  filter: options.filter
+                    ? {
+                        ...options.filter,
+                        startTime: options.filter.startTime?.toISOString(),
+                        endTime: options.filter.endTime?.toISOString(),
+                      }
+                    : undefined,
+                }
+              : undefined,
           } as AnalyzeLogRequest),
         });
 
@@ -75,22 +87,27 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
         // 日付文字列をDateオブジェクトに変換
         const result = {
           ...data.result,
-          entries: data.result.entries.map(entry => ({
+          entries: data.result.entries.map((entry) => ({
             ...entry,
             timestamp: entry.timestamp ? new Date(entry.timestamp) : undefined,
           })),
           summary: {
             ...data.result.summary,
-            timeRange: data.result.summary.timeRange ? {
-              start: new Date(data.result.summary.timeRange.start),
-              end: new Date(data.result.summary.timeRange.end),
-            } : undefined,
+            timeRange: data.result.summary.timeRange
+              ? {
+                  start: new Date(data.result.summary.timeRange.start),
+                  end: new Date(data.result.summary.timeRange.end),
+                }
+              : undefined,
           },
         };
 
         return result;
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'ログ解析中にエラーが発生しました';
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'ログ解析中にエラーが発生しました';
         setError(message);
         logger.error('Log analysis error:', err);
         return null;
@@ -98,37 +115,42 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
         setIsAnalyzing(false);
       }
     },
-    [API_BASE_URL]
+    [API_BASE_URL],
   );
 
   // ログタイプを検出
-  const detectLogType = useCallback(async (content: string): Promise<LogType> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/debug-logs/detect-type`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content }),
-      });
+  const detectLogType = useCallback(
+    async (content: string): Promise<LogType> => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/debug-logs/detect-type`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ content }),
+        });
 
-      const data = await response.json();
+        const data = await response.json();
 
-      if (!data.success) {
-        throw new Error(data.error || 'タイプ検出に失敗しました');
+        if (!data.success) {
+          throw new Error(data.error || 'タイプ検出に失敗しました');
+        }
+
+        return data.type as LogType;
+      } catch (err) {
+        logger.error('Type detection error:', err);
+        return 'unknown';
       }
-
-      return data.type as LogType;
-    } catch (err) {
-      logger.error('Type detection error:', err);
-      return 'unknown';
-    }
-  }, [API_BASE_URL]);
+    },
+    [API_BASE_URL],
+  );
 
   // サポートされているログタイプを取得
   const getSupportedTypes = useCallback(async (): Promise<LogTypeInfo[]> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/debug-logs/supported-types`);
+      const response = await fetch(
+        `${API_BASE_URL}/debug-logs/supported-types`,
+      );
       const data = await response.json();
 
       if (!data.success) {
@@ -147,30 +169,37 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
     async (
       url: string,
       type?: LogType,
-      options?: AnalyzeOptions
+      options?: AnalyzeOptions,
     ): Promise<LogAnalysisResult | null> => {
       setIsAnalyzing(true);
       setError(null);
 
       try {
-        const response = await fetch(`${API_BASE_URL}/debug-logs/analyze-stream`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
+        const response = await fetch(
+          `${API_BASE_URL}/debug-logs/analyze-stream`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              url,
+              type,
+              options: options
+                ? {
+                    ...options,
+                    filter: options.filter
+                      ? {
+                          ...options.filter,
+                          startTime: options.filter.startTime?.toISOString(),
+                          endTime: options.filter.endTime?.toISOString(),
+                        }
+                      : undefined,
+                  }
+                : undefined,
+            }),
           },
-          body: JSON.stringify({
-            url,
-            type,
-            options: options ? {
-              ...options,
-              filter: options.filter ? {
-                ...options.filter,
-                startTime: options.filter.startTime?.toISOString(),
-                endTime: options.filter.endTime?.toISOString(),
-              } : undefined
-            } : undefined
-          }),
-        });
+        );
 
         const data = await response.json();
 
@@ -187,16 +216,21 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
           })),
           summary: {
             ...data.result.summary,
-            timeRange: data.result.summary.timeRange ? {
-              start: new Date(data.result.summary.timeRange.start),
-              end: new Date(data.result.summary.timeRange.end),
-            } : undefined,
+            timeRange: data.result.summary.timeRange
+              ? {
+                  start: new Date(data.result.summary.timeRange.start),
+                  end: new Date(data.result.summary.timeRange.end),
+                }
+              : undefined,
           },
         };
 
         return result;
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'ストリーム解析中にエラーが発生しました';
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'ストリーム解析中にエラーが発生しました';
         setError(message);
         logger.error('Stream analysis error:', err);
         return null;
@@ -204,7 +238,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
         setIsAnalyzing(false);
       }
     },
-    [API_BASE_URL]
+    [API_BASE_URL],
   );
 
   return {

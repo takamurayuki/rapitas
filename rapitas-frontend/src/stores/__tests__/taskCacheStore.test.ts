@@ -40,7 +40,9 @@ describe('taskCacheStore', () => {
       useTaskCacheStore.setState({
         tasks: [{ id: 1, title: 'Old Title' } as never],
       });
-      useTaskCacheStore.getState().updateTaskLocally(1, { title: 'New Title' } as never);
+      useTaskCacheStore
+        .getState()
+        .updateTaskLocally(1, { title: 'New Title' } as never);
       const task = useTaskCacheStore.getState().tasks.find((t) => t.id === 1);
       expect(task?.title).toBe('New Title');
     });
@@ -52,7 +54,9 @@ describe('taskCacheStore', () => {
           { id: 2, title: 'Task 2' } as never,
         ],
       });
-      useTaskCacheStore.getState().updateTaskLocally(1, { title: 'Updated' } as never);
+      useTaskCacheStore
+        .getState()
+        .updateTaskLocally(1, { title: 'Updated' } as never);
       const task2 = useTaskCacheStore.getState().tasks.find((t) => t.id === 2);
       expect(task2?.title).toBe('Task 2');
     });
@@ -61,7 +65,10 @@ describe('taskCacheStore', () => {
   describe('removeTaskLocally', () => {
     it('should remove a task by id', () => {
       useTaskCacheStore.setState({
-        tasks: [{ id: 1, title: 'Task 1' } as never, { id: 2, title: 'Task 2' } as never],
+        tasks: [
+          { id: 1, title: 'Task 1' } as never,
+          { id: 2, title: 'Task 2' } as never,
+        ],
       });
       useTaskCacheStore.getState().removeTaskLocally(1);
       expect(useTaskCacheStore.getState().tasks).toHaveLength(1);
@@ -74,7 +81,9 @@ describe('taskCacheStore', () => {
       useTaskCacheStore.setState({
         tasks: [{ id: 1, title: 'Task 1' } as never],
       });
-      useTaskCacheStore.getState().addTaskLocally({ id: 2, title: 'Task 2' } as never);
+      useTaskCacheStore
+        .getState()
+        .addTaskLocally({ id: 2, title: 'Task 2' } as never);
       const tasks = useTaskCacheStore.getState().tasks;
       expect(tasks).toHaveLength(2);
       expect(tasks[0].id).toBe(2);
@@ -94,7 +103,10 @@ describe('taskCacheStore', () => {
 
   describe('fetchAll', () => {
     it('should fetch all tasks and update state', async () => {
-      const mockTasks = [{ id: 1, title: 'Task 1' }, { id: 2, title: 'Task 2' }];
+      const mockTasks = [
+        { id: 1, title: 'Task 1' },
+        { id: 2, title: 'Task 2' },
+      ];
       vi.mocked(fetchWithRetry).mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockTasks),

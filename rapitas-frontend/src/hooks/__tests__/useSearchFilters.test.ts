@@ -12,9 +12,7 @@ vi.mock('@/lib/logger', () => ({
   }),
 }));
 
-const makeFilter = (
-  overrides: Partial<SearchFilter> = {},
-): SearchFilter => ({
+const makeFilter = (overrides: Partial<SearchFilter> = {}): SearchFilter => ({
   id: 'test-1',
   type: 'status',
   label: 'Done',
@@ -63,10 +61,7 @@ describe('useSearchFilters', () => {
 
   it('removes a filter by id', () => {
     const { result } = renderHook(() =>
-      useSearchFilters([
-        makeFilter({ id: 'f1' }),
-        makeFilter({ id: 'f2' }),
-      ]),
+      useSearchFilters([makeFilter({ id: 'f1' }), makeFilter({ id: 'f2' })]),
     );
 
     act(() => {

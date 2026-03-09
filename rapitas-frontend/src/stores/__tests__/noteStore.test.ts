@@ -58,7 +58,9 @@ describe('noteStore', () => {
         currentNoteId: 'test-note-1',
       });
       useNoteStore.getState().updateNote('test-note-1', { title: 'Updated' });
-      const updated = useNoteStore.getState().notes.find((n) => n.id === 'test-note-1');
+      const updated = useNoteStore
+        .getState()
+        .notes.find((n) => n.id === 'test-note-1');
       expect(updated?.title).toBe('Updated');
     });
 
@@ -77,7 +79,9 @@ describe('noteStore', () => {
         ],
         currentNoteId: 'test-note-2',
       });
-      useNoteStore.getState().updateNote('test-note-2', { content: 'Some content' });
+      useNoteStore
+        .getState()
+        .updateNote('test-note-2', { content: 'Some content' });
       // Should have the original note + auto-created empty note
       const state = useNoteStore.getState();
       expect(state.notes.length).toBeGreaterThanOrEqual(2);
@@ -90,7 +94,9 @@ describe('noteStore', () => {
       useNoteStore.getState().createNote();
       const noteId = useNoteStore.getState().notes[0].id;
       useNoteStore.getState().deleteNote(noteId);
-      expect(useNoteStore.getState().notes.find((n) => n.id === noteId)).toBeUndefined();
+      expect(
+        useNoteStore.getState().notes.find((n) => n.id === noteId),
+      ).toBeUndefined();
     });
 
     it('should clear currentNoteId when deleting the current note', () => {
@@ -167,7 +173,9 @@ describe('noteStore', () => {
     it('bringToFront should increment zIndex', () => {
       const zBefore = useNoteStore.getState().modalState.zIndex;
       useNoteStore.getState().bringToFront();
-      expect(useNoteStore.getState().modalState.zIndex).toBeGreaterThan(zBefore);
+      expect(useNoteStore.getState().modalState.zIndex).toBeGreaterThan(
+        zBefore,
+      );
     });
 
     it('setModalTab should change activeTab', () => {

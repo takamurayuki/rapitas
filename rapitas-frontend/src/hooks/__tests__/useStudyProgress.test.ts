@@ -82,11 +82,31 @@ describe('useStudyProgress', () => {
 
     expect(result.current.milestones).toHaveLength(5);
     // 30 hours out of 100: 10% milestone (10 hours) achieved, 25% (25 hours) achieved, 50% (50 hours) not
-    expect(result.current.milestones[0]).toEqual({ label: '10%', targetHours: 10, achieved: true });
-    expect(result.current.milestones[1]).toEqual({ label: '25%', targetHours: 25, achieved: true });
-    expect(result.current.milestones[2]).toEqual({ label: '50%', targetHours: 50, achieved: false });
-    expect(result.current.milestones[3]).toEqual({ label: '75%', targetHours: 75, achieved: false });
-    expect(result.current.milestones[4]).toEqual({ label: '100%', targetHours: 100, achieved: false });
+    expect(result.current.milestones[0]).toEqual({
+      label: '10%',
+      targetHours: 10,
+      achieved: true,
+    });
+    expect(result.current.milestones[1]).toEqual({
+      label: '25%',
+      targetHours: 25,
+      achieved: true,
+    });
+    expect(result.current.milestones[2]).toEqual({
+      label: '50%',
+      targetHours: 50,
+      achieved: false,
+    });
+    expect(result.current.milestones[3]).toEqual({
+      label: '75%',
+      targetHours: 75,
+      achieved: false,
+    });
+    expect(result.current.milestones[4]).toEqual({
+      label: '100%',
+      targetHours: 100,
+      achieved: false,
+    });
   });
 
   it('should cap progress at 100%', async () => {

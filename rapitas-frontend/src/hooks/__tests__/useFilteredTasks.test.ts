@@ -140,9 +140,27 @@ describe('useFilteredTasks', () => {
 
   it('should combine multiple filters', () => {
     const tasks = [
-      createTask({ id: 1, status: 'todo', priority: 'high', themeId: 1, title: 'Match' }),
-      createTask({ id: 2, status: 'todo', priority: 'low', themeId: 1, title: 'Match' }),
-      createTask({ id: 3, status: 'done', priority: 'high', themeId: 1, title: 'Match' }),
+      createTask({
+        id: 1,
+        status: 'todo',
+        priority: 'high',
+        themeId: 1,
+        title: 'Match',
+      }),
+      createTask({
+        id: 2,
+        status: 'todo',
+        priority: 'low',
+        themeId: 1,
+        title: 'Match',
+      }),
+      createTask({
+        id: 3,
+        status: 'done',
+        priority: 'high',
+        themeId: 1,
+        title: 'Match',
+      }),
     ];
 
     const { result } = renderHook(() =>

@@ -114,9 +114,7 @@ describe('CacheManager', () => {
       await cacheManager.fetchWithETag('https://api.com/data');
 
       // Second call - 304 (include If-None-Match header check)
-      fetchSpy.mockResolvedValueOnce(
-        new Response(null, { status: 304 }),
-      );
+      fetchSpy.mockResolvedValueOnce(new Response(null, { status: 304 }));
       const result = await cacheManager.fetchWithETag('https://api.com/data');
       expect(result.data).toEqual({ id: 1 });
       expect(result.fromCache).toBe(true);

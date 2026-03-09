@@ -49,12 +49,15 @@ describe('LanguageSwitcher (English locale)', () => {
 
     vi.resetModules();
     const { default: EnSwitcher } = await import('../LanguageSwitcher');
-    const { render: renderFresh, screen: screenFresh } = await import('@testing-library/react');
+    const { render: renderFresh, screen: screenFresh } =
+      await import('@testing-library/react');
 
     renderFresh(<EnSwitcher />);
 
     expect(screenFresh.getByText('JA')).toBeInTheDocument();
-    expect(screenFresh.getByRole('button', { name: '日本語に切替' })).toBeInTheDocument();
+    expect(
+      screenFresh.getByRole('button', { name: '日本語に切替' }),
+    ).toBeInTheDocument();
   });
 
   it('toggles to Japanese when clicked in English mode', async () => {
@@ -68,7 +71,11 @@ describe('LanguageSwitcher (English locale)', () => {
 
     vi.resetModules();
     const { default: EnSwitcher } = await import('../LanguageSwitcher');
-    const { render: renderFresh, screen: screenFresh, fireEvent: fireEventFresh } = await import('@testing-library/react');
+    const {
+      render: renderFresh,
+      screen: screenFresh,
+      fireEvent: fireEventFresh,
+    } = await import('@testing-library/react');
 
     renderFresh(<EnSwitcher />);
 

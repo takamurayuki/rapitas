@@ -41,7 +41,9 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>,
     );
 
-    expect(screen.getByText('このセクションでエラーが発生しました')).toBeInTheDocument();
+    expect(
+      screen.getByText('このセクションでエラーが発生しました'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Test error message')).toBeInTheDocument();
     expect(screen.getByText('再試行')).toBeInTheDocument();
   });
@@ -53,7 +55,9 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>,
     );
 
-    expect(screen.getByText('TaskList でエラーが発生しました')).toBeInTheDocument();
+    expect(
+      screen.getByText('TaskList でエラーが発生しました'),
+    ).toBeInTheDocument();
   });
 
   it('renders custom fallback when provided', () => {

@@ -85,9 +85,7 @@ describe('useLocalStorageState', () => {
   });
 
   it('should handle boolean values', () => {
-    const { result } = renderHook(() =>
-      useLocalStorageState('boolKey', false),
-    );
+    const { result } = renderHook(() => useLocalStorageState('boolKey', false));
 
     act(() => {
       result.current[1](true);

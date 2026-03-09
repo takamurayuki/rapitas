@@ -335,7 +335,11 @@ export default function NoteEditor({ note }: NoteEditorProps) {
         body: JSON.stringify({ url }),
       });
       const meta = await res.json();
-      const linkNode = createLinkNode(url, meta.title || url, meta.favicon || '');
+      const linkNode = createLinkNode(
+        url,
+        meta.title || url,
+        meta.favicon || '',
+      );
       insertNodeAtCursor(linkNode);
       handleContentChange();
     } catch {
@@ -494,7 +498,11 @@ export default function NoteEditor({ note }: NoteEditorProps) {
       selectedTextColorRef.current
     ) {
       const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0 && selection.getRangeAt(0).collapsed) {
+      if (
+        selection &&
+        selection.rangeCount > 0 &&
+        selection.getRangeAt(0).collapsed
+      ) {
         handleDeleteColorPersistence(editorRefs);
       }
     }
@@ -511,7 +519,11 @@ export default function NoteEditor({ note }: NoteEditorProps) {
           onPaste={handleTitlePaste}
           className="flex-1 text-xl font-bold bg-transparent outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-500 text-zinc-900 dark:text-zinc-100"
           placeholder="タイトルを入力..."
-          style={{ fontStyle: 'normal', textDecoration: 'none', fontWeight: 700 }}
+          style={{
+            fontStyle: 'normal',
+            textDecoration: 'none',
+            fontWeight: 700,
+          }}
         />
         <button
           onClick={() => updateNote(note.id, { isPinned: !note.isPinned })}

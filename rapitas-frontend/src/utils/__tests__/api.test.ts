@@ -45,11 +45,14 @@ describe('fetchWithRetry', () => {
     vi.useRealTimers();
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     fetchSpy.mockRejectedValueOnce(new TypeError('Failed to fetch'));
-    fetchSpy.mockResolvedValueOnce(
-      new Response('{}', { status: 200 }),
-    );
+    fetchSpy.mockResolvedValueOnce(new Response('{}', { status: 200 }));
 
-    const result = await fetchWithRetry('http://test.com/api', undefined, 3, 10);
+    const result = await fetchWithRetry(
+      'http://test.com/api',
+      undefined,
+      3,
+      10,
+    );
     expect(result.ok).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
@@ -61,7 +64,9 @@ describe('fetchWithRetry', () => {
     );
 
     await expect(
-      fetchWithRetry('http://test.com/api', undefined, 2, 10, 10000, { silent: true }),
+      fetchWithRetry('http://test.com/api', undefined, 2, 10, 10000, {
+        silent: true,
+      }),
     ).rejects.toThrow(/Failed to fetch.*after 2 attempts/);
   });
 
@@ -72,7 +77,9 @@ describe('fetchWithRetry', () => {
     );
 
     await expect(
-      fetchWithRetry('http://test.com/api', undefined, 1, 10, 10000, { silent: true }),
+      fetchWithRetry('http://test.com/api', undefined, 1, 10, 10000, {
+        silent: true,
+      }),
     ).rejects.toThrow(/404/);
   });
 
@@ -82,7 +89,14 @@ describe('fetchWithRetry', () => {
     controller.abort();
 
     await expect(
-      fetchWithRetry('http://test.com/api', { signal: controller.signal }, 1, 50, 5000, { silent: true }),
+      fetchWithRetry(
+        'http://test.com/api',
+        { signal: controller.signal },
+        1,
+        50,
+        5000,
+        { silent: true },
+      ),
     ).rejects.toThrow(/aborted/);
   });
 });

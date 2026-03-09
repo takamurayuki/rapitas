@@ -238,8 +238,20 @@ describe('useAdvancedTaskSearch', () => {
 
   it('should filter results by categoryId', async () => {
     const mockTasks = [
-      { id: 1, title: 'Task 1', status: 'todo', createdAt: '2026-01-01', theme: { categoryId: 1 } },
-      { id: 2, title: 'Task 2', status: 'todo', createdAt: '2026-01-01', theme: { categoryId: 2 } },
+      {
+        id: 1,
+        title: 'Task 1',
+        status: 'todo',
+        createdAt: '2026-01-01',
+        theme: { categoryId: 1 },
+      },
+      {
+        id: 2,
+        title: 'Task 2',
+        status: 'todo',
+        createdAt: '2026-01-01',
+        theme: { categoryId: 2 },
+      },
     ];
     mockSearchTasks.mockResolvedValueOnce(mockTasks);
 

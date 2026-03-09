@@ -3,9 +3,7 @@ import { useAsyncOperation } from '../useAsyncOperation';
 
 describe('useAsyncOperation', () => {
   it('should have correct initial state', () => {
-    const { result } = renderHook(() =>
-      useAsyncOperation(async () => 'data'),
-    );
+    const { result } = renderHook(() => useAsyncOperation(async () => 'data'));
 
     expect(result.current.data).toBeNull();
     expect(result.current.isLoading).toBe(false);
@@ -18,9 +16,7 @@ describe('useAsyncOperation', () => {
       resolve = r;
     });
 
-    const { result } = renderHook(() =>
-      useAsyncOperation(async () => promise),
-    );
+    const { result } = renderHook(() => useAsyncOperation(async () => promise));
 
     let executePromise: Promise<unknown>;
     act(() => {
@@ -88,9 +84,7 @@ describe('useAsyncOperation', () => {
   });
 
   it('should reset state', async () => {
-    const { result } = renderHook(() =>
-      useAsyncOperation(async () => 'data'),
-    );
+    const { result } = renderHook(() => useAsyncOperation(async () => 'data'));
 
     await act(async () => {
       await result.current.execute();

@@ -45,9 +45,12 @@ describe('useBackendHealth', () => {
 
     expect(result.current.status).toBe('connected');
     expect(result.current.isConnected).toBe(true);
-    expect(mockFetch).toHaveBeenCalledWith('http://test:3001/events/status', expect.objectContaining({
-      signal: expect.any(AbortSignal),
-    }));
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://test:3001/events/status',
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
+    );
   });
 
   it('should set disconnected on failed health check', async () => {
@@ -64,7 +67,11 @@ describe('useBackendHealth', () => {
   });
 
   it('should set disconnected on non-ok response', async () => {
-    mockFetch.mockResolvedValue({ ok: false, status: 500, statusText: 'Internal Server Error' });
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+    });
 
     const { result } = renderHook(() => useBackendHealth());
 
@@ -95,7 +102,11 @@ describe('useBackendHealth', () => {
     mockFetch.mockRejectedValueOnce(new Error('Connection refused'));
 
     const { result } = renderHook(() =>
-      useBackendHealth({ onReconnectAction, intervalMs: 5000, retryIntervalMs: 2000 }),
+      useBackendHealth({
+        onReconnectAction,
+        intervalMs: 5000,
+        retryIntervalMs: 2000,
+      }),
     );
 
     // Initial check - fails

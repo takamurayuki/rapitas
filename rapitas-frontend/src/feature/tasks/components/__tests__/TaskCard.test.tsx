@@ -72,8 +72,7 @@ vi.mock('@/feature/tasks/components/PriorityIcon', () => ({
   }: {
     priority: string | null | undefined;
     size?: string;
-  }) =>
-    priority ? <span data-testid="priority-icon">{priority}</span> : null,
+  }) => (priority ? <span data-testid="priority-icon">{priority}</span> : null),
 }));
 
 // Mock TaskStatusChange component
@@ -258,9 +257,7 @@ describe('TaskCard', () => {
         status: 'in-progress' as Status,
       };
       render(<TaskCard {...mockProps} task={taskInProgress} />);
-      expect(
-        screen.getByTestId('status-icon-in-progress'),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId('status-icon-in-progress')).toBeInTheDocument();
     });
   });
 

@@ -7,7 +7,15 @@ vi.mock('@/utils/api', () => ({
 
 describe('useGlobalSearch', () => {
   const mockResults = [
-    { id: 1, type: 'task', title: 'Test Task', excerpt: 'excerpt', relevance: 1, metadata: {}, createdAt: '2026-01-01' },
+    {
+      id: 1,
+      type: 'task',
+      title: 'Test Task',
+      excerpt: 'excerpt',
+      relevance: 1,
+      metadata: {},
+      createdAt: '2026-01-01',
+    },
   ];
 
   beforeEach(() => {
@@ -36,7 +44,9 @@ describe('useGlobalSearch', () => {
   });
 
   it('should search after debounce delay', async () => {
-    const { result } = renderHook(() => useGlobalSearch({ debounceDelay: 300 }));
+    const { result } = renderHook(() =>
+      useGlobalSearch({ debounceDelay: 300 }),
+    );
 
     act(() => {
       result.current.setQuery('test');
@@ -173,7 +183,9 @@ describe('useSearchSuggest', () => {
         ok: true,
         json: () =>
           Promise.resolve({
-            suggestions: [{ id: 1, title: 'Suggestion', type: 'task', status: 'open' }],
+            suggestions: [
+              { id: 1, title: 'Suggestion', type: 'task', status: 'open' },
+            ],
           }),
       }),
     );

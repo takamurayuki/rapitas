@@ -135,10 +135,7 @@ export function highlightCode(text: string, lang: string): string {
   const langKeywords = keywords[lang] || [];
 
   if (langKeywords.length > 0) {
-    const keywordRegex = new RegExp(
-      `\\b(${langKeywords.join('|')})\\b`,
-      'g',
-    );
+    const keywordRegex = new RegExp(`\\b(${langKeywords.join('|')})\\b`, 'g');
     highlighted = highlighted.replace(
       keywordRegex,
       '<span style="color: #c792ea;">$1</span>',
@@ -175,9 +172,7 @@ export function highlightCode(text: string, lang: string): string {
       /(\/\*[\s\S]*?\*\/)/g,
       '<span style="color: #546e7a; font-style: italic;">$1</span>',
     );
-  } else if (
-    ['python', 'ruby', 'bash', 'powershell', 'yaml'].includes(lang)
-  ) {
+  } else if (['python', 'ruby', 'bash', 'powershell', 'yaml'].includes(lang)) {
     highlighted = highlighted.replace(
       /(#.*$)/gm,
       '<span style="color: #546e7a; font-style: italic;">$1</span>',
@@ -344,7 +339,10 @@ export function createCodeBlockNode(
   svg.setAttribute('stroke-linejoin', 'round');
 
   const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path1.setAttribute('d', 'M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z');
+  path1.setAttribute(
+    'd',
+    'M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z',
+  );
 
   const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   path2.setAttribute('d', 'M10 11v6M14 11v6');
@@ -481,11 +479,7 @@ export function createCodeBlockNode(
           selection.addRange(newRange);
         }
       } else {
-        document.execCommand(
-          'insertText',
-          false,
-          keyboardEvent.key + closing,
-        );
+        document.execCommand('insertText', false, keyboardEvent.key + closing);
 
         const newRange = document.createRange();
         const textNode = range.startContainer;

@@ -110,10 +110,13 @@ describe('useTaskSorting', () => {
   });
 
   it('should memoize result when inputs unchanged', () => {
-    const { result, rerender } = renderHook(
-      (props) => useTaskSorting(props),
-      { initialProps: { tasks, sortBy: 'title' as const, sortOrder: 'asc' as const } },
-    );
+    const { result, rerender } = renderHook((props) => useTaskSorting(props), {
+      initialProps: {
+        tasks,
+        sortBy: 'title' as const,
+        sortOrder: 'asc' as const,
+      },
+    });
     const first = result.current;
     rerender({ tasks, sortBy: 'title' as const, sortOrder: 'asc' as const });
     expect(result.current).toBe(first);

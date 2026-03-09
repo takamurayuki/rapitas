@@ -6,9 +6,21 @@ vi.mock('@/utils/api', () => ({
 }));
 
 const mockFilesResponse = {
-  research: { type: 'research', exists: true, content: '# Research', lastModified: '2026-01-01', size: 100 },
+  research: {
+    type: 'research',
+    exists: true,
+    content: '# Research',
+    lastModified: '2026-01-01',
+    size: 100,
+  },
   question: { type: 'question', exists: false },
-  plan: { type: 'plan', exists: true, content: '# Plan', lastModified: '2026-01-02', size: 200 },
+  plan: {
+    type: 'plan',
+    exists: true,
+    content: '# Plan',
+    lastModified: '2026-01-02',
+    size: 200,
+  },
   verify: { type: 'verify', exists: false },
   workflowStatus: 'plan_created',
   path: { taskId: 1, categoryId: 2, themeId: 3, dir: '/tasks/2/3/1' },
@@ -41,7 +53,9 @@ describe('useWorkflowFiles', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(fetch).toHaveBeenCalledWith('http://test:3001/workflow/tasks/1/files');
+    expect(fetch).toHaveBeenCalledWith(
+      'http://test:3001/workflow/tasks/1/files',
+    );
     expect(result.current.files).toEqual({
       research: mockFilesResponse.research,
       question: mockFilesResponse.question,
@@ -112,7 +126,10 @@ describe('useWorkflowFiles', () => {
   });
 
   it('should handle network error', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new Error('Network error')),
+    );
 
     const { result } = renderHook(() => useWorkflowFiles(1));
 
@@ -140,7 +157,9 @@ describe('useWorkflowFiles', () => {
     // files should be reset immediately on taskId change
     // (they get set to null in the useEffect)
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('http://test:3001/workflow/tasks/2/files');
+      expect(fetch).toHaveBeenCalledWith(
+        'http://test:3001/workflow/tasks/2/files',
+      );
     });
   });
 });

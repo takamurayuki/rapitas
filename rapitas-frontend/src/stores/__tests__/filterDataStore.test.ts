@@ -94,23 +94,34 @@ describe('filterDataStore', () => {
 
   describe('shouldBackgroundRefresh', () => {
     it('should return false when lastUpdated is null', () => {
-      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(false);
+      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(
+        false,
+      );
     });
 
     it('should return false when isLoading is true', () => {
-      useFilterDataStore.setState({ lastUpdated: Date.now() - 50 * 60 * 1000, isLoading: true });
-      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(false);
+      useFilterDataStore.setState({
+        lastUpdated: Date.now() - 50 * 60 * 1000,
+        isLoading: true,
+      });
+      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(
+        false,
+      );
     });
 
     it('should return true when age exceeds 80% of cache time', () => {
       // 80% of 1 hour = 48 minutes
       useFilterDataStore.setState({ lastUpdated: Date.now() - 50 * 60 * 1000 });
-      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(true);
+      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(
+        true,
+      );
     });
 
     it('should return false when age is below 80% of cache time', () => {
       useFilterDataStore.setState({ lastUpdated: Date.now() - 10 * 60 * 1000 });
-      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(false);
+      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(
+        false,
+      );
     });
   });
 

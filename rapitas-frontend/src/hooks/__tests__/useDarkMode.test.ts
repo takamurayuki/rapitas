@@ -2,7 +2,10 @@ import { renderHook, act } from '@testing-library/react';
 import { useDarkMode } from '../use-dark-mode';
 
 describe('useDarkMode', () => {
-  let mockClassList: { add: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn> };
+  let mockClassList: {
+    add: ReturnType<typeof vi.fn>;
+    remove: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -13,7 +16,9 @@ describe('useDarkMode', () => {
       writable: true,
       configurable: true,
     });
-    window.matchMedia = vi.fn().mockReturnValue({ matches: false } as MediaQueryList);
+    window.matchMedia = vi
+      .fn()
+      .mockReturnValue({ matches: false } as MediaQueryList);
   });
 
   afterEach(() => {
@@ -42,7 +47,9 @@ describe('useDarkMode', () => {
   });
 
   it('should use system preference when no localStorage value', () => {
-    window.matchMedia = vi.fn().mockReturnValue({ matches: true } as MediaQueryList);
+    window.matchMedia = vi
+      .fn()
+      .mockReturnValue({ matches: true } as MediaQueryList);
 
     const { result } = renderHook(() => useDarkMode());
 
