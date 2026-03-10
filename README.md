@@ -29,6 +29,7 @@ node scripts/dev.js --watch
 ```
 
 **特長:**
+
 - PostgreSQL接続チェック・自動修復
 - Prismaスキーマ同期 (`db push --skip-generate`)
 - Prisma Client自動生成
@@ -46,6 +47,7 @@ npm run dev
 ```
 
 起動時に **プリフライトチェック** が自動実行され、以下を検証します：
+
 - bun / pnpm / node のインストール確認
 - `.env` ファイルの存在確認と `DATABASE_URL` の設定確認
 - `node_modules` の存在確認
@@ -195,6 +197,7 @@ node scripts/dev.js
 ```
 
 **`dev.js`が自動実行する処理:**
+
 - PostgreSQL接続検証・修復
 - Prismaスキーマ同期 (`prisma db push --skip-generate`)
 - Prisma Client生成 (`prisma generate`)
@@ -431,6 +434,7 @@ npm run build -- --features custom-protocol
 ```
 
 **対応OS:**
+
 - Windows 10/11 (x64, ARM64)
 - macOS 10.15+ (Intel, Apple Silicon)
 - Linux (Ubuntu 18.04+, Fedora, Arch)
@@ -440,6 +444,7 @@ npm run build -- --features custom-protocol
 ### 推奨エディタ・拡張機能
 
 **Visual Studio Code:**
+
 - Prettier（コードフォーマッター）
 - ESLint（リンター）
 - Tailwind CSS IntelliSense
@@ -451,6 +456,7 @@ npm run build -- --features custom-protocol
 #### 🔍 よくある問題
 
 **PostgreSQL接続エラー:**
+
 ```bash
 # PostgreSQL起動確認
 brew services start postgresql  # Mac
@@ -458,6 +464,7 @@ sudo systemctl start postgresql  # Linux
 ```
 
 **ポートコンフリクト（3000/3001）:**
+
 ```bash
 # プロセス確認・終了
 lsof -ti:3000 | xargs kill -9
@@ -465,6 +472,7 @@ lsof -ti:3001 | xargs kill -9
 ```
 
 **Prismaスキーマ同期エラー:**
+
 ```bash
 cd rapitas-backend
 npx prisma migrate reset  # データベースリセット
@@ -472,6 +480,7 @@ npx prisma db push         # スキーマ再同期
 ```
 
 **Tauriビルドエラー:**
+
 ```bash
 # Rust toolchain更新
 rustup update
@@ -501,6 +510,32 @@ npm run ci:prepare  # CI環境準備
 - **ESLint + Prettier**: 自動フォーマット
 - **コミットメッセージ**: Conventional Commits
 - **テストカバレッジ**: 80%以上維持
+
+### コミット前チェック
+
+コミット時に**自動的にフォーマット/Lintエラーを修正**します：
+
+```bash
+# コミット実行（自動修正あり）
+git commit -m "your message"
+# → エラーがあれば自動修正を試み、成功すればコミット継続
+
+# 自動修正後もエラーが残る場合
+npm run check:commit  # 詳細なエラー情報を表示
+# 手動で修正後、再度コミット
+
+# どうしても必要な場合のみ（非推奨）
+git commit -m "your message" --no-verify
+```
+
+**自動修正の仕組み:**
+
+1. lint-staged を実行（Prettier + ESLint）
+2. エラーが出たら自動修正スクリプトを実行
+3. 修正したファイルを再ステージング
+4. 再度チェック → 成功すればコミット継続
+
+**詳細ガイド:** [docs/pre-commit-guide.md](docs/pre-commit-guide.md)
 
 ## 📄 ライセンス
 
