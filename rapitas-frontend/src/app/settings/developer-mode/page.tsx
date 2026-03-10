@@ -1,7 +1,15 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Bot, AlertCircle, Loader2, RotateCcw, Zap, Bug, ShieldCheck } from 'lucide-react';
+import {
+  Bot,
+  AlertCircle,
+  Loader2,
+  RotateCcw,
+  Zap,
+  Bug,
+  ShieldCheck,
+} from 'lucide-react';
 import type { UserSettings } from '@/types';
 import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast/ToastContainer';

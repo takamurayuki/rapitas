@@ -2,29 +2,29 @@
  * Learning Goals API Routes
  * 学習目標の作成、AI学習プラン生成、タスクへの適用
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
-import { createLogger } from "../../config/logger";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
 
-const log = createLogger("routes:learning-goals");
+const log = createLogger('routes:learning-goals');
 import {
   sendAIMessage,
   getDefaultProvider,
   isAnyApiKeyConfigured,
   type AIMessage,
-} from "../../utils/ai-client";
+} from '../../utils/ai-client';
 
-export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
+export const learningGoalsRoutes = new Elysia({ prefix: '/learning-goals' })
   // 全学習目標を取得
-  .get("/", async () => {
+  .get('/', async () => {
     return await prisma.learningGoal.findMany({
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
     });
   })
 
   // 学習目標をIDで取得
-  .get("/:id", async (context) => {
-      const { params  } = context;
+  .get('/:id', async (context) => {
+    const { params } = context;
     const id = parseInt(params.id);
     return await prisma.learningGoal.findUnique({
       where: { id },
@@ -33,17 +33,18 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
 
   // 学習目標を作成
   .post(
-    "/",
+    '/',
     async (context) => {
-      const { title, description, currentLevel, targetLevel, deadline, dailyHours, categoryId  } = context.body as {
-        title: string;
-        description?: string;
-        currentLevel?: string;
-        targetLevel?: string;
-        deadline?: string;
-        dailyHours?: number;
-        categoryId?: number;
-      };
+      const { title, description, currentLevel, targetLevel, deadline, dailyHours, categoryId } =
+        context.body as {
+          title: string;
+          description?: string;
+          currentLevel?: string;
+          targetLevel?: string;
+          deadline?: string;
+          dailyHours?: number;
+          categoryId?: number;
+        };
 
       return await prisma.learningGoal.create({
         data: {
@@ -67,12 +68,12 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
         dailyHours: t.Optional(t.Number()),
         categoryId: t.Optional(t.Number()),
       }),
-    }
+    },
   )
 
   // 学習目標を更新
   .patch(
-    "/:id",
+    '/:id',
     async (context) => {
       const { params, body } = context;
       const id = parseInt(params.id as string);
@@ -94,7 +95,8 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
       if (bodyData.description !== undefined) updateData.description = bodyData.description;
       if (bodyData.currentLevel !== undefined) updateData.currentLevel = bodyData.currentLevel;
       if (bodyData.targetLevel !== undefined) updateData.targetLevel = bodyData.targetLevel;
-      if (bodyData.deadline !== undefined) updateData.deadline = bodyData.deadline ? new Date(bodyData.deadline) : null;
+      if (bodyData.deadline !== undefined)
+        updateData.deadline = bodyData.deadline ? new Date(bodyData.deadline) : null;
       if (bodyData.dailyHours !== undefined) updateData.dailyHours = bodyData.dailyHours;
       if (bodyData.status !== undefined) updateData.status = bodyData.status;
       if (bodyData.isApplied !== undefined) updateData.isApplied = bodyData.isApplied;
@@ -120,12 +122,12 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
         isApplied: t.Optional(t.Boolean()),
         themeId: t.Optional(t.Number()),
       }),
-    }
+    },
   )
 
   // 学習目標を削除
-  .delete("/:id", async (context) => {
-      const { params  } = context;
+  .delete('/:id', async (context) => {
+    const { params } = context;
     const id = parseInt(params.id);
     return await prisma.learningGoal.delete({
       where: { id },
@@ -133,44 +135,48 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
   })
 
   // AI学習プランを生成
-  .post(
-    "/:id/generate-plan",
-    async (context) => {
-      const { params  } = context;
-      const id = parseInt(params.id);
+  .post('/:id/generate-plan', async (context) => {
+    const { params } = context;
+    const id = parseInt(params.id);
 
-      const goal = await prisma.learningGoal.findUnique({
+    const goal = await prisma.learningGoal.findUnique({
+      where: { id },
+    });
+
+    if (!goal) {
+      return { error: 'Learning goal not found' };
+    }
+
+    const aiAvailable = await isAnyApiKeyConfigured();
+
+    // 期限までの日数を計算
+    let totalDays = 90; // デフォルト3ヶ月
+    if (goal.deadline) {
+      const now = new Date();
+      totalDays = Math.max(
+        7,
+        Math.ceil((goal.deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+      );
+    }
+
+    if (!aiAvailable) {
+      // AI未設定時のフォールバック生成
+      const plan = generateFallbackPlan(
+        goal.title,
+        goal.currentLevel,
+        goal.targetLevel,
+        totalDays,
+        goal.dailyHours,
+      );
+      await prisma.learningGoal.update({
         where: { id },
+        data: { generatedPlan: JSON.stringify(plan) },
       });
+      return { plan, source: 'fallback' };
+    }
 
-      if (!goal) {
-        return { error: "Learning goal not found" };
-      }
-
-      const aiAvailable = await isAnyApiKeyConfigured();
-
-      // 期限までの日数を計算
-      let totalDays = 90; // デフォルト3ヶ月
-      if (goal.deadline) {
-        const now = new Date();
-        totalDays = Math.max(
-          7,
-          Math.ceil((goal.deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-        );
-      }
-
-      if (!aiAvailable) {
-        // AI未設定時のフォールバック生成
-        const plan = generateFallbackPlan(goal.title, goal.currentLevel, goal.targetLevel, totalDays, goal.dailyHours);
-        await prisma.learningGoal.update({
-          where: { id },
-          data: { generatedPlan: JSON.stringify(plan) },
-        });
-        return { plan, source: "fallback" };
-      }
-
-      // AI生成
-      const systemPrompt = `あなたは学習計画の専門家です。ユーザーの学習目標に対して、具体的で実行可能な学習プランを生成してください。
+    // AI生成
+    const systemPrompt = `あなたは学習計画の専門家です。ユーザーの学習目標に対して、具体的で実行可能な学習プランを生成してください。
 
 以下の基準で学習プランを生成してください：
 1. 目標達成に必要な知識・スキルを体系的に分解する
@@ -217,15 +223,15 @@ export const learningGoalsRoutes = new Elysia({ prefix: "/learning-goals" })
   "tips": ["学習のコツやアドバイス"]
 }`;
 
-      const userPrompt = `## 学習目標
+    const userPrompt = `## 学習目標
 **${goal.title}**
 
-${goal.description ? `## 詳細説明\n${goal.description}\n` : ""}
+${goal.description ? `## 詳細説明\n${goal.description}\n` : ''}
 ## 現在のレベル
-${goal.currentLevel || "未指定"}
+${goal.currentLevel || '未指定'}
 
 ## 目標レベル
-${goal.targetLevel || "未指定"}
+${goal.targetLevel || '未指定'}
 
 ## 期間
 ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
@@ -239,51 +245,62 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
 - 各サブタスクには必ず見積もり時間を0.5時間単位で設定してください
 - サブタスクの合計時間がタスクの見積もり時間と一致するようにしてください`;
 
-      try {
-        const provider = await getDefaultProvider();
-        const messages: AIMessage[] = [{ role: "user", content: userPrompt }];
+    try {
+      const provider = await getDefaultProvider();
+      const messages: AIMessage[] = [{ role: 'user', content: userPrompt }];
 
-        const response = await sendAIMessage({
-          provider,
-          messages,
-          systemPrompt,
-          maxTokens: 4096,
-        });
+      const response = await sendAIMessage({
+        provider,
+        messages,
+        systemPrompt,
+        maxTokens: 4096,
+      });
 
-        const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-          log.error("[learning-goals] Failed to parse AI response");
-          const fallbackPlan = generateFallbackPlan(goal.title, goal.currentLevel, goal.targetLevel, totalDays, goal.dailyHours);
-          await prisma.learningGoal.update({
-            where: { id },
-            data: { generatedPlan: JSON.stringify(fallbackPlan) },
-          });
-          return { plan: fallbackPlan, source: "fallback" };
-        }
-
-        const plan = JSON.parse(jsonMatch[0]);
-
-        await prisma.learningGoal.update({
-          where: { id },
-          data: { generatedPlan: JSON.stringify(plan) },
-        });
-
-        return { plan, source: "ai", tokensUsed: response.tokensUsed };
-      } catch (error) {
-        log.error({ err: error }, "[learning-goals] AI plan generation failed");
-        const fallbackPlan = generateFallbackPlan(goal.title, goal.currentLevel, goal.targetLevel, totalDays, goal.dailyHours);
+      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        log.error('[learning-goals] Failed to parse AI response');
+        const fallbackPlan = generateFallbackPlan(
+          goal.title,
+          goal.currentLevel,
+          goal.targetLevel,
+          totalDays,
+          goal.dailyHours,
+        );
         await prisma.learningGoal.update({
           where: { id },
           data: { generatedPlan: JSON.stringify(fallbackPlan) },
         });
-        return { plan: fallbackPlan, source: "fallback" };
+        return { plan: fallbackPlan, source: 'fallback' };
       }
+
+      const plan = JSON.parse(jsonMatch[0]);
+
+      await prisma.learningGoal.update({
+        where: { id },
+        data: { generatedPlan: JSON.stringify(plan) },
+      });
+
+      return { plan, source: 'ai', tokensUsed: response.tokensUsed };
+    } catch (error) {
+      log.error({ err: error }, '[learning-goals] AI plan generation failed');
+      const fallbackPlan = generateFallbackPlan(
+        goal.title,
+        goal.currentLevel,
+        goal.targetLevel,
+        totalDays,
+        goal.dailyHours,
+      );
+      await prisma.learningGoal.update({
+        where: { id },
+        data: { generatedPlan: JSON.stringify(fallbackPlan) },
+      });
+      return { plan: fallbackPlan, source: 'fallback' };
     }
-  )
+  })
 
   // 学習プランをタスクに適用（テーマ作成 → タスク・サブタスク登録）
-  .post("/:id/apply", async (context) => {
-      const { params  } = context;
+  .post('/:id/apply', async (context) => {
+    const { params } = context;
     const id = parseInt(params.id);
 
     const goal = await prisma.learningGoal.findUnique({
@@ -291,15 +308,15 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
     });
 
     if (!goal) {
-      return { error: "Learning goal not found" };
+      return { error: 'Learning goal not found' };
     }
 
     if (!goal.generatedPlan) {
-      return { error: "No generated plan found. Please generate a plan first." };
+      return { error: 'No generated plan found. Please generate a plan first.' };
     }
 
     if (goal.isApplied) {
-      return { error: "This plan has already been applied." };
+      return { error: 'This plan has already been applied.' };
     }
 
     const plan = JSON.parse(goal.generatedPlan as string) as GeneratedLearningPlan;
@@ -308,7 +325,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
     let categoryId = goal.categoryId;
     if (!categoryId) {
       const learningCategory = await prisma.category.findFirst({
-        where: { mode: "learning" },
+        where: { mode: 'learning' },
       });
       categoryId = learningCategory?.id ?? null;
     }
@@ -318,7 +335,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
       data: {
         name: plan.themeName || goal.title,
         description: plan.themeDescription || goal.description || `学習目標: ${goal.title}`,
-        color: "#8B5CF6",
+        color: '#8B5CF6',
         isDevelopment: false,
         ...(categoryId && { categoryId }),
       },
@@ -337,8 +354,8 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
           data: {
             title: taskDef.title,
             description: buildTaskDescription(phase.name, taskDef.description, goal.title),
-            status: "todo",
-            priority: taskDef.priority || "medium",
+            status: 'todo',
+            priority: taskDef.priority || 'medium',
             estimatedHours: taskDef.estimatedHours || null,
             dueDate: phaseEndDate,
             subject: goal.title,
@@ -366,8 +383,8 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
               data: {
                 title: `${i + 1}. ${sub.title}`,
                 description: sub.description || null,
-                status: "todo",
-                priority: taskDef.priority || "medium",
+                status: 'todo',
+                priority: taskDef.priority || 'medium',
                 estimatedHours: sub.estimatedHours || null,
                 parentId: task.id,
                 themeId: theme.id,
@@ -403,7 +420,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
         data: {
           name: `${goal.title} - ${phase.name}`,
           description: phase.description || `${goal.title}のフェーズ${phaseIdx + 1}: ${phase.name}`,
-          color: "#8B5CF6",
+          color: '#8B5CF6',
           learningGoalId: id,
           phaseIndex: phaseIdx,
         },
@@ -413,7 +430,10 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
       // AI でフラッシュカードを非同期生成（fire-and-forget）
       if (aiAvailable) {
         generateFlashcardsForPhase(deck.id, phase, goal.title).catch((err) => {
-          log.error({ err }, `[learning-goals] Failed to generate flashcards for phase ${phaseIdx}`);
+          log.error(
+            { err },
+            `[learning-goals] Failed to generate flashcards for phase ${phaseIdx}`,
+          );
         });
       }
     }
@@ -429,7 +449,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
   })
 
   // 進捗に基づく計画適応
-  .post("/:id/adapt", async (context) => {
+  .post('/:id/adapt', async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
 
@@ -438,16 +458,16 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
     });
 
     if (!goal) {
-      return { error: "Learning goal not found" };
+      return { error: 'Learning goal not found' };
     }
 
     if (!goal.generatedPlan || !goal.themeId) {
-      return { error: "No applied plan found. Please generate and apply a plan first." };
+      return { error: 'No applied plan found. Please generate and apply a plan first.' };
     }
 
     const aiAvailable = await isAnyApiKeyConfigured();
     if (!aiAvailable) {
-      return { error: "AI is not configured. Please set up an API key." };
+      return { error: 'AI is not configured. Please set up an API key.' };
     }
 
     // テーマ配下のタスク進捗を取得
@@ -457,29 +477,28 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
     });
 
     const totalTasks = tasks.length;
-    const completedTasks = tasks.filter((t) => t.status === "done").length;
+    const completedTasks = tasks.filter((t) => t.status === 'done').length;
     const progressRate = totalTasks > 0 ? completedTasks / totalTasks : 0;
 
     // 残り日数を計算
     let remainingDays = 30;
     if (goal.deadline) {
       const now = new Date();
-      remainingDays = Math.max(1, Math.ceil((goal.deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+      remainingDays = Math.max(
+        1,
+        Math.ceil((goal.deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+      );
     }
 
     const plan = JSON.parse(goal.generatedPlan as string) as GeneratedLearningPlan;
 
-    const completedTaskTitles = tasks
-      .filter((t) => t.status === "done")
-      .map((t) => t.title);
-    const remainingTaskTitles = tasks
-      .filter((t) => t.status !== "done")
-      .map((t) => t.title);
+    const completedTaskTitles = tasks.filter((t) => t.status === 'done').map((t) => t.title);
+    const remainingTaskTitles = tasks.filter((t) => t.status !== 'done').map((t) => t.title);
 
     const provider = await getDefaultProvider();
     const messages: AIMessage[] = [
       {
-        role: "user",
+        role: 'user',
         content: `## 学習目標の計画適応
 
 **学習目標:** ${goal.title}
@@ -488,10 +507,10 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
 **1日の学習時間:** ${goal.dailyHours}時間
 
 ### 完了済みタスク
-${completedTaskTitles.length > 0 ? completedTaskTitles.map((t) => `- ${t}`).join("\n") : "なし"}
+${completedTaskTitles.length > 0 ? completedTaskTitles.map((t) => `- ${t}`).join('\n') : 'なし'}
 
 ### 未完了タスク
-${remainingTaskTitles.length > 0 ? remainingTaskTitles.map((t) => `- ${t}`).join("\n") : "なし"}
+${remainingTaskTitles.length > 0 ? remainingTaskTitles.map((t) => `- ${t}`).join('\n') : 'なし'}
 
 ### 元の計画
 ${JSON.stringify(plan, null, 2)}
@@ -507,13 +526,14 @@ ${JSON.stringify(plan, null, 2)}
       const response = await sendAIMessage({
         provider,
         messages,
-        systemPrompt: "あなたは学習計画の最適化専門家です。進捗状況に基づいて、残りの学習計画を最適化してください。必ずJSON形式で回答してください。",
+        systemPrompt:
+          'あなたは学習計画の最適化専門家です。進捗状況に基づいて、残りの学習計画を最適化してください。必ずJSON形式で回答してください。',
         maxTokens: 4096,
       });
 
       const jsonMatch = response.content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        return { error: "Failed to parse AI response" };
+        return { error: 'Failed to parse AI response' };
       }
 
       const adaptedPlan = JSON.parse(jsonMatch[0]);
@@ -531,8 +551,8 @@ ${JSON.stringify(plan, null, 2)}
         tokensUsed: response.tokensUsed,
       };
     } catch (error) {
-      log.error({ err: error }, "[learning-goals] Plan adaptation failed");
-      return { error: "Failed to adapt plan" };
+      log.error({ err: error }, '[learning-goals] Plan adaptation failed');
+      return { error: 'Failed to adapt plan' };
     }
   });
 
@@ -572,17 +592,15 @@ function buildTaskDescription(phaseName: string, description: string, goalTitle:
 
 async function generateFlashcardsForPhase(
   deckId: number,
-  phase: GeneratedLearningPlan["phases"][0],
-  goalTitle: string
+  phase: GeneratedLearningPlan['phases'][0],
+  goalTitle: string,
 ): Promise<void> {
-  const taskSummary = phase.tasks
-    .map((t) => `- ${t.title}: ${t.description}`)
-    .join("\n");
+  const taskSummary = phase.tasks.map((t) => `- ${t.title}: ${t.description}`).join('\n');
 
   const provider = await getDefaultProvider();
   const messages: AIMessage[] = [
     {
-      role: "user",
+      role: 'user',
       content: `以下の学習フェーズの内容から、復習用のフラッシュカード（Q&Aペア）を8枚作成してください。
 
 **学習目標:** ${goalTitle}
@@ -598,13 +616,14 @@ ${taskSummary}
   const response = await sendAIMessage({
     provider,
     messages,
-    systemPrompt: "フラッシュカード生成専門AIです。学習内容から重要な概念を抽出し、効果的なQ&Aペアを作成してください。JSON形式のみで回答してください。",
+    systemPrompt:
+      'フラッシュカード生成専門AIです。学習内容から重要な概念を抽出し、効果的なQ&Aペアを作成してください。JSON形式のみで回答してください。',
     maxTokens: 2048,
   });
 
   const jsonMatch = response.content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    log.error("[learning-goals] Failed to parse flashcard AI response");
+    log.error('[learning-goals] Failed to parse flashcard AI response');
     return;
   }
 
@@ -627,7 +646,7 @@ function generateFallbackPlan(
   currentLevel: string | null,
   targetLevel: string | null,
   totalDays: number,
-  dailyHours: number
+  dailyHours: number,
 ): GeneratedLearningPlan {
   const phaseDays = Math.floor(totalDays / 3);
 
@@ -636,52 +655,52 @@ function generateFallbackPlan(
     themeDescription: `${title}の学習`,
     phases: [
       {
-        name: "基礎固め",
+        name: '基礎固め',
         days: phaseDays,
-        description: "基本的な知識やスキルを習得するフェーズ",
+        description: '基本的な知識やスキルを習得するフェーズ',
         tasks: [
           {
             title: `${title}の基本概念を学習`,
             description: `${title}に関する基礎知識を体系的に学習します。入門書やオンラインコースを活用してください。`,
             estimatedHours: dailyHours * 5,
-            priority: "high",
+            priority: 'high',
             subtasks: [
               {
-                title: "入門教材の選定と学習環境の準備",
-                description: "評価の高い入門書やオンラインコースを選び、学習環境を整えます",
+                title: '入門教材の選定と学習環境の準備',
+                description: '評価の高い入門書やオンラインコースを選び、学習環境を整えます',
                 estimatedHours: 2,
               },
               {
-                title: "基本概念の理解（第1週）",
-                description: "選定した教材の前半部分を学習し、基本用語と概念を理解します",
+                title: '基本概念の理解（第1週）',
+                description: '選定した教材の前半部分を学習し、基本用語と概念を理解します',
                 estimatedHours: Math.floor((dailyHours * 5 - 2) / 2),
               },
               {
-                title: "基本概念の定着（第2週）",
-                description: "教材の後半部分を学習し、演習問題やサンプルで理解を深めます",
+                title: '基本概念の定着（第2週）',
+                description: '教材の後半部分を学習し、演習問題やサンプルで理解を深めます',
                 estimatedHours: Math.ceil((dailyHours * 5 - 2) / 2),
               },
             ],
           },
           {
-            title: "学習ロードマップの作成",
-            description: `${currentLevel || "現在のレベル"}から${targetLevel || "目標レベル"}に到達するためのロードマップを整理します。`,
+            title: '学習ロードマップの作成',
+            description: `${currentLevel || '現在のレベル'}から${targetLevel || '目標レベル'}に到達するためのロードマップを整理します。`,
             estimatedHours: 2,
-            priority: "high",
+            priority: 'high',
             subtasks: [
               {
-                title: "現在のスキルレベルの棚卸し",
-                description: "現在できること・できないことを具体的にリストアップします",
+                title: '現在のスキルレベルの棚卸し',
+                description: '現在できること・できないことを具体的にリストアップします',
                 estimatedHours: 0.5,
               },
               {
-                title: "目標達成に必要なスキルの洗い出し",
-                description: "目標レベルに必要なスキルを調査し、習得すべき項目を特定します",
+                title: '目標達成に必要なスキルの洗い出し',
+                description: '目標レベルに必要なスキルを調査し、習得すべき項目を特定します',
                 estimatedHours: 1,
               },
               {
-                title: "学習計画の具体化",
-                description: "優先順位をつけて、週単位・月単位の学習計画を立てます",
+                title: '学習計画の具体化',
+                description: '優先順位をつけて、週単位・月単位の学習計画を立てます',
                 estimatedHours: 0.5,
               },
             ],
@@ -689,47 +708,47 @@ function generateFallbackPlan(
         ],
       },
       {
-        name: "実践・応用",
+        name: '実践・応用',
         days: phaseDays,
-        description: "学んだ知識を実践に適用するフェーズ",
+        description: '学んだ知識を実践に適用するフェーズ',
         tasks: [
           {
             title: `${title}の応用課題に取り組む`,
-            description: "基礎知識を活かした応用的な課題やプロジェクトに取り組みます。",
+            description: '基礎知識を活かした応用的な課題やプロジェクトに取り組みます。',
             estimatedHours: dailyHours * 7,
-            priority: "high",
+            priority: 'high',
             subtasks: [
               {
-                title: "実践課題の選定",
-                description: "現在のレベルに適した実践的な課題やミニプロジェクトを選びます",
+                title: '実践課題の選定',
+                description: '現在のレベルに適した実践的な課題やミニプロジェクトを選びます',
                 estimatedHours: 1,
               },
               {
-                title: "課題への取り組み（前半）",
-                description: "選定した課題に着手し、基礎知識を応用しながら進めます",
+                title: '課題への取り組み（前半）',
+                description: '選定した課題に着手し、基礎知識を応用しながら進めます',
                 estimatedHours: Math.floor((dailyHours * 7 - 1) / 2),
               },
               {
-                title: "課題への取り組み（後半）と振り返り",
-                description: "課題を完成させ、学んだことを整理・記録します",
+                title: '課題への取り組み（後半）と振り返り',
+                description: '課題を完成させ、学んだことを整理・記録します',
                 estimatedHours: Math.ceil((dailyHours * 7 - 1) / 2),
               },
             ],
           },
           {
-            title: "弱点分野の補強",
-            description: "基礎段階で見つかった弱点を重点的に学習します。",
+            title: '弱点分野の補強',
+            description: '基礎段階で見つかった弱点を重点的に学習します。',
             estimatedHours: dailyHours * 3,
-            priority: "medium",
+            priority: 'medium',
             subtasks: [
               {
-                title: "弱点の特定と優先順位付け",
-                description: "実践を通じて明らかになった弱点を整理し、優先順位をつけます",
+                title: '弱点の特定と優先順位付け',
+                description: '実践を通じて明らかになった弱点を整理し、優先順位をつけます',
                 estimatedHours: 0.5,
               },
               {
-                title: "重点学習の実施",
-                description: "優先度の高い弱点から順に、追加教材や演習で補強します",
+                title: '重点学習の実施',
+                description: '優先度の高い弱点から順に、追加教材や演習で補強します',
                 estimatedHours: dailyHours * 3 - 0.5,
               },
             ],
@@ -737,48 +756,48 @@ function generateFallbackPlan(
         ],
       },
       {
-        name: "総仕上げ・実力確認",
+        name: '総仕上げ・実力確認',
         days: totalDays - phaseDays * 2,
-        description: "目標達成に向けた最終調整フェーズ",
+        description: '目標達成に向けた最終調整フェーズ',
         tasks: [
           {
-            title: "総合的な実力テスト",
-            description: `${targetLevel || "目標レベル"}に到達しているかを確認する実力テストを行います。`,
+            title: '総合的な実力テスト',
+            description: `${targetLevel || '目標レベル'}に到達しているかを確認する実力テストを行います。`,
             estimatedHours: dailyHours * 3,
-            priority: "high",
+            priority: 'high',
             subtasks: [
               {
-                title: "模擬テストや実践課題の準備",
-                description: "目標レベルを測定できる適切なテストや課題を選定します",
+                title: '模擬テストや実践課題の準備',
+                description: '目標レベルを測定できる適切なテストや課題を選定します',
                 estimatedHours: 1,
               },
               {
-                title: "実力テストの実施",
-                description: "時間を計って本番同様の環境でテストを実施します",
+                title: '実力テストの実施',
+                description: '時間を計って本番同様の環境でテストを実施します',
                 estimatedHours: dailyHours * 3 - 2,
               },
               {
-                title: "結果の分析と改善点の特定",
-                description: "テスト結果を分析し、最終調整が必要な箇所を明確にします",
+                title: '結果の分析と改善点の特定',
+                description: 'テスト結果を分析し、最終調整が必要な箇所を明確にします',
                 estimatedHours: 1,
               },
             ],
           },
           {
-            title: "復習と最終調整",
-            description: "これまでの学習内容を振り返り、不足している部分を補強します。",
+            title: '復習と最終調整',
+            description: 'これまでの学習内容を振り返り、不足している部分を補強します。',
             estimatedHours: dailyHours * 5,
-            priority: "medium",
+            priority: 'medium',
             subtasks: [
               {
-                title: "重要項目の総復習",
-                description: "これまでに学んだ重要概念やスキルを体系的に復習します",
-                estimatedHours: Math.floor(dailyHours * 5 / 2),
+                title: '重要項目の総復習',
+                description: 'これまでに学んだ重要概念やスキルを体系的に復習します',
+                estimatedHours: Math.floor((dailyHours * 5) / 2),
               },
               {
-                title: "最終調整と仕上げ",
-                description: "実力テストで判明した弱点を重点的に補強し、目標達成を確実にします",
-                estimatedHours: Math.ceil(dailyHours * 5 / 2),
+                title: '最終調整と仕上げ',
+                description: '実力テストで判明した弱点を重点的に補強し、目標達成を確実にします',
+                estimatedHours: Math.ceil((dailyHours * 5) / 2),
               },
             ],
           },
@@ -786,9 +805,9 @@ function generateFallbackPlan(
       },
     ],
     tips: [
-      "毎日同じ時間に学習する習慣をつけましょう",
-      "学んだ内容はアウトプットすることで定着します",
-      "進捗を定期的に振り返り、プランを調整しましょう",
+      '毎日同じ時間に学習する習慣をつけましょう',
+      '学んだ内容はアウトプットすることで定着します',
+      '進捗を定期的に振り返り、プランを調整しましょう',
     ],
   };
 }

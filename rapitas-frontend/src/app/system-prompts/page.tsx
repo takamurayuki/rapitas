@@ -122,8 +122,7 @@ export default function SystemPromptsPage() {
   };
 
   const handleReset = async (key: string) => {
-    if (!confirm(t('confirmReset')))
-      return;
+    if (!confirm(t('confirmReset'))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/system-prompts/${key}/reset`, {
         method: 'POST',
@@ -263,9 +262,7 @@ export default function SystemPromptsPage() {
           <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
             <MessageSquare className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
             <p className="text-zinc-500 dark:text-zinc-400">
-              {searchQuery
-                ? t('noSearchResults')
-                : t('noPrompts')}
+              {searchQuery ? t('noSearchResults') : t('noPrompts')}
             </p>
           </div>
         ) : (
@@ -527,7 +524,8 @@ function PromptCard({
                     {prompt.key}
                   </code>
                   <span className="mx-2">|</span>
-                  {t('updatedLabel')} {new Date(prompt.updatedAt).toLocaleString('ja-JP')}
+                  {t('updatedLabel')}{' '}
+                  {new Date(prompt.updatedAt).toLocaleString('ja-JP')}
                 </div>
                 <div className="flex items-center gap-1">
                   <button
@@ -643,9 +641,7 @@ function AddPromptModal({
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
                     required
                   />
-                  <p className="text-xs text-zinc-400 mt-1">
-                    {t('keyHint')}
-                  </p>
+                  <p className="text-xs text-zinc-400 mt-1">{t('keyHint')}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
@@ -681,7 +677,8 @@ function AddPromptModal({
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  {tc('descriptionOptional')}</label>
+                  {tc('descriptionOptional')}
+                </label>
                 <input
                   type="text"
                   value={description}

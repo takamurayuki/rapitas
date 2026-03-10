@@ -36,7 +36,11 @@ export default function TaskDescription({
 
     // 単語の境界で切り取る
     let cutoffIndex = maxInitialLength;
-    while (cutoffIndex > 0 && description[cutoffIndex] !== ' ' && description[cutoffIndex] !== '\n') {
+    while (
+      cutoffIndex > 0 &&
+      description[cutoffIndex] !== ' ' &&
+      description[cutoffIndex] !== '\n'
+    ) {
       cutoffIndex--;
     }
 

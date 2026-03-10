@@ -683,7 +683,8 @@ function HomeClientPage() {
         <div className="flex items-center gap-2">
           <div className="text-red-600 dark:text-red-400">⚠️</div>
           <span className="text-sm text-red-700 dark:text-red-300">
-            {t('filterDataFailed')}{error}
+            {t('filterDataFailed')}
+            {error}
           </span>
         </div>
         <button
@@ -1450,12 +1451,8 @@ function HomeClientPage() {
               0 ? (
               <>
                 <SwatchBook className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
-                <p className="text-lg font-medium mb-2">
-                  {t('noThemes')}
-                </p>
-                <p className="text-sm mb-4">
-                  {t('noThemesDescription')}
-                </p>
+                <p className="text-lg font-medium mb-2">{t('noThemes')}</p>
+                <p className="text-sm mb-4">{t('noThemesDescription')}</p>
                 <button
                   onClick={() => router.push('/themes')}
                   className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-colors inline-flex items-center gap-2"

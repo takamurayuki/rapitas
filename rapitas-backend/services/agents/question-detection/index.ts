@@ -14,14 +14,14 @@ export type {
   QuestionDetails,
   QuestionDetectionResult,
   QuestionWaitingState,
-} from "./types";
+} from './types';
 
 // 定数
 export {
   DEFAULT_QUESTION_TIMEOUT_SECONDS,
   MIN_QUESTION_TIMEOUT_SECONDS,
   MAX_QUESTION_TIMEOUT_SECONDS,
-} from "./constants";
+} from './constants';
 
 // コア検出ロジック
 export {
@@ -32,7 +32,7 @@ export {
   detectQuestionFromToolCall,
   createInitialWaitingState,
   updateWaitingStateFromDetection,
-} from "./detection";
+} from './detection';
 
 // タイムアウト管理
 export {
@@ -40,17 +40,14 @@ export {
   calculateTimeoutDeadline,
   isQuestionTimedOut,
   getRemainingTimeoutSeconds,
-} from "./timeout";
+} from './timeout';
 
 // バリデーション & パース
 export {
   validateQuestionKey,
   parseQuestionKeyFromString,
   extractQuestionKeyFromObject,
-} from "./validation";
+} from './validation';
 
 // 後方互換性レイヤー
-export {
-  tolegacyQuestionType,
-  toExecutionResultFormat,
-} from "./legacy";
+export { tolegacyQuestionType, toExecutionResultFormat } from './legacy';

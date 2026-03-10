@@ -1,7 +1,7 @@
 /**
  * Label Validation Schemas
  */
-import { t } from "elysia";
+import { t } from 'elysia';
 
 export const labelSchema = {
   create: t.Object({

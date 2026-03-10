@@ -579,7 +579,11 @@ export function useParallelExecutionStatus({
 
   // セッション状態の変化を監視してストアを更新
   useEffect(() => {
-    if (sessionState?.status === 'completed' || sessionState?.status === 'failed' || sessionState?.status === 'cancelled') {
+    if (
+      sessionState?.status === 'completed' ||
+      sessionState?.status === 'failed' ||
+      sessionState?.status === 'cancelled'
+    ) {
       // 終了状態になったらストアから削除
       removeExecutingTask(taskId);
 

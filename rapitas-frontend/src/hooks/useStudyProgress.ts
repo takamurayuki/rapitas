@@ -58,7 +58,10 @@ export function useStudyProgress(goalId: number | null): StudyProgressReturn {
         if (cancelled) return;
         const totalHours = json.totalHours ?? 0;
         const targetHours = json.targetHours ?? 1;
-        const progress = Math.min(100, Math.round((totalHours / targetHours) * 100));
+        const progress = Math.min(
+          100,
+          Math.round((totalHours / targetHours) * 100),
+        );
 
         const milestoneTargets = [10, 25, 50, 75, 100];
         const milestones: Milestone[] = milestoneTargets.map((pct) => ({

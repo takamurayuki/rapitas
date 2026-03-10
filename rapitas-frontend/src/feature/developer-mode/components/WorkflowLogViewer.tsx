@@ -23,7 +23,13 @@ import {
 export type WorkflowPhase = 'research' | 'plan' | 'implement' | 'verify';
 
 /** フェーズの状態 */
-export type PhaseStatus = 'waiting' | 'running' | 'completed' | 'failed' | 'skipped' | 'approved';
+export type PhaseStatus =
+  | 'waiting'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'skipped'
+  | 'approved';
 
 /** フェーズごとのログ */
 export interface PhaseLogGroup {
@@ -50,25 +56,48 @@ interface WorkflowLogViewerProps {
 }
 
 /** フェーズの表示情報 */
-const PHASE_CONFIG: Record<WorkflowPhase, {
-  label: string;
-  icon: React.ElementType;
-  keywords: string[];
-}> = {
+const PHASE_CONFIG: Record<
+  WorkflowPhase,
+  {
+    label: string;
+    icon: React.ElementType;
+    keywords: string[];
+  }
+> = {
   research: {
     label: '調査フェーズ',
     icon: Search,
-    keywords: ['[research]', '調査', 'research_done', '依存関係を分析', '影響範囲'],
+    keywords: [
+      '[research]',
+      '調査',
+      'research_done',
+      '依存関係を分析',
+      '影響範囲',
+    ],
   },
   plan: {
     label: '計画フェーズ',
     icon: FileText,
-    keywords: ['[plan]', '計画', 'plan_created', 'plan_approved', '自動承認', '実装計画'],
+    keywords: [
+      '[plan]',
+      '計画',
+      'plan_created',
+      'plan_approved',
+      '自動承認',
+      '実装計画',
+    ],
   },
   implement: {
     label: '実装フェーズ',
     icon: Wrench,
-    keywords: ['[implement]', '実装', 'in_progress', '編集中', 'テストを実行', 'コミット'],
+    keywords: [
+      '[implement]',
+      '実装',
+      'in_progress',
+      '編集中',
+      'テストを実行',
+      'コミット',
+    ],
   },
   verify: {
     label: '検証フェーズ',
@@ -77,7 +106,12 @@ const PHASE_CONFIG: Record<WorkflowPhase, {
   },
 };
 
-const PHASE_ORDER: WorkflowPhase[] = ['research', 'plan', 'implement', 'verify'];
+const PHASE_ORDER: WorkflowPhase[] = [
+  'research',
+  'plan',
+  'implement',
+  'verify',
+];
 
 /**
  * ログメッセージからワークフローフェーズを検出する
@@ -96,7 +130,9 @@ function detectPhase(message: string): WorkflowPhase | null {
 /**
  * ワークフローステータスからフェーズステータスのマップを生成
  */
-function getPhaseStatuses(workflowStatus?: string): Record<WorkflowPhase, PhaseStatus> {
+function getPhaseStatuses(
+  workflowStatus?: string,
+): Record<WorkflowPhase, PhaseStatus> {
   const statusMap: Record<WorkflowPhase, PhaseStatus> = {
     research: 'waiting',
     plan: 'waiting',
@@ -162,12 +198,18 @@ function PhaseStatusIcon({ status }: { status: PhaseStatus }) {
 /** フェーズステータスのラベル */
 function getStatusLabel(status: PhaseStatus): string {
   switch (status) {
-    case 'completed': return '完了';
-    case 'approved': return '承認済';
-    case 'running': return '実行中';
-    case 'waiting': return '待機中';
-    case 'failed': return '失敗';
-    case 'skipped': return 'スキップ';
+    case 'completed':
+      return '完了';
+    case 'approved':
+      return '承認済';
+    case 'running':
+      return '実行中';
+    case 'waiting':
+      return '待機中';
+    case 'failed':
+      return '失敗';
+    case 'skipped':
+      return 'スキップ';
   }
 }
 
@@ -198,7 +240,10 @@ export function WorkflowLogViewer({
     });
   }, []);
 
-  const phaseStatuses = useMemo(() => getPhaseStatuses(workflowStatus), [workflowStatus]);
+  const phaseStatuses = useMemo(
+    () => getPhaseStatuses(workflowStatus),
+    [workflowStatus],
+  );
 
   // ログをフェーズごとにグルーピング
   const phaseGroups = useMemo(() => {
@@ -227,16 +272,24 @@ export function WorkflowLogViewer({
     return PHASE_ORDER.find((p) => phaseStatuses[p] === 'running');
   }, [phaseStatuses]);
 
-  const getPhaseLogStatus = useCallback((phase: WorkflowPhase): ExecutionLogStatus => {
-    const status = phaseStatuses[phase];
-    switch (status) {
-      case 'running': return 'running';
-      case 'completed': return 'completed';
-      case 'approved': return 'completed';
-      case 'failed': return 'failed';
-      default: return 'idle';
-    }
-  }, [phaseStatuses]);
+  const getPhaseLogStatus = useCallback(
+    (phase: WorkflowPhase): ExecutionLogStatus => {
+      const status = phaseStatuses[phase];
+      switch (status) {
+        case 'running':
+          return 'running';
+        case 'completed':
+          return 'completed';
+        case 'approved':
+          return 'completed';
+        case 'failed':
+          return 'failed';
+        default:
+          return 'idle';
+      }
+    },
+    [phaseStatuses],
+  );
 
   return (
     <div className="space-y-1">
@@ -271,12 +324,24 @@ export function WorkflowLogViewer({
               ) : (
                 <ChevronRight className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
               )}
-              <Icon className={`w-4 h-4 shrink-0 ${
-                isActive ? 'text-blue-400' : status === 'completed' || status === 'approved' ? 'text-green-400' : 'text-zinc-500'
-              }`} />
-              <span className={`text-xs font-medium ${
-                isActive ? 'text-blue-300' : status === 'completed' || status === 'approved' ? 'text-green-300' : 'text-zinc-400'
-              }`}>
+              <Icon
+                className={`w-4 h-4 shrink-0 ${
+                  isActive
+                    ? 'text-blue-400'
+                    : status === 'completed' || status === 'approved'
+                      ? 'text-green-400'
+                      : 'text-zinc-500'
+                }`}
+              />
+              <span
+                className={`text-xs font-medium ${
+                  isActive
+                    ? 'text-blue-300'
+                    : status === 'completed' || status === 'approved'
+                      ? 'text-green-300'
+                      : 'text-zinc-400'
+                }`}
+              >
                 {config.label}
               </span>
               <div className="ml-auto flex items-center gap-2">
@@ -286,12 +351,17 @@ export function WorkflowLogViewer({
                   </span>
                 )}
                 <PhaseStatusIcon status={status} />
-                <span className={`text-[10px] ${
-                  status === 'running' ? 'text-blue-400' :
-                  status === 'completed' || status === 'approved' ? 'text-green-400' :
-                  status === 'failed' ? 'text-red-400' :
-                  'text-zinc-500'
-                }`}>
+                <span
+                  className={`text-[10px] ${
+                    status === 'running'
+                      ? 'text-blue-400'
+                      : status === 'completed' || status === 'approved'
+                        ? 'text-green-400'
+                        : status === 'failed'
+                          ? 'text-red-400'
+                          : 'text-zinc-500'
+                  }`}
+                >
                   {getStatusLabel(status)}
                 </span>
               </div>

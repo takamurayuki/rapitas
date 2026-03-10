@@ -2,13 +2,13 @@
  * 知識固定化（Consolidation）
  * 24時間分のKnowledgeEntryをグループ化し、LLMで要約して統合エントリを作成
  */
-import { prisma } from "../../config/database";
-import { createLogger } from "../../config/logger";
-import { sendAIMessage } from "../../utils/ai-client";
-import { appendEvent } from "./timeline";
-import { createContentHash } from "./utils";
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+import { sendAIMessage } from '../../utils/ai-client';
+import { appendEvent } from './timeline';
+import { createContentHash } from './utils';
 
-const log = createLogger("memory:consolidation");
+const log = createLogger('memory:consolidation');
 
 /**
  * 固定化処理を実行
@@ -21,11 +21,11 @@ export async function runConsolidation(): Promise<{
   created: number;
 }> {
   const run = await prisma.consolidationRun.create({
-    data: { runDate: new Date(), status: "running" },
+    data: { runDate: new Date(), status: 'running' },
   });
 
   await appendEvent({
-    eventType: "consolidation_started",
+    eventType: 'consolidation_started',
     payload: { runId: run.id },
   });
 
@@ -36,16 +36,16 @@ export async function runConsolidation(): Promise<{
     const entries = await prisma.knowledgeEntry.findMany({
       where: {
         createdAt: { gte: since },
-        forgettingStage: "active",
-        sourceType: { not: "consolidated" },
+        forgettingStage: 'active',
+        sourceType: { not: 'consolidated' },
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: 'asc' },
     });
 
     // category + themeId でグループ化
     const groups = new Map<string, typeof entries>();
     for (const entry of entries) {
-      const key = `${entry.category}:${entry.themeId ?? "null"}`;
+      const key = `${entry.category}:${entry.themeId ?? 'null'}`;
       const group = groups.get(key) ?? [];
       group.push(entry);
       groups.set(key, group);
@@ -61,18 +61,18 @@ export async function runConsolidation(): Promise<{
       totalProcessed += groupEntries.length;
 
       try {
-        const [category, themeIdStr] = key.split(":");
-        const themeId = themeIdStr === "null" ? null : parseInt(themeIdStr, 10);
+        const [category, themeIdStr] = key.split(':');
+        const themeId = themeIdStr === 'null' ? null : parseInt(themeIdStr, 10);
 
         // LLMで要約を生成
         const entrySummaries = groupEntries
           .map((e, i) => `[${i + 1}] ${e.title}: ${e.content}`)
-          .join("\n\n");
+          .join('\n\n');
 
         const response = await sendAIMessage({
           messages: [
             {
-              role: "user",
+              role: 'user',
               content: `以下の${groupEntries.length}件の知識エントリを1つの統合要約にまとめてください。
 重要なポイントを漏らさず、簡潔にまとめてください。
 
@@ -99,21 +99,22 @@ ${entrySummaries}
         // 統合エントリを作成
         const consolidated = await prisma.knowledgeEntry.create({
           data: {
-            sourceType: "consolidated",
+            sourceType: 'consolidated',
             sourceId: `consolidation_run_${run.id}`,
             title,
             content,
             contentHash: createContentHash(content),
             category,
             tags: JSON.stringify([
-              "consolidated",
+              'consolidated',
               ...new Set(groupEntries.flatMap((e) => JSON.parse(e.tags))),
             ]),
-            confidence: groupEntries.reduce((sum, e) => sum + e.confidence, 0) / groupEntries.length,
+            confidence:
+              groupEntries.reduce((sum, e) => sum + e.confidence, 0) / groupEntries.length,
             themeId: themeId,
-            validationStatus: "validated",
+            validationStatus: 'validated',
             validatedAt: new Date(),
-            validationMethod: "consolidation",
+            validationMethod: 'consolidation',
           },
         });
 
@@ -121,11 +122,17 @@ ${entrySummaries}
         totalMerged += groupEntries.length;
 
         log.info(
-          { runId: run.id, category, themeId, merged: groupEntries.length, newEntryId: consolidated.id },
-          "Group consolidated",
+          {
+            runId: run.id,
+            category,
+            themeId,
+            merged: groupEntries.length,
+            newEntryId: consolidated.id,
+          },
+          'Group consolidated',
         );
       } catch (error) {
-        log.error({ err: error, key, count: groupEntries.length }, "Failed to consolidate group");
+        log.error({ err: error, key, count: groupEntries.length }, 'Failed to consolidate group');
       }
     }
 
@@ -134,7 +141,7 @@ ${entrySummaries}
     await prisma.consolidationRun.update({
       where: { id: run.id },
       data: {
-        status: "completed",
+        status: 'completed',
         entriesProcessed: totalProcessed,
         entriesMerged: totalMerged,
         entriesCreated: totalCreated,
@@ -143,13 +150,24 @@ ${entrySummaries}
     });
 
     await appendEvent({
-      eventType: "consolidation_completed",
-      payload: { runId: run.id, processed: totalProcessed, merged: totalMerged, created: totalCreated },
+      eventType: 'consolidation_completed',
+      payload: {
+        runId: run.id,
+        processed: totalProcessed,
+        merged: totalMerged,
+        created: totalCreated,
+      },
     });
 
     log.info(
-      { runId: run.id, processed: totalProcessed, merged: totalMerged, created: totalCreated, durationMs },
-      "Consolidation run completed",
+      {
+        runId: run.id,
+        processed: totalProcessed,
+        merged: totalMerged,
+        created: totalCreated,
+        durationMs,
+      },
+      'Consolidation run completed',
     );
 
     return { runId: run.id, processed: totalProcessed, merged: totalMerged, created: totalCreated };
@@ -157,9 +175,9 @@ ${entrySummaries}
     const message = error instanceof Error ? error.message : String(error);
     await prisma.consolidationRun.update({
       where: { id: run.id },
-      data: { status: "failed", errorMessage: message },
+      data: { status: 'failed', errorMessage: message },
     });
-    log.error({ err: error, runId: run.id }, "Consolidation run failed");
+    log.error({ err: error, runId: run.id }, 'Consolidation run failed');
     throw error;
   }
 }
@@ -169,7 +187,7 @@ ${entrySummaries}
  */
 export async function getConsolidationRuns(limit = 20) {
   return prisma.consolidationRun.findMany({
-    orderBy: { runDate: "desc" },
+    orderBy: { runDate: 'desc' },
     take: limit,
   });
 }

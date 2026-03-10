@@ -98,7 +98,8 @@ export default function TaskSuggestions({
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [isListExpanded, setIsListExpanded] = useState(false);
-  const [selectedSuggestion, setSelectedSuggestion] = useState<TaskSuggestion | null>(null);
+  const [selectedSuggestion, setSelectedSuggestion] =
+    useState<TaskSuggestion | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [deletedIndices, setDeletedIndices] = useState<Set<number>>(new Set());
 
@@ -122,7 +123,10 @@ export default function TaskSuggestions({
     async (forceRefresh = false) => {
       if (!themeId) return;
 
-      logger.debug('[TaskSuggestions] Fetching AI suggestions, forceRefresh:', forceRefresh);
+      logger.debug(
+        '[TaskSuggestions] Fetching AI suggestions, forceRefresh:',
+        forceRefresh,
+      );
       setIsAiLoading(true);
       setAiError(false);
 
@@ -160,7 +164,12 @@ export default function TaskSuggestions({
         );
         if (res.ok) {
           const data: AiSuggestionsResponse = await res.json();
-          logger.debug('[TaskSuggestions] AI generation response:', data.source, 'suggestions:', data.suggestions.length);
+          logger.debug(
+            '[TaskSuggestions] AI generation response:',
+            data.source,
+            'suggestions:',
+            data.suggestions.length,
+          );
 
           if (data.source === 'ai' && data.suggestions.length > 0) {
             setAiSuggestions(data.suggestions);
@@ -170,8 +179,14 @@ export default function TaskSuggestions({
           } else {
             setAiSuggestions([]);
             setAiAnalysis(null);
-            if (data.source === 'ai_error' || data.source === 'insufficient_data') {
-              logger.debug('[TaskSuggestions] AI generation failed:', data.source);
+            if (
+              data.source === 'ai_error' ||
+              data.source === 'insufficient_data'
+            ) {
+              logger.debug(
+                '[TaskSuggestions] AI generation failed:',
+                data.source,
+              );
               setAiError(true);
             }
           }
@@ -211,11 +226,13 @@ export default function TaskSuggestions({
     let enhancedDescription = suggestion.description ?? '';
 
     if (suggestion.completionCriteria) {
-      enhancedDescription += '\n\n【完了条件】\n' + suggestion.completionCriteria;
+      enhancedDescription +=
+        '\n\n【完了条件】\n' + suggestion.completionCriteria;
     }
 
     if (suggestion.measurableOutcome) {
-      enhancedDescription += '\n\n【測定可能な成果】\n' + suggestion.measurableOutcome;
+      enhancedDescription +=
+        '\n\n【測定可能な成果】\n' + suggestion.measurableOutcome;
     }
 
     onApply({
@@ -235,7 +252,9 @@ export default function TaskSuggestions({
     setShowDetail(true);
   };
 
-  const filteredSuggestions = aiSuggestions.filter((_, idx) => !deletedIndices.has(idx));
+  const filteredSuggestions = aiSuggestions.filter(
+    (_, idx) => !deletedIndices.has(idx),
+  );
   const visibleSuggestions = isListExpanded
     ? filteredSuggestions
     : filteredSuggestions.slice(0, 3);
@@ -332,7 +351,9 @@ export default function TaskSuggestions({
 
           {/* 展開アイコン */}
           {canExpand && (
-            <div className={`transition-transform duration-200 text-zinc-400 dark:text-zinc-500 ${isExpanded ? 'rotate-180' : ''}`}>
+            <div
+              className={`transition-transform duration-200 text-zinc-400 dark:text-zinc-500 ${isExpanded ? 'rotate-180' : ''}`}
+            >
               <ChevronDown className="w-3 h-3" />
             </div>
           )}
@@ -342,7 +363,9 @@ export default function TaskSuggestions({
       {/* Expanded content with animation */}
       <div
         className={`overflow-hidden transition-all duration-300 ${
-          isExpanded && hasSuggestions ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
+          isExpanded && hasSuggestions
+            ? 'max-h-[600px] opacity-100'
+            : 'max-h-0 opacity-0'
         }`}
       >
         <div className="px-3 pb-2 pt-1">
@@ -358,7 +381,7 @@ export default function TaskSuggestions({
           {/* Compact suggestion cards */}
           <div className="space-y-1">
             {visibleSuggestions.map((suggestion, visIdx) => {
-              const realIdx = aiSuggestions.findIndex(s => s === suggestion);
+              const realIdx = aiSuggestions.findIndex((s) => s === suggestion);
               return (
                 <div
                   key={`${suggestion.title}-${realIdx}`}
@@ -401,7 +424,8 @@ export default function TaskSuggestions({
                           )}
 
                           {/* Priority dot */}
-                          {(suggestion.priority === 'urgent' || suggestion.priority === 'high') && (
+                          {(suggestion.priority === 'urgent' ||
+                            suggestion.priority === 'high') && (
                             <span className="shrink-0 w-1 h-1 rounded-full bg-rose-500 dark:bg-rose-400 animate-pulse" />
                           )}
                         </div>
@@ -438,7 +462,9 @@ export default function TaskSuggestions({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setDeletedIndices(prev => new Set(prev).add(realIdx));
+                          setDeletedIndices((prev) =>
+                            new Set(prev).add(realIdx),
+                          );
                         }}
                         className="p-1 text-zinc-400 hover:text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all duration-200"
                         title="削除"
@@ -481,9 +507,7 @@ export default function TaskSuggestions({
         <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800/50">
           <div className="flex items-center justify-center gap-1.5 text-zinc-500 dark:text-zinc-400">
             <Info className="w-3 h-3" />
-            <p className="text-[10px]">
-              AI提案の生成に失敗しました
-            </p>
+            <p className="text-[10px]">AI提案の生成に失敗しました</p>
           </div>
         </div>
       )}

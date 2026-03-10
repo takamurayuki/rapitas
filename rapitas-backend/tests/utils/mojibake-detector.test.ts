@@ -58,7 +58,7 @@ This text contains ã\x81\x82 characters that are mojibake.`;
     expect(result.hasMojibake).toBe(true);
     expect(result.score).toBeGreaterThan(20);
     expect(result.patterns.utf8ToLatin1.length).toBeGreaterThan(0);
-    expect(result.issues.some(issue => issue.includes('UTF-8→Latin-1誤解釈'))).toBe(true);
+    expect(result.issues.some((issue) => issue.includes('UTF-8→Latin-1誤解釈'))).toBe(true);
   });
 
   test('置換文字(U+FFFD)を検出すること', () => {
@@ -70,7 +70,7 @@ This text contains � replacement characters � that indicate encoding issues.
     expect(result.hasMojibake).toBe(true);
     expect(result.score).toBeGreaterThan(20);
     expect(result.patterns.replacementChars).toBe(2);
-    expect(result.issues.some(issue => issue.includes('置換文字'))).toBe(true);
+    expect(result.issues.some((issue) => issue.includes('置換文字'))).toBe(true);
   });
 
   test('制御文字を検出すること', () => {
@@ -82,7 +82,7 @@ This text contains \x07 control characters.`;
     expect(result.hasMojibake).toBe(true);
     expect(result.score).toBeGreaterThan(20);
     expect(result.patterns.controlChars).toBeGreaterThan(0);
-    expect(result.issues.some(issue => issue.includes('制御文字'))).toBe(true);
+    expect(result.issues.some((issue) => issue.includes('制御文字'))).toBe(true);
   });
 
   test('不正なサロゲートペア文字を検出すること', () => {
@@ -94,7 +94,7 @@ This text contains \uD800 invalid surrogate characters.`;
     expect(result.hasMojibake).toBe(true);
     expect(result.score).toBeGreaterThan(20);
     expect(result.patterns.invalidSequences.length).toBeGreaterThan(0);
-    expect(result.issues.some(issue => issue.includes('サロゲートペア'))).toBe(true);
+    expect(result.issues.some((issue) => issue.includes('サロゲートペア'))).toBe(true);
   });
 
   test('スコアが100を超えないこと', () => {
@@ -201,7 +201,7 @@ Content with ã\x81\x82 mojibake patterns.
     expect(result.content).not.toContain('�');
     expect(result.content).not.toContain('\x00');
     expect(result.issues.length).toBeGreaterThan(0);
-    expect(result.issues.some(issue => issue.includes('文字化けを修正'))).toBe(true);
+    expect(result.issues.some((issue) => issue.includes('文字化けを修正'))).toBe(true);
   });
 
   test('修正後にスコアが改善されない場合は元テキストを保持すること', () => {

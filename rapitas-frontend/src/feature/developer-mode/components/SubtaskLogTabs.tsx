@@ -44,26 +44,39 @@ interface SubtaskLogTabsProps {
 /** ワークフローステータスからフェーズラベルを取得 */
 function getPhaseLabel(workflowStatus?: string): string {
   switch (workflowStatus) {
-    case 'draft': return '初期化';
-    case 'research_done': return '調査完了';
-    case 'plan_created': return '計画作成';
-    case 'plan_approved': return '計画承認済';
-    case 'in_progress': return '実装中';
-    case 'completed': return '完了';
-    default: return workflowStatus || '待機中';
+    case 'draft':
+      return '初期化';
+    case 'research_done':
+      return '調査完了';
+    case 'plan_created':
+      return '計画作成';
+    case 'plan_approved':
+      return '計画承認済';
+    case 'in_progress':
+      return '実装中';
+    case 'completed':
+      return '完了';
+    default:
+      return workflowStatus || '待機中';
   }
 }
 
 /** ワークフローステータスに応じたスタイル */
 function getPhaseStyle(workflowStatus?: string): string {
   switch (workflowStatus) {
-    case 'completed': return 'text-green-400';
+    case 'completed':
+      return 'text-green-400';
     case 'in_progress':
-    case 'plan_approved': return 'text-blue-400';
-    case 'plan_created': return 'text-amber-400';
-    case 'research_done': return 'text-cyan-400';
-    case 'draft': return 'text-zinc-400';
-    default: return 'text-zinc-500';
+    case 'plan_approved':
+      return 'text-blue-400';
+    case 'plan_created':
+      return 'text-amber-400';
+    case 'research_done':
+      return 'text-cyan-400';
+    case 'draft':
+      return 'text-zinc-400';
+    default:
+      return 'text-zinc-500';
   }
 }
 
@@ -276,7 +289,9 @@ export function SubtaskLogTabs({
                 ? 'text-indigo-400 bg-indigo-900/30'
                 : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-800'
             }`}
-            title={showWorkflowView ? 'フラット表示に切替' : 'ワークフロー表示に切替'}
+            title={
+              showWorkflowView ? 'フラット表示に切替' : 'ワークフロー表示に切替'
+            }
           >
             <GitBranch className="w-3 h-3" />
           </button>
@@ -305,7 +320,10 @@ export function SubtaskLogTabs({
               taskTitle={subtasks.find((s) => s.id === activeTab)?.title || ''}
               taskId={activeTab as number}
               logs={currentLogs}
-              workflowStatus={subtasks.find((s) => s.id === activeTab)?.workflowStatus ?? undefined}
+              workflowStatus={
+                subtasks.find((s) => s.id === activeTab)?.workflowStatus ??
+                undefined
+              }
               isRunning={getSubtaskStatus?.(activeTab as number) === 'running'}
               maxHeight={maxHeight}
             />
@@ -352,7 +370,9 @@ export function SubtaskLogTabs({
         <div className="space-y-1">
           {subtasks.map((subtask) => {
             const status = getSubtaskStatus?.(subtask.id);
-            const workflowStatus = (subtask as Task & { workflowStatus?: string }).workflowStatus;
+            const workflowStatus = (
+              subtask as Task & { workflowStatus?: string }
+            ).workflowStatus;
             const hasWorkflowInfo = useWorkflow && workflowStatus;
             // 依存関係の表示（parentIdがあるかで簡易的に判定）
             const parentTask = subtask.parentId
@@ -365,7 +385,10 @@ export function SubtaskLogTabs({
                 className="flex items-center gap-2 text-[10px] px-2 py-1 rounded bg-zinc-50 dark:bg-zinc-900/50"
               >
                 {getStatusIcon(status)}
-                <span className="truncate flex-1 text-zinc-700 dark:text-zinc-300" title={subtask.title}>
+                <span
+                  className="truncate flex-1 text-zinc-700 dark:text-zinc-300"
+                  title={subtask.title}
+                >
                   {subtask.title}
                 </span>
                 {hasWorkflowInfo && (
@@ -374,25 +397,41 @@ export function SubtaskLogTabs({
                   </span>
                 )}
                 {!hasWorkflowInfo && status && (
-                  <span className={`shrink-0 ${
-                    status === 'completed' ? 'text-green-400' :
-                    status === 'running' ? 'text-blue-400' :
-                    status === 'failed' ? 'text-red-400' :
-                    status === 'blocked' ? 'text-orange-400' :
-                    'text-zinc-500'
-                  }`}>
-                    {status === 'completed' ? '完了' :
-                     status === 'running' ? '実行中' :
-                     status === 'failed' ? '失敗' :
-                     status === 'blocked' ? 'ブロック中' :
-                     status === 'scheduled' ? 'スケジュール済' :
-                     '待機中'}
+                  <span
+                    className={`shrink-0 ${
+                      status === 'completed'
+                        ? 'text-green-400'
+                        : status === 'running'
+                          ? 'text-blue-400'
+                          : status === 'failed'
+                            ? 'text-red-400'
+                            : status === 'blocked'
+                              ? 'text-orange-400'
+                              : 'text-zinc-500'
+                    }`}
+                  >
+                    {status === 'completed'
+                      ? '完了'
+                      : status === 'running'
+                        ? '実行中'
+                        : status === 'failed'
+                          ? '失敗'
+                          : status === 'blocked'
+                            ? 'ブロック中'
+                            : status === 'scheduled'
+                              ? 'スケジュール済'
+                              : '待機中'}
                   </span>
                 )}
                 {parentTask && (
-                  <span className="flex items-center gap-0.5 text-zinc-500 shrink-0" title={`依存先: ${parentTask.title}`}>
+                  <span
+                    className="flex items-center gap-0.5 text-zinc-500 shrink-0"
+                    title={`依存先: ${parentTask.title}`}
+                  >
                     <ArrowRight className="w-2.5 h-2.5" />
-                    <span className="truncate max-w-[60px]">{parentTask.title}</span>
+                    <span className="truncate max-w-[60px]">
+                      {parentTask.title}
+                    </span>
                   </span>
                 )}
               </div>

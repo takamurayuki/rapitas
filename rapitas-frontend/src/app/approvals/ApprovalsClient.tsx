@@ -539,7 +539,9 @@ function ApprovalCard({
             <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
               <span className="flex items-center gap-1">
                 <ListChecks className="w-3.5 h-3.5" />
-                {t('subtaskCount', { count: approval.proposedChanges.subtasks?.length || 0 })}
+                {t('subtaskCount', {
+                  count: approval.proposedChanges.subtasks?.length || 0,
+                })}
               </span>
               <span className="flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" />

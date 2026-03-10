@@ -213,7 +213,10 @@ describe('transientError', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const logger = createLogger('Net');
 
-    const abortErr = new DOMException('The operation was aborted', 'AbortError');
+    const abortErr = new DOMException(
+      'The operation was aborted',
+      'AbortError',
+    );
     logger.transientError('Request aborted', abortErr);
 
     expect(warnSpy).toHaveBeenCalledWith('[Net]', 'Request aborted', abortErr);

@@ -11,7 +11,7 @@ export function getLabelsArray(labels: unknown): string[] {
   if (!labels) return [];
 
   // String case (JSON)
-  if (typeof labels === "string") {
+  if (typeof labels === 'string') {
     try {
       const parsed = JSON.parse(labels);
       return Array.isArray(parsed) ? parsed : [];
@@ -23,11 +23,11 @@ export function getLabelsArray(labels: unknown): string[] {
   // Array case
   if (Array.isArray(labels)) {
     // Object array (PostgreSQL relation)
-    if (labels.length > 0 && typeof labels[0] === "object" && labels[0]?.name) {
+    if (labels.length > 0 && typeof labels[0] === 'object' && labels[0]?.name) {
       return labels.map((l: { name: string }) => l.name);
     }
     // String array
-    return labels.filter((l: unknown) => typeof l === "string");
+    return labels.filter((l: unknown) => typeof l === 'string');
   }
 
   return [];
@@ -38,7 +38,7 @@ export function getLabelsArray(labels: unknown): string[] {
  */
 export function toJsonString(value: unknown): string | null {
   if (value === null || value === undefined) return null;
-  if (typeof value === "string") return value;
+  if (typeof value === 'string') return value;
   return JSON.stringify(value);
 }
 
@@ -48,7 +48,7 @@ export function toJsonString(value: unknown): string | null {
  */
 export function fromJsonString<T = unknown>(value: unknown): T | null {
   if (value === null || value === undefined) return null;
-  if (typeof value === "string") {
+  if (typeof value === 'string') {
     try {
       return JSON.parse(value) as T;
     } catch {
@@ -66,8 +66,7 @@ export function fromJsonString<T = unknown>(value: unknown): T | null {
 export function parseId(id: string): number {
   const parsed = parseInt(id);
   if (isNaN(parsed)) {
-    throw new Error("無効なIDです");
+    throw new Error('無効なIDです');
   }
   return parsed;
 }
-

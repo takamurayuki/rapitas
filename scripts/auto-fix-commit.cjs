@@ -58,11 +58,29 @@ function stageFiles(files) {
   if (files.length === 0) return true;
 
   // ファイルを1つずつステージング
+  let successCount = 0;
+  let failCount = 0;
+
   for (const file of files) {
     const result = exec(`git add "${file}"`);
-    if (!result.success) {
-      log(`  ⚠️  ${file} のステージングに失敗`, "yellow");
+    if (result.success) {
+      successCount++;
+    } else {
+      // エラー詳細を確認
+      const checkResult = exec(`git ls-files "${file}"`);
+      if (!checkResult.success || !checkResult.output.trim()) {
+        // ファイルが存在しないか、既に削除されている場合はスキップ
+        continue;
+      }
+      failCount++;
     }
+  }
+
+  if (failCount > 0) {
+    log(
+      `  ⚠️  ${failCount}個のファイルのステージングに問題がありました（無視して続行）`,
+      "yellow",
+    );
   }
 
   return true;

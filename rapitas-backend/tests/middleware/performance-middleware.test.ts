@@ -2,9 +2,9 @@
  * Performance Middleware テスト
  * 圧縮・キャッシュ・レート制限ミドルウェアのエクスポート確認テスト
  */
-import { describe, test, expect, mock } from "bun:test";
+import { describe, test, expect, mock } from 'bun:test';
 
-mock.module("../../config/logger", () => ({
+mock.module('../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -20,40 +20,40 @@ const {
   rateLimitMiddleware,
   performanceOptimization,
   connectionPooling,
-} = await import("../../middleware/performance");
+} = await import('../../middleware/performance');
 
-describe("Performance Middleware exports", () => {
-  test("compressionMiddlewareがElysiaインスタンスであること", () => {
+describe('Performance Middleware exports', () => {
+  test('compressionMiddlewareがElysiaインスタンスであること', () => {
     expect(compressionMiddleware).toBeDefined();
   });
 
-  test("cacheMiddlewareがElysiaインスタンスであること", () => {
+  test('cacheMiddlewareがElysiaインスタンスであること', () => {
     expect(cacheMiddleware).toBeDefined();
   });
 
-  test("performanceMonitoringがElysiaインスタンスであること", () => {
+  test('performanceMonitoringがElysiaインスタンスであること', () => {
     expect(performanceMonitoring).toBeDefined();
   });
 
-  test("rateLimitMiddlewareがElysiaインスタンスであること", () => {
+  test('rateLimitMiddlewareがElysiaインスタンスであること', () => {
     expect(rateLimitMiddleware).toBeDefined();
   });
 
-  test("performanceOptimizationがElysiaインスタンスであること", () => {
+  test('performanceOptimizationがElysiaインスタンスであること', () => {
     expect(performanceOptimization).toBeDefined();
   });
 });
 
-describe("connectionPooling", () => {
-  test("keepAliveTimeoutが設定されていること", () => {
+describe('connectionPooling', () => {
+  test('keepAliveTimeoutが設定されていること', () => {
     expect(connectionPooling.keepAliveTimeout).toBe(30000);
   });
 
-  test("maxConnectionsが設定されていること", () => {
+  test('maxConnectionsが設定されていること', () => {
     expect(connectionPooling.maxConnections).toBe(1000);
   });
 
-  test("requestTimeoutが設定されていること", () => {
+  test('requestTimeoutが設定されていること', () => {
     expect(connectionPooling.requestTimeout).toBe(30000);
   });
 });

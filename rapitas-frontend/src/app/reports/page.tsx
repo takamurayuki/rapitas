@@ -88,9 +88,7 @@ export default function ReportsPage() {
     return (
       <div className="max-w-4xl mx-auto p-6 text-center py-12">
         <FileText className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-        <p className="text-zinc-500 dark:text-zinc-400">
-          {t('fetchFailed')}
-        </p>
+        <p className="text-zinc-500 dark:text-zinc-400">{t('fetchFailed')}</p>
       </div>
     );
   }
@@ -257,7 +255,8 @@ export default function ReportsPage() {
                       {item.subject || tc('other')}
                     </span>
                     <span className="text-zinc-500 dark:text-zinc-400">
-                      {item.count}{tc('items')} ({percentage}%)
+                      {item.count}
+                      {tc('items')} ({percentage}%)
                     </span>
                   </div>
                   <div className="h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">

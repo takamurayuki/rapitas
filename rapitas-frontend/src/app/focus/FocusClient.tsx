@@ -77,7 +77,10 @@ export default function FocusClient() {
 
         if (res.ok) {
           setSessions((prev) => prev + 1);
-          showToast(t('workTimeRecorded', { minutes: customWorkTime }), 'success');
+          showToast(
+            t('workTimeRecorded', { minutes: customWorkTime }),
+            'success',
+          );
         }
       }
 
@@ -126,13 +129,14 @@ export default function FocusClient() {
 
     // ブラウザ通知
     if (Notification.permission === 'granted') {
-      new Notification(mode === 'work' ? t('workTimeFinished') : t('breakFinished'), {
-        body:
-          mode === 'work'
-            ? t('takeBreakMessage')
-            : t('resumeWorkMessage'),
-        icon: '/favicon.ico',
-      });
+      new Notification(
+        mode === 'work' ? t('workTimeFinished') : t('breakFinished'),
+        {
+          body:
+            mode === 'work' ? t('takeBreakMessage') : t('resumeWorkMessage'),
+          icon: '/favicon.ico',
+        },
+      );
     }
 
     if (mode === 'work') {

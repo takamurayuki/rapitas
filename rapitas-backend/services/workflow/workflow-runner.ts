@@ -191,9 +191,12 @@ export class WorkflowRunner {
 
         const executionPromise = this.orchestrator.advanceWorkflow(item.taskId);
         const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => {
-            reject(new Error(`Phase execution timeout for task ${item.taskId} (10 minutes)`));
-          }, 10 * 60 * 1000); // 10分タイムアウト
+          setTimeout(
+            () => {
+              reject(new Error(`Phase execution timeout for task ${item.taskId} (10 minutes)`));
+            },
+            10 * 60 * 1000,
+          ); // 10分タイムアウト
         });
 
         const result = await Promise.race([executionPromise, timeoutPromise]);
@@ -220,10 +223,14 @@ export class WorkflowRunner {
         // 次のフェーズへ進む前に少し待機（DB更新の安定化 + アボートチェック）
         await new Promise((resolve) => {
           const waitTimeout = setTimeout(resolve, 1000);
-          abortController.signal.addEventListener('abort', () => {
-            clearTimeout(waitTimeout);
-            resolve(undefined);
-          }, { once: true });
+          abortController.signal.addEventListener(
+            'abort',
+            () => {
+              clearTimeout(waitTimeout);
+              resolve(undefined);
+            },
+            { once: true },
+          );
         });
       }
 
@@ -309,7 +316,10 @@ export class WorkflowRunner {
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      log.warn({ err: error }, `[WorkflowRunner] Failed to log phase transition for task ${taskId}`);
+      log.warn(
+        { err: error },
+        `[WorkflowRunner] Failed to log phase transition for task ${taskId}`,
+      );
     }
   }
 
@@ -330,12 +340,7 @@ export class WorkflowRunner {
   /**
    * SSE経由でアイテム更新をブロードキャスト
    */
-  private broadcastItemUpdate(
-    itemId: number,
-    taskId: number,
-    event: string,
-    phase: string,
-  ): void {
+  private broadcastItemUpdate(itemId: number, taskId: number, event: string, phase: string): void {
     try {
       realtimeService.broadcast('orchestra', 'item_update', {
         event,

@@ -4,7 +4,7 @@
  * エージェント実行の結果とパフォーマンスメトリクスを定義
  */
 
-import type { AgentExecutionResult } from "../base-agent";
+import type { AgentExecutionResult } from '../base-agent';
 
 // ==================== 実行結果（拡張） ====================
 

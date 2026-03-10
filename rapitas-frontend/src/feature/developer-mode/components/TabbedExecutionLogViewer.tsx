@@ -142,10 +142,7 @@ export const TabbedExecutionLogViewer: React.FC<
           }));
         }
       } catch (err) {
-        logger.error(
-          `Failed to fetch logs for task ${taskId}:`,
-          err,
-        );
+        logger.error(`Failed to fetch logs for task ${taskId}:`, err);
       } finally {
         setLoadingSubtaskId(null);
       }

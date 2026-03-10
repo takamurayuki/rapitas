@@ -12,7 +12,13 @@ import {
 
 const STATUS_CONFIG: Record<
   WorkflowStatus,
-  { label: string; color: string; bgColor: string; borderColor: string; icon: typeof Circle }
+  {
+    label: string;
+    color: string;
+    bgColor: string;
+    borderColor: string;
+    icon: typeof Circle;
+  }
 > = {
   draft: {
     label: '下書き',
@@ -81,9 +87,7 @@ export default function WorkflowStatusIndicator({
 
   const Icon = config.icon;
   const sizeClasses =
-    size === 'sm'
-      ? 'text-xs px-2 py-0.5 gap-1'
-      : 'text-sm px-3 py-1 gap-1.5';
+    size === 'sm' ? 'text-xs px-2 py-0.5 gap-1' : 'text-sm px-3 py-1 gap-1.5';
   const iconSize = size === 'sm' ? 'w-3 h-3' : 'w-4 h-4';
 
   return (
@@ -109,13 +113,13 @@ const STAGES: WorkflowStatus[] = [
 
 // ステージとロールの対応
 const STAGE_ROLES: Record<string, string> = {
-  'draft': 'researcher',
-  'research_done': 'planner',
-  'plan_created': 'reviewer',
-  'plan_approved': 'implementer',
-  'in_progress': 'verifier',
-  'verify_done': '',
-  'completed': '',
+  draft: 'researcher',
+  research_done: 'planner',
+  plan_created: 'reviewer',
+  plan_approved: 'implementer',
+  in_progress: 'verifier',
+  verify_done: '',
+  completed: '',
 };
 
 interface WorkflowProgressProps {
@@ -123,7 +127,10 @@ interface WorkflowProgressProps {
   roles?: WorkflowRoleConfig[];
 }
 
-export function WorkflowProgress({ currentStatus, roles }: WorkflowProgressProps) {
+export function WorkflowProgress({
+  currentStatus,
+  roles,
+}: WorkflowProgressProps) {
   const currentIndex = STAGES.indexOf(currentStatus);
 
   return (
@@ -136,7 +143,10 @@ export function WorkflowProgress({ currentStatus, roles }: WorkflowProgressProps
         const roleConfig = roles?.find((r) => r.role === roleName);
 
         return (
-          <div key={stage} className="flex flex-col items-center gap-0.5 flex-1">
+          <div
+            key={stage}
+            className="flex flex-col items-center gap-0.5 flex-1"
+          >
             <div
               className={`h-1.5 w-full rounded-full transition-colors ${
                 isCompleted

@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { isInTitleInput } from './formatting';
 
 interface TextColorRefs {
@@ -85,10 +85,7 @@ function applyTextColorNoSelection(
 
       if (activeColorSpanRef.current) {
         const oldSpan = activeColorSpanRef.current;
-        if (
-          oldSpan.textContent === '\u200B' ||
-          oldSpan.textContent === ''
-        ) {
+        if (oldSpan.textContent === '\u200B' || oldSpan.textContent === '') {
           oldSpan.remove();
         }
       }
@@ -109,8 +106,7 @@ function applyTextColorNoSelection(
         const parent = textNode.parentNode;
         const beforeText =
           textNode.textContent?.substring(0, currentOffset) || '';
-        const afterText =
-          textNode.textContent?.substring(currentOffset) || '';
+        const afterText = textNode.textContent?.substring(currentOffset) || '';
 
         textNode.textContent = beforeText;
 
@@ -199,10 +195,7 @@ export function applyTextColor(
     } else {
       if (activeColorSpanRef.current) {
         const oldSpan = activeColorSpanRef.current;
-        if (
-          oldSpan.textContent === '\u200B' ||
-          oldSpan.textContent === ''
-        ) {
+        if (oldSpan.textContent === '\u200B' || oldSpan.textContent === '') {
           oldSpan.remove();
         }
       }

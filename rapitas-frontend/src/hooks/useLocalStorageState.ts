@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { createLogger } from "@/lib/logger";
+import { createLogger } from '@/lib/logger';
 
-const logger = createLogger("useLocalStorageState");
+const logger = createLogger('useLocalStorageState');
 
 // LocalStorageの読み書きを最適化するカスタムフック
 export function useLocalStorageState<T>(

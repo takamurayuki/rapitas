@@ -2,18 +2,18 @@
  * Daily Schedule Block API Routes
  * 一日の行動スケジュール（円グラフ表示用）
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
 
-export const dailyScheduleRoutes = new Elysia({ prefix: "/daily-schedule" })
-  .get("/", async () => {
+export const dailyScheduleRoutes = new Elysia({ prefix: '/daily-schedule' })
+  .get('/', async () => {
     return await prisma.dailyScheduleBlock.findMany({
-      orderBy: { sortOrder: "asc" },
+      orderBy: { sortOrder: 'asc' },
     });
   })
 
   .post(
-    "/",
+    '/',
     async (context) => {
       const body = context.body as {
         label: string;
@@ -50,11 +50,11 @@ export const dailyScheduleRoutes = new Elysia({ prefix: "/daily-schedule" })
         isNotify: t.Optional(t.Boolean()),
         sortOrder: t.Optional(t.Number()),
       }),
-    }
+    },
   )
 
   .patch(
-    "/:id",
+    '/:id',
     async (context) => {
       const { params, body } = context;
       const id = parseInt(params.id);
@@ -84,7 +84,7 @@ export const dailyScheduleRoutes = new Elysia({ prefix: "/daily-schedule" })
     },
     {
       params: t.Object({
-        id: t.String()
+        id: t.String(),
       }),
       body: t.Object({
         label: t.Optional(t.String()),
@@ -96,21 +96,25 @@ export const dailyScheduleRoutes = new Elysia({ prefix: "/daily-schedule" })
         isNotify: t.Optional(t.Boolean()),
         sortOrder: t.Optional(t.Number()),
       }),
-    }
+    },
   )
 
-  .delete("/:id", async ({ params }) => {
-    const id = parseInt(params.id);
-    return await prisma.dailyScheduleBlock.delete({ where: { id } });
-  }, {
-    params: t.Object({
-      id: t.String()
-    }),
-  })
+  .delete(
+    '/:id',
+    async ({ params }) => {
+      const id = parseInt(params.id);
+      return await prisma.dailyScheduleBlock.delete({ where: { id } });
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+    },
+  )
 
   // Bulk create/replace all blocks at once
   .put(
-    "/bulk",
+    '/bulk',
     async (context) => {
       const body = context.body as {
         blocks: Array<{
@@ -134,18 +138,18 @@ export const dailyScheduleRoutes = new Elysia({ prefix: "/daily-schedule" })
               label: block.label,
               startTime: block.startTime,
               endTime: block.endTime,
-              color: block.color || "#3B82F6",
+              color: block.color || '#3B82F6',
               icon: block.icon || null,
-              category: block.category || "other",
+              category: block.category || 'other',
               isNotify: block.isNotify || false,
               sortOrder: block.sortOrder ?? index,
             },
-          })
+          }),
         ),
       ]);
 
       return await prisma.dailyScheduleBlock.findMany({
-        orderBy: { sortOrder: "asc" },
+        orderBy: { sortOrder: 'asc' },
       });
     },
     {
@@ -160,8 +164,8 @@ export const dailyScheduleRoutes = new Elysia({ prefix: "/daily-schedule" })
             category: t.Optional(t.String()),
             isNotify: t.Optional(t.Boolean()),
             sortOrder: t.Optional(t.Number()),
-          })
+          }),
         ),
       }),
-    }
+    },
   );

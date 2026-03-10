@@ -2,7 +2,12 @@
  * タスク専用のAPI最適化関数
  */
 
-import { apiClient, apiFetch, debouncedFetch, parallelFetch } from './api-client';
+import {
+  apiClient,
+  apiFetch,
+  debouncedFetch,
+  parallelFetch,
+} from './api-client';
 import type { Task, Status } from '@/types';
 
 type RequestOptions = {
@@ -14,18 +19,24 @@ type RequestOptions = {
  * タスクの一括取得（カテゴリ別）
  * 複数カテゴリのタスクを並列で取得
  */
-export async function fetchTasksByCategories(categoryIds: number[]): Promise<Record<number, Task[]>> {
+export async function fetchTasksByCategories(
+  categoryIds: number[],
+): Promise<Record<number, Task[]>> {
   if (categoryIds.length === 0) return {};
 
-  const requests = categoryIds.reduce((acc, categoryId) => {
-    acc[`category_${categoryId}`] = {
-      path: `/tasks?categoryId=${categoryId}`,
-      options: { cacheTime: 30000 } // 30秒キャッシュ
-    };
-    return acc;
-  }, {} as Record<string, { path: string; options?: RequestOptions }>);
+  const requests = categoryIds.reduce(
+    (acc, categoryId) => {
+      acc[`category_${categoryId}`] = {
+        path: `/tasks?categoryId=${categoryId}`,
+        options: { cacheTime: 30000 }, // 30秒キャッシュ
+      };
+      return acc;
+    },
+    {} as Record<string, { path: string; options?: RequestOptions }>,
+  );
 
-  const results = await parallelFetch<Record<string, Task[] | { error: unknown }>>(requests);
+  const results =
+    await parallelFetch<Record<string, Task[] | { error: unknown }>>(requests);
 
   // レスポンスを整形
   const tasksByCategory: Record<number, Task[]> = {};
@@ -45,7 +56,9 @@ export async function fetchTasksByCategories(categoryIds: number[]): Promise<Rec
  * タスクのステータス一括更新
  * 複数のタスクのステータスを1回のリクエストで更新
  */
-export async function updateTaskStatusBatch(updates: Array<{ id: number; status: Status }>): Promise<void> {
+export async function updateTaskStatusBatch(
+  updates: Array<{ id: number; status: Status }>,
+): Promise<void> {
   await apiFetch('/tasks/batch-update-status', {
     method: 'POST',
     body: JSON.stringify({ updates }),
@@ -62,7 +75,7 @@ export async function searchTasks(query: string): Promise<Task[]> {
   return debouncedFetch<Task[]>(
     `/tasks/search?q=${encodeURIComponent(query)}`,
     { cacheTime: 60000 }, // 1分キャッシュ
-    500 // 500msデバウンス
+    500, // 500msデバウンス
   );
 }
 
@@ -71,7 +84,7 @@ export async function searchTasks(query: string): Promise<Task[]> {
  * 画面遷移前に次の画面で必要なタスクをプリロード
  */
 export async function preloadTaskDetails(taskIds: number[]): Promise<void> {
-  const paths = taskIds.map(id => `/tasks/${id}`);
+  const paths = taskIds.map((id) => `/tasks/${id}`);
   await apiClient.prefetch(paths, 300000); // 5分キャッシュ
 }
 
@@ -100,18 +113,26 @@ export async function fetchRecentTasks(limit: number = 10): Promise<Task[]> {
 /**
  * タスクの依存関係一括取得
  */
-export async function fetchTaskDependencies(taskIds: number[]): Promise<Record<number, number[]>> {
+export async function fetchTaskDependencies(
+  taskIds: number[],
+): Promise<Record<number, number[]>> {
   if (taskIds.length === 0) return {};
 
-  const requests = taskIds.reduce((acc, taskId) => {
-    acc[`task_${taskId}`] = {
-      path: `/tasks/${taskId}/dependencies`,
-      options: { cacheTime: 120000 } // 2分キャッシュ
-    };
-    return acc;
-  }, {} as Record<string, { path: string; options?: RequestOptions }>);
+  const requests = taskIds.reduce(
+    (acc, taskId) => {
+      acc[`task_${taskId}`] = {
+        path: `/tasks/${taskId}/dependencies`,
+        options: { cacheTime: 120000 }, // 2分キャッシュ
+      };
+      return acc;
+    },
+    {} as Record<string, { path: string; options?: RequestOptions }>,
+  );
 
-  const results = await parallelFetch<Record<string, number[] | { error: unknown }>>(requests);
+  const results =
+    await parallelFetch<Record<string, number[] | { error: unknown }>>(
+      requests,
+    );
 
   // レスポンスを整形
   const dependencies: Record<number, number[]> = {};
@@ -131,7 +152,10 @@ export async function fetchTaskDependencies(taskIds: number[]): Promise<Record<n
  * スマートプリフェッチ
  * ユーザーの操作パターンに基づいて次に必要になりそうなデータをプリフェッチ
  */
-export async function smartPrefetchTasks(currentTaskId?: number, currentCategoryId?: number): Promise<void> {
+export async function smartPrefetchTasks(
+  currentTaskId?: number,
+  currentCategoryId?: number,
+): Promise<void> {
   const prefetchPaths: string[] = [];
 
   if (currentTaskId) {

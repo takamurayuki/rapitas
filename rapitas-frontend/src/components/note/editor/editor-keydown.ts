@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 
 interface EditorRefs {
   contentRef: React.RefObject<HTMLDivElement | null>;
@@ -147,10 +147,7 @@ function handleBackspace(
           ) {
             const lastChild = prevNode.lastChild;
             if (lastChild.nodeType === Node.TEXT_NODE) {
-              newRange.setStart(
-                lastChild,
-                lastChild.textContent?.length || 0,
-              );
+              newRange.setStart(lastChild, lastChild.textContent?.length || 0);
             } else {
               newRange.setStartAfter(lastChild);
             }

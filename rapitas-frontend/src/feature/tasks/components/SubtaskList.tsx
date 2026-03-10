@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Task } from '@/types';
+import { type Task } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -174,7 +174,9 @@ export default function SubtaskList({
             {t('subtasks')}
             {totalSubtasks > 0 && (
               <span className="ml-3 text-base font-normal text-zinc-500">
-                {t('subtasksCompleted', { count: `${completedSubtasks.length}/${totalSubtasks}` })}
+                {t('subtasksCompleted', {
+                  count: `${completedSubtasks.length}/${totalSubtasks}`,
+                })}
               </span>
             )}
           </h2>
@@ -251,7 +253,9 @@ export default function SubtaskList({
             <p className="text-sm text-red-700 dark:text-red-300 mb-3">
               {showDeleteConfirm === 'all'
                 ? t('deleteAllConfirm', { count: totalSubtasks })
-                : t('deleteSelectedConfirm', { count: selectedSubtaskIds.size })}
+                : t('deleteSelectedConfirm', {
+                    count: selectedSubtaskIds.size,
+                  })}
             </p>
             <div className="flex gap-2">
               <button

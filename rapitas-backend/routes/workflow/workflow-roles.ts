@@ -5,7 +5,14 @@
 import { Elysia } from 'elysia';
 import { prisma } from '../../config';
 
-const VALID_ROLES = ['researcher', 'planner', 'reviewer', 'implementer', 'verifier', 'auto_verifier'] as const;
+const VALID_ROLES = [
+  'researcher',
+  'planner',
+  'reviewer',
+  'implementer',
+  'verifier',
+  'auto_verifier',
+] as const;
 type WorkflowRole = (typeof VALID_ROLES)[number];
 
 const DEFAULT_PROMPT_KEYS: Record<WorkflowRole, string> = {
@@ -60,7 +67,14 @@ export const workflowRolesRoutes = new Elysia()
     });
 
     // ロール順序を保証
-    const roleOrder: WorkflowRole[] = ['researcher', 'planner', 'reviewer', 'implementer', 'verifier', 'auto_verifier'];
+    const roleOrder: WorkflowRole[] = [
+      'researcher',
+      'planner',
+      'reviewer',
+      'implementer',
+      'verifier',
+      'auto_verifier',
+    ];
     const sorted = roleOrder.map((role) => roles.find((r) => r.role === role)).filter(Boolean);
 
     return sorted;

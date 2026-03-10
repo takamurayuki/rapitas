@@ -17,7 +17,7 @@ export const OPEN_SHORTCUTS_EVENT = 'openKeyboardShortcuts';
 export default function KeyboardShortcuts() {
   const router = useRouter();
   const [showHelp, setShowHelp] = useState(false);
-  const [isMac, setIsMac] = useState(() => getIsMac());
+  const [isMac, _setIsMac] = useState(() => getIsMac());
   const shortcuts = useShortcutStore((state) => state.shortcuts);
 
   // 外部からモーダルを開くためのイベントリスナー
@@ -93,6 +93,7 @@ export default function KeyboardShortcuts() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, shortcuts, showHelp]);
 
   const formatShortcut = (binding: {
@@ -105,7 +106,13 @@ export default function KeyboardShortcuts() {
     if (binding.ctrl) parts.push('Ctrl');
     if (binding.meta) parts.push(isMac ? '\u2318' : 'Ctrl');
     if (binding.shift) parts.push(isMac ? '\u21E7' : 'Shift');
-    parts.push(binding.key === 'Escape' ? 'Esc' : binding.key.toUpperCase());
+    parts.push(
+      !binding.key
+        ? ''
+        : binding.key === 'Escape'
+          ? 'Esc'
+          : binding.key.toUpperCase(),
+    );
     return parts.join(' + ');
   };
 

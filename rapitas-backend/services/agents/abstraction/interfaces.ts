@@ -103,10 +103,7 @@ export interface IAgent {
   /**
    * タスクを実行
    */
-  execute(
-    task: AgentTaskDefinition,
-    context: AgentExecutionContext,
-  ): Promise<AgentExecutionResult>;
+  execute(task: AgentTaskDefinition, context: AgentExecutionContext): Promise<AgentExecutionResult>;
 
   /**
    * 継続実行（質問への回答後など）
@@ -163,10 +160,7 @@ export interface IAgentExecutionManager {
   /**
    * 実行を継続
    */
-  continueExecution(
-    executionId: string,
-    userResponse: string,
-  ): Promise<AgentExecutionResult>;
+  continueExecution(executionId: string, userResponse: string): Promise<AgentExecutionResult>;
 
   /**
    * 実行を停止
@@ -357,7 +351,10 @@ export interface IMetricsCollector {
   /**
    * 集計メトリクスを取得
    */
-  getAggregateMetrics(agentId: string, period: 'hour' | 'day' | 'week' | 'month'): {
+  getAggregateMetrics(
+    agentId: string,
+    period: 'hour' | 'day' | 'week' | 'month',
+  ): {
     totalExecutions: number;
     successRate: number;
     avgDurationMs: number;
@@ -418,16 +415,16 @@ export interface IAgentLogger {
  * エージェントエラーの種類
  */
 export type AgentErrorType =
-  | 'configuration'    // 設定エラー
-  | 'authentication'   // 認証エラー
-  | 'rate_limit'       // レート制限
-  | 'timeout'          // タイムアウト
-  | 'network'          // ネットワークエラー
-  | 'execution'        // 実行エラー
-  | 'validation'       // バリデーションエラー
-  | 'resource'         // リソースエラー
-  | 'permission'       // パーミッションエラー
-  | 'internal';        // 内部エラー
+  | 'configuration' // 設定エラー
+  | 'authentication' // 認証エラー
+  | 'rate_limit' // レート制限
+  | 'timeout' // タイムアウト
+  | 'network' // ネットワークエラー
+  | 'execution' // 実行エラー
+  | 'validation' // バリデーションエラー
+  | 'resource' // リソースエラー
+  | 'permission' // パーミッションエラー
+  | 'internal'; // 内部エラー
 
 /**
  * エージェントエラー

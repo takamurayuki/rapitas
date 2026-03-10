@@ -2,19 +2,19 @@
  * Execution Log File API Routes
  * AI agent execution log file access endpoints
  */
-import { Elysia, t } from "elysia";
-import { readFile } from "fs/promises";
+import { Elysia, t } from 'elysia';
+import { readFile } from 'fs/promises';
 import {
   listExecutionLogFiles,
   getExecutionLogFile,
-} from "../../services/agents/execution-file-logger";
+} from '../../services/agents/execution-file-logger';
 
 export const executionLogsRoutes = new Elysia()
   /**
    * 実行ログファイルの一覧を取得
    */
-  .get("/api/execution-logs", async (context) => {
-      const { query  } = context;
+  .get('/api/execution-logs', async (context) => {
+    const { query } = context;
     const limit = Number(query?.limit) || 50;
     const offset = Number(query?.offset) || 0;
 
@@ -38,12 +38,12 @@ export const executionLogsRoutes = new Elysia()
   /**
    * 特定の実行IDのログファイルを取得
    */
-  .get("/api/execution-logs/:executionId", async (context) => {
+  .get('/api/execution-logs/:executionId', async (context) => {
     const { params, query, set } = context;
     const executionId = Number(params.executionId);
     if (isNaN(executionId)) {
       set.status = 400;
-      return { error: "Invalid execution ID" };
+      return { error: 'Invalid execution ID' };
     }
 
     const logFile = await getExecutionLogFile(executionId);
@@ -52,11 +52,11 @@ export const executionLogsRoutes = new Elysia()
       return { error: `No log file found for execution ${executionId}` };
     }
 
-    const format = query?.format || "text";
+    const format = query?.format || 'text';
 
-    if (format === "json") {
+    if (format === 'json') {
       // JSON形式のサマリーを返す
-      const content = await readFile(logFile.path, "utf-8");
+      const content = await readFile(logFile.path, 'utf-8');
       const jsonSection = extractJsonSection(content);
       if (jsonSection) {
         return {
@@ -68,11 +68,11 @@ export const executionLogsRoutes = new Elysia()
         };
       }
       set.status = 500;
-      return { error: "Failed to extract JSON section from log file" };
+      return { error: 'Failed to extract JSON section from log file' };
     }
 
     // テキスト形式でログファイルの内容を返す
-    const content = await readFile(logFile.path, "utf-8");
+    const content = await readFile(logFile.path, 'utf-8');
     return {
       executionId,
       filename: logFile.filename,
@@ -86,12 +86,12 @@ export const executionLogsRoutes = new Elysia()
   /**
    * 特定の実行IDのログファイルをダウンロード
    */
-  .get("/api/execution-logs/:executionId/download", async (context) => {
-      const { params, set  } = context;
+  .get('/api/execution-logs/:executionId/download', async (context) => {
+    const { params, set } = context;
     const executionId = Number(params.executionId);
     if (isNaN(executionId)) {
       set.status = 400;
-      return { error: "Invalid execution ID" };
+      return { error: 'Invalid execution ID' };
     }
 
     const logFile = await getExecutionLogFile(executionId);
@@ -100,24 +100,25 @@ export const executionLogsRoutes = new Elysia()
       return { error: `No log file found for execution ${executionId}` };
     }
 
-    const content = await readFile(logFile.path, "utf-8");
-    set.headers["Content-Type"] = "text/plain; charset=utf-8";
+    const content = await readFile(logFile.path, 'utf-8');
+    set.headers['Content-Type'] = 'text/plain; charset=utf-8';
 
     // Encode filename for Content-Disposition header
     const encodedFileName = encodeURIComponent(logFile.filename);
-    set.headers["Content-Disposition"] = `attachment; filename="${encodedFileName}"; filename*=UTF-8''${encodedFileName}`;
+    set.headers['Content-Disposition'] =
+      `attachment; filename="${encodedFileName}"; filename*=UTF-8''${encodedFileName}`;
     return content;
   })
 
   /**
    * 特定の実行IDのエラーサマリーのみ取得
    */
-  .get("/api/execution-logs/:executionId/errors", async (context) => {
-      const { params, set  } = context;
+  .get('/api/execution-logs/:executionId/errors', async (context) => {
+    const { params, set } = context;
     const executionId = Number(params.executionId);
     if (isNaN(executionId)) {
       set.status = 400;
-      return { error: "Invalid execution ID" };
+      return { error: 'Invalid execution ID' };
     }
 
     const logFile = await getExecutionLogFile(executionId);
@@ -126,11 +127,11 @@ export const executionLogsRoutes = new Elysia()
       return { error: `No log file found for execution ${executionId}` };
     }
 
-    const content = await readFile(logFile.path, "utf-8");
+    const content = await readFile(logFile.path, 'utf-8');
     const jsonSection = extractJsonSection(content);
     if (!jsonSection) {
       set.status = 500;
-      return { error: "Failed to extract data from log file" };
+      return { error: 'Failed to extract data from log file' };
     }
 
     const data = JSON.parse(jsonSection);
@@ -164,13 +165,13 @@ function extractExecutionId(filename: string): number | null {
  * ログファイルからJSON構造化データセクションを抽出
  */
 function extractJsonSection(content: string): string | null {
-  const jsonMarker = "[STRUCTURED DATA (JSON)]";
+  const jsonMarker = '[STRUCTURED DATA (JSON)]';
   const jsonStart = content.indexOf(jsonMarker);
   if (jsonStart === -1) return null;
 
   // マーカー行の後の区切り線をスキップしてJSONを探す
   const afterMarker = content.substring(jsonStart + jsonMarker.length);
-  const jsonContentStart = afterMarker.indexOf("{");
+  const jsonContentStart = afterMarker.indexOf('{');
   if (jsonContentStart === -1) return null;
 
   const jsonContent = afterMarker.substring(jsonContentStart).trim();

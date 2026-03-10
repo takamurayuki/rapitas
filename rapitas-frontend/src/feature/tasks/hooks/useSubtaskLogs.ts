@@ -48,7 +48,17 @@ export function formatLogData(data: unknown): string {
   }
 
   // その他のフィールドをkey: value形式で追加
-  const skipKeys = new Set(['message', 'msg', 'description', 'text', 'status', 'type', 'error', 'timestamp', 'level']);
+  const skipKeys = new Set([
+    'message',
+    'msg',
+    'description',
+    'text',
+    'status',
+    'type',
+    'error',
+    'timestamp',
+    'level',
+  ]);
   for (const [key, value] of Object.entries(obj)) {
     if (skipKeys.has(key)) continue;
     if (value === null || value === undefined) continue;
@@ -83,7 +93,14 @@ interface UseSubtaskLogsOptions {
   /** 自動更新を有効にするか */
   autoRefresh?: boolean;
   /** 並列実行セッションの状態 */
-  sessionStatus?: 'pending' | 'scheduled' | 'running' | 'completed' | 'failed' | 'cancelled' | 'blocked';
+  sessionStatus?:
+    | 'pending'
+    | 'scheduled'
+    | 'running'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+    | 'blocked';
 }
 
 interface UseSubtaskLogsReturn {
@@ -165,8 +182,10 @@ export function useSubtaskLogs({
             (log: RawLogEntry) => ({
               timestamp: log.timestamp,
               message:
-                log.message || (log.data && typeof log.data === 'object'
-                  ? ((log.data as Record<string, unknown>).message as string) || formatLogData(log.data)
+                log.message ||
+                (log.data && typeof log.data === 'object'
+                  ? ((log.data as Record<string, unknown>).message as string) ||
+                    formatLogData(log.data)
                   : String(log.data ?? '')),
               level: log.level || 'info',
               taskId: log.taskId,
@@ -242,7 +261,10 @@ export function useSubtaskLogs({
 
   // セッション完了時のローディング状態クリア
   useEffect(() => {
-    const isCompleted = sessionStatus === 'completed' || sessionStatus === 'failed' || sessionStatus === 'cancelled';
+    const isCompleted =
+      sessionStatus === 'completed' ||
+      sessionStatus === 'failed' ||
+      sessionStatus === 'cancelled';
 
     if (isCompleted) {
       // 完了時は全サブタスクのローディング状態を確実に解除
@@ -264,7 +286,10 @@ export function useSubtaskLogs({
     if (!autoRefresh || !sessionId) return;
 
     // 実行が完了している場合は最後に一度だけログを取得してポーリング停止
-    const isCompleted = sessionStatus === 'completed' || sessionStatus === 'failed' || sessionStatus === 'cancelled';
+    const isCompleted =
+      sessionStatus === 'completed' ||
+      sessionStatus === 'failed' ||
+      sessionStatus === 'cancelled';
 
     if (isCompleted) {
       // 最終的なログを取得（非同期で実行してローディング状態を適切に管理）

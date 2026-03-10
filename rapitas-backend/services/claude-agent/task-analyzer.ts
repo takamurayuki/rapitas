@@ -1,12 +1,8 @@
-import {
-  sendAIMessage,
-  type AIProvider,
-  type AIMessage,
-} from "../../utils/ai-client";
-import { createLogger } from "../../config/logger";
-import type { AgentConfig, TaskAnalysisResult, SubtaskProposal } from "./types";
+import { sendAIMessage, type AIProvider, type AIMessage } from '../../utils/ai-client';
+import { createLogger } from '../../config/logger';
+import type { AgentConfig, TaskAnalysisResult, SubtaskProposal } from './types';
 
-const log = createLogger("claude-agent:task-analyzer");
+const log = createLogger('claude-agent:task-analyzer');
 
 const SYSTEM_PROMPT = `あなたはタスク管理のAIアシスタントです。ユーザーのタスクを分析し、効率的に完了するためのサブタスクを提案します。
 
@@ -51,7 +47,7 @@ function parseJSONSafe<T>(jsonStr: string): T {
   let fixed = jsonStr;
 
   // 末尾のカンマを除去
-  fixed = fixed.replace(/,\s*$/, "");
+  fixed = fixed.replace(/,\s*$/, '');
 
   // 未閉じの文字列リテラルを閉じる
   const quoteCount = (fixed.match(/(?<!\\)"/g) || []).length;
@@ -68,7 +64,7 @@ function parseJSONSafe<T>(jsonStr: string): T {
       escaped = false;
       continue;
     }
-    if (ch === "\\") {
+    if (ch === '\\') {
       escaped = true;
       continue;
     }
@@ -77,13 +73,13 @@ function parseJSONSafe<T>(jsonStr: string): T {
       continue;
     }
     if (inString) continue;
-    if (ch === "{") openBrackets.push("}");
-    else if (ch === "[") openBrackets.push("]");
-    else if (ch === "}" || ch === "]") openBrackets.pop();
+    if (ch === '{') openBrackets.push('}');
+    else if (ch === '[') openBrackets.push(']');
+    else if (ch === '}' || ch === ']') openBrackets.pop();
   }
 
   // 末尾のカンマを再度除去（文字列閉じ後）
-  fixed = fixed.replace(/,\s*$/, "");
+  fixed = fixed.replace(/,\s*$/, '');
 
   // 逆順で閉じブラケットを追加
   while (openBrackets.length > 0) {
@@ -93,7 +89,7 @@ function parseJSONSafe<T>(jsonStr: string): T {
   try {
     return JSON.parse(fixed);
   } catch (e) {
-    log.warn("JSON修復に失敗。元のレスポンス末尾: %s", jsonStr.slice(-200));
+    log.warn('JSON修復に失敗。元のレスポンス末尾: %s', jsonStr.slice(-200));
     throw new Error(
       `AIレスポンスのJSON解析に失敗しました: ${e instanceof Error ? e.message : String(e)}`,
     );
@@ -124,24 +120,22 @@ export async function analyzeTask(
 
 タスク情報:
 - タイトル: ${task.title}
-- 説明: ${task.description || "なし"}
+- 説明: ${task.description || 'なし'}
 - 優先度: ${task.priority}
-- 期限: ${task.dueDate ? new Date(task.dueDate).toLocaleDateString("ja-JP") : "なし"}
-- 見積もり時間: ${task.estimatedHours ? `${task.estimatedHours}時間` : "未設定"}
+- 期限: ${task.dueDate ? new Date(task.dueDate).toLocaleDateString('ja-JP') : 'なし'}
+- 見積もり時間: ${task.estimatedHours ? `${task.estimatedHours}時間` : '未設定'}
 
 設定:
-- 分解レベル: ${config.priority === "aggressive" ? "詳細に分解" : config.priority === "conservative" ? "大まかに分解" : "バランス良く分解"}
+- 分解レベル: ${config.priority === 'aggressive' ? '詳細に分解' : config.priority === 'conservative' ? '大まかに分解' : 'バランス良く分解'}
 - 最大サブタスク数: ${maxSubtasksGuide[config.priority]}個まで
 
 タスクの性質に応じて適切なサブタスクを提案してください。`;
 
-  const provider = config.provider || "claude";
+  const provider = config.provider || 'claude';
   const model = config.model || undefined;
 
   try {
-    const messages: AIMessage[] = [
-      { role: "user", content: userPrompt },
-    ];
+    const messages: AIMessage[] = [{ role: 'user', content: userPrompt }];
 
     const response = await sendAIMessage({
       provider,
@@ -153,19 +147,16 @@ export async function analyzeTask(
 
     const jsonMatch = response.content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error("AIレスポンスの解析に失敗しました");
+      throw new Error('AIレスポンスの解析に失敗しました');
     }
 
     const result: TaskAnalysisResult = parseJSONSafe(jsonMatch[0]);
 
-    result.suggestedSubtasks = result.suggestedSubtasks.slice(
-      0,
-      maxSubtasksGuide[config.priority],
-    );
+    result.suggestedSubtasks = result.suggestedSubtasks.slice(0, maxSubtasksGuide[config.priority]);
 
     return { result, tokensUsed: response.tokensUsed };
   } catch (error) {
-    log.error({ err: error }, "AI API error");
+    log.error({ err: error }, 'AI API error');
     throw error;
   }
 }
@@ -185,20 +176,18 @@ export async function generateExecutionInstructions(
   const userPrompt = `以下のタスクとサブタスクについて、実行手順を簡潔に説明してください。
 
 メインタスク: ${task.title}
-説明: ${task.description || "なし"}
+説明: ${task.description || 'なし'}
 
 サブタスク:
-${subtasks.map((st, i) => `${i + 1}. ${st.title}: ${st.description}`).join("\n")}
+${subtasks.map((st, i) => `${i + 1}. ${st.title}: ${st.description}`).join('\n')}
 
 実行する際の注意点や効率的な進め方を含めてください。`;
 
   try {
-    const messages: AIMessage[] = [
-      { role: "user", content: userPrompt },
-    ];
+    const messages: AIMessage[] = [{ role: 'user', content: userPrompt }];
 
     const response = await sendAIMessage({
-      provider: provider || "claude",
+      provider: provider || 'claude',
       model,
       messages,
       maxTokens: 1024,
@@ -206,7 +195,7 @@ ${subtasks.map((st, i) => `${i + 1}. ${st.title}: ${st.description}`).join("\n")
 
     return { instructions: response.content, tokensUsed: response.tokensUsed };
   } catch (error) {
-    log.error({ err: error }, "AI API error");
+    log.error({ err: error }, 'AI API error');
     throw error;
   }
 }

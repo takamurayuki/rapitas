@@ -1,10 +1,10 @@
-import { Elysia } from "elysia";
-import { prisma } from "../../config/database";
-import { createLogger } from "../../config/logger";
+import { Elysia } from 'elysia';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
 
-const log = createLogger("routes:agent-session");
-import { orchestrator } from "../../services/orchestrator-instance";
-import type { AgentExecutionWithExtras } from "../../types/agent-execution-types";
+const log = createLogger('routes:agent-session');
+import { orchestrator } from '../../services/orchestrator-instance';
+import type { AgentExecutionWithExtras } from '../../types/agent-execution-types';
 
 /**
  * エージェントセッション管理ルーター
@@ -13,25 +13,25 @@ import type { AgentExecutionWithExtras } from "../../types/agent-execution-types
 export const agentSessionRouter = new Elysia({ prefix: '/agents' })
 
   // Get session details
-  .get("/sessions/:id", async (context) => {
+  .get('/sessions/:id', async (context) => {
     const { params } = context;
     return await prisma.agentSession.findUnique({
       where: { id: parseInt(params.id) },
       include: {
-        agentActions: { orderBy: { createdAt: "desc" } },
+        agentActions: { orderBy: { createdAt: 'desc' } },
         agentExecutions: {
           include: {
             agentConfig: true,
             gitCommits: true,
           },
-          orderBy: { createdAt: "desc" },
+          orderBy: { createdAt: 'desc' },
         },
       },
     });
   })
 
   // Stop session
-  .post("/sessions/:id/stop", async (context) => {
+  .post('/sessions/:id/stop', async (context) => {
     const { params } = context;
     const sessionId = parseInt(params.id);
 
@@ -39,7 +39,10 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
     const executions = orchestrator.getSessionExecutions(sessionId);
     for (const execution of executions) {
       await orchestrator.stopExecution(execution.executionId).catch((err) => {
-        log.warn({ err, executionId: execution.executionId }, "Failed to stop execution during session termination");
+        log.warn(
+          { err, executionId: execution.executionId },
+          'Failed to stop execution during session termination',
+        );
       });
     }
 
@@ -47,21 +50,21 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
     await prisma.agentExecution.updateMany({
       where: {
         sessionId,
-        status: { in: ["running", "pending", "waiting_for_input"] },
+        status: { in: ['running', 'pending', 'waiting_for_input'] },
       },
       data: {
-        status: "cancelled",
+        status: 'cancelled',
         completedAt: new Date(),
-        errorMessage: "Manually stopped",
+        errorMessage: 'Manually stopped',
       },
     });
 
     await prisma.agentSession.update({
       where: { id: sessionId },
       data: {
-        status: "failed",
+        status: 'failed',
         completedAt: new Date(),
-        errorMessage: "Manually stopped",
+        errorMessage: 'Manually stopped',
       },
     });
 
@@ -70,24 +73,22 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
 
   // Get resumable executions (interrupted or stale running)
   // This handles both intentionally interrupted executions and ones left in "running" state after server restart
-  .get("/resumable-executions", async () => {
+  .get('/resumable-executions', async () => {
     try {
       // Stale execution recovery is handled at startup by orchestrator.recoverStaleExecutions()
       // This endpoint only reads data — no recovery logic here to avoid race conditions
       // with newly created executions that haven't been added to activeExecutions yet.
 
-      const currentActiveIds = orchestrator
-        .getActiveExecutions()
-        .map((e) => e.executionId);
+      const currentActiveIds = orchestrator.getActiveExecutions().map((e) => e.executionId);
 
       const resumableExecutions = await prisma.agentExecution.findMany({
         where: {
           OR: [
             // 中断された実行（再開可能）
-            { status: "interrupted" },
+            { status: 'interrupted' },
             // 実際にメモリ上でアクティブな実行のみ
             {
-              status: { in: ["running", "waiting_for_input"] },
+              status: { in: ['running', 'waiting_for_input'] },
               id: { in: currentActiveIds.length > 0 ? currentActiveIds : [-1] },
             },
           ],
@@ -113,50 +114,45 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
             },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
         take: 50,
       });
 
-      return resumableExecutions.map(
-        (exec: (typeof resumableExecutions)[number]) => {
-          const execWithExtras = exec as typeof exec & AgentExecutionWithExtras;
-          return {
-            id: exec.id,
-            taskId: exec.session.config?.task?.id,
-            taskTitle: exec.session.config?.task?.title,
-            sessionId: exec.sessionId,
-            status: exec.status,
-            claudeSessionId: execWithExtras.claudeSessionId,
-            errorMessage: exec.errorMessage,
-            output: exec.output?.slice(-500), // 最後の500文字のみ
-            startedAt: exec.startedAt,
-            completedAt: exec.completedAt,
-            createdAt: exec.createdAt,
-            workingDirectory:
-              exec.session.config?.task?.theme?.workingDirectory,
-            canResume: exec.status === "interrupted", // Only interrupted can be resumed
-          };
-        },
-      );
+      return resumableExecutions.map((exec: (typeof resumableExecutions)[number]) => {
+        const execWithExtras = exec as typeof exec & AgentExecutionWithExtras;
+        return {
+          id: exec.id,
+          taskId: exec.session.config?.task?.id,
+          taskTitle: exec.session.config?.task?.title,
+          sessionId: exec.sessionId,
+          status: exec.status,
+          claudeSessionId: execWithExtras.claudeSessionId,
+          errorMessage: exec.errorMessage,
+          output: exec.output?.slice(-500), // 最後の500文字のみ
+          startedAt: exec.startedAt,
+          completedAt: exec.completedAt,
+          createdAt: exec.createdAt,
+          workingDirectory: exec.session.config?.task?.theme?.workingDirectory,
+          canResume: exec.status === 'interrupted', // Only interrupted can be resumed
+        };
+      });
     } catch (error) {
       const errObj = error as { code?: string; message?: string };
-      if (errObj?.code === "P1001") {
-        log.warn("[resumable-executions] Database unreachable, skipping");
+      if (errObj?.code === 'P1001') {
+        log.warn('[resumable-executions] Database unreachable, skipping');
       } else {
-        log.error({ err: error },
-          "[resumable-executions] Error",
-        );
+        log.error({ err: error }, '[resumable-executions] Error');
       }
       return [];
     }
   })
 
   // Legacy endpoint for backwards compatibility
-  .get("/interrupted-executions", async () => {
+  .get('/interrupted-executions', async () => {
     try {
       const interruptedExecutions = await prisma.agentExecution.findMany({
         where: {
-          status: "interrupted",
+          status: 'interrupted',
         },
         include: {
           session: {
@@ -174,31 +170,29 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
             },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
         take: 50,
       });
 
-      return interruptedExecutions.map(
-        (exec: (typeof interruptedExecutions)[number]) => {
-          const execWithExtras = exec as typeof exec & AgentExecutionWithExtras;
-          return {
-            id: exec.id,
-            taskId: exec.session.config?.task?.id,
-            taskTitle: exec.session.config?.task?.title,
-            sessionId: exec.sessionId,
-            status: exec.status,
-            claudeSessionId: execWithExtras.claudeSessionId,
-            errorMessage: exec.errorMessage,
-            output: exec.output?.slice(-500), // 最後の500文字のみ
-            startedAt: exec.startedAt,
-            completedAt: exec.completedAt,
-            createdAt: exec.createdAt,
-            canResume: !!execWithExtras.claudeSessionId, // Claude Session IDがあれば再開可能
-          };
-        },
-      );
+      return interruptedExecutions.map((exec: (typeof interruptedExecutions)[number]) => {
+        const execWithExtras = exec as typeof exec & AgentExecutionWithExtras;
+        return {
+          id: exec.id,
+          taskId: exec.session.config?.task?.id,
+          taskTitle: exec.session.config?.task?.title,
+          sessionId: exec.sessionId,
+          status: exec.status,
+          claudeSessionId: execWithExtras.claudeSessionId,
+          errorMessage: exec.errorMessage,
+          output: exec.output?.slice(-500), // 最後の500文字のみ
+          startedAt: exec.startedAt,
+          completedAt: exec.completedAt,
+          createdAt: exec.createdAt,
+          canResume: !!execWithExtras.claudeSessionId, // Claude Session IDがあれば再開可能
+        };
+      });
     } catch (error) {
-      log.error({ err: error }, "[interrupted-executions] Error");
+      log.error({ err: error }, '[interrupted-executions] Error');
       return [];
     }
   });

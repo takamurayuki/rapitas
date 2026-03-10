@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logger';
 
-const logger = createLogger("Api");
+const logger = createLogger('Api');
 
 /**
  * API Base URL
@@ -62,7 +62,9 @@ export async function fetchWithRetry(
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      logger.debug(`[fetchWithRetry] Attempting ${attempt + 1}/${maxRetries} for ${url}`);
+      logger.debug(
+        `[fetchWithRetry] Attempting ${attempt + 1}/${maxRetries} for ${url}`,
+      );
 
       // 呼び出し元のsignalが既にabortされている場合は即座にエラー
       if (init?.signal?.aborted) {
@@ -78,9 +80,8 @@ export async function fetchWithRetry(
       if (init?.signal) {
         signals.push(init.signal);
       }
-      const combinedSignal = signals.length > 1
-        ? AbortSignal.any(signals)
-        : controller.signal;
+      const combinedSignal =
+        signals.length > 1 ? AbortSignal.any(signals) : controller.signal;
 
       const response = await fetch(input, {
         ...init,
@@ -96,7 +97,9 @@ export async function fetchWithRetry(
           throw new Error(`HTTP ${response.status} ${response.statusText}`);
         }
         // 5xx/429はリトライ対象としてエラーをthrow
-        const retryError = new Error(`HTTP ${response.status} ${response.statusText}`);
+        const retryError = new Error(
+          `HTTP ${response.status} ${response.statusText}`,
+        );
         (retryError as Error & { retryable: boolean }).retryable = true;
         throw retryError;
       }
@@ -107,10 +110,19 @@ export async function fetchWithRetry(
       lastError = error instanceof Error ? error : new Error(String(error));
 
       // エラーの種類を識別
-      const isCallerAbort = lastError.name === 'AbortError' && init?.signal?.aborted;
-      const isTimeoutError = !isCallerAbort && (lastError.name === 'AbortError' || lastError.message.includes('aborted'));
-      const isNetworkError = lastError.name === 'TypeError' && lastError.message.includes('Failed to fetch');
-      const isRetryableError = isNetworkError || isTimeoutError || (lastError as Error & { retryable?: boolean }).retryable === true;
+      const isCallerAbort =
+        lastError.name === 'AbortError' && init?.signal?.aborted;
+      const isTimeoutError =
+        !isCallerAbort &&
+        (lastError.name === 'AbortError' ||
+          lastError.message.includes('aborted'));
+      const isNetworkError =
+        lastError.name === 'TypeError' &&
+        lastError.message.includes('Failed to fetch');
+      const isRetryableError =
+        isNetworkError ||
+        isTimeoutError ||
+        (lastError as Error & { retryable?: boolean }).retryable === true;
 
       // 呼び出し元のキャンセルやリトライ不可のエラーは即座にthrow
       if (isCallerAbort || !isRetryableError) {
@@ -128,7 +140,11 @@ export async function fetchWithRetry(
       const isLastAttempt = attempt === maxRetries - 1;
 
       if (isLastAttempt) {
-        const errorType = isTimeoutError ? 'Timeout' : isNetworkError ? 'NetworkError' : lastError.name;
+        const errorType = isTimeoutError
+          ? 'Timeout'
+          : isNetworkError
+            ? 'NetworkError'
+            : lastError.name;
         const logFn = options?.silent ? logger.warn : logger.error;
         logFn(
           `[fetchWithRetry] Final attempt ${attempt + 1}/${maxRetries} failed for ${url}: [${errorType}] ${lastError.message}`,

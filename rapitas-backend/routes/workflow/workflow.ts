@@ -8,7 +8,11 @@ import { join } from 'path';
 import { prisma } from '../../config';
 import { NotFoundError, ValidationError, parseId } from '../../middleware/error-handler';
 import { sanitizeMarkdownContent } from '../../utils/mojibake-detector';
-import { analyzeTaskComplexity, getWorkflowModeConfig, type TaskComplexityInput } from '../../services/workflow/complexity-analyzer';
+import {
+  analyzeTaskComplexity,
+  getWorkflowModeConfig,
+  type TaskComplexityInput,
+} from '../../services/workflow/complexity-analyzer';
 import { AgentOrchestrator } from '../../services/agents/agent-orchestrator';
 import { createLogger } from '../../config/logger';
 
@@ -80,7 +84,13 @@ async function getFileInfo(filePath: string, fileType: WorkflowFileType) {
  */
 async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
   const result: {
-    autoCommitResult?: { success: boolean; hash?: string; branch?: string; filesChanged?: number; error?: string };
+    autoCommitResult?: {
+      success: boolean;
+      hash?: string;
+      branch?: string;
+      filesChanged?: number;
+      error?: string;
+    };
     autoPRResult?: { success: boolean; prUrl?: string; prNumber?: number; error?: string };
     autoMergeResult?: { success: boolean; mergeStrategy?: string; error?: string };
   } = {};
@@ -91,7 +101,10 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
       where: { taskId },
     });
 
-    if (!execConfig || (!execConfig.autoCommit && !execConfig.autoCreatePR && !execConfig.autoMergePR)) {
+    if (
+      !execConfig ||
+      (!execConfig.autoCommit && !execConfig.autoCreatePR && !execConfig.autoMergePR)
+    ) {
       return result;
     }
 
@@ -115,9 +128,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
 
     // workingDirectoryを解決: AgentExecutionConfig → theme → cwd
     const workingDirectory =
-      execConfig.workingDirectory ||
-      task.theme?.workingDirectory ||
-      process.cwd();
+      execConfig.workingDirectory || task.theme?.workingDirectory || process.cwd();
 
     // ブランチ名をAgentSessionから取得
     const latestSession = task.developerModeConfig?.agentSessions?.[0];
@@ -125,7 +136,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
 
     // ターゲットブランチを解決: execConfig.targetBranch → theme.defaultBranch → 'master'
     const targetBranch =
-      (execConfig as Record<string, unknown>).targetBranch as string ||
+      ((execConfig as Record<string, unknown>).targetBranch as string) ||
       task.theme?.defaultBranch ||
       'master';
 
@@ -220,7 +231,10 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
             },
           });
         } else {
-          log.error({ error: prResult.error }, `[Workflow] Auto-PR creation failed for task ${taskId}`);
+          log.error(
+            { error: prResult.error },
+            `[Workflow] Auto-PR creation failed for task ${taskId}`,
+          );
         }
       } catch (prError) {
         log.error({ err: prError }, `[Workflow] Auto-PR failed for task ${taskId}`);
@@ -244,7 +258,9 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
         result.autoMergeResult = mergeResult;
 
         if (mergeResult.success) {
-          log.info(`[Workflow] Auto-merge successful for task ${taskId}: strategy=${mergeResult.mergeStrategy}`);
+          log.info(
+            `[Workflow] Auto-merge successful for task ${taskId}: strategy=${mergeResult.mergeStrategy}`,
+          );
 
           // ActivityLogに記録
           await prisma.activityLog.create({
@@ -275,7 +291,10 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
             },
           });
         } else {
-          log.error({ error: mergeResult.error }, `[Workflow] Auto-merge failed for task ${taskId}`);
+          log.error(
+            { error: mergeResult.error },
+            `[Workflow] Auto-merge failed for task ${taskId}`,
+          );
 
           // 失敗通知（ワークフロー全体は失敗させない）
           await prisma.notification.create({
@@ -323,9 +342,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 
       // 4ファイルの情報を並列取得
       const [research, question, plan, verify] = await Promise.all(
-        VALID_FILE_TYPES.map((type) =>
-          getFileInfo(join(dir, `${type}.md`), type)
-        )
+        VALID_FILE_TYPES.map((type) => getFileInfo(join(dir, `${type}.md`), type)),
       );
 
       return {
@@ -355,7 +372,9 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 
       const fileType = params.fileType as WorkflowFileType;
       if (!VALID_FILE_TYPES.includes(fileType)) {
-        throw new ValidationError(`Invalid file type. Must be one of: ${VALID_FILE_TYPES.join(', ')}`);
+        throw new ValidationError(
+          `Invalid file type. Must be one of: ${VALID_FILE_TYPES.join(', ')}`,
+        );
       }
 
       const resolved = await resolveWorkflowDir(taskId);
@@ -376,7 +395,10 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       const sanitizeResult = sanitizeMarkdownContent(parsedBody.content);
       const mojibakeFixed = sanitizeResult.wasFixed;
       if (sanitizeResult.wasFixed) {
-        log.info({ issues: sanitizeResult.issues }, `[Workflow API] Fixed mojibake in ${fileType}.md for task ${taskId}`);
+        log.info(
+          { issues: sanitizeResult.issues },
+          `[Workflow API] Fixed mojibake in ${fileType}.md for task ${taskId}`,
+        );
       }
 
       // ファイル書き込み
@@ -395,7 +417,9 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       } else if (fileType === 'plan' && (!currentStatus || currentStatus === 'research_done')) {
         newStatus = 'plan_created';
       } else if (fileType === 'verify') {
-        log.info(`[Workflow] Processing verify.md for task ${taskId}, currentStatus: ${currentStatus}`);
+        log.info(
+          `[Workflow] Processing verify.md for task ${taskId}, currentStatus: ${currentStatus}`,
+        );
         log.info(`[Workflow] Unconditionally setting newStatus to completed`);
         newStatus = 'completed';
       }
@@ -419,7 +443,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         const userSettings = await prisma.userSettings.findFirst();
         const task = await prisma.task.findUnique({
           where: { id: taskId },
-          select: { autoApprovePlan: true, parentId: true }
+          select: { autoApprovePlan: true, parentId: true },
         });
 
         // サブタスク判定
@@ -457,7 +481,8 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
                 reason: approvalReason,
                 taskLevelSetting: task?.autoApprovePlan || false,
                 globalLevelSetting: userSettings?.autoApprovePlan || false,
-                subtaskAutoApprove: isSubtask && !!(userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan,
+                subtaskAutoApprove:
+                  isSubtask && !!(userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan,
                 isSubtask,
               }),
               createdAt: new Date(),
@@ -466,13 +491,22 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 
           // 自動的に実装フェーズを開始
           try {
-            const { WorkflowOrchestrator } = await import('../../services/workflow/workflow-orchestrator');
+            const { WorkflowOrchestrator } =
+              await import('../../services/workflow/workflow-orchestrator');
             const orchestrator = WorkflowOrchestrator.getInstance();
-            orchestrator.advanceWorkflow(taskId).then((result) => {
-              log.info(`[Workflow] Auto-advance after auto-approval for task ${taskId}: ${result.success ? 'success' : result.error}`);
-            }).catch((err) => {
-              log.error({ err: err }, `[Workflow] Auto-advance after auto-approval failed for task ${taskId}`);
-            });
+            orchestrator
+              .advanceWorkflow(taskId)
+              .then((result) => {
+                log.info(
+                  `[Workflow] Auto-advance after auto-approval for task ${taskId}: ${result.success ? 'success' : result.error}`,
+                );
+              })
+              .catch((err) => {
+                log.error(
+                  { err: err },
+                  `[Workflow] Auto-advance after auto-approval failed for task ${taskId}`,
+                );
+              });
           } catch (err) {
             log.error({ err: err }, '[Workflow] Failed to auto-advance after auto-approval');
           }
@@ -495,7 +529,13 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         taskCompleted?: boolean;
         taskStatus?: string;
         completedAt?: string;
-        autoCommit?: { success: boolean; hash?: string; branch?: string; filesChanged?: number; error?: string };
+        autoCommit?: {
+          success: boolean;
+          hash?: string;
+          branch?: string;
+          filesChanged?: number;
+          error?: string;
+        };
         autoPR?: { success: boolean; prUrl?: string; prNumber?: number; error?: string };
         autoMerge?: { success: boolean; mergeStrategy?: string; error?: string };
       } = {
@@ -580,18 +620,32 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         try {
           // オーケストラキュー内のタスクであれば、キュー経由で再開
           const { AIOrchestra } = await import('../../services/workflow/ai-orchestra');
-          AIOrchestra.getInstance().handlePlanApproved(taskId).catch((err) => {
-            log.warn({ err }, `[Workflow] Orchestra resume failed for task ${taskId}, falling back to direct advance`);
-          });
+          AIOrchestra.getInstance()
+            .handlePlanApproved(taskId)
+            .catch((err) => {
+              log.warn(
+                { err },
+                `[Workflow] Orchestra resume failed for task ${taskId}, falling back to direct advance`,
+              );
+            });
 
-          const { WorkflowOrchestrator } = await import('../../services/workflow/workflow-orchestrator');
+          const { WorkflowOrchestrator } =
+            await import('../../services/workflow/workflow-orchestrator');
           const orchestrator = WorkflowOrchestrator.getInstance();
           // 非同期で実装フェーズを開始（レスポンスを待たない）
-          orchestrator.advanceWorkflow(taskId).then((result) => {
-            log.info(`[Workflow] Auto-advance after approval for task ${taskId}: ${result.success ? 'success' : result.error}`);
-          }).catch((err) => {
-            log.error({ err: err }, `[Workflow] Auto-advance after approval failed for task ${taskId}`);
-          });
+          orchestrator
+            .advanceWorkflow(taskId)
+            .then((result) => {
+              log.info(
+                `[Workflow] Auto-advance after approval for task ${taskId}: ${result.success ? 'success' : result.error}`,
+              );
+            })
+            .catch((err) => {
+              log.error(
+                { err: err },
+                `[Workflow] Auto-advance after approval failed for task ${taskId}`,
+              );
+            });
         } catch (err) {
           log.error({ err: err }, '[Workflow] Failed to auto-advance after approval');
         }
@@ -616,8 +670,13 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       const taskId = parseId(params.taskId, 'task ID');
 
       const parsedBody = body as { status: string };
-      if (!parsedBody?.status || !(VALID_WORKFLOW_STATUSES as readonly string[]).includes(parsedBody.status)) {
-        throw new ValidationError(`Invalid status. Must be one of: ${VALID_WORKFLOW_STATUSES.join(', ')}`);
+      if (
+        !parsedBody?.status ||
+        !(VALID_WORKFLOW_STATUSES as readonly string[]).includes(parsedBody.status)
+      ) {
+        throw new ValidationError(
+          `Invalid status. Must be one of: ${VALID_WORKFLOW_STATUSES.join(', ')}`,
+        );
       }
 
       const task = await prisma.task.findUnique({ where: { id: taskId } });
@@ -660,7 +719,8 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
     try {
       const taskId = parseId(params.taskId, 'task ID');
 
-      const { WorkflowOrchestrator } = await import('../../services/workflow/workflow-orchestrator');
+      const { WorkflowOrchestrator } =
+        await import('../../services/workflow/workflow-orchestrator');
       const orchestrator = WorkflowOrchestrator.getInstance();
 
       // 非同期で実行開始（結果を待たずにレスポンスを返す）
@@ -682,11 +742,15 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       }
 
       // CLIエージェントなど時間のかかる実行はバックグラウンドで続行
-      resultPromise.then(async (result) => {
-        log.info(`[Workflow] Advance completed for task ${taskId}: ${result.success ? 'success' : result.error}`);
-      }).catch((err) => {
-        log.error({ err: err }, `[Workflow] Advance failed for task ${taskId}`);
-      });
+      resultPromise
+        .then(async (result) => {
+          log.info(
+            `[Workflow] Advance completed for task ${taskId}: ${result.success ? 'success' : result.error}`,
+          );
+        })
+        .catch((err) => {
+          log.error({ err: err }, `[Workflow] Advance failed for task ${taskId}`);
+        });
 
       return {
         success: true,
@@ -706,7 +770,10 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
     try {
       const taskId = parseId(params.taskId, 'task ID');
 
-      const parsedBody = body as { mode: 'lightweight' | 'standard' | 'comprehensive'; override?: boolean };
+      const parsedBody = body as {
+        mode: 'lightweight' | 'standard' | 'comprehensive';
+        override?: boolean;
+      };
       const validModes = ['lightweight', 'standard', 'comprehensive'];
 
       if (!parsedBody?.mode || !validModes.includes(parsedBody.mode)) {
@@ -765,9 +832,9 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         include: {
           theme: true,
           taskLabels: {
-            include: { label: true }
-          }
-        }
+            include: { label: true },
+          },
+        },
       });
 
       if (!task) {
@@ -779,7 +846,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         title: task.title,
         description: task.description,
         estimatedHours: task.estimatedHours,
-        labels: task.taskLabels.map(tl => tl.label.name),
+        labels: task.taskLabels.map((tl) => tl.label.name),
         priority: task.priority,
         themeId: task.themeId,
       };
@@ -792,7 +859,9 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         where: { id: taskId },
         data: {
           complexityScore: analysisResult.complexityScore,
-          workflowMode: task.workflowModeOverride ? task.workflowMode : analysisResult.recommendedMode,
+          workflowMode: task.workflowModeOverride
+            ? task.workflowMode
+            : analysisResult.recommendedMode,
           updatedAt: new Date(),
         },
       });

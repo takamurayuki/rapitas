@@ -3,9 +3,9 @@
  * 実行ログをAI分析しやすい構造化フォーマットでファイル出力する
  */
 
-import { writeFile, mkdir, readdir, stat, unlink } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { writeFile, mkdir, readdir, stat, unlink } from 'fs/promises';
+import { existsSync } from 'fs';
+import path from 'path';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('execution-file-logger');
@@ -14,25 +14,25 @@ const log = createLogger('execution-file-logger');
  * ログイベントの種別
  */
 type LogEventType =
-  | "execution_start"
-  | "execution_end"
-  | "output"
-  | "error"
-  | "question_detected"
-  | "question_answered"
-  | "status_change"
-  | "git_commit"
-  | "config_loaded"
-  | "timeout"
-  | "shutdown"
-  | "recovery";
+  | 'execution_start'
+  | 'execution_end'
+  | 'output'
+  | 'error'
+  | 'question_detected'
+  | 'question_answered'
+  | 'status_change'
+  | 'git_commit'
+  | 'config_loaded'
+  | 'timeout'
+  | 'shutdown'
+  | 'recovery';
 
 /**
  * 構造化ログエントリ
  */
 type StructuredLogEntry = {
   timestamp: string;
-  level: "DEBUG" | "INFO" | "WARN" | "ERROR" | "FATAL";
+  level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL';
   eventType: LogEventType;
   executionId: number;
   sessionId: number;
@@ -82,7 +82,7 @@ type FileLoggerConfig = {
 };
 
 const DEFAULT_CONFIG: FileLoggerConfig = {
-  logDir: path.join(process.cwd(), "logs", "agent-executions"),
+  logDir: path.join(process.cwd(), 'logs', 'agent-executions'),
   maxLogFiles: 100,
   maxLogSizeBytes: 50 * 1024 * 1024, // 50MB
   enableConsolePassthrough: true,
@@ -131,11 +131,8 @@ export class ExecutionFileLogger {
     this.startedAt = new Date();
 
     // ログファイルパス: logs/agent-executions/exec-{id}-{timestamp}.log
-    const timestamp = this.startedAt.toISOString().replace(/[:.]/g, "-");
-    this.logFilePath = path.join(
-      this.config.logDir,
-      `exec-${executionId}-${timestamp}.log`,
-    );
+    const timestamp = this.startedAt.toISOString().replace(/[:.]/g, '-');
+    this.logFilePath = path.join(this.config.logDir, `exec-${executionId}-${timestamp}.log`);
   }
 
   /**
@@ -157,7 +154,7 @@ export class ExecutionFileLogger {
    * ログエントリを追加
    */
   log(
-    level: StructuredLogEntry["level"],
+    level: StructuredLogEntry['level'],
     eventType: LogEventType,
     message: string,
     context?: Record<string, unknown>,
@@ -184,13 +181,13 @@ export class ExecutionFileLogger {
       this.lastError = error.message;
     }
 
-    if (level === "ERROR" || level === "FATAL") {
+    if (level === 'ERROR' || level === 'FATAL') {
       this.errorCount++;
       if (!error) {
         this.lastError = message;
       }
     }
-    if (level === "WARN") {
+    if (level === 'WARN') {
       this.warningCount++;
     }
 
@@ -200,11 +197,11 @@ export class ExecutionFileLogger {
     if (this.config.enableConsolePassthrough) {
       const prefix = `[ExecLog:${this.executionId}]`;
       switch (level) {
-        case "ERROR":
-        case "FATAL":
+        case 'ERROR':
+        case 'FATAL':
           log.error(`${prefix} ${message}`);
           break;
-        case "WARN":
+        case 'WARN':
           log.warn(`${prefix} ${message}`);
           break;
         default:
@@ -217,15 +214,15 @@ export class ExecutionFileLogger {
    * 出力データを記録
    */
   logOutput(output: string, isError: boolean): void {
-    this.outputSize += Buffer.byteLength(output, "utf-8");
+    this.outputSize += Buffer.byteLength(output, 'utf-8');
 
     if (isError && output.trim()) {
-      this.log("ERROR", "error", `[stderr] ${output.trim()}`);
+      this.log('ERROR', 'error', `[stderr] ${output.trim()}`);
     }
     // 通常の出力は大量なのでDEBUGレベルにする (ファイルには記録)
     // ただし意味のある出力だけを記録
     if (!isError && output.trim().length > 0) {
-      this.log("DEBUG", "output", output.trim());
+      this.log('DEBUG', 'output', output.trim());
     }
   }
 
@@ -233,15 +230,20 @@ export class ExecutionFileLogger {
    * 実行開始を記録
    */
   logExecutionStart(command: string, config: Record<string, unknown>): void {
-    this.log("INFO", "execution_start", `Execution started: ${command} [Agent: ${this.agentName} (${this.agentType})]`, {
-      command,
-      agentType: this.agentType,
-      agentName: this.agentName,
-      modelId: this.modelId,
-      taskId: this.taskId,
-      taskTitle: this.taskTitle,
-      ...config,
-    });
+    this.log(
+      'INFO',
+      'execution_start',
+      `Execution started: ${command} [Agent: ${this.agentName} (${this.agentType})]`,
+      {
+        command,
+        agentType: this.agentType,
+        agentName: this.agentName,
+        modelId: this.modelId,
+        taskId: this.taskId,
+        taskTitle: this.taskTitle,
+        ...config,
+      },
+    );
   }
 
   /**
@@ -257,9 +259,9 @@ export class ExecutionFileLogger {
     },
   ): void {
     const durationMs = Date.now() - this.startedAt.getTime();
-    const level = status === "completed" ? "INFO" : status === "failed" ? "ERROR" : "WARN";
+    const level = status === 'completed' ? 'INFO' : status === 'failed' ? 'ERROR' : 'WARN';
 
-    this.log(level, "execution_end", `Execution ended with status: ${status}`, {
+    this.log(level, 'execution_end', `Execution ended with status: ${status}`, {
       status,
       durationMs,
       success: result?.success,
@@ -273,7 +275,7 @@ export class ExecutionFileLogger {
    * ステータス変更を記録
    */
   logStatusChange(from: string, to: string, reason?: string): void {
-    this.log("INFO", "status_change", `Status changed: ${from} -> ${to}`, {
+    this.log('INFO', 'status_change', `Status changed: ${from} -> ${to}`, {
       fromStatus: from,
       toStatus: to,
       reason,
@@ -283,12 +285,8 @@ export class ExecutionFileLogger {
   /**
    * 質問検出を記録
    */
-  logQuestionDetected(
-    question: string,
-    questionType: string,
-    claudeSessionId?: string,
-  ): void {
-    this.log("INFO", "question_detected", `Question detected: ${question.substring(0, 200)}`, {
+  logQuestionDetected(question: string, questionType: string, claudeSessionId?: string): void {
+    this.log('INFO', 'question_detected', `Question detected: ${question.substring(0, 200)}`, {
       question,
       questionType,
       claudeSessionId,
@@ -298,25 +296,35 @@ export class ExecutionFileLogger {
   /**
    * 質問応答を記録
    */
-  logQuestionAnswered(response: string, source: "user" | "auto_timeout"): void {
-    this.log("INFO", "question_answered", `Question answered (${source}): ${response.substring(0, 200)}`, {
-      response,
-      source,
-    });
+  logQuestionAnswered(response: string, source: 'user' | 'auto_timeout'): void {
+    this.log(
+      'INFO',
+      'question_answered',
+      `Question answered (${source}): ${response.substring(0, 200)}`,
+      {
+        response,
+        source,
+      },
+    );
   }
 
   /**
    * Gitコミットを記録
    */
   logGitCommit(commitInfo: Record<string, unknown>): void {
-    this.log("INFO", "git_commit", `Git commit: ${commitInfo.message || "(no message)"}`, commitInfo);
+    this.log(
+      'INFO',
+      'git_commit',
+      `Git commit: ${commitInfo.message || '(no message)'}`,
+      commitInfo,
+    );
   }
 
   /**
    * エラーを記録
    */
   logError(message: string, error?: Error, context?: Record<string, unknown>): void {
-    this.log("ERROR", "error", message, context, error);
+    this.log('ERROR', 'error', message, context, error);
   }
 
   /**
@@ -354,7 +362,7 @@ export class ExecutionFileLogger {
       // AI分析しやすいフォーマットでログファイルを構築
       const logContent = this.buildLogFileContent(summary);
 
-      await writeFile(this.logFilePath, logContent, "utf-8");
+      await writeFile(this.logFilePath, logContent, 'utf-8');
 
       // 古いログファイルをクリーンアップ
       await this.cleanupOldLogs();
@@ -375,9 +383,9 @@ export class ExecutionFileLogger {
     // ============================================================
     // Section 1: ヘッダー & サマリー
     // ============================================================
-    sections.push(`${"=".repeat(80)}`);
+    sections.push(`${'='.repeat(80)}`);
     sections.push(`AGENT EXECUTION LOG`);
-    sections.push(`${"=".repeat(80)}`);
+    sections.push(`${'='.repeat(80)}`);
     sections.push(``);
     sections.push(`[SUMMARY]`);
     sections.push(`  Execution ID  : ${summary.executionId}`);
@@ -391,8 +399,10 @@ export class ExecutionFileLogger {
     }
     sections.push(`  Status        : ${summary.status}`);
     sections.push(`  Started At    : ${summary.startedAt}`);
-    sections.push(`  Completed At  : ${summary.completedAt || "N/A"}`);
-    sections.push(`  Duration      : ${summary.durationMs ? `${(summary.durationMs / 1000).toFixed(1)}s` : "N/A"}`);
+    sections.push(`  Completed At  : ${summary.completedAt || 'N/A'}`);
+    sections.push(
+      `  Duration      : ${summary.durationMs ? `${(summary.durationMs / 1000).toFixed(1)}s` : 'N/A'}`,
+    );
     if (summary.tokensUsed) {
       sections.push(`  Tokens Used   : ${summary.tokensUsed}`);
     }
@@ -405,14 +415,12 @@ export class ExecutionFileLogger {
     // ============================================================
     // Section 2: エラーサマリー (エラーがある場合のみ)
     // ============================================================
-    const errorEntries = this.entries.filter(
-      (e) => e.level === "ERROR" || e.level === "FATAL",
-    );
+    const errorEntries = this.entries.filter((e) => e.level === 'ERROR' || e.level === 'FATAL');
 
     if (errorEntries.length > 0) {
-      sections.push(`${"=".repeat(80)}`);
+      sections.push(`${'='.repeat(80)}`);
       sections.push(`[ERROR SUMMARY] (${errorEntries.length} errors found)`);
-      sections.push(`${"=".repeat(80)}`);
+      sections.push(`${'='.repeat(80)}`);
       sections.push(``);
 
       for (let i = 0; i < errorEntries.length; i++) {
@@ -429,14 +437,16 @@ export class ExecutionFileLogger {
           }
           if (entry.error.stack) {
             sections.push(`  Stack Trace   :`);
-            const stackLines = entry.error.stack.split("\n");
+            const stackLines = entry.error.stack.split('\n');
             for (const line of stackLines) {
               sections.push(`    ${line.trim()}`);
             }
           }
         }
         if (entry.context && Object.keys(entry.context).length > 0) {
-          sections.push(`  Context  : ${JSON.stringify(entry.context, null, 2).split("\n").join("\n    ")}`);
+          sections.push(
+            `  Context  : ${JSON.stringify(entry.context, null, 2).split('\n').join('\n    ')}`,
+          );
         }
         sections.push(``);
       }
@@ -445,12 +455,12 @@ export class ExecutionFileLogger {
     // ============================================================
     // Section 3: 警告サマリー (警告がある場合のみ)
     // ============================================================
-    const warnEntries = this.entries.filter((e) => e.level === "WARN");
+    const warnEntries = this.entries.filter((e) => e.level === 'WARN');
 
     if (warnEntries.length > 0) {
-      sections.push(`${"=".repeat(80)}`);
+      sections.push(`${'='.repeat(80)}`);
       sections.push(`[WARNING SUMMARY] (${warnEntries.length} warnings found)`);
-      sections.push(`${"=".repeat(80)}`);
+      sections.push(`${'='.repeat(80)}`);
       sections.push(``);
 
       for (const entry of warnEntries) {
@@ -465,9 +475,9 @@ export class ExecutionFileLogger {
     // ============================================================
     // Section 4: 全ログエントリ (時系列)
     // ============================================================
-    sections.push(`${"=".repeat(80)}`);
+    sections.push(`${'='.repeat(80)}`);
     sections.push(`[FULL EXECUTION LOG] (${this.entries.length} entries)`);
-    sections.push(`${"=".repeat(80)}`);
+    sections.push(`${'='.repeat(80)}`);
     sections.push(``);
 
     for (const entry of this.entries) {
@@ -475,11 +485,12 @@ export class ExecutionFileLogger {
       const eventPad = entry.eventType.padEnd(20);
 
       // 通常の出力はコンパクトに
-      if (entry.eventType === "output" && entry.level === "DEBUG") {
+      if (entry.eventType === 'output' && entry.level === 'DEBUG') {
         // 出力行が長すぎる場合は省略
-        const msg = entry.message.length > 500
-          ? entry.message.substring(0, 500) + "... (truncated)"
-          : entry.message;
+        const msg =
+          entry.message.length > 500
+            ? entry.message.substring(0, 500) + '... (truncated)'
+            : entry.message;
         sections.push(`[${entry.timestamp}] [${levelPad}] [${eventPad}] ${msg}`);
         continue;
       }
@@ -487,14 +498,16 @@ export class ExecutionFileLogger {
       sections.push(`[${entry.timestamp}] [${levelPad}] [${eventPad}] ${entry.message}`);
 
       if (entry.context && Object.keys(entry.context).length > 0) {
-        sections.push(`  Context: ${JSON.stringify(entry.context, null, 2).split("\n").join("\n  ")}`);
+        sections.push(
+          `  Context: ${JSON.stringify(entry.context, null, 2).split('\n').join('\n  ')}`,
+        );
       }
 
       if (entry.error) {
         sections.push(`  Error: ${entry.error.name}: ${entry.error.message}`);
         if (entry.error.stack) {
           sections.push(`  Stack:`);
-          const stackLines = entry.error.stack.split("\n").slice(0, 10);
+          const stackLines = entry.error.stack.split('\n').slice(0, 10);
           for (const line of stackLines) {
             sections.push(`    ${line.trim()}`);
           }
@@ -507,9 +520,9 @@ export class ExecutionFileLogger {
     // ============================================================
     // Section 5: 構造化データ (JSON)
     // ============================================================
-    sections.push(`${"=".repeat(80)}`);
+    sections.push(`${'='.repeat(80)}`);
     sections.push(`[STRUCTURED DATA (JSON)]`);
-    sections.push(`${"=".repeat(80)}`);
+    sections.push(`${'='.repeat(80)}`);
     sections.push(``);
     sections.push(
       JSON.stringify(
@@ -534,7 +547,7 @@ export class ExecutionFileLogger {
     );
     sections.push(``);
 
-    return sections.join("\n");
+    return sections.join('\n');
   }
 
   /**
@@ -543,14 +556,14 @@ export class ExecutionFileLogger {
   private getLatestStatus(): string {
     for (let i = this.entries.length - 1; i >= 0; i--) {
       const entry = this.entries[i];
-      if (entry.eventType === "execution_end" && entry.context?.status) {
+      if (entry.eventType === 'execution_end' && entry.context?.status) {
         return String(entry.context.status);
       }
-      if (entry.eventType === "status_change" && entry.context?.toStatus) {
+      if (entry.eventType === 'status_change' && entry.context?.toStatus) {
         return String(entry.context.toStatus);
       }
     }
-    return "unknown";
+    return 'unknown';
   }
 
   /**
@@ -560,7 +573,7 @@ export class ExecutionFileLogger {
     try {
       const files = await readdir(this.config.logDir);
       const logFiles = files
-        .filter((f) => f.startsWith("exec-") && f.endsWith(".log"))
+        .filter((f) => f.startsWith('exec-') && f.endsWith('.log'))
         .map((f) => path.join(this.config.logDir, f));
 
       if (logFiles.length <= this.config.maxLogFiles) return;
@@ -608,7 +621,7 @@ export async function listExecutionLogFiles(
     if (!existsSync(dir)) return [];
 
     const files = await readdir(dir);
-    const logFiles = files.filter((f) => f.startsWith("exec-") && f.endsWith(".log"));
+    const logFiles = files.filter((f) => f.startsWith('exec-') && f.endsWith('.log'));
 
     const results = await Promise.all(
       logFiles.map(async (f) => {
@@ -645,7 +658,7 @@ export async function getExecutionLogFile(
 
     const files = await readdir(dir);
     const matchingFile = files.find(
-      (f) => f.startsWith(`exec-${executionId}-`) && f.endsWith(".log"),
+      (f) => f.startsWith(`exec-${executionId}-`) && f.endsWith('.log'),
     );
 
     if (!matchingFile) return null;

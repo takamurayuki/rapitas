@@ -14,7 +14,9 @@ interface TaskDetailModalsProps {
   showDevModeConfig: boolean;
   onCloseDevModeConfig: () => void;
   devModeConfig: DeveloperModeConfig | null;
-  updateDevModeConfig: (updates: Partial<DeveloperModeConfig>) => Promise<DeveloperModeConfig | null>;
+  updateDevModeConfig: (
+    updates: Partial<DeveloperModeConfig>,
+  ) => Promise<DeveloperModeConfig | null>;
   selectedAgentConfigId: number | null;
   onAgentConfigChange: (id: number | null) => void;
   showSaveTemplateDialog: boolean;

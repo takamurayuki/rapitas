@@ -1,7 +1,7 @@
 /**
  * 並列実行システムのユニットテスト
  */
-import { describe, it, expect, beforeEach, mock } from "bun:test";
+import { describe, it, expect, beforeEach, mock } from 'bun:test';
 import {
   DependencyAnalyzer,
   createDependencyAnalyzer,
@@ -15,38 +15,38 @@ import {
   type TaskNode,
   type ParallelExecutionPlan,
   type ParallelExecutionConfig,
-} from "../../services/parallel-execution";
+} from '../../services/parallel-execution';
 
-describe("DependencyAnalyzer", () => {
+describe('DependencyAnalyzer', () => {
   let analyzer: DependencyAnalyzer;
 
   beforeEach(() => {
     analyzer = createDependencyAnalyzer();
   });
 
-  it("should analyze dependencies between subtasks", () => {
+  it('should analyze dependencies between subtasks', () => {
     const input: DependencyAnalysisInput = {
       parentTaskId: 1,
       subtasks: [
         {
           id: 101,
-          title: "タスク1",
-          description: "src/components/button.tsx を修正",
-          priority: "high",
+          title: 'タスク1',
+          description: 'src/components/button.tsx を修正',
+          priority: 'high',
           estimatedHours: 2,
         },
         {
           id: 102,
-          title: "タスク2",
-          description: "src/components/button.tsx と src/styles/button.css を更新",
-          priority: "medium",
+          title: 'タスク2',
+          description: 'src/components/button.tsx と src/styles/button.css を更新',
+          priority: 'medium',
           estimatedHours: 1,
         },
         {
           id: 103,
-          title: "タスク3",
-          description: "src/utils/helper.ts を追加",
-          priority: "low",
+          title: 'タスク3',
+          description: 'src/utils/helper.ts を追加',
+          priority: 'low',
           estimatedHours: 1,
         },
       ],
@@ -61,21 +61,21 @@ describe("DependencyAnalyzer", () => {
     expect(result.warnings).toBeDefined();
   });
 
-  it("should detect file sharing dependencies", () => {
+  it('should detect file sharing dependencies', () => {
     const input: DependencyAnalysisInput = {
       parentTaskId: 1,
       subtasks: [
         {
           id: 101,
-          title: "タスク1",
-          files: ["src/index.ts"],
-          priority: "high",
+          title: 'タスク1',
+          files: ['src/index.ts'],
+          priority: 'high',
         },
         {
           id: 102,
-          title: "タスク2",
-          files: ["src/index.ts", "src/utils.ts"],
-          priority: "medium",
+          title: 'タスク2',
+          files: ['src/index.ts', 'src/utils.ts'],
+          priority: 'medium',
         },
       ],
     };
@@ -83,31 +83,31 @@ describe("DependencyAnalyzer", () => {
     const result = analyzer.analyze(input);
 
     // 共有ファイルによるエッジがあるはず
-    const edges = result.treeMap.edges.filter(e => e.type === "file_sharing");
+    const edges = result.treeMap.edges.filter((e) => e.type === 'file_sharing');
     expect(edges.length).toBeGreaterThan(0);
   });
 
-  it("should calculate parallel groups", () => {
+  it('should calculate parallel groups', () => {
     const input: DependencyAnalysisInput = {
       parentTaskId: 1,
       subtasks: [
         {
           id: 101,
-          title: "独立タスク1",
-          files: ["file1.ts"],
-          priority: "high",
+          title: '独立タスク1',
+          files: ['file1.ts'],
+          priority: 'high',
         },
         {
           id: 102,
-          title: "独立タスク2",
-          files: ["file2.ts"],
-          priority: "high",
+          title: '独立タスク2',
+          files: ['file2.ts'],
+          priority: 'high',
         },
         {
           id: 103,
-          title: "独立タスク3",
-          files: ["file3.ts"],
-          priority: "medium",
+          title: '独立タスク3',
+          files: ['file3.ts'],
+          priority: 'medium',
         },
       ],
     };
@@ -120,26 +120,26 @@ describe("DependencyAnalyzer", () => {
     expect(firstGroup.canRunParallel).toBe(true);
   });
 
-  it("should calculate parallel efficiency", () => {
+  it('should calculate parallel efficiency', () => {
     const input: DependencyAnalysisInput = {
       parentTaskId: 1,
       subtasks: [
         {
           id: 101,
-          title: "タスク1",
-          priority: "high",
+          title: 'タスク1',
+          priority: 'high',
           estimatedHours: 2,
         },
         {
           id: 102,
-          title: "タスク2",
-          priority: "medium",
+          title: 'タスク2',
+          priority: 'medium',
           estimatedHours: 3,
         },
         {
           id: 103,
-          title: "タスク3",
-          priority: "low",
+          title: 'タスク3',
+          priority: 'low',
           estimatedHours: 1,
         },
       ],
@@ -153,7 +153,7 @@ describe("DependencyAnalyzer", () => {
   });
 });
 
-describe("ParallelScheduler", () => {
+describe('ParallelScheduler', () => {
   let scheduler: ParallelScheduler;
   let plan: ParallelExecutionPlan;
   let nodes: Map<number, TaskNode>;
@@ -163,10 +163,10 @@ describe("ParallelScheduler", () => {
     nodes = new Map();
     nodes.set(101, {
       id: 101,
-      title: "タスク1",
-      priority: "high",
+      title: 'タスク1',
+      priority: 'high',
       estimatedHours: 1,
-      status: "pending",
+      status: 'pending',
       dependencies: [],
       dependents: [102],
       depth: 0,
@@ -177,10 +177,10 @@ describe("ParallelScheduler", () => {
     });
     nodes.set(102, {
       id: 102,
-      title: "タスク2",
-      priority: "medium",
+      title: 'タスク2',
+      priority: 'medium',
       estimatedHours: 2,
-      status: "pending",
+      status: 'pending',
       dependencies: [101],
       dependents: [],
       depth: 1,
@@ -191,10 +191,10 @@ describe("ParallelScheduler", () => {
     });
     nodes.set(103, {
       id: 103,
-      title: "タスク3",
-      priority: "low",
+      title: 'タスク3',
+      priority: 'low',
       estimatedHours: 1,
-      status: "pending",
+      status: 'pending',
       dependencies: [],
       dependents: [],
       depth: 0,
@@ -205,7 +205,7 @@ describe("ParallelScheduler", () => {
     });
 
     plan = {
-      id: "test-plan",
+      id: 'test-plan',
       parentTaskId: 1,
       createdAt: new Date(),
       groups: [
@@ -249,7 +249,7 @@ describe("ParallelScheduler", () => {
     scheduler = createParallelScheduler(plan, nodes, config);
   });
 
-  it("should return executable tasks respecting dependencies", () => {
+  it('should return executable tasks respecting dependencies', () => {
     const executable = scheduler.getNextExecutableTasks();
 
     // レベル0のタスク（101, 103）が実行可能
@@ -259,13 +259,13 @@ describe("ParallelScheduler", () => {
     expect(executable).not.toContain(102);
   });
 
-  it("should update status when task starts", () => {
+  it('should update status when task starts', () => {
     scheduler.startTask(101);
 
-    expect(scheduler.getTaskStatus(101)).toBe("running");
+    expect(scheduler.getTaskStatus(101)).toBe('running');
   });
 
-  it("should resolve dependencies when task completes", () => {
+  it('should resolve dependencies when task completes', () => {
     scheduler.startTask(101);
     scheduler.completeTask(101);
 
@@ -274,7 +274,7 @@ describe("ParallelScheduler", () => {
     expect(executable).toContain(102);
   });
 
-  it("should track progress correctly", () => {
+  it('should track progress correctly', () => {
     scheduler.startTask(101);
     scheduler.startTask(103);
     scheduler.completeTask(101);
@@ -285,105 +285,105 @@ describe("ParallelScheduler", () => {
     expect(status.progress).toBeGreaterThan(0);
   });
 
-  it("should block dependent tasks when task fails", () => {
+  it('should block dependent tasks when task fails', () => {
     scheduler.startTask(101);
     scheduler.failTask(101);
 
     // タスク101が失敗すると、102はブロックされる
-    expect(scheduler.getTaskStatus(102)).toBe("blocked");
+    expect(scheduler.getTaskStatus(102)).toBe('blocked');
   });
 });
 
-describe("LogAggregator", () => {
+describe('LogAggregator', () => {
   let aggregator: LogAggregator;
 
   beforeEach(() => {
     aggregator = createLogAggregator(100);
   });
 
-  it("should add and retrieve logs", () => {
+  it('should add and retrieve logs', () => {
     aggregator.addLog({
       timestamp: new Date(),
-      agentId: "agent-1",
+      agentId: 'agent-1',
       taskId: 101,
-      level: "info",
-      message: "タスクを開始しました",
+      level: 'info',
+      message: 'タスクを開始しました',
     });
 
     const logs = aggregator.getLogsByTask(101);
     expect(logs.length).toBe(1);
-    expect(logs[0].message).toBe("タスクを開始しました");
+    expect(logs[0].message).toBe('タスクを開始しました');
   });
 
-  it("should filter logs by level", () => {
+  it('should filter logs by level', () => {
     aggregator.addLog({
       timestamp: new Date(),
-      agentId: "agent-1",
+      agentId: 'agent-1',
       taskId: 101,
-      level: "info",
-      message: "情報メッセージ",
+      level: 'info',
+      message: '情報メッセージ',
     });
     aggregator.addLog({
       timestamp: new Date(),
-      agentId: "agent-1",
+      agentId: 'agent-1',
       taskId: 101,
-      level: "error",
-      message: "エラーメッセージ",
+      level: 'error',
+      message: 'エラーメッセージ',
     });
 
     const errors = aggregator.getErrorLogs();
     expect(errors.length).toBe(1);
-    expect(errors[0].level).toBe("error");
+    expect(errors[0].level).toBe('error');
   });
 
-  it("should extract tags from messages", () => {
+  it('should extract tags from messages', () => {
     const id = aggregator.addLog({
       timestamp: new Date(),
-      agentId: "agent-1",
+      agentId: 'agent-1',
       taskId: 101,
-      level: "info",
-      message: "git commit completed successfully",
+      level: 'info',
+      message: 'git commit completed successfully',
     });
 
-    const logs = aggregator.getLogsByTag("git");
+    const logs = aggregator.getLogsByTag('git');
     expect(logs.length).toBe(1);
-    expect(logs[0].tags).toContain("git");
+    expect(logs[0].tags).toContain('git');
   });
 
-  it("should provide summary statistics", () => {
+  it('should provide summary statistics', () => {
     aggregator.addLog({
       timestamp: new Date(),
-      agentId: "agent-1",
+      agentId: 'agent-1',
       taskId: 101,
-      level: "info",
-      message: "メッセージ1",
+      level: 'info',
+      message: 'メッセージ1',
     });
     aggregator.addLog({
       timestamp: new Date(),
-      agentId: "agent-2",
+      agentId: 'agent-2',
       taskId: 102,
-      level: "error",
-      message: "メッセージ2",
+      level: 'error',
+      message: 'メッセージ2',
     });
 
     const summary = aggregator.getSummary();
     expect(summary.totalLogs).toBe(2);
-    expect(summary.byAgent["agent-1"]).toBe(1);
-    expect(summary.byAgent["agent-2"]).toBe(1);
-    expect(summary.byLevel["info"]).toBe(1);
-    expect(summary.byLevel["error"]).toBe(1);
+    expect(summary.byAgent['agent-1']).toBe(1);
+    expect(summary.byAgent['agent-2']).toBe(1);
+    expect(summary.byLevel['info']).toBe(1);
+    expect(summary.byLevel['error']).toBe(1);
   });
 
-  it("should handle ring buffer overflow", () => {
+  it('should handle ring buffer overflow', () => {
     const smallAggregator = createLogAggregator(5);
 
     // 10件のログを追加
     for (let i = 0; i < 10; i++) {
       smallAggregator.addLog({
         timestamp: new Date(),
-        agentId: "agent-1",
+        agentId: 'agent-1',
         taskId: 101,
-        level: "info",
+        level: 'info',
         message: `メッセージ${i}`,
       });
     }
@@ -394,30 +394,30 @@ describe("LogAggregator", () => {
   });
 });
 
-describe("AgentCoordinator", () => {
+describe('AgentCoordinator', () => {
   let coordinator: AgentCoordinator;
 
   beforeEach(() => {
     coordinator = createAgentCoordinator();
   });
 
-  it("should manage resource locks", () => {
-    const lock1 = coordinator.requestResourceLock("agent-1", 101, "file.ts");
-    expect(lock1.status).toBe("granted");
+  it('should manage resource locks', () => {
+    const lock1 = coordinator.requestResourceLock('agent-1', 101, 'file.ts');
+    expect(lock1.status).toBe('granted');
 
     // 同じリソースを別のエージェントがロックしようとすると拒否される
-    const lock2 = coordinator.requestResourceLock("agent-2", 102, "file.ts");
-    expect(lock2.status).toBe("denied");
+    const lock2 = coordinator.requestResourceLock('agent-2', 102, 'file.ts');
+    expect(lock2.status).toBe('denied');
 
     // ロックを解放
-    coordinator.releaseResourceLock("agent-1", "file.ts");
+    coordinator.releaseResourceLock('agent-1', 'file.ts');
 
     // 今度はロックできる
-    const lock3 = coordinator.requestResourceLock("agent-2", 102, "file.ts");
-    expect(lock3.status).toBe("granted");
+    const lock3 = coordinator.requestResourceLock('agent-2', 102, 'file.ts');
+    expect(lock3.status).toBe('granted');
   });
 
-  it("should track dependency resolution", () => {
+  it('should track dependency resolution', () => {
     coordinator.registerDependency(102, [101]);
     expect(coordinator.isDependencyResolved(102)).toBe(false);
 
@@ -425,29 +425,29 @@ describe("AgentCoordinator", () => {
     expect(coordinator.isDependencyResolved(102)).toBe(true);
   });
 
-  it("should share data between agents", () => {
-    coordinator.shareData("result-101", { value: 42 }, "agent-1");
+  it('should share data between agents', () => {
+    coordinator.shareData('result-101', { value: 42 }, 'agent-1');
 
-    const data = coordinator.getSharedData("result-101") as { value: number };
+    const data = coordinator.getSharedData('result-101') as { value: number };
     expect(data.value).toBe(42);
   });
 
-  it("should track message history", () => {
+  it('should track message history', () => {
     coordinator.broadcastMessage({
-      id: "msg-1",
+      id: 'msg-1',
       timestamp: new Date(),
-      fromAgentId: "agent-1",
-      toAgentId: "broadcast",
-      type: "task_started",
+      fromAgentId: 'agent-1',
+      toAgentId: 'broadcast',
+      type: 'task_started',
       payload: { taskId: 101 },
     });
 
-    const history = coordinator.getMessageHistory({ type: "task_started" });
+    const history = coordinator.getMessageHistory({ type: 'task_started' });
     expect(history.length).toBe(1);
   });
 
-  it("should provide statistics", () => {
-    coordinator.requestResourceLock("agent-1", 101, "file.ts");
+  it('should provide statistics', () => {
+    coordinator.requestResourceLock('agent-1', 101, 'file.ts');
     coordinator.registerDependency(102, [101]);
     coordinator.resolveDependency(101);
 
@@ -457,17 +457,35 @@ describe("AgentCoordinator", () => {
   });
 });
 
-describe("Integration: Dependency Analysis to Scheduling", () => {
-  it("should create a valid execution plan from analysis", () => {
+describe('Integration: Dependency Analysis to Scheduling', () => {
+  it('should create a valid execution plan from analysis', () => {
     const analyzer = createDependencyAnalyzer();
     const input: DependencyAnalysisInput = {
       parentTaskId: 1,
       subtasks: [
-        { id: 101, title: "API設計", priority: "high", estimatedHours: 2 },
-        { id: 102, title: "DBスキーマ作成", priority: "high", estimatedHours: 1, explicitDependencies: [101] },
-        { id: 103, title: "フロントエンド", priority: "medium", estimatedHours: 3 },
-        { id: 104, title: "バックエンド", priority: "medium", estimatedHours: 3, explicitDependencies: [101, 102] },
-        { id: 105, title: "テスト", priority: "low", estimatedHours: 2, explicitDependencies: [103, 104] },
+        { id: 101, title: 'API設計', priority: 'high', estimatedHours: 2 },
+        {
+          id: 102,
+          title: 'DBスキーマ作成',
+          priority: 'high',
+          estimatedHours: 1,
+          explicitDependencies: [101],
+        },
+        { id: 103, title: 'フロントエンド', priority: 'medium', estimatedHours: 3 },
+        {
+          id: 104,
+          title: 'バックエンド',
+          priority: 'medium',
+          estimatedHours: 3,
+          explicitDependencies: [101, 102],
+        },
+        {
+          id: 105,
+          title: 'テスト',
+          priority: 'low',
+          estimatedHours: 2,
+          explicitDependencies: [103, 104],
+        },
       ],
     };
 
@@ -495,7 +513,7 @@ describe("Integration: Dependency Analysis to Scheduling", () => {
 
     // 101と103は依存がないので実行可能（maxConcurrency=2なので2つまで）
     expect(firstBatch.length).toBeLessThanOrEqual(2);
-    expect(firstBatch.some(id => id === 101 || id === 103)).toBe(true);
+    expect(firstBatch.some((id) => id === 101 || id === 103)).toBe(true);
 
     // 105は依存があるので最初は実行不可
     expect(firstBatch).not.toContain(105);

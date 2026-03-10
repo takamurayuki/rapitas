@@ -2,11 +2,11 @@
  * タイムラインイベント管理
  * メモリシステムのイベントログ基盤
  */
-import { prisma } from "../../config/database";
-import { createLogger } from "../../config/logger";
-import type { TimelineEventType, ActorType, TimelineQueryOptions } from "./types";
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+import type { TimelineEventType, ActorType, TimelineQueryOptions } from './types';
 
-const log = createLogger("memory:timeline");
+const log = createLogger('memory:timeline');
 
 /**
  * タイムラインイベントを追加
@@ -22,16 +22,16 @@ export async function appendEvent(event: {
     const created = await prisma.timelineEvent.create({
       data: {
         eventType: event.eventType,
-        actorType: event.actorType ?? "system",
+        actorType: event.actorType ?? 'system',
         actorId: event.actorId,
         payload: JSON.stringify(event.payload ?? {}),
         correlationId: event.correlationId,
       },
     });
-    log.debug({ eventType: event.eventType, id: created.id }, "Timeline event appended");
+    log.debug({ eventType: event.eventType, id: created.id }, 'Timeline event appended');
     return { id: created.id };
   } catch (error) {
-    log.error({ err: error, eventType: event.eventType }, "Failed to append timeline event");
+    log.error({ err: error, eventType: event.eventType }, 'Failed to append timeline event');
     throw error;
   }
 }
@@ -56,7 +56,7 @@ export async function queryEvents(options: TimelineQueryOptions = {}) {
   const [events, total] = await Promise.all([
     prisma.timelineEvent.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
       take: limit,
       skip: offset,
     }),

@@ -357,12 +357,21 @@ export default function CalendarPage() {
 
   const getReminderLabel = (minutes: number) => {
     if (minutes < 60) return t('reminderMinutesBefore', { count: minutes });
-    if (minutes < 1440) return t('reminderHoursBefore', { count: minutes / 60 });
+    if (minutes < 1440)
+      return t('reminderHoursBefore', { count: minutes / 60 });
     return t('reminderDaysBefore', { count: minutes / 1440 });
   };
 
   const days = getDaysInMonth(currentDate);
-  const weekDays = [t('weekSun'), t('weekMon'), t('weekTue'), t('weekWed'), t('weekThu'), t('weekFri'), t('weekSat')];
+  const weekDays = [
+    t('weekSun'),
+    t('weekMon'),
+    t('weekTue'),
+    t('weekWed'),
+    t('weekThu'),
+    t('weekFri'),
+    t('weekSat'),
+  ];
 
   // 祝日データ（月ごとにメモ化）
   const holidays = useMemo(() => {
@@ -560,7 +569,10 @@ export default function CalendarPage() {
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 min-w-[140px] text-center">
-                {t('yearMonth', { year: currentDate.getFullYear(), month: currentDate.getMonth() + 1 })}
+                {t('yearMonth', {
+                  year: currentDate.getFullYear(),
+                  month: currentDate.getMonth() + 1,
+                })}
               </h2>
               <button
                 onClick={nextMonth}
@@ -755,7 +767,8 @@ export default function CalendarPage() {
                                 })}
                               {hiddenCount > 0 && (
                                 <div className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-1 leading-tight">
-                                  +{hiddenCount}{tc('items')}
+                                  +{hiddenCount}
+                                  {tc('items')}
                                 </div>
                               )}
                             </div>
@@ -824,7 +837,9 @@ export default function CalendarPage() {
                 {t('legendExam')}
               </div>
               <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                <span className="text-[10px] font-medium text-red-500">{t('legendHolidayIcon')}</span>
+                <span className="text-[10px] font-medium text-red-500">
+                  {t('legendHolidayIcon')}
+                </span>
                 {t('legendHoliday')}
               </div>
             </div>
@@ -935,7 +950,8 @@ export default function CalendarPage() {
                                   ? t('paidLeaveLabel')
                                   : t('legendSchedule')
                                 : t('legendTask')}
-                            {event.status === 'done' && ` ・ ${tc('completed')}`}
+                            {event.status === 'done' &&
+                              ` ・ ${tc('completed')}`}
                           </p>
                           {event.endDate && (
                             <span className="flex items-center gap-1 text-xs text-indigo-500 dark:text-indigo-400">

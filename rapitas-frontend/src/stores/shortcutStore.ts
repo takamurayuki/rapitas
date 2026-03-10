@@ -120,7 +120,7 @@ function formatBindingKey(
   if (b.ctrl) parts.push('ctrl');
   if (b.meta) parts.push('meta');
   if (b.shift) parts.push('shift');
-  parts.push(b.key.toUpperCase());
+  parts.push(b.key ? b.key.toUpperCase() : '');
   return parts.join('+');
 }
 

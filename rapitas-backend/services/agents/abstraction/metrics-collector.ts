@@ -187,9 +187,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
     const periodMs = this.getPeriodMs(period);
     const cutoff = now - periodMs;
 
-    const filteredHistory = agentHistory.filter(
-      (data) => data.startTime.getTime() >= cutoff,
-    );
+    const filteredHistory = agentHistory.filter((data) => data.startTime.getTime() >= cutoff);
 
     if (filteredHistory.length === 0) {
       return {
@@ -315,19 +313,25 @@ export class DefaultMetricsCollector implements IMetricsCollector {
   /**
    * ツール呼び出し統計を取得
    */
-  getToolCallStats(agentId?: string): Map<string, {
-    count: number;
-    avgDurationMs: number;
-    successRate: number;
-  }> {
-    const stats = new Map<string, {
+  getToolCallStats(agentId?: string): Map<
+    string,
+    {
       count: number;
-      totalDurationMs: number;
-      successCount: number;
-    }>();
+      avgDurationMs: number;
+      successRate: number;
+    }
+  > {
+    const stats = new Map<
+      string,
+      {
+        count: number;
+        totalDurationMs: number;
+        successCount: number;
+      }
+    >();
 
     const data = agentId
-      ? (this.agentMetrics.get(agentId) || [])
+      ? this.agentMetrics.get(agentId) || []
       : Array.from(this.executions.values());
 
     for (const execution of data) {
@@ -347,11 +351,14 @@ export class DefaultMetricsCollector implements IMetricsCollector {
     }
 
     // 平均値に変換
-    const result = new Map<string, {
-      count: number;
-      avgDurationMs: number;
-      successRate: number;
-    }>();
+    const result = new Map<
+      string,
+      {
+        count: number;
+        avgDurationMs: number;
+        successRate: number;
+      }
+    >();
 
     for (const [toolName, toolStats] of stats.entries()) {
       result.set(toolName, {
@@ -409,8 +416,9 @@ export class DefaultMetricsCollector implements IMetricsCollector {
     }
 
     // startTimeでソートして古いものを削除
-    const sorted = Array.from(this.executions.entries())
-      .sort((a, b) => a[1].startTime.getTime() - b[1].startTime.getTime());
+    const sorted = Array.from(this.executions.entries()).sort(
+      (a, b) => a[1].startTime.getTime() - b[1].startTime.getTime(),
+    );
 
     const toDelete = sorted.slice(0, sorted.length - this.maxHistorySize);
 

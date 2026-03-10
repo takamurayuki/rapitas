@@ -1,16 +1,16 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
-import { useTranslations } from "next-intl";
-import { API_BASE_URL } from "@/utils/api";
-import type { TimelineEvent } from "../types";
+import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
+import { API_BASE_URL } from '@/utils/api';
+import type { TimelineEvent } from '../types';
 
 interface KnowledgeTimelineProps {
   limit?: number;
 }
 
 export function KnowledgeTimeline({ limit = 20 }: KnowledgeTimelineProps) {
-  const t = useTranslations("knowledge.timeline");
+  const t = useTranslations('knowledge.timeline');
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -32,12 +32,16 @@ export function KnowledgeTimeline({ limit = 20 }: KnowledgeTimelineProps) {
   }, [fetchEvents]);
 
   if (isLoading) {
-    return <div className="animate-pulse h-20 rounded-lg bg-gray-200 dark:bg-gray-700" />;
+    return (
+      <div className="animate-pulse h-20 rounded-lg bg-gray-200 dark:bg-gray-700" />
+    );
   }
 
   if (events.length === 0) {
     return (
-      <p className="text-sm text-gray-500 dark:text-gray-400">{t("noEvents")}</p>
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        {t('noEvents')}
+      </p>
     );
   }
 
@@ -52,7 +56,7 @@ export function KnowledgeTimeline({ limit = 20 }: KnowledgeTimelineProps) {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium text-gray-900 dark:text-gray-100">
-                {event.eventType.replace(/_/g, " ")}
+                {event.eventType.replace(/_/g, ' ')}
               </span>
               <span className="text-xs text-gray-400 dark:text-gray-500">
                 {event.actorType}

@@ -41,7 +41,10 @@ export default function FlashcardsPage() {
   >('intermediate');
   const [generateLanguage, setGenerateLanguage] = useState<'ja' | 'en'>('ja');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [schedulePreview, setSchedulePreview] = useState<Record<string, { due: string; interval: number }> | null>(null);
+  const [schedulePreview, setSchedulePreview] = useState<Record<
+    string,
+    { due: string; interval: number }
+  > | null>(null);
 
   useEffect(() => {
     fetchDecks();
@@ -189,7 +192,9 @@ export default function FlashcardsPage() {
 
   const fetchSchedulePreview = async (cardId: number) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/flashcards/${cardId}/schedule-preview`);
+      const res = await fetch(
+        `${API_BASE_URL}/flashcards/${cardId}/schedule-preview`,
+      );
       if (res.ok) {
         const data = await res.json();
         setSchedulePreview(data);
@@ -330,7 +335,9 @@ export default function FlashcardsPage() {
               <X className="w-5 h-5 mx-auto mb-1" />
               <span className="text-xs block">{t('forgot')}</span>
               {schedulePreview?.again && (
-                <span className="text-[10px] opacity-70 block">{formatInterval(schedulePreview.again.due)}</span>
+                <span className="text-[10px] opacity-70 block">
+                  {formatInterval(schedulePreview.again.due)}
+                </span>
               )}
             </button>
             <button
@@ -340,7 +347,9 @@ export default function FlashcardsPage() {
               <RotateCcw className="w-5 h-5 mx-auto mb-1" />
               <span className="text-xs block">{t('difficult')}</span>
               {schedulePreview?.hard && (
-                <span className="text-[10px] opacity-70 block">{formatInterval(schedulePreview.hard.due)}</span>
+                <span className="text-[10px] opacity-70 block">
+                  {formatInterval(schedulePreview.hard.due)}
+                </span>
               )}
             </button>
             <button
@@ -350,7 +359,9 @@ export default function FlashcardsPage() {
               <Check className="w-5 h-5 mx-auto mb-1" />
               <span className="text-xs block">{t('remembered')}</span>
               {schedulePreview?.good && (
-                <span className="text-[10px] opacity-70 block">{formatInterval(schedulePreview.good.due)}</span>
+                <span className="text-[10px] opacity-70 block">
+                  {formatInterval(schedulePreview.good.due)}
+                </span>
               )}
             </button>
             <button
@@ -360,7 +371,9 @@ export default function FlashcardsPage() {
               <Brain className="w-5 h-5 mx-auto mb-1" />
               <span className="text-xs block">{t('perfect')}</span>
               {schedulePreview?.easy && (
-                <span className="text-[10px] opacity-70 block">{formatInterval(schedulePreview.easy.due)}</span>
+                <span className="text-[10px] opacity-70 block">
+                  {formatInterval(schedulePreview.easy.due)}
+                </span>
               )}
             </button>
           </div>

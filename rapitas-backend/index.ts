@@ -67,6 +67,9 @@ import {
   knowledgeRoutes,
   memorySystemRoutes,
   smartActionRoutes,
+  experimentsRoutes,
+  knowledgeGraphRoutes,
+  learningRoutes,
 } from './routes';
 
 // Import shared database client
@@ -199,6 +202,9 @@ app.use(searchRoutes);
 app.use(knowledgeRoutes);
 app.use(memorySystemRoutes);
 app.use(smartActionRoutes);
+app.use(experimentsRoutes);
+app.use(knowledgeGraphRoutes);
+app.use(learningRoutes);
 
 // Start behavior scheduler
 import { BehaviorScheduler } from './src/services/behaviorScheduler';
@@ -212,9 +218,11 @@ initializeMemorySystem().catch((error) => {
 
 // Initialize AI Orchestra recovery
 import { AIOrchestra } from './services/workflow/ai-orchestra';
-AIOrchestra.getInstance().recoverOnStartup().catch((error) => {
-  log.error({ err: error }, 'AI Orchestra startup recovery failed');
-});
+AIOrchestra.getInstance()
+  .recoverOnStartup()
+  .catch((error) => {
+    log.error({ err: error }, 'AI Orchestra startup recovery failed');
+  });
 
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);

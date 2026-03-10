@@ -218,7 +218,9 @@ export default function IssuesPage() {
                       <span>#{issue.issueNumber}</span>
                       <span>by {issue.authorLogin}</span>
                       <span>
-                        {new Date(issue.createdAt).toLocaleDateString(dateLocale)}
+                        {new Date(issue.createdAt).toLocaleDateString(
+                          dateLocale,
+                        )}
                       </span>
                     </div>
                     {hasLabels(issue.labels) && (

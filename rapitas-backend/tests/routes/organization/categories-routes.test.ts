@@ -2,8 +2,8 @@
  * Categories Routes テスト
  * カテゴリCRUD操作のユニットテスト
  */
-import { describe, test, expect, mock, beforeEach } from "bun:test";
-import { Elysia } from "elysia";
+import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { Elysia } from 'elysia';
 
 const mockPrisma = {
   category: {
@@ -25,8 +25,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../../../config/logger", () => ({
+mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -35,16 +35,14 @@ mock.module("../../../config/logger", () => ({
   }),
 }));
 
-const { categoriesRoutes } = await import(
-  "../../../routes/organization/categories"
-);
-const { AppError } = await import("../../../middleware/error-handler");
+const { categoriesRoutes } = await import('../../../routes/organization/categories');
+const { AppError } = await import('../../../middleware/error-handler');
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {
-    if (typeof model === "object" && model !== null) {
+    if (typeof model === 'object' && model !== null) {
       for (const method of Object.values(model)) {
-        if (typeof method === "function" && "mockReset" in method) {
+        if (typeof method === 'function' && 'mockReset' in method) {
           (method as ReturnType<typeof mock>).mockReset();
         }
       }
@@ -59,19 +57,19 @@ function createApp() {
         set.status = error.statusCode;
         return { error: error.message, code: error.code };
       }
-      if (code === "VALIDATION") {
+      if (code === 'VALIDATION') {
         set.status = 422;
-        return { error: "Validation error" };
+        return { error: 'Validation error' };
       }
       set.status = 500;
       return {
-        error: error instanceof Error ? error.message : "Server error",
+        error: error instanceof Error ? error.message : 'Server error',
       };
     })
     .use(categoriesRoutes);
 }
 
-describe("GET /categories", () => {
+describe('GET /categories', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -79,30 +77,26 @@ describe("GET /categories", () => {
     app = createApp();
   });
 
-  test("全カテゴリを返すこと", async () => {
+  test('全カテゴリを返すこと', async () => {
     const categories = [
-      { id: 1, name: "開発", sortOrder: 0, themes: [], _count: { themes: 0 } },
-      { id: 2, name: "学習", sortOrder: 1, themes: [], _count: { themes: 0 } },
+      { id: 1, name: '開発', sortOrder: 0, themes: [], _count: { themes: 0 } },
+      { id: 2, name: '学習', sortOrder: 1, themes: [], _count: { themes: 0 } },
     ];
     mockPrisma.category.findMany.mockResolvedValue(categories);
 
-    const res = await app.handle(
-      new Request("http://localhost/categories"),
-    );
+    const res = await app.handle(new Request('http://localhost/categories'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
     expect(body.length).toBe(2);
-    expect(body[0].name).toBe("開発");
+    expect(body[0].name).toBe('開発');
   });
 
-  test("空配列を返すこと", async () => {
+  test('空配列を返すこと', async () => {
     mockPrisma.category.findMany.mockResolvedValue([]);
 
-    const res = await app.handle(
-      new Request("http://localhost/categories"),
-    );
+    const res = await app.handle(new Request('http://localhost/categories'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -110,7 +104,7 @@ describe("GET /categories", () => {
   });
 });
 
-describe("GET /categories/:id", () => {
+describe('GET /categories/:id', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -118,45 +112,39 @@ describe("GET /categories/:id", () => {
     app = createApp();
   });
 
-  test("IDでカテゴリを取得すること", async () => {
+  test('IDでカテゴリを取得すること', async () => {
     const category = {
       id: 1,
-      name: "開発",
-      description: "開発プロジェクト",
+      name: '開発',
+      description: '開発プロジェクト',
       themes: [],
     };
     mockPrisma.category.findUnique.mockResolvedValue(category);
 
-    const res = await app.handle(
-      new Request("http://localhost/categories/1"),
-    );
+    const res = await app.handle(new Request('http://localhost/categories/1'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body.id).toBe(1);
-    expect(body.name).toBe("開発");
+    expect(body.name).toBe('開発');
   });
 
-  test("存在しないIDで404を返すこと", async () => {
+  test('存在しないIDで404を返すこと', async () => {
     mockPrisma.category.findUnique.mockResolvedValue(null);
 
-    const res = await app.handle(
-      new Request("http://localhost/categories/999"),
-    );
+    const res = await app.handle(new Request('http://localhost/categories/999'));
 
     expect(res.status).toBe(404);
   });
 
-  test("無効なIDで400を返すこと", async () => {
-    const res = await app.handle(
-      new Request("http://localhost/categories/abc"),
-    );
+  test('無効なIDで400を返すこと', async () => {
+    const res = await app.handle(new Request('http://localhost/categories/abc'));
 
     expect(res.status).toBe(400);
   });
 });
 
-describe("POST /categories", () => {
+describe('POST /categories', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -164,34 +152,34 @@ describe("POST /categories", () => {
     app = createApp();
   });
 
-  test("カテゴリを作成すること", async () => {
+  test('カテゴリを作成すること', async () => {
     const created = {
       id: 3,
-      name: "テスト",
-      color: "#FF0000",
+      name: 'テスト',
+      color: '#FF0000',
       _count: { themes: 0 },
     };
     mockPrisma.category.create.mockResolvedValue(created);
 
     const res = await app.handle(
-      new Request("http://localhost/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "テスト", color: "#FF0000" }),
+      new Request('http://localhost/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'テスト', color: '#FF0000' }),
       }),
     );
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.name).toBe("テスト");
+    expect(body.name).toBe('テスト');
     expect(mockPrisma.category.create).toHaveBeenCalledTimes(1);
   });
 
-  test("名前なしでバリデーションエラーを返すこと", async () => {
+  test('名前なしでバリデーションエラーを返すこと', async () => {
     const res = await app.handle(
-      new Request("http://localhost/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       }),
     );
@@ -200,7 +188,7 @@ describe("POST /categories", () => {
   });
 });
 
-describe("PATCH /categories/:id", () => {
+describe('PATCH /categories/:id', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -208,49 +196,49 @@ describe("PATCH /categories/:id", () => {
     app = createApp();
   });
 
-  test("カテゴリを更新すること", async () => {
-    const existing = { id: 1, name: "旧名前" };
+  test('カテゴリを更新すること', async () => {
+    const existing = { id: 1, name: '旧名前' };
     const updated = {
       id: 1,
-      name: "新名前",
+      name: '新名前',
       _count: { themes: 0 },
     };
     mockPrisma.category.findUnique.mockResolvedValue(existing);
     mockPrisma.category.update.mockResolvedValue(updated);
 
     const res = await app.handle(
-      new Request("http://localhost/categories/1", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "新名前" }),
+      new Request('http://localhost/categories/1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: '新名前' }),
       }),
     );
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.name).toBe("新名前");
+    expect(body.name).toBe('新名前');
   });
 
-  test("存在しないIDで404を返すこと", async () => {
+  test('存在しないIDで404を返すこと', async () => {
     mockPrisma.category.findUnique.mockResolvedValue(null);
 
     const res = await app.handle(
-      new Request("http://localhost/categories/999", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "新名前" }),
+      new Request('http://localhost/categories/999', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: '新名前' }),
       }),
     );
 
     expect(res.status).toBe(404);
   });
 
-  test("無効なIDで400を返すこと", async () => {
+  test('無効なIDで400を返すこと', async () => {
     const res = await app.handle(
-      new Request("http://localhost/categories/abc", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "新名前" }),
+      new Request('http://localhost/categories/abc', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: '新名前' }),
       }),
     );
 
@@ -258,7 +246,7 @@ describe("PATCH /categories/:id", () => {
   });
 });
 
-describe("DELETE /categories/:id", () => {
+describe('DELETE /categories/:id', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -266,13 +254,13 @@ describe("DELETE /categories/:id", () => {
     app = createApp();
   });
 
-  test("カテゴリを削除すること", async () => {
-    const category = { id: 1, name: "削除対象", isDefault: false };
+  test('カテゴリを削除すること', async () => {
+    const category = { id: 1, name: '削除対象', isDefault: false };
     mockPrisma.category.findUnique.mockResolvedValue(category);
     mockPrisma.category.delete.mockResolvedValue(category);
 
     const res = await app.handle(
-      new Request("http://localhost/categories/1", { method: "DELETE" }),
+      new Request('http://localhost/categories/1', { method: 'DELETE' }),
     );
 
     expect(res.status).toBe(200);
@@ -281,30 +269,30 @@ describe("DELETE /categories/:id", () => {
     });
   });
 
-  test("デフォルトカテゴリの削除で400を返すこと", async () => {
-    const category = { id: 1, name: "開発", isDefault: true };
+  test('デフォルトカテゴリの削除で400を返すこと', async () => {
+    const category = { id: 1, name: '開発', isDefault: true };
     mockPrisma.category.findUnique.mockResolvedValue(category);
 
     const res = await app.handle(
-      new Request("http://localhost/categories/1", { method: "DELETE" }),
+      new Request('http://localhost/categories/1', { method: 'DELETE' }),
     );
 
     expect(res.status).toBe(400);
   });
 
-  test("存在しないIDで404を返すこと", async () => {
+  test('存在しないIDで404を返すこと', async () => {
     mockPrisma.category.findUnique.mockResolvedValue(null);
 
     const res = await app.handle(
-      new Request("http://localhost/categories/999", { method: "DELETE" }),
+      new Request('http://localhost/categories/999', { method: 'DELETE' }),
     );
 
     expect(res.status).toBe(404);
   });
 
-  test("無効なIDで400を返すこと", async () => {
+  test('無効なIDで400を返すこと', async () => {
     const res = await app.handle(
-      new Request("http://localhost/categories/abc", { method: "DELETE" }),
+      new Request('http://localhost/categories/abc', { method: 'DELETE' }),
     );
 
     expect(res.status).toBe(400);

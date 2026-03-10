@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 
 interface ColorRefs {
   contentRef: React.RefObject<HTMLDivElement | null>;
@@ -11,16 +11,10 @@ interface ColorRefs {
  * This is used when the user types outside of an existing color span but has
  * a persistent text color selected.
  */
-function moveLastCharToColorSpan(
-  container: Node,
-  refs: ColorRefs,
-): void {
+function moveLastCharToColorSpan(container: Node, refs: ColorRefs): void {
   const { activeColorSpanRef, selectedTextColorRef } = refs;
 
-  if (
-    container.nodeType === Node.TEXT_NODE &&
-    container.textContent
-  ) {
+  if (container.nodeType === Node.TEXT_NODE && container.textContent) {
     const text = container.textContent;
     const newText = text.slice(0, -1);
     container.textContent = newText;
@@ -129,9 +123,7 @@ export function handleEditorInput(
  * After a Backspace/Delete keydown, ensure a zero-width color span is
  * re-created if the cursor ended up outside any color span.
  */
-export function handleDeleteColorPersistence(
-  refs: ColorRefs,
-): void {
+export function handleDeleteColorPersistence(refs: ColorRefs): void {
   const { contentRef, activeColorSpanRef, selectedTextColorRef } = refs;
 
   if (!selectedTextColorRef.current) return;

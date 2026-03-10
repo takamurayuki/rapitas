@@ -70,16 +70,11 @@ export class GeminiCliAgentV2 extends AbstractAgent {
   private checkpointId: string | null = null;
 
   constructor(config: GeminiCliConfig) {
-    super(
-      generateAgentId('gemini-cli'),
-      config.model || 'Gemini CLI Agent',
-      'google-gemini',
-      {
-        version: '1.0.0',
-        description: 'Google Gemini CLI を使用したコード生成・編集エージェント',
-        modelId: config.model,
-      },
-    );
+    super(generateAgentId('gemini-cli'), config.model || 'Gemini CLI Agent', 'google-gemini', {
+      version: '1.0.0',
+      description: 'Google Gemini CLI を使用したコード生成・編集エージェント',
+      modelId: config.model,
+    });
     this.config = config;
   }
 
@@ -108,9 +103,7 @@ export class GeminiCliAgentV2 extends AbstractAgent {
     return new Promise((resolve) => {
       const isWindows = process.platform === 'win32';
       const geminiPath = resolveCliPath(
-        this.config.cliPath ||
-        process.env.GEMINI_CLI_PATH ||
-        (isWindows ? 'gemini.cmd' : 'gemini'),
+        this.config.cliPath || process.env.GEMINI_CLI_PATH || (isWindows ? 'gemini.cmd' : 'gemini'),
       );
 
       const proc = spawn(geminiPath, ['--version'], { shell: true });
@@ -137,7 +130,9 @@ export class GeminiCliAgentV2 extends AbstractAgent {
 
     const available = await this.isAvailable();
     if (!available) {
-      errors.push('Gemini CLI is not installed or not available in PATH. Install with: npm install -g @google/gemini-cli');
+      errors.push(
+        'Gemini CLI is not installed or not available in PATH. Install with: npm install -g @google/gemini-cli',
+      );
     }
 
     if (this.config.workingDirectory) {
@@ -287,9 +282,7 @@ export class GeminiCliAgentV2 extends AbstractAgent {
       const timeout = context.timeout || this.config.timeout || 900000;
       const isWindows = process.platform === 'win32';
       const geminiPath = resolveCliPath(
-        this.config.cliPath ||
-        process.env.GEMINI_CLI_PATH ||
-        (isWindows ? 'gemini.cmd' : 'gemini'),
+        this.config.cliPath || process.env.GEMINI_CLI_PATH || (isWindows ? 'gemini.cmd' : 'gemini'),
       );
 
       // コマンドライン引数を構築
@@ -375,7 +368,7 @@ export class GeminiCliAgentV2 extends AbstractAgent {
         workDir,
         promptLength: prompt.length,
         command: isWindows ? finalCommand : `${finalCommand} ${args.join(' ')}`,
-        model: this.config.model
+        model: this.config.model,
       });
 
       try {
@@ -401,13 +394,19 @@ export class GeminiCliAgentV2 extends AbstractAgent {
         }
 
         // API KEY設定の確認（セキュリティのため最初の数文字のみ表示）
-        const hasApiKey = !!env.GEMINI_API_KEY || !!process.env.GEMINI_API_KEY || !!process.env.GOOGLE_API_KEY;
-        const apiKeyPrefix = (env.GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').substring(0, 8);
+        const hasApiKey =
+          !!env.GEMINI_API_KEY || !!process.env.GEMINI_API_KEY || !!process.env.GOOGLE_API_KEY;
+        const apiKeyPrefix = (
+          env.GEMINI_API_KEY ||
+          process.env.GEMINI_API_KEY ||
+          process.env.GOOGLE_API_KEY ||
+          ''
+        ).substring(0, 8);
         this.log('info', 'Gemini API configuration', {
           hasApiKey,
           apiKeyPrefix: apiKeyPrefix ? `${apiKeyPrefix}...` : 'NOT SET',
           hasProjectId: !!env.GOOGLE_CLOUD_PROJECT,
-          hasLocation: !!env.GOOGLE_CLOUD_LOCATION
+          hasLocation: !!env.GOOGLE_CLOUD_LOCATION,
         });
 
         this.process = spawn(finalCommand, finalArgs, {
@@ -517,7 +516,7 @@ export class GeminiCliAgentV2 extends AbstractAgent {
           this.log('error', 'Gemini CLI stderr output', {
             error: output,
             model: this.config.model,
-            workDir
+            workDir,
           });
 
           await this.emitOutput(output, true, true);
@@ -558,8 +557,12 @@ export class GeminiCliAgentV2 extends AbstractAgent {
               errorMessage += `\nError output: ${this.errorBuffer.trim()}`;
             }
             // ModelNotFoundErrorをチェック
-            if (this.errorBuffer.includes('ModelNotFoundError') || this.errorBuffer.includes('Requested entity was not found')) {
-              errorMessage += '\nNote: The specified model may not be available. Try using a different model or check your API access.';
+            if (
+              this.errorBuffer.includes('ModelNotFoundError') ||
+              this.errorBuffer.includes('Requested entity was not found')
+            ) {
+              errorMessage +=
+                '\nNote: The specified model may not be available. Try using a different model or check your API access.';
             }
           }
 
@@ -628,9 +631,15 @@ export class GeminiCliAgentV2 extends AbstractAgent {
               output += block.text;
             } else if (block.type === 'tool_use') {
               // 質問ツールの検出
-              if (block.name === 'AskUserQuestion' || block.name === 'ask_user' || block.name === 'ask') {
+              if (
+                block.name === 'AskUserQuestion' ||
+                block.name === 'ask_user' ||
+                block.name === 'ask'
+              ) {
                 isQuestion = true;
-                const input = block.input as { questions?: Array<{ question?: string }> } | undefined;
+                const input = block.input as
+                  | { questions?: Array<{ question?: string }> }
+                  | undefined;
                 if (input?.questions?.[0]?.question) {
                   questionText = input.questions[0].question;
                 }
@@ -761,8 +770,8 @@ export class GeminiCliProvider implements IAgentProvider {
       const isWindows = process.platform === 'win32';
       const geminiPath = resolveCliPath(
         this.defaultConfig.cliPath ||
-        process.env.GEMINI_CLI_PATH ||
-        (isWindows ? 'gemini.cmd' : 'gemini'),
+          process.env.GEMINI_CLI_PATH ||
+          (isWindows ? 'gemini.cmd' : 'gemini'),
       );
 
       const proc = spawn(geminiPath, ['--version'], { shell: true });
@@ -793,7 +802,9 @@ export class GeminiCliProvider implements IAgentProvider {
 
     const available = await this.isAvailable();
     if (!available) {
-      errors.push('Gemini CLI is not installed or not available. Install with: npm install -g @google/gemini-cli');
+      errors.push(
+        'Gemini CLI is not installed or not available. Install with: npm install -g @google/gemini-cli',
+      );
     }
 
     return { valid: errors.length === 0, errors };

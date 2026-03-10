@@ -13,12 +13,7 @@ import type {
   AgentProviderConfig,
   AgentHealthStatus,
 } from './types';
-import type {
-  IAgentProvider,
-  IAgentRegistry,
-  IAgent,
-  ProviderInfo,
-} from './interfaces';
+import type { IAgentProvider, IAgentRegistry, IAgent, ProviderInfo } from './interfaces';
 
 /**
  * エージェントレジストリ
@@ -29,7 +24,8 @@ export class AgentRegistry implements IAgentRegistry {
 
   private providers: Map<AgentProviderId, IAgentProvider> = new Map();
   private agents: Map<string, IAgent> = new Map();
-  private providerHealthCache: Map<AgentProviderId, { status: AgentHealthStatus; cachedAt: Date }> = new Map();
+  private providerHealthCache: Map<AgentProviderId, { status: AgentHealthStatus; cachedAt: Date }> =
+    new Map();
   private healthCacheTTL = 60000; // 1分
 
   private constructor() {}
@@ -146,7 +142,7 @@ export class AgentRegistry implements IAgentRegistry {
    * 特定の能力を持つプロバイダーを取得
    */
   getProvidersByCapability(capability: keyof AgentCapabilities): IAgentProvider[] {
-    return Array.from(this.providers.values()).filter(provider => {
+    return Array.from(this.providers.values()).filter((provider) => {
       const capabilities = provider.getCapabilities();
       return capabilities[capability] === true;
     });
@@ -238,7 +234,7 @@ export class AgentRegistry implements IAgentRegistry {
    */
   getAgentsByProvider(providerId: AgentProviderId): IAgent[] {
     return Array.from(this.agents.values()).filter(
-      agent => agent.metadata.providerId === providerId,
+      (agent) => agent.metadata.providerId === providerId,
     );
   }
 

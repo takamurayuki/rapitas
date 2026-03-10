@@ -4,7 +4,7 @@
 
 import { createLogger } from '@/lib/logger';
 
-const logger = createLogger("CacheUtils");
+const logger = createLogger('CacheUtils');
 
 interface CacheEntry<T = unknown> {
   etag?: string;
@@ -22,13 +22,13 @@ class CacheManager {
    */
   async fetchWithETag<T = unknown>(
     url: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<{ data: T; fromCache: boolean }> {
     const cacheKey = `${url}:${JSON.stringify(options.body || {})}`;
     const cached = this.etagCache.get(cacheKey);
 
     const headers: Record<string, string> = {
-      ...(options.headers as Record<string, string> || {}),
+      ...((options.headers as Record<string, string>) || {}),
     };
 
     // キャッシュがある場合、条件付きヘッダーを追加
@@ -87,8 +87,11 @@ class CacheManager {
    */
   async applyCacheStrategy<T = unknown>(
     url: string,
-    strategy: 'cache-first' | 'network-first' | 'stale-while-revalidate' = 'network-first',
-    options: RequestInit = {}
+    strategy:
+      | 'cache-first'
+      | 'network-first'
+      | 'stale-while-revalidate' = 'network-first',
+    options: RequestInit = {},
   ): Promise<T> {
     const cacheKey = `${url}:${JSON.stringify(options.body || {})}`;
     const cached = this.etagCache.get(cacheKey);
@@ -116,7 +119,9 @@ class CacheManager {
         // 古いデータを即座に返し、バックグラウンドで更新
         if (cached) {
           // バックグラウンドで更新
-          this.fetchAndCache(url, cacheKey, options).catch((err) => logger.error(err));
+          this.fetchAndCache(url, cacheKey, options).catch((err) =>
+            logger.error(err),
+          );
           return cached.data as T;
         }
         return this.fetchAndCache(url, cacheKey, options);
@@ -128,18 +133,21 @@ class CacheManager {
    */
   async warmupCache(urls: string[]): Promise<void> {
     await Promise.allSettled(
-      urls.map(url =>
-        this.fetchWithETag(url).catch(err =>
-          logger.warn(`Failed to warmup cache for ${url}:`, err)
-        )
-      )
+      urls.map((url) =>
+        this.fetchWithETag(url).catch((err) =>
+          logger.warn(`Failed to warmup cache for ${url}:`, err),
+        ),
+      ),
     );
   }
 
   /**
    * キャッシュの有効性チェック
    */
-  private isCacheValid(entry: CacheEntry, maxAge: number = 5 * 60 * 1000): boolean {
+  private isCacheValid(
+    entry: CacheEntry,
+    maxAge: number = 5 * 60 * 1000,
+  ): boolean {
     return Date.now() - entry.timestamp < maxAge;
   }
 
@@ -149,7 +157,7 @@ class CacheManager {
   private async fetchAndCache<T = unknown>(
     url: string,
     cacheKey: string,
-    options: RequestInit
+    options: RequestInit,
   ): Promise<T> {
     const response = await fetch(url, options);
 
@@ -177,8 +185,8 @@ class CacheManager {
   clearCache(pattern?: RegExp): void {
     if (pattern) {
       Array.from(this.etagCache.keys())
-        .filter(key => pattern.test(key))
-        .forEach(key => this.etagCache.delete(key));
+        .filter((key) => pattern.test(key))
+        .forEach((key) => this.etagCache.delete(key));
     } else {
       this.etagCache.clear();
     }
@@ -191,11 +199,13 @@ class CacheManager {
     size: number;
     entries: Array<{ key: string; size: number; age: number }>;
   } {
-    const entries = Array.from(this.etagCache.entries()).map(([key, entry]) => ({
-      key,
-      size: JSON.stringify(entry.data).length,
-      age: Date.now() - entry.timestamp,
-    }));
+    const entries = Array.from(this.etagCache.entries()).map(
+      ([key, entry]) => ({
+        key,
+        size: JSON.stringify(entry.data).length,
+        age: Date.now() - entry.timestamp,
+      }),
+    );
 
     return {
       size: entries.reduce((sum, e) => sum + e.size, 0),
@@ -209,7 +219,9 @@ export const cacheManager = new CacheManager();
 /**
  * 圧縮とエンコーディングの最適化
  */
-export function enableCompressionHeaders(headers: HeadersInit = {}): HeadersInit {
+export function enableCompressionHeaders(
+  headers: HeadersInit = {},
+): HeadersInit {
   return {
     ...headers,
     'Accept-Encoding': 'gzip, deflate, br',
@@ -219,10 +231,12 @@ export function enableCompressionHeaders(headers: HeadersInit = {}): HeadersInit
 /**
  * Keep-Aliveとコネクションプーリング
  */
-export function enableConnectionPooling(headers: HeadersInit = {}): HeadersInit {
+export function enableConnectionPooling(
+  headers: HeadersInit = {},
+): HeadersInit {
   return {
     ...headers,
-    'Connection': 'keep-alive',
+    Connection: 'keep-alive',
   };
 }
 

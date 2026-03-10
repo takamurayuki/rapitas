@@ -2,14 +2,14 @@
  * 矛盾検出・解決（Contradiction Detection & Resolution）
  * 新規/更新エントリに対して類似エントリとの矛盾を検出し、解決策を提示
  */
-import { prisma } from "../../config/database";
-import { createLogger } from "../../config/logger";
-import { sendAIMessage } from "../../utils/ai-client";
-import { vectorSearch } from "./rag/search";
-import { appendEvent } from "./timeline";
-import type { ContradictionResolution } from "./types";
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+import { sendAIMessage } from '../../utils/ai-client';
+import { vectorSearch } from './rag/search';
+import { appendEvent } from './timeline';
+import type { ContradictionResolution } from './types';
 
-const log = createLogger("memory:contradiction");
+const log = createLogger('memory:contradiction');
 
 /**
  * 新規/更新エントリに対して矛盾を検出
@@ -56,7 +56,7 @@ export async function detectContradictions(entryId: number): Promise<number> {
         const response = await sendAIMessage({
           messages: [
             {
-              role: "user",
+              role: 'user',
               content: `以下の2つの知識エントリに矛盾がないか判定してください。
 
 エントリA:
@@ -80,7 +80,7 @@ export async function detectContradictions(entryId: number): Promise<number> {
         });
 
         const responseText = response.content;
-        if (responseText.includes("CONTRADICTION")) {
+        if (responseText.includes('CONTRADICTION')) {
           const typeMatch = responseText.match(/種類:\s*(factual|procedural|preference)/);
           const descMatch = responseText.match(/説明:\s*(.+)/);
 
@@ -88,7 +88,7 @@ export async function detectContradictions(entryId: number): Promise<number> {
             data: {
               entryAId: entryId,
               entryBId: candidate.knowledgeEntryId,
-              contradictionType: typeMatch?.[1] ?? "factual",
+              contradictionType: typeMatch?.[1] ?? 'factual',
               description: descMatch?.[1]?.trim(),
             },
           });
@@ -96,11 +96,11 @@ export async function detectContradictions(entryId: number): Promise<number> {
           // エントリのvalidationStatusをconflictに更新
           await prisma.knowledgeEntry.updateMany({
             where: { id: { in: [entryId, candidate.knowledgeEntryId] } },
-            data: { validationStatus: "conflict" },
+            data: { validationStatus: 'conflict' },
           });
 
           await appendEvent({
-            eventType: "contradiction_detected",
+            eventType: 'contradiction_detected',
             payload: {
               contradictionId: contradiction.id,
               entryAId: entryId,
@@ -111,16 +111,23 @@ export async function detectContradictions(entryId: number): Promise<number> {
 
           detectCount++;
           log.info(
-            { contradictionId: contradiction.id, entryAId: entryId, entryBId: candidate.knowledgeEntryId },
-            "Contradiction detected",
+            {
+              contradictionId: contradiction.id,
+              entryAId: entryId,
+              entryBId: candidate.knowledgeEntryId,
+            },
+            'Contradiction detected',
           );
         }
       } catch (error) {
-        log.warn({ err: error, entryId, candidateId: candidate.knowledgeEntryId }, "LLM contradiction check failed");
+        log.warn(
+          { err: error, entryId, candidateId: candidate.knowledgeEntryId },
+          'LLM contradiction check failed',
+        );
       }
     }
   } catch (error) {
-    log.debug({ err: error, entryId }, "Vector search unavailable for contradiction detection");
+    log.debug({ err: error, entryId }, 'Vector search unavailable for contradiction detection');
   }
 
   return detectCount;
@@ -143,30 +150,30 @@ export async function resolveContradiction(
   }
 
   switch (resolution) {
-    case "keep_a":
+    case 'keep_a':
       await prisma.knowledgeEntry.update({
         where: { id: contradiction.entryBId },
-        data: { forgettingStage: "archived", validationStatus: "rejected" },
+        data: { forgettingStage: 'archived', validationStatus: 'rejected' },
       });
       break;
-    case "keep_b":
+    case 'keep_b':
       await prisma.knowledgeEntry.update({
         where: { id: contradiction.entryAId },
-        data: { forgettingStage: "archived", validationStatus: "rejected" },
+        data: { forgettingStage: 'archived', validationStatus: 'rejected' },
       });
       break;
-    case "merge":
+    case 'merge':
       // マージの場合は両方をvalidatedに
       await prisma.knowledgeEntry.updateMany({
         where: { id: { in: [contradiction.entryAId, contradiction.entryBId] } },
-        data: { validationStatus: "validated" },
+        data: { validationStatus: 'validated' },
       });
       break;
-    case "dismiss":
+    case 'dismiss':
       // 無視の場合はvalidatedに戻す
       await prisma.knowledgeEntry.updateMany({
         where: { id: { in: [contradiction.entryAId, contradiction.entryBId] } },
-        data: { validationStatus: "validated" },
+        data: { validationStatus: 'validated' },
       });
       break;
   }
@@ -177,11 +184,11 @@ export async function resolveContradiction(
   });
 
   await appendEvent({
-    eventType: "contradiction_resolved",
+    eventType: 'contradiction_resolved',
     payload: { contradictionId, resolution },
   });
 
-  log.info({ contradictionId, resolution }, "Contradiction resolved");
+  log.info({ contradictionId, resolution }, 'Contradiction resolved');
 }
 
 /**
@@ -191,10 +198,14 @@ export async function getUnresolvedContradictions(limit = 20) {
   return prisma.knowledgeContradiction.findMany({
     where: { resolution: null },
     include: {
-      entryA: { select: { id: true, title: true, content: true, category: true, confidence: true } },
-      entryB: { select: { id: true, title: true, content: true, category: true, confidence: true } },
+      entryA: {
+        select: { id: true, title: true, content: true, category: true, confidence: true },
+      },
+      entryB: {
+        select: { id: true, title: true, content: true, category: true, confidence: true },
+      },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: 'desc' },
     take: limit,
   });
 }

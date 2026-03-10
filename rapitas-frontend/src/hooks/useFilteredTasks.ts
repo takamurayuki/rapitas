@@ -92,7 +92,11 @@ export function useFilteredTasks({
   // 今日のタスクのカウント（選択されたテーマでフィルタリング）
   const todayTasksCounts = useMemo(() => {
     // カテゴリにテーマがない場合は、本日のタスクをカウントしない
-    if (categoryFilter !== null && categoryThemeIds && categoryThemeIds.size === 0) {
+    if (
+      categoryFilter !== null &&
+      categoryThemeIds &&
+      categoryThemeIds.size === 0
+    ) {
       return { total: 0, completed: 0 };
     }
 
@@ -104,7 +108,11 @@ export function useFilteredTasks({
       // テーマフィルターが設定されている場合は、そのテーマのタスクのみカウント
       if (themeFilter !== null && t.themeId !== themeFilter) return false;
       // カテゴリフィルターが設定されている場合は、そのカテゴリに属するテーマのタスクのみカウント
-      if (categoryThemeIds !== null && (!t.themeId || !categoryThemeIds.has(t.themeId))) return false;
+      if (
+        categoryThemeIds !== null &&
+        (!t.themeId || !categoryThemeIds.has(t.themeId))
+      )
+        return false;
       // 今日のタスクのみフィルタリング（createdAtが今日の日付）
       const taskDate = new Date(t.createdAt);
       taskDate.setHours(0, 0, 0, 0);

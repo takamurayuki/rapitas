@@ -54,7 +54,9 @@ export default function LearningGoalsPage() {
   const [generating, setGenerating] = useState(false);
   const [applying, setApplying] = useState(false);
   const [adapting, setAdapting] = useState(false);
-  const [goalProgress, setGoalProgress] = useState<Record<number, { total: number; completed: number; rate: number }>>({});
+  const [goalProgress, setGoalProgress] = useState<
+    Record<number, { total: number; completed: number; rate: number }>
+  >({});
   const [selectedGoal, setSelectedGoal] = useState<LearningGoal | null>(null);
   const [showWizard, setShowWizard] = useState(false);
   const [currentStep, setCurrentStep] = useState<WizardStep>('goal');
@@ -100,18 +102,31 @@ export default function LearningGoalsPage() {
 
   const fetchGoalProgress = useCallback(async (goalList: LearningGoal[]) => {
     const appliedGoals = goalList.filter((g) => g.isApplied && g.themeId);
-    const progressMap: Record<number, { total: number; completed: number; rate: number }> = {};
+    const progressMap: Record<
+      number,
+      { total: number; completed: number; rate: number }
+    > = {};
 
     for (const goal of appliedGoals) {
       try {
-        const res = await fetch(`${API_BASE_URL}/tasks?themeId=${goal.themeId}`);
+        const res = await fetch(
+          `${API_BASE_URL}/tasks?themeId=${goal.themeId}`,
+        );
         if (res.ok) {
           const data = await res.json();
           const tasks = Array.isArray(data) ? data : data.tasks || [];
-          const parentTasks = tasks.filter((t: { parentId: number | null }) => !t.parentId);
+          const parentTasks = tasks.filter(
+            (t: { parentId: number | null }) => !t.parentId,
+          );
           const total = parentTasks.length;
-          const completed = parentTasks.filter((t: { status: string }) => t.status === 'done').length;
-          progressMap[goal.id] = { total, completed, rate: total > 0 ? completed / total : 0 };
+          const completed = parentTasks.filter(
+            (t: { status: string }) => t.status === 'done',
+          ).length;
+          progressMap[goal.id] = {
+            total,
+            completed,
+            rate: total > 0 ? completed / total : 0,
+          };
         }
       } catch (e) {
         logger.error(`Failed to fetch progress for goal ${goal.id}:`, e);
@@ -144,7 +159,9 @@ export default function LearningGoalsPage() {
         if (result.success) {
           showToast(t('adaptSuccess'), 'success');
           await fetchGoals();
-          const updated = await fetch(`${API_BASE_URL}/learning-goals/${goal.id}`);
+          const updated = await fetch(
+            `${API_BASE_URL}/learning-goals/${goal.id}`,
+          );
           if (updated.ok) {
             setSelectedGoal(await updated.json());
           }
@@ -223,9 +240,7 @@ export default function LearningGoalsPage() {
       if (res.ok) {
         const result = await res.json();
         showToast(
-          result.source === 'ai'
-            ? t('aiGeneratedPlan')
-            : t('planGenerated'),
+          result.source === 'ai' ? t('aiGeneratedPlan') : t('planGenerated'),
           'success',
         );
         await fetchGoals();
@@ -250,10 +265,7 @@ export default function LearningGoalsPage() {
       showToast(t('alreadyApplied'), 'info');
       return;
     }
-    if (
-      !confirm(t('applyConfirm'))
-    )
-      return;
+    if (!confirm(t('applyConfirm'))) return;
 
     setApplying(true);
     try {
@@ -267,7 +279,10 @@ export default function LearningGoalsPage() {
         const result = await res.json();
         if (result.success) {
           showToast(
-            t('tasksCreated', { count: result.createdTaskCount, theme: result.themeName }),
+            t('tasksCreated', {
+              count: result.createdTaskCount,
+              theme: result.themeName,
+            }),
             'success',
           );
           await fetchGoals();
@@ -581,7 +596,8 @@ export default function LearningGoalsPage() {
                       className="flex-1 accent-emerald-600"
                     />
                     <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 min-w-[4rem] text-center">
-                      {formData.dailyHours}{t('hoursPerDay')}
+                      {formData.dailyHours}
+                      {t('hoursPerDay')}
                     </span>
                   </div>
                 </div>
@@ -675,7 +691,8 @@ export default function LearningGoalsPage() {
                         {t('studyTime')}
                       </span>
                       <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                        {formData.dailyHours}{t('hoursPerDayUnit')}
+                        {formData.dailyHours}
+                        {t('hoursPerDayUnit')}
                       </p>
                     </div>
                   </div>
@@ -953,12 +970,17 @@ function GoalDetailPanel({
         {goal.deadline && (
           <div className="flex items-center gap-1.5">
             <Calendar className="w-4 h-4" />
-            <span>〜{new Date(goal.deadline).toLocaleDateString(dateLocale)}</span>
+            <span>
+              〜{new Date(goal.deadline).toLocaleDateString(dateLocale)}
+            </span>
           </div>
         )}
         <div className="flex items-center gap-1.5">
           <Clock className="w-4 h-4" />
-          <span>{goal.dailyHours}{t('hoursPerDayUnit')}</span>
+          <span>
+            {goal.dailyHours}
+            {t('hoursPerDayUnit')}
+          </span>
         </div>
       </div>
 
@@ -971,7 +993,8 @@ function GoalDetailPanel({
                 {t('phaseProgress')}
               </span>
               <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                {progress.completed}/{progress.total} ({Math.round(progress.rate * 100)}%)
+                {progress.completed}/{progress.total} (
+                {Math.round(progress.rate * 100)}%)
               </span>
             </div>
             <div className="w-full h-2.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
@@ -1029,7 +1052,9 @@ function GoalDetailPanel({
                       {phase.name}
                     </h3>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {phase.days}{t('daysCount')} ・ {phase.tasks.length}{t('tasksCount')}
+                      {phase.days}
+                      {t('daysCount')} ・ {phase.tasks.length}
+                      {t('tasksCount')}
                       {phase.description && ` ・ ${phase.description}`}
                     </p>
                   </div>

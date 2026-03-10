@@ -62,7 +62,9 @@ export function detectMojibake(text: string): MojibakeDetectionResult {
     if (matches) {
       patterns.utf8ToLatin1.push(...matches);
       score += matches.length * 15; // 1つ見つかるごとに15点加算
-      issues.push(`UTF-8→Latin-1誤解釈パターンを${matches.length}箇所検出: ${matches.slice(0, 3).join(', ')}`);
+      issues.push(
+        `UTF-8→Latin-1誤解釈パターンを${matches.length}箇所検出: ${matches.slice(0, 3).join(', ')}`,
+      );
     }
   }
 
@@ -92,8 +94,11 @@ export function detectMojibake(text: string): MojibakeDetectionResult {
   }
 
   // 5. 日本語コンテキストでの異常パターン
-  const japaneseTextRatio = (text.match(/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/g) || []).length / Math.max(text.length, 1);
-  if (japaneseTextRatio > 0.1) { // 日本語が10%以上含まれる場合
+  const japaneseTextRatio =
+    (text.match(/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/g) || []).length /
+    Math.max(text.length, 1);
+  if (japaneseTextRatio > 0.1) {
+    // 日本語が10%以上含まれる場合
     // 日本語の後に意味不明なバイト列が続くパターン
     const brokenJapanesePattern = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF][\x80-\xFF]{2,}/g;
     const brokenMatches = text.match(brokenJapanesePattern);

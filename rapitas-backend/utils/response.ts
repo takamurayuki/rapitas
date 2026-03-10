@@ -17,10 +17,7 @@ export const createResponse = <T>(data: T, message?: string): ApiResponse<T> => 
   };
 };
 
-export const createErrorResponse = (
-  error: string,
-  statusCode?: number,
-): ApiResponse => {
+export const createErrorResponse = (error: string, statusCode?: number): ApiResponse => {
   return {
     success: false,
     error,

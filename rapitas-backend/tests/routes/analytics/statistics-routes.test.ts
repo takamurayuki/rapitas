@@ -2,8 +2,8 @@
  * Statistics Routes テスト
  * ダッシュボード統計APIのユニットテスト
  */
-import { describe, test, expect, mock, beforeEach } from "bun:test";
-import { Elysia } from "elysia";
+import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { Elysia } from 'elysia';
 
 const mockPrisma = {
   task: {
@@ -21,8 +21,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../../../config/logger", () => ({
+mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -31,13 +31,13 @@ mock.module("../../../config/logger", () => ({
   }),
 }));
 
-const { statisticsRoutes } = await import("../../../routes/analytics/statistics");
+const { statisticsRoutes } = await import('../../../routes/analytics/statistics');
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {
-    if (typeof model === "object" && model !== null) {
+    if (typeof model === 'object' && model !== null) {
       for (const method of Object.values(model)) {
-        if (typeof method === "function" && "mockReset" in method) {
+        if (typeof method === 'function' && 'mockReset' in method) {
           (method as ReturnType<typeof mock>).mockReset();
         }
       }
@@ -54,7 +54,7 @@ function createApp() {
   return new Elysia().use(statisticsRoutes);
 }
 
-describe("GET /statistics/overview", () => {
+describe('GET /statistics/overview', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -62,7 +62,7 @@ describe("GET /statistics/overview", () => {
     app = createApp();
   });
 
-  test("概要統計を返すこと", async () => {
+  test('概要統計を返すこと', async () => {
     mockPrisma.task.count
       .mockResolvedValueOnce(50) // totalTasks
       .mockResolvedValueOnce(30) // completedTasks
@@ -74,9 +74,7 @@ describe("GET /statistics/overview", () => {
     mockPrisma.examGoal.findMany.mockResolvedValue([]);
     mockPrisma.studyStreak.findMany.mockResolvedValue([]);
 
-    const res = await app.handle(
-      new Request("http://localhost/statistics/overview"),
-    );
+    const res = await app.handle(new Request('http://localhost/statistics/overview'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -89,22 +87,20 @@ describe("GET /statistics/overview", () => {
     expect(body.streakData).toBeDefined();
   });
 
-  test("タスクがゼロの場合completionRateが0であること", async () => {
+  test('タスクがゼロの場合completionRateが0であること', async () => {
     mockPrisma.task.count.mockResolvedValue(0);
     mockPrisma.timeEntry.findMany.mockResolvedValue([]);
     mockPrisma.examGoal.findMany.mockResolvedValue([]);
     mockPrisma.studyStreak.findMany.mockResolvedValue([]);
 
-    const res = await app.handle(
-      new Request("http://localhost/statistics/overview"),
-    );
+    const res = await app.handle(new Request('http://localhost/statistics/overview'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body.tasks.completionRate).toBe(0);
   });
 
-  test("学習時間を正しく集計すること", async () => {
+  test('学習時間を正しく集計すること', async () => {
     mockPrisma.task.count.mockResolvedValue(0);
     mockPrisma.timeEntry.findMany
       .mockResolvedValueOnce([{ duration: 1.5 }, { duration: 2.3 }]) // week
@@ -112,9 +108,7 @@ describe("GET /statistics/overview", () => {
     mockPrisma.examGoal.findMany.mockResolvedValue([]);
     mockPrisma.studyStreak.findMany.mockResolvedValue([]);
 
-    const res = await app.handle(
-      new Request("http://localhost/statistics/overview"),
-    );
+    const res = await app.handle(new Request('http://localhost/statistics/overview'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -123,7 +117,7 @@ describe("GET /statistics/overview", () => {
   });
 });
 
-describe("GET /statistics/daily-study", () => {
+describe('GET /statistics/daily-study', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -131,12 +125,10 @@ describe("GET /statistics/daily-study", () => {
     app = createApp();
   });
 
-  test("日別学習時間を返すこと", async () => {
+  test('日別学習時間を返すこと', async () => {
     mockPrisma.timeEntry.findMany.mockResolvedValue([]);
 
-    const res = await app.handle(
-      new Request("http://localhost/statistics/daily-study"),
-    );
+    const res = await app.handle(new Request('http://localhost/statistics/daily-study'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -145,12 +137,10 @@ describe("GET /statistics/daily-study", () => {
     expect(body.length).toBe(7);
   });
 
-  test("daysパラメータで期間を指定できること", async () => {
+  test('daysパラメータで期間を指定できること', async () => {
     mockPrisma.timeEntry.findMany.mockResolvedValue([]);
 
-    const res = await app.handle(
-      new Request("http://localhost/statistics/daily-study?days=14"),
-    );
+    const res = await app.handle(new Request('http://localhost/statistics/daily-study?days=14'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -158,18 +148,16 @@ describe("GET /statistics/daily-study", () => {
     expect(body.length).toBe(14);
   });
 
-  test("各日のデータにdateとhoursが含まれること", async () => {
+  test('各日のデータにdateとhoursが含まれること', async () => {
     mockPrisma.timeEntry.findMany.mockResolvedValue([]);
 
-    const res = await app.handle(
-      new Request("http://localhost/statistics/daily-study?days=3"),
-    );
+    const res = await app.handle(new Request('http://localhost/statistics/daily-study?days=3'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
     for (const entry of body) {
       expect(entry.date).toBeDefined();
-      expect(typeof entry.hours).toBe("number");
+      expect(typeof entry.hours).toBe('number');
     }
   });
 });

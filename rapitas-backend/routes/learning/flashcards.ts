@@ -1,14 +1,22 @@
 /**
  * Flashcards API Routes
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
-import { decrypt } from "../../utils/encryption";
-import { createLogger } from "../../config/logger";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
+import { decrypt } from '../../utils/encryption';
+import { createLogger } from '../../config/logger';
 import { NotFoundError, ValidationError, AppError, parseId } from '../../middleware/error-handler';
-import { fsrs, generatorParameters, createEmptyCard, Rating, State, type Card, type Grade } from "ts-fsrs";
+import {
+  fsrs,
+  generatorParameters,
+  createEmptyCard,
+  Rating,
+  State,
+  type Card,
+  type Grade,
+} from 'ts-fsrs';
 
-const log = createLogger("routes:flashcards");
+const log = createLogger('routes:flashcards');
 
 // FSRS scheduler instance
 const f = fsrs(generatorParameters());
@@ -16,8 +24,8 @@ const f = fsrs(generatorParameters());
 // Map SM-2 quality (0-5) to FSRS Rating (1-4)
 function qualityToRating(quality: number): Grade {
   if (quality <= 1) return Rating.Again; // 1
-  if (quality === 2) return Rating.Hard;  // 2
-  if (quality === 3) return Rating.Good;  // 3
+  if (quality === 2) return Rating.Hard; // 2
+  if (quality === 3) return Rating.Good; // 3
   return Rating.Easy; // 4
 }
 
@@ -71,8 +79,10 @@ interface ClaudeAPIResponse {
 }
 
 export const flashcardsRoutes = new Elysia()
-  .get("/flashcard-decks", async ({ query }) => {
-    const learningGoalId = query?.learningGoalId ? parseInt(query.learningGoalId as string) : undefined;
+  .get('/flashcard-decks', async ({ query }) => {
+    const learningGoalId = query?.learningGoalId
+      ? parseInt(query.learningGoalId as string)
+      : undefined;
     return await prisma.flashcardDeck.findMany({
       where: {
         ...(learningGoalId && { learningGoalId }),
@@ -80,28 +90,30 @@ export const flashcardsRoutes = new Elysia()
       include: {
         _count: { select: { cards: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
     });
   })
 
-  .get("/flashcard-decks/:id", async ({ params }) => {
+  .get('/flashcard-decks/:id', async ({ params }) => {
     const id = parseId(params.id);
     const deck = await prisma.flashcardDeck.findUnique({
       where: { id },
       include: {
         cards: {
-          orderBy: { createdAt: "asc" },
+          orderBy: { createdAt: 'asc' },
         },
       },
     });
-    if (!deck) throw new NotFoundError("Deck not found");
+    if (!deck) throw new NotFoundError('Deck not found');
     return deck;
   })
 
   .post(
-    "/flashcard-decks",
+    '/flashcard-decks',
     async (context) => {
-      const { body } = context as { body: { name: string; description?: string; color?: string; taskId?: number } };
+      const { body } = context as {
+        body: { name: string; description?: string; color?: string; taskId?: number };
+      };
       return await prisma.flashcardDeck.create({
         data: {
           name: body.name,
@@ -118,20 +130,20 @@ export const flashcardsRoutes = new Elysia()
         color: t.Optional(t.String()),
         taskId: t.Optional(t.Number()),
       }),
-    }
+    },
   )
 
-  .delete("/flashcard-decks/:id", async ({ params }) => {
+  .delete('/flashcard-decks/:id', async ({ params }) => {
     const id = parseId(params.id);
     return await prisma.flashcardDeck.delete({ where: { id } });
   })
 
   .post(
-    "/flashcard-decks/:deckId/cards",
+    '/flashcard-decks/:deckId/cards',
     async (context) => {
       const { deckId } = context.params as { deckId: string };
       const { front, back } = context.body as { front: string; back: string };
-      const deckIdNum = parseId(deckId, "deckId");
+      const deckIdNum = parseId(deckId, 'deckId');
       return await prisma.flashcard.create({
         data: {
           deckId: deckIdNum,
@@ -145,11 +157,11 @@ export const flashcardsRoutes = new Elysia()
         front: t.String({ minLength: 1 }),
         back: t.String({ minLength: 1 }),
       }),
-    }
+    },
   )
 
   .patch(
-    "/flashcards/:id",
+    '/flashcards/:id',
     async (context) => {
       const id = parseId(context.params.id);
       const body = context.body as { front?: string; back?: string };
@@ -167,17 +179,17 @@ export const flashcardsRoutes = new Elysia()
         front: t.Optional(t.String()),
         back: t.Optional(t.String()),
       }),
-    }
+    },
   )
 
-  .delete("/flashcards/:id", async ({ params }) => {
+  .delete('/flashcards/:id', async ({ params }) => {
     const id = parseId(params.id);
     return await prisma.flashcard.delete({ where: { id } });
   })
 
   // フラッシュカード復習（FSRSアルゴリズム）
   .post(
-    "/flashcards/:id/review",
+    '/flashcards/:id/review',
     async (context) => {
       const id = parseId(context.params.id);
       const { quality } = context.body as { quality: number }; // 0-5 scale (mapped to FSRS Rating 1-4)
@@ -185,7 +197,7 @@ export const flashcardsRoutes = new Elysia()
       const card = await prisma.flashcard.findUnique({
         where: { id },
       });
-      if (!card) throw new NotFoundError("Card not found");
+      if (!card) throw new NotFoundError('Card not found');
 
       const now = new Date();
       const fsrsCard = toFsrsCard(card);
@@ -216,14 +228,14 @@ export const flashcardsRoutes = new Elysia()
       body: t.Object({
         quality: t.Number({ minimum: 0, maximum: 5 }),
       }),
-    }
+    },
   )
 
   // FSRSスケジューリングプレビュー（各Rating選択時の次回復習日を返す）
-  .get("/flashcards/:id/schedule-preview", async ({ params }) => {
+  .get('/flashcards/:id/schedule-preview', async ({ params }) => {
     const id = parseId(params.id);
     const card = await prisma.flashcard.findUnique({ where: { id } });
-    if (!card) throw new NotFoundError("Card not found");
+    if (!card) throw new NotFoundError('Card not found');
 
     const now = new Date();
     const fsrsCard = toFsrsCard(card);
@@ -250,7 +262,7 @@ export const flashcardsRoutes = new Elysia()
   })
 
   // 今日復習すべきカード
-  .get("/flashcards/due", async () => {
+  .get('/flashcards/due', async () => {
     const today = new Date();
     return await prisma.flashcard.findMany({
       where: {
@@ -259,16 +271,21 @@ export const flashcardsRoutes = new Elysia()
       include: {
         deck: true,
       },
-      orderBy: { nextReview: "asc" },
+      orderBy: { nextReview: 'asc' },
     });
   })
 
   // AIでフラッシュカードを自動生成
   .post(
-    "/flashcard-decks/:deckId/generate",
+    '/flashcard-decks/:deckId/generate',
     async (context) => {
-      const deckId = parseId(context.params.deckId, "deckId");
-      const { topic, count = 10, difficulty = "intermediate", language = "ja" } = context.body as {
+      const deckId = parseId(context.params.deckId, 'deckId');
+      const {
+        topic,
+        count = 10,
+        difficulty = 'intermediate',
+        language = 'ja',
+      } = context.body as {
         topic: string;
         count?: number;
         difficulty?: string;
@@ -280,7 +297,7 @@ export const flashcardsRoutes = new Elysia()
         where: { id: deckId },
       });
       if (!deck) {
-        throw new NotFoundError("Deck not found");
+        throw new NotFoundError('Deck not found');
       }
 
       // APIキーの取得
@@ -291,38 +308,39 @@ export const flashcardsRoutes = new Elysia()
         try {
           apiKey = decrypt(settings.claudeApiKeyEncrypted);
         } catch (error) {
-          log.error({ err: error }, "Failed to decrypt API key");
-          throw new AppError(500, "Failed to decrypt API key");
+          log.error({ err: error }, 'Failed to decrypt API key');
+          throw new AppError(500, 'Failed to decrypt API key');
         }
       } else {
         apiKey = process.env.CLAUDE_API_KEY;
       }
 
       if (!apiKey) {
-        throw new ValidationError("API key not configured");
+        throw new ValidationError('API key not configured');
       }
 
       try {
         // Claude APIを使用してフラッシュカードを生成
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01",
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
           },
           body: JSON.stringify({
-            model: "claude-3-haiku-20240307",
+            model: 'claude-3-haiku-20240307',
             max_tokens: 4096,
             messages: [
               {
-                role: "user",
+                role: 'user',
                 content: `
-${language === "ja" ?
-`「${topic}」に関するフラッシュカードを${count}枚作成してください。
+${
+  language === 'ja'
+    ? `「${topic}」に関するフラッシュカードを${count}枚作成してください。
 
 条件：
-- 難易度: ${difficulty === "beginner" ? "初級" : difficulty === "intermediate" ? "中級" : "上級"}
+- 難易度: ${difficulty === 'beginner' ? '初級' : difficulty === 'intermediate' ? '中級' : '上級'}
 - 各カードは「質問」と「回答」のペアで構成
 - 学習効果を高めるため、段階的に難しくなるように配置
 - 回答は簡潔で覚えやすく、必要に応じて例や説明を含める
@@ -335,8 +353,8 @@ ${language === "ja" ?
       "back": "回答内容"
     }
   ]
-}` :
-`Create ${count} flashcards about "${topic}".
+}`
+    : `Create ${count} flashcards about "${topic}".
 
 Requirements:
 - Difficulty level: ${difficulty}
@@ -352,7 +370,8 @@ Output in the following JSON format:
       "back": "Answer text"
     }
   ]
-}`}`,
+}`
+}`,
               },
             ],
           }),
@@ -362,13 +381,13 @@ Output in the following JSON format:
           throw new Error(`API request failed: ${response.statusText}`);
         }
 
-        const data = await response.json() as ClaudeAPIResponse;
+        const data = (await response.json()) as ClaudeAPIResponse;
         const content = data.content[0].text;
 
         // JSON部分を抽出
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
-          throw new Error("Failed to parse AI response");
+          throw new Error('Failed to parse AI response');
         }
 
         const generatedData = JSON.parse(jsonMatch[0]);
@@ -383,8 +402,8 @@ Output in the following JSON format:
                 front: card.front,
                 back: card.back,
               },
-            })
-          )
+            }),
+          ),
         );
 
         return {
@@ -393,26 +412,34 @@ Output in the following JSON format:
           cards: createdCards,
         };
       } catch (error) {
-        log.error({ err: error }, "Error generating flashcards");
+        log.error({ err: error }, 'Error generating flashcards');
         if (error instanceof AppError) throw error;
-        throw new AppError(500, "Failed to generate flashcards");
+        throw new AppError(500, 'Failed to generate flashcards');
       }
     },
     {
       body: t.Object({
         topic: t.String({ minLength: 1 }),
         count: t.Optional(t.Number({ minimum: 1, maximum: 50 })),
-        difficulty: t.Optional(t.Enum({ beginner: "beginner", intermediate: "intermediate", advanced: "advanced" })),
-        language: t.Optional(t.Enum({ ja: "ja", en: "en" })),
+        difficulty: t.Optional(
+          t.Enum({ beginner: 'beginner', intermediate: 'intermediate', advanced: 'advanced' }),
+        ),
+        language: t.Optional(t.Enum({ ja: 'ja', en: 'en' })),
       }),
-    }
+    },
   )
 
   // ノートテキストからフラッシュカードを生成（新規デッキ作成 or 既存デッキに追加）
   .post(
-    "/flashcards/generate-from-text",
+    '/flashcards/generate-from-text',
     async (context) => {
-      const { text, deckName, deckId, count = 10, language = "ja" } = context.body as {
+      const {
+        text,
+        deckName,
+        deckId,
+        count = 10,
+        language = 'ja',
+      } = context.body as {
         text: string;
         deckName?: string;
         deckId?: number;
@@ -421,7 +448,7 @@ Output in the following JSON format:
       };
 
       if (!text || text.trim().length < 10) {
-        throw new ValidationError("Text content is too short for flashcard generation");
+        throw new ValidationError('Text content is too short for flashcard generation');
       }
 
       // APIキーの取得
@@ -432,29 +459,32 @@ Output in the following JSON format:
         try {
           apiKey = decrypt(settings.claudeApiKeyEncrypted);
         } catch (error) {
-          log.error({ err: error }, "Failed to decrypt API key");
-          throw new AppError(500, "Failed to decrypt API key");
+          log.error({ err: error }, 'Failed to decrypt API key');
+          throw new AppError(500, 'Failed to decrypt API key');
         }
       } else {
         apiKey = process.env.CLAUDE_API_KEY;
       }
 
       if (!apiKey) {
-        throw new ValidationError("API key not configured");
+        throw new ValidationError('API key not configured');
       }
 
       // デッキの準備（既存 or 新規作成）
       let targetDeckId: number;
       if (deckId) {
         const deck = await prisma.flashcardDeck.findUnique({ where: { id: deckId } });
-        if (!deck) throw new NotFoundError("Deck not found");
+        if (!deck) throw new NotFoundError('Deck not found');
         targetDeckId = deckId;
       } else {
         const newDeck = await prisma.flashcardDeck.create({
           data: {
-            name: deckName || (language === "ja" ? "ノートから生成" : "Generated from notes"),
-            description: language === "ja" ? "ノートの内容から自動生成されたフラッシュカード" : "Flashcards auto-generated from note content",
-            color: "#8B5CF6",
+            name: deckName || (language === 'ja' ? 'ノートから生成' : 'Generated from notes'),
+            description:
+              language === 'ja'
+                ? 'ノートの内容から自動生成されたフラッシュカード'
+                : 'Flashcards auto-generated from note content',
+            color: '#8B5CF6',
           },
         });
         targetDeckId = newDeck.id;
@@ -463,33 +493,34 @@ Output in the following JSON format:
       try {
         // HTMLタグを除去してプレーンテキストに変換
         const plainText = text
-          .replace(/<[^>]*>/g, " ")
-          .replace(/&nbsp;/g, " ")
-          .replace(/&amp;/g, "&")
-          .replace(/&lt;/g, "<")
-          .replace(/&gt;/g, ">")
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
           .replace(/&quot;/g, '"')
-          .replace(/\s+/g, " ")
+          .replace(/\s+/g, ' ')
           .trim();
 
         // 文字数制限（トークン制限対策）
         const truncatedText = plainText.slice(0, 8000);
 
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01",
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
           },
           body: JSON.stringify({
-            model: "claude-3-haiku-20240307",
+            model: 'claude-3-haiku-20240307',
             max_tokens: 4096,
             messages: [
               {
-                role: "user",
-                content: language === "ja"
-                  ? `以下のテキストからフラッシュカードを${count}枚作成してください。
+                role: 'user',
+                content:
+                  language === 'ja'
+                    ? `以下のテキストからフラッシュカードを${count}枚作成してください。
 
 テキスト内容の重要な概念、用語、事実を抽出し、学習に最適なQ&Aペアを作成してください。
 
@@ -504,7 +535,7 @@ Output in the following JSON format:
 
 テキスト：
 ${truncatedText}`
-                  : `Create ${count} flashcards from the following text.
+                    : `Create ${count} flashcards from the following text.
 
 Extract key concepts, terms, and facts from the text and create optimal Q&A pairs for learning.
 
@@ -528,19 +559,19 @@ ${truncatedText}`,
           throw new Error(`API request failed: ${response.statusText}`);
         }
 
-        const data = await response.json() as ClaudeAPIResponse;
+        const data = (await response.json()) as ClaudeAPIResponse;
         const content = data.content[0].text;
 
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
-          throw new Error("Failed to parse AI response");
+          throw new Error('Failed to parse AI response');
         }
 
         const generatedData = JSON.parse(jsonMatch[0]);
         const cards = generatedData.cards;
 
         if (!Array.isArray(cards) || cards.length === 0) {
-          throw new Error("No cards generated");
+          throw new Error('No cards generated');
         }
 
         const createdCards = await Promise.all(
@@ -551,8 +582,8 @@ ${truncatedText}`,
                 front: card.front,
                 back: card.back,
               },
-            })
-          )
+            }),
+          ),
         );
 
         const deck = await prisma.flashcardDeck.findUnique({
@@ -568,9 +599,9 @@ ${truncatedText}`,
           cards: createdCards,
         };
       } catch (error) {
-        log.error({ err: error }, "Error generating flashcards from text");
+        log.error({ err: error }, 'Error generating flashcards from text');
         if (error instanceof AppError) throw error;
-        throw new AppError(500, "Failed to generate flashcards from text");
+        throw new AppError(500, 'Failed to generate flashcards from text');
       }
     },
     {
@@ -581,5 +612,5 @@ ${truncatedText}`,
         count: t.Optional(t.Number({ minimum: 1, maximum: 30 })),
         language: t.Optional(t.String()),
       }),
-    }
+    },
   );

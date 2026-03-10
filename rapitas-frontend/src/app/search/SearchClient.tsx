@@ -4,7 +4,10 @@ import { useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Search, SearchX } from 'lucide-react';
-import { useGlobalSearch, type SearchResultType } from '@/hooks/useGlobalSearch';
+import {
+  useGlobalSearch,
+  type SearchResultType,
+} from '@/hooks/useGlobalSearch';
 import SearchResultCard from '@/feature/search/components/SearchResultCard';
 import Pagination from '@/components/ui/pagination/Pagination';
 
@@ -27,18 +30,24 @@ export default function SearchClient() {
   const initialLimit = parseInt(searchParams.get('limit') || '10', 10);
 
   // 初期値として使用するためのtypes（URLパラメータベース）
-  const initialTypes = useMemo(() =>
-    initialType === null || initialType === 'all' ? undefined : [initialType as SearchResultType],
-    [initialType]
+  const initialTypes = useMemo(
+    () =>
+      initialType === null || initialType === 'all'
+        ? undefined
+        : [initialType as SearchResultType],
+    [initialType],
   );
 
   // useGlobalSearchのオプションをメモ化
-  const searchOptions = useMemo(() => ({
-    initialQuery,
-    types: initialTypes,
-    limit: initialLimit,
-    debounceDelay: 400,
-  }), [initialQuery, initialTypes, initialLimit]);
+  const searchOptions = useMemo(
+    () => ({
+      initialQuery,
+      types: initialTypes,
+      limit: initialLimit,
+      debounceDelay: 400,
+    }),
+    [initialQuery, initialTypes, initialLimit],
+  );
 
   const {
     query,
@@ -56,7 +65,9 @@ export default function SearchClient() {
   } = useGlobalSearch(searchOptions);
 
   // アクティブタイプをフックの現在の状態から決定
-  const activeType = currentTypes ? currentTypes[0] || 'all' : (initialType || 'all');
+  const activeType = currentTypes
+    ? currentTypes[0] || 'all'
+    : initialType || 'all';
 
   // Sync offset with page param
   useEffect(() => {
@@ -104,10 +115,8 @@ export default function SearchClient() {
     updateUrl(query, activeType, 1, newLimit);
   };
 
-
   return (
     <div className="max-w-3xl mx-auto p-6">
-
       {/* Type filter tabs */}
       <div className="flex flex-wrap gap-2 mb-6">
         {TYPE_TABS.map((tab) => (
@@ -190,10 +199,7 @@ export default function SearchClient() {
                 className="animate-in fade-in-0 slide-in-from-top-2 duration-300"
                 style={{ animationDelay: `${index * 50}ms` }}
               >
-                <SearchResultCard
-                  result={result}
-                  query={query}
-                />
+                <SearchResultCard result={result} query={query} />
               </div>
             ))}
           </div>

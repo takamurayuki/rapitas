@@ -2,11 +2,11 @@
  * ストリーミングジャーナル（WALクラッシュ耐性）
  * サーバー起動時にpendingエントリをリプレイし、データ整合性を保証
  */
-import { prisma } from "../../config/database";
-import { createLogger } from "../../config/logger";
-import type { JournalOperationType } from "./types";
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+import type { JournalOperationType } from './types';
 
-const log = createLogger("memory:journal");
+const log = createLogger('memory:journal');
 
 export class MemoryJournal {
   /**
@@ -29,7 +29,7 @@ export class MemoryJournal {
         targetTable: op.targetTable,
         targetId: op.targetId,
         payload: JSON.stringify(op.payload),
-        status: "pending",
+        status: 'pending',
       },
     });
 
@@ -41,7 +41,7 @@ export class MemoryJournal {
       await prisma.memoryJournalEntry.update({
         where: { id: entry.id },
         data: {
-          status: "committed",
+          status: 'committed',
           targetId: result.id ?? op.targetId,
         },
       });
@@ -52,9 +52,9 @@ export class MemoryJournal {
       const message = error instanceof Error ? error.message : String(error);
       await prisma.memoryJournalEntry.update({
         where: { id: entry.id },
-        data: { status: "failed", errorMessage: message },
+        data: { status: 'failed', errorMessage: message },
       });
-      log.error({ err: error, journalId: entry.id }, "Journal write failed");
+      log.error({ err: error, journalId: entry.id }, 'Journal write failed');
       throw error;
     }
   }
@@ -64,13 +64,13 @@ export class MemoryJournal {
    */
   static async recover(): Promise<number> {
     const pendingEntries = await prisma.memoryJournalEntry.findMany({
-      where: { status: "pending" },
-      orderBy: { createdAt: "asc" },
+      where: { status: 'pending' },
+      orderBy: { createdAt: 'asc' },
     });
 
     if (pendingEntries.length === 0) return 0;
 
-    log.warn({ count: pendingEntries.length }, "Recovering pending journal entries");
+    log.warn({ count: pendingEntries.length }, 'Recovering pending journal entries');
 
     let recovered = 0;
     for (const entry of pendingEntries) {
@@ -80,17 +80,17 @@ export class MemoryJournal {
         await prisma.memoryJournalEntry.update({
           where: { id: entry.id },
           data: {
-            status: "failed",
-            errorMessage: "Recovered during startup - operation may not have completed",
+            status: 'failed',
+            errorMessage: 'Recovered during startup - operation may not have completed',
           },
         });
         recovered++;
       } catch (error) {
-        log.error({ err: error, journalId: entry.id }, "Failed to recover journal entry");
+        log.error({ err: error, journalId: entry.id }, 'Failed to recover journal entry');
       }
     }
 
-    log.info({ recovered }, "Journal recovery completed");
+    log.info({ recovered }, 'Journal recovery completed');
     return recovered;
   }
 
@@ -102,13 +102,13 @@ export class MemoryJournal {
 
     const result = await prisma.memoryJournalEntry.deleteMany({
       where: {
-        status: "committed",
+        status: 'committed',
         createdAt: { lt: cutoff },
       },
     });
 
     if (result.count > 0) {
-      log.info({ count: result.count }, "Journal checkpoint: cleaned old entries");
+      log.info({ count: result.count }, 'Journal checkpoint: cleaned old entries');
     }
 
     return result.count;

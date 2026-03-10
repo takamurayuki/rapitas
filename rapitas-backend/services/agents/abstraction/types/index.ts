@@ -11,17 +11,10 @@ export type {
 } from './agent-identification';
 
 // タスク定義
-export type {
-  TaskAnalysisResult,
-  SubtaskDefinition,
-  TaskConstraints,
-} from './task-definition';
+export type { TaskAnalysisResult, SubtaskDefinition, TaskConstraints } from './task-definition';
 
 // 実行コンテキスト
-export type {
-  AgentExecutionContext,
-  AgentTaskDefinition,
-} from './execution-context';
+export type { AgentExecutionContext, AgentTaskDefinition } from './execution-context';
 
 // 実行結果
 export type {

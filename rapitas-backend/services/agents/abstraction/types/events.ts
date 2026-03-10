@@ -3,22 +3,27 @@
  */
 
 import type { AgentState } from './agent-identification';
-import type { ExecutionMetrics, PendingQuestion, AgentArtifact, GitCommitInfo } from './execution-result';
+import type {
+  ExecutionMetrics,
+  PendingQuestion,
+  AgentArtifact,
+  GitCommitInfo,
+} from './execution-result';
 
 /**
  * エージェントイベントタイプ
  */
 export type AgentEventType =
-  | 'state_change'       // 状態変更
-  | 'output'             // 出力（ストリーミング）
-  | 'error'              // エラー
-  | 'tool_start'         // ツール実行開始
-  | 'tool_end'           // ツール実行終了
-  | 'question'           // 質問発生
-  | 'progress'           // 進捗更新
-  | 'artifact'           // 成果物生成
-  | 'commit'             // Gitコミット
-  | 'metrics_update';    // メトリクス更新
+  | 'state_change' // 状態変更
+  | 'output' // 出力（ストリーミング）
+  | 'error' // エラー
+  | 'tool_start' // ツール実行開始
+  | 'tool_end' // ツール実行終了
+  | 'question' // 質問発生
+  | 'progress' // 進捗更新
+  | 'artifact' // 成果物生成
+  | 'commit' // Gitコミット
+  | 'metrics_update'; // メトリクス更新
 
 /**
  * エージェントイベント基底型
@@ -114,4 +119,6 @@ export type AgentEvent =
 /**
  * イベントハンドラ型
  */
-export type AgentEventHandler<T extends AgentEvent = AgentEvent> = (event: T) => void | Promise<void>;
+export type AgentEventHandler<T extends AgentEvent = AgentEvent> = (
+  event: T,
+) => void | Promise<void>;

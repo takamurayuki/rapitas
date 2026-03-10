@@ -2,36 +2,41 @@
  * Time Entries API Routes
  * Task time tracking endpoints
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
-import { ValidationError } from "../../middleware/error-handler";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
+import { ValidationError } from '../../middleware/error-handler';
 
 export const timeEntriesRoutes = new Elysia()
   // Get time entries for a task
-  .get("/tasks/:id/time-entries", async (context) => {
-      const { params  } = context;
+  .get('/tasks/:id/time-entries', async (context) => {
+    const { params } = context;
     const taskId = parseInt(params.id);
     if (isNaN(taskId)) {
-      throw new ValidationError("無効なタスクIDです");
+      throw new ValidationError('無効なタスクIDです');
     }
 
     return await prisma.timeEntry.findMany({
       where: { taskId },
-      orderBy: { startedAt: "desc" },
+      orderBy: { startedAt: 'desc' },
     });
   })
 
   // Create time entry for a task
   .post(
-    "/tasks/:id/time-entries",
+    '/tasks/:id/time-entries',
     async (context) => {
-      const { params, body  } = context;
+      const { params, body } = context;
       const taskId = parseInt(params.id);
       if (isNaN(taskId)) {
-        throw new ValidationError("無効なタスクIDです");
+        throw new ValidationError('無効なタスクIDです');
       }
 
-      const { duration, note, startedAt, endedAt  } = body as { duration: number; note?: string; startedAt: string; endedAt: string };
+      const { duration, note, startedAt, endedAt } = body as {
+        duration: number;
+        note?: string;
+        startedAt: string;
+        endedAt: string;
+      };
       return await prisma.timeEntry.create({
         data: {
           taskId,
@@ -49,5 +54,5 @@ export const timeEntriesRoutes = new Elysia()
         endedAt: t.String(),
         note: t.Optional(t.String()),
       }),
-    }
+    },
   );

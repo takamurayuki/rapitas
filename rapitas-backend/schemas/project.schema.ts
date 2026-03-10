@@ -1,7 +1,7 @@
 /**
  * Project Validation Schemas
  */
-import { t } from "elysia";
+import { t } from 'elysia';
 
 export const projectSchema = {
   create: t.Object({

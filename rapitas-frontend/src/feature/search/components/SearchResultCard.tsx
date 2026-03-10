@@ -2,10 +2,19 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckSquare, MessageSquare, FileText, StickyNote, ExternalLink } from 'lucide-react';
+import {
+  CheckSquare,
+  MessageSquare,
+  FileText,
+  StickyNote,
+  ExternalLink,
+} from 'lucide-react';
 import type { SearchResult, SearchResultType } from '@/hooks/useGlobalSearch';
 
-const typeConfig: Record<SearchResultType, { label: string; icon: React.ElementType; color: string; darkColor: string }> = {
+const typeConfig: Record<
+  SearchResultType,
+  { label: string; icon: React.ElementType; color: string; darkColor: string }
+> = {
   task: {
     label: 'タスク',
     icon: CheckSquare,
@@ -39,7 +48,10 @@ function highlightExcerpt(excerpt: string, query: string): React.ReactNode {
   const parts = excerpt.split(regex);
   return parts.map((part, i) =>
     regex.test(part) ? (
-      <mark key={i} className="bg-yellow-200 dark:bg-yellow-700/50 text-inherit rounded-sm px-0.5">
+      <mark
+        key={i}
+        className="bg-yellow-200 dark:bg-yellow-700/50 text-inherit rounded-sm px-0.5"
+      >
         {part}
       </mark>
     ) : (
@@ -64,7 +76,10 @@ interface SearchResultCardProps {
   query: string;
 }
 
-export default function SearchResultCard({ result, query }: SearchResultCardProps) {
+export default function SearchResultCard({
+  result,
+  query,
+}: SearchResultCardProps) {
   const router = useRouter();
   const config = typeConfig[result.type];
   const Icon = config.icon;
@@ -73,7 +88,9 @@ export default function SearchResultCard({ result, query }: SearchResultCardProp
   const status = metadata?.status as string | undefined;
   const priority = metadata?.priority as string | undefined;
   const taskTitle = metadata?.taskTitle as string | undefined;
-  const theme = metadata?.theme as { name?: string; color?: string } | undefined;
+  const theme = metadata?.theme as
+    | { name?: string; color?: string }
+    | undefined;
 
   return (
     <button
@@ -83,7 +100,9 @@ export default function SearchResultCard({ result, query }: SearchResultCardProp
     >
       <div className="flex items-start gap-3">
         {/* Type icon */}
-        <div className={`flex-shrink-0 p-2 rounded-lg ${config.color} ${config.darkColor}`}>
+        <div
+          className={`flex-shrink-0 p-2 rounded-lg ${config.color} ${config.darkColor}`}
+        >
           <Icon className="w-4 h-4" />
         </div>
 
@@ -105,7 +124,9 @@ export default function SearchResultCard({ result, query }: SearchResultCardProp
 
           {/* Metadata badges */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${config.color} ${config.darkColor}`}>
+            <span
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${config.color} ${config.darkColor}`}
+            >
               <Icon className="w-3 h-3" />
               {config.label}
             </span>

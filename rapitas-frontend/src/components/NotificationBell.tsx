@@ -95,7 +95,10 @@ export default function NotificationBell() {
     if (diffMins < 60) return t('minutesAgo', { count: diffMins });
     if (diffHours < 24) return t('hoursAgo', { count: diffHours });
     if (diffDays < 7) return t('daysAgo', { count: diffDays });
-    return date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(dateLocale, {
+      month: 'short',
+      day: 'numeric',
+    });
   };
 
   return (

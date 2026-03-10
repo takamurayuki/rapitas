@@ -1,5 +1,5 @@
-import { Prisma } from "@prisma/client";
-import type { PrismaClient } from "@prisma/client";
+import { Prisma } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { createLogger } from '../config/logger';
 
 const log = createLogger('prisma-optimization');
@@ -47,10 +47,7 @@ export class PrismaOptimizer {
   }
 
   // カーソルベースのページネーション
-  static cursorPagination<T extends { id: string | number }>(
-    cursor?: string,
-    limit: number = 20,
-  ) {
+  static cursorPagination<T extends { id: string | number }>(cursor?: string, limit: number = 20) {
     return {
       take: limit + 1,
       ...(cursor && {
@@ -61,15 +58,10 @@ export class PrismaOptimizer {
   }
 
   // 結果のフォーマット
-  static formatCursorResults<T extends { id: string | number }>(
-    items: T[],
-    limit: number,
-  ) {
+  static formatCursorResults<T extends { id: string | number }>(items: T[], limit: number) {
     const hasNextPage = items.length > limit;
     const data = hasNextPage ? items.slice(0, -1) : items;
-    const nextCursor = hasNextPage
-      ? String(data[data.length - 1]?.id)
-      : undefined;
+    const nextCursor = hasNextPage ? String(data[data.length - 1]?.id) : undefined;
 
     return {
       data,
@@ -88,7 +80,10 @@ interface MiddlewareParams {
   runInTransaction: boolean;
 }
 
-type PrismaMiddlewareFn = (params: MiddlewareParams, next: (params: MiddlewareParams) => Promise<unknown>) => Promise<unknown>;
+type PrismaMiddlewareFn = (
+  params: MiddlewareParams,
+  next: (params: MiddlewareParams) => Promise<unknown>,
+) => Promise<unknown>;
 type PrismaWithUse = PrismaClient & { $use: (fn: PrismaMiddlewareFn) => void };
 
 // Prismaミドルウェアの拡張
@@ -96,64 +91,62 @@ export function setupPrismaOptimizations(prisma: PrismaClient) {
   const prismaWithMiddleware = prisma as unknown as PrismaWithUse;
   // クエリのロギングとパフォーマンス計測
   // Note: $use middleware is deprecated in newer Prisma versions, using type assertion
-  prismaWithMiddleware.$use(async (params: MiddlewareParams, next: (params: MiddlewareParams) => Promise<unknown>) => {
-    const before = Date.now();
-    const result = await next(params);
-    const after = Date.now();
-    const duration = after - before;
+  prismaWithMiddleware.$use(
+    async (params: MiddlewareParams, next: (params: MiddlewareParams) => Promise<unknown>) => {
+      const before = Date.now();
+      const result = await next(params);
+      const after = Date.now();
+      const duration = after - before;
 
-    // 遅いクエリの検出
-    if (duration > 100) {
-      log.warn(
-        `Slow query detected: ${params.model}.${params.action} took ${duration}ms`,
-      );
-    }
+      // 遅いクエリの検出
+      if (duration > 100) {
+        log.warn(`Slow query detected: ${params.model}.${params.action} took ${duration}ms`);
+      }
 
-    // メトリクスの記録（実際のアプリケーションではメトリクスサービスに送信）
-    if (global.performanceMetrics) {
-      global.performanceMetrics.recordQuery({
-        model: params.model,
-        action: params.action,
-        duration,
-      });
-    }
+      // メトリクスの記録（実際のアプリケーションではメトリクスサービスに送信）
+      if (global.performanceMetrics) {
+        global.performanceMetrics.recordQuery({
+          model: params.model,
+          action: params.action,
+          duration,
+        });
+      }
 
-    return result;
-  });
+      return result;
+    },
+  );
 
   // 自動的なリトライロジック
-  prismaWithMiddleware.$use(async (params: MiddlewareParams, next: (params: MiddlewareParams) => Promise<unknown>) => {
-    const maxRetries = 3;
-    let retries = 0;
+  prismaWithMiddleware.$use(
+    async (params: MiddlewareParams, next: (params: MiddlewareParams) => Promise<unknown>) => {
+      const maxRetries = 3;
+      let retries = 0;
 
-    while (retries < maxRetries) {
-      try {
-        return await next(params);
-      } catch (error: unknown) {
-        retries++;
+      while (retries < maxRetries) {
+        try {
+          return await next(params);
+        } catch (error: unknown) {
+          retries++;
 
-        const prismaError = error as { code?: string };
-        // トランザクションのデッドロックやタイムアウトの場合にリトライ
-        if (
-          prismaError.code === "P2034" || // トランザクションのタイムアウト
-          prismaError.code === "P2024" || // タイムアウト
-          (prismaError.code === "P2002" && retries < maxRetries) // ユニーク制約違反（リトライ可能な場合）
-        ) {
-          log.info(
-            `Retrying query (${retries}/${maxRetries}): ${params.model}.${params.action}`,
-          );
-          await new Promise((resolve) =>
-            setTimeout(resolve, Math.pow(2, retries) * 100),
-          );
-          continue;
+          const prismaError = error as { code?: string };
+          // トランザクションのデッドロックやタイムアウトの場合にリトライ
+          if (
+            prismaError.code === 'P2034' || // トランザクションのタイムアウト
+            prismaError.code === 'P2024' || // タイムアウト
+            (prismaError.code === 'P2002' && retries < maxRetries) // ユニーク制約違反（リトライ可能な場合）
+          ) {
+            log.info(`Retrying query (${retries}/${maxRetries}): ${params.model}.${params.action}`);
+            await new Promise((resolve) => setTimeout(resolve, Math.pow(2, retries) * 100));
+            continue;
+          }
+
+          throw error;
         }
-
-        throw error;
       }
-    }
 
-    throw new Error(`Query failed after ${maxRetries} retries`);
-  });
+      throw new Error(`Query failed after ${maxRetries} retries`);
+    },
+  );
 }
 
 // 効率的なデータローダー
@@ -212,7 +205,7 @@ export class PrismaDataLoader<T> {
       });
     } catch (error) {
       batch.forEach(({ resolve }) => resolve(null));
-      log.error({ err: error }, "DataLoader error");
+      log.error({ err: error }, 'DataLoader error');
     }
   }
 
@@ -242,7 +235,7 @@ export const QueryOptimizers = {
       },
       timeEntries: {
         select: { id: true, startedAt: true, endedAt: true, duration: true },
-        orderBy: { startedAt: "desc" as const },
+        orderBy: { startedAt: 'desc' as const },
         take: 5,
       },
       taskDependencies: {
@@ -265,12 +258,12 @@ export const QueryOptimizers = {
     const results = await PrismaOptimizer.parallelQueries({
       totalCount: prisma.task.count({ where: filters }),
       statusCounts: prisma.task.groupBy({
-        by: ["status"],
+        by: ['status'],
         where: filters,
         _count: { status: true },
       }),
       priorityCounts: prisma.task.groupBy({
-        by: ["priority"],
+        by: ['priority'],
         where: filters,
         _count: { priority: true },
       }),
@@ -278,7 +271,7 @@ export const QueryOptimizers = {
         where: {
           ...filters,
           dueDate: { lt: new Date() },
-          status: { not: "completed" },
+          status: { not: 'completed' },
         },
       }),
       upcomingTasks: prisma.task.findMany({
@@ -288,10 +281,10 @@ export const QueryOptimizers = {
             gte: new Date(),
             lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           },
-          status: { not: "completed" },
+          status: { not: 'completed' },
         },
         select: { id: true, title: true, dueDate: true },
-        orderBy: { dueDate: "asc" },
+        orderBy: { dueDate: 'asc' },
         take: 5,
       }),
     });
@@ -299,10 +292,16 @@ export const QueryOptimizers = {
     return {
       total: results.totalCount,
       byStatus: Object.fromEntries(
-        results.statusCounts.map((s: { status: string; _count: { status: number } }) => [s.status, s._count.status]),
+        results.statusCounts.map((s: { status: string; _count: { status: number } }) => [
+          s.status,
+          s._count.status,
+        ]),
       ),
       byPriority: Object.fromEntries(
-        results.priorityCounts.map((p: { priority: string; _count: { priority: number } }) => [p.priority, p._count.priority]),
+        results.priorityCounts.map((p: { priority: string; _count: { priority: number } }) => [
+          p.priority,
+          p._count.priority,
+        ]),
       ),
       overdue: results.overdueTasks,
       upcoming: results.upcomingTasks,
@@ -316,11 +315,11 @@ export const QueryOptimizers = {
         filters,
         {
           OR: [
-            { title: { contains: searchTerm, mode: "insensitive" as const } },
+            { title: { contains: searchTerm, mode: 'insensitive' as const } },
             {
               description: {
                 contains: searchTerm,
-                mode: "insensitive" as const,
+                mode: 'insensitive' as const,
               },
             },
             {
@@ -329,7 +328,7 @@ export const QueryOptimizers = {
                   label: {
                     name: {
                       contains: searchTerm,
-                      mode: "insensitive" as const,
+                      mode: 'insensitive' as const,
                     },
                   },
                 },
@@ -355,10 +354,6 @@ export const QueryOptimizers = {
 // グローバルな型定義
 declare global {
   var performanceMetrics: {
-    recordQuery: (data: {
-      model?: string;
-      action: string;
-      duration: number;
-    }) => void;
+    recordQuery: (data: { model?: string; action: string; duration: number }) => void;
   };
 }

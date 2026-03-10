@@ -34,7 +34,9 @@ function getDefaultDateRange(): DateRange {
 }
 
 export function useAnalyticsDashboard(initialRange?: DateRange) {
-  const [dateRange, setDateRange] = useState<DateRange>(initialRange ?? getDefaultDateRange());
+  const [dateRange, setDateRange] = useState<DateRange>(
+    initialRange ?? getDefaultDateRange(),
+  );
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 

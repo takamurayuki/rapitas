@@ -24,7 +24,10 @@ import {
   ArrowUp,
   Minus,
 } from 'lucide-react';
-import { SubtaskTitleIndicator, type ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import {
+  SubtaskTitleIndicator,
+  type ParallelExecutionStatus,
+} from '@/feature/tasks/components/SubtaskExecutionStatus';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import { useTranslations } from 'next-intl';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
@@ -51,7 +54,9 @@ interface SubtaskSectionProps {
   onSetDeleteConfirm: (v: 'all' | 'selected' | null) => void;
   onDeleteAll: () => void;
   onDeleteSelected: () => void;
-  onStartEditingSubtask: (subtask: NonNullable<Task['subtasks']>[number]) => void;
+  onStartEditingSubtask: (
+    subtask: NonNullable<Task['subtasks']>[number],
+  ) => void;
   onSetEditingSubtaskTitle: (v: string) => void;
   onSetEditingSubtaskDescription: (v: string) => void;
   onSetEditingSubtaskPriority: (v: Priority) => void;
@@ -62,11 +67,41 @@ interface SubtaskSectionProps {
   onUpdateStatus: (id: number, status: string) => void;
 }
 
-const priorityOptions: { value: Priority; icon: React.ReactNode; color: string; activeBg: string; activeBorder: string }[] = [
-  { value: 'low', icon: <ArrowDown className="w-3.5 h-3.5" />, color: 'text-blue-500', activeBg: 'bg-blue-50 dark:bg-blue-900/30', activeBorder: 'border-blue-400 dark:border-blue-500' },
-  { value: 'medium', icon: <Minus className="w-3.5 h-3.5" />, color: 'text-yellow-500', activeBg: 'bg-yellow-50 dark:bg-yellow-900/30', activeBorder: 'border-yellow-400 dark:border-yellow-500' },
-  { value: 'high', icon: <ArrowUp className="w-3.5 h-3.5" />, color: 'text-orange-500', activeBg: 'bg-orange-50 dark:bg-orange-900/30', activeBorder: 'border-orange-400 dark:border-orange-500' },
-  { value: 'urgent', icon: <AlertTriangle className="w-3.5 h-3.5" />, color: 'text-red-500', activeBg: 'bg-red-50 dark:bg-red-900/30', activeBorder: 'border-red-400 dark:border-red-500' },
+const priorityOptions: {
+  value: Priority;
+  icon: React.ReactNode;
+  color: string;
+  activeBg: string;
+  activeBorder: string;
+}[] = [
+  {
+    value: 'low',
+    icon: <ArrowDown className="w-3.5 h-3.5" />,
+    color: 'text-blue-500',
+    activeBg: 'bg-blue-50 dark:bg-blue-900/30',
+    activeBorder: 'border-blue-400 dark:border-blue-500',
+  },
+  {
+    value: 'medium',
+    icon: <Minus className="w-3.5 h-3.5" />,
+    color: 'text-yellow-500',
+    activeBg: 'bg-yellow-50 dark:bg-yellow-900/30',
+    activeBorder: 'border-yellow-400 dark:border-yellow-500',
+  },
+  {
+    value: 'high',
+    icon: <ArrowUp className="w-3.5 h-3.5" />,
+    color: 'text-orange-500',
+    activeBg: 'bg-orange-50 dark:bg-orange-900/30',
+    activeBorder: 'border-orange-400 dark:border-orange-500',
+  },
+  {
+    value: 'urgent',
+    icon: <AlertTriangle className="w-3.5 h-3.5" />,
+    color: 'text-red-500',
+    activeBg: 'bg-red-50 dark:bg-red-900/30',
+    activeBorder: 'border-red-400 dark:border-red-500',
+  },
 ];
 
 export default function SubtaskSection({
@@ -169,7 +204,9 @@ export default function SubtaskSection({
                   }}
                   className="px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                 >
-                  {selectedSubtaskIds.size === subtasks.length ? t('deselectAll') : t('selectAll')}
+                  {selectedSubtaskIds.size === subtasks.length
+                    ? t('deselectAll')
+                    : t('selectAll')}
                 </button>
                 {selectedSubtaskIds.size > 0 && (
                   <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400">
@@ -230,7 +267,11 @@ export default function SubtaskSection({
           <div className="flex gap-2">
             <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400">
               <button
-                onClick={showSubtaskDeleteConfirm === 'all' ? onDeleteAll : onDeleteSelected}
+                onClick={
+                  showSubtaskDeleteConfirm === 'all'
+                    ? onDeleteAll
+                    : onDeleteSelected
+                }
                 className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all cursor-pointer"
               >
                 <Trash2 className="w-4 h-4" />
@@ -276,7 +317,9 @@ export default function SubtaskSection({
                         type="text"
                         className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={editingSubtaskTitle}
-                        onChange={(e) => onSetEditingSubtaskTitle(e.target.value)}
+                        onChange={(e) =>
+                          onSetEditingSubtaskTitle(e.target.value)
+                        }
                         placeholder={t('subtaskTitle')}
                         autoFocus
                       />
@@ -287,7 +330,9 @@ export default function SubtaskSection({
                       <textarea
                         className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={editingSubtaskDescription}
-                        onChange={(e) => onSetEditingSubtaskDescription(e.target.value)}
+                        onChange={(e) =>
+                          onSetEditingSubtaskDescription(e.target.value)
+                        }
                         placeholder={t('descriptionMarkdown')}
                         rows={3}
                       />
@@ -303,20 +348,31 @@ export default function SubtaskSection({
                         </label>
                         <div className="flex gap-1">
                           {priorityOptions.map((opt) => {
-                            const isSelected = editingSubtaskPriority === opt.value;
+                            const isSelected =
+                              editingSubtaskPriority === opt.value;
                             return (
                               <button
                                 key={opt.value}
                                 type="button"
-                                onClick={() => onSetEditingSubtaskPriority(opt.value)}
+                                onClick={() =>
+                                  onSetEditingSubtaskPriority(opt.value)
+                                }
                                 className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                                   isSelected
                                     ? `${opt.activeBorder} ${opt.color} ${opt.activeBg}`
                                     : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500'
                                 }`}
                               >
-                                <span className={isSelected ? opt.color : ''}>{opt.icon}</span>
-                                {t(`priority${opt.value.charAt(0).toUpperCase() + opt.value.slice(1)}` as 'priorityLow' | 'priorityMedium' | 'priorityHigh' | 'priorityCritical')}
+                                <span className={isSelected ? opt.color : ''}>
+                                  {opt.icon}
+                                </span>
+                                {t(
+                                  `priority${opt.value.charAt(0).toUpperCase() + opt.value.slice(1)}` as
+                                    | 'priorityLow'
+                                    | 'priorityMedium'
+                                    | 'priorityHigh'
+                                    | 'priorityCritical',
+                                )}
                               </button>
                             );
                           })}
@@ -336,7 +392,9 @@ export default function SubtaskSection({
                           className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="0"
                           value={editingSubtaskEstimatedHours}
-                          onChange={(e) => onSetEditingSubtaskEstimatedHours(e.target.value)}
+                          onChange={(e) =>
+                            onSetEditingSubtaskEstimatedHours(e.target.value)
+                          }
                         />
                       </div>
                     </div>
@@ -352,7 +410,9 @@ export default function SubtaskSection({
                         className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder={t('labelsCommaSeparated')}
                         value={editingSubtaskLabels}
-                        onChange={(e) => onSetEditingSubtaskLabels(e.target.value)}
+                        onChange={(e) =>
+                          onSetEditingSubtaskLabels(e.target.value)
+                        }
                       />
                     </div>
 
@@ -436,7 +496,8 @@ export default function SubtaskSection({
                                     strokeLinecap="round"
                                     fill="none"
                                     style={{
-                                      animation: 'icon-outer-border-spin 1.5s linear infinite',
+                                      animation:
+                                        'icon-outer-border-spin 1.5s linear infinite',
                                       willChange: 'stroke-dashoffset',
                                       transform: 'translateZ(0)',
                                     }}
@@ -467,14 +528,16 @@ export default function SubtaskSection({
                       {/* Inline metadata badges */}
                       {hasLabels(subtask.labels) && (
                         <div className="hidden sm:flex gap-1 shrink-0">
-                          {getLabelsArray(subtask.labels).slice(0, 2).map((label, idx) => (
-                            <span
-                              key={idx}
-                              className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300"
-                            >
-                              {label}
-                            </span>
-                          ))}
+                          {getLabelsArray(subtask.labels)
+                            .slice(0, 2)
+                            .map((label, idx) => (
+                              <span
+                                key={idx}
+                                className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300"
+                              >
+                                {label}
+                              </span>
+                            ))}
                           {getLabelsArray(subtask.labels).length > 2 && (
                             <span className="text-[10px] px-1 py-0.5 text-zinc-400">
                               +{getLabelsArray(subtask.labels).length - 2}
@@ -490,20 +553,24 @@ export default function SubtaskSection({
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      {(['todo', 'in-progress', 'done'] as const).map((status) => {
-                        const config = sharedStatusConfig[status];
-                        return (
-                          <TaskStatusChange
-                            key={status}
-                            status={status}
-                            currentStatus={subtask.status}
-                            config={config}
-                            renderIcon={renderStatusIcon}
-                            onClick={(newStatus) => onUpdateStatus(subtask.id, newStatus)}
-                            size="sm"
-                          />
-                        );
-                      })}
+                      {(['todo', 'in-progress', 'done'] as const).map(
+                        (status) => {
+                          const config = sharedStatusConfig[status];
+                          return (
+                            <TaskStatusChange
+                              key={status}
+                              status={status}
+                              currentStatus={subtask.status}
+                              config={config}
+                              renderIcon={renderStatusIcon}
+                              onClick={(newStatus) =>
+                                onUpdateStatus(subtask.id, newStatus)
+                              }
+                              size="sm"
+                            />
+                          );
+                        },
+                      )}
                       <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 shadow-sm transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400">
                         <button
                           onClick={() => onStartEditingSubtask(subtask)}

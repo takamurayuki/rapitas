@@ -15,10 +15,12 @@
     "tauri": "cd rapitas-desktop && pnpm run tauri dev --watch",
     "tauri:build": "cd rapitas-desktop && pnpm run tauri build",
     "check": "node scripts/preflight-check.cjs",
+    "check:commit": "node scripts/pre-commit-check.cjs",
     "build:web": "node scripts/switch-to-postgres.cjs && cd rapitas-frontend && pnpm run build",
     "install:all": "cd rapitas-backend && bun install && cd ../rapitas-frontend && pnpm install && cd ../rapitas-desktop && pnpm install",
     "test:all": "concurrently \"cd rapitas-backend && bun test\" \"cd rapitas-frontend && pnpm test\" --names \"BE-TEST,FE-TEST\" --prefix-colors \"cyan,magenta\"",
     "lint:all": "concurrently \"cd rapitas-backend && bun run lint\" \"cd rapitas-frontend && pnpm run lint\" --names \"BE-LINT,FE-LINT\" --prefix-colors \"cyan,magenta\"",
+    "lint:fix": "cd rapitas-frontend && npx prettier --write \"src/**/*.{ts,tsx}\" && npx eslint --fix \"src/**/*.{ts,tsx}\" && cd ../rapitas-backend && npx prettier --write \"**/*.ts\"",
     "prisma:migrate": "cd rapitas-backend && npx prisma migrate dev",
     "prisma:push": "cd rapitas-backend && npx prisma db push",
     "prisma:generate": "cd rapitas-backend && npx prisma generate",
@@ -39,7 +41,7 @@
   "lint-staged": {
     "rapitas-frontend/src/**/*.{ts,tsx}": [
       "prettier --write",
-      "eslint --fix --no-warn-ignored --config rapitas-frontend/eslint.config.mjs"
+      "eslint --fix --no-warn-ignored --max-warnings=9999 --config rapitas-frontend/eslint.config.mjs"
     ],
     "rapitas-backend/**/*.ts": [
       "prettier --write"

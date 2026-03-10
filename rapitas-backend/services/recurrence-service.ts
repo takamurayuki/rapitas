@@ -4,7 +4,7 @@
  */
 
 export interface RRule {
-  freq: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  freq: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
   interval: number;
   byday?: string[]; // MO, TU, WE, TH, FR, SA, SU
   bymonthday?: number[];
@@ -13,7 +13,13 @@ export interface RRule {
 }
 
 const DAY_MAP: Record<string, number> = {
-  SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6,
+  SU: 0,
+  MO: 1,
+  TU: 2,
+  WE: 3,
+  TH: 4,
+  FR: 5,
+  SA: 6,
 };
 
 /**
@@ -21,30 +27,30 @@ const DAY_MAP: Record<string, number> = {
  * 例: "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE,FR"
  */
 export function parseRRule(rule: string): RRule {
-  const parts = rule.split(";");
-  const result: RRule = { freq: "DAILY", interval: 1 };
+  const parts = rule.split(';');
+  const result: RRule = { freq: 'DAILY', interval: 1 };
 
   for (const part of parts) {
-    const [key, value] = part.split("=");
+    const [key, value] = part.split('=');
     if (!key || !value) continue;
 
     switch (key) {
-      case "FREQ":
-        result.freq = value as RRule["freq"];
+      case 'FREQ':
+        result.freq = value as RRule['freq'];
         break;
-      case "INTERVAL":
+      case 'INTERVAL':
         result.interval = parseInt(value);
         break;
-      case "BYDAY":
-        result.byday = value.split(",");
+      case 'BYDAY':
+        result.byday = value.split(',');
         break;
-      case "BYMONTHDAY":
-        result.bymonthday = value.split(",").map(Number);
+      case 'BYMONTHDAY':
+        result.bymonthday = value.split(',').map(Number);
         break;
-      case "COUNT":
+      case 'COUNT':
         result.count = parseInt(value);
         break;
-      case "UNTIL":
+      case 'UNTIL':
         result.until = new Date(value);
         break;
     }
@@ -60,12 +66,12 @@ export function serializeRRule(rule: RRule): string {
   const parts: string[] = [`FREQ=${rule.freq}`];
 
   if (rule.interval > 1) parts.push(`INTERVAL=${rule.interval}`);
-  if (rule.byday?.length) parts.push(`BYDAY=${rule.byday.join(",")}`);
-  if (rule.bymonthday?.length) parts.push(`BYMONTHDAY=${rule.bymonthday.join(",")}`);
+  if (rule.byday?.length) parts.push(`BYDAY=${rule.byday.join(',')}`);
+  if (rule.bymonthday?.length) parts.push(`BYMONTHDAY=${rule.bymonthday.join(',')}`);
   if (rule.count) parts.push(`COUNT=${rule.count}`);
   if (rule.until) parts.push(`UNTIL=${rule.until.toISOString()}`);
 
-  return parts.join(";");
+  return parts.join(';');
 }
 
 /**
@@ -77,7 +83,7 @@ export function expandRecurrence(
   rangeStart: Date,
   rangeEnd: Date,
   recurrenceEnd?: Date | null,
-  maxOccurrences: number = 365
+  maxOccurrences: number = 365,
 ): Date[] {
   const dates: Date[] = [];
   const effectiveEnd = recurrenceEnd
@@ -97,17 +103,15 @@ export function expandRecurrence(
     if (rule.until && current > rule.until) break;
 
     if (current >= rangeStart) {
-      if (rule.freq === "WEEKLY" && rule.byday?.length) {
+      if (rule.freq === 'WEEKLY' && rule.byday?.length) {
         // 週の特定曜日
         const dayOfWeek = current.getDay();
-        const dayName = Object.entries(DAY_MAP).find(
-          ([, v]) => v === dayOfWeek
-        )?.[0];
+        const dayName = Object.entries(DAY_MAP).find(([, v]) => v === dayOfWeek)?.[0];
         if (dayName && rule.byday.includes(dayName)) {
           dates.push(new Date(current));
           count++;
         }
-      } else if (rule.freq === "MONTHLY" && rule.bymonthday?.length) {
+      } else if (rule.freq === 'MONTHLY' && rule.bymonthday?.length) {
         // 月の特定日
         if (rule.bymonthday.includes(current.getDate())) {
           dates.push(new Date(current));
@@ -121,10 +125,10 @@ export function expandRecurrence(
 
     // 次の日付に進む
     switch (rule.freq) {
-      case "DAILY":
+      case 'DAILY':
         current.setDate(current.getDate() + rule.interval);
         break;
-      case "WEEKLY":
+      case 'WEEKLY':
         if (rule.byday?.length) {
           // 次の曜日に進む
           current.setDate(current.getDate() + 1);
@@ -137,14 +141,14 @@ export function expandRecurrence(
           current.setDate(current.getDate() + 7 * rule.interval);
         }
         break;
-      case "MONTHLY":
+      case 'MONTHLY':
         if (rule.bymonthday?.length) {
           current.setDate(current.getDate() + 1);
         } else {
           current.setMonth(current.getMonth() + rule.interval);
         }
         break;
-      case "YEARLY":
+      case 'YEARLY':
         current.setFullYear(current.getFullYear() + rule.interval);
         break;
     }
@@ -157,10 +161,10 @@ export function expandRecurrence(
  * よく使う繰り返しパターンのプリセット
  */
 export const RECURRENCE_PRESETS = {
-  daily: "FREQ=DAILY;INTERVAL=1",
-  weekdays: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
-  weekly: "FREQ=WEEKLY;INTERVAL=1",
-  biweekly: "FREQ=WEEKLY;INTERVAL=2",
-  monthly: "FREQ=MONTHLY;INTERVAL=1",
-  yearly: "FREQ=YEARLY;INTERVAL=1",
+  daily: 'FREQ=DAILY;INTERVAL=1',
+  weekdays: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
+  weekly: 'FREQ=WEEKLY;INTERVAL=1',
+  biweekly: 'FREQ=WEEKLY;INTERVAL=2',
+  monthly: 'FREQ=MONTHLY;INTERVAL=1',
+  yearly: 'FREQ=YEARLY;INTERVAL=1',
 } as const;

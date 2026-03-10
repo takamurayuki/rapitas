@@ -4,7 +4,7 @@
 
 import { createLogger } from '@/lib/logger';
 
-const logger = createLogger("Tauri");
+const logger = createLogger('Tauri');
 
 // Tauriの型定義（実際のAPIに合わせて簡略化）
 interface TauriSize {
@@ -297,8 +297,7 @@ export function isSplitViewActive(): boolean {
 export async function restoreFromSplitView(): Promise<void> {
   if (!isTauri()) return;
 
-  const splitViewData = (window as ExtendedWindow)
-    .__RAPITAS_SPLIT_VIEW__;
+  const splitViewData = (window as ExtendedWindow).__RAPITAS_SPLIT_VIEW__;
   if (!splitViewData) return;
 
   try {

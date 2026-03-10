@@ -23,10 +23,20 @@ function formatLogLine(log: string): { formatted: string; hasJson: boolean } {
     const obj = parsed as Record<string, unknown>;
 
     // よく使うフィールドを先に表示
-    const priorityKeys = ['message', 'msg', 'status', 'type', 'error', 'taskId', 'agentId'];
+    const priorityKeys = [
+      'message',
+      'msg',
+      'status',
+      'type',
+      'error',
+      'taskId',
+      'agentId',
+    ];
     for (const key of priorityKeys) {
       if (key in obj && obj[key] !== null && obj[key] !== undefined) {
-        parts.push(`${key}: ${typeof obj[key] === 'object' ? JSON.stringify(obj[key]) : obj[key]}`);
+        parts.push(
+          `${key}: ${typeof obj[key] === 'object' ? JSON.stringify(obj[key]) : obj[key]}`,
+        );
       }
     }
 
@@ -34,7 +44,9 @@ function formatLogLine(log: string): { formatted: string; hasJson: boolean } {
     const skipKeys = new Set([...priorityKeys, 'timestamp', 'level']);
     for (const [key, value] of Object.entries(obj)) {
       if (skipKeys.has(key) || value === null || value === undefined) continue;
-      parts.push(`${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
+      parts.push(
+        `${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`,
+      );
     }
 
     const formattedJson = parts.join(' | ');
@@ -55,7 +67,8 @@ describe('formatLogLine', () => {
   });
 
   test('JSON文字列を含むログが正しくフォーマットされること', () => {
-    const jsonLog = 'Coordinator: {"message":"タスクを開始","status":"running","taskId":123}';
+    const jsonLog =
+      'Coordinator: {"message":"タスクを開始","status":"running","taskId":123}';
     const result = formatLogLine(jsonLog);
 
     expect(result.hasJson).toBe(true);
@@ -73,7 +86,8 @@ describe('formatLogLine', () => {
   });
 
   test('複数フィールドを持つJSONが正しく整形されること', () => {
-    const jsonLog = '{"message":"実行中","status":"active","type":"coordination","progress":75}';
+    const jsonLog =
+      '{"message":"実行中","status":"active","type":"coordination","progress":75}';
     const result = formatLogLine(jsonLog);
 
     expect(result.hasJson).toBe(true);
@@ -85,7 +99,8 @@ describe('formatLogLine', () => {
   });
 
   test('エラー情報を含むJSONが正しく処理されること', () => {
-    const jsonLog = '[Agent] {"error":"接続エラー","taskId":456,"status":"failed"}';
+    const jsonLog =
+      '[Agent] {"error":"接続エラー","taskId":456,"status":"failed"}';
     const result = formatLogLine(jsonLog);
 
     expect(result.hasJson).toBe(true);
@@ -106,7 +121,8 @@ describe('formatLogLine', () => {
   });
 
   test('priorityKeysが優先的に表示されること', () => {
-    const jsonLog = '{"other":"後回し","message":"優先","another":"これも後","status":"優先2"}';
+    const jsonLog =
+      '{"other":"後回し","message":"優先","another":"これも後","status":"優先2"}';
     const result = formatLogLine(jsonLog);
 
     expect(result.hasJson).toBe(true);

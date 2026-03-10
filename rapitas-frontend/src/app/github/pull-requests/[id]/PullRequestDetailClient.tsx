@@ -492,13 +492,17 @@ export default function PullRequestDetailClient() {
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-zinc-500 dark:text-zinc-400">{t('additions')}</span>
+                <span className="text-zinc-500 dark:text-zinc-400">
+                  {t('additions')}
+                </span>
                 <span className="font-medium text-green-600 dark:text-green-400">
                   +{diff.reduce((sum, f) => sum + f.additions, 0)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-zinc-500 dark:text-zinc-400">{t('deletions')}</span>
+                <span className="text-zinc-500 dark:text-zinc-400">
+                  {t('deletions')}
+                </span>
                 <span className="font-medium text-red-600 dark:text-red-400">
                   -{diff.reduce((sum, f) => sum + f.deletions, 0)}
                 </span>

@@ -1,17 +1,17 @@
-import type { AIProvider } from "../../utils/ai-client";
+import type { AIProvider } from '../../utils/ai-client';
 
 export type SubtaskProposal = {
   title: string;
   description: string;
   estimatedHours?: number;
-  priority: "low" | "medium" | "high" | "urgent";
+  priority: 'low' | 'medium' | 'high' | 'urgent';
   order: number;
   dependencies?: number[];
 };
 
 export type TaskAnalysisResult = {
   summary: string;
-  complexity: "simple" | "medium" | "complex";
+  complexity: 'simple' | 'medium' | 'complex';
   estimatedTotalHours: number;
   suggestedSubtasks: SubtaskProposal[];
   reasoning: string;
@@ -20,7 +20,7 @@ export type TaskAnalysisResult = {
 
 export type AgentConfig = {
   maxSubtasks: number;
-  priority: "aggressive" | "balanced" | "conservative";
+  priority: 'aggressive' | 'balanced' | 'conservative';
   provider?: AIProvider;
   model?: string;
 };
@@ -30,7 +30,14 @@ export type PromptClarificationQuestion = {
   question: string;
   options?: string[];
   isRequired: boolean;
-  category: "scope" | "technical" | "requirements" | "constraints" | "integration" | "testing" | "deliverables";
+  category:
+    | 'scope'
+    | 'technical'
+    | 'requirements'
+    | 'constraints'
+    | 'integration'
+    | 'testing'
+    | 'deliverables';
 };
 
 export type PromptQualityRubric = {

@@ -8,23 +8,23 @@
  * 質問の状態を表すステータス
  */
 export type QuestionStatus =
-  | "awaiting_user_input" // ユーザーの入力待ち
-  | "processing" // 処理中
-  | "completed"; // 完了
+  | 'awaiting_user_input' // ユーザーの入力待ち
+  | 'processing' // 処理中
+  | 'completed'; // 完了
 
 /**
  * 質問のタイプ（意味的分類）
  */
 export type QuestionCategory =
-  | "clarification" // 要件の明確化
-  | "confirmation" // 確認（Yes/No）
-  | "selection"; // 選択肢からの選択
+  | 'clarification' // 要件の明確化
+  | 'confirmation' // 確認（Yes/No）
+  | 'selection'; // 選択肢からの選択
 
 /**
  * 質問検出の方法（技術的分類）
  * 後方互換性のため既存のQuestionTypeを維持
  */
-export type QuestionDetectionMethod = "tool_call" | "key_based" | "none";
+export type QuestionDetectionMethod = 'tool_call' | 'key_based' | 'none';
 
 /**
  * 質問の構造化キーフォーマット

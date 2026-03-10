@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useCallback, useRef } from 'react';
-import { createLogger } from "@/lib/logger";
+import { createLogger } from '@/lib/logger';
 
-const logger = createLogger("useWindowResize");
+const logger = createLogger('useWindowResize');
 
 interface UseWindowResizeOptions {
   debounceMs?: number;

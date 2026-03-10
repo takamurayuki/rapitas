@@ -124,13 +124,21 @@ describe('fetchWithRetry', () => {
     vi.useRealTimers();
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     fetchSpy.mockResolvedValueOnce(
-      new Response('Internal Server Error', { status: 500, statusText: 'Internal Server Error' }),
+      new Response('Internal Server Error', {
+        status: 500,
+        statusText: 'Internal Server Error',
+      }),
     );
     fetchSpy.mockResolvedValueOnce(
       new Response('{"data": "ok"}', { status: 200 }),
     );
 
-    const result = await fetchWithRetry('http://test.com/api', undefined, 3, 10);
+    const result = await fetchWithRetry(
+      'http://test.com/api',
+      undefined,
+      3,
+      10,
+    );
     expect(result.ok).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
@@ -139,13 +147,21 @@ describe('fetchWithRetry', () => {
     vi.useRealTimers();
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     fetchSpy.mockResolvedValueOnce(
-      new Response('Too Many Requests', { status: 429, statusText: 'Too Many Requests' }),
+      new Response('Too Many Requests', {
+        status: 429,
+        statusText: 'Too Many Requests',
+      }),
     );
     fetchSpy.mockResolvedValueOnce(
       new Response('{"data": "ok"}', { status: 200 }),
     );
 
-    const result = await fetchWithRetry('http://test.com/api', undefined, 3, 10);
+    const result = await fetchWithRetry(
+      'http://test.com/api',
+      undefined,
+      3,
+      10,
+    );
     expect(result.ok).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
@@ -182,7 +198,9 @@ describe('fetchWithRetry', () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(originalError);
 
     try {
-      await fetchWithRetry('http://test.com/api', undefined, 1, 10, 10000, { silent: true });
+      await fetchWithRetry('http://test.com/api', undefined, 1, 10, 10000, {
+        silent: true,
+      });
       expect.fail('Should have thrown');
     } catch (e) {
       expect(e).toBeInstanceOf(Error);

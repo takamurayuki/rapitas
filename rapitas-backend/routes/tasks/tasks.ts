@@ -24,12 +24,12 @@ import { generateTaskTitle } from '../../services/claude-agent/naming-service';
 const logger = createLogger('tasks');
 
 export const tasksRoutes = new Elysia({ prefix: '/tasks' })
-  // Search task titles for autocomplete
+  // Search task titles for autocomplete (enhanced with multi-word and description search)
   .get(
     '/search',
     async (context) => {
       const { query } = context;
-      const { q, limit, themeId, projectId } = query;
+      const { q, limit, themeId, projectId, status, searchDescription } = query;
       const searchQuery = q?.trim() ?? '';
       const resultLimit = Math.min(parseInt(limit ?? '10'), 20);
 
@@ -37,20 +37,52 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         return [];
       }
 
-      return await prisma.task.findMany({
-        where: {
-          parentId: null,
-          title: {
-            contains: searchQuery,
-          },
-          ...(themeId && { themeId: parseInt(themeId) }),
-          ...(projectId && { projectId: parseInt(projectId) }),
-        },
+      // マルチワード検索のためにクエリを分割
+      const words = searchQuery.split(/\s+/).filter(w => w.length > 0);
+
+      // 動的 where 条件構築
+      const whereCondition: any = {
+        parentId: null,
+        AND: []
+      };
+
+      // マルチワード検索（タイトル + 説明文オプション）
+      const searchConditions = words.map(word => {
+        const conditions: any[] = [
+          { title: { contains: word, mode: "insensitive" } }
+        ];
+
+        // searchDescription が true の場合、description も検索対象に含める
+        if (searchDescription === 'true') {
+          conditions.push({ description: { contains: word, mode: "insensitive" } });
+        }
+
+        return { OR: conditions };
+      });
+
+      whereCondition.AND.push(...searchConditions);
+
+      // フィルター条件追加
+      if (themeId) {
+        whereCondition.themeId = parseInt(themeId);
+      }
+      if (projectId) {
+        whereCondition.projectId = parseInt(projectId);
+      }
+      if (status) {
+        const statusList = status.split(',');
+        whereCondition.status = { in: statusList };
+      }
+
+      const tasks = await prisma.task.findMany({
+        where: whereCondition,
         select: {
           id: true,
           title: true,
+          description: true,
           priority: true,
           status: true,
+          updatedAt: true,
           theme: {
             select: {
               id: true,
@@ -59,9 +91,36 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
             },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { updatedAt: 'desc' },
         take: resultLimit,
       });
+
+      // 簡易関連度スコアでソート（OR検索の場合）
+      if (words.length > 1) {
+        const scored = tasks.map(task => {
+          let score = 0;
+          const lowerTitle = task.title.toLowerCase();
+          const lowerDesc = task.description?.toLowerCase() || '';
+          const lowerQuery = searchQuery.toLowerCase();
+
+          // 完全一致
+          if (lowerTitle.includes(lowerQuery)) score += 50;
+          if (searchDescription === 'true' && lowerDesc.includes(lowerQuery)) score += 30;
+
+          // 個別ワード一致
+          for (const word of words) {
+            if (lowerTitle.includes(word.toLowerCase())) score += 10;
+            if (searchDescription === 'true' && lowerDesc.includes(word.toLowerCase())) score += 5;
+          }
+
+          return { ...task, relevanceScore: score };
+        });
+
+        scored.sort((a, b) => b.relevanceScore - a.relevanceScore);
+        return scored.map(({ relevanceScore, ...task }) => task);
+      }
+
+      return tasks;
     },
     {
       query: t.Object({
@@ -69,6 +128,8 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         limit: t.Optional(t.String()),
         themeId: t.Optional(t.String()),
         projectId: t.Optional(t.String()),
+        status: t.Optional(t.String()),
+        searchDescription: t.Optional(t.String()),
       }),
     },
   )

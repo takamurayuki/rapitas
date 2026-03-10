@@ -173,7 +173,8 @@ export abstract class AbstractAgent implements IAgent {
 
       // メトリクス完了
       this._metrics.endTime = new Date();
-      this._metrics.durationMs = this._metrics.endTime.getTime() - this._metrics.startTime.getTime();
+      this._metrics.durationMs =
+        this._metrics.endTime.getTime() - this._metrics.startTime.getTime();
 
       // 結果に基づいて状態遷移
       if (result.pendingQuestion) {
@@ -465,11 +466,7 @@ export abstract class AbstractAgent implements IAgent {
   /**
    * ログを記録
    */
-  protected log(
-    level: 'debug' | 'info' | 'warn' | 'error',
-    message: string,
-    data?: unknown,
-  ): void {
+  protected log(level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: unknown): void {
     const entry: DebugLogEntry = {
       timestamp: new Date(),
       level,
@@ -523,20 +520,10 @@ export abstract class AbstractAgent implements IAgent {
     }
 
     if (error instanceof Error) {
-      return new AgentError(
-        error.message,
-        'execution',
-        false,
-        undefined,
-        error,
-      );
+      return new AgentError(error.message, 'execution', false, undefined, error);
     }
 
-    return new AgentError(
-      String(error),
-      'internal',
-      false,
-    );
+    return new AgentError(String(error), 'internal', false);
   }
 
   /**

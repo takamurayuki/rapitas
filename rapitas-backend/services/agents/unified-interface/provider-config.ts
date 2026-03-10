@@ -9,7 +9,7 @@
 /**
  * プロバイダー識別子
  */
-export type ProviderId = "claude-code" | "openai-codex" | "google-gemini" | "custom";
+export type ProviderId = 'claude-code' | 'openai-codex' | 'google-gemini' | 'custom';
 
 /**
  * AIモデル情報
@@ -37,7 +37,7 @@ export type ModelInfo = {
   outputCostPer1k?: number;
 
   /** 推奨用途 */
-  recommendedFor?: ("code_generation" | "code_review" | "analysis" | "chat")[];
+  recommendedFor?: ('code_generation' | 'code_review' | 'analysis' | 'chat')[];
 
   /** 非推奨かどうか */
   deprecated?: boolean;

@@ -208,7 +208,6 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       update: { tasksCompleted: { increment: 1 } },
       create: { date: today, studyMinutes: 0, tasksCompleted: 1 },
     });
-
   }
 
   await prisma.task.update({

@@ -26,10 +26,10 @@ export type SSEClient = {
 };
 
 export type EventChannel =
-  | "agent_execution"
-  | "github_events"
-  | "notifications"
-  | "task_updates"
+  | 'agent_execution'
+  | 'github_events'
+  | 'notifications'
+  | 'task_updates'
   | `execution:${number}`
   | `session:${number}`
   | `task:${number}`;
@@ -45,10 +45,7 @@ export class RealtimeService {
   private pingInterval: NodeJS.Timeout | null = null;
   private nextClientId: number = 1;
   /** SSE接続のReadableStreamController管理用マップ（明示的にcloseするため） */
-  private streamControllers: Map<
-    string,
-    ReadableStreamDefaultController<Uint8Array>
-  > = new Map();
+  private streamControllers: Map<string, ReadableStreamDefaultController<Uint8Array>> = new Map();
 
   private constructor() {
     // 定期的なping送信を開始（30秒ごと）
@@ -65,10 +62,7 @@ export class RealtimeService {
   /**
    * 新しいSSEクライアントを登録
    */
-  registerClient(
-    response: SSEClient["response"],
-    subscriptions: string[] = [],
-  ): string {
+  registerClient(response: SSEClient['response'], subscriptions: string[] = []): string {
     const clientId = `client-${this.nextClientId++}`;
     const client: SSEClient = {
       id: clientId,
@@ -82,7 +76,7 @@ export class RealtimeService {
 
     // 接続成功メッセージを送信
     this.sendToClient(clientId, {
-      type: "connected",
+      type: 'connected',
       data: { clientId, subscriptions },
       timestamp: new Date(),
     });
@@ -174,7 +168,7 @@ export class RealtimeService {
    * SSEイベントをフォーマット
    */
   private formatSSEEvent(event: SSEEvent): string {
-    let result = "";
+    let result = '';
     if (event.id) {
       result += `id: ${event.id}\n`;
     }
@@ -186,11 +180,7 @@ export class RealtimeService {
   /**
    * チャンネルにイベントを送信
    */
-  broadcast(
-    channel: EventChannel | string,
-    eventType: string,
-    data: unknown,
-  ): void {
+  broadcast(channel: EventChannel | string, eventType: string, data: unknown): void {
     const event: SSEEvent = {
       type: eventType,
       data,
@@ -203,7 +193,7 @@ export class RealtimeService {
 
     // 購読しているクライアントに送信
     for (const client of this.clients.values()) {
-      if (client.subscriptions.has(channel) || client.subscriptions.has("*")) {
+      if (client.subscriptions.has(channel) || client.subscriptions.has('*')) {
         this.sendToClient(client.id, event);
       }
     }
@@ -228,12 +218,8 @@ export class RealtimeService {
   /**
    * エージェント実行出力を送信
    */
-  sendExecutionOutput(
-    executionId: number,
-    output: string,
-    isError: boolean = false,
-  ): void {
-    this.broadcast(`execution:${executionId}`, "execution_output", {
+  sendExecutionOutput(executionId: number, output: string, isError: boolean = false): void {
+    this.broadcast(`execution:${executionId}`, 'execution_output', {
       executionId,
       output,
       isError,
@@ -249,7 +235,7 @@ export class RealtimeService {
     status: string,
     details?: Record<string, unknown>,
   ): void {
-    this.broadcast(`execution:${executionId}`, "execution_status", {
+    this.broadcast(`execution:${executionId}`, 'execution_status', {
       executionId,
       status,
       ...details,
@@ -257,7 +243,7 @@ export class RealtimeService {
     });
 
     // agent_executionチャンネルにも送信
-    this.broadcast("agent_execution", "execution_status", {
+    this.broadcast('agent_execution', 'execution_status', {
       executionId,
       status,
       ...details,
@@ -269,7 +255,7 @@ export class RealtimeService {
    * GitHub イベントを送信
    */
   sendGitHubEvent(eventType: string, data: unknown): void {
-    this.broadcast("github_events", eventType, data);
+    this.broadcast('github_events', eventType, data);
   }
 
   /**
@@ -282,7 +268,7 @@ export class RealtimeService {
     message: string;
     link?: string;
   }): void {
-    this.broadcast("notifications", "new_notification", notification);
+    this.broadcast('notifications', 'new_notification', notification);
   }
 
   /**
@@ -293,7 +279,7 @@ export class RealtimeService {
       taskId,
       ...(data as object),
     });
-    this.broadcast("task_updates", updateType, { taskId, ...(data as object) });
+    this.broadcast('task_updates', updateType, { taskId, ...(data as object) });
   }
 
   /**
@@ -331,7 +317,7 @@ export class RealtimeService {
       const now = new Date();
       for (const client of this.clients.values()) {
         this.sendToClient(client.id, {
-          type: "ping",
+          type: 'ping',
           data: { timestamp: now.toISOString() },
           timestamp: now,
         });
@@ -351,7 +337,7 @@ export class RealtimeService {
     }
 
     // 全クライアントに切断通知を送信
-    this.broadcastAll("shutdown", { reason: "Server shutting down" });
+    this.broadcastAll('shutdown', { reason: 'Server shutting down' });
 
     // 全てのSSEストリームを明示的にclose（CLOSE_WAIT蓄積を防止）
     const controllerCount = this.streamControllers.size;
@@ -364,9 +350,7 @@ export class RealtimeService {
       }
     }
     if (controllerCount > 0) {
-      log.info(
-        `[SSE] Closed ${controllerCount} SSE stream(s) during shutdown`,
-      );
+      log.info(`[SSE] Closed ${controllerCount} SSE stream(s) during shutdown`);
     }
 
     this.streamControllers.clear();

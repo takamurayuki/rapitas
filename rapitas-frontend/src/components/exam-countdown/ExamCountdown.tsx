@@ -115,7 +115,8 @@ export function ExamCountdown({
             {day}
           </div>
           <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            {weekday}{t('weekdayLabel')}
+            {weekday}
+            {t('weekdayLabel')}
           </div>
         </div>
         {/* 下部: ちぎり線風の装飾 */}
@@ -143,7 +144,9 @@ export function ExamCountdown({
             <span className="text-3xl font-extrabold text-zinc-400">
               {Math.abs(daysRemaining)}
             </span>
-            <span className="text-sm font-medium text-zinc-400">{t('daysElapsedUnit')}</span>
+            <span className="text-sm font-medium text-zinc-400">
+              {t('daysElapsedUnit')}
+            </span>
           </div>
         ) : (
           <>
@@ -166,7 +169,10 @@ export function ExamCountdown({
             </div>
             {daysRemaining > 7 && (
               <div className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">
-                {t('weeksAndDays', { weeks: Math.floor(daysRemaining / 7), days: daysRemaining % 7 })}
+                {t('weeksAndDays', {
+                  weeks: Math.floor(daysRemaining / 7),
+                  days: daysRemaining % 7,
+                })}
               </div>
             )}
           </>

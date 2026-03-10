@@ -51,10 +51,7 @@ export default function TaskWorkflowSection({
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
               {t('title')}
             </h3>
-            <WorkflowStatusIndicator
-              status={currentWorkflowStatus}
-              size="sm"
-            />
+            <WorkflowStatusIndicator status={currentWorkflowStatus} size="sm" />
           </div>
           <Loader2
             className={`h-4 w-4 text-zinc-400 animate-spin transition-opacity ${isWorkflowLoading ? 'opacity-100' : 'opacity-0'}`}

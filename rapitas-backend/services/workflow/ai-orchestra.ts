@@ -81,10 +81,7 @@ export class AIOrchestra {
   /**
    * 複数タスクのオーケストレーションを開始
    */
-  async conductWorkflow(
-    taskIds: number[],
-    config: OrchestraConfig = {},
-  ): Promise<ConductResult> {
+  async conductWorkflow(taskIds: number[], config: OrchestraConfig = {}): Promise<ConductResult> {
     const { maxConcurrency = 3, autoStart = true, priorityStrategy = 'dependency_aware' } = config;
 
     // 既存のアクティブセッションがあれば停止
@@ -108,9 +105,9 @@ export class AIOrchestra {
     this.queue.setMaxConcurrency(maxConcurrency);
 
     // タスク情報を取得
-    const tasks = await prisma.task.findMany({
+    const tasks = (await prisma.task.findMany({
       where: { id: { in: taskIds } },
-    }) as TaskWithRelations[];
+    })) as TaskWithRelations[];
 
     // 依存関係を分析
     const dependencyMap = await this.analyzeDependencies(tasks);
@@ -270,7 +267,9 @@ export class AIOrchestra {
   /**
    * 単一タスクをキューに追加
    */
-  async enqueueTask(options: EnqueueOptions): Promise<{ success: boolean; itemId?: number; error?: string }> {
+  async enqueueTask(
+    options: EnqueueOptions,
+  ): Promise<{ success: boolean; itemId?: number; error?: string }> {
     try {
       if (this.currentSessionId) {
         options.orchestraSessionId = this.currentSessionId;
@@ -300,9 +299,7 @@ export class AIOrchestra {
   /**
    * タスク間の依存関係を分析（循環依存検出付き）
    */
-  private async analyzeDependencies(
-    tasks: TaskWithRelations[],
-  ): Promise<Map<number, number[]>> {
+  private async analyzeDependencies(tasks: TaskWithRelations[]): Promise<Map<number, number[]>> {
     const depMap = new Map<number, number[]>();
     const taskIdSet = new Set(tasks.map((t) => t.id));
 
@@ -472,9 +469,7 @@ export class AIOrchestra {
     if (activeSession) {
       this.currentSessionId = activeSession.id;
       this.queue.setMaxConcurrency(activeSession.maxConcurrency);
-      log.info(
-        `[AIOrchestra] Recovered session ${activeSession.id} with ${recovered} stale items`,
-      );
+      log.info(`[AIOrchestra] Recovered session ${activeSession.id} with ${recovered} stale items`);
 
       // 自動再開
       this.runner.startProcessing();

@@ -2,14 +2,11 @@
  * 質問タイムアウト・継続ロック管理
  * AgentOrchestratorから質問タイムアウトと継続実行のロック管理を分離
  */
-import { createLogger } from "../../../config/logger";
-import {
-  DEFAULT_QUESTION_TIMEOUT_SECONDS,
-  type QuestionKey,
-} from "../question-detection";
-import type { OrchestratorEvent } from "./types";
+import { createLogger } from '../../../config/logger';
+import { DEFAULT_QUESTION_TIMEOUT_SECONDS, type QuestionKey } from '../question-detection';
+import type { OrchestratorEvent } from './types';
 
-const logger = createLogger("question-timeout-manager");
+const logger = createLogger('question-timeout-manager');
 
 /**
  * 質問タイムアウト管理情報
@@ -29,16 +26,13 @@ type QuestionTimeoutInfo = {
 type ContinuationLockInfo = {
   executionId: number;
   lockedAt: Date;
-  source: "user_response" | "auto_timeout";
+  source: 'user_response' | 'auto_timeout';
 };
 
 /**
  * タイムアウトハンドラのコールバック型
  */
-export type TimeoutHandler = (
-  executionId: number,
-  taskId: number,
-) => Promise<void>;
+export type TimeoutHandler = (executionId: number, taskId: number) => Promise<void>;
 
 /**
  * イベント発火のコールバック型
@@ -71,16 +65,11 @@ export class QuestionTimeoutManager {
   /**
    * 質問タイムアウトを開始
    */
-  startQuestionTimeout(
-    executionId: number,
-    taskId: number,
-    questionKey?: QuestionKey,
-  ): void {
+  startQuestionTimeout(executionId: number, taskId: number, questionKey?: QuestionKey): void {
     // 既存のタイムアウトがあればキャンセル
     this.cancelQuestionTimeout(executionId);
 
-    const timeoutSeconds =
-      questionKey?.timeout_seconds || DEFAULT_QUESTION_TIMEOUT_SECONDS;
+    const timeoutSeconds = questionKey?.timeout_seconds || DEFAULT_QUESTION_TIMEOUT_SECONDS;
     const timeoutMs = timeoutSeconds * 1000;
 
     logger.info(
@@ -107,7 +96,7 @@ export class QuestionTimeoutManager {
     // タイムアウトイベントを発火（フロントエンドでカウントダウン表示用）
     if (this.eventEmitter) {
       this.eventEmitter({
-        type: "execution_output",
+        type: 'execution_output',
         executionId,
         sessionId: 0,
         taskId,
@@ -154,7 +143,7 @@ export class QuestionTimeoutManager {
    */
   tryAcquireContinuationLock(
     executionId: number,
-    source: "user_response" | "auto_timeout",
+    source: 'user_response' | 'auto_timeout',
   ): boolean {
     const existingLock = this.continuationLocks.get(executionId);
     if (existingLock) {
@@ -216,15 +205,9 @@ export class QuestionTimeoutManager {
     }
 
     const timeoutSeconds =
-      timeoutInfo.questionKey?.timeout_seconds ||
-      DEFAULT_QUESTION_TIMEOUT_SECONDS;
-    const deadline = new Date(
-      timeoutInfo.questionStartedAt.getTime() + timeoutSeconds * 1000,
-    );
-    const remainingSeconds = Math.max(
-      0,
-      Math.ceil((deadline.getTime() - Date.now()) / 1000),
-    );
+      timeoutInfo.questionKey?.timeout_seconds || DEFAULT_QUESTION_TIMEOUT_SECONDS;
+    const deadline = new Date(timeoutInfo.questionStartedAt.getTime() + timeoutSeconds * 1000);
+    const remainingSeconds = Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / 1000));
 
     return {
       remainingSeconds,
@@ -254,27 +237,23 @@ export class QuestionTimeoutManager {
         details = null;
       }
 
-      if (
-        details?.options &&
-        Array.isArray(details.options) &&
-        details.options.length > 0
-      ) {
+      if (details?.options && Array.isArray(details.options) && details.options.length > 0) {
         // 最初の選択肢（通常は推奨オプション）を選択
         const firstOption = details.options[0];
-        return firstOption.label || "1";
+        return firstOption.label || '1';
       }
     }
 
     // 質問カテゴリに応じたデフォルト回答
     if (questionKey?.question_type) {
       switch (questionKey.question_type) {
-        case "confirmation":
-          return "はい";
-        case "selection":
-          return "1";
-        case "clarification":
+        case 'confirmation':
+          return 'はい';
+        case 'selection':
+          return '1';
+        case 'clarification':
         default:
-          return "デフォルトの設定で続行してください";
+          return 'デフォルトの設定で続行してください';
       }
     }
 
@@ -282,24 +261,20 @@ export class QuestionTimeoutManager {
     if (questionText) {
       const text = questionText.toLowerCase();
 
-      if (
-        text.includes("y/n") ||
-        text.includes("[y/n]") ||
-        text.includes("(yes/no)")
-      ) {
-        return "y";
+      if (text.includes('y/n') || text.includes('[y/n]') || text.includes('(yes/no)')) {
+        return 'y';
       }
 
       if (
-        text.includes("よろしいですか") ||
-        text.includes("続けますか") ||
-        text.includes("proceed") ||
-        text.includes("continue")
+        text.includes('よろしいですか') ||
+        text.includes('続けますか') ||
+        text.includes('proceed') ||
+        text.includes('continue')
       ) {
-        return "はい";
+        return 'はい';
       }
     }
 
-    return "続行してください";
+    return '続行してください';
   }
 }

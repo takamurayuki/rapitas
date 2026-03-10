@@ -175,11 +175,14 @@ export default function ScheduleEventDialog({
     }
   };
 
-  const formattedStartDate = new Date(startDate).toLocaleDateString(dateLocale, {
-    month: 'long',
-    day: 'numeric',
-    weekday: 'short',
-  });
+  const formattedStartDate = new Date(startDate).toLocaleDateString(
+    dateLocale,
+    {
+      month: 'long',
+      day: 'numeric',
+      weekday: 'short',
+    },
+  );
 
   const formattedEndDate =
     isMultiDay && endDate > startDate

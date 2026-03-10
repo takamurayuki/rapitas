@@ -28,7 +28,11 @@ function formatRelativeTime(dateStr: string): string {
   return `${Math.floor(hours / 24)}日前`;
 }
 
-export default function NotificationList({ notifications, onMarkRead, onMarkAllRead }: NotificationListProps) {
+export default function NotificationList({
+  notifications,
+  onMarkRead,
+  onMarkAllRead,
+}: NotificationListProps) {
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
@@ -44,8 +48,11 @@ export default function NotificationList({ notifications, onMarkRead, onMarkAllR
           )}
         </h3>
         {unreadCount > 0 && (
-          <button type="button" onClick={onMarkAllRead}
-            className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
+          <button
+            type="button"
+            onClick={onMarkAllRead}
+            className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
             すべて既読にする
           </button>
         )}
@@ -74,13 +81,22 @@ export default function NotificationList({ notifications, onMarkRead, onMarkAllR
                 )}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{item.title}</p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">{item.message}</p>
-                <span className="text-[10px] text-zinc-400 dark:text-zinc-500">{formatRelativeTime(item.createdAt)}</span>
+                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                  {item.title}
+                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
+                  {item.message}
+                </p>
+                <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                  {formatRelativeTime(item.createdAt)}
+                </span>
               </div>
               {!item.isRead && (
-                <button type="button" onClick={() => onMarkRead(item.id)}
-                  className="text-xs text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => onMarkRead(item.id)}
+                  className="text-xs text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex-shrink-0"
+                >
                   既読
                 </button>
               )}

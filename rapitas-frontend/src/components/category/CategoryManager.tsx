@@ -368,7 +368,9 @@ export default function CategoryManager({ config }: Props) {
 
       <div>
         <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-          {t('selectIconLabel')} {!formData.icon && t('iconNotSelectedDefault', { icon: config.defaultIcon })}
+          {t('selectIconLabel')}{' '}
+          {!formData.icon &&
+            t('iconNotSelectedDefault', { icon: config.defaultIcon })}
         </label>
 
         <div className="relative mb-2">
@@ -565,7 +567,9 @@ export default function CategoryManager({ config }: Props) {
                                           <span className="font-semibold">
                                             {item._count.tasks}
                                           </span>
-                                          <span className="hidden sm:inline">{t('tasks')}</span>
+                                          <span className="hidden sm:inline">
+                                            {t('tasks')}
+                                          </span>
                                         </span>
                                       )}
                                     </div>
@@ -596,7 +600,9 @@ export default function CategoryManager({ config }: Props) {
                                     className="flex items-center gap-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1.5 text-sm text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
                                   >
                                     <Edit2 className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline">{tc('edit')}</span>
+                                    <span className="hidden sm:inline">
+                                      {tc('edit')}
+                                    </span>
                                   </button>
                                   <button
                                     onClick={() =>
@@ -605,7 +611,9 @@ export default function CategoryManager({ config }: Props) {
                                     className="flex items-center gap-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 px-2.5 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline">{tc('delete')}</span>
+                                    <span className="hidden sm:inline">
+                                      {tc('delete')}
+                                    </span>
                                   </button>
                                 </div>
                               </div>

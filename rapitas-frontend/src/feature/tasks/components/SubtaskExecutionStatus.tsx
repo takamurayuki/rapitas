@@ -1,13 +1,7 @@
 'use client';
 
 import React from 'react';
-import {
-  CheckCircle2,
-  Circle,
-  XCircle,
-  Clock,
-  Pause,
-} from 'lucide-react';
+import { CheckCircle2, Circle, XCircle, Clock, Pause } from 'lucide-react';
 
 /**
  * 並列実行時のサブタスクステータス

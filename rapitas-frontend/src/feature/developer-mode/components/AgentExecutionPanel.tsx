@@ -411,9 +411,13 @@ export function AgentExecutionPanel({
         // 注意: ここで onExecute を呼ぶと新規実行が発火して
         // ログや状態が上書きされるため呼ばない
       } else {
-        const errorData = await response.json().catch(() => ({ error: '継続実行に失敗しました' }));
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: '継続実行に失敗しました' }));
         logger.error('Failed to continue execution:', errorData);
-        setFollowUpError(errorData.error || '継続実行に失敗しました。再度お試しください。');
+        setFollowUpError(
+          errorData.error || '継続実行に失敗しました。再度お試しください。',
+        );
         // エラー時に指示を復元（リトライ可能にする）
         setFollowUpInstruction(savedInstruction);
       }
@@ -549,7 +553,12 @@ export function AgentExecutionPanel({
     isWaitingForInput;
 
   // サブタスクタブ表示の判定
-  const hasSubtaskTabs = !!(subtasks && subtasks.length > 0 && subtaskLogs && parallelSessionId);
+  const hasSubtaskTabs = !!(
+    subtasks &&
+    subtasks.length > 0 &&
+    subtaskLogs &&
+    parallelSessionId
+  );
 
   // ExecutionLogViewer用のステータスを計算
   const logViewerStatus: ExecutionLogStatus = useMemo(() => {
@@ -561,7 +570,11 @@ export function AgentExecutionPanel({
   }, [isRunning, isCancelled, isCompleted, isFailed]);
 
   // ログ表示の共通レンダリング（サブタスクタブ or 通常ログ）
-  const renderLogs = (options: { running: boolean; maxHeight?: number; className?: string }) => {
+  const renderLogs = (options: {
+    running: boolean;
+    maxHeight?: number;
+    className?: string;
+  }) => {
     if (hasSubtaskTabs) {
       return (
         <div className={options.className}>
@@ -764,36 +777,45 @@ export function AgentExecutionPanel({
   }
 
   // ワークフローフェーズの完了メッセージ
-  const workflowPhaseInfo = pollingSessionMode?.startsWith('workflow-') ? (() => {
-    const phaseMap: Record<string, { title: string; message: string; nextAction: string }> = {
-      'workflow-researcher': {
-        title: '調査フェーズ完了',
-        message: 'リサーチャーによる調査が完了しました。',
-        nextAction: '次は計画フェーズを実行してください。',
-      },
-      'workflow-planner': {
-        title: '計画フェーズ完了',
-        message: 'プランナーによる計画作成が完了しました。',
-        nextAction: 'ワークフロータブで計画内容を確認し、承認してください。',
-      },
-      'workflow-reviewer': {
-        title: 'レビューフェーズ完了',
-        message: 'レビュアーによるレビューが完了しました。',
-        nextAction: 'ワークフロータブで計画内容を確認し、承認してください。',
-      },
-      'workflow-implementer': {
-        title: '実装フェーズ完了',
-        message: '実装者による実装が完了しました。',
-        nextAction: '検証フェーズが自動的に開始されます。しばらくお待ちください。',
-      },
-      'workflow-verifier': {
-        title: '検証フェーズ完了',
-        message: '検証者による検証が完了しました。',
-        nextAction: 'ワークフロータブで検証結果を確認し、問題なければ完了にしてください。',
-      },
-    };
-    return phaseMap[pollingSessionMode] || null;
-  })() : null;
+  const workflowPhaseInfo = pollingSessionMode?.startsWith('workflow-')
+    ? (() => {
+        const phaseMap: Record<
+          string,
+          { title: string; message: string; nextAction: string }
+        > = {
+          'workflow-researcher': {
+            title: '調査フェーズ完了',
+            message: 'リサーチャーによる調査が完了しました。',
+            nextAction: '次は計画フェーズを実行してください。',
+          },
+          'workflow-planner': {
+            title: '計画フェーズ完了',
+            message: 'プランナーによる計画作成が完了しました。',
+            nextAction:
+              'ワークフロータブで計画内容を確認し、承認してください。',
+          },
+          'workflow-reviewer': {
+            title: 'レビューフェーズ完了',
+            message: 'レビュアーによるレビューが完了しました。',
+            nextAction:
+              'ワークフロータブで計画内容を確認し、承認してください。',
+          },
+          'workflow-implementer': {
+            title: '実装フェーズ完了',
+            message: '実装者による実装が完了しました。',
+            nextAction:
+              '検証フェーズが自動的に開始されます。しばらくお待ちください。',
+          },
+          'workflow-verifier': {
+            title: '検証フェーズ完了',
+            message: '検証者による検証が完了しました。',
+            nextAction:
+              'ワークフロータブで検証結果を確認し、問題なければ完了にしてください。',
+          },
+        };
+        return phaseMap[pollingSessionMode] || null;
+      })()
+    : null;
 
   // 実行完了（成功）
   if (isCompleted && executionResult?.success) {
@@ -810,10 +832,12 @@ export function AgentExecutionPanel({
                   {workflowPhaseInfo?.title || '実行完了'}
                 </h3>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                  {workflowPhaseInfo?.message || 'AIエージェントによる実行が完了しました。'}
+                  {workflowPhaseInfo?.message ||
+                    'AIエージェントによる実行が完了しました。'}
                 </p>
                 <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-2">
-                  {workflowPhaseInfo?.nextAction || '承認ページでコードレビューを行い、変更をコミットしてください。'}
+                  {workflowPhaseInfo?.nextAction ||
+                    '承認ページでコードレビューを行い、変更をコミットしてください。'}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -897,7 +921,11 @@ export function AgentExecutionPanel({
           </div>
 
           {/* ログ表示 */}
-          {renderLogs({ running: false, className: 'px-6 py-3 bg-emerald-100/50 dark:bg-emerald-900/20 border-t border-emerald-200 dark:border-emerald-800' })}
+          {renderLogs({
+            running: false,
+            className:
+              'px-6 py-3 bg-emerald-100/50 dark:bg-emerald-900/20 border-t border-emerald-200 dark:border-emerald-800',
+          })}
         </div>
       </>
     );
@@ -932,7 +960,11 @@ export function AgentExecutionPanel({
           </div>
 
           {/* 停止時もログを表示 */}
-          {renderLogs({ running: false, className: 'px-6 py-3 bg-yellow-100/50 dark:bg-yellow-900/20 border-t border-yellow-200 dark:border-yellow-800' })}
+          {renderLogs({
+            running: false,
+            className:
+              'px-6 py-3 bg-yellow-100/50 dark:bg-yellow-900/20 border-t border-yellow-200 dark:border-yellow-800',
+          })}
         </div>
       </>
     );
@@ -980,7 +1012,11 @@ export function AgentExecutionPanel({
           </div>
 
           {/* エラー時もログを表示 */}
-          {renderLogs({ running: false, className: 'px-6 py-3 bg-red-100/50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800' })}
+          {renderLogs({
+            running: false,
+            className:
+              'px-6 py-3 bg-red-100/50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800',
+          })}
         </div>
       </>
     );

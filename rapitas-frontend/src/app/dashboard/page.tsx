@@ -106,7 +106,10 @@ export default function DashboardPage() {
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(dateLocale, {
+      month: 'short',
+      day: 'numeric',
+    });
   };
 
   const maxHours = Math.max(...dailyStudy.map((d) => d.hours), 1);
@@ -153,10 +156,12 @@ export default function DashboardPage() {
             <span className="text-xs opacity-75">{t('streak')}</span>
           </div>
           <div className="text-3xl font-bold mb-1">
-            {streakInfo?.currentStreak || 0}{t('consecutiveDays')}
+            {streakInfo?.currentStreak || 0}
+            {t('consecutiveDays')}
           </div>
           <p className="text-sm opacity-75">
-            {t('streak')}: {streakInfo?.longestStreak || 0}{t('consecutiveDays')}
+            {t('streak')}: {streakInfo?.longestStreak || 0}
+            {t('consecutiveDays')}
           </p>
         </div>
 
@@ -194,7 +199,8 @@ export default function DashboardPage() {
             {overview?.tasks.completionRate || 0}%
           </div>
           <p className="text-sm opacity-75">
-            {overview?.tasks.completed || 0}/{overview?.tasks.total || 0} {t('taskComplete')}
+            {overview?.tasks.completed || 0}/{overview?.tasks.total || 0}{' '}
+            {t('taskComplete')}
           </p>
         </div>
       </div>
@@ -303,7 +309,8 @@ export default function DashboardPage() {
                   href="/exam-goals"
                   className="block text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
-                  {tc('other')} {overview.upcomingExams.length - 3} {tc('items')}
+                  {tc('other')} {overview.upcomingExams.length - 3}{' '}
+                  {tc('items')}
                 </a>
               )}
             </div>

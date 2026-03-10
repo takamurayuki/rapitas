@@ -2,8 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Category, Theme } from '@/types';
 import { apiFetch, clearApiCache } from '@/lib/api-client';
-import { createLogger } from "@/lib/logger";
-const logger = createLogger("filterDataStore");
+import { createLogger } from '@/lib/logger';
+const logger = createLogger('filterDataStore');
 
 interface FilterDataState {
   // データ
@@ -58,14 +58,17 @@ const FETCH_TIMEOUT = 10000; // 10秒
 /**
  * 指定した時間待機するユーティリティ関数
  */
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * タイムアウト付きのfetch関数
  */
-const fetchWithTimeout = async <T>(fetchFn: () => Promise<T>, timeout: number): Promise<T> => {
+const fetchWithTimeout = async <T>(
+  fetchFn: () => Promise<T>,
+  timeout: number,
+): Promise<T> => {
   const timeoutPromise = new Promise<T>((_, reject) =>
-    setTimeout(() => reject(new Error('Request timed out')), timeout)
+    setTimeout(() => reject(new Error('Request timed out')), timeout),
   );
 
   return Promise.race([fetchFn(), timeoutPromise]);
@@ -77,7 +80,7 @@ const fetchWithTimeout = async <T>(fetchFn: () => Promise<T>, timeout: number): 
 const fetchWithRetry = async <T>(
   fetchFn: () => Promise<T>,
   attempts: number = RETRY_ATTEMPTS,
-  delayMs: number = RETRY_DELAY
+  delayMs: number = RETRY_DELAY,
 ): Promise<T> => {
   for (let i = 0; i < attempts; i++) {
     try {
@@ -118,34 +121,50 @@ export const useFilterDataStore = create<FilterDataStore>()(
           return;
         }
 
-        logger.info('[filterDataStore] initializeData: Starting initialization');
+        logger.info(
+          '[filterDataStore] initializeData: Starting initialization',
+        );
         set({ isLoading: true, error: null });
 
         try {
           // 並列でカテゴリ・テーマを取得
           const [categoriesResult, themesResult] = await Promise.allSettled([
-            fetchWithRetry(() => apiFetch<Category[]>('/categories', { cacheTime: 300000 })),
-            fetchWithRetry(() => apiFetch<Theme[]>('/themes', { cacheTime: 300000 }))
+            fetchWithRetry(() =>
+              apiFetch<Category[]>('/categories', { cacheTime: 300000 }),
+            ),
+            fetchWithRetry(() =>
+              apiFetch<Theme[]>('/themes', { cacheTime: 300000 }),
+            ),
           ]);
 
           // カテゴリの結果処理
           if (categoriesResult.status === 'fulfilled') {
             set({ categories: categoriesResult.value });
           } else {
-            logger.error('[filterDataStore] Categories fetch failed:', categoriesResult.reason);
-            throw new Error(`Categories fetch failed: ${categoriesResult.reason.message}`);
+            logger.error(
+              '[filterDataStore] Categories fetch failed:',
+              categoriesResult.reason,
+            );
+            throw new Error(
+              `Categories fetch failed: ${categoriesResult.reason.message}`,
+            );
           }
 
           // テーマの結果処理
           if (themesResult.status === 'fulfilled') {
             set({ themes: themesResult.value });
           } else {
-            logger.error('[filterDataStore] Themes fetch failed:', themesResult.reason);
-            throw new Error(`Themes fetch failed: ${themesResult.reason.message}`);
+            logger.error(
+              '[filterDataStore] Themes fetch failed:',
+              themesResult.reason,
+            );
+            throw new Error(
+              `Themes fetch failed: ${themesResult.reason.message}`,
+            );
           }
 
           logger.info(
-            `[filterDataStore] initializeData: Success - Categories: ${categoriesResult.status === 'fulfilled' ? categoriesResult.value.length : 0}, Themes: ${themesResult.status === 'fulfilled' ? themesResult.value.length : 0}`
+            `[filterDataStore] initializeData: Success - Categories: ${categoriesResult.status === 'fulfilled' ? categoriesResult.value.length : 0}, Themes: ${themesResult.status === 'fulfilled' ? themesResult.value.length : 0}`,
           );
 
           set({
@@ -156,13 +175,15 @@ export const useFilterDataStore = create<FilterDataStore>()(
           });
         } catch (error) {
           logger.error('[filterDataStore] initializeData error:', error);
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error occurred';
 
           set({
             isLoading: false,
             error: `Failed to load filter data: ${errorMessage}`,
             // エラーが発生してもキャッシュデータがある場合は使用を継続
-            isInitialized: state.categories.length > 0 || state.themes.length > 0,
+            isInitialized:
+              state.categories.length > 0 || state.themes.length > 0,
           });
         }
       },
@@ -173,12 +194,16 @@ export const useFilterDataStore = create<FilterDataStore>()(
 
         // 強制更新でない場合、データが新しければスキップ
         if (!force && state.isDataFresh()) {
-          logger.debug('[filterDataStore] refreshData: Data is fresh, skipping refresh');
+          logger.debug(
+            '[filterDataStore] refreshData: Data is fresh, skipping refresh',
+          );
           return;
         }
 
         if (force) {
-          logger.info('[filterDataStore] refreshData: Force refresh - clearing caches');
+          logger.info(
+            '[filterDataStore] refreshData: Force refresh - clearing caches',
+          );
           // api-clientのキャッシュもクリア
           clearApiCache('/categories');
           clearApiCache('/themes');
@@ -186,19 +211,25 @@ export const useFilterDataStore = create<FilterDataStore>()(
           set({ lastUpdated: null, isInitialized: false });
         }
 
-        logger.debug(`[filterDataStore] refreshData: Starting refresh (force: ${force})`);
+        logger.debug(
+          `[filterDataStore] refreshData: Starting refresh (force: ${force})`,
+        );
         return get().initializeData();
       },
 
       // カテゴリ設定
       setCategories: (categories) => {
-        logger.debug(`[filterDataStore] setCategories: Setting ${categories.length} categories`);
+        logger.debug(
+          `[filterDataStore] setCategories: Setting ${categories.length} categories`,
+        );
         set({ categories });
       },
 
       // テーマ設定
       setThemes: (themes) => {
-        logger.debug(`[filterDataStore] setThemes: Setting ${themes.length} themes`);
+        logger.debug(
+          `[filterDataStore] setThemes: Setting ${themes.length} themes`,
+        );
         set({ themes });
       },
 
@@ -220,10 +251,10 @@ export const useFilterDataStore = create<FilterDataStore>()(
         if (!state.lastUpdated) return false;
 
         const now = Date.now();
-        const isExpired = (now - state.lastUpdated) > state.cacheExpireTime;
+        const isExpired = now - state.lastUpdated > state.cacheExpireTime;
 
         logger.debug(
-          `[filterDataStore] isDataFresh: ${!isExpired} (age: ${Math.round((now - state.lastUpdated) / 1000)}s, limit: ${Math.round(state.cacheExpireTime / 1000)}s)`
+          `[filterDataStore] isDataFresh: ${!isExpired} (age: ${Math.round((now - state.lastUpdated) / 1000)}s, limit: ${Math.round(state.cacheExpireTime / 1000)}s)`,
         );
 
         return !isExpired;
@@ -241,7 +272,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
         const shouldRefresh = age > threshold;
 
         logger.debug(
-          `[filterDataStore] shouldBackgroundRefresh: ${shouldRefresh} (age: ${Math.round(age / 1000)}s, threshold: ${Math.round(threshold / 1000)}s)`
+          `[filterDataStore] shouldBackgroundRefresh: ${shouldRefresh} (age: ${Math.round(age / 1000)}s, threshold: ${Math.round(threshold / 1000)}s)`,
         );
 
         return shouldRefresh;
@@ -250,13 +281,19 @@ export const useFilterDataStore = create<FilterDataStore>()(
       // バックグラウンド更新（ユーザーに気づかれないように）
       backgroundRefresh: async () => {
         const state = get();
-        logger.debug('[filterDataStore] backgroundRefresh: Starting background update');
+        logger.debug(
+          '[filterDataStore] backgroundRefresh: Starting background update',
+        );
 
         try {
           // 並列でカテゴリ・テーマを取得（ローディング状態は変更しない）
           const [categoriesResult, themesResult] = await Promise.allSettled([
-            fetchWithRetry(() => apiFetch<Category[]>('/categories', { cacheTime: 300000 })),
-            fetchWithRetry(() => apiFetch<Theme[]>('/themes', { cacheTime: 300000 }))
+            fetchWithRetry(() =>
+              apiFetch<Category[]>('/categories', { cacheTime: 300000 }),
+            ),
+            fetchWithRetry(() =>
+              apiFetch<Theme[]>('/themes', { cacheTime: 300000 }),
+            ),
           ]);
 
           let hasUpdates = false;
@@ -266,7 +303,10 @@ export const useFilterDataStore = create<FilterDataStore>()(
             set({ categories: categoriesResult.value });
             hasUpdates = true;
           } else {
-            logger.warn('[filterDataStore] Background categories fetch failed:', categoriesResult.reason);
+            logger.warn(
+              '[filterDataStore] Background categories fetch failed:',
+              categoriesResult.reason,
+            );
           }
 
           // テーマの結果処理
@@ -274,18 +314,26 @@ export const useFilterDataStore = create<FilterDataStore>()(
             set({ themes: themesResult.value });
             hasUpdates = true;
           } else {
-            logger.warn('[filterDataStore] Background themes fetch failed:', themesResult.reason);
+            logger.warn(
+              '[filterDataStore] Background themes fetch failed:',
+              themesResult.reason,
+            );
           }
 
           if (hasUpdates) {
-            logger.info('[filterDataStore] backgroundRefresh: Background update completed successfully');
+            logger.info(
+              '[filterDataStore] backgroundRefresh: Background update completed successfully',
+            );
             set({
               lastUpdated: Date.now(),
               error: null,
             });
           }
         } catch (error) {
-          logger.warn('[filterDataStore] backgroundRefresh: Background update failed (silently ignored):', error);
+          logger.warn(
+            '[filterDataStore] backgroundRefresh: Background update failed (silently ignored):',
+            error,
+          );
           // バックグラウンド更新のエラーはサイレントに処理（ユーザーには表示しない）
         }
       },
@@ -321,12 +369,14 @@ export const useFilterDataStore = create<FilterDataStore>()(
 
           // リハイドレート後にデータの新鮮度をチェック
           if (state.isInitialized && !state.isDataFresh()) {
-            logger.debug('[filterDataStore] Cached data is stale, will refresh on next access');
+            logger.debug(
+              '[filterDataStore] Cached data is stale, will refresh on next access',
+            );
           }
         }
       },
-    }
-  )
+    },
+  ),
 );
 
 // デバッグ用のヘルパー関数
@@ -334,7 +384,8 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   (window as unknown as Record<string, unknown>).filterDataStoreDebug = {
     getState: () => useFilterDataStore.getState(),
     clearCache: () => useFilterDataStore.getState().clearCache(),
-    refreshData: (force = true) => useFilterDataStore.getState().refreshData(force),
+    refreshData: (force = true) =>
+      useFilterDataStore.getState().refreshData(force),
     checkFreshness: () => useFilterDataStore.getState().isDataFresh(),
   };
 }

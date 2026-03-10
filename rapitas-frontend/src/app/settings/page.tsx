@@ -332,7 +332,14 @@ function SettingsPage() {
     }
   };
 
-  const saveWorkflowSettings = async (updates: Partial<Pick<UserSettings, 'autoApprovePlan' | 'autoApproveSubtaskPlan' | 'autoComplexityAnalysis'>>) => {
+  const saveWorkflowSettings = async (
+    updates: Partial<
+      Pick<
+        UserSettings,
+        'autoApprovePlan' | 'autoApproveSubtaskPlan' | 'autoComplexityAnalysis'
+      >
+    >,
+  ) => {
     setError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/settings`, {
@@ -341,9 +348,7 @@ function SettingsPage() {
         body: JSON.stringify(updates),
       });
       if (res.ok) {
-        setSettings((prev) =>
-          prev ? { ...prev, ...updates } : prev,
-        );
+        setSettings((prev) => (prev ? { ...prev, ...updates } : prev));
         setSuccessMessage(t('workflowSaved'));
         setTimeout(() => setSuccessMessage(null), 3000);
         // Clear cache to ensure fresh data
@@ -412,8 +417,7 @@ function SettingsPage() {
 
   const deleteApiKey = async (providerKey: string) => {
     const provider = PROVIDERS.find((p) => p.key === providerKey);
-    if (!confirm(t('confirmDeleteKey')))
-      return;
+    if (!confirm(t('confirmDeleteKey'))) return;
 
     updateProviderState(providerKey, { isSaving: true });
     setError(null);
@@ -821,7 +825,9 @@ function SettingsPage() {
               </div>
               <button
                 onClick={() =>
-                  saveWorkflowSettings({ autoApprovePlan: !settings?.autoApprovePlan })
+                  saveWorkflowSettings({
+                    autoApprovePlan: !settings?.autoApprovePlan,
+                  })
                 }
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 ${
                   settings?.autoApprovePlan
@@ -851,7 +857,11 @@ function SettingsPage() {
               </div>
               <button
                 onClick={() =>
-                  saveWorkflowSettings({ autoApproveSubtaskPlan: !(settings?.autoApproveSubtaskPlan ?? true) })
+                  saveWorkflowSettings({
+                    autoApproveSubtaskPlan: !(
+                      settings?.autoApproveSubtaskPlan ?? true
+                    ),
+                  })
                 }
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 ${
                   (settings?.autoApproveSubtaskPlan ?? true)
@@ -881,7 +891,9 @@ function SettingsPage() {
               </div>
               <button
                 onClick={() =>
-                  saveWorkflowSettings({ autoComplexityAnalysis: !settings?.autoComplexityAnalysis })
+                  saveWorkflowSettings({
+                    autoComplexityAnalysis: !settings?.autoComplexityAnalysis,
+                  })
                 }
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 ${
                   settings?.autoComplexityAnalysis

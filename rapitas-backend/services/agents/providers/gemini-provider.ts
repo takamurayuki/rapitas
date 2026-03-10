@@ -88,16 +88,11 @@ export class GeminiAgent extends AbstractAgent {
     const modelId = config.model || 'gemini-2.0-flash';
     const modelInfo = GEMINI_MODELS[modelId as GeminiModelId];
 
-    super(
-      generateAgentId('gemini'),
-      modelInfo?.name || 'Gemini Agent',
-      'gemini',
-      {
-        version: '1.0.0',
-        description: 'Google Gemini APIを使用したエージェント',
-        modelId,
-      },
-    );
+    super(generateAgentId('gemini'), modelInfo?.name || 'Gemini Agent', 'gemini', {
+      version: '1.0.0',
+      description: 'Google Gemini APIを使用したエージェント',
+      modelId,
+    });
     this.config = config;
   }
 
@@ -132,11 +127,15 @@ export class GeminiAgent extends AbstractAgent {
 
     const apiKey = this.getApiKey();
     if (!apiKey) {
-      errors.push('API key is not configured. Set GOOGLE_AI_API_KEY or GEMINI_API_KEY environment variable or provide apiKey in config.');
+      errors.push(
+        'API key is not configured. Set GOOGLE_AI_API_KEY or GEMINI_API_KEY environment variable or provide apiKey in config.',
+      );
     }
 
     if (this.config.model && !GEMINI_MODELS[this.config.model as GeminiModelId]) {
-      errors.push(`Unknown model: ${this.config.model}. Available models: ${Object.keys(GEMINI_MODELS).join(', ')}`);
+      errors.push(
+        `Unknown model: ${this.config.model}. Available models: ${Object.keys(GEMINI_MODELS).join(', ')}`,
+      );
     }
 
     return { valid: errors.length === 0, errors };
@@ -158,11 +157,7 @@ export class GeminiAgent extends AbstractAgent {
     continuation: ContinuationContext,
     context: AgentExecutionContext,
   ): Promise<AgentExecutionResult> {
-    throw new AgentError(
-      'Gemini provider is not yet fully implemented.',
-      'configuration',
-      false,
-    );
+    throw new AgentError('Gemini provider is not yet fully implemented.', 'configuration', false);
   }
 
   protected async doStop(): Promise<void> {
@@ -241,7 +236,8 @@ export class GeminiProvider implements IAgentProvider {
   }
 
   async isAvailable(): Promise<boolean> {
-    const apiKey = this.defaultConfig.apiKey || process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
+    const apiKey =
+      this.defaultConfig.apiKey || process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
     return !!apiKey;
   }
 
@@ -253,7 +249,8 @@ export class GeminiProvider implements IAgentProvider {
     }
 
     const geminiConfig = config as GeminiConfig;
-    const apiKey = geminiConfig.apiKey || process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
+    const apiKey =
+      geminiConfig.apiKey || process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
       errors.push('API key is required');
@@ -267,7 +264,8 @@ export class GeminiProvider implements IAgentProvider {
   }
 
   async healthCheck(): Promise<AgentHealthStatus> {
-    const apiKey = this.defaultConfig.apiKey || process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
+    const apiKey =
+      this.defaultConfig.apiKey || process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
       return {

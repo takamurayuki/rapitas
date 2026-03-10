@@ -5,24 +5,24 @@
 
 // ログのタイプ定義
 export enum LogType {
-  JSON = "json",
-  SYSLOG = "syslog",
-  APACHE_COMMON = "apache_common",
-  APACHE_COMBINED = "apache_combined",
-  NGINX = "nginx",
-  NODEJS = "nodejs",
-  CUSTOM = "custom",
-  UNKNOWN = "unknown"
+  JSON = 'json',
+  SYSLOG = 'syslog',
+  APACHE_COMMON = 'apache_common',
+  APACHE_COMBINED = 'apache_combined',
+  NGINX = 'nginx',
+  NODEJS = 'nodejs',
+  CUSTOM = 'custom',
+  UNKNOWN = 'unknown',
 }
 
 // ログレベルの定義
 export enum LogLevel {
-  TRACE = "trace",
-  DEBUG = "debug",
-  INFO = "info",
-  WARN = "warn",
-  ERROR = "error",
-  FATAL = "fatal"
+  TRACE = 'trace',
+  DEBUG = 'debug',
+  INFO = 'info',
+  WARN = 'warn',
+  ERROR = 'error',
+  FATAL = 'fatal',
 }
 
 // パースされたログエントリー

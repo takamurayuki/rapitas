@@ -13,9 +13,9 @@ export interface AgentExecutionResult {
   state: AgentState;
 
   // 出力
-  output: string;               // 主要出力
-  structuredOutput?: unknown;   // 構造化出力（JSON等）
-  errorMessage?: string;        // エラーメッセージ
+  output: string; // 主要出力
+  structuredOutput?: unknown; // 構造化出力（JSON等）
+  errorMessage?: string; // エラーメッセージ
 
   // 成果物
   artifacts?: AgentArtifact[];
@@ -28,7 +28,7 @@ export interface AgentExecutionResult {
   pendingQuestion?: PendingQuestion;
 
   // セッション情報
-  sessionId?: string;           // 継続用セッションID
+  sessionId?: string; // 継続用セッションID
 
   // デバッグ情報
   debugInfo?: ExecutionDebugInfo;
@@ -42,7 +42,7 @@ export interface AgentArtifact {
   name: string;
   content: string;
   path?: string;
-  language?: string;            // プログラミング言語
+  language?: string; // プログラミング言語
   mimeType?: string;
   metadata?: Record<string, unknown>;
 }
@@ -89,7 +89,7 @@ export interface PendingQuestion {
   options?: QuestionOption[];
   multiSelect?: boolean;
   defaultValue?: string;
-  timeout?: number;             // 質問のタイムアウト（秒）
+  timeout?: number; // 質問のタイムアウト（秒）
   metadata?: Record<string, unknown>;
 }
 

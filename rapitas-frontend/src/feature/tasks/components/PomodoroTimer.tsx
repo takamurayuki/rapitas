@@ -1,5 +1,5 @@
 'use client';
-import { TimeEntry } from '@/types';
+import { type TimeEntry } from '@/types';
 import {
   Icon,
   Circle,
@@ -206,7 +206,9 @@ export default function PomodoroTimer({
   const strokeDashoffset = circumference - (progress / 100) * circumference;
 
   const breakType =
-    pomodoroCount > 0 && pomodoroCount % 4 === 0 ? t('longBreak') : t('shortBreak');
+    pomodoroCount > 0 && pomodoroCount % 4 === 0
+      ? t('longBreak')
+      : t('shortBreak');
 
   // 別のタスクでタイマーが動いている場合
   const isOtherTaskRunning = store.isTimerRunning && !isThisTask;
@@ -236,11 +238,15 @@ export default function PomodoroTimer({
       <div className="flex gap-4 mb-4 text-sm text-zinc-600 dark:text-zinc-400">
         <div className="flex items-center gap-1">
           <Hourglass className="w-4 h-4" />
-          <span>{t('workTimeLabel')} {formatTime(workSeconds)}</span>
+          <span>
+            {t('workTimeLabel')} {formatTime(workSeconds)}
+          </span>
         </div>
         <div className="flex items-center gap-1">
           <Coffee className="w-4 h-4" />
-          <span>{t('breakTimeLabel')} {formatTime(accumulatedBreakSeconds)}</span>
+          <span>
+            {t('breakTimeLabel')} {formatTime(accumulatedBreakSeconds)}
+          </span>
         </div>
       </div>
 

@@ -76,9 +76,7 @@ export default function BurnupChart({
         if (projectId) params.append('projectId', projectId.toString());
 
         // バーンアップ用のAPIエンドポイントを使用
-        const res = await fetch(
-          `${API_BASE_URL}/statistics/burnup?${params}`,
-        );
+        const res = await fetch(`${API_BASE_URL}/statistics/burnup?${params}`);
         if (res.ok) {
           setData(await res.json());
         }
@@ -116,19 +114,18 @@ export default function BurnupChart({
     // 累積完了数のパスを生成（右肩上がり）
     const completedPath = data.dailyData
       .map(
-        (d, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(d.cumulativeCompleted)}`,
+        (d, i) =>
+          `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(d.cumulativeCompleted)}`,
       )
       .join(' ');
 
     // 理想的な進捗ライン（期間全体でのタスク追加を考慮した線形増加）
     const idealEndValue = data.summary.cumulativeCompleted;
     const idealPath = data.dailyData
-      .map(
-        (d, i) => {
-          const idealValue = (idealEndValue / (data.dailyData.length - 1)) * i;
-          return `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(idealValue)}`;
-        }
-      )
+      .map((d, i) => {
+        const idealValue = (idealEndValue / (data.dailyData.length - 1)) * i;
+        return `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(idealValue)}`;
+      })
       .join(' ');
 
     // 累積完了数の下を塗りつぶすためのエリアパス（成果の可視化）
@@ -205,17 +202,20 @@ export default function BurnupChart({
               </span>
               <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
                 <Calendar className="w-3 h-3" />
-                {t('added')}<span className="font-semibold">{summary.totalAdded}</span>
+                {t('added')}
+                <span className="font-semibold">{summary.totalAdded}</span>
               </span>
               <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
-                <Target className="w-3 h-3" />{t('remaining')}
+                <Target className="w-3 h-3" />
+                {t('remaining')}
                 <span className="font-semibold text-zinc-900 dark:text-zinc-100">
                   {summary.currentRemaining}
                 </span>
               </span>
               <span className="flex items-center gap-1 text-violet-600 dark:text-violet-400">
                 <Zap className="w-3 h-3" />
-                <span className="font-semibold">{summary.velocity}</span>{t('perDay')}
+                <span className="font-semibold">{summary.velocity}</span>
+                {t('perDay')}
               </span>
             </div>
           </div>
@@ -258,10 +258,12 @@ export default function BurnupChart({
         {/* モバイル用サマリー */}
         <div className="flex sm:hidden items-center gap-3 mt-2 text-xs">
           <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-            {t('completed')}<span className="font-semibold">{summary.totalCompleted}</span>
+            {t('completed')}
+            <span className="font-semibold">{summary.totalCompleted}</span>
           </span>
           <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-            {t('added')}<span className="font-semibold">{summary.totalAdded}</span>
+            {t('added')}
+            <span className="font-semibold">{summary.totalAdded}</span>
           </span>
           <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
             {t('remaining')}
@@ -270,7 +272,8 @@ export default function BurnupChart({
             </span>
           </span>
           <span className="flex items-center gap-1 text-violet-600 dark:text-violet-400">
-            <span className="font-semibold">{summary.velocity}</span>{t('perDay')}
+            <span className="font-semibold">{summary.velocity}</span>
+            {t('perDay')}
           </span>
         </div>
       </div>
@@ -371,7 +374,10 @@ export default function BurnupChart({
                 className="cursor-pointer"
               >
                 <title>
-                  {t('cumulativeTooltip', { date: new Date(d.date).toLocaleDateString(dateLocale), count: d.cumulativeCompleted })}
+                  {t('cumulativeTooltip', {
+                    date: new Date(d.date).toLocaleDateString(dateLocale),
+                    count: d.cumulativeCompleted,
+                  })}
                 </title>
               </circle>
             );

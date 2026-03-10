@@ -6,7 +6,10 @@ const log = createLogger('branch-name-generator');
 /**
  * タスクの内容に基づいて適切なブランチ名をAIで生成する
  */
-export async function generateBranchName(taskTitle: string, taskDescription?: string): Promise<string> {
+export async function generateBranchName(
+  taskTitle: string,
+  taskDescription?: string,
+): Promise<string> {
   try {
     // タスク内容からブランチ名を生成するプロンプト
     const prompt = `
@@ -36,8 +39,10 @@ ${taskDescription ? `タスク説明: "${taskDescription}"` : ''}
     let branchName = response.content.trim();
 
     // 前後の引用符を削除
-    if ((branchName.startsWith('"') && branchName.endsWith('"')) ||
-        (branchName.startsWith("'") && branchName.endsWith("'"))) {
+    if (
+      (branchName.startsWith('"') && branchName.endsWith('"')) ||
+      (branchName.startsWith("'") && branchName.endsWith("'"))
+    ) {
       branchName = branchName.slice(1, -1);
     }
 
@@ -78,7 +83,7 @@ export function isValidBranchName(name: string): boolean {
 
   // 有効なプレフィックスをチェック
   const validPrefixes = ['feature/', 'bugfix/', 'chore/'];
-  if (!validPrefixes.some(prefix => name.startsWith(prefix))) {
+  if (!validPrefixes.some((prefix) => name.startsWith(prefix))) {
     return false;
   }
 
@@ -87,8 +92,13 @@ export function isValidBranchName(name: string): boolean {
   if (invalidChars.test(name)) return false;
 
   // 連続するドット、先頭末尾のドットやハイフンを禁止
-  if (name.includes('..') || name.startsWith('.') || name.endsWith('.') ||
-      name.startsWith('-') || name.endsWith('-')) {
+  if (
+    name.includes('..') ||
+    name.startsWith('.') ||
+    name.endsWith('.') ||
+    name.startsWith('-') ||
+    name.endsWith('-')
+  ) {
     return false;
   }
 
@@ -112,12 +122,21 @@ export function generateFallbackBranchName(taskTitle: string): string {
 
   // キーワードベースでプレフィックスを決定
   const bugKeywords = ['fix', 'bug', 'error', '修正', 'バグ', 'エラー'];
-  const choreKeywords = ['refactor', 'update', 'clean', 'remove', 'delete', '更新', '削除', 'リファクタ'];
+  const choreKeywords = [
+    'refactor',
+    'update',
+    'clean',
+    'remove',
+    'delete',
+    '更新',
+    '削除',
+    'リファクタ',
+  ];
 
   const titleLower = taskTitle.toLowerCase();
-  if (bugKeywords.some(keyword => titleLower.includes(keyword))) {
+  if (bugKeywords.some((keyword) => titleLower.includes(keyword))) {
     prefix = 'bugfix/';
-  } else if (choreKeywords.some(keyword => titleLower.includes(keyword))) {
+  } else if (choreKeywords.some((keyword) => titleLower.includes(keyword))) {
     prefix = 'chore/';
   }
 

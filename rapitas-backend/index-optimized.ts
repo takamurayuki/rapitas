@@ -1,13 +1,13 @@
 // Setup global error handlers
-import { setupGlobalErrorHandlers, errorHandler, performanceOptimization } from "./middleware";
+import { setupGlobalErrorHandlers, errorHandler, performanceOptimization } from './middleware';
 setupGlobalErrorHandlers();
 
-import { createLogger } from "./config/logger";
-const log = createLogger("server-optimized");
+import { createLogger } from './config/logger';
+const log = createLogger('server-optimized');
 
-import { Elysia, type Context } from "elysia";
-import { cors } from "@elysiajs/cors";
-import { swagger } from "@elysiajs/swagger";
+import { Elysia, type Context } from 'elysia';
+import { cors } from '@elysiajs/cors';
+import { swagger } from '@elysiajs/swagger';
 
 // Import modular routes
 import {
@@ -51,28 +51,28 @@ import {
   paidLeaveRoutes,
   urlMetadataRoutes,
   batchRoutes,
-} from "./routes";
+} from './routes';
 
 // Import optimized batch routes
-import { batchRoutesV2 } from "./routes/tasks/batch-v2";
+import { batchRoutesV2 } from './routes/tasks/batch-v2';
 
 // Import WebSocket routes
-import { websocketRoutes, wsManager } from "./services/websocket-service";
+import { websocketRoutes, wsManager } from './services/websocket-service';
 
 // Import shared database client
-import { prisma, ensureDatabaseConnection } from "./config";
+import { prisma, ensureDatabaseConnection } from './config';
 
 // Import Prisma optimizations
-import { setupPrismaOptimizations } from "./utils/prisma-optimization";
+import { setupPrismaOptimizations } from './utils/prisma-optimization';
 
 // Import cache service
-import { cacheService } from "./services/cache-service";
+import { cacheService } from './services/cache-service';
 
 // Import orchestrator for startup recovery
-import { orchestrator } from "./services/orchestrator-instance";
+import { orchestrator } from './services/orchestrator-instance';
 
 // Import realtime service for SSE cleanup on shutdown
-import { realtimeService } from "./services/realtime-service";
+import { realtimeService } from './services/realtime-service';
 
 // Ensure database connection before starting server
 await ensureDatabaseConnection();
@@ -96,50 +96,50 @@ app.use(
   swagger({
     documentation: {
       info: {
-        title: "Rapitas API",
-        version: "2.0.0",
+        title: 'Rapitas API',
+        version: '2.0.0',
         description:
-          "Rapitas - AI-powered task management and development automation API with performance optimizations",
+          'Rapitas - AI-powered task management and development automation API with performance optimizations',
       },
       tags: [
-        { name: "Tasks", description: "Task management operations" },
-        { name: "Projects", description: "Project management operations" },
-        { name: "Themes", description: "Theme/workspace operations" },
-        { name: "Labels", description: "Label management operations" },
-        { name: "Milestones", description: "Milestone management operations" },
-        { name: "Time Entries", description: "Time tracking operations" },
-        { name: "Comments", description: "Comment operations" },
-        { name: "Notifications", description: "Notification operations" },
-        { name: "Settings", description: "User settings operations" },
-        { name: "GitHub", description: "GitHub integration operations" },
-        { name: "Approvals", description: "Approval workflow operations" },
+        { name: 'Tasks', description: 'Task management operations' },
+        { name: 'Projects', description: 'Project management operations' },
+        { name: 'Themes', description: 'Theme/workspace operations' },
+        { name: 'Labels', description: 'Label management operations' },
+        { name: 'Milestones', description: 'Milestone management operations' },
+        { name: 'Time Entries', description: 'Time tracking operations' },
+        { name: 'Comments', description: 'Comment operations' },
+        { name: 'Notifications', description: 'Notification operations' },
+        { name: 'Settings', description: 'User settings operations' },
+        { name: 'GitHub', description: 'GitHub integration operations' },
+        { name: 'Approvals', description: 'Approval workflow operations' },
         {
-          name: "AI Agents",
-          description: "AI agent execution and configuration",
+          name: 'AI Agents',
+          description: 'AI agent execution and configuration',
         },
         {
-          name: "SSE",
-          description: "Server-Sent Events for real-time updates",
+          name: 'SSE',
+          description: 'Server-Sent Events for real-time updates',
         },
         {
-          name: "WebSocket",
-          description: "WebSocket connections for real-time bidirectional communication",
+          name: 'WebSocket',
+          description: 'WebSocket connections for real-time bidirectional communication',
         },
         {
-          name: "Batch",
-          description: "Batch API for optimized multiple requests",
+          name: 'Batch',
+          description: 'Batch API for optimized multiple requests',
         },
         {
-          name: "Study",
-          description: "Study-related features (exam goals, streaks)",
+          name: 'Study',
+          description: 'Study-related features (exam goals, streaks)',
         },
-        { name: "Resources", description: "Resource management" },
-        { name: "AI Chat", description: "AI chat functionality" },
-        { name: "Developer Mode", description: "Developer mode configuration" },
+        { name: 'Resources', description: 'Resource management' },
+        { name: 'AI Chat', description: 'AI chat functionality' },
+        { name: 'Developer Mode', description: 'Developer mode configuration' },
       ],
     },
-    path: "/api/docs",
-    exclude: ["/api/docs", "/api/docs/json"],
+    path: '/api/docs',
+    exclude: ['/api/docs', '/api/docs/json'],
   }),
 );
 
@@ -192,13 +192,13 @@ app.use(batchRoutesV2);
 app.use(websocketRoutes);
 
 // Health check endpoint with performance metrics
-app.get("/health", (context: Context) => {
+app.get('/health', (context: Context) => {
   const { set } = context;
   const cacheStats = cacheService.getStats();
   const wsStats = wsManager.getStats();
 
   return {
-    status: "healthy",
+    status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     performance: {
@@ -212,7 +212,7 @@ app.get("/health", (context: Context) => {
 });
 
 // Start server
-const PORT = parseInt(process.env.PORT || "3001", 10);
+const PORT = parseInt(process.env.PORT || '3001', 10);
 app.listen({
   port: PORT,
   idleTimeout: 30, // 30秒のアイドルタイムアウトでCLOSE_WAIT蓄積を防止
@@ -236,61 +236,61 @@ const handleProcessSignal = async (signal: string) => {
 
   // 強制終了タイマー（8秒後に強制終了）
   const forceExitTimer = setTimeout(() => {
-    log.error("Graceful shutdown timeout, forcing exit...");
+    log.error('Graceful shutdown timeout, forcing exit...');
     process.exit(1);
   }, 8000);
 
   try {
     // Step 1: まずリスニングソケットを閉じる（新規接続を拒否）
-    log.info("Step 1: Stopping listener (no new connections)...");
+    log.info('Step 1: Stopping listener (no new connections)...');
     try {
       app.stop();
     } catch (error) {
-      log.error({ err: error }, "Error stopping listener");
+      log.error({ err: error }, 'Error stopping listener');
     }
 
     // Step 2: WebSocketとSSE接続を全て閉じる
-    log.info("Step 2: Closing WebSocket and SSE connections...");
+    log.info('Step 2: Closing WebSocket and SSE connections...');
     wsManager.shutdown();
     const clientCount = realtimeService.getClientCount();
     realtimeService.shutdown();
     log.info({ clientCount }, `Closed ${clientCount} SSE client(s).`);
 
     // Step 3: 接続がドレインされるのを待つ
-    log.info("Step 3: Waiting for connections to drain...");
+    log.info('Step 3: Waiting for connections to drain...');
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // Step 4: キャッシュの統計を保存
-    log.info("Step 4: Saving cache statistics...");
+    log.info('Step 4: Saving cache statistics...');
     const cacheStats = cacheService.getStats();
-    log.info({ cacheStats }, "Cache statistics");
+    log.info({ cacheStats }, 'Cache statistics');
 
     // Step 5: データベース接続を閉じる
-    log.info("Step 5: Closing database connection...");
+    log.info('Step 5: Closing database connection...');
     try {
       await prisma.$disconnect();
-      log.info("Database connection closed.");
+      log.info('Database connection closed.');
     } catch (error) {
-      log.error({ err: error }, "Error closing database connection");
+      log.error({ err: error }, 'Error closing database connection');
     }
 
     clearTimeout(forceExitTimer);
 
     // TCPスタックがソケットを解放する時間を確保
-    log.info("Waiting for socket cleanup...");
+    log.info('Waiting for socket cleanup...');
     setTimeout(() => {
-      log.info("Shutdown complete.");
+      log.info('Shutdown complete.');
       process.exit(0);
     }, 500);
   } catch (error) {
-    log.error({ err: error }, "Error during shutdown");
+    log.error({ err: error }, 'Error during shutdown');
     clearTimeout(forceExitTimer);
     process.exit(1);
   }
 };
 
-process.on("SIGTERM", () => handleProcessSignal("SIGTERM"));
-process.on("SIGINT", () => handleProcessSignal("SIGINT"));
+process.on('SIGTERM', () => handleProcessSignal('SIGTERM'));
+process.on('SIGINT', () => handleProcessSignal('SIGINT'));
 
 // Startup recovery with cache warming
 const startupRecovery = async () => {
@@ -298,20 +298,20 @@ const startupRecovery = async () => {
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
   // キャッシュのウォーミング
-  log.info("Warming up cache...");
+  log.info('Warming up cache...');
   await cacheService.warmup([
     {
-      key: "categories",
+      key: 'categories',
       factory: () => prisma.category.findMany(),
       ttl: 3600, // 1時間
     },
     {
-      key: "themes",
+      key: 'themes',
       factory: () => prisma.theme.findMany(),
       ttl: 3600,
     },
     {
-      key: "projects",
+      key: 'projects',
       factory: () => prisma.project.findMany(),
       ttl: 1800, // 30分
     },
@@ -321,7 +321,11 @@ const startupRecovery = async () => {
 
   if (result.recoveredExecutions > 0) {
     log.info(
-      { recoveredExecutions: result.recoveredExecutions, updatedTasks: result.updatedTasks, updatedSessions: result.updatedSessions },
+      {
+        recoveredExecutions: result.recoveredExecutions,
+        updatedTasks: result.updatedTasks,
+        updatedSessions: result.updatedSessions,
+      },
       `Startup recovery: ${result.recoveredExecutions} executions, ${result.updatedTasks} tasks, ${result.updatedSessions} sessions recovered`,
     );
   }
@@ -343,8 +347,8 @@ const startupRecovery = async () => {
             const res = await fetch(
               `http://localhost:${PORT}/agents/executions/${executionId}/resume`,
               {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
               },
             );
             const data = (await res.json()) as {
@@ -365,10 +369,7 @@ const startupRecovery = async () => {
               );
             }
           } catch (error) {
-            log.error(
-              { err: error, executionId },
-              `Error auto-resuming execution ${executionId}`,
-            );
+            log.error({ err: error, executionId }, `Error auto-resuming execution ${executionId}`);
           }
         }
 
@@ -376,22 +377,22 @@ const startupRecovery = async () => {
         await prisma.notification
           .create({
             data: {
-              type: "agent_execution_resumed",
-              title: "自動再開完了",
+              type: 'agent_execution_resumed',
+              title: '自動再開完了',
               message: `サーバー再起動後、${result.interruptedExecutionIds.length}件の中断されたタスクを自動再開しました。`,
-              link: "/",
+              link: '/',
             },
           })
           .catch((err: Error) => {
-            log.error({ err }, "Failed to create auto-resume notification");
+            log.error({ err }, 'Failed to create auto-resume notification');
           });
       }
     } catch (error) {
-      log.error({ err: error }, "Auto-resume check failed");
+      log.error({ err: error }, 'Auto-resume check failed');
     }
   }
 };
 
 startupRecovery().catch((error) => {
-  log.error({ err: error }, "Startup recovery failed");
+  log.error({ err: error }, 'Startup recovery failed');
 });

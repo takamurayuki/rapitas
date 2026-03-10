@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('GenerateProposalsRoute');
@@ -48,33 +48,41 @@ export async function POST(request: NextRequest) {
     const mockResponse = {
       proposals: [
         {
-          id: "A",
-          name: "TaskFlow",
-          tagline: "直感的なタスク管理",
-          concept: "シンプルなインターフェースで日々のタスクを効率的に管理できるアプリ。ドラッグ&ドロップでタスクを整理し、進捗を可視化します。",
-          unique: "AIによる優先度自動判定とスマートな時間配分提案",
-          difficulty: "easy",
-          tech_hint: ["Next.js", "Supabase", "Tailwind CSS", "Framer Motion"]
+          id: 'A',
+          name: 'TaskFlow',
+          tagline: '直感的なタスク管理',
+          concept:
+            'シンプルなインターフェースで日々のタスクを効率的に管理できるアプリ。ドラッグ&ドロップでタスクを整理し、進捗を可視化します。',
+          unique: 'AIによる優先度自動判定とスマートな時間配分提案',
+          difficulty: 'easy',
+          tech_hint: ['Next.js', 'Supabase', 'Tailwind CSS', 'Framer Motion'],
         },
         {
-          id: "B",
-          name: "CollabSpace",
-          tagline: "チーム協働の新体験",
-          concept: "リアルタイム同期機能付きのチーム協働プラットフォーム。プロジェクト管理からファイル共有まで一元管理できます。",
-          unique: "バーチャル共同作業空間とAIアシスタント機能",
-          difficulty: "medium",
-          tech_hint: ["Next.js", "Socket.io", "PostgreSQL", "AWS S3"]
+          id: 'B',
+          name: 'CollabSpace',
+          tagline: 'チーム協働の新体験',
+          concept:
+            'リアルタイム同期機能付きのチーム協働プラットフォーム。プロジェクト管理からファイル共有まで一元管理できます。',
+          unique: 'バーチャル共同作業空間とAIアシスタント機能',
+          difficulty: 'medium',
+          tech_hint: ['Next.js', 'Socket.io', 'PostgreSQL', 'AWS S3'],
         },
         {
-          id: "C",
-          name: "FocusZone",
-          tagline: "集中力最大化ツール",
-          concept: "ポモドーロテクニックとバイオリズム分析を組み合わせた集中力向上アプリ。個人の最適な作業パターンを学習します。",
-          unique: "生体データ連携による個人最適化された集中セッション",
-          difficulty: "hard",
-          tech_hint: ["React Native", "Machine Learning", "Firebase", "HealthKit"]
-        }
-      ]
+          id: 'C',
+          name: 'FocusZone',
+          tagline: '集中力最大化ツール',
+          concept:
+            'ポモドーロテクニックとバイオリズム分析を組み合わせた集中力向上アプリ。個人の最適な作業パターンを学習します。',
+          unique: '生体データ連携による個人最適化された集中セッション',
+          difficulty: 'hard',
+          tech_hint: [
+            'React Native',
+            'Machine Learning',
+            'Firebase',
+            'HealthKit',
+          ],
+        },
+      ],
     };
 
     return NextResponse.json(mockResponse);
@@ -82,7 +90,7 @@ export async function POST(request: NextRequest) {
     logger.error('Error generating proposals:', error);
     return NextResponse.json(
       { error: 'プロポーザルの生成に失敗しました' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

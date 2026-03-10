@@ -3,18 +3,18 @@
  * Stage 1: ヒューリスティック（重複検出、コサイン類似度）
  * Stage 2: LLM（整合性判定）
  */
-import { prisma } from "../../config/database";
-import { createLogger } from "../../config/logger";
-import { sendAIMessage } from "../../utils/ai-client";
-import { vectorSearch } from "./rag/search";
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+import { sendAIMessage } from '../../utils/ai-client';
+import { vectorSearch } from './rag/search';
 
-const log = createLogger("memory:validation");
+const log = createLogger('memory:validation');
 
 /**
  * 知識エントリを検証
  */
 export async function validateEntry(entryId: number): Promise<{
-  status: "validated" | "rejected" | "conflict";
+  status: 'validated' | 'rejected' | 'conflict';
   reason: string;
   duplicateOf?: number;
 }> {
@@ -38,13 +38,17 @@ export async function validateEntry(entryId: number): Promise<{
     await prisma.knowledgeEntry.update({
       where: { id: entryId },
       data: {
-        validationStatus: "rejected",
+        validationStatus: 'rejected',
         validatedAt: new Date(),
-        validationMethod: "hash_duplicate",
+        validationMethod: 'hash_duplicate',
       },
     });
-    log.info({ entryId, duplicateOf: duplicateByHash.id }, "Entry rejected: hash duplicate");
-    return { status: "rejected", reason: "完全な重複エントリが存在します", duplicateOf: duplicateByHash.id };
+    log.info({ entryId, duplicateOf: duplicateByHash.id }, 'Entry rejected: hash duplicate');
+    return {
+      status: 'rejected',
+      reason: '完全な重複エントリが存在します',
+      duplicateOf: duplicateByHash.id,
+    };
   }
 
   // Stage 1: コサイン類似度による重複チェック
@@ -66,17 +70,17 @@ export async function validateEntry(entryId: number): Promise<{
         await prisma.knowledgeEntry.update({
           where: { id: entryId },
           data: {
-            validationStatus: "rejected",
+            validationStatus: 'rejected',
             validatedAt: new Date(),
-            validationMethod: "vector_duplicate",
+            validationMethod: 'vector_duplicate',
           },
         });
         log.info(
           { entryId, duplicateOf: topMatch.knowledgeEntryId, similarity: topMatch.similarity },
-          "Entry rejected: vector duplicate",
+          'Entry rejected: vector duplicate',
         );
         return {
-          status: "rejected",
+          status: 'rejected',
           reason: `類似度${(topMatch.similarity * 100).toFixed(1)}%の重複エントリが存在します`,
           duplicateOf: topMatch.knowledgeEntryId,
         };
@@ -92,7 +96,7 @@ export async function validateEntry(entryId: number): Promise<{
           const response = await sendAIMessage({
             messages: [
               {
-                role: "user",
+                role: 'user',
                 content: `以下の2つの知識エントリが整合しているか判定してください。
 
 エントリA:
@@ -117,49 +121,53 @@ export async function validateEntry(entryId: number): Promise<{
 
           const responseText = response.content;
 
-          if (responseText.includes("DUPLICATE")) {
+          if (responseText.includes('DUPLICATE')) {
             await prisma.knowledgeEntry.update({
               where: { id: entryId },
               data: {
-                validationStatus: "rejected",
+                validationStatus: 'rejected',
                 validatedAt: new Date(),
-                validationMethod: "llm_duplicate",
+                validationMethod: 'llm_duplicate',
               },
             });
-            return { status: "rejected", reason: "LLM判定: 実質的な重複", duplicateOf: topMatch.knowledgeEntryId };
+            return {
+              status: 'rejected',
+              reason: 'LLM判定: 実質的な重複',
+              duplicateOf: topMatch.knowledgeEntryId,
+            };
           }
 
-          if (responseText.includes("CONFLICT")) {
+          if (responseText.includes('CONFLICT')) {
             await prisma.knowledgeEntry.update({
               where: { id: entryId },
               data: {
-                validationStatus: "conflict",
+                validationStatus: 'conflict',
                 validatedAt: new Date(),
-                validationMethod: "llm_conflict",
+                validationMethod: 'llm_conflict',
               },
             });
-            return { status: "conflict", reason: "LLM判定: 既存エントリと矛盾" };
+            return { status: 'conflict', reason: 'LLM判定: 既存エントリと矛盾' };
           }
         } catch (error) {
-          log.warn({ err: error, entryId }, "LLM validation failed, accepting entry");
+          log.warn({ err: error, entryId }, 'LLM validation failed, accepting entry');
         }
       }
     }
   } catch (error) {
     // ベクトル検索が利用できない場合はスキップ
-    log.debug({ err: error, entryId }, "Vector search unavailable for validation");
+    log.debug({ err: error, entryId }, 'Vector search unavailable for validation');
   }
 
   // 検証通過
   await prisma.knowledgeEntry.update({
     where: { id: entryId },
     data: {
-      validationStatus: "validated",
+      validationStatus: 'validated',
       validatedAt: new Date(),
-      validationMethod: "auto",
+      validationMethod: 'auto',
     },
   });
 
-  log.debug({ entryId }, "Entry validated");
-  return { status: "validated", reason: "検証通過" };
+  log.debug({ entryId }, 'Entry validated');
+  return { status: 'validated', reason: '検証通過' };
 }

@@ -44,7 +44,7 @@ export const ModernCheckbox: React.FC<ModernCheckboxProps> = ({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             transition={{
-              type: "spring",
+              type: 'spring',
               stiffness: 400,
               damping: 17,
             }}
@@ -63,7 +63,7 @@ export const ModernCheckbox: React.FC<ModernCheckboxProps> = ({
                 d="M5 13l4 4L19 7"
                 initial={{ pathLength: 0 }}
                 animate={{ pathLength: 1 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
               />
             </svg>
           </motion.div>

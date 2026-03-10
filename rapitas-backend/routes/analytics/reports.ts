@@ -1,12 +1,12 @@
 /**
  * Reports & Export API Routes
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
 
 export const reportsRoutes = new Elysia()
   // Weekly Report
-  .get("/reports/weekly", async () => {
+  .get('/reports/weekly', async () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -18,20 +18,20 @@ export const reportsRoutes = new Elysia()
 
     // 今週のデータ
     const thisWeekTasks = await prisma.task.count({
-      where: { status: "done", completedAt: { gte: weekAgo }, parentId: null },
+      where: { status: 'done', completedAt: { gte: weekAgo }, parentId: null },
     });
     const thisWeekTime = await prisma.timeEntry.findMany({
       where: { startedAt: { gte: weekAgo } },
     });
     const thisWeekHours = thisWeekTime.reduce(
       (sum: number, e: { duration: number }) => sum + e.duration,
-      0
+      0,
     );
 
     // 先週のデータ（比較用）
     const lastWeekTasks = await prisma.task.count({
       where: {
-        status: "done",
+        status: 'done',
         completedAt: { gte: twoWeeksAgo, lt: weekAgo },
         parentId: null,
       },
@@ -41,7 +41,7 @@ export const reportsRoutes = new Elysia()
     });
     const lastWeekHours = lastWeekTime.reduce(
       (sum: number, e: { duration: number }) => sum + e.duration,
-      0
+      0,
     );
 
     // 日別データ
@@ -54,7 +54,7 @@ export const reportsRoutes = new Elysia()
 
       const tasks = await prisma.task.count({
         where: {
-          status: "done",
+          status: 'done',
           completedAt: { gte: date, lt: nextDate },
           parentId: null,
         },
@@ -62,13 +62,10 @@ export const reportsRoutes = new Elysia()
       const time = await prisma.timeEntry.findMany({
         where: { startedAt: { gte: date, lt: nextDate } },
       });
-      const hours = time.reduce(
-        (sum: number, e: { duration: number }) => sum + e.duration,
-        0
-      );
+      const hours = time.reduce((sum: number, e: { duration: number }) => sum + e.duration, 0);
 
       dailyData.push({
-        date: date.toISOString().split("T")[0],
+        date: date.toISOString().split('T')[0],
         tasks,
         hours: Math.round(hours * 10) / 10,
       });
@@ -76,7 +73,7 @@ export const reportsRoutes = new Elysia()
 
     // 科目別データ
     const subjectData = await prisma.task.groupBy({
-      by: ["subject"],
+      by: ['subject'],
       where: {
         subject: { not: null },
         completedAt: { gte: weekAgo },
@@ -96,17 +93,15 @@ export const reportsRoutes = new Elysia()
         hoursChange: Math.round((thisWeekHours - lastWeekHours) * 10) / 10,
       },
       dailyData,
-      subjectBreakdown: subjectData.map(
-        (s: { subject: string | null; _count: number }) => ({
-          subject: s.subject,
-          count: s._count,
-        })
-      ),
+      subjectBreakdown: subjectData.map((s: { subject: string | null; _count: number }) => ({
+        subject: s.subject,
+        count: s._count,
+      })),
     };
   })
 
   // Export Tasks
-  .get("/export/tasks", async () => {
+  .get('/export/tasks', async () => {
     const tasks = await prisma.task.findMany({
       where: { parentId: null },
       include: {
@@ -119,8 +114,8 @@ export const reportsRoutes = new Elysia()
 
     return {
       exportedAt: new Date().toISOString(),
-      version: "1.0",
-      tasks: tasks.map((t: typeof tasks[number]) => ({
+      version: '1.0',
+      tasks: tasks.map((t: (typeof tasks)[number]) => ({
         id: t.id,
         title: t.title,
         description: t.description,
@@ -138,7 +133,7 @@ export const reportsRoutes = new Elysia()
         })),
         totalTimeHours: t.timeEntries.reduce(
           (sum: number, e: { duration: number }) => sum + e.duration,
-          0
+          0,
         ),
         createdAt: t.createdAt,
         completedAt: t.completedAt,

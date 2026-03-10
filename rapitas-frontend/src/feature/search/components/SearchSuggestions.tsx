@@ -49,7 +49,11 @@ export default function SearchSuggestions({
                   </span>
                 </div>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 flex-shrink-0">
-                  {suggestion.type === 'task' ? 'タスク' : suggestion.type === 'comment' ? 'コメント' : 'リソース'}
+                  {suggestion.type === 'task'
+                    ? 'タスク'
+                    : suggestion.type === 'comment'
+                      ? 'コメント'
+                      : 'リソース'}
                 </span>
               </button>
             </li>

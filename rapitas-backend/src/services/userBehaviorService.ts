@@ -40,7 +40,7 @@ export class UserBehaviorService {
       themeId?: number;
       context?: BehaviorContext;
       metadata?: Record<string, unknown>;
-    } = {}
+    } = {},
   ) {
     const { userId = 1, taskId, themeId, context, metadata } = options;
 
@@ -55,12 +55,20 @@ export class UserBehaviorService {
       else if (hour >= 17 && hour < 21) timeOfDay = 'evening';
       else timeOfDay = 'night';
 
-      const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][now.getDay()];
+      const dayOfWeek = [
+        'sunday',
+        'monday',
+        'tuesday',
+        'wednesday',
+        'thursday',
+        'friday',
+        'saturday',
+      ][now.getDay()];
 
       const fullContext: BehaviorContext = {
         timeOfDay,
         dayOfWeek,
-        ...context
+        ...context,
       };
 
       await prisma.userBehavior.create({
@@ -71,7 +79,7 @@ export class UserBehaviorService {
           themeId,
           context: JSON.stringify(fullContext),
           metadata: metadata ? JSON.stringify(metadata) : null,
-        }
+        },
       });
     } catch (error) {
       log.error({ err: error }, 'Failed to record user behavior');
@@ -91,7 +99,7 @@ export class UserBehaviorService {
         estimatedHours: task.estimatedHours,
         hasDescription: !!task.description,
         labelIds: task.taskLabels?.map((tl) => tl.labelId) || [],
-      }
+      },
     });
   }
 
@@ -103,10 +111,14 @@ export class UserBehaviorService {
       taskId,
       themeId: task.themeId ?? undefined,
       metadata: {
-        timeToStart: task.startedAt && task.createdAt
-          ? (new Date(task.startedAt).getTime() - new Date(task.createdAt).getTime()) / 1000 / 60 / 60 // 時間単位
-          : null,
-      }
+        timeToStart:
+          task.startedAt && task.createdAt
+            ? (new Date(task.startedAt).getTime() - new Date(task.createdAt).getTime()) /
+              1000 /
+              60 /
+              60 // 時間単位
+            : null,
+      },
     });
   }
 
@@ -119,10 +131,14 @@ export class UserBehaviorService {
       themeId: task.themeId ?? undefined,
       metadata: {
         actualHours: task.actualHours,
-        timeToComplete: task.completedAt && task.startedAt
-          ? (new Date(task.completedAt).getTime() - new Date(task.startedAt).getTime()) / 1000 / 60 / 60 // 時間単位
-          : null,
-      }
+        timeToComplete:
+          task.completedAt && task.startedAt
+            ? (new Date(task.completedAt).getTime() - new Date(task.startedAt).getTime()) /
+              1000 /
+              60 /
+              60 // 時間単位
+            : null,
+      },
     });
 
     // タスクパターンを更新
@@ -142,17 +158,22 @@ export class UserBehaviorService {
           userId,
           taskTitle: task.title,
           themeId: task.themeId || 0,
-        }
-      }
+        },
+      },
     });
 
-    const timeToStart = task.startedAt && task.createdAt
-      ? (new Date(task.startedAt).getTime() - new Date(task.createdAt).getTime()) / 1000 / 60 / 60
-      : null;
+    const timeToStart =
+      task.startedAt && task.createdAt
+        ? (new Date(task.startedAt).getTime() - new Date(task.createdAt).getTime()) / 1000 / 60 / 60
+        : null;
 
-    const timeToComplete = task.completedAt && task.startedAt
-      ? (new Date(task.completedAt).getTime() - new Date(task.startedAt).getTime()) / 1000 / 60 / 60
-      : null;
+    const timeToComplete =
+      task.completedAt && task.startedAt
+        ? (new Date(task.completedAt).getTime() - new Date(task.startedAt).getTime()) /
+          1000 /
+          60 /
+          60
+        : null;
 
     if (existingPattern) {
       // 既存パターンを更新
@@ -164,16 +185,18 @@ export class UserBehaviorService {
         where: { id: existingPattern.id },
         data: {
           frequency: newFrequency,
-          averageTimeToStart: timeToStart !== null
-            ? (avgTimeToStart * (newFrequency - 1) + timeToStart) / newFrequency
-            : avgTimeToStart,
-          averageTimeToComplete: timeToComplete !== null
-            ? (avgTimeToComplete * (newFrequency - 1) + timeToComplete) / newFrequency
-            : avgTimeToComplete,
+          averageTimeToStart:
+            timeToStart !== null
+              ? (avgTimeToStart * (newFrequency - 1) + timeToStart) / newFrequency
+              : avgTimeToStart,
+          averageTimeToComplete:
+            timeToComplete !== null
+              ? (avgTimeToComplete * (newFrequency - 1) + timeToComplete) / newFrequency
+              : avgTimeToComplete,
           actualHours: task.actualHours,
           lastOccurrence: new Date(),
           labelIds: JSON.stringify(labelIds),
-        }
+        },
       });
     } else {
       // 新規パターンを作成
@@ -190,7 +213,7 @@ export class UserBehaviorService {
           averageTimeToComplete: timeToComplete,
           labelIds: JSON.stringify(labelIds),
           lastOccurrence: new Date(),
-        }
+        },
       });
     }
   }
@@ -198,7 +221,10 @@ export class UserBehaviorService {
   /**
    * 行動サマリーを生成・更新
    */
-  static async updateBehaviorSummary(userId: number = 1, periodType: 'daily' | 'weekly' | 'monthly') {
+  static async updateBehaviorSummary(
+    userId: number = 1,
+    periodType: 'daily' | 'weekly' | 'monthly',
+  ) {
     const now = new Date();
     let periodStart: Date;
     let periodEnd: Date;
@@ -226,15 +252,15 @@ export class UserBehaviorService {
         createdAt: {
           gte: periodStart,
           lt: periodEnd,
-        }
+        },
       },
       include: {
         task: {
           include: {
             taskLabels: true,
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
     // テーマごとに集計
@@ -277,8 +303,8 @@ export class UserBehaviorService {
           timeOfDayCounts[context.timeOfDay] = (timeOfDayCounts[context.timeOfDay] || 0) + 1;
         }
       });
-      const preferredTimeOfDay = Object.entries(timeOfDayCounts)
-        .sort(([, a], [, b]) => b - a)[0]?.[0] || null;
+      const preferredTimeOfDay =
+        Object.entries(timeOfDayCounts).sort(([, a], [, b]) => b - a)[0]?.[0] || null;
 
       // 既存のサマリーを探す
       const existingSummary = await prisma.userBehaviorSummary.findFirst({
@@ -287,7 +313,7 @@ export class UserBehaviorService {
           periodType,
           periodStart,
           themeId: themeId ?? null,
-        }
+        },
       });
 
       const summaryData = {
@@ -298,7 +324,7 @@ export class UserBehaviorService {
           Array.from(labelCounts.entries())
             .sort(([, a], [, b]) => b - a)
             .slice(0, 10)
-            .map(([labelId, count]) => ({ labelId, count }))
+            .map(([labelId, count]) => ({ labelId, count })),
         ),
         taskPriorities: JSON.stringify(priorityCounts),
       };
@@ -309,25 +335,27 @@ export class UserBehaviorService {
           data: summaryData,
         });
       } else {
-        await prisma.userBehaviorSummary.create({
-          data: {
-            userId,
-            periodType,
-            periodStart,
-            periodEnd,
-            themeId,
-            ...summaryData,
-          },
-        }).catch((e: unknown) => {
-          // Race condition: another process created the record between findFirst and create
-          if (e instanceof Error && 'code' in e && (e as { code: string }).code === 'P2002') {
-            return prisma.userBehaviorSummary.updateMany({
-              where: { userId, periodType, periodStart, themeId: themeId ?? null },
-              data: summaryData,
-            });
-          }
-          throw e;
-        });
+        await prisma.userBehaviorSummary
+          .create({
+            data: {
+              userId,
+              periodType,
+              periodStart,
+              periodEnd,
+              themeId,
+              ...summaryData,
+            },
+          })
+          .catch((e: unknown) => {
+            // Race condition: another process created the record between findFirst and create
+            if (e instanceof Error && 'code' in e && (e as { code: string }).code === 'P2002') {
+              return prisma.userBehaviorSummary.updateMany({
+                where: { userId, periodType, periodStart, themeId: themeId ?? null },
+                data: summaryData,
+              });
+            }
+            throw e;
+          });
       }
     }
   }

@@ -2,40 +2,40 @@
  * Categories API Routes
  * Handles category CRUD operations (top-level classification above themes)
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
-import { categorySchema } from "../../schemas/category.schema";
-import { NotFoundError, ValidationError, parseId } from "../../middleware/error-handler";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
+import { categorySchema } from '../../schemas/category.schema';
+import { NotFoundError, ValidationError, parseId } from '../../middleware/error-handler';
 
 // Default category definitions
 const DEFAULT_CATEGORIES = [
   {
-    name: "開発",
-    description: "開発プロジェクトに関するテーマ",
-    color: "#3B82F6",
-    icon: "Code",
-    mode: "development",
+    name: '開発',
+    description: '開発プロジェクトに関するテーマ',
+    color: '#3B82F6',
+    icon: 'Code',
+    mode: 'development',
     sortOrder: 0,
   },
   {
-    name: "学習",
-    description: "学習に関するテーマ",
-    color: "#10B981",
-    icon: "BookOpen",
-    mode: "learning",
+    name: '学習',
+    description: '学習に関するテーマ',
+    color: '#10B981',
+    icon: 'BookOpen',
+    mode: 'learning',
     sortOrder: 1,
   },
 ];
 
-export const categoriesRoutes = new Elysia({ prefix: "/categories" })
+export const categoriesRoutes = new Elysia({ prefix: '/categories' })
   // Seed default categories (idempotent) - also cleans up duplicates
-  .post("/seed-defaults", async () => {
+  .post('/seed-defaults', async () => {
     const results = [];
     for (const def of DEFAULT_CATEGORIES) {
       // Find all categories with this name
       const allMatches = await prisma.category.findMany({
         where: { name: def.name },
-        orderBy: { id: "asc" },
+        orderBy: { id: 'asc' },
         include: { _count: { select: { themes: true } } },
       });
 
@@ -71,7 +71,7 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
       }
     }
     // Auto-assign development themes without a category to the "開発" category
-    const devCategory = results.find((c) => c.name === "開発");
+    const devCategory = results.find((c) => c.name === '開発');
     if (devCategory) {
       await prisma.theme.updateMany({
         where: { isDevelopment: true, categoryId: null },
@@ -83,7 +83,7 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
   })
 
   // Get default category ID from settings
-  .get("/default-category", async () => {
+  .get('/default-category', async () => {
     const settings = await prisma.userSettings.findFirst();
     if (!settings?.defaultCategoryId) {
       return { defaultCategoryId: null };
@@ -98,7 +98,7 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
   })
 
   // Get all categories with theme counts
-  .get("/", async () => {
+  .get('/', async () => {
     return await prisma.category.findMany({
       include: {
         _count: {
@@ -115,52 +115,54 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
               select: { tasks: true },
             },
           },
-          orderBy: { createdAt: "asc" },
+          orderBy: { createdAt: 'asc' },
         },
       },
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     });
   })
 
   // Get category by ID
-  .get(
-    "/:id",
-    async (context) => {
-      const { params  } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
-        throw new ValidationError("Invalid ID");
-      }
-
-      const category = await prisma.category.findUnique({
-        where: { id },
-        include: {
-          themes: {
-            include: {
-              _count: {
-                select: { tasks: true },
-              },
-            },
-            orderBy: { createdAt: "asc" },
-          },
-        },
-      });
-
-      if (!category) {
-        throw new NotFoundError("Category not found");
-      }
-
-      return category;
+  .get('/:id', async (context) => {
+    const { params } = context;
+    const id = parseInt(params.id);
+    if (isNaN(id)) {
+      throw new ValidationError('Invalid ID');
     }
-  )
+
+    const category = await prisma.category.findUnique({
+      where: { id },
+      include: {
+        themes: {
+          include: {
+            _count: {
+              select: { tasks: true },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!category) {
+      throw new NotFoundError('Category not found');
+    }
+
+    return category;
+  })
 
   // Create category
   .post(
-    "/",
+    '/',
     async (context) => {
-      const { body  } = context;
-      const { name, description, color, icon, mode, sortOrder  } = body as {
-        name: string; description?: string; color?: string; icon?: string; mode?: string; sortOrder?: number;
+      const { body } = context;
+      const { name, description, color, icon, mode, sortOrder } = body as {
+        name: string;
+        description?: string;
+        color?: string;
+        icon?: string;
+        mode?: string;
+        sortOrder?: number;
       };
 
       return await prisma.category.create({
@@ -181,26 +183,31 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
     },
     {
       body: categorySchema.create,
-    }
+    },
   )
 
   // Update category
   .patch(
-    "/:id",
+    '/:id',
     async (context) => {
-      const { params, body  } = context;
+      const { params, body } = context;
       const id = parseInt(params.id);
       if (isNaN(id)) {
-        throw new ValidationError("Invalid ID");
+        throw new ValidationError('Invalid ID');
       }
 
       const existing = await prisma.category.findUnique({ where: { id } });
       if (!existing) {
-        throw new NotFoundError("Category not found");
+        throw new NotFoundError('Category not found');
       }
 
-      const { name, description, color, icon, mode, sortOrder  } = body as {
-        name?: string; description?: string; color?: string; icon?: string; mode?: string; sortOrder?: number;
+      const { name, description, color, icon, mode, sortOrder } = body as {
+        name?: string;
+        description?: string;
+        color?: string;
+        icon?: string;
+        mode?: string;
+        sortOrder?: number;
       };
 
       const updateData: Record<string, unknown> = {};
@@ -223,23 +230,23 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
     },
     {
       body: categorySchema.update,
-    }
+    },
   )
 
   // Delete category (default categories cannot be deleted)
-  .delete("/:id", async (context) => {
-      const { params  } = context;
+  .delete('/:id', async (context) => {
+    const { params } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
-      throw new ValidationError("Invalid ID");
+      throw new ValidationError('Invalid ID');
     }
 
     const category = await prisma.category.findUnique({ where: { id } });
     if (!category) {
-      throw new NotFoundError("Category not found");
+      throw new NotFoundError('Category not found');
     }
     if (category.isDefault) {
-      throw new ValidationError("デフォルトカテゴリは削除できません");
+      throw new ValidationError('デフォルトカテゴリは削除できません');
     }
 
     return await prisma.category.delete({
@@ -248,43 +255,40 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
   })
 
   // Set default category (for task list initial selection)
-  .patch(
-    "/:id/set-default",
-    async (context) => {
-      const { params  } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
-        throw new ValidationError("Invalid ID");
-      }
-
-      const category = await prisma.category.findUnique({ where: { id } });
-      if (!category) {
-        throw new NotFoundError("Category not found");
-      }
-
-      // Update UserSettings.defaultCategoryId
-      let settings = await prisma.userSettings.findFirst();
-      if (!settings) {
-        settings = await prisma.userSettings.create({
-          data: { defaultCategoryId: id },
-        });
-      } else {
-        settings = await prisma.userSettings.update({
-          where: { id: settings.id },
-          data: { defaultCategoryId: id },
-        });
-      }
-
-      return {
-        ...category,
-        isDefaultCategory: true,
-      };
+  .patch('/:id/set-default', async (context) => {
+    const { params } = context;
+    const id = parseInt(params.id);
+    if (isNaN(id)) {
+      throw new ValidationError('Invalid ID');
     }
-  )
+
+    const category = await prisma.category.findUnique({ where: { id } });
+    if (!category) {
+      throw new NotFoundError('Category not found');
+    }
+
+    // Update UserSettings.defaultCategoryId
+    let settings = await prisma.userSettings.findFirst();
+    if (!settings) {
+      settings = await prisma.userSettings.create({
+        data: { defaultCategoryId: id },
+      });
+    } else {
+      settings = await prisma.userSettings.update({
+        where: { id: settings.id },
+        data: { defaultCategoryId: id },
+      });
+    }
+
+    return {
+      ...category,
+      isDefaultCategory: true,
+    };
+  })
 
   // Reorder categories
   .patch(
-    "/reorder",
+    '/reorder',
     async (context) => {
       const { orders } = context.body as { orders: Array<{ id: number; sortOrder: number }> };
 
@@ -293,8 +297,8 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
           prisma.category.update({
             where: { id },
             data: { sortOrder },
-          })
-        )
+          }),
+        ),
       );
 
       return { success: true };
@@ -305,8 +309,8 @@ export const categoriesRoutes = new Elysia({ prefix: "/categories" })
           t.Object({
             id: t.Number(),
             sortOrder: t.Number(),
-          })
+          }),
         ),
       }),
-    }
+    },
   );

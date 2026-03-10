@@ -62,7 +62,13 @@ export class BehaviorScheduler {
       }
     }, 60 * 1000);
 
-    this.intervalIds.push(dailyInterval, weeklyInterval, monthlyInterval, consolidationInterval, forgettingSweepInterval);
+    this.intervalIds.push(
+      dailyInterval,
+      weeklyInterval,
+      monthlyInterval,
+      consolidationInterval,
+      forgettingSweepInterval,
+    );
 
     // 初回実行（サーバー起動時）
     this.runInitialUpdate();
@@ -89,7 +95,7 @@ export class BehaviorScheduler {
    */
   static stop() {
     log.info('[BehaviorScheduler] Stopping behavior summary update scheduler');
-    this.intervalIds.forEach(id => clearInterval(id));
+    this.intervalIds.forEach((id) => clearInterval(id));
     this.intervalIds = [];
   }
 }

@@ -77,12 +77,29 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
 
   // Japanese weekday mapping
   const jpWeekdays: Record<string, number> = {
-    '日': 0, '月': 1, '火': 2, '水': 3, '木': 4, '金': 5, '土': 6,
+    日: 0,
+    月: 1,
+    火: 2,
+    水: 3,
+    木: 4,
+    金: 5,
+    土: 6,
   };
   const enWeekdays: Record<string, number> = {
-    'sunday': 0, 'sun': 0, 'monday': 1, 'mon': 1, 'tuesday': 2, 'tue': 2,
-    'wednesday': 3, 'wed': 3, 'thursday': 4, 'thu': 4, 'friday': 5, 'fri': 5,
-    'saturday': 6, 'sat': 6,
+    sunday: 0,
+    sun: 0,
+    monday: 1,
+    mon: 1,
+    tuesday: 2,
+    tue: 2,
+    wednesday: 3,
+    wed: 3,
+    thursday: 4,
+    thu: 4,
+    friday: 5,
+    fri: 5,
+    saturday: 6,
+    sat: 6,
   };
 
   // Time extraction helper
@@ -90,13 +107,17 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
     // "15:30", "3:00"
     let m = s.match(/(\d{1,2}):(\d{2})/);
     if (m) {
-      return { hours: parseInt(m[1]), minutes: parseInt(m[2]), remaining: s.replace(m[0], ' ').trim() };
+      return {
+        hours: parseInt(m[1]),
+        minutes: parseInt(m[2]),
+        remaining: s.replace(m[0], ' ').trim(),
+      };
     }
     // "午後3時30分", "午前10時", "3時半", "15時"
     m = s.match(/(午前|午後|AM|PM)?\s*(\d{1,2})\s*時\s*(?:(\d{1,2})\s*分|半)?/i);
     if (m) {
       let h = parseInt(m[2]);
-      const min = m[3] ? parseInt(m[3]) : (m[0].includes('半') ? 30 : 0);
+      const min = m[3] ? parseInt(m[3]) : m[0].includes('半') ? 30 : 0;
       if (m[1] === '午後' || (m[1] && /pm/i.test(m[1]))) {
         if (h < 12) h += 12;
       } else if (m[1] === '午前' || (m[1] && /am/i.test(m[1]))) {
@@ -161,7 +182,9 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
   }
 
   if (!dueDate) {
-    dateMatch = text.match(/(?:^|\s)next\s+(sunday|sun|monday|mon|tuesday|tue|wednesday|wed|thursday|thu|friday|fri|saturday|sat)(?:\s|$)/i);
+    dateMatch = text.match(
+      /(?:^|\s)next\s+(sunday|sun|monday|mon|tuesday|tue|wednesday|wed|thursday|thu|friday|fri|saturday|sat)(?:\s|$)/i,
+    );
     if (dateMatch) {
       const day = enWeekdays[dateMatch[1].toLowerCase()];
       if (day !== undefined) {
@@ -184,7 +207,9 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
   }
 
   if (!dueDate) {
-    dateMatch = text.match(/(?:^|\s)(sunday|sun|monday|mon|tuesday|tue|wednesday|wed|thursday|thu|friday|fri|saturday|sat)(?:\s|$)/i);
+    dateMatch = text.match(
+      /(?:^|\s)(sunday|sun|monday|mon|tuesday|tue|wednesday|wed|thursday|thu|friday|fri|saturday|sat)(?:\s|$)/i,
+    );
     if (dateMatch) {
       const day = enWeekdays[dateMatch[1].toLowerCase()];
       if (day !== undefined) {
@@ -219,7 +244,14 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
   if (!dueDate) {
     dateMatch = text.match(/(?:^|\s)(\d{1,2})月(\d{1,2})日(?:\s|に|まで|$)/);
     if (dateMatch) {
-      dueDate = new Date(now.getFullYear(), parseInt(dateMatch[1]) - 1, parseInt(dateMatch[2]), 23, 59, 0);
+      dueDate = new Date(
+        now.getFullYear(),
+        parseInt(dateMatch[1]) - 1,
+        parseInt(dateMatch[2]),
+        23,
+        59,
+        0,
+      );
       if (dueDate < now) {
         dueDate.setFullYear(dueDate.getFullYear() + 1);
       }
@@ -230,7 +262,14 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
   if (!dueDate) {
     dateMatch = text.match(/(?:^|\s)(\d{1,2})\/(\d{1,2})(?:\s|$)/);
     if (dateMatch) {
-      dueDate = new Date(now.getFullYear(), parseInt(dateMatch[1]) - 1, parseInt(dateMatch[2]), 23, 59, 0);
+      dueDate = new Date(
+        now.getFullYear(),
+        parseInt(dateMatch[1]) - 1,
+        parseInt(dateMatch[2]),
+        23,
+        59,
+        0,
+      );
       if (dueDate < now) {
         dueDate.setFullYear(dueDate.getFullYear() + 1);
       }

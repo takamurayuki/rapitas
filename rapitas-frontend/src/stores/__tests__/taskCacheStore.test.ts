@@ -252,7 +252,9 @@ describe('taskCacheStore', () => {
 
       // fetchWithRetry throws after all retries exhausted
       vi.mocked(fetchWithRetry).mockRejectedValue(
-        new Error('Failed to fetch from http://test:3001/tasks after 3 attempts. Failed to fetch'),
+        new Error(
+          'Failed to fetch from http://test:3001/tasks after 3 attempts. Failed to fetch',
+        ),
       );
 
       // Should not throw
@@ -325,7 +327,10 @@ describe('taskCacheStore', () => {
         json: () =>
           Promise.resolve({
             incremental: true,
-            tasks: [{ id: 1, title: 'Updated Task' }, { id: 2, title: 'New Task' }],
+            tasks: [
+              { id: 1, title: 'Updated Task' },
+              { id: 2, title: 'New Task' },
+            ],
             totalCount: 2,
             activeIds: [1, 2],
           }),
@@ -431,9 +436,7 @@ describe('taskCacheStore', () => {
         initialized: true,
       });
 
-      vi.mocked(fetchWithRetry).mockRejectedValue(
-        new Error('Failed to fetch'),
-      );
+      vi.mocked(fetchWithRetry).mockRejectedValue(new Error('Failed to fetch'));
 
       await useTaskCacheStore.getState().fetchUpdates(true);
       expect(useTaskCacheStore.getState().consecutiveFailures).toBe(1);

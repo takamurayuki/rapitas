@@ -2,30 +2,30 @@
  * Labels API Routes
  * Handles label CRUD operations and task-label associations
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
-import { labelSchema } from "../../schemas/label.schema";
-import { NotFoundError, ValidationError } from "../../middleware/error-handler";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
+import { labelSchema } from '../../schemas/label.schema';
+import { NotFoundError, ValidationError } from '../../middleware/error-handler';
 
-export const labelsRoutes = new Elysia({ prefix: "/labels" })
+export const labelsRoutes = new Elysia({ prefix: '/labels' })
   // Get all labels
-  .get("/", async () => {
+  .get('/', async () => {
     return await prisma.label.findMany({
       include: {
         _count: {
           select: { tasks: true },
         },
       },
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
     });
   })
 
   // Get label by ID
-  .get("/:id", async (context) => {
+  .get('/:id', async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
-      throw new ValidationError("無効なIDです");
+      throw new ValidationError('無効なIDです');
     }
 
     const label = await prisma.label.findUnique({
@@ -40,7 +40,7 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
     });
 
     if (!label) {
-      throw new NotFoundError("ラベルが見つかりません");
+      throw new NotFoundError('ラベルが見つかりません');
     }
 
     return label;
@@ -48,11 +48,14 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
 
   // Create label
   .post(
-    "/",
+    '/',
     async (context) => {
       const { body } = context;
       const { name, description, color, icon } = body as {
-        name: string; description?: string; color?: string; icon?: string;
+        name: string;
+        description?: string;
+        color?: string;
+        icon?: string;
       };
 
       return await prisma.label.create({
@@ -71,16 +74,19 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
 
   // Update label
   .patch(
-    "/:id",
+    '/:id',
     async (context) => {
       const { params, body } = context;
       const id = parseInt(params.id);
       if (isNaN(id)) {
-        throw new ValidationError("無効なIDです");
+        throw new ValidationError('無効なIDです');
       }
 
       const { name, description, color, icon } = body as {
-        name?: string; description?: string; color?: string; icon?: string;
+        name?: string;
+        description?: string;
+        color?: string;
+        icon?: string;
       };
 
       return await prisma.label.update({
@@ -99,7 +105,7 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
   )
 
   // Reorder labels
-  .patch("/reorder", async ({ body }) => {
+  .patch('/reorder', async ({ body }) => {
     const { orders } = body as { orders: Array<{ id: number; sortOrder: number }> };
 
     await Promise.all(
@@ -115,11 +121,11 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
   })
 
   // Delete label
-  .delete("/:id", async (context) => {
+  .delete('/:id', async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
-      throw new ValidationError("無効なIDです");
+      throw new ValidationError('無効なIDです');
     }
 
     return await prisma.label.delete({
@@ -134,12 +140,12 @@ export const labelsRoutes = new Elysia({ prefix: "/labels" })
 export const taskLabelsRoutes = new Elysia()
   // Update task labels (bulk)
   .put(
-    "/tasks/:id/labels",
+    '/tasks/:id/labels',
     async (context) => {
       const { params, body } = context;
       const taskId = parseInt(params.id);
       if (isNaN(taskId)) {
-        throw new ValidationError("無効なタスクIDです");
+        throw new ValidationError('無効なタスクIDです');
       }
 
       const { labelIds } = body as { labelIds: number[] };

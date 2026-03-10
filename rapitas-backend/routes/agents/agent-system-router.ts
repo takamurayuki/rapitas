@@ -2,35 +2,35 @@
  * Agent System Router
  * 診断・システム状態・暗号化・シャットダウン機能
  */
-import { Elysia } from "elysia";
-import { prisma } from "../../config/database";
-import { orchestrator } from "../../services/orchestrator-instance";
-import { isEncryptionKeyConfigured } from "../../utils/encryption";
-import { realtimeService } from "../../services/realtime-service";
-import { createLogger } from "../../config/logger";
+import { Elysia } from 'elysia';
+import { prisma } from '../../config/database';
+import { orchestrator } from '../../services/orchestrator-instance';
+import { isEncryptionKeyConfigured } from '../../utils/encryption';
+import { realtimeService } from '../../services/realtime-service';
+import { createLogger } from '../../config/logger';
 
-const log = createLogger("routes:agent-system");
+const log = createLogger('routes:agent-system');
 
-export const agentSystemRouter = new Elysia({ prefix: "/agents" })
+export const agentSystemRouter = new Elysia({ prefix: '/agents' })
 
   // Get encryption configuration status
-  .get("/encryption-status", async () => {
+  .get('/encryption-status', async () => {
     return {
       isConfigured: isEncryptionKeyConfigured(),
       message: isEncryptionKeyConfigured()
-        ? "暗号化キーが正しく設定されています"
-        : "警告: 暗号化キーが環境変数に設定されていません。本番環境では必ず設定してください。",
+        ? '暗号化キーが正しく設定されています'
+        : '警告: 暗号化キーが環境変数に設定されていません。本番環境では必ず設定してください。',
     };
   })
 
   // Claude CLI diagnosis endpoint
-  .get("/diagnose", async () => {
-    const { spawn } = await import("child_process");
-    const claudePath = process.env.CLAUDE_CODE_PATH || "claude";
+  .get('/diagnose', async () => {
+    const { spawn } = await import('child_process');
+    const claudePath = process.env.CLAUDE_CODE_PATH || 'claude';
 
-    log.info("[Diagnose] Testing Claude CLI...");
-    log.info({ claudePath }, "[Diagnose] Claude path");
-    log.info({ platform: process.platform }, "[Diagnose] Platform");
+    log.info('[Diagnose] Testing Claude CLI...');
+    log.info({ claudePath }, '[Diagnose] Claude path');
+    log.info({ platform: process.platform }, '[Diagnose] Platform');
 
     const results: {
       step: string;
@@ -48,38 +48,37 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
       duration: number;
     }>((resolve) => {
       const startTime = Date.now();
-      const proc = spawn(claudePath, ["--version"], { shell: true });
-      let stdout = "";
-      let stderr = "";
+      const proc = spawn(claudePath, ['--version'], { shell: true });
+      let stdout = '';
+      let stderr = '';
 
       const timeout = setTimeout(() => {
         proc.kill();
         resolve({
           success: false,
-          error: "Timeout (10s)",
+          error: 'Timeout (10s)',
           duration: Date.now() - startTime,
         });
       }, 10000);
 
-      proc.stdout?.on("data", (data) => {
+      proc.stdout?.on('data', (data) => {
         stdout += data.toString();
       });
-      proc.stderr?.on("data", (data) => {
+      proc.stderr?.on('data', (data) => {
         stderr += data.toString();
       });
 
-      proc.on("close", (code) => {
+      proc.on('close', (code) => {
         clearTimeout(timeout);
         resolve({
           success: code === 0,
           output: stdout.trim(),
-          error:
-            stderr.trim() || (code !== 0 ? `Exit code: ${code}` : undefined),
+          error: stderr.trim() || (code !== 0 ? `Exit code: ${code}` : undefined),
           duration: Date.now() - startTime,
         });
       });
 
-      proc.on("error", (err) => {
+      proc.on('error', (err) => {
         clearTimeout(timeout);
         resolve({
           success: false,
@@ -89,8 +88,8 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
       });
     });
 
-    results.push({ step: "claude --version", ...versionResult });
-    log.info({ versionResult }, "[Diagnose] Version check");
+    results.push({ step: 'claude --version', ...versionResult });
+    log.info({ versionResult }, '[Diagnose] Version check');
 
     // Step 2: Test simple prompt with spawn and explicit cmd.exe
     if (versionResult.success) {
@@ -102,68 +101,61 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
       }>((resolve) => {
         const startTime = Date.now();
 
-        const isWindows = process.platform === "win32";
+        const isWindows = process.platform === 'win32';
         let proc;
 
         if (isWindows) {
           const fullCommand = `${claudePath} --dangerously-skip-permissions -p "Say hello"`;
-          log.info({ fullCommand }, "[Diagnose] Windows full command");
-          proc = spawn("cmd.exe", ["/c", fullCommand], {
-            env: { ...process.env, FORCE_COLOR: "0", CI: "1" },
+          log.info({ fullCommand }, '[Diagnose] Windows full command');
+          proc = spawn('cmd.exe', ['/c', fullCommand], {
+            env: { ...process.env, FORCE_COLOR: '0', CI: '1' },
             windowsHide: true,
           });
         } else {
-          proc = spawn(
-            claudePath,
-            ["--dangerously-skip-permissions", "-p", "Say hello"],
-            {
-              env: { ...process.env, FORCE_COLOR: "0", CI: "1" },
-            },
-          );
+          proc = spawn(claudePath, ['--dangerously-skip-permissions', '-p', 'Say hello'], {
+            env: { ...process.env, FORCE_COLOR: '0', CI: '1' },
+          });
         }
 
-        let stdout = "";
-        let stderr = "";
+        let stdout = '';
+        let stderr = '';
 
         const timeout = setTimeout(() => {
-          log.info("[Diagnose] Timeout, killing process");
+          log.info('[Diagnose] Timeout, killing process');
           proc.kill();
           resolve({
             success: false,
-            error: "Timeout (90s)",
+            error: 'Timeout (90s)',
             duration: Date.now() - startTime,
           });
         }, 90000);
 
-        proc.stdout?.on("data", (data) => {
+        proc.stdout?.on('data', (data) => {
           const chunk = data.toString();
           stdout += chunk;
-          log.info({ chunk: chunk.substring(0, 100) }, "[Diagnose] stdout chunk");
+          log.info({ chunk: chunk.substring(0, 100) }, '[Diagnose] stdout chunk');
         });
 
-        proc.stderr?.on("data", (data) => {
+        proc.stderr?.on('data', (data) => {
           const chunk = data.toString();
           stderr += chunk;
-          log.info({ chunk: chunk.substring(0, 100) }, "[Diagnose] stderr chunk");
+          log.info({ chunk: chunk.substring(0, 100) }, '[Diagnose] stderr chunk');
         });
 
-        proc.on("close", (code) => {
+        proc.on('close', (code) => {
           clearTimeout(timeout);
-          log.info({ code, stdoutLength: stdout.length },
-            "[Diagnose] Process closed",
-          );
+          log.info({ code, stdoutLength: stdout.length }, '[Diagnose] Process closed');
           resolve({
             success: code === 0,
             output: stdout.substring(0, 500),
-            error:
-              stderr.trim() || (code !== 0 ? `Exit code: ${code}` : undefined),
+            error: stderr.trim() || (code !== 0 ? `Exit code: ${code}` : undefined),
             duration: Date.now() - startTime,
           });
         });
 
-        proc.on("error", (err) => {
+        proc.on('error', (err) => {
           clearTimeout(timeout);
-          log.info({ err }, "[Diagnose] Process error");
+          log.info({ err }, '[Diagnose] Process error');
           resolve({
             success: false,
             error: err.message,
@@ -172,8 +164,8 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
         });
       });
 
-      results.push({ step: "simple prompt test", ...promptResult });
-      log.info({ promptResult }, "[Diagnose] Prompt test result");
+      results.push({ step: 'simple prompt test', ...promptResult });
+      log.info({ promptResult }, '[Diagnose] Prompt test result');
     }
 
     return {
@@ -185,29 +177,29 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
   })
 
   // Get system status (including shutdown state)
-  .get("/system-status", async () => {
+  .get('/system-status', async () => {
     const activeExecutions = orchestrator.getActiveExecutionCount?.() || 0;
     const isShuttingDown = orchestrator.isInShutdown();
 
     // 実行中の状態が残っている実行を取得
     const runningExecutions = await prisma.agentExecution.count({
       where: {
-        status: { in: ["running", "pending"] },
+        status: { in: ['running', 'pending'] },
       },
     });
 
     // 中断された実行を取得
     const interruptedExecutions = await prisma.agentExecution.count({
       where: {
-        status: "interrupted",
+        status: 'interrupted',
       },
     });
 
     // システムステータスの判定
-    let status = "healthy";
-    if (isShuttingDown) status = "shutting_down";
-    else if (activeExecutions > 0) status = "busy";
-    else if (interruptedExecutions > 0) status = "interrupted_executions";
+    let status = 'healthy';
+    if (isShuttingDown) status = 'shutting_down';
+    else if (activeExecutions > 0) status = 'busy';
+    else if (interruptedExecutions > 0) status = 'interrupted_executions';
 
     return {
       status,
@@ -220,7 +212,7 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
   })
 
   // Validate agent configuration
-  .get("/validate-config", async () => {
+  .get('/validate-config', async () => {
     try {
       // エージェント設定の基本的なバリデーション
       const agentConfigs = await prisma.aIAgentConfig.findMany({
@@ -239,13 +231,13 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
       const activeConfigs = agentConfigs.filter((config) => config.isActive);
       if (activeConfigs.length === 0) {
         isValid = false;
-        errors.push("No active agent configurations found");
+        errors.push('No active agent configurations found');
       }
 
       // 暗号化キー設定の確認
       if (!isEncryptionKeyConfigured()) {
         isValid = false;
-        errors.push("Encryption key not configured");
+        errors.push('Encryption key not configured');
       }
 
       return {
@@ -258,33 +250,29 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
     } catch (error) {
       return {
         isValid: false,
-        errors: [
-          `Validation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-        ],
+        errors: [`Validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
         timestamp: new Date().toISOString(),
       };
     }
   })
 
   // Health check endpoint
-  .get("/health", async () => {
+  .get('/health', async () => {
     try {
       // データベース接続確認
       await prisma.$queryRaw`SELECT 1`;
 
       return {
-        status: "healthy",
-        database: "connected",
-        encryption: isEncryptionKeyConfigured()
-          ? "configured"
-          : "not_configured",
+        status: 'healthy',
+        database: 'connected',
+        encryption: isEncryptionKeyConfigured() ? 'configured' : 'not_configured',
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
       return Response.json(
         {
-          status: "unhealthy",
-          error: error instanceof Error ? error.message : "Unknown error",
+          status: 'unhealthy',
+          error: error instanceof Error ? error.message : 'Unknown error',
           timestamp: new Date().toISOString(),
         },
         { status: 503 },
@@ -293,9 +281,9 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
   })
 
   // Graceful shutdown endpoint (called by dev.js before stopping)
-  .post("/shutdown", async () => {
+  .post('/shutdown', async () => {
     try {
-      log.info("[shutdown] Graceful shutdown requested via API");
+      log.info('[shutdown] Graceful shutdown requested via API');
 
       const activeCount = orchestrator.getActiveExecutionCount();
 
@@ -304,51 +292,46 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
       setTimeout(async () => {
         try {
           // Step 1: SSE接続を全て閉じる（CLOSE_WAIT蓄積を防止）
-          log.info("[shutdown] Closing all SSE connections...");
+          log.info('[shutdown] Closing all SSE connections...');
           realtimeService.shutdown();
 
           // Step 2: リスニングソケットを即座に閉じる（ポート解放を最優先）
-          log.info(
-            "[shutdown] Closing listening socket first for quick port release...",
-          );
+          log.info('[shutdown] Closing listening socket first for quick port release...');
           await orchestrator.stopServer();
-          log.info("[shutdown] Listening socket closed, port released.");
+          log.info('[shutdown] Listening socket closed, port released.');
 
           // Step 3: エージェント停止とDB保存
-          log.info("[shutdown] Stopping agents and saving state...");
+          log.info('[shutdown] Stopping agents and saving state...');
           await orchestrator.gracefulShutdown({ skipServerStop: true });
-          log.info("[shutdown] Agent shutdown completed.");
+          log.info('[shutdown] Agent shutdown completed.');
         } catch (error) {
-          log.error({ err: error }, "[shutdown] Graceful shutdown error");
+          log.error({ err: error }, '[shutdown] Graceful shutdown error');
         } finally {
           // Step 4: プロセス終了
-          log.info("[shutdown] Exiting process...");
+          log.info('[shutdown] Exiting process...');
           setTimeout(() => process.exit(0), 200);
         }
       }, 300); // レスポンス送信の時間を確保
 
       return {
         success: true,
-        message: "Graceful shutdown initiated",
+        message: 'Graceful shutdown initiated',
         activeExecutions: activeCount,
       };
     } catch (error) {
-      log.error({ err: error }, "[shutdown] Error");
+      log.error({ err: error }, '[shutdown] Error');
       return {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to initiate shutdown",
+        error: error instanceof Error ? error.message : 'Failed to initiate shutdown',
       };
     }
   })
 
   // Server restart endpoint (called by frontend or dev tools)
   // Performs graceful shutdown then exits with code 75 to signal dev.js to restart
-  .post("/restart", async () => {
+  .post('/restart', async () => {
     try {
-      log.info("[restart] Server restart requested via API");
+      log.info('[restart] Server restart requested via API');
 
       const activeCount = orchestrator.getActiveExecutionCount();
 
@@ -356,41 +339,37 @@ export const agentSystemRouter = new Elysia({ prefix: "/agents" })
       setTimeout(async () => {
         try {
           // Step 1: SSE接続を全て閉じる（CLOSE_WAIT蓄積を防止）
-          log.info("[restart] Closing all SSE connections...");
+          log.info('[restart] Closing all SSE connections...');
           realtimeService.shutdown();
 
           // Step 2: リスニングソケットを即座に閉じる（ポート解放を最優先）
-          log.info(
-            "[restart] Closing listening socket first for quick port release...",
-          );
+          log.info('[restart] Closing listening socket first for quick port release...');
           await orchestrator.stopServer();
-          log.info("[restart] Listening socket closed, port released.");
+          log.info('[restart] Listening socket closed, port released.');
 
           // Step 3: エージェント停止とDB保存
-          log.info("[restart] Stopping agents and saving state...");
+          log.info('[restart] Stopping agents and saving state...');
           await orchestrator.gracefulShutdown({ skipServerStop: true });
-          log.info("[restart] Agent shutdown completed.");
+          log.info('[restart] Agent shutdown completed.');
         } catch (error) {
-          log.error({ err: error }, "[restart] Graceful shutdown error");
+          log.error({ err: error }, '[restart] Graceful shutdown error');
         } finally {
           // Step 4: 終了コード75でdev.jsに再起動を通知
-          log.info("[restart] Exiting with restart code...");
+          log.info('[restart] Exiting with restart code...');
           setTimeout(() => process.exit(75), 200);
         }
       }, 300); // レスポンス送信の時間を確保
 
       return {
         success: true,
-        message:
-          "Server restart initiated. Server will stop and restart automatically.",
+        message: 'Server restart initiated. Server will stop and restart automatically.',
         activeExecutions: activeCount,
       };
     } catch (error) {
-      log.error({ err: error }, "[restart] Error");
+      log.error({ err: error }, '[restart] Error');
       return {
         success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to initiate restart",
+        error: error instanceof Error ? error.message : 'Failed to initiate restart',
       };
     }
   });

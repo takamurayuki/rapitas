@@ -5,15 +5,11 @@
  * 並列実行制御の統一インターフェースを定義
  */
 
-import type {
-  AgentCapability,
-  AgentStatus,
-  AgentTask,
-} from "../base-agent";
-import type { ProviderId, ModelInfo, ProviderConfig, ValidationResult } from "./provider-config";
-import type { AgentInstanceConfig, ExecutionOptions } from "./agent-config";
-import type { OutputHandler, QuestionHandler, ProgressHandler } from "./handlers";
-import type { ExtendedExecutionResult } from "./results";
+import type { AgentCapability, AgentStatus, AgentTask } from '../base-agent';
+import type { ProviderId, ModelInfo, ProviderConfig, ValidationResult } from './provider-config';
+import type { AgentInstanceConfig, ExecutionOptions } from './agent-config';
+import type { OutputHandler, QuestionHandler, ProgressHandler } from './handlers';
+import type { ExtendedExecutionResult } from './results';
 
 // ==================== インターフェース ====================
 

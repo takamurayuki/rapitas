@@ -10,10 +10,7 @@ import type {
   ClaudeCodeProviderConfig,
   AgentHealthStatus,
 } from '../types';
-import type {
-  IAgentProvider,
-  IAgent,
-} from '../interfaces';
+import type { IAgentProvider, IAgent } from '../interfaces';
 import { createDefaultCapabilities } from '../index';
 import { ClaudeCodeAgentAdapter } from './claude-code-agent-adapter';
 
@@ -175,7 +172,9 @@ export class ClaudeCodeProvider implements IAgentProvider {
         lastCheck: new Date(),
         details: {
           platform: process.platform,
-          cliPath: process.env.CLAUDE_CODE_PATH || (process.platform === 'win32' ? 'claude.cmd' : 'claude'),
+          cliPath:
+            process.env.CLAUDE_CODE_PATH ||
+            (process.platform === 'win32' ? 'claude.cmd' : 'claude'),
         },
       };
     } catch (error) {

@@ -50,7 +50,12 @@ type MemoType = 'work-log' | 'idea' | 'issue' | 'solution' | 'general';
 
 type TaskActivity = {
   id: string;
-  type: 'status_change' | 'assignment' | 'priority_change' | 'description_update' | 'label_change';
+  type:
+    | 'status_change'
+    | 'assignment'
+    | 'priority_change'
+    | 'description_update'
+    | 'label_change';
   action: string;
   details?: string;
   user?: string;
@@ -108,10 +113,12 @@ const generateMockTaskActivities = (taskId: number): TaskActivity[] => [
 // メモ分析のモック関数
 const analyzeMemo = async (content: string): Promise<MemoAnalysis> => {
   // 実際の実装ではAI APIを呼び出す
-  await new Promise(resolve => setTimeout(resolve, 1500)); // API呼び出しをシミュレート
+  await new Promise((resolve) => setTimeout(resolve, 1500)); // API呼び出しをシミュレート
 
   const length = content.length;
-  const hasActionWords = /実装|修正|追加|削除|テスト|確認|検討|調査/.test(content);
+  const hasActionWords = /実装|修正|追加|削除|テスト|確認|検討|調査/.test(
+    content,
+  );
   const hasIssueWords = /問題|エラー|バグ|課題|困る|難しい|失敗/.test(content);
   const hasPositiveWords = /完了|成功|良い|改善|進捗|解決/.test(content);
 
@@ -128,10 +135,24 @@ const analyzeMemo = async (content: string): Promise<MemoAnalysis> => {
 
   // キーワード抽出（簡単な実装）
   const keywords: string[] = [];
-  const keywordMatches = content.match(/\b[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+\b/g) || [];
-  const commonWords = ['です', 'ます', 'した', 'する', 'ある', 'この', 'その', 'たり'];
-  keywordMatches.forEach(word => {
-    if (word.length >= 2 && !commonWords.includes(word) && !keywords.includes(word)) {
+  const keywordMatches =
+    content.match(/\b[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+\b/g) || [];
+  const commonWords = [
+    'です',
+    'ます',
+    'した',
+    'する',
+    'ある',
+    'この',
+    'その',
+    'たり',
+  ];
+  keywordMatches.forEach((word) => {
+    if (
+      word.length >= 2 &&
+      !commonWords.includes(word) &&
+      !keywords.includes(word)
+    ) {
       keywords.push(word);
     }
   });
@@ -139,15 +160,14 @@ const analyzeMemo = async (content: string): Promise<MemoAnalysis> => {
   // アクションアイテム抽出
   const actionItems: string[] = [];
   const actionMatches = content.match(/[・\-\*]\s*(.+)/g) || [];
-  actionMatches.forEach(match => {
+  actionMatches.forEach((match) => {
     const item = match.replace(/^[・\-\*]\s*/, '').trim();
     if (item) actionItems.push(item);
   });
 
   // 要約生成（簡単な実装）
-  let summary = content.length > 50
-    ? content.substring(0, 47) + '...'
-    : content;
+  let summary =
+    content.length > 50 ? content.substring(0, 47) + '...' : content;
 
   if (hasActionWords) summary = `${summary} (アクション項目を含む)`;
   if (hasIssueWords) summary = `${summary} (課題を報告)`;
@@ -174,52 +194,61 @@ const MEMO_TEMPLATES: MemoTemplate[] = [
   {
     id: 'work-start',
     label: '作業開始',
-    content: '## 作業開始\n\n**目標:**\n- \n\n**作業内容:**\n- \n\n**注意事項:**\n- ',
+    content:
+      '## 作業開始\n\n**目標:**\n- \n\n**作業内容:**\n- \n\n**注意事項:**\n- ',
     type: 'work-log',
     description: '作業開始時の記録用テンプレート',
   },
   {
     id: 'work-end',
     label: '作業終了',
-    content: '## 作業終了\n\n**完了項目:**\n- \n\n**進捗状況:**\n- \n\n**次回作業:**\n- \n\n**気づき:**\n- ',
+    content:
+      '## 作業終了\n\n**完了項目:**\n- \n\n**進捗状況:**\n- \n\n**次回作業:**\n- \n\n**気づき:**\n- ',
     type: 'work-log',
     description: '作業終了時の振り返り用テンプレート',
   },
   {
     id: 'issue-report',
     label: '課題報告',
-    content: '## 課題報告\n\n**問題:**\n\n\n**発生条件:**\n- \n\n**影響範囲:**\n- \n\n**緊急度:** [高/中/低]\n\n**対応方針:**\n- ',
+    content:
+      '## 課題報告\n\n**問題:**\n\n\n**発生条件:**\n- \n\n**影響範囲:**\n- \n\n**緊急度:** [高/中/低]\n\n**対応方針:**\n- ',
     type: 'issue',
     description: '課題や問題の報告用テンプレート',
   },
   {
     id: 'solution',
     label: '解決策',
-    content: '## 解決策\n\n**対象課題:**\n\n\n**解決方法:**\n\n\n**実装手順:**\n1. \n2. \n3. \n\n**検証方法:**\n- \n\n**リスク:**\n- ',
+    content:
+      '## 解決策\n\n**対象課題:**\n\n\n**解決方法:**\n\n\n**実装手順:**\n1. \n2. \n3. \n\n**検証方法:**\n- \n\n**リスク:**\n- ',
     type: 'solution',
     description: '解決策の提案用テンプレート',
   },
   {
     id: 'idea',
     label: 'アイデア',
-    content: '## アイデア\n\n**概要:**\n\n\n**メリット:**\n- \n\n**実現可能性:** [高/中/低]\n\n**必要リソース:**\n- \n\n**次のステップ:**\n- ',
+    content:
+      '## アイデア\n\n**概要:**\n\n\n**メリット:**\n- \n\n**実現可能性:** [高/中/低]\n\n**必要リソース:**\n- \n\n**次のステップ:**\n- ',
     type: 'idea',
     description: '新しいアイデアの整理用テンプレート',
   },
   {
     id: 'meeting-notes',
     label: '会議メモ',
-    content: '## 会議メモ\n\n**日時:** \n**参加者:** \n\n**議題:**\n- \n\n**決定事項:**\n- \n\n**アクションアイテム:**\n- [ ] \n- [ ] \n\n**次回予定:**\n',
+    content:
+      '## 会議メモ\n\n**日時:** \n**参加者:** \n\n**議題:**\n- \n\n**決定事項:**\n- \n\n**アクションアイテム:**\n- [ ] \n- [ ] \n\n**次回予定:**\n',
     type: 'general',
     description: '会議や打ち合わせの記録用テンプレート',
   },
 ];
 
-const MEMO_TYPE_CONFIG: Record<MemoType, {
-  label: string;
-  icon: React.ElementType;
-  color: { bg: string; text: string; border: string; badge: string };
-}> = {
+const MEMO_TYPE_CONFIG: Record<
+  MemoType,
+  {
+    label: string;
+    icon: React.ElementType;
+    color: { bg: string; text: string; border: string; badge: string };
+  }
+> = {
   'work-log': {
     label: '作業ログ',
     icon: Clock,
@@ -230,17 +259,18 @@ const MEMO_TYPE_CONFIG: Record<MemoType, {
       badge: 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400',
     },
   },
-  'idea': {
+  idea: {
     label: 'アイデア',
     icon: Lightbulb,
     color: {
       bg: 'bg-amber-50 dark:bg-amber-900/20',
       text: 'text-amber-600 dark:text-amber-400',
       border: 'border-amber-200 dark:border-amber-800',
-      badge: 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400',
+      badge:
+        'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400',
     },
   },
-  'issue': {
+  issue: {
     label: '課題',
     icon: AlertTriangle,
     color: {
@@ -250,17 +280,18 @@ const MEMO_TYPE_CONFIG: Record<MemoType, {
       badge: 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400',
     },
   },
-  'solution': {
+  solution: {
     label: '解決策',
     icon: CheckCircle,
     color: {
       bg: 'bg-emerald-50 dark:bg-emerald-900/20',
       text: 'text-emerald-600 dark:text-emerald-400',
       border: 'border-emerald-200 dark:border-emerald-800',
-      badge: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400',
+      badge:
+        'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400',
     },
   },
-  'general': {
+  general: {
     label: '一般',
     icon: MessageSquare,
     color: {
@@ -278,7 +309,10 @@ type Props = {
   isAddingComment: boolean;
   taskId: number;
   onNewCommentChange: (v: string) => void;
-  onAddComment: (content?: string, parentId?: number) => Promise<number | undefined> | void;
+  onAddComment: (
+    content?: string,
+    parentId?: number,
+  ) => Promise<number | undefined> | void;
   onUpdateComment: (id: number, content: string) => Promise<void>;
   onDeleteComment: (id: number) => void;
 };
@@ -293,8 +327,6 @@ const timeAgo = (d: Date) => {
   if (days < 30) return `${days}日前`;
   return `${Math.floor(days / 30)}ヶ月前`;
 };
-
-
 
 // Note Component
 const Note = memo(function Note({
@@ -427,7 +459,9 @@ const Note = memo(function Note({
               <>
                 {/* Type Badge & Pin Status */}
                 <div className="flex items-center gap-1.5 mb-2">
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full font-medium ${typeConfig.color.badge}`}>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full font-medium ${typeConfig.color.badge}`}
+                  >
                     <TypeIcon className="w-2.5 h-2.5" />
                     {typeConfig.label}
                   </span>
@@ -459,12 +493,14 @@ const Note = memo(function Note({
                         ...savedMemoData,
                         showAnalysis: !showAnalysis,
                       };
-                      localStorage.setItem(`memo-data-${note.id}`, JSON.stringify(newMemoData));
+                      localStorage.setItem(
+                        `memo-data-${note.id}`,
+                        JSON.stringify(newMemoData),
+                      );
                       window.dispatchEvent(new Event('storage'));
                     }}
                   />
                 )}
-
 
                 {/* Meta & Actions */}
                 <div className="flex items-center gap-2 mt-1.5">
@@ -480,8 +516,14 @@ const Note = memo(function Note({
                     <button
                       onClick={() => {
                         const newPinnedState = !isPinned;
-                        const newMemoData = { ...savedMemoData, isPinned: newPinnedState };
-                        localStorage.setItem(`memo-data-${note.id}`, JSON.stringify(newMemoData));
+                        const newMemoData = {
+                          ...savedMemoData,
+                          isPinned: newPinnedState,
+                        };
+                        localStorage.setItem(
+                          `memo-data-${note.id}`,
+                          JSON.stringify(newMemoData),
+                        );
                         // コンポーネントを再レンダリングするためにダミーの状態更新をトリガー
                         window.dispatchEvent(new Event('storage'));
                       }}
@@ -490,21 +532,30 @@ const Note = memo(function Note({
                           ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30'
                           : 'text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30'
                       }`}
-                      title={isPinned ? "ピン留め解除" : "ピン留め"}
+                      title={isPinned ? 'ピン留め解除' : 'ピン留め'}
                     >
-                      {isPinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
+                      {isPinned ? (
+                        <PinOff className="w-3 h-3" />
+                      ) : (
+                        <Pin className="w-3 h-3" />
+                      )}
                     </button>
                     <button
                       onClick={async () => {
                         setIsAnalyzing(true);
                         try {
-                          const analysisResult = await analyzeMemo(note.content);
+                          const analysisResult = await analyzeMemo(
+                            note.content,
+                          );
                           const newMemoData = {
                             ...savedMemoData,
                             analysis: analysisResult,
                             showAnalysis: true,
                           };
-                          localStorage.setItem(`memo-data-${note.id}`, JSON.stringify(newMemoData));
+                          localStorage.setItem(
+                            `memo-data-${note.id}`,
+                            JSON.stringify(newMemoData),
+                          );
                           window.dispatchEvent(new Event('storage'));
                         } catch (error) {
                           logger.error('Analysis failed:', error);
@@ -614,7 +665,6 @@ const Note = memo(function Note({
   );
 });
 
-
 // Memo Analysis Display Component
 const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
   analysis,
@@ -656,7 +706,11 @@ const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
       >
         <Brain className="w-2.5 h-2.5" />
         AI分析結果
-        {isVisible ? <EyeOff className="w-2.5 h-2.5" /> : <Eye className="w-2.5 h-2.5" />}
+        {isVisible ? (
+          <EyeOff className="w-2.5 h-2.5" />
+        ) : (
+          <Eye className="w-2.5 h-2.5" />
+        )}
       </button>
 
       {/* Analysis Results */}
@@ -676,10 +730,15 @@ const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
           <div className="flex items-center gap-2">
             <span
               className={`px-1.5 py-0.5 text-[9px] font-medium rounded-full border ${getImportanceColor(
-                analysis.importance
+                analysis.importance,
               )}`}
             >
-              重要度: {analysis.importance === 'high' ? '高' : analysis.importance === 'medium' ? '中' : '低'}
+              重要度:{' '}
+              {analysis.importance === 'high'
+                ? '高'
+                : analysis.importance === 'medium'
+                  ? '中'
+                  : '低'}
             </span>
             <span className="flex items-center gap-1 text-[9px] text-zinc-500 dark:text-zinc-400">
               感情: {getSentimentIcon(analysis.sentiment)}
@@ -813,7 +872,10 @@ const TaskTimeline = memo(function TaskTimeline({
   taskId: number;
   notes: NoteData[];
 }) {
-  const activities = useMemo(() => generateMockTaskActivities(taskId), [taskId]);
+  const activities = useMemo(
+    () => generateMockTaskActivities(taskId),
+    [taskId],
+  );
 
   // メモと履歴を統合して時系列順に並べる
   const timelineItems = useMemo(() => {
@@ -823,7 +885,7 @@ const TaskTimeline = memo(function TaskTimeline({
     > = [];
 
     // タスク履歴を追加
-    activities.forEach(activity => {
+    activities.forEach((activity) => {
       items.push({
         type: 'activity',
         data: activity,
@@ -832,7 +894,7 @@ const TaskTimeline = memo(function TaskTimeline({
     });
 
     // メモを追加（トップレベルのみ、リプライは除外）
-    notes.forEach(note => {
+    notes.forEach((note) => {
       items.push({
         type: 'memo',
         data: note,
@@ -841,8 +903,9 @@ const TaskTimeline = memo(function TaskTimeline({
     });
 
     // 時系列でソート（新しい順）
-    return items.sort((a, b) =>
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    return items.sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
     );
   }, [activities, notes]);
 
@@ -870,13 +933,23 @@ const TaskTimeline = memo(function TaskTimeline({
               <TaskActivityItem activity={item.data as TaskActivity} />
             ) : (
               <div className="flex items-start gap-2.5 py-1.5">
-                <div className={`p-1 rounded-full ${MEMO_TYPE_CONFIG[(item.data as NoteData).memoType || 'general'].color.bg}`}>
-                  <MessageSquare className={`w-3 h-3 ${MEMO_TYPE_CONFIG[(item.data as NoteData).memoType || 'general'].color.text}`} />
+                <div
+                  className={`p-1 rounded-full ${MEMO_TYPE_CONFIG[(item.data as NoteData).memoType || 'general'].color.bg}`}
+                >
+                  <MessageSquare
+                    className={`w-3 h-3 ${MEMO_TYPE_CONFIG[(item.data as NoteData).memoType || 'general'].color.text}`}
+                  />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 text-xs">
-                    <span className={`px-1.5 py-0.5 text-[9px] rounded-full ${MEMO_TYPE_CONFIG[(item.data as NoteData).memoType || 'general'].color.badge}`}>
-                      {MEMO_TYPE_CONFIG[(item.data as NoteData).memoType || 'general'].label}
+                    <span
+                      className={`px-1.5 py-0.5 text-[9px] rounded-full ${MEMO_TYPE_CONFIG[(item.data as NoteData).memoType || 'general'].color.badge}`}
+                    >
+                      {
+                        MEMO_TYPE_CONFIG[
+                          (item.data as NoteData).memoType || 'general'
+                        ].label
+                      }
                     </span>
                     {(item.data as NoteData).isPinned && (
                       <Pin className="w-2.5 h-2.5 text-blue-500" />
@@ -908,7 +981,9 @@ const TemplateSelector = memo(function TemplateSelector({
   onSelect: (template: MemoTemplate) => void;
   onClose: () => void;
 }) {
-  const filteredTemplates = MEMO_TEMPLATES.filter(t => t.type === selectedType || selectedType === 'general');
+  const filteredTemplates = MEMO_TEMPLATES.filter(
+    (t) => t.type === selectedType || selectedType === 'general',
+  );
   const typeConfig = MEMO_TYPE_CONFIG[selectedType];
   const TypeIcon = typeConfig.icon;
 
@@ -929,7 +1004,9 @@ const TemplateSelector = memo(function TemplateSelector({
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 メモテンプレート選択
               </span>
-              <div className={`flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full ${typeConfig.color.badge}`}>
+              <div
+                className={`flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full ${typeConfig.color.badge}`}
+              >
                 <TypeIcon className="w-2.5 h-2.5" />
                 {typeConfig.label}
               </div>
@@ -957,8 +1034,12 @@ const TemplateSelector = memo(function TemplateSelector({
                     className="w-full text-left p-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-lg transition-colors group"
                   >
                     <div className="flex items-start gap-3">
-                      <div className={`p-1.5 rounded-lg ${templateTypeConfig.color.bg}`}>
-                        <TemplateIcon className={`w-3.5 h-3.5 ${templateTypeConfig.color.text}`} />
+                      <div
+                        className={`p-1.5 rounded-lg ${templateTypeConfig.color.bg}`}
+                      >
+                        <TemplateIcon
+                          className={`w-3.5 h-3.5 ${templateTypeConfig.color.text}`}
+                        />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-medium text-zinc-800 dark:text-zinc-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
@@ -998,8 +1079,6 @@ const TemplateSelector = memo(function TemplateSelector({
   );
 });
 
-
-
 // Main
 export default function MemoSection({
   comments,
@@ -1028,11 +1107,10 @@ export default function MemoSection({
 
   // ローカルストレージの変更を監視
   useEffect(() => {
-    const handleStorageChange = () => setStorageUpdate(prev => prev + 1);
+    const handleStorageChange = () => setStorageUpdate((prev) => prev + 1);
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
-
 
   const notes = useMemo(() => {
     const process = (c: Comment): NoteData => {
@@ -1057,8 +1135,10 @@ export default function MemoSection({
     const processedNotes = comments.filter((c) => !c.parentId).map(process);
 
     // フィルタリング
-    const filtered = filterType === 'all' ? processedNotes :
-      processedNotes.filter((note) => note.memoType === filterType);
+    const filtered =
+      filterType === 'all'
+        ? processedNotes
+        : processedNotes.filter((note) => note.memoType === filterType);
 
     // ソート: ピン留め優先、その後は作成日時順
     return filtered.sort((a, b) => {
@@ -1104,8 +1184,11 @@ export default function MemoSection({
       // 作成されたコメントにメモタイプを設定
       if (newCommentId && selectedMemoType !== 'general') {
         const memoData = { memoType: selectedMemoType, isPinned: false };
-        localStorage.setItem(`memo-data-${newCommentId}`, JSON.stringify(memoData));
-        setStorageUpdate(prev => prev + 1);
+        localStorage.setItem(
+          `memo-data-${newCommentId}`,
+          JSON.stringify(memoData),
+        );
+        setStorageUpdate((prev) => prev + 1);
       }
 
       // メモタイプを一般に戻す
@@ -1116,23 +1199,25 @@ export default function MemoSection({
     }
   };
 
-
-  const handleTemplateSelect = useCallback((template: MemoTemplate) => {
-    onNewCommentChange(template.content);
-    setSelectedMemoType(template.type);
-    setShowTemplates(false);
-  }, [onNewCommentChange]);
+  const handleTemplateSelect = useCallback(
+    (template: MemoTemplate) => {
+      onNewCommentChange(template.content);
+      setSelectedMemoType(template.type);
+      setShowTemplates(false);
+    },
+    [onNewCommentChange],
+  );
 
   const typeStats = useMemo(() => {
     const stats: Record<MemoType, number> = {
       'work-log': 0,
-      'idea': 0,
-      'issue': 0,
-      'solution': 0,
-      'general': 0,
+      idea: 0,
+      issue: 0,
+      solution: 0,
+      general: 0,
     };
 
-    notes.forEach(note => {
+    notes.forEach((note) => {
       const type = note.memoType || 'general';
       stats[type]++;
     });
@@ -1140,7 +1225,7 @@ export default function MemoSection({
     return stats;
   }, [notes]);
 
-  const pinnedCount = notes.filter(note => note.isPinned).length;
+  const pinnedCount = notes.filter((note) => note.isPinned).length;
 
   return (
     <div ref={containerRef}>
@@ -1226,9 +1311,11 @@ export default function MemoSection({
               <button
                 onClick={async () => {
                   // 未分析のメモを一括分析
-                  const unanalyzedNotes = notes.filter(note => {
+                  const unanalyzedNotes = notes.filter((note) => {
                     try {
-                      const saved = localStorage.getItem(`memo-data-${note.id}`);
+                      const saved = localStorage.getItem(
+                        `memo-data-${note.id}`,
+                      );
                       const data = saved ? JSON.parse(saved) : {};
                       return !data.analysis;
                     } catch {
@@ -1241,7 +1328,9 @@ export default function MemoSection({
                       const analysis = await analyzeMemo(note.content);
                       const savedData = (() => {
                         try {
-                          const saved = localStorage.getItem(`memo-data-${note.id}`);
+                          const saved = localStorage.getItem(
+                            `memo-data-${note.id}`,
+                          );
                           return saved ? JSON.parse(saved) : {};
                         } catch {
                           return {};
@@ -1253,13 +1342,16 @@ export default function MemoSection({
                         analysis,
                         showAnalysis: false,
                       };
-                      localStorage.setItem(`memo-data-${note.id}`, JSON.stringify(newMemoData));
+                      localStorage.setItem(
+                        `memo-data-${note.id}`,
+                        JSON.stringify(newMemoData),
+                      );
                     } catch (error) {
                       logger.error(`Failed to analyze memo ${note.id}:`, error);
                     }
                   }
 
-                  setStorageUpdate(prev => prev + 1);
+                  setStorageUpdate((prev) => prev + 1);
                 }}
                 className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-full hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
               >
@@ -1270,7 +1362,6 @@ export default function MemoSection({
           )}
         </div>
       )}
-
 
       {/* Timeline View */}
       {showTimeline && (
@@ -1286,7 +1377,6 @@ export default function MemoSection({
           </div>
         </div>
       )}
-
 
       {/* Input */}
       <div className="space-y-2 mb-3">
@@ -1395,7 +1485,6 @@ export default function MemoSection({
           <p className="text-xs text-zinc-400">メモを追加してアイデアを記録</p>
         </div>
       )}
-
 
       {showTemplates && (
         <TemplateSelector

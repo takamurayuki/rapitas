@@ -2,17 +2,17 @@
  * ベクトルインデックス管理
  * SQLiteでembeddingsを管理し、コサイン類似度でブルートフォース検索
  */
-import { Database } from "bun:sqlite";
-import { join } from "path";
-import { mkdirSync, existsSync } from "fs";
-import { createLogger } from "../../../config/logger";
-import { cosineSimilarity } from "../utils";
-import type { VectorSearchResult } from "../types";
+import { Database } from 'bun:sqlite';
+import { join } from 'path';
+import { mkdirSync, existsSync } from 'fs';
+import { createLogger } from '../../../config/logger';
+import { cosineSimilarity } from '../utils';
+import type { VectorSearchResult } from '../types';
 
-const log = createLogger("memory:rag:vector-index");
+const log = createLogger('memory:rag:vector-index');
 
-const DB_DIR = join(__dirname, "../../../data");
-const DB_PATH = join(DB_DIR, "knowledge-vectors.db");
+const DB_DIR = join(__dirname, '../../../data');
+const DB_PATH = join(DB_DIR, 'knowledge-vectors.db');
 
 let db: Database | null = null;
 
@@ -27,8 +27,8 @@ function getDb(): Database {
   }
 
   db = new Database(DB_PATH);
-  db.run("PRAGMA journal_mode=WAL");
-  db.run("PRAGMA synchronous=NORMAL");
+  db.run('PRAGMA journal_mode=WAL');
+  db.run('PRAGMA synchronous=NORMAL');
 
   db.run(`
     CREATE TABLE IF NOT EXISTS embeddings (
@@ -47,7 +47,7 @@ function getDb(): Database {
     ON embeddings(knowledge_entry_id)
   `);
 
-  log.info({ path: DB_PATH }, "Vector index database initialized");
+  log.info({ path: DB_PATH }, 'Vector index database initialized');
   return db;
 }
 
@@ -74,7 +74,7 @@ export function upsertEmbedding(
   knowledgeEntryId: number,
   embedding: number[],
   textPreview?: string,
-  model = "Xenova/all-MiniLM-L6-v2",
+  model = 'Xenova/all-MiniLM-L6-v2',
 ): void {
   const database = getDb();
   const blob = embeddingToBlob(embedding);
@@ -103,7 +103,7 @@ export function upsertEmbedding(
  */
 export function deleteEmbedding(knowledgeEntryId: number): void {
   const database = getDb();
-  database.run("DELETE FROM embeddings WHERE knowledge_entry_id = ?", [knowledgeEntryId]);
+  database.run('DELETE FROM embeddings WHERE knowledge_entry_id = ?', [knowledgeEntryId]);
 }
 
 /**
@@ -117,9 +117,9 @@ export function searchSimilar(
 ): VectorSearchResult[] {
   const database = getDb();
 
-  const rows = database.query(
-    "SELECT knowledge_entry_id, embedding, text_preview FROM embeddings",
-  ).all() as Array<{
+  const rows = database
+    .query('SELECT knowledge_entry_id, embedding, text_preview FROM embeddings')
+    .all() as Array<{
     knowledge_entry_id: number;
     embedding: Buffer;
     text_preview: string | null;
@@ -152,7 +152,9 @@ export function searchSimilar(
  */
 export function getEmbeddingCount(): number {
   const database = getDb();
-  const result = database.query("SELECT COUNT(*) as count FROM embeddings").get() as { count: number };
+  const result = database.query('SELECT COUNT(*) as count FROM embeddings').get() as {
+    count: number;
+  };
   return result.count;
 }
 

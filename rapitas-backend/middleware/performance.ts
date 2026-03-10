@@ -1,8 +1,8 @@
-import { Elysia } from "elysia";
-import { LRUCache } from "lru-cache";
-import { createLogger } from "../config/logger";
+import { Elysia } from 'elysia';
+import { LRUCache } from 'lru-cache';
+import { createLogger } from '../config/logger';
 
-const log = createLogger("performance");
+const log = createLogger('performance');
 
 // メモリキャッシュの設定
 const cache = new LRUCache<string, { data: unknown; etag: string }>({
@@ -18,33 +18,34 @@ function generateETag(data: unknown): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash; // 32bitに変換
   }
   return `"${Math.abs(hash).toString(36)}"`;
 }
 
 // レスポンス圧縮の設定
-export const compressionMiddleware = new Elysia({ name: "compression" })
-  .derive(async ({ request }) => {
-    const acceptEncoding = request.headers.get("accept-encoding");
-    const supportsGzip = acceptEncoding?.includes("gzip");
-    const supportsBrotli = acceptEncoding?.includes("br");
+export const compressionMiddleware = new Elysia({ name: 'compression' }).derive(
+  async ({ request }) => {
+    const acceptEncoding = request.headers.get('accept-encoding');
+    const supportsGzip = acceptEncoding?.includes('gzip');
+    const supportsBrotli = acceptEncoding?.includes('br');
 
     return {
       compress: {
         gzip: supportsGzip,
         brotli: supportsBrotli,
-        preferred: supportsBrotli ? "brotli" : supportsGzip ? "gzip" : null
-      }
+        preferred: supportsBrotli ? 'brotli' : supportsGzip ? 'gzip' : null,
+      },
     };
-  });
+  },
+);
 
 // キャッシュミドルウェア
-export const cacheMiddleware = new Elysia({ name: "cache" })
-  .derive(async ({ request, set, path }) => {
+export const cacheMiddleware = new Elysia({ name: 'cache' }).derive(
+  async ({ request, set, path }) => {
     // GETリクエストのみキャッシュ
-    if (request.method !== "GET") {
+    if (request.method !== 'GET') {
       return { cache: { enabled: false } };
     }
 
@@ -52,16 +53,16 @@ export const cacheMiddleware = new Elysia({ name: "cache" })
     const cached = cache.get(cacheKey);
 
     // If-None-Matchヘッダーのチェック
-    const ifNoneMatch = request.headers.get("if-none-match");
+    const ifNoneMatch = request.headers.get('if-none-match');
     if (cached && ifNoneMatch === cached.etag) {
       set.status = 304;
       return {
         cache: {
           enabled: true,
           hit: true,
-          status: "not-modified",
-          data: null
-        }
+          status: 'not-modified',
+          data: null,
+        },
       };
     }
 
@@ -75,8 +76,8 @@ export const cacheMiddleware = new Elysia({ name: "cache" })
         set: (data: unknown) => {
           const etag = generateETag(data);
           cache.set(cacheKey, { data, etag });
-          set.headers["etag"] = etag;
-          set.headers["cache-control"] = "private, max-age=300";
+          set.headers['etag'] = etag;
+          set.headers['cache-control'] = 'private, max-age=300';
           return data;
         },
         invalidate: (pattern?: string) => {
@@ -90,10 +91,11 @@ export const cacheMiddleware = new Elysia({ name: "cache" })
           } else {
             cache.delete(cacheKey);
           }
-        }
-      }
+        },
+      },
     };
-  });
+  },
+);
 
 // パフォーマンスモニタリング
 interface RequestMetrics {
@@ -104,7 +106,7 @@ interface RequestMetrics {
 
 const metricsMap = new WeakMap<Request, RequestMetrics>();
 
-export const performanceMonitoring = new Elysia({ name: "performance-monitoring" })
+export const performanceMonitoring = new Elysia({ name: 'performance-monitoring' })
   .derive(({ request }) => {
     const metrics: RequestMetrics = {
       startTime: performance.now(),
@@ -121,7 +123,7 @@ export const performanceMonitoring = new Elysia({ name: "performance-monitoring"
           metrics.dbQueryCount++;
         },
         getMetrics: () => metrics,
-      }
+      },
     };
   })
   .onAfterHandle(({ request, set, path }) => {
@@ -130,13 +132,21 @@ export const performanceMonitoring = new Elysia({ name: "performance-monitoring"
       const totalTime = performance.now() - metrics.startTime;
 
       // レスポンスヘッダーにパフォーマンス情報を追加
-      set.headers["x-response-time"] = `${totalTime.toFixed(2)}ms`;
-      set.headers["x-db-queries"] = metrics.dbQueryCount.toString();
-      set.headers["x-db-time"] = `${metrics.dbQueryTime.toFixed(2)}ms`;
+      set.headers['x-response-time'] = `${totalTime.toFixed(2)}ms`;
+      set.headers['x-db-queries'] = metrics.dbQueryCount.toString();
+      set.headers['x-db-time'] = `${metrics.dbQueryTime.toFixed(2)}ms`;
 
       // 遅いリクエストの警告
       if (totalTime > 1000) {
-        log.warn({ path, totalTimeMs: totalTime, dbTimeMs: metrics.dbQueryTime, dbQueryCount: metrics.dbQueryCount }, `Slow request detected: ${path} took ${totalTime.toFixed(2)}ms (DB: ${metrics.dbQueryTime.toFixed(2)}ms in ${metrics.dbQueryCount} queries)`);
+        log.warn(
+          {
+            path,
+            totalTimeMs: totalTime,
+            dbTimeMs: metrics.dbQueryTime,
+            dbQueryCount: metrics.dbQueryCount,
+          },
+          `Slow request detected: ${path} took ${totalTime.toFixed(2)}ms (DB: ${metrics.dbQueryTime.toFixed(2)}ms in ${metrics.dbQueryCount} queries)`,
+        );
       }
 
       metricsMap.delete(request);
@@ -158,40 +168,39 @@ export const connectionPooling = {
 // レート制限（スライディングウィンドウ方式）
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
-export const rateLimitMiddleware = new Elysia({ name: "rate-limit" })
-  .derive(({ request, set }) => {
-    const clientIp = request.headers.get("x-forwarded-for") || "unknown";
-    const now = Date.now();
-    const windowMs = 60000; // 1分
-    const maxRequests = 100; // 1分あたり100リクエスト
+export const rateLimitMiddleware = new Elysia({ name: 'rate-limit' }).derive(({ request, set }) => {
+  const clientIp = request.headers.get('x-forwarded-for') || 'unknown';
+  const now = Date.now();
+  const windowMs = 60000; // 1分
+  const maxRequests = 100; // 1分あたり100リクエスト
 
-    let clientData = rateLimitMap.get(clientIp);
+  let clientData = rateLimitMap.get(clientIp);
 
-    if (!clientData || clientData.resetAt < now) {
-      clientData = { count: 1, resetAt: now + windowMs };
-      rateLimitMap.set(clientIp, clientData);
-    } else {
-      clientData.count++;
-    }
+  if (!clientData || clientData.resetAt < now) {
+    clientData = { count: 1, resetAt: now + windowMs };
+    rateLimitMap.set(clientIp, clientData);
+  } else {
+    clientData.count++;
+  }
 
-    // ヘッダーの設定
-    set.headers["x-ratelimit-limit"] = maxRequests.toString();
-    set.headers["x-ratelimit-remaining"] = Math.max(0, maxRequests - clientData.count).toString();
-    set.headers["x-ratelimit-reset"] = new Date(clientData.resetAt).toISOString();
+  // ヘッダーの設定
+  set.headers['x-ratelimit-limit'] = maxRequests.toString();
+  set.headers['x-ratelimit-remaining'] = Math.max(0, maxRequests - clientData.count).toString();
+  set.headers['x-ratelimit-reset'] = new Date(clientData.resetAt).toISOString();
 
-    if (clientData.count > maxRequests) {
-      set.status = 429;
-      set.headers["retry-after"] = Math.ceil((clientData.resetAt - now) / 1000).toString();
-      return {
-        rateLimit: {
-          exceeded: true,
-          message: "Too many requests, please try again later"
-        }
-      };
-    }
+  if (clientData.count > maxRequests) {
+    set.status = 429;
+    set.headers['retry-after'] = Math.ceil((clientData.resetAt - now) / 1000).toString();
+    return {
+      rateLimit: {
+        exceeded: true,
+        message: 'Too many requests, please try again later',
+      },
+    };
+  }
 
-    return { rateLimit: { exceeded: false } };
-  });
+  return { rateLimit: { exceeded: false } };
+});
 
 // 定期的なクリーンアップ
 setInterval(() => {
@@ -204,7 +213,7 @@ setInterval(() => {
 }, 60000); // 1分ごと
 
 // 全体的なパフォーマンス最適化ミドルウェア
-export const performanceOptimization = new Elysia({ name: "performance" })
+export const performanceOptimization = new Elysia({ name: 'performance' })
   .use(compressionMiddleware)
   .use(cacheMiddleware)
   .use(performanceMonitoring)

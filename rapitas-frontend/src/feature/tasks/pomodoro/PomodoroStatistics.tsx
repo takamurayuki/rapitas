@@ -9,7 +9,12 @@ const logger = createLogger('PomodoroStatistics');
 import { formatTime } from './pomodoroStore';
 
 type DailyStat = { date: string; count: number; minutes: number };
-type TaskStat = { taskId: number; title: string; count: number; minutes: number };
+type TaskStat = {
+  taskId: number;
+  title: string;
+  count: number;
+  minutes: number;
+};
 
 type PomodoroStats = {
   totalPomodoros: number;
@@ -38,7 +43,7 @@ export default function PomodoroStatistics() {
       }
 
       const res = await fetch(
-        `${API_BASE_URL}/pomodoro/statistics?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`
+        `${API_BASE_URL}/pomodoro/statistics?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`,
       );
       if (res.ok) {
         const data = await res.json();
@@ -66,7 +71,7 @@ export default function PomodoroStatistics() {
 
   if (!stats) return null;
 
-  const maxDailyCount = Math.max(...stats.dailyStats.map(d => d.count), 1);
+  const maxDailyCount = Math.max(...stats.dailyStats.map((d) => d.count), 1);
 
   return (
     <div className="space-y-4">
@@ -179,7 +184,8 @@ export default function PomodoroStatistics() {
                   </div>
                 </div>
                 <span className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
-                  {task.count}{tc('times')} / {Math.round(task.minutes)}min
+                  {task.count}
+                  {tc('times')} / {Math.round(task.minutes)}min
                 </span>
               </div>
             ))}

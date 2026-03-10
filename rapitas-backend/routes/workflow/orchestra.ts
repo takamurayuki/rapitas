@@ -99,7 +99,7 @@ export const orchestraRoutes = new Elysia()
 
     const taskMap = new Map(tasks.map((t) => [t.id, t]));
 
-    const enrichItem = (item: typeof allItems[0]) => ({
+    const enrichItem = (item: (typeof allItems)[0]) => ({
       ...item,
       task: taskMap.get(item.taskId) || null,
     });
@@ -191,10 +191,7 @@ export const orchestraRoutes = new Elysia()
    */
   .get('/workflow/orchestra/events', () => {
     // 初回ダミー登録（後でReadableStream内で再登録）
-    const tempClientId = realtimeService.registerClient(
-      { write: () => {} },
-      ['orchestra'],
-    );
+    const tempClientId = realtimeService.registerClient({ write: () => {} }, ['orchestra']);
 
     let activeClientId = tempClientId;
 

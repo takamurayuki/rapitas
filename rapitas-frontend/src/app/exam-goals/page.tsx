@@ -363,9 +363,7 @@ export default function ExamGoalsPage() {
       {examGoals.length === 0 && (
         <div className="text-center py-12">
           <Target className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-          <p className="text-zinc-500 dark:text-zinc-400">
-            {t('none')}
-          </p>
+          <p className="text-zinc-500 dark:text-zinc-400">{t('none')}</p>
         </div>
       )}
 

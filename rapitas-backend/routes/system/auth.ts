@@ -27,199 +27,217 @@ function checkAuthRateLimit(identifier: string): boolean {
 }
 
 // Cleanup old entries periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of authAttempts) {
-    if (now > entry.resetAt) authAttempts.delete(key);
-  }
-}, 5 * 60 * 1000);
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [key, entry] of authAttempts) {
+      if (now > entry.resetAt) authAttempts.delete(key);
+    }
+  },
+  5 * 60 * 1000,
+);
 
 // Google OAuth2 configuration
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback'
+  process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback',
 );
 
 const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/userinfo.profile'
+  'https://www.googleapis.com/auth/userinfo.profile',
 ];
 
 export const authRoutes = new Elysia({ prefix: '/auth' })
-  .post('/register', async ({ body, set, cookie: { sessionToken }, request }) => {
-    try {
-      const clientIp = request.headers.get('x-forwarded-for') || 'unknown';
-      if (!checkAuthRateLimit(`register:${clientIp}`)) {
-        set.status = 429;
-        return { success: false, message: 'Too many registration attempts. Please try again later.' };
-      }
-
-      const { username, email, password } = body as { username: string; email: string; password: string };
-
-      // Check if user already exists
-      const existingUser = await prisma.user.findFirst({
-        where: {
-          OR: [
-            { username },
-            { email }
-          ]
+  .post(
+    '/register',
+    async ({ body, set, cookie: { sessionToken }, request }) => {
+      try {
+        const clientIp = request.headers.get('x-forwarded-for') || 'unknown';
+        if (!checkAuthRateLimit(`register:${clientIp}`)) {
+          set.status = 429;
+          return {
+            success: false,
+            message: 'Too many registration attempts. Please try again later.',
+          };
         }
-      });
 
-      if (existingUser) {
-        set.status = 409;
-        return {
-          success: false,
-          message: existingUser.username === username ? 'Username already exists' : 'Email already exists'
+        const { username, email, password } = body as {
+          username: string;
+          email: string;
+          password: string;
         };
+
+        // Check if user already exists
+        const existingUser = await prisma.user.findFirst({
+          where: {
+            OR: [{ username }, { email }],
+          },
+        });
+
+        if (existingUser) {
+          set.status = 409;
+          return {
+            success: false,
+            message:
+              existingUser.username === username
+                ? 'Username already exists'
+                : 'Email already exists',
+          };
+        }
+
+        // Hash password
+        const saltRounds = 12;
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+        // Create user
+        const user = await prisma.user.create({
+          data: {
+            username,
+            email,
+            passwordHash: hashedPassword,
+            role: 'user', // default role
+          },
+        });
+
+        // Generate session token for auto-login after registration
+        const token = randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+        // Create session
+        await prisma.userSession.create({
+          data: {
+            userId: user.id,
+            sessionToken: token,
+            expiresAt,
+          },
+        });
+
+        // Set cookie
+        sessionToken.set({
+          value: token,
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict',
+          maxAge: 24 * 60 * 60, // 24 hours in seconds
+        });
+
+        return {
+          success: true,
+          message: 'User registered successfully',
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            createdAt: user.createdAt.toISOString(),
+            lastLoginAt: null,
+          },
+        };
+      } catch (error) {
+        log.error({ err: error }, 'Registration error');
+        set.status = 500;
+        return { success: false, message: 'Internal server error during registration' };
       }
+    },
+    {
+      body: t.Object({
+        username: t.String({ minLength: 3, maxLength: 50 }),
+        email: t.String({ format: 'email' }),
+        password: t.String({ minLength: 8 }),
+      }),
+    },
+  )
 
-      // Hash password
-      const saltRounds = 12;
-      const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-      // Create user
-      const user = await prisma.user.create({
-        data: {
-          username,
-          email,
-          passwordHash: hashedPassword,
-          role: 'user' // default role
+  .post(
+    '/login',
+    async ({ body, set, cookie: { sessionToken }, request }) => {
+      try {
+        const clientIp = request.headers.get('x-forwarded-for') || 'unknown';
+        if (!checkAuthRateLimit(`login:${clientIp}`)) {
+          set.status = 429;
+          return { success: false, message: 'Too many login attempts. Please try again later.' };
         }
-      });
 
-      // Generate session token for auto-login after registration
-      const token = randomBytes(32).toString('hex');
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+        const { username, password } = body as { username: string; password: string };
 
-      // Create session
-      await prisma.userSession.create({
-        data: {
-          userId: user.id,
-          sessionToken: token,
-          expiresAt
+        // Find user
+        const user = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { username },
+              { email: username }, // Allow email login
+            ],
+          },
+        });
+
+        if (!user || !user.passwordHash) {
+          set.status = 401;
+          return { success: false, message: 'Invalid credentials' };
         }
-      });
 
-      // Set cookie
-      sessionToken.set({
-        value: token,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 24 * 60 * 60 // 24 hours in seconds
-      });
-
-      return {
-        success: true,
-        message: 'User registered successfully',
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          role: user.role,
-          createdAt: user.createdAt.toISOString(),
-          lastLoginAt: null
+        // Verify password
+        const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+        if (!isValidPassword) {
+          set.status = 401;
+          return { success: false, message: 'Invalid credentials' };
         }
-      };
-    } catch (error) {
-      log.error({ err: error }, 'Registration error');
-      set.status = 500;
-      return { success: false, message: 'Internal server error during registration' };
-    }
-  }, {
-    body: t.Object({
-      username: t.String({ minLength: 3, maxLength: 50 }),
-      email: t.String({ format: 'email' }),
-      password: t.String({ minLength: 8 })
-    })
-  })
 
-  .post('/login', async ({ body, set, cookie: { sessionToken }, request }) => {
-    try {
-      const clientIp = request.headers.get('x-forwarded-for') || 'unknown';
-      if (!checkAuthRateLimit(`login:${clientIp}`)) {
-        set.status = 429;
-        return { success: false, message: 'Too many login attempts. Please try again later.' };
+        // Generate session token
+        const token = randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+        // Create session
+        await prisma.userSession.create({
+          data: {
+            userId: user.id,
+            sessionToken: token,
+            expiresAt,
+          },
+        });
+
+        // Set cookie
+        sessionToken.set({
+          value: token,
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict',
+          maxAge: 24 * 60 * 60, // 24 hours in seconds
+        });
+
+        // Update last login
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { lastLoginAt: new Date() },
+        });
+
+        return {
+          success: true,
+          message: 'Login successful',
+          token: token,
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            createdAt: user.createdAt.toISOString(),
+            lastLoginAt: user.lastLoginAt?.toISOString() || null,
+          },
+        };
+      } catch (error) {
+        log.error({ err: error }, 'Login error');
+        set.status = 500;
+        return { success: false, message: 'Internal server error during login' };
       }
-
-      const { username, password } = body as { username: string; password: string };
-
-      // Find user
-      const user = await prisma.user.findFirst({
-        where: {
-          OR: [
-            { username },
-            { email: username } // Allow email login
-          ]
-        }
-      });
-
-      if (!user || !user.passwordHash) {
-        set.status = 401;
-        return { success: false, message: 'Invalid credentials' };
-      }
-
-      // Verify password
-      const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-      if (!isValidPassword) {
-        set.status = 401;
-        return { success: false, message: 'Invalid credentials' };
-      }
-
-      // Generate session token
-      const token = randomBytes(32).toString('hex');
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-      // Create session
-      await prisma.userSession.create({
-        data: {
-          userId: user.id,
-          sessionToken: token,
-          expiresAt
-        }
-      });
-
-      // Set cookie
-      sessionToken.set({
-        value: token,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 24 * 60 * 60 // 24 hours in seconds
-      });
-
-      // Update last login
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { lastLoginAt: new Date() }
-      });
-
-      return {
-        success: true,
-        message: 'Login successful',
-        token: token,
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          role: user.role,
-          createdAt: user.createdAt.toISOString(),
-          lastLoginAt: user.lastLoginAt?.toISOString() || null
-        }
-      };
-    } catch (error) {
-      log.error({ err: error }, 'Login error');
-      set.status = 500;
-      return { success: false, message: 'Internal server error during login' };
-    }
-  }, {
-    body: t.Object({
-      username: t.String(),
-      password: t.String()
-    })
-  })
+    },
+    {
+      body: t.Object({
+        username: t.String(),
+        password: t.String(),
+      }),
+    },
+  )
 
   .post('/logout', async ({ cookie: { sessionToken }, set }) => {
     try {
@@ -228,7 +246,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       if (token) {
         // Invalidate session
         await prisma.userSession.deleteMany({
-          where: { sessionToken: token }
+          where: { sessionToken: token },
         });
 
         // Clear cookie
@@ -257,12 +275,12 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         where: {
           sessionToken: token,
           expiresAt: {
-            gt: new Date()
-          }
+            gt: new Date(),
+          },
         },
         include: {
-          user: true
-        }
+          user: true,
+        },
       });
 
       if (!session) {
@@ -277,8 +295,8 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
           username: session.user.username,
           email: session.user.email,
           role: session.user.role,
-          lastLoginAt: session.user.lastLoginAt
-        }
+          lastLoginAt: session.user.lastLoginAt,
+        },
       };
     } catch (error) {
       log.error({ err: error }, 'Get user error');
@@ -300,9 +318,9 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       const currentSession = await prisma.userSession.findFirst({
         where: {
           sessionToken: token,
-          expiresAt: { gt: new Date() }
+          expiresAt: { gt: new Date() },
         },
-        include: { user: true }
+        include: { user: true },
       });
 
       if (!currentSession) {
@@ -314,19 +332,19 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       const sessions = await prisma.userSession.findMany({
         where: {
           userId: currentSession.user.id,
-          expiresAt: { gt: new Date() }
+          expiresAt: { gt: new Date() },
         },
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: 'desc' },
       });
 
       return {
         success: true,
-        sessions: sessions.map(session => ({
+        sessions: sessions.map((session) => ({
           id: session.id,
           isCurrentSession: session.sessionToken === token,
           createdAt: session.createdAt,
-          expiresAt: session.expiresAt
-        }))
+          expiresAt: session.expiresAt,
+        })),
       };
     } catch (error) {
       log.error({ err: error }, 'Get sessions error');
@@ -349,9 +367,9 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       const currentSession = await prisma.userSession.findFirst({
         where: {
           sessionToken: token,
-          expiresAt: { gt: new Date() }
+          expiresAt: { gt: new Date() },
         },
-        include: { user: true }
+        include: { user: true },
       });
 
       if (!currentSession) {
@@ -369,8 +387,8 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       const result = await prisma.userSession.deleteMany({
         where: {
           id: sessionIdNum,
-          userId: currentSession.user.id
-        }
+          userId: currentSession.user.id,
+        },
       });
 
       if (result.count === 0) {
@@ -399,9 +417,9 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       const currentSession = await prisma.userSession.findFirst({
         where: {
           sessionToken: token,
-          expiresAt: { gt: new Date() }
+          expiresAt: { gt: new Date() },
         },
-        include: { user: true }
+        include: { user: true },
       });
 
       if (!currentSession || currentSession.user.role !== 'admin') {
@@ -413,14 +431,14 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       const result = await prisma.userSession.deleteMany({
         where: {
           expiresAt: {
-            lt: new Date()
-          }
-        }
+            lt: new Date(),
+          },
+        },
       });
 
       return {
         success: true,
-        message: `Cleaned up ${result.count} expired sessions`
+        message: `Cleaned up ${result.count} expired sessions`,
       };
     } catch (error) {
       log.error({ err: error }, 'Cleanup sessions error');
@@ -436,12 +454,12 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       const authUrl = oauth2Client.generateAuthUrl({
         access_type: 'offline',
         scope: GOOGLE_SCOPES,
-        prompt: 'select_account'
+        prompt: 'select_account',
       });
 
       return {
         success: true,
-        url: authUrl
+        url: authUrl,
       };
     } catch (error) {
       log.error({ err: error }, 'Google auth URL generation error');
@@ -456,7 +474,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       const authUrl = oauth2Client.generateAuthUrl({
         access_type: 'offline',
         scope: GOOGLE_SCOPES,
-        prompt: 'select_account'
+        prompt: 'select_account',
       });
 
       // Redirect to Google
@@ -505,11 +523,8 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       // Check if user exists by Google ID or email
       let user = await prisma.user.findFirst({
         where: {
-          OR: [
-            { googleId: googleUserInfo.id },
-            { email: googleUserInfo.email }
-          ]
-        }
+          OR: [{ googleId: googleUserInfo.id }, { email: googleUserInfo.email }],
+        },
       });
 
       if (user) {
@@ -517,7 +532,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         if (!user.googleId && googleUserInfo.id) {
           user = await prisma.user.update({
             where: { id: user.id },
-            data: { googleId: googleUserInfo.id }
+            data: { googleId: googleUserInfo.id },
           });
         }
       } else {
@@ -529,8 +544,8 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
             googleId: googleUserInfo.id,
             role: 'user',
             // No password hash for OAuth users
-            passwordHash: null
-          }
+            passwordHash: null,
+          },
         });
       }
 
@@ -543,8 +558,8 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         data: {
           userId: user.id,
           sessionToken: token,
-          expiresAt
-        }
+          expiresAt,
+        },
       });
 
       // Set cookie
@@ -553,20 +568,19 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
-        maxAge: 24 * 60 * 60 // 24 hours in seconds
+        maxAge: 24 * 60 * 60, // 24 hours in seconds
       });
 
       // Update last login
       await prisma.user.update({
         where: { id: user.id },
-        data: { lastLoginAt: new Date() }
+        data: { lastLoginAt: new Date() },
       });
 
       // Redirect to frontend with success
       set.status = 302;
       set.headers.location = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/?auth_success=true`;
       return;
-
     } catch (error) {
       log.error({ err: error }, 'Google callback error');
       set.status = 302;

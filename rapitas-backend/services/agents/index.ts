@@ -204,12 +204,7 @@ export type {
 // 統一サービス
 // ============================================================================
 
-export {
-  AgentService,
-  agentService,
-  executeWithAgent,
-  continueWithAgent,
-} from './agent-service';
+export { AgentService, agentService, executeWithAgent, continueWithAgent } from './agent-service';
 
 export type {
   ExecuteOptions,
@@ -223,7 +218,11 @@ export type {
 // ============================================================================
 
 import { agentService, type ExecuteOptions } from './agent-service';
-import type { AgentTaskDefinition, AgentExecutionResult, AgentProviderId } from './abstraction/types';
+import type {
+  AgentTaskDefinition,
+  AgentExecutionResult,
+  AgentProviderId,
+} from './abstraction/types';
 
 /**
  * エージェントサービスを初期化して準備完了状態にする

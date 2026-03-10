@@ -1,14 +1,18 @@
 /**
  * Templates API Routes
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
-import { toJsonString, fromJsonString } from "../../utils/db-helpers";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
+import { toJsonString, fromJsonString } from '../../utils/db-helpers';
 
-export const templatesRoutes = new Elysia({ prefix: "/templates" })
-  .get("/", async (context) => {
-      const { query  } = context;
-    const { category, search, themeId  } = query as { category?: string; search?: string; themeId?: string };
+export const templatesRoutes = new Elysia({ prefix: '/templates' })
+  .get('/', async (context) => {
+    const { query } = context;
+    const { category, search, themeId } = query as {
+      category?: string;
+      search?: string;
+      themeId?: string;
+    };
 
     const where: Record<string, unknown> = {};
 
@@ -17,10 +21,7 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
     }
 
     if (search) {
-      where.OR = [
-        { name: { contains: search } },
-        { description: { contains: search } },
-      ];
+      where.OR = [{ name: { contains: search } }, { description: { contains: search } }];
     }
 
     if (themeId) {
@@ -39,22 +40,22 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
           },
         },
       },
-      orderBy: [{ useCount: "desc" }, { createdAt: "desc" }],
+      orderBy: [{ useCount: 'desc' }, { createdAt: 'desc' }],
     });
   })
 
   // カテゴリ一覧を取得
-  .get("/categories", async () => {
+  .get('/categories', async () => {
     const templates = await prisma.taskTemplate.findMany({
       select: { category: true },
-      distinct: ["category"],
-      orderBy: { category: "asc" },
+      distinct: ['category'],
+      orderBy: { category: 'asc' },
     });
     return templates.map((t: { category: string }) => t.category);
   })
 
-  .get("/:id", async (context) => {
-      const { params  } = context;
+  .get('/:id', async (context) => {
+    const { params } = context;
     const id = parseInt(params.id);
     return await prisma.taskTemplate.findUnique({
       where: { id },
@@ -72,11 +73,15 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
   })
 
   .post(
-    "/",
+    '/',
     async (context) => {
       const { body } = context;
       const { name, description, category, templateData, themeId } = body as {
-        name: string; description?: string; category: string; templateData: string; themeId?: number;
+        name: string;
+        description?: string;
+        category: string;
+        templateData: string;
+        themeId?: number;
       };
       return await prisma.taskTemplate.create({
         data: {
@@ -106,187 +111,192 @@ export const templatesRoutes = new Elysia({ prefix: "/templates" })
         templateData: t.Any(),
         themeId: t.Optional(t.Number()),
       }),
-    }
+    },
   )
 
   // タスクからテンプレートを作成
-  .post(
-    "/from-task/:taskId",
-    async (context) => {
-      const { params, body } = context;
-      const taskId = parseInt(params.taskId);
-      const { name, description, category } = body as { name: string; description?: string; category: string };
+  .post('/from-task/:taskId', async (context) => {
+    const { params, body } = context;
+    const taskId = parseInt(params.taskId);
+    const { name, description, category } = body as {
+      name: string;
+      description?: string;
+      category: string;
+    };
 
-      // タスクを取得（サブタスク含む）
-      const task = await prisma.task.findUnique({
-        where: { id: taskId },
-        include: {
-          subtasks: {
-            select: {
-              title: true,
-              description: true,
-              estimatedHours: true,
-            },
-            orderBy: { id: "asc" },
+    // タスクを取得（サブタスク含む）
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        subtasks: {
+          select: {
+            title: true,
+            description: true,
+            estimatedHours: true,
           },
-          taskLabels: {
-            include: {
-              label: {
-                select: { name: true },
-              },
-            },
-          },
+          orderBy: { id: 'asc' },
         },
-      });
-
-      if (!task) {
-        return { error: "Task not found" };
-      }
-
-      // テンプレートデータを構築
-      const templateData = {
-        title: task.title,
-        description: task.description,
-        priority: task.priority,
-        estimatedHours: task.estimatedHours,
-        labels:
-          task.taskLabels
-            ?.map((tl: { label: { name: string } }) => tl.label?.name)
-            .filter(Boolean) || [],
-        subtasks: task.subtasks.map(
-          (st: {
-            title: string;
-            description?: string | null;
-            estimatedHours?: number | null;
-          }) => ({
-            title: st.title,
-            description: st.description,
-            estimatedHours: st.estimatedHours,
-          })
-        ),
-      };
-
-      // テンプレートを作成（タスクのテーマも保存）
-      const template = await prisma.taskTemplate.create({
-        data: {
-          name,
-          category,
-          templateData: toJsonString(templateData) ?? "{}",
-          ...(description && { description }),
-          ...(task.themeId && { themeId: task.themeId }),
-        },
-        include: {
-          theme: {
-            select: {
-              id: true,
-              name: true,
-              color: true,
-              icon: true,
+        taskLabels: {
+          include: {
+            label: {
+              select: { name: true },
             },
           },
         },
-      });
+      },
+    });
 
-      return template;
+    if (!task) {
+      return { error: 'Task not found' };
     }
-  )
 
-  .delete("/:id", async (context) => {
-      const { params  } = context;
+    // テンプレートデータを構築
+    const templateData = {
+      title: task.title,
+      description: task.description,
+      priority: task.priority,
+      estimatedHours: task.estimatedHours,
+      labels:
+        task.taskLabels?.map((tl: { label: { name: string } }) => tl.label?.name).filter(Boolean) ||
+        [],
+      subtasks: task.subtasks.map(
+        (st: { title: string; description?: string | null; estimatedHours?: number | null }) => ({
+          title: st.title,
+          description: st.description,
+          estimatedHours: st.estimatedHours,
+        }),
+      ),
+    };
+
+    // テンプレートを作成（タスクのテーマも保存）
+    const template = await prisma.taskTemplate.create({
+      data: {
+        name,
+        category,
+        templateData: toJsonString(templateData) ?? '{}',
+        ...(description && { description }),
+        ...(task.themeId && { themeId: task.themeId }),
+      },
+      include: {
+        theme: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+            icon: true,
+          },
+        },
+      },
+    });
+
+    return template;
+  })
+
+  .delete('/:id', async (context) => {
+    const { params } = context;
     const id = parseInt(params.id);
     return await prisma.taskTemplate.delete({ where: { id } });
   })
 
   // テンプレートからタスク作成
-  .post(
-    "/:id/apply",
-    async (context) => {
-      const { params, body } = context;
-      const id = parseInt(params.id);
-      const { themeId, projectId, milestoneId, title: customTitle, dueDate } = (body as { themeId?: number; projectId?: number; milestoneId?: number; title?: string; dueDate?: string }) || {};
+  .post('/:id/apply', async (context) => {
+    const { params, body } = context;
+    const id = parseInt(params.id);
+    const {
+      themeId,
+      projectId,
+      milestoneId,
+      title: customTitle,
+      dueDate,
+    } = (body as {
+      themeId?: number;
+      projectId?: number;
+      milestoneId?: number;
+      title?: string;
+      dueDate?: string;
+    }) || {};
 
-      const template = await prisma.taskTemplate.findUnique({
-        where: { id },
-      });
-      if (!template) return { error: "Template not found" };
+    const template = await prisma.taskTemplate.findUnique({
+      where: { id },
+    });
+    if (!template) return { error: 'Template not found' };
 
-      const data = fromJsonString<{
-        title?: string;
-        description?: string;
-        priority?: string;
-        estimatedHours?: number;
-        subject?: string;
-        subtasks?: { title: string; description?: string; estimatedHours?: number }[];
-        labels?: string[];
-      }>(template.templateData);
+    const data = fromJsonString<{
+      title?: string;
+      description?: string;
+      priority?: string;
+      estimatedHours?: number;
+      subject?: string;
+      subtasks?: { title: string; description?: string; estimatedHours?: number }[];
+      labels?: string[];
+    }>(template.templateData);
 
-      const task = await prisma.task.create({
-        data: {
-          title: customTitle || data?.title || template.name,
-          description: data?.description,
-          priority: data?.priority || "medium",
-          estimatedHours: data?.estimatedHours,
-          subject: data?.subject,
-          ...(themeId && { themeId }),
-          ...(projectId && { projectId }),
-          ...(milestoneId && { milestoneId }),
-          ...(dueDate && { dueDate: new Date(dueDate) }),
-        },
-      });
+    const task = await prisma.task.create({
+      data: {
+        title: customTitle || data?.title || template.name,
+        description: data?.description,
+        priority: data?.priority || 'medium',
+        estimatedHours: data?.estimatedHours,
+        subject: data?.subject,
+        ...(themeId && { themeId }),
+        ...(projectId && { projectId }),
+        ...(milestoneId && { milestoneId }),
+        ...(dueDate && { dueDate: new Date(dueDate) }),
+      },
+    });
 
-      // サブタスクも作成（説明とestimatedHoursを含む）
-      if (data?.subtasks && Array.isArray(data.subtasks)) {
-        for (const st of data.subtasks) {
-          await prisma.task.create({
-            data: {
-              title: st.title,
-              description: st.description,
-              estimatedHours: st.estimatedHours,
-              parentId: task.id,
-              status: "todo",
-            },
-          });
-        }
-      }
-
-      // ラベルを取得して紐付け（テンプレートに保存されたラベル名から）
-      if (data?.labels && Array.isArray(data.labels) && data.labels.length > 0) {
-        const labels = await prisma.label.findMany({
-          where: {
-            name: { in: data.labels },
+    // サブタスクも作成（説明とestimatedHoursを含む）
+    if (data?.subtasks && Array.isArray(data.subtasks)) {
+      for (const st of data.subtasks) {
+        await prisma.task.create({
+          data: {
+            title: st.title,
+            description: st.description,
+            estimatedHours: st.estimatedHours,
+            parentId: task.id,
+            status: 'todo',
           },
         });
-
-        if (labels.length > 0) {
-          await prisma.taskLabel.createMany({
-            data: labels.map((label: { id: number }) => ({
-              taskId: task.id,
-              labelId: label.id,
-            })),
-          });
-        }
       }
+    }
 
-      // 使用回数を増やす
-      await prisma.taskTemplate.update({
-        where: { id },
-        data: { useCount: { increment: 1 } },
-      });
-
-      // 作成したタスクをリレーション付きで返す
-      const createdTask = await prisma.task.findUnique({
-        where: { id: task.id },
-        include: {
-          subtasks: true,
-          taskLabels: {
-            include: { label: true },
-          },
-          theme: true,
-          project: true,
-          milestone: true,
+    // ラベルを取得して紐付け（テンプレートに保存されたラベル名から）
+    if (data?.labels && Array.isArray(data.labels) && data.labels.length > 0) {
+      const labels = await prisma.label.findMany({
+        where: {
+          name: { in: data.labels },
         },
       });
 
-      return createdTask;
+      if (labels.length > 0) {
+        await prisma.taskLabel.createMany({
+          data: labels.map((label: { id: number }) => ({
+            taskId: task.id,
+            labelId: label.id,
+          })),
+        });
+      }
     }
-  );
+
+    // 使用回数を増やす
+    await prisma.taskTemplate.update({
+      where: { id },
+      data: { useCount: { increment: 1 } },
+    });
+
+    // 作成したタスクをリレーション付きで返す
+    const createdTask = await prisma.task.findUnique({
+      where: { id: task.id },
+      include: {
+        subtasks: true,
+        taskLabels: {
+          include: { label: true },
+        },
+        theme: true,
+        project: true,
+        milestone: true,
+      },
+    });
+
+    return createdTask;
+  });

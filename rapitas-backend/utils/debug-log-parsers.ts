@@ -3,19 +3,15 @@
  * Nginx、Apache Combined、Windows Event Log、カスタムフォーマット対応
  */
 
-import {
-  LogParser,
-  LogType,
-  LogLevel,
-  ParsedLogEntry
-} from './debug-log-analyzer';
+import { LogParser, LogType, LogLevel, ParsedLogEntry } from './debug-log-analyzer';
 
 // Nginxログパーサー
 export class NginxLogParser implements LogParser {
   type = LogType.NGINX;
 
   // Nginx combined format
-  private readonly pattern = /^(\S+)\s+\S+\s+(\S+)\s+\[([^\]]+)\]\s+"([^"]+)"\s+(\d+)\s+(\d+)\s+"([^"]+)"\s+"([^"]+)"$/;
+  private readonly pattern =
+    /^(\S+)\s+\S+\s+(\S+)\s+\[([^\]]+)\]\s+"([^"]+)"\s+(\d+)\s+(\d+)\s+"([^"]+)"\s+"([^"]+)"$/;
 
   canParse(logLine: string): boolean {
     return this.pattern.test(logLine);
@@ -35,24 +31,34 @@ export class NginxLogParser implements LogParser {
       source: ip,
       metadata: {
         ip,
-        user: user === "-" ? undefined : user,
+        user: user === '-' ? undefined : user,
         request,
         statusCode: status,
         size: parseInt(size),
-        referer: referer === "-" ? undefined : referer,
+        referer: referer === '-' ? undefined : referer,
         userAgent,
-        type: "http_access"
+        type: 'http_access',
       },
       raw: logLine,
-      type: this.type
+      type: this.type,
     };
   }
 
   private parseNginxDate(dateStr: string): Date {
     // Format: 01/Jan/2024:00:00:00 +0000
     const months: Record<string, number> = {
-      Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
-      Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
+      Jan: 0,
+      Feb: 1,
+      Mar: 2,
+      Apr: 3,
+      May: 4,
+      Jun: 5,
+      Jul: 6,
+      Aug: 7,
+      Sep: 8,
+      Oct: 9,
+      Nov: 10,
+      Dec: 11,
     };
 
     const match = dateStr.match(/(\d+)\/(\w+)\/(\d+):(\d+):(\d+):(\d+)\s+([\+\-]\d+)/);
@@ -65,7 +71,7 @@ export class NginxLogParser implements LogParser {
       parseInt(day),
       parseInt(hour),
       parseInt(minute),
-      parseInt(second)
+      parseInt(second),
     );
   }
 
@@ -82,7 +88,8 @@ export class ApacheCombinedLogParser implements LogParser {
   type = LogType.APACHE_COMBINED;
 
   // Apache Combined Log format
-  private readonly pattern = /^(\S+)\s+\S+\s+(\S+)\s+\[([^\]]+)\]\s+"([^"]+)"\s+(\d+)\s+(\S+)\s+"([^"]+)"\s+"([^"]+)"$/;
+  private readonly pattern =
+    /^(\S+)\s+\S+\s+(\S+)\s+\[([^\]]+)\]\s+"([^"]+)"\s+(\d+)\s+(\S+)\s+"([^"]+)"\s+"([^"]+)"$/;
 
   canParse(logLine: string): boolean {
     return this.pattern.test(logLine);
@@ -102,23 +109,33 @@ export class ApacheCombinedLogParser implements LogParser {
       source: ip,
       metadata: {
         ip,
-        user: user === "-" ? undefined : user,
+        user: user === '-' ? undefined : user,
         request,
         statusCode: status,
-        size: size === "-" ? 0 : parseInt(size),
-        referer: referer === "-" ? undefined : referer,
+        size: size === '-' ? 0 : parseInt(size),
+        referer: referer === '-' ? undefined : referer,
         userAgent,
-        type: "http_access"
+        type: 'http_access',
       },
       raw: logLine,
-      type: this.type
+      type: this.type,
     };
   }
 
   private parseApacheDate(dateStr: string): Date {
     const months: Record<string, number> = {
-      Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
-      Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
+      Jan: 0,
+      Feb: 1,
+      Mar: 2,
+      Apr: 3,
+      May: 4,
+      Jun: 5,
+      Jul: 6,
+      Aug: 7,
+      Sep: 8,
+      Oct: 9,
+      Nov: 10,
+      Dec: 11,
     };
 
     const match = dateStr.match(/(\d+)\/(\w+)\/(\d+):(\d+):(\d+):(\d+)\s+([\+\-]\d+)/);
@@ -131,7 +148,7 @@ export class ApacheCombinedLogParser implements LogParser {
       parseInt(day),
       parseInt(hour),
       parseInt(minute),
-      parseInt(second)
+      parseInt(second),
     );
   }
 
@@ -151,7 +168,7 @@ export class WindowsEventLogParser implements LogParser {
   private readonly pattern = /^"([^"]+)","([^"]+)","([^"]+)","([^"]+)","([^"]+)","([^"]+)"$/;
 
   canParse(logLine: string): boolean {
-    return this.pattern.test(logLine) || logLine.includes("Event[");
+    return this.pattern.test(logLine) || logLine.includes('Event[');
   }
 
   parse(logLine: string): ParsedLogEntry | null {
@@ -167,10 +184,10 @@ export class WindowsEventLogParser implements LogParser {
         metadata: {
           eventId,
           category,
-          type: "windows_event"
+          type: 'windows_event',
         },
         raw: logLine,
-        type: this.type
+        type: this.type,
       };
     }
 
@@ -183,7 +200,7 @@ export class WindowsEventLogParser implements LogParser {
         source,
         level: this.detectLevelFromMessage(message),
         raw: logLine,
-        type: this.type
+        type: this.type,
       };
     }
 
@@ -192,20 +209,25 @@ export class WindowsEventLogParser implements LogParser {
 
   private mapEventLevel(level: string): LogLevel {
     switch (level.toLowerCase()) {
-      case "information": return LogLevel.INFO;
-      case "warning": return LogLevel.WARN;
-      case "error": return LogLevel.ERROR;
-      case "critical": return LogLevel.FATAL;
-      default: return LogLevel.INFO;
+      case 'information':
+        return LogLevel.INFO;
+      case 'warning':
+        return LogLevel.WARN;
+      case 'error':
+        return LogLevel.ERROR;
+      case 'critical':
+        return LogLevel.FATAL;
+      default:
+        return LogLevel.INFO;
     }
   }
 
   private detectLevelFromMessage(message: string): LogLevel {
     const lowerMessage = message.toLowerCase();
-    if (lowerMessage.includes("error") || lowerMessage.includes("fail")) {
+    if (lowerMessage.includes('error') || lowerMessage.includes('fail')) {
       return LogLevel.ERROR;
     }
-    if (lowerMessage.includes("warn")) {
+    if (lowerMessage.includes('warn')) {
       return LogLevel.WARN;
     }
     return LogLevel.INFO;
@@ -217,7 +239,7 @@ export class DockerLogParser implements LogParser {
   type = LogType.CUSTOM;
 
   canParse(logLine: string): boolean {
-    return logLine.includes("docker") || this.isDockerJsonLog(logLine);
+    return logLine.includes('docker') || this.isDockerJsonLog(logLine);
   }
 
   private isDockerJsonLog(logLine: string): boolean {
@@ -236,16 +258,16 @@ export class DockerLogParser implements LogParser {
         const json = JSON.parse(logLine);
         return {
           timestamp: new Date(json.time),
-          level: json.stream === "stderr" ? LogLevel.ERROR : LogLevel.INFO,
+          level: json.stream === 'stderr' ? LogLevel.ERROR : LogLevel.INFO,
           message: json.log.trim(),
-          source: "docker",
+          source: 'docker',
           metadata: {
             stream: json.stream,
             containerId: json.containerId,
-            type: "docker"
+            type: 'docker',
           },
           raw: logLine,
-          type: this.type
+          type: this.type,
         };
       } catch {
         return null;
@@ -261,7 +283,7 @@ export class DockerLogParser implements LogParser {
         source: container.trim(),
         level: this.detectLevelFromMessage(message),
         raw: logLine,
-        type: this.type
+        type: this.type,
       };
     }
 
@@ -270,13 +292,13 @@ export class DockerLogParser implements LogParser {
 
   private detectLevelFromMessage(message: string): LogLevel {
     const lowerMessage = message.toLowerCase();
-    if (lowerMessage.includes("error") || lowerMessage.includes("exception")) {
+    if (lowerMessage.includes('error') || lowerMessage.includes('exception')) {
       return LogLevel.ERROR;
     }
-    if (lowerMessage.includes("warn")) {
+    if (lowerMessage.includes('warn')) {
       return LogLevel.WARN;
     }
-    if (lowerMessage.includes("debug")) {
+    if (lowerMessage.includes('debug')) {
       return LogLevel.DEBUG;
     }
     return LogLevel.INFO;
@@ -288,10 +310,11 @@ export class PostgreSQLLogParser implements LogParser {
   type = LogType.CUSTOM;
 
   // PostgreSQL log line format
-  private readonly pattern = /^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+\s+\w+)\s+\[(\d+)\]\s+(\w+):\s+(.*)$/;
+  private readonly pattern =
+    /^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+\s+\w+)\s+\[(\d+)\]\s+(\w+):\s+(.*)$/;
 
   canParse(logLine: string): boolean {
-    return this.pattern.test(logLine) || logLine.includes("postgres");
+    return this.pattern.test(logLine) || logLine.includes('postgres');
   }
 
   parse(logLine: string): ParsedLogEntry | null {
@@ -307,24 +330,32 @@ export class PostgreSQLLogParser implements LogParser {
       source: `postgres[${pid}]`,
       metadata: {
         pid: parseInt(pid),
-        type: "postgresql"
+        type: 'postgresql',
       },
       raw: logLine,
-      type: this.type
+      type: this.type,
     };
   }
 
   private mapPostgresLevel(level: string): LogLevel {
     switch (level.toUpperCase()) {
-      case "DEBUG": case "DEBUG1": case "DEBUG2": case "DEBUG3": case "DEBUG4": case "DEBUG5":
+      case 'DEBUG':
+      case 'DEBUG1':
+      case 'DEBUG2':
+      case 'DEBUG3':
+      case 'DEBUG4':
+      case 'DEBUG5':
         return LogLevel.DEBUG;
-      case "INFO": case "NOTICE": case "LOG":
+      case 'INFO':
+      case 'NOTICE':
+      case 'LOG':
         return LogLevel.INFO;
-      case "WARNING":
+      case 'WARNING':
         return LogLevel.WARN;
-      case "ERROR":
+      case 'ERROR':
         return LogLevel.ERROR;
-      case "FATAL": case "PANIC":
+      case 'FATAL':
+      case 'PANIC':
         return LogLevel.FATAL;
       default:
         return LogLevel.INFO;
@@ -338,7 +369,7 @@ export class CustomFormatParser implements LogParser {
 
   constructor(
     private pattern: RegExp,
-    private fieldMap: CustomFieldMapping
+    private fieldMap: CustomFieldMapping,
   ) {}
 
   canParse(logLine: string): boolean {
@@ -352,7 +383,7 @@ export class CustomFormatParser implements LogParser {
     const entry: ParsedLogEntry = {
       raw: logLine,
       type: this.type,
-      metadata: {}
+      metadata: {},
     };
 
     // マッチしたグループを対応するフィールドにマップ
@@ -361,16 +392,16 @@ export class CustomFormatParser implements LogParser {
       if (!fieldName || !value) return;
 
       switch (fieldName) {
-        case "timestamp":
+        case 'timestamp':
           entry.timestamp = this.parseTimestamp(value, this.fieldMap.timestampFormat);
           break;
-        case "level":
+        case 'level':
           entry.level = this.parseLevel(value);
           break;
-        case "message":
+        case 'message':
           entry.message = value;
           break;
-        case "source":
+        case 'source':
           entry.source = value;
           break;
         default:
@@ -383,7 +414,7 @@ export class CustomFormatParser implements LogParser {
 
   private parseTimestamp(value: string, format?: string): Date {
     // ISO8601形式の場合
-    if (!format || format === "ISO8601") {
+    if (!format || format === 'ISO8601') {
       return new Date(value);
     }
 
@@ -394,13 +425,24 @@ export class CustomFormatParser implements LogParser {
   private parseLevel(value: string): LogLevel {
     const normalized = value.toLowerCase();
     switch (normalized) {
-      case "trace": return LogLevel.TRACE;
-      case "debug": return LogLevel.DEBUG;
-      case "info": case "information": return LogLevel.INFO;
-      case "warn": case "warning": return LogLevel.WARN;
-      case "error": case "err": return LogLevel.ERROR;
-      case "fatal": case "critical": return LogLevel.FATAL;
-      default: return LogLevel.INFO;
+      case 'trace':
+        return LogLevel.TRACE;
+      case 'debug':
+        return LogLevel.DEBUG;
+      case 'info':
+      case 'information':
+        return LogLevel.INFO;
+      case 'warn':
+      case 'warning':
+        return LogLevel.WARN;
+      case 'error':
+      case 'err':
+        return LogLevel.ERROR;
+      case 'fatal':
+      case 'critical':
+        return LogLevel.FATAL;
+      default:
+        return LogLevel.INFO;
     }
   }
 }
@@ -416,7 +458,8 @@ export class PythonLogParser implements LogParser {
   type = LogType.CUSTOM;
 
   // Python logging format: 2024-01-01 00:00:00,000 - logger_name - LEVEL - message
-  private readonly pattern = /^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d{3})\s+-\s+(\S+)\s+-\s+(\w+)\s+-\s+(.*)$/;
+  private readonly pattern =
+    /^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d{3})\s+-\s+(\S+)\s+-\s+(\w+)\s+-\s+(.*)$/;
 
   canParse(logLine: string): boolean {
     return this.pattern.test(logLine);
@@ -435,21 +478,27 @@ export class PythonLogParser implements LogParser {
       source: logger,
       metadata: {
         logger,
-        type: "python"
+        type: 'python',
       },
       raw: logLine,
-      type: this.type
+      type: this.type,
     };
   }
 
   private mapPythonLevel(level: string): LogLevel {
     switch (level.toUpperCase()) {
-      case "DEBUG": return LogLevel.DEBUG;
-      case "INFO": return LogLevel.INFO;
-      case "WARNING": return LogLevel.WARN;
-      case "ERROR": return LogLevel.ERROR;
-      case "CRITICAL": return LogLevel.FATAL;
-      default: return LogLevel.INFO;
+      case 'DEBUG':
+        return LogLevel.DEBUG;
+      case 'INFO':
+        return LogLevel.INFO;
+      case 'WARNING':
+        return LogLevel.WARN;
+      case 'ERROR':
+        return LogLevel.ERROR;
+      case 'CRITICAL':
+        return LogLevel.FATAL;
+      default:
+        return LogLevel.INFO;
     }
   }
 }
@@ -463,13 +512,13 @@ export class LogParserFactory {
       new WindowsEventLogParser(),
       new DockerLogParser(),
       new PostgreSQLLogParser(),
-      new PythonLogParser()
+      new PythonLogParser(),
     ];
   }
 
   static createCustomParser(
     pattern: string | RegExp,
-    fieldMap: CustomFieldMapping
+    fieldMap: CustomFieldMapping,
   ): CustomFormatParser {
     const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
     return new CustomFormatParser(regex, fieldMap);

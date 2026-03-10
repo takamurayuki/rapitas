@@ -1,26 +1,25 @@
 /**
  * Habits API Routes
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
-import { createLogger } from "../../config/logger";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
 
-const logger = createLogger("routes:habits");
+const logger = createLogger('routes:habits');
 
 /**
  * ストリーク計算ロジック
  */
 function calculateStreak(
   logs: { date: Date; count: number }[],
-  frequency: string = "daily"
+  frequency: string = 'daily',
 ): { current: number; longest: number; lastDate: Date | null; totalCompletions: number } {
   if (logs.length === 0) {
     return { current: 0, longest: 0, lastDate: null, totalCompletions: 0 };
   }
 
   // 日付でソート（降順）
-  const sortedLogs = [...logs]
-    .sort((a, b) => b.date.getTime() - a.date.getTime());
+  const sortedLogs = [...logs].sort((a, b) => b.date.getTime() - a.date.getTime());
 
   const totalCompletions = sortedLogs.reduce((sum, log) => sum + log.count, 0);
   const lastDate = sortedLogs[0]!.date;
@@ -29,7 +28,7 @@ function calculateStreak(
   const dateSet = new Set<string>();
   for (const log of sortedLogs) {
     if (log.count > 0) {
-      const dateKey = log.date.toISOString().split("T")[0]!;
+      const dateKey = log.date.toISOString().split('T')[0]!;
       dateSet.add(dateKey);
     }
   }
@@ -46,8 +45,8 @@ function calculateStreak(
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
 
-  const todayStr = today.toISOString().split("T")[0]!;
-  const yesterdayStr = yesterday.toISOString().split("T")[0]!;
+  const todayStr = today.toISOString().split('T')[0]!;
+  const yesterdayStr = yesterday.toISOString().split('T')[0]!;
 
   let current = 0;
   const startFromToday = dates[0] === todayStr;
@@ -58,7 +57,7 @@ function calculateStreak(
     for (let i = 0; i < dates.length; i++) {
       const expected = new Date(startDate);
       expected.setDate(expected.getDate() - i);
-      const expectedStr = expected.toISOString().split("T")[0]!;
+      const expectedStr = expected.toISOString().split('T')[0]!;
 
       if (dates[i] === expectedStr) {
         current++;
@@ -74,9 +73,7 @@ function calculateStreak(
   for (let i = 1; i < dates.length; i++) {
     const prevDate = new Date(dates[i - 1]!);
     const currDate = new Date(dates[i]!);
-    const diffDays = Math.round(
-      (prevDate.getTime() - currDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const diffDays = Math.round((prevDate.getTime() - currDate.getTime()) / (1000 * 60 * 60 * 24));
 
     if (diffDays === 1) {
       streak++;
@@ -90,8 +87,8 @@ function calculateStreak(
   return { current, longest, lastDate, totalCompletions };
 }
 
-export const habitsRoutes = new Elysia({ prefix: "/habits" })
-  .get("/", async () => {
+export const habitsRoutes = new Elysia({ prefix: '/habits' })
+  .get('/', async () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -102,11 +99,11 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
         },
         _count: { select: { logs: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
     });
   })
 
-  .get("/:id", async (context) => {
+  .get('/:id', async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
     const thirtyDaysAgo = new Date();
@@ -118,7 +115,7 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
       include: {
         logs: {
           where: { date: { gte: thirtyDaysAgo } },
-          orderBy: { date: "desc" },
+          orderBy: { date: 'desc' },
         },
       },
     });
@@ -128,7 +125,7 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
     // ストリーク計算
     const allLogs = await prisma.habitLog.findMany({
       where: { habitId: id },
-      orderBy: { date: "desc" },
+      orderBy: { date: 'desc' },
     });
 
     const streak = calculateStreak(allLogs, habit.frequency);
@@ -137,9 +134,7 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
     const fourWeeksAgo = new Date();
     fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
     const recentLogs = allLogs.filter((l) => l.date >= fourWeeksAgo);
-    const completionRate = recentLogs.length > 0
-      ? Math.round((recentLogs.length / 28) * 100)
-      : 0;
+    const completionRate = recentLogs.length > 0 ? Math.round((recentLogs.length / 28) * 100) : 0;
 
     return {
       ...habit,
@@ -149,12 +144,12 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
   })
 
   // 全習慣のストリーク情報を一括取得
-  .get("/streaks/all", async () => {
+  .get('/streaks/all', async () => {
     const habits = await prisma.habit.findMany({
       where: { isActive: true },
       include: {
         logs: {
-          orderBy: { date: "desc" },
+          orderBy: { date: 'desc' },
         },
       },
     });
@@ -172,13 +167,16 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
   })
 
   .post(
-    "/",
+    '/',
     async ({ body }) => {
-      const { name, description, icon, color, frequency, targetCount } =
-        body as {
-          name: string; description?: string; icon?: string; color?: string;
-          frequency?: string; targetCount?: number;
-        };
+      const { name, description, icon, color, frequency, targetCount } = body as {
+        name: string;
+        description?: string;
+        icon?: string;
+        color?: string;
+        frequency?: string;
+        targetCount?: number;
+      };
       return await prisma.habit.create({
         data: {
           name,
@@ -202,10 +200,17 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
     },
   )
 
-  .patch("/:id", async ({ params, body }) => {
+  .patch('/:id', async ({ params, body }) => {
     const id = parseInt(params.id);
-    const { name, description, icon, color, frequency, targetCount, isActive } =
-      body as { name?: string; description?: string; icon?: string; color?: string; frequency?: string; targetCount?: number; isActive?: boolean };
+    const { name, description, icon, color, frequency, targetCount, isActive } = body as {
+      name?: string;
+      description?: string;
+      icon?: string;
+      color?: string;
+      frequency?: string;
+      targetCount?: number;
+      isActive?: boolean;
+    };
     return await prisma.habit.update({
       where: { id },
       data: {
@@ -220,13 +225,13 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
     });
   })
 
-  .delete("/:id", async (context) => {
+  .delete('/:id', async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
     return await prisma.habit.delete({ where: { id } });
   })
 
-  .post("/:id/log", async ({ params, body }) => {
+  .post('/:id/log', async ({ params, body }) => {
     const id = parseInt(params.id);
     const { date, note } = body as { date?: string; note?: string };
 
@@ -256,7 +261,7 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
   })
 
   // 習慣の統計情報
-  .get("/:id/statistics", async (context) => {
+  .get('/:id/statistics', async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
 
@@ -264,11 +269,11 @@ export const habitsRoutes = new Elysia({ prefix: "/habits" })
       where: { id },
     });
 
-    if (!habit) return { error: "Habit not found" };
+    if (!habit) return { error: 'Habit not found' };
 
     const allLogs = await prisma.habitLog.findMany({
       where: { habitId: id },
-      orderBy: { date: "desc" },
+      orderBy: { date: 'desc' },
     });
 
     const streak = calculateStreak(allLogs, habit.frequency);

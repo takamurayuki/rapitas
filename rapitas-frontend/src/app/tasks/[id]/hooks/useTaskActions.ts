@@ -49,9 +49,11 @@ export function useTaskActions({
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
   const [editingSubtaskDescription, setEditingSubtaskDescription] =
     useState('');
-  const [editingSubtaskPriority, setEditingSubtaskPriority] = useState<Priority>('medium');
+  const [editingSubtaskPriority, setEditingSubtaskPriority] =
+    useState<Priority>('medium');
   const [editingSubtaskLabels, setEditingSubtaskLabels] = useState('');
-  const [editingSubtaskEstimatedHours, setEditingSubtaskEstimatedHours] = useState('');
+  const [editingSubtaskEstimatedHours, setEditingSubtaskEstimatedHours] =
+    useState('');
   const [isSubtaskSelectionMode, setIsSubtaskSelectionMode] = useState(false);
   const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<Set<number>>(
     new Set(),
@@ -258,7 +260,13 @@ export function useTaskActions({
   const updateSubtask = useCallback(
     async (
       subtaskId: number,
-      data: { title?: string; description?: string; priority?: string; labels?: string[]; estimatedHours?: number | null },
+      data: {
+        title?: string;
+        description?: string;
+        priority?: string;
+        labels?: string[];
+        estimatedHours?: number | null;
+      },
     ) => {
       try {
         const res = await fetch(`${API_BASE}/tasks/${subtaskId}`, {
@@ -299,7 +307,15 @@ export function useTaskActions({
           : null,
       });
     }
-  }, [editingSubtaskId, editingSubtaskTitle, editingSubtaskDescription, editingSubtaskPriority, editingSubtaskLabels, editingSubtaskEstimatedHours, updateSubtask]);
+  }, [
+    editingSubtaskId,
+    editingSubtaskTitle,
+    editingSubtaskDescription,
+    editingSubtaskPriority,
+    editingSubtaskLabels,
+    editingSubtaskEstimatedHours,
+    updateSubtask,
+  ]);
 
   const toggleSubtaskSelectionMode = useCallback(() => {
     if (isSubtaskSelectionMode) {

@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { createLogger } from "@/lib/logger";
+import { createLogger } from '@/lib/logger';
 
-const logger = createLogger("useSSE");
+const logger = createLogger('useSSE');
 
 // SSEイベントの型定義
 export type SSEEventType =

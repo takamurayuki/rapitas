@@ -2,13 +2,13 @@
  * 手続き知識蒸留（Distillation）
  * エージェント実行成功後に手続き知識を抽出してKnowledgeEntry作成
  */
-import { prisma } from "../../config/database";
-import { createLogger } from "../../config/logger";
-import { sendAIMessage } from "../../utils/ai-client";
-import { appendEvent } from "./timeline";
-import { createContentHash } from "./utils";
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+import { sendAIMessage } from '../../utils/ai-client';
+import { appendEvent } from './timeline';
+import { createContentHash } from './utils';
 
-const log = createLogger("memory:distillation");
+const log = createLogger('memory:distillation');
 
 /**
  * エージェント実行結果から手続き知識を蒸留
@@ -20,26 +20,28 @@ export async function distillFromExecution(executionId: number): Promise<number 
       session: {
         include: {
           config: {
-            include: { task: { select: { id: true, title: true, description: true, themeId: true } } },
+            include: {
+              task: { select: { id: true, title: true, description: true, themeId: true } },
+            },
           },
         },
       },
       executionLogs: {
-        orderBy: { sequenceNumber: "asc" },
+        orderBy: { sequenceNumber: 'asc' },
         take: 50, // 最新50チャンクのみ
       },
       gitCommits: true,
     },
   });
 
-  if (!execution || execution.status !== "completed") {
-    log.debug({ executionId }, "Execution not found or not completed, skipping distillation");
+  if (!execution || execution.status !== 'completed') {
+    log.debug({ executionId }, 'Execution not found or not completed, skipping distillation');
     return null;
   }
 
   const task = execution.session.config.task;
   if (!task) {
-    log.debug({ executionId }, "No task associated with execution");
+    log.debug({ executionId }, 'No task associated with execution');
     return null;
   }
 
@@ -47,27 +49,27 @@ export async function distillFromExecution(executionId: number): Promise<number 
     // ログとコミット情報を整理
     const logSummary = execution.executionLogs
       .map((l) => l.logChunk)
-      .join("")
+      .join('')
       .slice(0, 3000); // 最大3000文字
 
     const commitSummary = execution.gitCommits
       .map((c) => `- ${c.message} (${c.filesChanged} files, +${c.additions}/-${c.deletions})`)
-      .join("\n");
+      .join('\n');
 
     const response = await sendAIMessage({
       messages: [
         {
-          role: "user",
+          role: 'user',
           content: `以下のエージェント実行結果から、再利用可能な手続き知識を抽出してください。
 
 タスク: ${task.title}
-説明: ${task.description ?? "なし"}
+説明: ${task.description ?? 'なし'}
 
 実行出力（抜粋）:
 ${logSummary}
 
 Gitコミット:
-${commitSummary || "なし"}
+${commitSummary || 'なし'}
 
 以下の形式で回答してください:
 タイトル: [手続きの名前]
@@ -88,29 +90,29 @@ ${commitSummary || "なし"}
     const categoryMatch = responseText.match(/カテゴリ:\s*(\w+)/);
 
     const title = titleMatch?.[1]?.trim() ?? `Procedure from task: ${task.title}`;
-    const category = categoryMatch?.[1]?.trim() ?? "procedure";
-    const validCategories = ["procedure", "pattern", "insight", "fact", "preference", "general"];
-    const finalCategory = validCategories.includes(category) ? category : "procedure";
+    const category = categoryMatch?.[1]?.trim() ?? 'procedure';
+    const validCategories = ['procedure', 'pattern', 'insight', 'fact', 'preference', 'general'];
+    const finalCategory = validCategories.includes(category) ? category : 'procedure';
 
     const entry = await prisma.knowledgeEntry.create({
       data: {
-        sourceType: "distilled_procedure",
+        sourceType: 'distilled_procedure',
         sourceId: `execution_${executionId}`,
         title,
         content: responseText,
         contentHash: createContentHash(responseText),
         category: finalCategory,
-        tags: JSON.stringify(["distilled", "agent_execution"]),
+        tags: JSON.stringify(['distilled', 'agent_execution']),
         confidence: 0.8,
         themeId: task.themeId,
         taskId: task.id,
-        validationStatus: "pending",
+        validationStatus: 'pending',
       },
     });
 
     await appendEvent({
-      eventType: "distillation_completed",
-      actorType: "system",
+      eventType: 'distillation_completed',
+      actorType: 'system',
       payload: {
         executionId,
         taskId: task.id,
@@ -118,14 +120,11 @@ ${commitSummary || "なし"}
       },
     });
 
-    log.info(
-      { executionId, entryId: entry.id, title },
-      "Knowledge distilled from execution",
-    );
+    log.info({ executionId, entryId: entry.id, title }, 'Knowledge distilled from execution');
 
     return entry.id;
   } catch (error) {
-    log.error({ err: error, executionId }, "Failed to distill knowledge from execution");
+    log.error({ err: error, executionId }, 'Failed to distill knowledge from execution');
     return null;
   }
 }

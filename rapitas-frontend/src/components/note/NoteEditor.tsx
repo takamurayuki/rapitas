@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import DOMPurify from 'dompurify';
 import { Save, Pin, Calendar, Layers, Loader2 } from 'lucide-react';
-import { Note, useNoteStore } from '@/stores/noteStore';
+import { type Note, useNoteStore } from '@/stores/noteStore';
 import { API_BASE_URL } from '@/utils/api';
 import { useLocaleStore } from '@/stores/localeStore';
 import { toDateLocale } from '@/lib/utils';
@@ -56,7 +56,11 @@ export default function NoteEditor({ note }: NoteEditorProps) {
   const [currentTextColor, setCurrentTextColor] = useState('#000000');
 
   const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false);
-  const [flashcardResult, setFlashcardResult] = useState<{ deckId: number; deckName: string; cardsCreated: number } | null>(null);
+  const [flashcardResult, setFlashcardResult] = useState<{
+    deckId: number;
+    deckName: string;
+    cardsCreated: number;
+  } | null>(null);
 
   // ノートからフラッシュカードを生成
   const handleGenerateFlashcards = useCallback(async () => {
@@ -579,7 +583,9 @@ export default function NoteEditor({ note }: NoteEditorProps) {
           onClick={handleGenerateFlashcards}
           disabled={isGeneratingFlashcards}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-wait"
-          title={locale === 'ja' ? 'フラッシュカード生成' : 'Generate Flashcards'}
+          title={
+            locale === 'ja' ? 'フラッシュカード生成' : 'Generate Flashcards'
+          }
         >
           {isGeneratingFlashcards ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -587,8 +593,12 @@ export default function NoteEditor({ note }: NoteEditorProps) {
             <Layers className="w-3.5 h-3.5" />
           )}
           {isGeneratingFlashcards
-            ? (locale === 'ja' ? '生成中...' : 'Generating...')
-            : (locale === 'ja' ? 'カード生成' : 'Flashcards')}
+            ? locale === 'ja'
+              ? '生成中...'
+              : 'Generating...'
+            : locale === 'ja'
+              ? 'カード生成'
+              : 'Flashcards'}
         </button>
         <button
           onClick={handleSave}

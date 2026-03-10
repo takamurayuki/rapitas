@@ -5,9 +5,9 @@
  * 注意: これらのテストは実際のClaude Code CLIを使用しないモック版
  */
 
-import { describe, it, expect, beforeEach, mock } from "bun:test";
-import type { QuestionType } from "../../services/agents/base-agent";
-import type { QuestionDetails } from "../../services/agents/question-detection";
+import { describe, it, expect, beforeEach, mock } from 'bun:test';
+import type { QuestionType } from '../../services/agents/base-agent';
+import type { QuestionDetails } from '../../services/agents/question-detection';
 
 // モック版のClaudeCodeAgentの検出ロジックをテスト
 // 実際のプロセス起動なしでstream-json処理をシミュレート
@@ -45,23 +45,23 @@ type DetectedQuestion = {
 class QuestionDetectionSimulator {
   private detectedQuestion: DetectedQuestion = {
     hasQuestion: false,
-    question: "",
-    questionType: "none",
+    question: '',
+    questionType: 'none',
   };
 
   /**
    * stream-jsonイベントを処理
    */
   processEvent(event: StreamJsonEvent): void {
-    if (event.type === "assistant" && event.message?.content) {
+    if (event.type === 'assistant' && event.message?.content) {
       for (const block of event.message.content) {
-        if (block.type === "tool_use" && block.name === "AskUserQuestion") {
+        if (block.type === 'tool_use' && block.name === 'AskUserQuestion') {
           const { questionText, questionDetails } = this.extractQuestionInfo(block.input);
 
           this.detectedQuestion = {
             hasQuestion: true,
-            question: questionText || "ユーザーの入力を待っています",
-            questionType: "tool_call",
+            question: questionText || 'ユーザーの入力を待っています',
+            questionType: 'tool_call',
             questionDetails,
           };
         }
@@ -77,10 +77,10 @@ class QuestionDetectionSimulator {
     questionDetails?: QuestionDetails;
   } {
     if (!input) {
-      return { questionText: "" };
+      return { questionText: '' };
     }
 
-    let questionText = "";
+    let questionText = '';
     const questionDetails: QuestionDetails = {};
 
     if (input.questions && Array.isArray(input.questions)) {
@@ -92,13 +92,11 @@ class QuestionDetectionSimulator {
       }>;
 
       questionText = questions
-        .map((q) => q.question || q.header || "")
+        .map((q) => q.question || q.header || '')
         .filter((q) => q)
-        .join("\n");
+        .join('\n');
 
-      const headers = questions
-        .map((q) => q.header)
-        .filter((h): h is string => !!h);
+      const headers = questions.map((q) => q.header).filter((h): h is string => !!h);
       if (headers.length > 0) {
         questionDetails.headers = headers;
       }
@@ -107,15 +105,15 @@ class QuestionDetectionSimulator {
       if (firstQuestion) {
         if (firstQuestion.options && Array.isArray(firstQuestion.options)) {
           questionDetails.options = firstQuestion.options.map((opt) => ({
-            label: opt.label || "",
+            label: opt.label || '',
             description: opt.description,
           }));
         }
-        if (typeof firstQuestion.multiSelect === "boolean") {
+        if (typeof firstQuestion.multiSelect === 'boolean') {
           questionDetails.multiSelect = firstQuestion.multiSelect;
         }
       }
-    } else if (input.question && typeof input.question === "string") {
+    } else if (input.question && typeof input.question === 'string') {
       questionText = input.question;
     }
 
@@ -143,38 +141,35 @@ class QuestionDetectionSimulator {
   reset(): void {
     this.detectedQuestion = {
       hasQuestion: false,
-      question: "",
-      questionType: "none",
+      question: '',
+      questionType: 'none',
     };
   }
 }
 
-describe("ClaudeCodeAgent 統合テスト", () => {
+describe('ClaudeCodeAgent 統合テスト', () => {
   let simulator: QuestionDetectionSimulator;
 
   beforeEach(() => {
     simulator = new QuestionDetectionSimulator();
   });
 
-  describe("stream-json イベント処理", () => {
-    it("AskUserQuestionツールを含むassistantイベントを処理する", () => {
+  describe('stream-json イベント処理', () => {
+    it('AskUserQuestionツールを含むassistantイベントを処理する', () => {
       const event: StreamJsonEvent = {
-        type: "assistant",
+        type: 'assistant',
         message: {
           content: [
             {
-              type: "tool_use",
-              name: "AskUserQuestion",
-              id: "toolu_123",
+              type: 'tool_use',
+              name: 'AskUserQuestion',
+              id: 'toolu_123',
               input: {
                 questions: [
                   {
-                    question: "どのデータベースを使用しますか？",
-                    header: "Database",
-                    options: [
-                      { label: "PostgreSQL", description: "推奨" },
-                      { label: "MySQL" },
-                    ],
+                    question: 'どのデータベースを使用しますか？',
+                    header: 'Database',
+                    options: [{ label: 'PostgreSQL', description: '推奨' }, { label: 'MySQL' }],
                     multiSelect: false,
                   },
                 ],
@@ -188,24 +183,24 @@ describe("ClaudeCodeAgent 統合テスト", () => {
       const result = simulator.getDetectedQuestion();
 
       expect(result.hasQuestion).toBe(true);
-      expect(result.question).toBe("どのデータベースを使用しますか？");
-      expect(result.questionType).toBe("tool_call");
-      expect(result.questionDetails?.headers).toEqual(["Database"]);
+      expect(result.question).toBe('どのデータベースを使用しますか？');
+      expect(result.questionType).toBe('tool_call');
+      expect(result.questionDetails?.headers).toEqual(['Database']);
       expect(result.questionDetails?.options).toHaveLength(2);
       expect(result.questionDetails?.multiSelect).toBe(false);
     });
 
-    it("AskUserQuestion以外のツールイベントを無視する", () => {
+    it('AskUserQuestion以外のツールイベントを無視する', () => {
       const event: StreamJsonEvent = {
-        type: "assistant",
+        type: 'assistant',
         message: {
           content: [
             {
-              type: "tool_use",
-              name: "Read",
-              id: "toolu_456",
+              type: 'tool_use',
+              name: 'Read',
+              id: 'toolu_456',
               input: {
-                file_path: "/test/file.ts",
+                file_path: '/test/file.ts',
               },
             },
           ],
@@ -216,17 +211,17 @@ describe("ClaudeCodeAgent 統合テスト", () => {
       const result = simulator.getDetectedQuestion();
 
       expect(result.hasQuestion).toBe(false);
-      expect(result.questionType).toBe("none");
+      expect(result.questionType).toBe('none');
     });
 
-    it("テキストブロックを含むイベントを処理する", () => {
+    it('テキストブロックを含むイベントを処理する', () => {
       const event: StreamJsonEvent = {
-        type: "assistant",
+        type: 'assistant',
         message: {
           content: [
             {
-              type: "text",
-              text: "ファイルを読み込んでいます...",
+              type: 'text',
+              text: 'ファイルを読み込んでいます...',
             },
           ],
         },
@@ -238,23 +233,23 @@ describe("ClaudeCodeAgent 統合テスト", () => {
       expect(result.hasQuestion).toBe(false);
     });
 
-    it("複数のブロックを含むイベントを処理する", () => {
+    it('複数のブロックを含むイベントを処理する', () => {
       const event: StreamJsonEvent = {
-        type: "assistant",
+        type: 'assistant',
         message: {
           content: [
             {
-              type: "text",
-              text: "設定を確認させてください。",
+              type: 'text',
+              text: '設定を確認させてください。',
             },
             {
-              type: "tool_use",
-              name: "AskUserQuestion",
-              id: "toolu_789",
+              type: 'tool_use',
+              name: 'AskUserQuestion',
+              id: 'toolu_789',
               input: {
                 questions: [
                   {
-                    question: "続行しますか？",
+                    question: '続行しますか？',
                   },
                 ],
               },
@@ -267,13 +262,13 @@ describe("ClaudeCodeAgent 統合テスト", () => {
       const result = simulator.getDetectedQuestion();
 
       expect(result.hasQuestion).toBe(true);
-      expect(result.question).toBe("続行しますか？");
+      expect(result.question).toBe('続行しますか？');
     });
 
-    it("resultイベントを処理する（質問なし）", () => {
+    it('resultイベントを処理する（質問なし）', () => {
       const event: StreamJsonEvent = {
-        type: "result",
-        result: "completed",
+        type: 'result',
+        result: 'completed',
       };
 
       simulator.processEvent(event);
@@ -283,16 +278,16 @@ describe("ClaudeCodeAgent 統合テスト", () => {
     });
   });
 
-  describe("複数イベントの連続処理", () => {
-    it("最後のAskUserQuestionが検出される", () => {
+  describe('複数イベントの連続処理', () => {
+    it('最後のAskUserQuestionが検出される', () => {
       // 最初のイベント
       simulator.processEvent({
-        type: "assistant",
+        type: 'assistant',
         message: {
           content: [
             {
-              type: "text",
-              text: "ファイルを分析中...",
+              type: 'text',
+              text: 'ファイルを分析中...',
             },
           ],
         },
@@ -302,21 +297,18 @@ describe("ClaudeCodeAgent 統合テスト", () => {
 
       // 2番目のイベント（質問）
       simulator.processEvent({
-        type: "assistant",
+        type: 'assistant',
         message: {
           content: [
             {
-              type: "tool_use",
-              name: "AskUserQuestion",
-              id: "toolu_final",
+              type: 'tool_use',
+              name: 'AskUserQuestion',
+              id: 'toolu_final',
               input: {
                 questions: [
                   {
-                    question: "最終確認：実行しますか？",
-                    options: [
-                      { label: "はい" },
-                      { label: "いいえ" },
-                    ],
+                    question: '最終確認：実行しますか？',
+                    options: [{ label: 'はい' }, { label: 'いいえ' }],
                   },
                 ],
               },
@@ -327,21 +319,21 @@ describe("ClaudeCodeAgent 統合テスト", () => {
 
       const result = simulator.getDetectedQuestion();
       expect(result.hasQuestion).toBe(true);
-      expect(result.question).toBe("最終確認：実行しますか？");
+      expect(result.question).toBe('最終確認：実行しますか？');
     });
 
-    it("リセット後は質問状態がクリアされる", () => {
+    it('リセット後は質問状態がクリアされる', () => {
       // 質問イベントを処理
       simulator.processEvent({
-        type: "assistant",
+        type: 'assistant',
         message: {
           content: [
             {
-              type: "tool_use",
-              name: "AskUserQuestion",
-              id: "toolu_test",
+              type: 'tool_use',
+              name: 'AskUserQuestion',
+              id: 'toolu_test',
               input: {
-                questions: [{ question: "テスト質問" }],
+                questions: [{ question: 'テスト質問' }],
               },
             },
           ],
@@ -355,21 +347,21 @@ describe("ClaudeCodeAgent 統合テスト", () => {
 
       const result = simulator.getDetectedQuestion();
       expect(result.hasQuestion).toBe(false);
-      expect(result.question).toBe("");
-      expect(result.questionType).toBe("none");
+      expect(result.question).toBe('');
+      expect(result.questionType).toBe('none');
     });
   });
 
-  describe("エッジケース", () => {
-    it("空のquestionsを処理する", () => {
+  describe('エッジケース', () => {
+    it('空のquestionsを処理する', () => {
       simulator.processEvent({
-        type: "assistant",
+        type: 'assistant',
         message: {
           content: [
             {
-              type: "tool_use",
-              name: "AskUserQuestion",
-              id: "toolu_empty",
+              type: 'tool_use',
+              name: 'AskUserQuestion',
+              id: 'toolu_empty',
               input: {
                 questions: [],
               },
@@ -380,18 +372,18 @@ describe("ClaudeCodeAgent 統合テスト", () => {
 
       const result = simulator.getDetectedQuestion();
       expect(result.hasQuestion).toBe(true);
-      expect(result.question).toBe("ユーザーの入力を待っています");
+      expect(result.question).toBe('ユーザーの入力を待っています');
     });
 
-    it("inputがundefinedの場合を処理する", () => {
+    it('inputがundefinedの場合を処理する', () => {
       simulator.processEvent({
-        type: "assistant",
+        type: 'assistant',
         message: {
           content: [
             {
-              type: "tool_use",
-              name: "AskUserQuestion",
-              id: "toolu_noinput",
+              type: 'tool_use',
+              name: 'AskUserQuestion',
+              id: 'toolu_noinput',
             },
           ],
         },
@@ -399,21 +391,21 @@ describe("ClaudeCodeAgent 統合テスト", () => {
 
       const result = simulator.getDetectedQuestion();
       expect(result.hasQuestion).toBe(true);
-      expect(result.question).toBe("ユーザーの入力を待っています");
+      expect(result.question).toBe('ユーザーの入力を待っています');
     });
 
-    it("messageがundefinedのイベントを処理する", () => {
+    it('messageがundefinedのイベントを処理する', () => {
       simulator.processEvent({
-        type: "assistant",
+        type: 'assistant',
       });
 
       const result = simulator.getDetectedQuestion();
       expect(result.hasQuestion).toBe(false);
     });
 
-    it("contentがundefinedのイベントを処理する", () => {
+    it('contentがundefinedのイベントを処理する', () => {
       simulator.processEvent({
-        type: "assistant",
+        type: 'assistant',
         message: {},
       } as StreamJsonEvent);
 
@@ -422,38 +414,38 @@ describe("ClaudeCodeAgent 統合テスト", () => {
     });
   });
 
-  describe("実際のClaude Code出力形式", () => {
-    it("実際のAskUserQuestion出力をパースする", () => {
+  describe('実際のClaude Code出力形式', () => {
+    it('実際のAskUserQuestion出力をパースする', () => {
       // Claude Codeが実際に出力する形式をシミュレート
       const realWorldEvent: StreamJsonEvent = {
-        type: "assistant",
+        type: 'assistant',
         message: {
           content: [
             {
-              type: "text",
-              text: "実装方針を確認させてください。",
+              type: 'text',
+              text: '実装方針を確認させてください。',
             },
             {
-              type: "tool_use",
-              name: "AskUserQuestion",
-              id: "toolu_01ABC123",
+              type: 'tool_use',
+              name: 'AskUserQuestion',
+              id: 'toolu_01ABC123',
               input: {
                 questions: [
                   {
-                    question: "どのアプローチを使用しますか？",
-                    header: "Approach",
+                    question: 'どのアプローチを使用しますか？',
+                    header: 'Approach',
                     options: [
                       {
-                        label: "アプローチA (推奨)",
-                        description: "既存のパターンに従う方法",
+                        label: 'アプローチA (推奨)',
+                        description: '既存のパターンに従う方法',
                       },
                       {
-                        label: "アプローチB",
-                        description: "新しいアーキテクチャを導入",
+                        label: 'アプローチB',
+                        description: '新しいアーキテクチャを導入',
                       },
                       {
-                        label: "アプローチC",
-                        description: "最小限の変更で対応",
+                        label: 'アプローチC',
+                        description: '最小限の変更で対応',
                       },
                     ],
                     multiSelect: false,
@@ -469,33 +461,33 @@ describe("ClaudeCodeAgent 統合テスト", () => {
       const result = simulator.getDetectedQuestion();
 
       expect(result.hasQuestion).toBe(true);
-      expect(result.questionType).toBe("tool_call");
-      expect(result.question).toBe("どのアプローチを使用しますか？");
-      expect(result.questionDetails?.headers).toEqual(["Approach"]);
+      expect(result.questionType).toBe('tool_call');
+      expect(result.question).toBe('どのアプローチを使用しますか？');
+      expect(result.questionDetails?.headers).toEqual(['Approach']);
       expect(result.questionDetails?.options).toHaveLength(3);
-      expect(result.questionDetails?.options?.[0].label).toBe("アプローチA (推奨)");
+      expect(result.questionDetails?.options?.[0].label).toBe('アプローチA (推奨)');
       expect(result.questionDetails?.multiSelect).toBe(false);
     });
 
-    it("複数選択可能な質問を処理する", () => {
+    it('複数選択可能な質問を処理する', () => {
       const multiSelectEvent: StreamJsonEvent = {
-        type: "assistant",
+        type: 'assistant',
         message: {
           content: [
             {
-              type: "tool_use",
-              name: "AskUserQuestion",
-              id: "toolu_multi",
+              type: 'tool_use',
+              name: 'AskUserQuestion',
+              id: 'toolu_multi',
               input: {
                 questions: [
                   {
-                    question: "有効にする機能を選択してください",
-                    header: "Features",
+                    question: '有効にする機能を選択してください',
+                    header: 'Features',
                     options: [
-                      { label: "認証", description: "JWT認証を追加" },
-                      { label: "キャッシュ", description: "Redisキャッシュを追加" },
-                      { label: "ログ", description: "構造化ログを追加" },
-                      { label: "メトリクス", description: "Prometheusメトリクスを追加" },
+                      { label: '認証', description: 'JWT認証を追加' },
+                      { label: 'キャッシュ', description: 'Redisキャッシュを追加' },
+                      { label: 'ログ', description: '構造化ログを追加' },
+                      { label: 'メトリクス', description: 'Prometheusメトリクスを追加' },
                     ],
                     multiSelect: true,
                   },
@@ -516,20 +508,17 @@ describe("ClaudeCodeAgent 統合テスト", () => {
   });
 });
 
-describe("AgentExecutionResult 形式テスト", () => {
-  it("質問待機中の結果形式が正しい", () => {
+describe('AgentExecutionResult 形式テスト', () => {
+  it('質問待機中の結果形式が正しい', () => {
     const result = {
       success: true,
-      output: "テスト出力...\n[質問] どうしますか？",
+      output: 'テスト出力...\n[質問] どうしますか？',
       waitingForInput: true,
-      question: "どうしますか？",
-      questionType: "tool_call" as const,
+      question: 'どうしますか？',
+      questionType: 'tool_call' as const,
       questionDetails: {
-        headers: ["Action"],
-        options: [
-          { label: "続行" },
-          { label: "キャンセル" },
-        ],
+        headers: ['Action'],
+        options: [{ label: '続行' }, { label: 'キャンセル' }],
         multiSelect: false,
       },
       executionTimeMs: 1234,
@@ -537,17 +526,17 @@ describe("AgentExecutionResult 形式テスト", () => {
 
     expect(result.success).toBe(true);
     expect(result.waitingForInput).toBe(true);
-    expect(result.questionType).toBe("tool_call");
+    expect(result.questionType).toBe('tool_call');
     expect(result.questionDetails).toBeDefined();
     expect(result.questionDetails!.options).toHaveLength(2);
   });
 
-  it("完了時の結果形式が正しい", () => {
+  it('完了時の結果形式が正しい', () => {
     const result: {
       success: boolean;
       output: string;
       waitingForInput: boolean;
-      questionType: "tool_call" | "none";
+      questionType: 'tool_call' | 'none';
       executionTimeMs: number;
       question?: string;
       questionDetails?: {
@@ -557,31 +546,31 @@ describe("AgentExecutionResult 形式テスト", () => {
       };
     } = {
       success: true,
-      output: "タスク完了",
+      output: 'タスク完了',
       waitingForInput: false,
-      questionType: "none",
+      questionType: 'none',
       executionTimeMs: 5678,
     };
 
     expect(result.success).toBe(true);
     expect(result.waitingForInput).toBe(false);
-    expect(result.questionType).toBe("none");
+    expect(result.questionType).toBe('none');
     expect(result.question).toBeUndefined();
     expect(result.questionDetails).toBeUndefined();
   });
 
-  it("エラー時の結果形式が正しい", () => {
+  it('エラー時の結果形式が正しい', () => {
     const result = {
       success: false,
-      output: "エラーが発生しました",
+      output: 'エラーが発生しました',
       waitingForInput: false,
-      questionType: "none" as const,
-      errorMessage: "タイムアウト",
+      questionType: 'none' as const,
+      errorMessage: 'タイムアウト',
       executionTimeMs: 900000,
     };
 
     expect(result.success).toBe(false);
     expect(result.waitingForInput).toBe(false);
-    expect(result.errorMessage).toBe("タイムアウト");
+    expect(result.errorMessage).toBe('タイムアウト');
   });
 });

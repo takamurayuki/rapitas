@@ -40,10 +40,7 @@ const logger = createLogger('KanbanPage');
 
 type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
-const priorityConfigStyles: Record<
-  Priority,
-  { color: string; bg: string }
-> = {
+const priorityConfigStyles: Record<Priority, { color: string; bg: string }> = {
   low: {
     color: 'text-slate-600',
     bg: 'bg-slate-100 dark:bg-slate-800',
@@ -78,7 +75,10 @@ export default function KanbanPage() {
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
 
-  const priorityConfig: Record<Priority, { label: string; color: string; bg: string }> = {
+  const priorityConfig: Record<
+    Priority,
+    { label: string; color: string; bg: string }
+  > = {
     low: { label: tt('priorityLow'), ...priorityConfigStyles.low },
     medium: { label: tt('priorityMedium'), ...priorityConfigStyles.medium },
     high: { label: tt('priorityHigh'), ...priorityConfigStyles.high },
@@ -87,7 +87,12 @@ export default function KanbanPage() {
 
   const columns = columnDefs.map((col) => ({
     ...col,
-    label: col.id === 'todo' ? tt('statusTodo') : col.id === 'in-progress' ? tt('statusInProgress') : tt('statusDone'),
+    label:
+      col.id === 'todo'
+        ? tt('statusTodo')
+        : col.id === 'in-progress'
+          ? tt('statusInProgress')
+          : tt('statusDone'),
   }));
 
   const tasks = useTaskCacheStore((s) => s.tasks);
@@ -611,7 +616,9 @@ export default function KanbanPage() {
                                         {executionClasses && (
                                           <div
                                             className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${executionClasses.badgeClass}`}
-                                            title={t('taskStatus', { status: executionClasses.label })}
+                                            title={t('taskStatus', {
+                                              status: executionClasses.label,
+                                            })}
                                           >
                                             <div
                                               className={`w-1.5 h-1.5 rounded-full execution-dot-pulse ${executionClasses.dotClass}`}

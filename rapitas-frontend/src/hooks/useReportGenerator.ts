@@ -60,7 +60,10 @@ export function useReportGenerator(): UseReportGeneratorReturn {
       setLastReport({ ...data, generatedAt: new Date().toISOString() });
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
-      const message = err instanceof Error ? err.message : 'レポート生成中にエラーが発生しました';
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'レポート生成中にエラーが発生しました';
       logger.error('Report generation failed:', err);
       setError(message);
     } finally {

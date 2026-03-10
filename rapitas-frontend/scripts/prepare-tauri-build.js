@@ -34,7 +34,9 @@ if (action === 'backup') {
     const placeholderHtml = path.join(placeholderDir, 'index.html');
 
     if (!fs.existsSync(placeholderHtml)) {
-      console.log(`  Warning: ${placeholderHtml} not found, skipping ${route.path}`);
+      console.log(
+        `  Warning: ${placeholderHtml} not found, skipping ${route.path}`,
+      );
       continue;
     }
 

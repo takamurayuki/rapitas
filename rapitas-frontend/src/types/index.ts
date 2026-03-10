@@ -100,7 +100,13 @@ export type WorkflowPathInfo = {
   dir: string;
 };
 
-export type WorkflowRole = 'researcher' | 'planner' | 'reviewer' | 'implementer' | 'verifier' | 'auto_verifier';
+export type WorkflowRole =
+  | 'researcher'
+  | 'planner'
+  | 'reviewer'
+  | 'implementer'
+  | 'verifier'
+  | 'auto_verifier';
 
 export type WorkflowRoleConfig = {
   id: number;
@@ -464,7 +470,12 @@ export type WeeklyReport = {
 export type ExecutionStatus = 'idle' | 'running' | 'completed' | 'failed';
 
 // エージェントステータス
-export type AgentStatus = 'pending' | 'running' | 'paused' | 'completed' | 'failed';
+export type AgentStatus =
+  | 'pending'
+  | 'running'
+  | 'paused'
+  | 'completed'
+  | 'failed';
 
 // 実行結果（共通）
 export type ExecutionResult = {

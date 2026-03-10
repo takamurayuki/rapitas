@@ -15,5 +15,5 @@ export type {
   AnalyzeOptions,
   CustomFieldMapping,
   AnalyzeLogRequest,
-  AnalyzeLogResponse
+  AnalyzeLogResponse,
 } from '@/types/debug-log';

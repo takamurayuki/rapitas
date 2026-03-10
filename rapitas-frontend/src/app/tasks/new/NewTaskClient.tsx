@@ -78,8 +78,10 @@ function NewTaskClient() {
   const [dueDate, setDueDate] = useState('');
 
   // ワークフローモード関連
-  const [workflowMode, setWorkflowMode] = useState<WorkflowMode>('comprehensive');
-  const [isWorkflowModeOverride, setIsWorkflowModeOverride] = useState<boolean>(false);
+  const [workflowMode, setWorkflowMode] =
+    useState<WorkflowMode>('comprehensive');
+  const [isWorkflowModeOverride, setIsWorkflowModeOverride] =
+    useState<boolean>(false);
 
   // データ
   const [themes, setThemes] = useState<Theme[]>([]);
@@ -101,7 +103,11 @@ function NewTaskClient() {
   const [nlInput, setNlInput] = useState('');
   const [isQuickCreating, setIsQuickCreating] = useState(false);
   const [quickCreateSteps, setQuickCreateSteps] = useState<
-    { step: string; status: 'pending' | 'in_progress' | 'done' | 'error'; data?: Record<string, unknown> }[]
+    {
+      step: string;
+      status: 'pending' | 'in_progress' | 'done' | 'error';
+      data?: Record<string, unknown>;
+    }[]
   >([]);
   const nlTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -127,7 +133,14 @@ function NewTaskClient() {
     }
   };
 
-  const QUICK_CREATE_STEP_ORDER = ['parsing', 'summarizing', 'creating', 'analyzing', 'generating_subtasks', 'generating_instructions'] as const;
+  const QUICK_CREATE_STEP_ORDER = [
+    'parsing',
+    'summarizing',
+    'creating',
+    'analyzing',
+    'generating_subtasks',
+    'generating_instructions',
+  ] as const;
 
   const handleQuickCreate = async () => {
     if (!nlInput.trim() || isQuickCreating) return;
@@ -183,7 +196,9 @@ function NewTaskClient() {
             // Update step status
             setQuickCreateSteps((prev) =>
               prev.map((s) =>
-                s.step === event.step ? { ...s, status: event.status, data: event.data } : s,
+                s.step === event.step
+                  ? { ...s, status: event.status, data: event.data }
+                  : s,
               ),
             );
           } catch {
@@ -670,11 +685,13 @@ function NewTaskClient() {
             <span className="text-sm font-medium">{tc('back')}</span>
           </button>
           <div className="flex items-center gap-2">
-            <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${
-              appliedTemplate
-                ? 'border-purple-500 dark:border-purple-400'
-                : 'hover:border-purple-500 dark:hover:border-purple-400'
-            }`}>
+            <div
+              className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${
+                appliedTemplate
+                  ? 'border-purple-500 dark:border-purple-400'
+                  : 'hover:border-purple-500 dark:hover:border-purple-400'
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => setShowTemplateDialog(true)}
@@ -690,11 +707,13 @@ function NewTaskClient() {
                 </span>
               </button>
             </div>
-            <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${(!title.trim() || isSubmitting) ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'}`}>
+            <div
+              className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!title.trim() || isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'}`}
+            >
               <button
                 onClick={(e) => handleSubmit(e)}
                 disabled={!title.trim() || isSubmitting}
-                className={`flex items-center gap-2 transition-all ${(!title.trim() || isSubmitting) ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer'}`}
+                className={`flex items-center gap-2 transition-all ${!title.trim() || isSubmitting ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer'}`}
               >
                 {isSubmitting ? (
                   <div className="w-4 h-4 border-2 border-slate-300 dark:border-slate-600 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin" />
@@ -772,7 +791,9 @@ function NewTaskClient() {
                   creating: t('quickCreateStepCreating'),
                   analyzing: t('quickCreateStepAnalyzing'),
                   generating_subtasks: t('quickCreateStepGeneratingSubtasks'),
-                  generating_instructions: t('quickCreateStepGeneratingInstructions'),
+                  generating_instructions: t(
+                    'quickCreateStepGeneratingInstructions',
+                  ),
                 };
                 return (
                   <div key={s.step} className="flex items-center gap-2">
@@ -785,12 +806,17 @@ function NewTaskClient() {
                     ) : (
                       <div className="w-3.5 h-3.5 rounded-full border-2 border-zinc-300 dark:border-zinc-600 shrink-0" />
                     )}
-                    <span className={`text-xs ${
-                      s.status === 'done' ? 'text-emerald-600 dark:text-emerald-400' :
-                      s.status === 'in_progress' ? 'text-violet-600 dark:text-violet-400 font-medium' :
-                      s.status === 'error' ? 'text-red-500' :
-                      'text-zinc-400 dark:text-zinc-500'
-                    }`}>
+                    <span
+                      className={`text-xs ${
+                        s.status === 'done'
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : s.status === 'in_progress'
+                            ? 'text-violet-600 dark:text-violet-400 font-medium'
+                            : s.status === 'error'
+                              ? 'text-red-500'
+                              : 'text-zinc-400 dark:text-zinc-500'
+                      }`}
+                    >
                       {stepLabelMap[s.step] || s.step}
                     </span>
                   </div>
@@ -833,7 +859,11 @@ function NewTaskClient() {
                           : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700'
                       }`}
                     >
-                      <span className={priority === opt.value ? 'text-white' : opt.iconColor}>
+                      <span
+                        className={
+                          priority === opt.value ? 'text-white' : opt.iconColor
+                        }
+                      >
                         {opt.icon}
                       </span>
                       {opt.label}
@@ -1057,7 +1087,9 @@ function NewTaskClient() {
                   placeholder={t('addSubtaskPlaceholder')}
                   className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 />
-                <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!newSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'}`}>
+                <div
+                  className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!newSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'}`}
+                >
                   <button
                     type="button"
                     onClick={addSubtask}
@@ -1084,7 +1116,9 @@ function NewTaskClient() {
                 currentMode={workflowMode}
                 isOverridden={isWorkflowModeOverride}
                 complexityScore={null} // 新規タスクなのでスコアなし
-                autoComplexityAnalysis={globalSettings?.autoComplexityAnalysis ?? false}
+                autoComplexityAnalysis={
+                  globalSettings?.autoComplexityAnalysis ?? false
+                }
                 onModeChange={(mode, isOverride) => {
                   setWorkflowMode(mode);
                   setIsWorkflowModeOverride(isOverride);
@@ -1094,7 +1128,8 @@ function NewTaskClient() {
               />
               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <p className="text-xs text-blue-700 dark:text-blue-300">
-                  <strong>{t('workflowModeAbout')}</strong> {t('workflowModeExplanation')}
+                  <strong>{t('workflowModeAbout')}</strong>{' '}
+                  {t('workflowModeExplanation')}
                 </p>
               </div>
             </div>

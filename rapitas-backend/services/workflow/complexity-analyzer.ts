@@ -34,17 +34,68 @@ export interface ComplexityAnalysisResult {
  */
 const LIGHTWEIGHT_KEYWORDS = [
   // バグ修正関連
-  'バグ', 'bug', 'fix', '修正', '直す', 'エラー', 'error', '不具合',
+  'バグ',
+  'bug',
+  'fix',
+  '修正',
+  '直す',
+  'エラー',
+  'error',
+  '不具合',
   // UI調整関連
-  'UI', 'スタイル', 'style', 'CSS', 'デザイン', 'レイアウト', 'layout',
-  '色', 'カラー', 'color', 'フォント', 'font', 'サイズ', 'size', 'マージン', 'margin', 'パディング', 'padding',
+  'UI',
+  'スタイル',
+  'style',
+  'CSS',
+  'デザイン',
+  'レイアウト',
+  'layout',
+  '色',
+  'カラー',
+  'color',
+  'フォント',
+  'font',
+  'サイズ',
+  'size',
+  'マージン',
+  'margin',
+  'パディング',
+  'padding',
   // 軽微な変更
-  'タイポ', 'typo', '誤字', '文言', 'テキスト', 'text', 'ラベル', 'label',
-  'コメント', 'comment', 'ログ', 'log', '追加', 'add', '更新', 'update',
+  'タイポ',
+  'typo',
+  '誤字',
+  '文言',
+  'テキスト',
+  'text',
+  'ラベル',
+  'label',
+  'コメント',
+  'comment',
+  'ログ',
+  'log',
+  '追加',
+  'add',
+  '更新',
+  'update',
   // 小規模修正
-  '小さな', '小規模', 'small', 'minor', '簡単', 'simple', '軽微', 'tiny', 'quick',
+  '小さな',
+  '小規模',
+  'small',
+  'minor',
+  '簡単',
+  'simple',
+  '軽微',
+  'tiny',
+  'quick',
   // 設定関連
-  '設定', 'config', 'configuration', '調整', 'adjust', '変更', 'change'
+  '設定',
+  'config',
+  'configuration',
+  '調整',
+  'adjust',
+  '変更',
+  'change',
 ];
 
 /**
@@ -53,35 +104,106 @@ const LIGHTWEIGHT_KEYWORDS = [
  */
 const HEAVYWEIGHT_KEYWORDS = [
   // 新機能関連
-  '新機能', '機能', 'feature', '実装', 'implement', '開発', 'develop', '構築', 'build',
+  '新機能',
+  '機能',
+  'feature',
+  '実装',
+  'implement',
+  '開発',
+  'develop',
+  '構築',
+  'build',
   // アーキテクチャ関連
-  'リファクタリング', 'refactor', 'アーキテクチャ', 'architecture', '再設計', 'redesign',
-  '最適化', 'optimize', 'パフォーマンス', 'performance',
+  'リファクタリング',
+  'refactor',
+  'アーキテクチャ',
+  'architecture',
+  '再設計',
+  'redesign',
+  '最適化',
+  'optimize',
+  'パフォーマンス',
+  'performance',
   // インフラ・API関連
-  'API', 'エンドポイント', 'endpoint', 'データベース', 'database', 'DB', 'スキーマ', 'schema',
-  'マイグレーション', 'migration', 'テーブル', 'table', 'インデックス', 'index',
+  'API',
+  'エンドポイント',
+  'endpoint',
+  'データベース',
+  'database',
+  'DB',
+  'スキーマ',
+  'schema',
+  'マイグレーション',
+  'migration',
+  'テーブル',
+  'table',
+  'インデックス',
+  'index',
   // システム関連
-  'システム', 'system', 'フレームワーク', 'framework', 'ライブラリ', 'library',
-  'セキュリティ', 'security', '認証', 'auth', 'authentication', '認可', 'authorization',
+  'システム',
+  'system',
+  'フレームワーク',
+  'framework',
+  'ライブラリ',
+  'library',
+  'セキュリティ',
+  'security',
+  '認証',
+  'auth',
+  'authentication',
+  '認可',
+  'authorization',
   // 統合・連携
-  '統合', 'integration', '連携', 'サードパーティ', 'third-party', '外部', 'external',
+  '統合',
+  'integration',
+  '連携',
+  'サードパーティ',
+  'third-party',
+  '外部',
+  'external',
   // 大規模変更
-  '大幅', '大規模', 'major', 'large', '全体的', 'overall', '包括的', 'comprehensive'
+  '大幅',
+  '大規模',
+  'major',
+  'large',
+  '全体的',
+  'overall',
+  '包括的',
+  'comprehensive',
 ];
 
 /**
  * 軽量タスクを示すラベルキーワード
  */
 const LIGHTWEIGHT_LABEL_KEYWORDS = [
-  'bug', 'fix', 'hotfix', 'patch', 'style', 'ui', 'design', 'typo', 'docs', 'comment'
+  'bug',
+  'fix',
+  'hotfix',
+  'patch',
+  'style',
+  'ui',
+  'design',
+  'typo',
+  'docs',
+  'comment',
 ];
 
 /**
  * 重量タスクを示すラベルキーワード
  */
 const HEAVYWEIGHT_LABEL_KEYWORDS = [
-  'feature', 'enhancement', 'refactor', 'api', 'database', 'schema', 'migration',
-  'architecture', 'security', 'performance', 'integration', 'system'
+  'feature',
+  'enhancement',
+  'refactor',
+  'api',
+  'database',
+  'schema',
+  'migration',
+  'architecture',
+  'security',
+  'performance',
+  'integration',
+  'system',
 ];
 
 /**
@@ -114,7 +236,7 @@ function analyzeKeywords(input: TaskComplexityInput): { score: number; reasons: 
   // 軽量キーワードが多いほどスコアが下がる、重量キーワードが多いほどスコアが上がる
   const keywordBalance = heavyweightMatches - lightweightMatches;
   const baseScore = 50; // デフォルト値
-  let score = baseScore + (keywordBalance * 15); // キーワード1つにつき15点の差
+  let score = baseScore + keywordBalance * 15; // キーワード1つにつき15点の差
 
   // 極端な値の制限
   score = Math.max(0, Math.min(100, score));
@@ -239,7 +361,7 @@ function analyzeLabels(input: TaskComplexityInput): { score: number; reasons: st
 
   // スコア算出
   const labelBalance = heavyweightLabelMatches - lightweightLabelMatches;
-  let score = 50 + (labelBalance * 20); // ラベル1つにつき20点の差
+  let score = 50 + labelBalance * 20; // ラベル1つにつき20点の差
   score = Math.max(0, Math.min(100, score));
 
   return { score, reasons };
@@ -261,7 +383,9 @@ function getRecommendedMode(complexityScore: number): 'lightweight' | 'standard'
 /**
  * 推定実行時間を計算（分）
  */
-function calculateEstimatedExecutionTime(mode: 'lightweight' | 'standard' | 'comprehensive'): number {
+function calculateEstimatedExecutionTime(
+  mode: 'lightweight' | 'standard' | 'comprehensive',
+): number {
   switch (mode) {
     case 'lightweight':
       return 20; // 15-30分
@@ -282,7 +406,7 @@ function calculateConfidence(
   timeScore: number,
   priorityScore: number,
   labelScore: number,
-  hasEstimatedTime: boolean
+  hasEstimatedTime: boolean,
 ): number {
   // 各分析要素の信頼度重みづけ
   let confidence = 0.5; // ベース値
@@ -299,7 +423,8 @@ function calculateConfidence(
   // 各分析結果の整合性
   const scores = [keywordScore, timeScore, priorityScore, labelScore];
   const avgScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
-  const variance = scores.reduce((sum, score) => sum + Math.pow(score - avgScore, 2), 0) / scores.length;
+  const variance =
+    scores.reduce((sum, score) => sum + Math.pow(score - avgScore, 2), 0) / scores.length;
   const consistency = Math.max(0, 1 - variance / 1000); // 分散が小さいほど一貫性高い
 
   confidence += consistency * 0.2;
@@ -319,17 +444,17 @@ export function analyzeTaskComplexity(input: TaskComplexityInput): ComplexityAna
 
   // 重みづけによる最終スコア算出
   const weights = {
-    keyword: 0.4,  // キーワード分析が最重要
-    time: 0.3,     // 推定時間も重要
+    keyword: 0.4, // キーワード分析が最重要
+    time: 0.3, // 推定時間も重要
     priority: 0.15, // 優先度は補助的
-    label: 0.15    // ラベルも補助的
+    label: 0.15, // ラベルも補助的
   };
 
   const complexityScore = Math.round(
     keywordAnalysis.score * weights.keyword +
-    timeAnalysis.score * weights.time +
-    priorityAnalysis.score * weights.priority +
-    labelAnalysis.score * weights.label
+      timeAnalysis.score * weights.time +
+      priorityAnalysis.score * weights.priority +
+      labelAnalysis.score * weights.label,
   );
 
   const recommendedMode = getRecommendedMode(complexityScore);
@@ -340,7 +465,7 @@ export function analyzeTaskComplexity(input: TaskComplexityInput): ComplexityAna
     timeAnalysis.score,
     priorityAnalysis.score,
     labelAnalysis.score,
-    !!input.estimatedHours
+    !!input.estimatedHours,
   );
 
   // すべての理由をまとめる
@@ -348,7 +473,7 @@ export function analyzeTaskComplexity(input: TaskComplexityInput): ComplexityAna
     ...keywordAnalysis.reasons,
     ...timeAnalysis.reasons,
     ...priorityAnalysis.reasons,
-    ...labelAnalysis.reasons
+    ...labelAnalysis.reasons,
   ];
 
   return {
@@ -360,9 +485,9 @@ export function analyzeTaskComplexity(input: TaskComplexityInput): ComplexityAna
       timeScore: Math.round(timeAnalysis.score),
       priorityScore: Math.round(priorityAnalysis.score),
       labelScore: Math.round(labelAnalysis.score),
-      reasons: allReasons
+      reasons: allReasons,
     },
-    estimatedExecutionTime
+    estimatedExecutionTime,
   };
 }
 
@@ -370,7 +495,7 @@ export function analyzeTaskComplexity(input: TaskComplexityInput): ComplexityAna
  * 複数タスクの一括分析
  */
 export function analyzeBatchComplexity(inputs: TaskComplexityInput[]): ComplexityAnalysisResult[] {
-  return inputs.map(input => analyzeTaskComplexity(input));
+  return inputs.map((input) => analyzeTaskComplexity(input));
 }
 
 /**
@@ -382,19 +507,19 @@ export function getWorkflowModeConfig() {
       name: '軽量',
       description: 'バグ修正・UI調整・軽微な変更に適用',
       estimatedTime: 20,
-      complexityRange: [0, 35]
+      complexityRange: [0, 35],
     },
     standard: {
       name: '標準',
       description: '中規模機能追加・リファクタリングに適用',
       estimatedTime: 90,
-      complexityRange: [36, 70]
+      complexityRange: [36, 70],
     },
     comprehensive: {
       name: '詳細',
       description: '大規模機能・アーキテクチャ変更に適用',
       estimatedTime: 210,
-      complexityRange: [71, 100]
-    }
+      complexityRange: [71, 100],
+    },
   };
 }

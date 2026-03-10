@@ -2,14 +2,14 @@
  * CLI Tools Management API Routes
  * Version control, installation, and update management for CLI tools (Claude, OpenAI, Gemini)
  */
-import { Elysia, t } from "elysia";
-import { createLogger } from "../../config/logger";
-import { exec } from "child_process";
+import { Elysia, t } from 'elysia';
+import { createLogger } from '../../config/logger';
+import { exec } from 'child_process';
 
-const log = createLogger("routes:cli-tools");
-import { promisify } from "util";
-import fs from "fs/promises";
-import path from "path";
+const log = createLogger('routes:cli-tools');
+import { promisify } from 'util';
+import fs from 'fs/promises';
+import path from 'path';
 
 const execAsync = promisify(exec);
 
@@ -26,67 +26,67 @@ interface CLITool {
   configCommand?: string;
   authCommand?: string;
   authCheck?: string;
-  category: "ai" | "development" | "utility";
+  category: 'ai' | 'development' | 'utility';
   officialSite: string;
   documentation: string;
 }
 
 const CLI_TOOLS: CLITool[] = [
   {
-    id: "claude-cli",
-    name: "Claude CLI",
-    description: "Official Claude CLI tool by Anthropic",
-    checkCommand: "where claude",
-    versionCommand: "claude --version",
-    installCommand: "npm install -g @anthropic-ai/claude-cli",
-    updateCommand: "npm update -g @anthropic-ai/claude-cli",
-    authCommand: "claude auth login",
-    authCheck: "claude auth status",
-    category: "ai",
-    officialSite: "https://claude.ai",
-    documentation: "https://docs.anthropic.com/claude/cli",
+    id: 'claude-cli',
+    name: 'Claude CLI',
+    description: 'Official Claude CLI tool by Anthropic',
+    checkCommand: 'where claude',
+    versionCommand: 'claude --version',
+    installCommand: 'npm install -g @anthropic-ai/claude-cli',
+    updateCommand: 'npm update -g @anthropic-ai/claude-cli',
+    authCommand: 'claude auth login',
+    authCheck: 'claude auth status',
+    category: 'ai',
+    officialSite: 'https://claude.ai',
+    documentation: 'https://docs.anthropic.com/claude/cli',
   },
   {
-    id: "openai-cli",
-    name: "OpenAI CLI",
-    description: "OpenAI command line interface",
-    packageName: "openai",
-    checkCommand: "pip show openai",
-    versionCommand: "pip show openai | findstr Version",
-    installCommand: "pip install openai",
-    updateCommand: "pip install --upgrade openai",
-    authCommand: "openai auth",
-    category: "ai",
-    officialSite: "https://openai.com",
-    documentation: "https://platform.openai.com/docs",
+    id: 'openai-cli',
+    name: 'OpenAI CLI',
+    description: 'OpenAI command line interface',
+    packageName: 'openai',
+    checkCommand: 'pip show openai',
+    versionCommand: 'pip show openai | findstr Version',
+    installCommand: 'pip install openai',
+    updateCommand: 'pip install --upgrade openai',
+    authCommand: 'openai auth',
+    category: 'ai',
+    officialSite: 'https://openai.com',
+    documentation: 'https://platform.openai.com/docs',
   },
   {
-    id: "gemini-cli",
-    name: "Gemini CLI",
-    description: "Google Gemini command line interface",
-    checkCommand: "where gemini",
-    versionCommand: "gemini -v",
-    installCommand: "npm install -g @google/gemini-cli",
-    updateCommand: "npm update -g @google/gemini-cli",
-    authCommand: "gemini auth login",
-    authCheck: "gemini auth status",
-    category: "ai",
-    officialSite: "https://ai.google.dev",
-    documentation: "https://ai.google.dev/docs",
+    id: 'gemini-cli',
+    name: 'Gemini CLI',
+    description: 'Google Gemini command line interface',
+    checkCommand: 'where gemini',
+    versionCommand: 'gemini -v',
+    installCommand: 'npm install -g @google/gemini-cli',
+    updateCommand: 'npm update -g @google/gemini-cli',
+    authCommand: 'gemini auth login',
+    authCheck: 'gemini auth status',
+    category: 'ai',
+    officialSite: 'https://ai.google.dev',
+    documentation: 'https://ai.google.dev/docs',
   },
   {
-    id: "gh-cli",
-    name: "GitHub CLI",
-    description: "GitHub command line interface",
-    checkCommand: "where gh",
-    versionCommand: "gh --version",
-    installCommand: "winget install GitHub.cli",
-    updateCommand: "gh extension upgrade --all",
-    authCommand: "gh auth login",
-    authCheck: "gh auth status",
-    category: "development",
-    officialSite: "https://cli.github.com",
-    documentation: "https://cli.github.com/manual/",
+    id: 'gh-cli',
+    name: 'GitHub CLI',
+    description: 'GitHub command line interface',
+    checkCommand: 'where gh',
+    versionCommand: 'gh --version',
+    installCommand: 'winget install GitHub.cli',
+    updateCommand: 'gh extension upgrade --all',
+    authCommand: 'gh auth login',
+    authCheck: 'gh auth status',
+    category: 'development',
+    officialSite: 'https://cli.github.com',
+    documentation: 'https://cli.github.com/manual/',
   },
 ];
 
@@ -108,7 +108,7 @@ async function getToolStatus(tool: CLITool): Promise<{
       const checkResult = await execAsync(tool.checkCommand, { timeout: 5000 });
       if (checkResult.stdout.trim()) {
         isInstalled = true;
-        installPath = checkResult.stdout.trim().split("\n")[0];
+        installPath = checkResult.stdout.trim().split('\n')[0];
       }
     } catch (error) {
       isInstalled = false;
@@ -175,9 +175,7 @@ async function getLatestReleaseInfo(repoUrl: string): Promise<{
     if (!match) return null;
 
     const [, owner, repo] = match;
-    const response = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
-    );
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`);
 
     if (!response.ok) return null;
 
@@ -186,11 +184,11 @@ async function getLatestReleaseInfo(repoUrl: string): Promise<{
     return {
       version: data.tag_name || data.name,
       releaseDate: data.published_at,
-      changelog: data.body || "",
+      changelog: data.body || '',
       downloadUrl: data.html_url,
     };
   } catch (error) {
-    log.warn({ err: error }, "Failed to fetch release info");
+    log.warn({ err: error }, 'Failed to fetch release info');
     return null;
   }
 }
@@ -203,7 +201,7 @@ function checkAuthenticationStatus(
   const output = authResult.stdout + authResult.stderr;
 
   switch (tool.id) {
-    case "claude-cli":
+    case 'claude-cli':
       // Claude CLI: JSON形式で {"loggedIn": true/false} を返す
       try {
         const jsonOutput = JSON.parse(authResult.stdout);
@@ -212,47 +210,46 @@ function checkAuthenticationStatus(
         // JSON パースに失敗した場合は従来のロジックでフォールバック
         const lowerOutput = output.toLowerCase();
         return (
-          lowerOutput.includes("authenticated") ||
-          lowerOutput.includes("logged in") ||
-          lowerOutput.includes("valid")
+          lowerOutput.includes('authenticated') ||
+          lowerOutput.includes('logged in') ||
+          lowerOutput.includes('valid')
         );
       }
 
-    case "openai-cli":
+    case 'openai-cli':
       // OpenAI CLI: 認証済みの場合はAPIキー情報やユーザー情報が表示される
       const lowerOutputOpenai = output.toLowerCase();
       return (
-        !lowerOutputOpenai.includes("not authenticated") &&
-        !lowerOutputOpenai.includes("no api key") &&
-        !lowerOutputOpenai.includes("authentication required") &&
-        (lowerOutputOpenai.includes("api") ||
-          lowerOutputOpenai.includes("authenticated") ||
+        !lowerOutputOpenai.includes('not authenticated') &&
+        !lowerOutputOpenai.includes('no api key') &&
+        !lowerOutputOpenai.includes('authentication required') &&
+        (lowerOutputOpenai.includes('api') ||
+          lowerOutputOpenai.includes('authenticated') ||
           output.length > 10)
       );
 
-    case "gemini-cli":
+    case 'gemini-cli':
       // Gemini CLI: 標準的な認証ステータスコマンドが提供されていないため、インストール済みであれば認証済みと見なす
       // 実際の認証は各コマンド実行時に個別に必要になる
       return true;
 
-    case "gh-cli":
+    case 'gh-cli':
       // GitHub CLI: 認証済みの場合は "logged in" やアカウント名が表示される
       const lowerOutputGh = output.toLowerCase();
       return (
-        lowerOutputGh.includes("logged in") ||
-        output.includes("✓") ||
-        lowerOutputGh.includes("github.com") ||
-        (!lowerOutputGh.includes("not logged in") &&
-          !lowerOutputGh.includes("to authenticate"))
+        lowerOutputGh.includes('logged in') ||
+        output.includes('✓') ||
+        lowerOutputGh.includes('github.com') ||
+        (!lowerOutputGh.includes('not logged in') && !lowerOutputGh.includes('to authenticate'))
       );
 
     default:
       // デフォルト: エラーメッセージがなく、何らかの出力があれば認証済みと判定
       const lowerOutputDefault = output.toLowerCase();
       return (
-        !lowerOutputDefault.includes("error") &&
-        !lowerOutputDefault.includes("not authenticated") &&
-        !lowerOutputDefault.includes("authentication") &&
+        !lowerOutputDefault.includes('error') &&
+        !lowerOutputDefault.includes('not authenticated') &&
+        !lowerOutputDefault.includes('authentication') &&
         output.trim().length > 0
       );
   }
@@ -260,7 +257,7 @@ function checkAuthenticationStatus(
 
 export const cliToolsManagementRoutes = new Elysia()
   // Get all CLI tools with their status
-  .get("/cli-tools", async () => {
+  .get('/cli-tools', async () => {
     try {
       const tools = await Promise.all(
         CLI_TOOLS.map(async (tool) => {
@@ -270,9 +267,9 @@ export const cliToolsManagementRoutes = new Elysia()
             ...status,
             status: status.isInstalled
               ? status.isAuthenticated
-                ? "authenticated"
-                : "installed"
-              : "not_installed",
+                ? 'authenticated'
+                : 'installed'
+              : 'not_installed',
           };
         }),
       );
@@ -290,17 +287,17 @@ export const cliToolsManagementRoutes = new Elysia()
         },
       };
     } catch (error) {
-      log.error({ err: error }, "[CLI Tools] Error fetching tools status");
+      log.error({ err: error }, '[CLI Tools] Error fetching tools status');
       return {
         success: false,
-        error: "Failed to fetch CLI tools status",
+        error: 'Failed to fetch CLI tools status',
         details: error instanceof Error ? error.message : String(error),
       };
     }
   })
 
   // Get specific tool details
-  .get("/cli-tools/:toolId", async ({ params }) => {
+  .get('/cli-tools/:toolId', async ({ params }) => {
     try {
       const { toolId } = params;
       const tool = CLI_TOOLS.find((t) => t.id === toolId);
@@ -308,7 +305,7 @@ export const cliToolsManagementRoutes = new Elysia()
       if (!tool) {
         return {
           success: false,
-          error: "Tool not found",
+          error: 'Tool not found',
         };
       }
 
@@ -325,23 +322,23 @@ export const cliToolsManagementRoutes = new Elysia()
           releaseInfo,
           status: status.isInstalled
             ? status.isAuthenticated
-              ? "authenticated"
-              : "installed"
-            : "not_installed",
+              ? 'authenticated'
+              : 'installed'
+            : 'not_installed',
         },
       };
     } catch (error) {
-      log.error({ err: error }, "[CLI Tools] Error fetching tool details");
+      log.error({ err: error }, '[CLI Tools] Error fetching tool details');
       return {
         success: false,
-        error: "Failed to fetch tool details",
+        error: 'Failed to fetch tool details',
         details: error instanceof Error ? error.message : String(error),
       };
     }
   })
 
   // Install CLI tool
-  .post("/cli-tools/:toolId/install", async ({ params }) => {
+  .post('/cli-tools/:toolId/install', async ({ params }) => {
     try {
       const { toolId } = params;
       const tool = CLI_TOOLS.find((t) => t.id === toolId);
@@ -349,7 +346,7 @@ export const cliToolsManagementRoutes = new Elysia()
       if (!tool) {
         return {
           success: false,
-          error: "Tool not found",
+          error: 'Tool not found',
         };
       }
 
@@ -358,7 +355,7 @@ export const cliToolsManagementRoutes = new Elysia()
       if (currentStatus.isInstalled) {
         return {
           success: false,
-          error: "Tool is already installed",
+          error: 'Tool is already installed',
         };
       }
 
@@ -381,21 +378,21 @@ export const cliToolsManagementRoutes = new Elysia()
           installOutput: installResult.stdout,
           message: newStatus.isInstalled
             ? `Successfully installed ${tool.name}`
-            : "Installation may have failed, please check manually",
+            : 'Installation may have failed, please check manually',
         },
       };
     } catch (error) {
-      log.error({ err: error }, "[CLI Tools] Error installing tool");
+      log.error({ err: error }, '[CLI Tools] Error installing tool');
       return {
         success: false,
-        error: "Failed to install tool",
+        error: 'Failed to install tool',
         details: error instanceof Error ? error.message : String(error),
       };
     }
   })
 
   // Update CLI tool
-  .post("/cli-tools/:toolId/update", async ({ params }) => {
+  .post('/cli-tools/:toolId/update', async ({ params }) => {
     try {
       const { toolId } = params;
       const tool = CLI_TOOLS.find((t) => t.id === toolId);
@@ -403,7 +400,7 @@ export const cliToolsManagementRoutes = new Elysia()
       if (!tool || !tool.updateCommand) {
         return {
           success: false,
-          error: "Tool not found or update not supported",
+          error: 'Tool not found or update not supported',
         };
       }
 
@@ -412,7 +409,7 @@ export const cliToolsManagementRoutes = new Elysia()
       if (!currentStatus.isInstalled) {
         return {
           success: false,
-          error: "Tool is not installed",
+          error: 'Tool is not installed',
         };
       }
 
@@ -439,25 +436,23 @@ export const cliToolsManagementRoutes = new Elysia()
           newVersion: newStatus.version,
           message:
             `Successfully updated ${tool.name}` +
-            (previousVersion &&
-            newStatus.version &&
-            previousVersion !== newStatus.version
+            (previousVersion && newStatus.version && previousVersion !== newStatus.version
               ? ` from ${previousVersion} to ${newStatus.version}`
-              : ""),
+              : ''),
         },
       };
     } catch (error) {
-      log.error({ err: error }, "[CLI Tools] Error updating tool");
+      log.error({ err: error }, '[CLI Tools] Error updating tool');
       return {
         success: false,
-        error: "Failed to update tool",
+        error: 'Failed to update tool',
         details: error instanceof Error ? error.message : String(error),
       };
     }
   })
 
   // Authenticate CLI tool
-  .post("/cli-tools/:toolId/auth", async ({ params, body }) => {
+  .post('/cli-tools/:toolId/auth', async ({ params, body }) => {
     try {
       const { toolId } = params;
       const { interactive = false } = body as { interactive?: boolean };
@@ -466,7 +461,7 @@ export const cliToolsManagementRoutes = new Elysia()
       if (!tool || !tool.authCommand) {
         return {
           success: false,
-          error: "Tool not found or authentication not supported",
+          error: 'Tool not found or authentication not supported',
         };
       }
 
@@ -475,7 +470,7 @@ export const cliToolsManagementRoutes = new Elysia()
       if (!currentStatus.isInstalled) {
         return {
           success: false,
-          error: "Tool is not installed",
+          error: 'Tool is not installed',
         };
       }
 
@@ -508,17 +503,17 @@ export const cliToolsManagementRoutes = new Elysia()
         };
       }
     } catch (error) {
-      log.error({ err: error }, "[CLI Tools] Error checking authentication");
+      log.error({ err: error }, '[CLI Tools] Error checking authentication');
       return {
         success: false,
-        error: "Failed to check authentication",
+        error: 'Failed to check authentication',
         details: error instanceof Error ? error.message : String(error),
       };
     }
   })
 
   // Get installation guide for tool
-  .get("/cli-tools/:toolId/install-guide", async ({ params }) => {
+  .get('/cli-tools/:toolId/install-guide', async ({ params }) => {
     try {
       const { toolId } = params;
       const tool = CLI_TOOLS.find((t) => t.id === toolId);
@@ -526,7 +521,7 @@ export const cliToolsManagementRoutes = new Elysia()
       if (!tool) {
         return {
           success: false,
-          error: "Tool not found",
+          error: 'Tool not found',
         };
       }
 
@@ -540,10 +535,10 @@ export const cliToolsManagementRoutes = new Elysia()
         },
       };
     } catch (error) {
-      log.error({ err: error }, "[CLI Tools] Error fetching installation guide");
+      log.error({ err: error }, '[CLI Tools] Error fetching installation guide');
       return {
         success: false,
-        error: "Failed to fetch installation guide",
+        error: 'Failed to fetch installation guide',
         details: error instanceof Error ? error.message : String(error),
       };
     }
@@ -570,30 +565,27 @@ function generateInstallationGuide(tool: CLITool): Array<{
     title: `Install ${tool.name}`,
     description: `Install ${tool.name} using the package manager`,
     command: tool.installCommand,
-    notes:
-      tool.category === "ai"
-        ? "This will install the CLI globally on your system"
-        : undefined,
+    notes: tool.category === 'ai' ? 'This will install the CLI globally on your system' : undefined,
   });
 
   // 認証手順
   if (tool.authCommand) {
     steps.push({
       step: 2,
-      title: "Authentication",
+      title: 'Authentication',
       description: `Authenticate ${tool.name} with your account`,
       command: tool.authCommand,
-      notes: "Follow the interactive prompts to complete authentication",
+      notes: 'Follow the interactive prompts to complete authentication',
     });
   }
 
   // 確認手順
   steps.push({
     step: 3,
-    title: "Verify Installation",
-    description: "Verify that the tool is installed and working correctly",
+    title: 'Verify Installation',
+    description: 'Verify that the tool is installed and working correctly',
     command: tool.versionCommand,
-    notes: "This should display the installed version",
+    notes: 'This should display the installed version',
   });
 
   return steps;

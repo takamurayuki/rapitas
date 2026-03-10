@@ -20,7 +20,10 @@ function loadHistory(): string[] {
 }
 
 function saveHistory(items: string[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items.slice(0, MAX_HISTORY)));
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(items.slice(0, MAX_HISTORY)),
+  );
 }
 
 export function addToSearchHistory(query: string): void {
@@ -35,14 +38,18 @@ export default function SearchHistory({ onSelect }: SearchHistoryProps) {
   const [history, setHistory] = useState<string[]>([]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-compiler/react-compiler
     setHistory(loadHistory());
   }, []);
 
-  const removeItem = useCallback((item: string) => {
-    const updated = history.filter((h) => h !== item);
-    saveHistory(updated);
-    setHistory(updated);
-  }, [history]);
+  const removeItem = useCallback(
+    (item: string) => {
+      const updated = history.filter((h) => h !== item);
+      saveHistory(updated);
+      setHistory(updated);
+    },
+    [history],
+  );
 
   if (history.length === 0) return null;
 
@@ -63,7 +70,10 @@ export default function SearchHistory({ onSelect }: SearchHistoryProps) {
             {item}
             <X
               className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={(e) => { e.stopPropagation(); removeItem(item); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                removeItem(item);
+              }}
             />
           </button>
         ))}

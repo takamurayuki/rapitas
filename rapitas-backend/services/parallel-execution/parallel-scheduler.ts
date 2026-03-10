@@ -36,7 +36,13 @@ type ScheduledTask = {
  * スケジューラーイベント
  */
 type SchedulerEvent = {
-  type: 'task_scheduled' | 'task_started' | 'task_completed' | 'task_failed' | 'level_completed' | 'all_completed';
+  type:
+    | 'task_scheduled'
+    | 'task_started'
+    | 'task_completed'
+    | 'task_failed'
+    | 'level_completed'
+    | 'all_completed';
   taskId?: number;
   level?: number;
   timestamp: Date;
@@ -68,7 +74,7 @@ export class ParallelScheduler {
   constructor(
     plan: ParallelExecutionPlan,
     nodes: Map<number, TaskNode>,
-    config: ParallelExecutionConfig
+    config: ParallelExecutionConfig,
   ) {
     this.plan = plan;
     this.nodes = nodes;
@@ -104,18 +110,26 @@ export class ParallelScheduler {
     let priority = 0;
 
     // クリティカルパス上のタスクは優先度を上げる
-    if (this.plan.groups.some(g =>
-      g.taskIds.includes(node.id) && g.internalDependencies.length > 0
-    )) {
+    if (
+      this.plan.groups.some((g) => g.taskIds.includes(node.id) && g.internalDependencies.length > 0)
+    ) {
       priority += 50;
     }
 
     // 優先度設定を反映
     switch (node.priority) {
-      case 'urgent': priority += 40; break;
-      case 'high': priority += 30; break;
-      case 'medium': priority += 20; break;
-      case 'low': priority += 10; break;
+      case 'urgent':
+        priority += 40;
+        break;
+      case 'high':
+        priority += 30;
+        break;
+      case 'medium':
+        priority += 20;
+        break;
+      case 'low':
+        priority += 10;
+        break;
     }
 
     // 依存タスクが多いほど優先度を上げる（ブロッカーを早く完了）
@@ -167,7 +181,7 @@ export class ParallelScheduler {
 
     return executable
       .slice(0, this.config.maxConcurrentAgents - this.runningTasks.size)
-      .map(e => e.taskId);
+      .map((e) => e.taskId);
   }
 
   /**
@@ -197,8 +211,8 @@ export class ParallelScheduler {
     for (const constraint of this.plan.resourceConstraints) {
       if (constraint.affectedTasks.includes(taskId)) {
         // 同じリソースを使用するタスクの実行数をカウント
-        const concurrentUsage = Array.from(this.runningTasks).filter(
-          runningId => constraint.affectedTasks.includes(runningId)
+        const concurrentUsage = Array.from(this.runningTasks).filter((runningId) =>
+          constraint.affectedTasks.includes(runningId),
         ).length;
 
         if (concurrentUsage >= constraint.maxConcurrent) {
@@ -330,11 +344,11 @@ export class ParallelScheduler {
    * レベル完了をチェック
    */
   private checkLevelCompletion(level: number): void {
-    const group = this.plan.groups.find(g => g.level === level);
+    const group = this.plan.groups.find((g) => g.level === level);
     if (!group) return;
 
     const allCompleted = group.taskIds.every(
-      id => this.completedTasks.has(id) || this.failedTasks.has(id)
+      (id) => this.completedTasks.has(id) || this.failedTasks.has(id),
     );
 
     if (allCompleted && level === this.currentLevel) {
@@ -351,9 +365,9 @@ export class ParallelScheduler {
    * 全タスク完了をチェック
    */
   private checkAllCompletion(): void {
-    const allTaskIds = this.plan.groups.flatMap(g => g.taskIds);
+    const allTaskIds = this.plan.groups.flatMap((g) => g.taskIds);
     const allDone = allTaskIds.every(
-      id => this.completedTasks.has(id) || this.failedTasks.has(id)
+      (id) => this.completedTasks.has(id) || this.failedTasks.has(id),
     );
 
     if (allDone) {
@@ -381,13 +395,13 @@ export class ParallelScheduler {
     pending: number[];
     progress: number;
   } {
-    const allTaskIds = this.plan.groups.flatMap(g => g.taskIds);
+    const allTaskIds = this.plan.groups.flatMap((g) => g.taskIds);
     const pending = allTaskIds.filter(
-      id =>
+      (id) =>
         !this.runningTasks.has(id) &&
         !this.completedTasks.has(id) &&
         !this.failedTasks.has(id) &&
-        !this.blockedTasks.has(id)
+        !this.blockedTasks.has(id),
     );
 
     const totalTasks = allTaskIds.length;
@@ -448,7 +462,7 @@ export class ParallelScheduler {
    * 緊急タスクを割り込み追加
    */
   insertUrgentTask(taskId: number, node: TaskNode): void {
-    const highestLevel = Math.max(...Array.from(this.scheduledTasks.values()).map(s => s.level));
+    const highestLevel = Math.max(...Array.from(this.scheduledTasks.values()).map((s) => s.level));
     const urgentLevel = Math.max(0, this.currentLevel);
 
     this.nodes.set(taskId, node);
@@ -489,13 +503,13 @@ export class ParallelScheduler {
     for (const group of this.plan.groups) {
       if (group.level >= this.currentLevel) {
         const incompleteTasks = group.taskIds.filter(
-          id => !this.completedTasks.has(id) && !this.failedTasks.has(id)
+          (id) => !this.completedTasks.has(id) && !this.failedTasks.has(id),
         );
 
         if (incompleteTasks.length > 0) {
           // グループ内の最大推定時間
           const maxDuration = Math.max(
-            ...incompleteTasks.map(id => this.nodes.get(id)?.estimatedHours || 1)
+            ...incompleteTasks.map((id) => this.nodes.get(id)?.estimatedHours || 1),
           );
           remaining += maxDuration;
         }
@@ -512,7 +526,7 @@ export class ParallelScheduler {
 export function createParallelScheduler(
   plan: ParallelExecutionPlan,
   nodes: Map<number, TaskNode>,
-  config: ParallelExecutionConfig
+  config: ParallelExecutionConfig,
 ): ParallelScheduler {
   return new ParallelScheduler(plan, nodes, config);
 }
