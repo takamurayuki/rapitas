@@ -2,13 +2,13 @@
  * URL Metadata API Route
  * Fetches title and favicon from a given URL
  */
-import { Elysia, t } from "elysia";
+import { Elysia, t } from 'elysia';
 
 export const urlMetadataRoutes = new Elysia().post(
-  "/url-metadata",
+  '/url-metadata',
   async (context) => {
-      const { body  } = context;
-    const { url  } = body as { url: string };
+    const { body } = context;
+    const { url } = body as { url: string };
 
     try {
       const parsedUrl = new URL(url);
@@ -23,8 +23,8 @@ export const urlMetadataRoutes = new Elysia().post(
         const res = await fetch(url, {
           signal: controller.signal,
           headers: {
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           },
         });
         clearTimeout(timeout);
@@ -58,7 +58,7 @@ export const urlMetadataRoutes = new Elysia().post(
 
       return { title, favicon, url, domain: parsedUrl.hostname };
     } catch {
-      return { title: url, favicon: "", url, domain: "" };
+      return { title: url, favicon: '', url, domain: '' };
     }
   },
   {

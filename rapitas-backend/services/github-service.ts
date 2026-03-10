@@ -3,14 +3,14 @@
  * gh CLI を使用してGitHub操作を行う
  */
 
-import { exec } from "child_process";
-import { promisify } from "util";
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../config/logger';
 
 const log = createLogger('github-service');
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
-import { realtimeService } from "./realtime-service";
+import { realtimeService } from './realtime-service';
 
 const execAsync = promisify(exec);
 
@@ -79,7 +79,7 @@ export type CreatePRCommentInput = {
   body: string;
   path?: string;
   line?: number;
-  side?: "LEFT" | "RIGHT";
+  side?: 'LEFT' | 'RIGHT';
   commitId?: string;
 };
 
@@ -195,21 +195,21 @@ export class GitHubService {
    */
   private async runGhCommand(args: string[], cwd?: string): Promise<string> {
     // Windows環境でのghコマンドのフルパス
-    const ghPath =
-      process.platform === "win32"
-        ? '"C:\\Program Files\\GitHub CLI\\gh.exe"'
-        : "gh";
-    const command = `${ghPath} ${args.join(" ")}`;
+    const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
+    const command = `${ghPath} ${args.join(' ')}`;
     try {
       const { stdout } = await execAsync(command, {
         cwd,
-        encoding: "utf8",
+        encoding: 'utf8',
         maxBuffer: 10 * 1024 * 1024, // 10MB
       });
       return stdout.trim();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const stderr = error && typeof error === 'object' && 'stderr' in error ? (error as { stderr: string }).stderr : undefined;
+      const stderr =
+        error && typeof error === 'object' && 'stderr' in error
+          ? (error as { stderr: string }).stderr
+          : undefined;
       log.error({ message }, `gh command failed: ${command}`);
       throw new Error(stderr || message);
     }
@@ -220,7 +220,7 @@ export class GitHubService {
    */
   async isGhAvailable(): Promise<boolean> {
     try {
-      await this.runGhCommand(["--version"]);
+      await this.runGhCommand(['--version']);
       return true;
     } catch {
       return false;
@@ -232,7 +232,7 @@ export class GitHubService {
    */
   async isAuthenticated(): Promise<boolean> {
     try {
-      await this.runGhCommand(["auth", "status"]);
+      await this.runGhCommand(['auth', 'status']);
       return true;
     } catch {
       return false;
@@ -246,20 +246,20 @@ export class GitHubService {
    */
   async getPullRequests(
     repo: string,
-    state: "open" | "closed" | "all" = "open",
+    state: 'open' | 'closed' | 'all' = 'open',
     limit: number = 30,
   ): Promise<PullRequest[]> {
     const output = await this.runGhCommand([
-      "pr",
-      "list",
-      "--repo",
+      'pr',
+      'list',
+      '--repo',
       repo,
-      "--state",
+      '--state',
       state,
-      "--limit",
+      '--limit',
       String(limit),
-      "--json",
-      "number,title,body,state,headRefName,baseRefName,author,url,createdAt,updatedAt,additions,deletions,changedFiles",
+      '--json',
+      'number,title,body,state,headRefName,baseRefName,author,url,createdAt,updatedAt,additions,deletions,changedFiles',
     ]);
 
     if (!output) return [];
@@ -272,7 +272,7 @@ export class GitHubService {
       state: pr.state,
       headBranch: pr.headRefName,
       baseBranch: pr.baseRefName,
-      authorLogin: pr.author?.login || "unknown",
+      authorLogin: pr.author?.login || 'unknown',
       url: pr.url,
       createdAt: pr.createdAt,
       updatedAt: pr.updatedAt,
@@ -285,19 +285,16 @@ export class GitHubService {
   /**
    * PR詳細を取得
    */
-  async getPullRequest(
-    repo: string,
-    prNumber: number,
-  ): Promise<PullRequest | null> {
+  async getPullRequest(repo: string, prNumber: number): Promise<PullRequest | null> {
     try {
       const output = await this.runGhCommand([
-        "pr",
-        "view",
+        'pr',
+        'view',
         String(prNumber),
-        "--repo",
+        '--repo',
         repo,
-        "--json",
-        "number,title,body,state,headRefName,baseRefName,author,url,createdAt,updatedAt,mergeable,additions,deletions,changedFiles",
+        '--json',
+        'number,title,body,state,headRefName,baseRefName,author,url,createdAt,updatedAt,mergeable,additions,deletions,changedFiles',
       ]);
 
       const pr = JSON.parse(output);
@@ -308,7 +305,7 @@ export class GitHubService {
         state: pr.state,
         headBranch: pr.headRefName,
         baseBranch: pr.baseRefName,
-        authorLogin: pr.author?.login || "unknown",
+        authorLogin: pr.author?.login || 'unknown',
         url: pr.url,
         createdAt: pr.createdAt,
         updatedAt: pr.updatedAt,
@@ -325,22 +322,16 @@ export class GitHubService {
   /**
    * PRの差分を取得
    */
-  async getPullRequestDiff(
-    repo: string,
-    prNumber: number,
-  ): Promise<FileDiff[]> {
+  async getPullRequestDiff(repo: string, prNumber: number): Promise<FileDiff[]> {
     const output = await this.runGhCommand([
-      "api",
+      'api',
       `repos/${repo}/pulls/${prNumber}/files`,
-      "--jq",
-      ".[].filename, .[].status, .[].additions, .[].deletions, .[].patch",
+      '--jq',
+      '.[].filename, .[].status, .[].additions, .[].deletions, .[].patch',
     ]);
 
     // gh api はJSONで取得
-    const filesOutput = await this.runGhCommand([
-      "api",
-      `repos/${repo}/pulls/${prNumber}/files`,
-    ]);
+    const filesOutput = await this.runGhCommand(['api', `repos/${repo}/pulls/${prNumber}/files`]);
 
     const files = JSON.parse(filesOutput);
     return files.map((file: GhFileDiff) => ({
@@ -355,21 +346,15 @@ export class GitHubService {
   /**
    * PRのレビューを取得
    */
-  async getPullRequestReviews(
-    repo: string,
-    prNumber: number,
-  ): Promise<PullRequestReview[]> {
-    const output = await this.runGhCommand([
-      "api",
-      `repos/${repo}/pulls/${prNumber}/reviews`,
-    ]);
+  async getPullRequestReviews(repo: string, prNumber: number): Promise<PullRequestReview[]> {
+    const output = await this.runGhCommand(['api', `repos/${repo}/pulls/${prNumber}/reviews`]);
 
     const reviews = JSON.parse(output);
     return reviews.map((review: GhReview) => ({
       id: review.id,
       state: review.state,
       body: review.body,
-      authorLogin: review.user?.login || "unknown",
+      authorLogin: review.user?.login || 'unknown',
       submittedAt: review.submitted_at,
     }));
   }
@@ -377,14 +362,8 @@ export class GitHubService {
   /**
    * PRのコメントを取得
    */
-  async getPullRequestComments(
-    repo: string,
-    prNumber: number,
-  ): Promise<PullRequestComment[]> {
-    const output = await this.runGhCommand([
-      "api",
-      `repos/${repo}/pulls/${prNumber}/comments`,
-    ]);
+  async getPullRequestComments(repo: string, prNumber: number): Promise<PullRequestComment[]> {
+    const output = await this.runGhCommand(['api', `repos/${repo}/pulls/${prNumber}/comments`]);
 
     const comments = JSON.parse(output);
     return comments.map((comment: GhComment) => ({
@@ -392,7 +371,7 @@ export class GitHubService {
       body: comment.body,
       path: comment.path,
       line: comment.line || comment.original_line,
-      authorLogin: comment.user?.login || "unknown",
+      authorLogin: comment.user?.login || 'unknown',
       createdAt: comment.created_at,
     }));
   }
@@ -408,16 +387,16 @@ export class GitHubService {
     if (input.path && input.line) {
       // レビューコメント（特定ファイル・行に対するコメント）
       const output = await this.runGhCommand([
-        "api",
+        'api',
         `repos/${repo}/pulls/${prNumber}/comments`,
-        "-f",
+        '-f',
         `body=${input.body}`,
-        "-f",
+        '-f',
         `path=${input.path}`,
-        "-F",
+        '-F',
         `line=${input.line}`,
-        ...(input.side ? ["-f", `side=${input.side}`] : []),
-        ...(input.commitId ? ["-f", `commit_id=${input.commitId}`] : []),
+        ...(input.side ? ['-f', `side=${input.side}`] : []),
+        ...(input.commitId ? ['-f', `commit_id=${input.commitId}`] : []),
       ]);
 
       const comment = JSON.parse(output);
@@ -426,25 +405,25 @@ export class GitHubService {
         body: comment.body,
         path: comment.path,
         line: comment.line,
-        authorLogin: comment.user?.login || "unknown",
+        authorLogin: comment.user?.login || 'unknown',
         createdAt: comment.created_at,
       };
     } else {
       // 一般コメント（Issue comment）
       const output = await this.runGhCommand([
-        "pr",
-        "comment",
+        'pr',
+        'comment',
         String(prNumber),
-        "--repo",
+        '--repo',
         repo,
-        "--body",
+        '--body',
         input.body,
       ]);
 
       return {
         id: 0, // gh pr comment は ID を返さない
         body: input.body,
-        authorLogin: "rapitas",
+        authorLogin: 'rapitas',
         createdAt: new Date().toISOString(),
       };
     }
@@ -453,21 +432,10 @@ export class GitHubService {
   /**
    * PRを承認
    */
-  async approvePullRequest(
-    repo: string,
-    prNumber: number,
-    body?: string,
-  ): Promise<void> {
-    const args = [
-      "pr",
-      "review",
-      String(prNumber),
-      "--repo",
-      repo,
-      "--approve",
-    ];
+  async approvePullRequest(repo: string, prNumber: number, body?: string): Promise<void> {
+    const args = ['pr', 'review', String(prNumber), '--repo', repo, '--approve'];
     if (body) {
-      args.push("--body", body);
+      args.push('--body', body);
     }
     await this.runGhCommand(args);
   }
@@ -475,19 +443,15 @@ export class GitHubService {
   /**
    * PRに変更をリクエスト
    */
-  async requestChanges(
-    repo: string,
-    prNumber: number,
-    body: string,
-  ): Promise<void> {
+  async requestChanges(repo: string, prNumber: number, body: string): Promise<void> {
     await this.runGhCommand([
-      "pr",
-      "review",
+      'pr',
+      'review',
       String(prNumber),
-      "--repo",
+      '--repo',
       repo,
-      "--request-changes",
-      "--body",
+      '--request-changes',
+      '--body',
       body,
     ]);
   }
@@ -516,15 +480,15 @@ export class GitHubService {
       // PRを作成
       const output = await this.runGhCommand(
         [
-          "pr",
-          "create",
-          "--title",
+          'pr',
+          'create',
+          '--title',
           title,
-          "--body",
+          '--body',
           body,
-          "--base",
+          '--base',
           baseBranch,
-          "--head",
+          '--head',
           headBranch,
         ],
         workingDirectory,
@@ -538,7 +502,7 @@ export class GitHubService {
       return { success: true, prUrl, prNumber };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      log.error({ err: error }, "Failed to create PR");
+      log.error({ err: error }, 'Failed to create PR');
       return { success: false, error: message };
     }
   }
@@ -550,20 +514,20 @@ export class GitHubService {
    */
   async getIssues(
     repo: string,
-    state: "open" | "closed" | "all" = "open",
+    state: 'open' | 'closed' | 'all' = 'open',
     limit: number = 30,
   ): Promise<Issue[]> {
     const output = await this.runGhCommand([
-      "issue",
-      "list",
-      "--repo",
+      'issue',
+      'list',
+      '--repo',
       repo,
-      "--state",
+      '--state',
       state,
-      "--limit",
+      '--limit',
       String(limit),
-      "--json",
-      "number,title,body,state,labels,author,url,createdAt,updatedAt",
+      '--json',
+      'number,title,body,state,labels,author,url,createdAt,updatedAt',
     ]);
 
     if (!output) return [];
@@ -575,7 +539,7 @@ export class GitHubService {
       body: issue.body,
       state: issue.state,
       labels: issue.labels?.map((l: GhLabel) => l.name) || [],
-      authorLogin: issue.author?.login || "unknown",
+      authorLogin: issue.author?.login || 'unknown',
       url: issue.url,
       createdAt: issue.createdAt,
       updatedAt: issue.updatedAt,
@@ -588,13 +552,13 @@ export class GitHubService {
   async getIssue(repo: string, issueNumber: number): Promise<Issue | null> {
     try {
       const output = await this.runGhCommand([
-        "issue",
-        "view",
+        'issue',
+        'view',
         String(issueNumber),
-        "--repo",
+        '--repo',
         repo,
-        "--json",
-        "number,title,body,state,labels,author,url,createdAt,updatedAt",
+        '--json',
+        'number,title,body,state,labels,author,url,createdAt,updatedAt',
       ]);
 
       const issue = JSON.parse(output);
@@ -604,7 +568,7 @@ export class GitHubService {
         body: issue.body,
         state: issue.state,
         labels: issue.labels?.map((l: GhLabel) => l.name) || [],
-        authorLogin: issue.author?.login || "unknown",
+        authorLogin: issue.author?.login || 'unknown',
         url: issue.url,
         createdAt: issue.createdAt,
         updatedAt: issue.updatedAt,
@@ -618,16 +582,16 @@ export class GitHubService {
    * Issueを作成
    */
   async createIssue(repo: string, input: CreateIssueInput): Promise<Issue> {
-    const args = ["issue", "create", "--repo", repo, "--title", input.title];
+    const args = ['issue', 'create', '--repo', repo, '--title', input.title];
 
     if (input.body) {
-      args.push("--body", input.body);
+      args.push('--body', input.body);
     }
     if (input.labels && input.labels.length > 0) {
-      args.push("--label", input.labels.join(","));
+      args.push('--label', input.labels.join(','));
     }
     if (input.assignees && input.assignees.length > 0) {
-      args.push("--assignee", input.assignees.join(","));
+      args.push('--assignee', input.assignees.join(','));
     }
 
     // URL を取得
@@ -636,13 +600,13 @@ export class GitHubService {
     // 作成されたIssueの番号を抽出
     const match = url.match(/\/issues\/(\d+)/);
     if (!match) {
-      throw new Error("Failed to parse created issue URL");
+      throw new Error('Failed to parse created issue URL');
     }
 
     const issueNumber = parseInt(match[1], 10);
     const issue = await this.getIssue(repo, issueNumber);
     if (!issue) {
-      throw new Error("Failed to fetch created issue");
+      throw new Error('Failed to fetch created issue');
     }
 
     return issue;
@@ -657,12 +621,12 @@ export class GitHubService {
     body: string,
   ): Promise<{ id: number; body: string }> {
     await this.runGhCommand([
-      "issue",
-      "comment",
+      'issue',
+      'comment',
       String(issueNumber),
-      "--repo",
+      '--repo',
       repo,
-      "--body",
+      '--body',
       body,
     ]);
 
@@ -683,11 +647,11 @@ export class GitHubService {
     });
 
     if (!integration) {
-      throw new Error("Integration not found");
+      throw new Error('Integration not found');
     }
 
     const repo = `${integration.ownerName}/${integration.repositoryName}`;
-    const prs = await this.getPullRequests(repo, "all", 100);
+    const prs = await this.getPullRequests(repo, 'all', 100);
 
     let syncedCount = 0;
     for (const pr of prs) {
@@ -725,7 +689,7 @@ export class GitHubService {
     }
 
     // 同期完了通知を送信
-    realtimeService.sendGitHubEvent("pr_sync_complete", {
+    realtimeService.sendGitHubEvent('pr_sync_complete', {
       integrationId,
       syncedCount,
       timestamp: new Date().toISOString(),
@@ -743,11 +707,11 @@ export class GitHubService {
     });
 
     if (!integration) {
-      throw new Error("Integration not found");
+      throw new Error('Integration not found');
     }
 
     const repo = `${integration.ownerName}/${integration.repositoryName}`;
-    const issues = await this.getIssues(repo, "all", 100);
+    const issues = await this.getIssues(repo, 'all', 100);
 
     let syncedCount = 0;
     for (const issue of issues) {
@@ -783,7 +747,7 @@ export class GitHubService {
     }
 
     // 同期完了通知を送信
-    realtimeService.sendGitHubEvent("issue_sync_complete", {
+    realtimeService.sendGitHubEvent('issue_sync_complete', {
       integrationId,
       syncedCount,
       timestamp: new Date().toISOString(),
@@ -799,17 +763,17 @@ export class GitHubService {
    */
   async handleWebhook(event: string, payload: GitHubWebhookPayload): Promise<void> {
     switch (event) {
-      case "pull_request":
+      case 'pull_request':
         await this.handlePullRequestEvent(payload);
         break;
-      case "pull_request_review":
+      case 'pull_request_review':
         await this.handlePullRequestReviewEvent(payload);
         break;
-      case "issue_comment":
-      case "pull_request_review_comment":
+      case 'issue_comment':
+      case 'pull_request_review_comment':
         await this.handleCommentEvent(event, payload);
         break;
-      case "issues":
+      case 'issues':
         await this.handleIssueEvent(payload);
         break;
       default:
@@ -823,7 +787,7 @@ export class GitHubService {
     const repo = `${repository.owner.login}/${repository.name}`;
 
     // リアルタイム通知
-    realtimeService.sendGitHubEvent("pull_request", {
+    realtimeService.sendGitHubEvent('pull_request', {
       action,
       prNumber: pull_request.number,
       title: pull_request.title,
@@ -874,7 +838,7 @@ export class GitHubService {
     const repo = `${repository.owner.login}/${repository.name}`;
 
     // リアルタイム通知
-    realtimeService.sendGitHubEvent("pull_request_review", {
+    realtimeService.sendGitHubEvent('pull_request_review', {
       action,
       prNumber: pull_request.number,
       reviewState: review.state,
@@ -884,15 +848,12 @@ export class GitHubService {
     });
 
     // 通知を作成（レビューリクエスト時など）
-    if (action === "submitted") {
+    if (action === 'submitted') {
       await this.prisma.notification.create({
         data: {
-          type:
-            review.state === "approved"
-              ? "pr_approved"
-              : "pr_changes_requested",
-          title: review.state === "approved" ? "PR承認" : "PR変更リクエスト",
-          message: `${review.user.login}が PR #${pull_request.number} を${review.state === "approved" ? "承認" : "レビュー"}しました`,
+          type: review.state === 'approved' ? 'pr_approved' : 'pr_changes_requested',
+          title: review.state === 'approved' ? 'PR承認' : 'PR変更リクエスト',
+          message: `${review.user.login}が PR #${pull_request.number} を${review.state === 'approved' ? '承認' : 'レビュー'}しました`,
           link: pull_request.html_url,
           metadata: JSON.stringify({
             prNumber: pull_request.number,
@@ -927,7 +888,7 @@ export class GitHubService {
     const repo = `${repository.owner.login}/${repository.name}`;
 
     // リアルタイム通知
-    realtimeService.sendGitHubEvent("issue", {
+    realtimeService.sendGitHubEvent('issue', {
       action,
       issueNumber: issue.number,
       title: issue.title,

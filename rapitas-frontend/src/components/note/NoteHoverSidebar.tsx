@@ -15,10 +15,11 @@ import { useNoteStore } from '@/stores/noteStore';
 import { useDarkMode } from '@/hooks/use-dark-mode';
 import { useUIModeStore } from '@/stores/uiModeStore';
 import DeleteNoteModal from './DeleteNoteModal';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 export default function NoteHoverSidebar() {
   const {
-    notes,
     currentNoteId,
     searchQuery,
     selectedTags,
@@ -31,8 +32,8 @@ export default function NoteHoverSidebar() {
     toggleTag,
     clearFilters,
   } = useNoteStore();
-
-  const { isDarkMode } = useDarkMode();
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const { currentMode } = useUIModeStore();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -106,7 +107,7 @@ export default function NoteHoverSidebar() {
     if (diffDays === 0) return '今日';
     if (diffDays === 1) return '昨日';
     if (diffDays < 7) return `${diffDays}日前`;
-    return d.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
   };
 
   return (

@@ -122,9 +122,7 @@ export function useExecutionStream(sessionId: number | null) {
         // EventSourceのエラーは接続の再試行を示す場合もあるため、
         // readyStateをチェックして本当のエラーかどうか判定
         if (eventSource.readyState === EventSource.CLOSED) {
-          logger.debug(
-            'Connection closed, will use polling fallback',
-          );
+          logger.debug('Connection closed, will use polling fallback');
           eventSourceRef.current = null;
           setState((prev) => ({
             ...prev,
@@ -441,9 +439,7 @@ export function useExecutionPolling(taskId: number | null) {
 
           // キャンセル状態になった場合は結果を無視
           if (lastProcessedStatusRef.current === 'cancelled') {
-            logger.debug(
-              'Ignoring result - cancelled during fetch',
-            );
+            logger.debug('Ignoring result - cancelled during fetch');
             return;
           }
 
@@ -465,11 +461,7 @@ export function useExecutionPolling(taskId: number | null) {
             const currentLength = lastOutputLengthRef.current;
             const newOutput = data.output.slice(currentLength);
             if (newOutput) {
-              logger.debug(
-                'New output received:',
-                newOutput.length,
-                'chars',
-              );
+              logger.debug('New output received:', newOutput.length, 'chars');
               lastOutputLengthRef.current = data.output.length;
               setState((prev) => ({
                 ...prev,
@@ -519,13 +511,22 @@ export function useExecutionPolling(taskId: number | null) {
             let completionMessage = '\n[完了] 実行が完了しました。\n';
             if (sessionMode?.startsWith('workflow-')) {
               const WORKFLOW_PHASE_LABELS: Record<string, string> = {
-                'workflow-researcher': '[調査完了] リサーチフェーズが完了しました。次は計画フェーズを実行してください。',
-                'workflow-planner': '[計画作成完了] 計画フェーズが完了しました。計画内容を確認し、承認してください。',
-                'workflow-reviewer': '[レビュー完了] レビューフェーズが完了しました。計画内容を確認し、承認してください。',
-                'workflow-implementer': '[実装完了] 実装フェーズが完了しました。検証フェーズを自動実行中...',
-                'workflow-verifier': '[検証完了] 検証フェーズが完了しました。検証結果を確認し、問題なければタスクを完了にしてください。',
+                'workflow-researcher':
+                  '[調査完了] リサーチフェーズが完了しました。次は計画フェーズを実行してください。',
+                'workflow-planner':
+                  '[計画作成完了] 計画フェーズが完了しました。計画内容を確認し、承認してください。',
+                'workflow-reviewer':
+                  '[レビュー完了] レビューフェーズが完了しました。計画内容を確認し、承認してください。',
+                'workflow-implementer':
+                  '[実装完了] 実装フェーズが完了しました。検証フェーズを自動実行中...',
+                'workflow-verifier':
+                  '[検証完了] 検証フェーズが完了しました。検証結果を確認し、問題なければタスクを完了にしてください。',
               };
-              completionMessage = '\n' + (WORKFLOW_PHASE_LABELS[sessionMode] || `[フェーズ完了] ${sessionMode}が完了しました。`) + '\n';
+              completionMessage =
+                '\n' +
+                (WORKFLOW_PHASE_LABELS[sessionMode] ||
+                  `[フェーズ完了] ${sessionMode}が完了しました。`) +
+                '\n';
             }
             setState((prev) => ({
               ...prev,
@@ -562,10 +563,7 @@ export function useExecutionPolling(taskId: number | null) {
               return;
             }
 
-            logger.info(
-              'Execution failed:',
-              data.errorMessage,
-            );
+            logger.info('Execution failed:', data.errorMessage);
             lastProcessedStatusRef.current = currentStatus;
             // 終了ログが未追加の場合のみ追加（重複防止）
             const shouldAddLog = !hasAddedFinalLogRef.current;
@@ -630,9 +628,7 @@ export function useExecutionPolling(taskId: number | null) {
               isInInterruptedGracePeriod &&
               lastProcessedStatusRef.current === 'responding'
             ) {
-              logger.debug(
-                'Ignoring interrupted status during grace period',
-              );
+              logger.debug('Ignoring interrupted status during grace period');
               return;
             }
 
@@ -767,9 +763,7 @@ export function useExecutionPolling(taskId: number | null) {
             error instanceof TypeError &&
             error.message.includes('Failed to fetch')
           ) {
-            logger.warn(
-              'Network error - backend may be unresponsive',
-            );
+            logger.warn('Network error - backend may be unresponsive');
             // 連続エラーをカウントし、一定回数超えたらエラー状態にする処理も可能
             return;
           }

@@ -100,7 +100,13 @@ export type WorkflowPathInfo = {
   dir: string;
 };
 
-export type WorkflowRole = 'researcher' | 'planner' | 'reviewer' | 'implementer' | 'verifier' | 'auto_verifier';
+export type WorkflowRole =
+  | 'researcher'
+  | 'planner'
+  | 'reviewer'
+  | 'implementer'
+  | 'verifier'
+  | 'auto_verifier';
 
 export type WorkflowRoleConfig = {
   id: number;
@@ -332,30 +338,6 @@ export const priorityLabels = {
   urgent: '緊急',
 };
 
-// 実績/バッジ
-export type AchievementCondition = {
-  type: string;
-  value?: number;
-  count?: number;
-  threshold?: number;
-  [key: string]: unknown;
-};
-
-export type Achievement = {
-  id: number;
-  key: string;
-  name: string;
-  description: string;
-  icon: string;
-  color: string;
-  category: string;
-  condition: AchievementCondition;
-  rarity: 'common' | 'rare' | 'epic' | 'legendary';
-  isUnlocked: boolean;
-  unlockedAt: string | null;
-  createdAt: string;
-};
-
 // 習慣
 export type Habit = {
   id: number;
@@ -488,7 +470,12 @@ export type WeeklyReport = {
 export type ExecutionStatus = 'idle' | 'running' | 'completed' | 'failed';
 
 // エージェントステータス
-export type AgentStatus = 'pending' | 'running' | 'paused' | 'completed' | 'failed';
+export type AgentStatus =
+  | 'pending'
+  | 'running'
+  | 'paused'
+  | 'completed'
+  | 'failed';
 
 // 実行結果（共通）
 export type ExecutionResult = {
@@ -671,6 +658,7 @@ export type UserSettings = {
   autoCreateAfterTitleGeneration: boolean;
   autoFetchTaskSuggestions: boolean;
   autoApprovePlan: boolean;
+  autoApproveSubtaskPlan: boolean;
   autoComplexityAnalysis: boolean;
   defaultCategoryId?: number | null;
   activeMode: ActiveMode;

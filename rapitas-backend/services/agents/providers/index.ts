@@ -5,11 +5,7 @@
  */
 
 // Claude Code プロバイダー
-export {
-  ClaudeCodeProvider,
-  ClaudeCodeAgentV2,
-  claudeCodeProvider,
-} from './claude-code-provider';
+export { ClaudeCodeProvider, ClaudeCodeAgentV2, claudeCodeProvider } from './claude-code-provider';
 export type { ClaudeCodeConfig } from './claude-code-provider';
 
 // Anthropic API プロバイダー
@@ -22,29 +18,15 @@ export {
 export type { AnthropicApiConfig } from './anthropic-api-provider';
 
 // OpenAI プロバイダー（スタブ）
-export {
-  OpenAIProvider,
-  OpenAIAgent,
-  openaiProvider,
-  OPENAI_MODELS,
-} from './openai-provider';
+export { OpenAIProvider, OpenAIAgent, openaiProvider, OPENAI_MODELS } from './openai-provider';
 export type { OpenAIConfig } from './openai-provider';
 
 // Gemini API プロバイダー（スタブ）
-export {
-  GeminiProvider,
-  GeminiAgent,
-  geminiProvider,
-  GEMINI_MODELS,
-} from './gemini-provider';
+export { GeminiProvider, GeminiAgent, geminiProvider, GEMINI_MODELS } from './gemini-provider';
 export type { GeminiConfig } from './gemini-provider';
 
 // Gemini CLI プロバイダー
-export {
-  GeminiCliProvider,
-  GeminiCliAgentV2,
-  geminiCliProvider,
-} from './gemini-cli-provider';
+export { GeminiCliProvider, GeminiCliAgentV2, geminiCliProvider } from './gemini-cli-provider';
 export type { GeminiCliConfig } from './gemini-cli-provider';
 
 import { createLogger } from '../../../config/logger';
@@ -102,7 +84,18 @@ export function registerDefaultProviders(options?: RegisterProvidersOptions): vo
     agentRegistry.registerProvider(geminiCliProvider);
   }
 
-  log.info({ providers: { claudeCode: opts.claudeCode, anthropicApi: opts.anthropicApi, openai: opts.openai, gemini: opts.gemini, geminiCli: opts.geminiCli } }, 'Default providers registered');
+  log.info(
+    {
+      providers: {
+        claudeCode: opts.claudeCode,
+        anthropicApi: opts.anthropicApi,
+        openai: opts.openai,
+        gemini: opts.gemini,
+        geminiCli: opts.geminiCli,
+      },
+    },
+    'Default providers registered',
+  );
 }
 
 /**
@@ -148,7 +141,7 @@ export const PROVIDER_INFO = {
     description: 'OpenAI APIを使用するエージェント',
     status: 'stub' as const,
   },
-  'gemini': {
+  gemini: {
     name: 'Google Gemini API',
     description: 'Google Gemini APIを使用するエージェント',
     status: 'stub' as const,

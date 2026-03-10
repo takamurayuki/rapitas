@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { API_BASE_URL } from '@/utils/api';
+import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useAuthSession');
@@ -30,9 +30,16 @@ export function useAuthSession() {
 
   const checkSession = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/me`, {
-        credentials: 'include',
-      });
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/auth/me`,
+        {
+          credentials: 'include',
+        },
+        3, // maxRetries
+        300, // retryDelayMs
+        10000, // timeoutMs
+        { silent: true },
+      );
       if (res.ok) {
         const data = await res.json();
         setState({ isAuthenticated: true, user: data.user, isLoading: false });
@@ -40,7 +47,7 @@ export function useAuthSession() {
         setState({ isAuthenticated: false, user: null, isLoading: false });
       }
     } catch (err) {
-      logger.error('Session check failed:', err);
+      logger.transientError('Session check failed:', err);
       setState({ isAuthenticated: false, user: null, isLoading: false });
     }
   }, []);

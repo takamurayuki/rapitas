@@ -104,7 +104,8 @@ export class ConsoleLogger implements IAgentLogger {
 
     // pinoで出力
     if (this.enableConsole) {
-      const ctx = entry.context && Object.keys(entry.context).length > 0 ? entry.context : undefined;
+      const ctx =
+        entry.context && Object.keys(entry.context).length > 0 ? entry.context : undefined;
       switch (level) {
         case 'error':
           this.pinoLogger.error(ctx ?? {}, entry.message);
@@ -181,25 +182,17 @@ export class ConsoleLogger implements IAgentLogger {
   /**
    * ログ履歴を取得
    */
-  getHistory(options?: {
-    level?: LogLevel;
-    since?: Date;
-    limit?: number;
-  }): LogEntry[] {
+  getHistory(options?: { level?: LogLevel; since?: Date; limit?: number }): LogEntry[] {
     let entries = [...this.history];
 
     if (options?.level) {
       const minPriority = LOG_LEVEL_PRIORITY[options.level];
-      entries = entries.filter(
-        (entry) => LOG_LEVEL_PRIORITY[entry.level] >= minPriority,
-      );
+      entries = entries.filter((entry) => LOG_LEVEL_PRIORITY[entry.level] >= minPriority);
     }
 
     if (options?.since) {
       const sinceTime = options.since.getTime();
-      entries = entries.filter(
-        (entry) => entry.timestamp.getTime() >= sinceTime,
-      );
+      entries = entries.filter((entry) => entry.timestamp.getTime() >= sinceTime);
     }
 
     if (options?.limit && options.limit > 0) {

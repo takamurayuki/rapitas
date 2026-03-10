@@ -118,7 +118,6 @@ export const aiChatRoutes = new Elysia()
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
     };
 
     const defaultSystemPrompt = `あなたはRapi+アプリケーションのAIアシスタントです。
@@ -146,7 +145,6 @@ export const aiChatRoutes = new Elysia()
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
           Connection: 'keep-alive',
-          'Access-Control-Allow-Origin': '*',
         },
       });
     } catch (error: unknown) {

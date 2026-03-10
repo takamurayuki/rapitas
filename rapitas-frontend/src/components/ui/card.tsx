@@ -21,10 +21,7 @@ export function CardHeader({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div
-      className={`p-6 pb-4 ${className}`}
-      {...props}
-    >
+    <div className={`p-6 pb-4 ${className}`} {...props}>
       {children}
     </div>
   );
@@ -51,10 +48,7 @@ export function CardContent({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div
-      className={`p-6 pt-0 ${className}`}
-      {...props}
-    >
+    <div className={`p-6 pt-0 ${className}`} {...props}>
       {children}
     </div>
   );

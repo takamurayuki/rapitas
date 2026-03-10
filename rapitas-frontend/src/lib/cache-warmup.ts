@@ -7,7 +7,7 @@ import { apiClient } from './api-client';
 import { cacheManager } from './cache-utils';
 import { createLogger } from '@/lib/logger';
 
-const logger = createLogger("CacheWarmup");
+const logger = createLogger('CacheWarmup');
 
 /**
  * アプリケーション起動時のキャッシュウォームアップ
@@ -34,19 +34,19 @@ export async function warmupApplicationCache(): Promise<void> {
     ];
 
     await Promise.allSettled(
-      coreEndpoints.map(endpoint =>
+      coreEndpoints.map((endpoint) =>
         apiClient.fetch(endpoint, {
           cacheTime: 24 * 60 * 60 * 1000,
-        })
-      )
+        }),
+      ),
     );
 
     // 最近アクセスしたタスクをプリロード（24時間キャッシュ）
     if (recentTaskIds.length > 0) {
-      const taskPrefetchPromises = recentTaskIds.slice(0, 10).map(id =>
+      const taskPrefetchPromises = recentTaskIds.slice(0, 10).map((id) =>
         apiClient.fetch(`/tasks/${id}`, {
           cacheTime: 24 * 60 * 60 * 1000,
-        })
+        }),
       );
 
       await Promise.allSettled(taskPrefetchPromises);
@@ -89,16 +89,19 @@ export function recordTaskAccess(taskId: number): void {
     const ids: number[] = recentTasks.ids || [];
 
     // 既存のIDを削除して先頭に追加
-    const filteredIds = ids.filter(id => id !== taskId);
+    const filteredIds = ids.filter((id) => id !== taskId);
     filteredIds.unshift(taskId);
 
     // 最大20個まで保持
     const limitedIds = filteredIds.slice(0, 20);
 
-    localStorage.setItem('rapitas-recent-tasks', JSON.stringify({
-      ids: limitedIds,
-      updatedAt: Date.now(),
-    }));
+    localStorage.setItem(
+      'rapitas-recent-tasks',
+      JSON.stringify({
+        ids: limitedIds,
+        updatedAt: Date.now(),
+      }),
+    );
   } catch (error) {
     logger.warn('Failed to record task access:', error);
   }
@@ -139,7 +142,9 @@ export function cleanupExpiredCache(): void {
       expiry: number;
     }
 
-    const cleaned = Object.entries(persistentCache).reduce<Record<string, PersistentCacheEntry>>((acc, [key, entry]) => {
+    const cleaned = Object.entries(persistentCache).reduce<
+      Record<string, PersistentCacheEntry>
+    >((acc, [key, entry]) => {
       const cacheEntry = entry as PersistentCacheEntry;
       if (cacheEntry.expiry > now) {
         acc[key] = cacheEntry;

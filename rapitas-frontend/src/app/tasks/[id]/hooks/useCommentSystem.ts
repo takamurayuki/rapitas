@@ -66,7 +66,13 @@ export function useCommentSystem({
         setIsAddingComment(false);
       }
     },
-    [newComment, resolvedTaskId, setComments, setNewComment, setIsAddingComment],
+    [
+      newComment,
+      resolvedTaskId,
+      setComments,
+      setNewComment,
+      setIsAddingComment,
+    ],
   );
 
   /** Update an existing comment's content */
@@ -114,14 +120,11 @@ export function useCommentSystem({
   const handleCreateCommentLink = useCallback(
     async (fromCommentId: number, toCommentId: number, label?: string) => {
       try {
-        const res = await fetch(
-          `${API_BASE}/comments/${fromCommentId}/links`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ toCommentId, label }),
-          },
-        );
+        const res = await fetch(`${API_BASE}/comments/${fromCommentId}/links`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ toCommentId, label }),
+        });
         if (res.ok) {
           const commentsRes = await fetch(
             `${API_BASE}/tasks/${resolvedTaskId}/comments`,

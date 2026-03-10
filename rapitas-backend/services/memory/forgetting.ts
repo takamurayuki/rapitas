@@ -2,11 +2,11 @@
  * 忘却システム（3段階忘却）
  * active (decayScore≥0.5) → dormant (0.1≤score<0.5) → archived (score<0.1)
  */
-import { prisma } from "../../config/database";
-import { createLogger } from "../../config/logger";
-import { appendEvent } from "./timeline";
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+import { appendEvent } from './timeline';
 
-const log = createLogger("memory:forgetting");
+const log = createLogger('memory:forgetting');
 
 /**
  * 減衰スコアを計算
@@ -29,10 +29,10 @@ function calculateDecay(
 /**
  * forgettingStageを判定
  */
-function determineStage(decayScore: number): "active" | "dormant" | "archived" {
-  if (decayScore >= 0.5) return "active";
-  if (decayScore >= 0.1) return "dormant";
-  return "archived";
+function determineStage(decayScore: number): 'active' | 'dormant' | 'archived' {
+  if (decayScore >= 0.5) return 'active';
+  if (decayScore >= 0.1) return 'dormant';
+  return 'archived';
 }
 
 /**
@@ -45,7 +45,7 @@ export async function runForgettingSweep(): Promise<{
 }> {
   const entries = await prisma.knowledgeEntry.findMany({
     where: {
-      forgettingStage: { in: ["active", "dormant"] },
+      forgettingStage: { in: ['active', 'dormant'] },
     },
     select: {
       id: true,
@@ -60,9 +60,7 @@ export async function runForgettingSweep(): Promise<{
 
   // pinnedでないもののみ処理（pinnedUntilが未来の場合はスキップ）
   const now = new Date();
-  const processable = entries.filter(
-    (e) => !e.pinnedUntil || e.pinnedUntil <= now,
-  );
+  const processable = entries.filter((e) => !e.pinnedUntil || e.pinnedUntil <= now);
 
   let toDormant = 0;
   let toArchived = 0;
@@ -78,8 +76,8 @@ export async function runForgettingSweep(): Promise<{
     const stageChanged = newStage !== entry.forgettingStage;
 
     if (stageChanged) {
-      if (newStage === "dormant") toDormant++;
-      if (newStage === "archived") toArchived++;
+      if (newStage === 'dormant') toDormant++;
+      if (newStage === 'archived') toArchived++;
     }
 
     await prisma.knowledgeEntry.update({
@@ -93,7 +91,7 @@ export async function runForgettingSweep(): Promise<{
   }
 
   await appendEvent({
-    eventType: "forgetting_sweep",
+    eventType: 'forgetting_sweep',
     payload: {
       processed: processable.length,
       toDormant,
@@ -101,10 +99,7 @@ export async function runForgettingSweep(): Promise<{
     },
   });
 
-  log.info(
-    { processed: processable.length, toDormant, toArchived },
-    "Forgetting sweep completed",
-  );
+  log.info({ processed: processable.length, toDormant, toArchived }, 'Forgetting sweep completed');
 
   return {
     processed: processable.length,

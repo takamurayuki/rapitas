@@ -6,7 +6,7 @@
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 
-const logger = createLogger("ApiClient");
+const logger = createLogger('ApiClient');
 
 type RequestOptions = RequestInit & {
   skipCache?: boolean;
@@ -28,15 +28,21 @@ type BatchResponse = {
 };
 
 class APIClient {
-  private cache = new Map<string, { data: unknown; timestamp: number; expiry: number }>();
+  private cache = new Map<
+    string,
+    { data: unknown; timestamp: number; expiry: number }
+  >();
   private localStorageKey = 'rapitas-api-cache';
   private persistentCacheEnabled = true;
   private pendingBatch: BatchRequest[] = [];
   private batchTimeout: NodeJS.Timeout | null = null;
-  private batchResolvers = new Map<string, {
-    resolve: (value: unknown) => void;
-    reject: (reason: unknown) => void;
-  }>();
+  private batchResolvers = new Map<
+    string,
+    {
+      resolve: (value: unknown) => void;
+      reject: (reason: unknown) => void;
+    }
+  >();
   private requestQueue = new Map<string, Promise<unknown>>();
 
   // デバウンス用のマップ
@@ -53,7 +59,10 @@ class APIClient {
   /**
    * 基本的なfetchラッパー（キャッシング付き）
    */
-  async fetch<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
+  async fetch<T = unknown>(
+    path: string,
+    options: RequestOptions = {},
+  ): Promise<T> {
     const url = `${API_BASE_URL}${path}`;
     const cacheKey = `${options.method || 'GET'}:${url}:${JSON.stringify(options.body || {})}`;
 
@@ -71,17 +80,19 @@ class APIClient {
       return existingRequest as Promise<T>;
     }
 
-    const request = this.performFetch<T>(url, options).then((data) => {
-      // GETリクエストの結果をキャッシュ
-      if (options.method === 'GET' || !options.method) {
-        this.setCache(cacheKey, data, options.cacheTime);
-      }
-      this.requestQueue.delete(cacheKey);
-      return data;
-    }).catch((error) => {
-      this.requestQueue.delete(cacheKey);
-      throw error;
-    });
+    const request = this.performFetch<T>(url, options)
+      .then((data) => {
+        // GETリクエストの結果をキャッシュ
+        if (options.method === 'GET' || !options.method) {
+          this.setCache(cacheKey, data, options.cacheTime);
+        }
+        this.requestQueue.delete(cacheKey);
+        return data;
+      })
+      .catch((error) => {
+        this.requestQueue.delete(cacheKey);
+        throw error;
+      });
 
     this.requestQueue.set(cacheKey, request);
     return request;
@@ -91,19 +102,22 @@ class APIClient {
    * バッチリクエスト
    * 複数のAPIリクエストを1つのHTTPリクエストにまとめる
    */
-  async batchFetch<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
+  async batchFetch<T = unknown>(
+    path: string,
+    options: RequestOptions = {},
+  ): Promise<T> {
     const id = Math.random().toString(36).substring(7);
     const request: BatchRequest = {
       id,
       method: options.method || 'GET',
       url: path,
-      body: options.body
+      body: options.body,
     };
 
     return new Promise<T>((resolve, reject) => {
       this.batchResolvers.set(id, {
         resolve: resolve as (value: unknown) => void,
-        reject
+        reject,
       });
       this.pendingBatch.push(request);
 
@@ -126,7 +140,7 @@ class APIClient {
   async debouncedFetch<T = unknown>(
     path: string,
     options: RequestOptions = {},
-    delay: number = 300
+    delay: number = 300,
   ): Promise<T> {
     const key = `${path}:${JSON.stringify(options)}`;
 
@@ -159,7 +173,7 @@ class APIClient {
   async throttledFetch<T = unknown>(
     path: string,
     options: RequestOptions = {},
-    interval: number = 1000
+    interval: number = 1000,
   ): Promise<T> {
     const key = `${path}:${JSON.stringify(options)}`;
     const now = Date.now();
@@ -185,11 +199,11 @@ class APIClient {
    * Promise.allSettledを使用して、一部が失敗しても他のリクエストは継続
    */
   async parallelFetch<T extends Record<string, unknown>>(
-    requests: Record<string, { path: string; options?: RequestOptions }>
+    requests: Record<string, { path: string; options?: RequestOptions }>,
   ): Promise<T> {
     const entries = Object.entries(requests);
     const results = await Promise.allSettled(
-      entries.map(([_, req]) => this.fetch(req.path, req.options))
+      entries.map(([_, req]) => this.fetch(req.path, req.options)),
     );
 
     const response: Record<string, unknown> = {};
@@ -211,7 +225,7 @@ class APIClient {
    */
   async prefetch(paths: string[], cacheTime?: number): Promise<void> {
     await Promise.allSettled(
-      paths.map(path => this.fetch(path, { cacheTime }))
+      paths.map((path) => this.fetch(path, { cacheTime })),
     );
   }
 
@@ -221,8 +235,8 @@ class APIClient {
   clearCache(pattern?: string): void {
     if (pattern) {
       Array.from(this.cache.keys())
-        .filter(key => key.includes(pattern))
-        .forEach(key => {
+        .filter((key) => key.includes(pattern))
+        .forEach((key) => {
           this.cache.delete(key);
           this.removePersistentCacheEntry(key);
         });
@@ -257,9 +271,13 @@ class APIClient {
   /**
    * 実際のfetch処理
    */
-  private async performFetch<T>(url: string, options: RequestOptions): Promise<T> {
+  private async performFetch<T>(
+    url: string,
+    options: RequestOptions,
+  ): Promise<T> {
     const response = await fetch(url, {
       ...options,
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
@@ -287,6 +305,7 @@ class APIClient {
     try {
       const response = await fetch(`${API_BASE_URL}/batch`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -352,14 +371,18 @@ class APIClient {
   /**
    * キャッシュに保存
    */
-  private setCache(key: string, data: unknown, cacheTime: number = 24 * 60 * 60 * 1000): void {
+  private setCache(
+    key: string,
+    data: unknown,
+    cacheTime: number = 24 * 60 * 60 * 1000,
+  ): void {
     // デフォルトで24時間キャッシュ（従来の5分から大幅延長）
     const expiry = Date.now() + cacheTime;
 
     const cacheEntry = {
       data,
       timestamp: Date.now(),
-      expiry
+      expiry,
     };
 
     this.cache.set(key, cacheEntry);
@@ -394,7 +417,12 @@ class APIClient {
       const now = Date.now();
 
       // 有効なキャッシュエントリーのみメモリに読み込む
-      (Object.entries(persistentCache) as [string, { data: unknown; timestamp: number; expiry: number }][]).forEach(([key, entry]) => {
+      (
+        Object.entries(persistentCache) as [
+          string,
+          { data: unknown; timestamp: number; expiry: number },
+        ][]
+      ).forEach(([key, entry]) => {
         if (entry.expiry > now) {
           this.cache.set(key, entry);
         }
@@ -410,7 +438,10 @@ class APIClient {
   /**
    * 単一のキャッシュエントリーを永続化
    */
-  private savePersistentCacheEntry(key: string, entry: { data: unknown; timestamp: number; expiry: number }): void {
+  private savePersistentCacheEntry(
+    key: string,
+    entry: { data: unknown; timestamp: number; expiry: number },
+  ): void {
     if (!this.persistentCacheEnabled || typeof window === 'undefined') return;
 
     try {
@@ -418,20 +449,28 @@ class APIClient {
       const persistentCache = JSON.parse(stored);
 
       // タスク詳細キャッシュは最大50個まで保存
-      const taskCacheKeys = Object.keys(persistentCache).filter(k => k.includes('/tasks/'));
+      const taskCacheKeys = Object.keys(persistentCache).filter((k) =>
+        k.includes('/tasks/'),
+      );
       if (taskCacheKeys.length >= 50) {
         // 最も古いものから削除
-        const sorted = taskCacheKeys.sort((a, b) =>
-          persistentCache[a].timestamp - persistentCache[b].timestamp
+        const sorted = taskCacheKeys.sort(
+          (a, b) => persistentCache[a].timestamp - persistentCache[b].timestamp,
         );
         delete persistentCache[sorted[0]];
       }
 
       persistentCache[key] = entry;
-      localStorage.setItem(this.localStorageKey, JSON.stringify(persistentCache));
+      localStorage.setItem(
+        this.localStorageKey,
+        JSON.stringify(persistentCache),
+      );
     } catch (error) {
       // localStorage容量エラーの場合はクリーンアップ
-      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      if (
+        error instanceof DOMException &&
+        error.name === 'QuotaExceededError'
+      ) {
         this.cleanupPersistentCache();
       }
       logger.warn('Failed to save persistent cache:', error);
@@ -448,7 +487,10 @@ class APIClient {
       const stored = localStorage.getItem(this.localStorageKey) || '{}';
       const persistentCache = JSON.parse(stored);
       delete persistentCache[key];
-      localStorage.setItem(this.localStorageKey, JSON.stringify(persistentCache));
+      localStorage.setItem(
+        this.localStorageKey,
+        JSON.stringify(persistentCache),
+      );
     } catch (error) {
       logger.warn('Failed to remove persistent cache entry:', error);
     }
@@ -466,7 +508,9 @@ class APIClient {
       const now = Date.now();
 
       type CacheEntry = { data: unknown; timestamp: number; expiry: number };
-      const cleaned = Object.entries(persistentCache).reduce<Record<string, CacheEntry>>((acc, [key, entry]) => {
+      const cleaned = Object.entries(persistentCache).reduce<
+        Record<string, CacheEntry>
+      >((acc, [key, entry]) => {
         const cacheEntry = entry as CacheEntry;
         if (cacheEntry.expiry > now) {
           acc[key] = cacheEntry;

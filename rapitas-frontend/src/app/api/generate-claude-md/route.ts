@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('GenerateClaudeMdRoute');
@@ -77,20 +77,21 @@ JSONのみ出力。`;
 規模: ${scale}
 優先事項: ${prio}
 独自機能: ${proposal.unique}
-技術ヒント: ${proposal.tech_hint?.join("、")||""}
+技術ヒント: ${proposal.tech_hint?.join('、') || ''}
 `.trim();
 
     // 実際のClaude APIの代わりに、モックデータを返します
     // 本格実装時はここでClaude APIを呼び出します
     const mockResponse = {
-      tech_rationale: "Next.js 14とSupabaseを選定しました。Next.jsはReactベースの高性能フレームワークで、開発効率とSEO最適化を両立できます。SupabaseはPostgreSQLベースのBaaSで、認証・リアルタイム機能・APIが統合されており、開発速度を大幅に向上させます。TailwindCSSは保守性の高いスタイリングを提供します。",
+      tech_rationale:
+        'Next.js 14とSupabaseを選定しました。Next.jsはReactベースの高性能フレームワークで、開発効率とSEO最適化を両立できます。SupabaseはPostgreSQLベースのBaaSで、認証・リアルタイム機能・APIが統合されており、開発速度を大幅に向上させます。TailwindCSSは保守性の高いスタイリングを提供します。',
       score: 96,
       claude_md: `# Project Overview
 
 **アプリ名**: ${proposal.name}
 **コンセプト**: ${proposal.concept}
 **独自機能**: ${proposal.unique}
-**対象ユーザー**: ${scale === "solo" ? "個人利用者" : scale === "small" ? "小規模チーム（〜100人）" : scale === "mid" ? "中規模組織（〜1万人）" : "大規模組織（1万人以上）"}
+**対象ユーザー**: ${scale === 'solo' ? '個人利用者' : scale === 'small' ? '小規模チーム（〜100人）' : scale === 'mid' ? '中規模組織（〜1万人）' : '大規模組織（1万人以上）'}
 **プラットフォーム**: ${plat}
 
 # Tech Stack
@@ -305,7 +306,7 @@ NEXT_PUBLIC_APP_NAME=${proposal.name}
 ---
 
 このCLAUDE.mdは${proposal.name}プロジェクト専用に最適化されています。
-実装開始前に要件を再確認し、不明点があれば遠慮なく質問してください。`
+実装開始前に要件を再確認し、不明点があれば遠慮なく質問してください。`,
     };
 
     return NextResponse.json(mockResponse);
@@ -313,7 +314,7 @@ NEXT_PUBLIC_APP_NAME=${proposal.name}
     logger.error('Error generating Claude MD:', error);
     return NextResponse.json(
       { error: 'CLAUDE.mdの生成に失敗しました' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

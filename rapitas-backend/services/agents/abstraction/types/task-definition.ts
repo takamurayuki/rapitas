@@ -8,7 +8,7 @@
 export interface TaskAnalysisResult {
   summary: string;
   complexity: 'simple' | 'medium' | 'complex';
-  estimatedDuration?: number;   // 推定時間（分）
+  estimatedDuration?: number; // 推定時間（分）
   subtasks?: SubtaskDefinition[];
   tips?: string[];
   risks?: string[];
@@ -31,9 +31,9 @@ export interface SubtaskDefinition {
  * タスク制約
  */
 export interface TaskConstraints {
-  maxFiles?: number;            // 変更可能なファイル数上限
-  allowedPaths?: string[];      // 変更可能なパス（glob）
-  forbiddenPaths?: string[];    // 変更禁止パス（glob）
-  allowedCommands?: string[];   // 実行可能なコマンド
+  maxFiles?: number; // 変更可能なファイル数上限
+  allowedPaths?: string[]; // 変更可能なパス（glob）
+  forbiddenPaths?: string[]; // 変更禁止パス（glob）
+  allowedCommands?: string[]; // 実行可能なコマンド
   forbiddenCommands?: string[]; // 実行禁止コマンド
 }

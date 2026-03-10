@@ -42,6 +42,38 @@ export class ValidationError extends AppError {
 }
 
 /**
+ * Conflict Error (duplicate resource, unique constraint violation)
+ */
+export class ConflictError extends AppError {
+  constructor(message: string = 'リソースが既に存在します', code?: string) {
+    super(409, message, code);
+    this.name = 'ConflictError';
+  }
+}
+
+/**
+ * Authentication Error
+ */
+export class AuthenticationError extends AppError {
+  constructor(message: string = '認証が必要です', code?: string) {
+    super(401, message, code);
+    this.name = 'AuthenticationError';
+  }
+}
+
+/**
+ * Parse and validate a numeric ID from route params.
+ * Throws ValidationError if invalid.
+ */
+export function parseId(value: string | number, label: string = 'ID'): number {
+  const id = typeof value === 'number' ? value : parseInt(value, 10);
+  if (isNaN(id) || id <= 0) {
+    throw new ValidationError(`Invalid ${label}: ${value}`, 'INVALID_ID');
+  }
+  return id;
+}
+
+/**
  * Detect if an error is a Prisma-related error
  */
 function isPrismaError(error: unknown): boolean {

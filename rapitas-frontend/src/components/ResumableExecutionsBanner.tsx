@@ -98,7 +98,7 @@ export function ResumableExecutionsBanner() {
         );
       }
     } catch (error) {
-      logger.error('Failed to fetch auto-resume setting:', error);
+      logger.warn('Failed to fetch auto-resume setting:', error);
       // バックエンドが利用できない場合はデフォルト値を使用
       setAutoResume(false);
     }
@@ -153,18 +153,14 @@ export function ResumableExecutionsBanner() {
   // バックエンド復帰時に再フェッチする
   const { isConnected } = useBackendHealth({
     onReconnectAction: () => {
-      logger.info(
-        'Backend reconnected, re-fetching executions',
-      );
+      logger.info('Backend reconnected, re-fetching executions');
       setIsLoading(true);
       setConnectionError(null);
       fetchResumableExecutions();
     },
     onDisconnectAction: () => {
       logger.info('Backend disconnected');
-      setConnectionError(
-        new Error(t('backendDisconnected')),
-      );
+      setConnectionError(new Error(t('backendDisconnected')));
     },
   });
 
@@ -173,9 +169,7 @@ export function ResumableExecutionsBanner() {
   useEffect(() => {
     if (!isConnected || initialFetchDoneRef.current) return;
     initialFetchDoneRef.current = true;
-    logger.debug(
-      'Backend connected, fetching initial data',
-    );
+    logger.debug('Backend connected, fetching initial data');
     fetchAutoResumeSetting();
     fetchResumableExecutions();
   }, [isConnected, fetchAutoResumeSetting, fetchResumableExecutions]);
@@ -330,13 +324,11 @@ export function ResumableExecutionsBanner() {
         );
         if (!isAutoResume) {
           // Show user-friendly error for manual resume attempts
-          alert(
-            `${tc('errorOccurred')}: ${res.status}`,
-          );
+          alert(`${tc('errorOccurred')}: ${res.status}`);
         }
       }
     } catch (error) {
-      logger.error('Error resuming execution:', error);
+      logger.warn('Error resuming execution:', error);
     } finally {
       setResumingIds((prev) => {
         const newSet = new Set(prev);
@@ -378,7 +370,7 @@ export function ResumableExecutionsBanner() {
         );
       }
     } catch (error) {
-      logger.error('Error dismissing execution:', error);
+      logger.warn('Error dismissing execution:', error);
     } finally {
       setDismissingIds((prev) => {
         const newSet = new Set(prev);
@@ -546,7 +538,8 @@ export function ResumableExecutionsBanner() {
               >
                 {runningCount > 0 && t('runningCount', { count: runningCount })}
                 {runningCount > 0 && interruptedCount > 0 && ' / '}
-                {interruptedCount > 0 && t('resumableCount', { count: interruptedCount })}
+                {interruptedCount > 0 &&
+                  t('resumableCount', { count: interruptedCount })}
               </p>
             </div>
           </div>
@@ -627,8 +620,16 @@ export function ResumableExecutionsBanner() {
                       <Clock className="w-3 h-3 text-zinc-400" />
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
                         {exec.status === 'interrupted'
-                          ? t('interruptedAt', { time: formatTimeAgo(exec.startedAt || exec.createdAt) })
-                          : t('startedAt', { time: formatTimeAgo(exec.startedAt || exec.createdAt) })}
+                          ? t('interruptedAt', {
+                              time: formatTimeAgo(
+                                exec.startedAt || exec.createdAt,
+                              ),
+                            })
+                          : t('startedAt', {
+                              time: formatTimeAgo(
+                                exec.startedAt || exec.createdAt,
+                              ),
+                            })}
                       </p>
                     </div>
                   </div>
@@ -778,7 +779,8 @@ export function ResumableExecutionsBanner() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5">
                                   <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
-                                    {exec.taskTitle || `${t('taskPrefix')}${exec.taskId}`}
+                                    {exec.taskTitle ||
+                                      `${t('taskPrefix')}${exec.taskId}`}
                                   </span>
                                   {(exec.status === 'running' ||
                                     exec.status === 'waiting_for_input') && (

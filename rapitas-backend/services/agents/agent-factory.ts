@@ -246,7 +246,7 @@ export class AgentFactory {
    */
   getAgentsByCapability(capability: keyof AgentCapability): RegisteredAgentInfo[] {
     return Array.from(this.registeredAgents.values()).filter(
-      (info) => info.capabilities[capability]
+      (info) => info.capabilities[capability],
     );
   }
 

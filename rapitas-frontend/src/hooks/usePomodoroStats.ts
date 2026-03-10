@@ -41,7 +41,10 @@ export function usePomodoroStats() {
       const data = await res.json();
       setStats(data);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'ポモドーロ統計の取得に失敗しました';
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'ポモドーロ統計の取得に失敗しました';
       setError(message);
       logger.error('Failed to fetch pomodoro stats:', err);
     } finally {
@@ -54,9 +57,8 @@ export function usePomodoroStats() {
   }, [fetchStats]);
 
   const todayTotal = stats.todayMinutes;
-  const weeklyAverage = stats.weeklyCompleted > 0
-    ? Math.round(stats.weeklyMinutes / 7)
-    : 0;
+  const weeklyAverage =
+    stats.weeklyCompleted > 0 ? Math.round(stats.weeklyMinutes / 7) : 0;
 
   return {
     stats,

@@ -2,8 +2,8 @@
  * Study Streaks Routes テスト
  * 学習ストリークAPIのユニットテスト
  */
-import { describe, test, expect, mock, beforeEach } from "bun:test";
-import { Elysia } from "elysia";
+import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { Elysia } from 'elysia';
 
 const mockPrisma = {
   studyStreak: {
@@ -13,8 +13,8 @@ const mockPrisma = {
   },
 };
 
-mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../../../config/logger", () => ({
+mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -23,15 +23,13 @@ mock.module("../../../config/logger", () => ({
   }),
 }));
 
-const { studyStreaksRoutes } = await import(
-  "../../../routes/learning/study-streaks"
-);
+const { studyStreaksRoutes } = await import('../../../routes/learning/study-streaks');
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {
-    if (typeof model === "object" && model !== null) {
+    if (typeof model === 'object' && model !== null) {
       for (const method of Object.values(model)) {
-        if (typeof method === "function" && "mockReset" in method) {
+        if (typeof method === 'function' && 'mockReset' in method) {
           (method as ReturnType<typeof mock>).mockReset();
         }
       }
@@ -43,7 +41,7 @@ function createApp() {
   return new Elysia().use(studyStreaksRoutes);
 }
 
-describe("GET /study-streaks", () => {
+describe('GET /study-streaks', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -51,16 +49,14 @@ describe("GET /study-streaks", () => {
     app = createApp();
   });
 
-  test("ストリークデータを返すこと", async () => {
+  test('ストリークデータを返すこと', async () => {
     const streaks = [
-      { id: 1, date: new Date("2026-03-01"), studyMinutes: 60, tasksCompleted: 2 },
-      { id: 2, date: new Date("2026-03-02"), studyMinutes: 90, tasksCompleted: 3 },
+      { id: 1, date: new Date('2026-03-01'), studyMinutes: 60, tasksCompleted: 2 },
+      { id: 2, date: new Date('2026-03-02'), studyMinutes: 90, tasksCompleted: 3 },
     ];
     mockPrisma.studyStreak.findMany.mockResolvedValue(streaks);
 
-    const res = await app.handle(
-      new Request("http://localhost/study-streaks"),
-    );
+    const res = await app.handle(new Request('http://localhost/study-streaks'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -68,24 +64,20 @@ describe("GET /study-streaks", () => {
     expect(body.length).toBe(2);
   });
 
-  test("daysパラメータでフィルタできること", async () => {
+  test('daysパラメータでフィルタできること', async () => {
     mockPrisma.studyStreak.findMany.mockResolvedValue([]);
 
-    const res = await app.handle(
-      new Request("http://localhost/study-streaks?days=7"),
-    );
+    const res = await app.handle(new Request('http://localhost/study-streaks?days=7'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
   });
 
-  test("空配列を返すこと", async () => {
+  test('空配列を返すこと', async () => {
     mockPrisma.studyStreak.findMany.mockResolvedValue([]);
 
-    const res = await app.handle(
-      new Request("http://localhost/study-streaks"),
-    );
+    const res = await app.handle(new Request('http://localhost/study-streaks'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -93,7 +85,7 @@ describe("GET /study-streaks", () => {
   });
 });
 
-describe("GET /study-streaks/current", () => {
+describe('GET /study-streaks/current', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -101,14 +93,12 @@ describe("GET /study-streaks/current", () => {
     app = createApp();
   });
 
-  test("現在のストリーク情報を返すこと", async () => {
+  test('現在のストリーク情報を返すこと', async () => {
     // No streaks today
     mockPrisma.studyStreak.findUnique.mockResolvedValue(null);
     mockPrisma.studyStreak.findMany.mockResolvedValue([]);
 
-    const res = await app.handle(
-      new Request("http://localhost/study-streaks/current"),
-    );
+    const res = await app.handle(new Request('http://localhost/study-streaks/current'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -117,7 +107,7 @@ describe("GET /study-streaks/current", () => {
     expect(body.today).toBeDefined();
   });
 
-  test("連続日数を正しく計算すること", async () => {
+  test('連続日数を正しく計算すること', async () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const yesterday = new Date(today);
@@ -140,9 +130,7 @@ describe("GET /study-streaks/current", () => {
       { date: today, studyMinutes: 30, tasksCompleted: 1 },
     ]);
 
-    const res = await app.handle(
-      new Request("http://localhost/study-streaks/current"),
-    );
+    const res = await app.handle(new Request('http://localhost/study-streaks/current'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -151,7 +139,7 @@ describe("GET /study-streaks/current", () => {
   });
 });
 
-describe("POST /study-streaks/record", () => {
+describe('POST /study-streaks/record', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -159,19 +147,19 @@ describe("POST /study-streaks/record", () => {
     app = createApp();
   });
 
-  test("学習記録を追加すること", async () => {
+  test('学習記録を追加すること', async () => {
     const recorded = {
       id: 1,
-      date: new Date("2026-03-06"),
+      date: new Date('2026-03-06'),
       studyMinutes: 60,
       tasksCompleted: 2,
     };
     mockPrisma.studyStreak.upsert.mockResolvedValue(recorded);
 
     const res = await app.handle(
-      new Request("http://localhost/study-streaks/record", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/study-streaks/record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studyMinutes: 60, tasksCompleted: 2 }),
       }),
     );
@@ -181,21 +169,21 @@ describe("POST /study-streaks/record", () => {
     expect(body.studyMinutes).toBe(60);
   });
 
-  test("日付指定で学習記録を追加すること", async () => {
+  test('日付指定で学習記録を追加すること', async () => {
     const recorded = {
       id: 1,
-      date: new Date("2026-03-05"),
+      date: new Date('2026-03-05'),
       studyMinutes: 30,
       tasksCompleted: 1,
     };
     mockPrisma.studyStreak.upsert.mockResolvedValue(recorded);
 
     const res = await app.handle(
-      new Request("http://localhost/study-streaks/record", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/study-streaks/record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          date: "2026-03-05",
+          date: '2026-03-05',
           studyMinutes: 30,
           tasksCompleted: 1,
         }),
@@ -207,7 +195,7 @@ describe("POST /study-streaks/record", () => {
     expect(body.studyMinutes).toBe(30);
   });
 
-  test("空bodyでも記録できること", async () => {
+  test('空bodyでも記録できること', async () => {
     const recorded = {
       id: 1,
       date: new Date(),
@@ -217,9 +205,9 @@ describe("POST /study-streaks/record", () => {
     mockPrisma.studyStreak.upsert.mockResolvedValue(recorded);
 
     const res = await app.handle(
-      new Request("http://localhost/study-streaks/record", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/study-streaks/record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       }),
     );

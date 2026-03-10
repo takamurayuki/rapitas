@@ -2,8 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Zap, Target, Microscope, BarChart3, Info, Loader2,
-  TrendingDown, TrendingUp, Minus
+  Zap,
+  Target,
+  Microscope,
+  BarChart3,
+  Info,
+  Loader2,
+  TrendingDown,
+  TrendingUp,
+  Minus,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -44,7 +51,8 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     steps: ['実装', '自動検証'],
     icon: Zap,
     color: 'text-green-600 dark:text-green-400',
-    bgColor: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50',
+    bgColor:
+      'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50',
   },
   standard: {
     mode: 'standard',
@@ -54,7 +62,8 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     steps: ['計画作成', '実装', '検証'],
     icon: Target,
     color: 'text-blue-600 dark:text-blue-400',
-    bgColor: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50',
+    bgColor:
+      'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50',
   },
   comprehensive: {
     mode: 'comprehensive',
@@ -64,7 +73,8 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     steps: ['調査', '計画作成', '実装', '検証'],
     icon: Microscope,
     color: 'text-purple-600 dark:text-purple-400',
-    bgColor: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/50',
+    bgColor:
+      'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/50',
   },
 };
 
@@ -81,7 +91,9 @@ export interface CompactWorkflowSelectorProps {
   className?: string;
 }
 
-const getComplexityLevel = (score: number): {
+const getComplexityLevel = (
+  score: number,
+): {
   level: 'low' | 'medium' | 'high';
   label: string;
   color: string;
@@ -123,7 +135,9 @@ export default function CompactWorkflowSelector({
   showAnalyzeButton = true,
   className = '',
 }: CompactWorkflowSelectorProps) {
-  const [selectedMode, setSelectedMode] = useState<WorkflowMode>(currentMode || 'comprehensive');
+  const [selectedMode, setSelectedMode] = useState<WorkflowMode>(
+    currentMode || 'comprehensive',
+  );
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [analysis, setAnalysis] = useState<ComplexityScore | null>(null);
@@ -137,7 +151,13 @@ export default function CompactWorkflowSelector({
 
   // 自動分析ON時、complexityScoreがない場合に自動実行（taskId=0は新規タスクなのでスキップ）
   useEffect(() => {
-    if (autoComplexityAnalysis && complexityScore === null && !analysis && !isAnalyzing && taskId > 0) {
+    if (
+      autoComplexityAnalysis &&
+      complexityScore === null &&
+      !analysis &&
+      !isAnalyzing &&
+      taskId > 0
+    ) {
       handleAnalyze();
     }
   }, [autoComplexityAnalysis, complexityScore]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -147,11 +167,14 @@ export default function CompactWorkflowSelector({
 
     setIsUpdating(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/set-mode`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, override: true }),
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/workflow/tasks/${taskId}/set-mode`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode, override: true }),
+        },
+      );
 
       const data = await response.json();
       if (data.success) {
@@ -170,7 +193,9 @@ export default function CompactWorkflowSelector({
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/analyze-complexity`);
+      const response = await fetch(
+        `${API_BASE_URL}/workflow/tasks/${taskId}/analyze-complexity`,
+      );
       const data = await response.json();
 
       if (data.success && data.analysis) {
@@ -194,20 +219,23 @@ export default function CompactWorkflowSelector({
   };
 
   const effectiveScore = analysis?.complexityScore ?? complexityScore;
-  const complexity = effectiveScore !== null && effectiveScore !== undefined
-    ? getComplexityLevel(effectiveScore) : null;
+  const complexity =
+    effectiveScore !== null && effectiveScore !== undefined
+      ? getComplexityLevel(effectiveScore)
+      : null;
 
   return (
     <div className={`max-w-2xl ${className}`}>
       {/* メインセレクター - 1行レイアウト */}
       <div className="flex items-center gap-3 p-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
-
         {/* 複雑度表示 - 一番左 */}
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
             <span className="font-medium">タスクの複雑度:</span>
             {complexity ? (
-              <span className={`font-semibold ${complexity.color} bg-white dark:bg-zinc-700 px-2 py-1 rounded-md border`}>
+              <span
+                className={`font-semibold ${complexity.color} bg-white dark:bg-zinc-700 px-2 py-1 rounded-md border`}
+              >
                 {complexity.label}
               </span>
             ) : (
@@ -228,7 +256,12 @@ export default function CompactWorkflowSelector({
 
         {/* ワークフローモード選択ボタン */}
         <div className="flex items-center gap-1">
-          {(Object.entries(WORKFLOW_MODE_CONFIGS) as [WorkflowMode, WorkflowModeConfig][]).map(([mode, config]) => {
+          {(
+            Object.entries(WORKFLOW_MODE_CONFIGS) as [
+              WorkflowMode,
+              WorkflowModeConfig,
+            ][]
+          ).map(([mode, config]) => {
             const isSelected = mode === selectedMode;
             const ModeIcon = config.icon;
 
@@ -245,9 +278,10 @@ export default function CompactWorkflowSelector({
                   className={`
                     flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all
                     disabled:opacity-50 disabled:cursor-not-allowed
-                    ${isSelected
-                      ? `${config.color} ${config.bgColor} border border-current shadow-sm`
-                      : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/50'
+                    ${
+                      isSelected
+                        ? `${config.color} ${config.bgColor} border border-current shadow-sm`
+                        : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/50'
                     }
                   `}
                   title={`${config.description} (${config.estimatedTime})`}
@@ -287,9 +321,10 @@ export default function CompactWorkflowSelector({
             className={`
               flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-colors
               disabled:opacity-50 disabled:cursor-not-allowed
-              ${isAnalyzing
-                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700'
-                : 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-800/30 dark:hover:to-indigo-800/30 shadow-sm'
+              ${
+                isAnalyzing
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700'
+                  : 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-800/30 dark:hover:to-indigo-800/30 shadow-sm'
               }
             `}
             title="タスクの複雑度を自動分析してモードを提案"
@@ -299,7 +334,9 @@ export default function CompactWorkflowSelector({
             ) : (
               <Info className="h-4 w-4" />
             )}
-            <span className="font-medium">{autoComplexityAnalysis ? '再分析' : '自動分析'}</span>
+            <span className="font-medium">
+              {autoComplexityAnalysis ? '再分析' : '自動分析'}
+            </span>
           </button>
         )}
 
@@ -321,7 +358,10 @@ export default function CompactWorkflowSelector({
           <div className="flex items-center gap-2 text-xs">
             <Info className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
             <span className="text-blue-700 dark:text-blue-300">
-              推奨: <strong>{WORKFLOW_MODE_CONFIGS[analysis.recommendedMode].name}モード</strong>
+              推奨:{' '}
+              <strong>
+                {WORKFLOW_MODE_CONFIGS[analysis.recommendedMode].name}モード
+              </strong>
               （信頼度: {Math.round(analysis.confidence * 100)}%）
             </span>
             <button

@@ -15,6 +15,8 @@ import { API_BASE_URL } from '@/utils/api';
 import BurnupChart from '@/components/BurnupChart';
 import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
 import { createLogger } from '@/lib/logger';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('DashboardPage');
 
@@ -48,6 +50,8 @@ type StreakInfo = {
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const [overview, setOverview] = useState<OverviewStats | null>(null);
   const [dailyStudy, setDailyStudy] = useState<DailyStudy[]>([]);
   const [streakInfo, setStreakInfo] = useState<StreakInfo | null>(null);
@@ -60,7 +64,7 @@ export default function DashboardPage() {
         setOverview(await res.json());
       }
     } catch (e) {
-      logger.error('Failed to fetch overview:', e);
+      logger.transientError('Failed to fetch overview:', e);
     }
   }, []);
 
@@ -72,7 +76,7 @@ export default function DashboardPage() {
         setDailyStudy(Array.isArray(data) ? data : []);
       }
     } catch (e) {
-      logger.error('Failed to fetch daily study:', e);
+      logger.transientError('Failed to fetch daily study:', e);
     }
   }, []);
 
@@ -83,7 +87,7 @@ export default function DashboardPage() {
         setStreakInfo(await res.json());
       }
     } catch (e) {
-      logger.error('Failed to fetch streak info:', e);
+      logger.transientError('Failed to fetch streak info:', e);
     }
   }, []);
 
@@ -102,7 +106,10 @@ export default function DashboardPage() {
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(dateLocale, {
+      month: 'short',
+      day: 'numeric',
+    });
   };
 
   const maxHours = Math.max(...dailyStudy.map((d) => d.hours), 1);
@@ -149,10 +156,12 @@ export default function DashboardPage() {
             <span className="text-xs opacity-75">{t('streak')}</span>
           </div>
           <div className="text-3xl font-bold mb-1">
-            {streakInfo?.currentStreak || 0}{t('consecutiveDays')}
+            {streakInfo?.currentStreak || 0}
+            {t('consecutiveDays')}
           </div>
           <p className="text-sm opacity-75">
-            {t('streak')}: {streakInfo?.longestStreak || 0}{t('consecutiveDays')}
+            {t('streak')}: {streakInfo?.longestStreak || 0}
+            {t('consecutiveDays')}
           </p>
         </div>
 
@@ -190,7 +199,8 @@ export default function DashboardPage() {
             {overview?.tasks.completionRate || 0}%
           </div>
           <p className="text-sm opacity-75">
-            {overview?.tasks.completed || 0}/{overview?.tasks.total || 0} {t('taskComplete')}
+            {overview?.tasks.completed || 0}/{overview?.tasks.total || 0}{' '}
+            {t('taskComplete')}
           </p>
         </div>
       </div>
@@ -299,7 +309,8 @@ export default function DashboardPage() {
                   href="/exam-goals"
                   className="block text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
-                  {tc('other')} {overview.upcomingExams.length - 3} {tc('items')}
+                  {tc('other')} {overview.upcomingExams.length - 3}{' '}
+                  {tc('items')}
                 </a>
               )}
             </div>

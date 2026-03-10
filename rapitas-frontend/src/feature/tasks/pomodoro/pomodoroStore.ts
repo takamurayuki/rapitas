@@ -371,7 +371,11 @@ export const usePomodoroStore = create<PomodoroState>()(
             }
 
             // デスクトップ通知
-            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            if (
+              typeof window !== 'undefined' &&
+              'Notification' in window &&
+              Notification.permission === 'granted'
+            ) {
               new Notification('ポモドーロ完了！', {
                 body: `${state.taskTitle || 'タスク'} — 休憩を取りましょう`,
                 icon: '/favicon.ico',
@@ -409,7 +413,11 @@ export const usePomodoroStore = create<PomodoroState>()(
             }
 
             // デスクトップ通知
-            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            if (
+              typeof window !== 'undefined' &&
+              'Notification' in window &&
+              Notification.permission === 'granted'
+            ) {
               new Notification('休憩終了！', {
                 body: '作業を再開しましょう',
                 icon: '/favicon.ico',
@@ -507,7 +515,11 @@ export {
 
 // バックエンドとのポモドーロセッション同期（fire-and-forget）
 const syncPomodoroToBackend = {
-  start: (taskId: number | null, duration: number, type: 'work' | 'short_break' | 'long_break' = 'work') => {
+  start: (
+    taskId: number | null,
+    duration: number,
+    type: 'work' | 'short_break' | 'long_break' = 'work',
+  ) => {
     fetch(`${API_BASE_URL}/pomodoro/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -516,12 +528,15 @@ const syncPomodoroToBackend = {
   },
   complete: (completedPomodoros: number) => {
     fetch(`${API_BASE_URL}/pomodoro/active`)
-      .then(res => res.json())
+      .then((res) => res.json())
       .then((data: { session?: { id: number } }) => {
         if (data.session?.id) {
-          return fetch(`${API_BASE_URL}/pomodoro/sessions/${data.session.id}/complete`, {
-            method: 'POST',
-          });
+          return fetch(
+            `${API_BASE_URL}/pomodoro/sessions/${data.session.id}/complete`,
+            {
+              method: 'POST',
+            },
+          );
         }
       })
       .catch(() => {});
@@ -529,12 +544,15 @@ const syncPomodoroToBackend = {
   },
   cancel: () => {
     fetch(`${API_BASE_URL}/pomodoro/active`)
-      .then(res => res.json())
+      .then((res) => res.json())
       .then((data: { session?: { id: number } }) => {
         if (data.session?.id) {
-          return fetch(`${API_BASE_URL}/pomodoro/sessions/${data.session.id}/cancel`, {
-            method: 'POST',
-          });
+          return fetch(
+            `${API_BASE_URL}/pomodoro/sessions/${data.session.id}/cancel`,
+            {
+              method: 'POST',
+            },
+          );
         }
       })
       .catch(() => {});

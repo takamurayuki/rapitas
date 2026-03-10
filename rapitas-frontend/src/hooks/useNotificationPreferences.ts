@@ -26,7 +26,9 @@ function loadPreferences(): NotificationPreferences {
   if (typeof window === 'undefined') return DEFAULT_PREFERENCES;
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? { ...DEFAULT_PREFERENCES, ...JSON.parse(stored) } : DEFAULT_PREFERENCES;
+    return stored
+      ? { ...DEFAULT_PREFERENCES, ...JSON.parse(stored) }
+      : DEFAULT_PREFERENCES;
   } catch (error) {
     logger.error('Failed to load notification preferences:', error);
     return DEFAULT_PREFERENCES;
@@ -34,7 +36,8 @@ function loadPreferences(): NotificationPreferences {
 }
 
 export function useNotificationPreferences() {
-  const [preferences, setPreferences] = useState<NotificationPreferences>(loadPreferences);
+  const [preferences, setPreferences] =
+    useState<NotificationPreferences>(loadPreferences);
 
   // クライアントサイドでマウント時にlocalStorageから再読み込み
   useEffect(() => {
@@ -51,7 +54,10 @@ export function useNotificationPreferences() {
   }, []);
 
   const updatePreference = useCallback(
-    <K extends keyof NotificationPreferences>(key: K, value: NotificationPreferences[K]) => {
+    <K extends keyof NotificationPreferences>(
+      key: K,
+      value: NotificationPreferences[K],
+    ) => {
       setPreferences((prev) => {
         const next = { ...prev, [key]: value };
         savePreferences(next);

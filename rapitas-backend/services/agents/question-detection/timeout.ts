@@ -2,12 +2,12 @@
  * 質問判定システム - タイムアウト管理
  */
 
-import type { QuestionKey } from "./types";
+import type { QuestionKey } from './types';
 import {
   DEFAULT_QUESTION_TIMEOUT_SECONDS,
   MIN_QUESTION_TIMEOUT_SECONDS,
   MAX_QUESTION_TIMEOUT_SECONDS,
-} from "./constants";
+} from './constants';
 
 /**
  * タイムアウト秒数を正規化（範囲内に収める）
@@ -34,10 +34,7 @@ export function normalizeTimeoutSeconds(timeoutSeconds?: number): number {
  * @param startTime 質問開始時刻（省略時は現在時刻）
  * @returns タイムアウト期限のDate
  */
-export function calculateTimeoutDeadline(
-  questionKey: QuestionKey,
-  startTime?: Date
-): Date {
+export function calculateTimeoutDeadline(questionKey: QuestionKey, startTime?: Date): Date {
   const start = startTime || new Date();
   const timeoutMs = (questionKey.timeout_seconds || DEFAULT_QUESTION_TIMEOUT_SECONDS) * 1000;
   return new Date(start.getTime() + timeoutMs);
@@ -49,10 +46,7 @@ export function calculateTimeoutDeadline(
  * @param startTime 質問開始時刻
  * @returns タイムアウトしていればtrue
  */
-export function isQuestionTimedOut(
-  questionKey: QuestionKey,
-  startTime: Date
-): boolean {
+export function isQuestionTimedOut(questionKey: QuestionKey, startTime: Date): boolean {
   const deadline = calculateTimeoutDeadline(questionKey, startTime);
   return new Date() >= deadline;
 }
@@ -63,10 +57,7 @@ export function isQuestionTimedOut(
  * @param startTime 質問開始時刻
  * @returns 残り秒数（0以下の場合はタイムアウト済み）
  */
-export function getRemainingTimeoutSeconds(
-  questionKey: QuestionKey,
-  startTime: Date
-): number {
+export function getRemainingTimeoutSeconds(questionKey: QuestionKey, startTime: Date): number {
   const deadline = calculateTimeoutDeadline(questionKey, startTime);
   const remaining = Math.ceil((deadline.getTime() - Date.now()) / 1000);
   return Math.max(0, remaining);

@@ -1,62 +1,62 @@
 /**
  * Directory Browser & Favorites API Routes
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
-import * as fs from "fs";
-import * as path from "path";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
+import * as fs from 'fs';
+import * as path from 'path';
 
-export const directoriesRoutes = new Elysia({ prefix: "/directories" })
+export const directoriesRoutes = new Elysia({ prefix: '/directories' })
   // Browse directories
-  .get("/browse", async (context) => {
-      const { query  } = context;
-    const { path: dirPath  } = query as { path?: string };
+  .get('/browse', async (context) => {
+    const { query } = context;
+    const { path: dirPath } = query as { path?: string };
 
     try {
-      if (!dirPath || dirPath.trim() === "") {
-        if (process.platform === "win32") {
-          const { execSync } = require("child_process");
+      if (!dirPath || dirPath.trim() === '') {
+        if (process.platform === 'win32') {
+          const { execSync } = require('child_process');
           try {
-            const result = execSync("wmic logicaldisk get name", {
-              encoding: "utf8",
+            const result = execSync('wmic logicaldisk get name', {
+              encoding: 'utf8',
             });
             const drives = result
-              .split("\n")
+              .split('\n')
               .filter((line: string) => /^[A-Z]:/.test(line.trim()))
               .map((line: string) => line.trim());
 
             return {
-              path: "",
+              path: '',
               parent: null,
               directories: drives.map((drive: string) => ({
                 name: `${drive} ドライブ`,
-                path: drive + "\\",
+                path: drive + '\\',
                 isDirectory: true,
               })),
               isDriveList: true,
             };
           } catch (e) {
             return {
-              path: "",
+              path: '',
               parent: null,
               directories: [
-                { name: "C: ドライブ", path: "C:\\", isDirectory: true },
-                { name: "D: ドライブ", path: "D:\\", isDirectory: true },
+                { name: 'C: ドライブ', path: 'C:\\', isDirectory: true },
+                { name: 'D: ドライブ', path: 'D:\\', isDirectory: true },
               ],
               isDriveList: true,
             };
           }
         } else {
           return {
-            path: "/",
+            path: '/',
             parent: null,
             directories: fs
-              .readdirSync("/", { withFileTypes: true })
+              .readdirSync('/', { withFileTypes: true })
               .filter((entry) => entry.isDirectory())
-              .filter((entry) => !entry.name.startsWith("."))
+              .filter((entry) => !entry.name.startsWith('.'))
               .map((entry) => ({
                 name: entry.name,
-                path: "/" + entry.name,
+                path: '/' + entry.name,
                 isDirectory: true,
               }))
               .sort((a, b) => a.name.localeCompare(b.name)),
@@ -66,8 +66,8 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
 
       let targetPath = dirPath.trim();
 
-      if (process.platform === "win32" && /^[A-Z]:$/i.test(targetPath)) {
-        targetPath = targetPath + "\\";
+      if (process.platform === 'win32' && /^[A-Z]:$/i.test(targetPath)) {
+        targetPath = targetPath + '\\';
       }
 
       const normalizedPath = path.resolve(targetPath);
@@ -81,7 +81,7 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
 
       const stats = fs.statSync(normalizedPath);
       if (!stats.isDirectory()) {
-        return { error: "ディレクトリではありません", path: normalizedPath };
+        return { error: 'ディレクトリではありません', path: normalizedPath };
       }
 
       let entries;
@@ -102,13 +102,13 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
             return false;
           }
         })
-        .filter((entry) => !entry.name.startsWith("."))
+        .filter((entry) => !entry.name.startsWith('.'))
         .filter((entry) => {
           const excludeNames = [
-            "$Recycle.Bin",
-            "$RECYCLE.BIN",
-            "System Volume Information",
-            "Recovery",
+            '$Recycle.Bin',
+            '$RECYCLE.BIN',
+            'System Volume Information',
+            'Recovery',
           ];
           return !excludeNames.includes(entry.name);
         })
@@ -120,52 +120,58 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
         .sort((a, b) => a.name.localeCompare(b.name));
 
       const parentPath = path.dirname(normalizedPath);
-      const isDriveRoot =
-        process.platform === "win32" && /^[A-Z]:\\?$/i.test(normalizedPath);
+      const isDriveRoot = process.platform === 'win32' && /^[A-Z]:\\?$/i.test(normalizedPath);
       const hasParent = parentPath !== normalizedPath && !isDriveRoot;
 
       return {
         path: normalizedPath,
         parent: hasParent ? parentPath : null,
         directories,
-        isGitRepo: fs.existsSync(path.join(normalizedPath, ".git")),
+        isGitRepo: fs.existsSync(path.join(normalizedPath, '.git')),
         isDriveList: false,
       };
     } catch (error) {
-      return { error: (error instanceof Error ? error.message : String(error)) || "ディレクトリの取得に失敗しました" };
+      return {
+        error:
+          (error instanceof Error ? error.message : String(error)) ||
+          'ディレクトリの取得に失敗しました',
+      };
     }
   })
 
   // Validate path
   .post(
-    "/validate",
+    '/validate',
     async (context) => {
-      const { body  } = context;
-      const { path: dirPath  } = body as { path: string };
+      const { body } = context;
+      const { path: dirPath } = body as { path: string };
 
       if (!dirPath) {
-        return { valid: false, error: "パスが指定されていません" };
+        return { valid: false, error: 'パスが指定されていません' };
       }
 
       try {
         const normalizedPath = path.resolve(dirPath);
 
         if (!fs.existsSync(normalizedPath)) {
-          return { valid: false, error: "パスが存在しません" };
+          return { valid: false, error: 'パスが存在しません' };
         }
 
         const stats = fs.statSync(normalizedPath);
         if (!stats.isDirectory()) {
-          return { valid: false, error: "ディレクトリではありません" };
+          return { valid: false, error: 'ディレクトリではありません' };
         }
 
         return {
           valid: true,
           path: normalizedPath,
-          isGitRepo: fs.existsSync(path.join(normalizedPath, ".git")),
+          isGitRepo: fs.existsSync(path.join(normalizedPath, '.git')),
         };
       } catch (error) {
-        return { valid: false, error: (error instanceof Error ? error.message : String(error)) || "検証に失敗しました" };
+        return {
+          valid: false,
+          error: (error instanceof Error ? error.message : String(error)) || '検証に失敗しました',
+        };
       }
     },
     {
@@ -176,27 +182,31 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   )
 
   // Get favorite directories
-  .get("/favorites", async () => {
+  .get('/favorites', async () => {
     try {
       const favorites = await prisma.favoriteDirectory.findMany({
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
       });
       return favorites.map((fav: { path: string }) => ({
         ...fav,
         exists: fs.existsSync(fav.path),
-        isGitRepo: fs.existsSync(path.join(fav.path, ".git")),
+        isGitRepo: fs.existsSync(path.join(fav.path, '.git')),
       }));
     } catch (error) {
-      return { error: (error instanceof Error ? error.message : String(error)) || "お気に入りの取得に失敗しました" };
+      return {
+        error:
+          (error instanceof Error ? error.message : String(error)) ||
+          'お気に入りの取得に失敗しました',
+      };
     }
   })
 
   // Add favorite directory
   .post(
-    "/favorites",
+    '/favorites',
     async (context) => {
-      const { body  } = context;
-      const { path: dirPath, name  } = body as { path: string; name?: string };
+      const { body } = context;
+      const { path: dirPath, name } = body as { path: string; name?: string };
 
       try {
         const normalizedPath = path.resolve(dirPath);
@@ -208,7 +218,7 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
 
         if (existing) {
           return {
-            error: "このパスは既にお気に入りに登録されています",
+            error: 'このパスは既にお気に入りに登録されています',
             existing,
           };
         }
@@ -223,10 +233,14 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
         return {
           ...favorite,
           exists: fs.existsSync(normalizedPath),
-          isGitRepo: fs.existsSync(path.join(normalizedPath, ".git")),
+          isGitRepo: fs.existsSync(path.join(normalizedPath, '.git')),
         };
       } catch (error) {
-        return { error: (error instanceof Error ? error.message : String(error)) || "お気に入りの追加に失敗しました" };
+        return {
+          error:
+            (error instanceof Error ? error.message : String(error)) ||
+            'お気に入りの追加に失敗しました',
+        };
       }
     },
     {
@@ -238,39 +252,40 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   )
 
   // Update favorite directory
-  .patch(
-    "/favorites/:id",
-    async (context) => {
-      const { params, body } = context;
-      const id = parseInt(params.id);
-      const { name  } = body as { name?: string };
+  .patch('/favorites/:id', async (context) => {
+    const { params, body } = context;
+    const id = parseInt(params.id);
+    const { name } = body as { name?: string };
 
-      try {
-        const favorite = await prisma.favoriteDirectory.update({
-          where: { id },
-          data: { ...(name && { name }) },
-        });
+    try {
+      const favorite = await prisma.favoriteDirectory.update({
+        where: { id },
+        data: { ...(name && { name }) },
+      });
 
-        return {
-          ...favorite,
-          exists: fs.existsSync(favorite.path),
-          isGitRepo: fs.existsSync(path.join(favorite.path, ".git")),
-        };
-      } catch (error) {
-        return { error: (error instanceof Error ? error.message : String(error)) || "お気に入りの更新に失敗しました" };
-      }
-    },
-  )
+      return {
+        ...favorite,
+        exists: fs.existsSync(favorite.path),
+        isGitRepo: fs.existsSync(path.join(favorite.path, '.git')),
+      };
+    } catch (error) {
+      return {
+        error:
+          (error instanceof Error ? error.message : String(error)) ||
+          'お気に入りの更新に失敗しました',
+      };
+    }
+  })
 
   // Create a new directory
   .post(
-    "/create",
+    '/create',
     async (context) => {
-      const { body  } = context;
-      const { path: dirPath  } = body as { path: string };
+      const { body } = context;
+      const { path: dirPath } = body as { path: string };
 
       if (!dirPath || !dirPath.trim()) {
-        return { success: false, error: "パスが指定されていません" };
+        return { success: false, error: 'パスが指定されていません' };
       }
 
       try {
@@ -279,7 +294,7 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
         if (fs.existsSync(normalizedPath)) {
           return {
             success: false,
-            error: "このフォルダは既に存在します",
+            error: 'このフォルダは既に存在します',
             path: normalizedPath,
           };
         }
@@ -289,7 +304,7 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
         if (!fs.existsSync(parentDir)) {
           return {
             success: false,
-            error: "親ディレクトリが存在しません",
+            error: '親ディレクトリが存在しません',
             path: normalizedPath,
           };
         }
@@ -304,7 +319,9 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
       } catch (error) {
         return {
           success: false,
-          error: (error instanceof Error ? error.message : String(error)) || "フォルダの作成に失敗しました",
+          error:
+            (error instanceof Error ? error.message : String(error)) ||
+            'フォルダの作成に失敗しました',
         };
       }
     },
@@ -316,14 +333,18 @@ export const directoriesRoutes = new Elysia({ prefix: "/directories" })
   )
 
   // Delete favorite directory
-  .delete("/favorites/:id", async (context) => {
-      const { params  } = context;
+  .delete('/favorites/:id', async (context) => {
+    const { params } = context;
     const id = parseInt(params.id);
 
     try {
       await prisma.favoriteDirectory.delete({ where: { id } });
       return { success: true };
     } catch (error) {
-      return { error: (error instanceof Error ? error.message : String(error)) || "お気に入りの削除に失敗しました" };
+      return {
+        error:
+          (error instanceof Error ? error.message : String(error)) ||
+          'お気に入りの削除に失敗しました',
+      };
     }
   });

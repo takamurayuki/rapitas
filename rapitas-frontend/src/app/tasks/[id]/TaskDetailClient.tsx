@@ -2,13 +2,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import type {
-  Task,
-  TimeEntry,
-  Comment,
-  UserSettings,
-  Resource,
-} from '@/types';
+import type { Task, TimeEntry, Comment, UserSettings, Resource } from '@/types';
 import {
   Save,
   Copy,
@@ -20,9 +14,7 @@ import {
 } from 'lucide-react';
 import { useParallelExecutionStatus } from '@/feature/tasks/hooks/useParallelExecutionStatus';
 import { useSubtaskLogs } from '@/feature/tasks/hooks/useSubtaskLogs';
-import {
-  usePomodoro,
-} from '@/feature/tasks/pomodoro/PomodoroProvider';
+import { usePomodoro } from '@/feature/tasks/pomodoro/PomodoroProvider';
 import { useDeveloperMode } from '@/feature/developer-mode/hooks/useDeveloperMode';
 import CompactTaskDetailCard from '@/feature/tasks/components/CompactTaskDetailCard';
 import { useApprovals } from '@/feature/developer-mode/hooks/useApprovals';
@@ -225,7 +217,9 @@ function TaskDetailClient({
         try {
           const result = await restoreExecutionState();
           if (result && result.status === 'running') {
-            logger.debug('[TaskDetailClient] Execution state restored after approval');
+            logger.debug(
+              '[TaskDetailClient] Execution state restored after approval',
+            );
             return;
           }
 
@@ -233,7 +227,10 @@ function TaskDetailClient({
             setTimeout(tryRestoreExecution, 2000);
           }
         } catch (err) {
-          logger.warn('[TaskDetailClient] Failed to restore execution state:', err);
+          logger.warn(
+            '[TaskDetailClient] Failed to restore execution state:',
+            err,
+          );
           if (attempts < maxAttempts) {
             setTimeout(tryRestoreExecution, 2000);
           }
@@ -356,7 +353,7 @@ function TaskDetailClient({
       try {
         const data = await apiFetch<TimeEntry[]>(
           `/tasks/${resolvedTaskId}/time-entries`,
-          { cacheTime: 60 * 60 * 1000 }
+          { cacheTime: 60 * 60 * 1000 },
         );
         setTimeEntries(data);
       } catch (err) {
@@ -368,7 +365,7 @@ function TaskDetailClient({
       try {
         const data = await apiFetch<Comment[]>(
           `/tasks/${resolvedTaskId}/comments`,
-          { cacheTime: 60 * 60 * 1000 }
+          { cacheTime: 60 * 60 * 1000 },
         );
         setComments(data);
       } catch (err) {
@@ -380,7 +377,7 @@ function TaskDetailClient({
       try {
         const data = await apiFetch<Resource[]>(
           `/tasks/${resolvedTaskId}/resources`,
-          { cacheTime: 60 * 60 * 1000 }
+          { cacheTime: 60 * 60 * 1000 },
         );
         setResources(data);
       } catch (err) {
@@ -414,7 +411,7 @@ function TaskDetailClient({
       ]);
 
       if (task?.subtasks && task.subtasks.length > 0) {
-        const subtaskIds = task.subtasks.map(s => s.id);
+        const subtaskIds = task.subtasks.map((s) => s.id);
         preloadTaskDetails(subtaskIds);
       }
     }
@@ -432,7 +429,11 @@ function TaskDetailClient({
 
   const initialScrollDoneRef = useRef(false);
   useEffect(() => {
-    if (!showSkeleton && containerRef.current && !initialScrollDoneRef.current) {
+    if (
+      !showSkeleton &&
+      containerRef.current &&
+      !initialScrollDoneRef.current
+    ) {
       initialScrollDoneRef.current = true;
       containerRef.current.scrollTop = 0;
       setContentReady(false);
@@ -730,151 +731,170 @@ function TaskDetailClient({
 
             {/* AI アシスタント統合パネル */}
             {task.theme?.isDevelopment === true &&
-             (showAIAssistant ||
-              devModeConfig?.isEnabled === true ||
-              isExecuting ||
-              isParallelExecutionRunning ||
-              executionResult !== null ||
-              analysisResult !== null ||
-              isTaskExecutingInStore) && (
-              <div className="mb-6">
-                <AIAccordionPanel
-                  taskId={taskId}
-                  taskTitle={task.title}
-                  taskDescription={task.description}
-                  config={devModeConfig}
-                  onOpenSettings={() => setShowDevModeConfig(true)}
-                  isAnalyzing={isAnalyzing}
-                  analysisResult={analysisResult}
-                  analysisError={analysisError}
-                  analysisApprovalId={analysisApprovalId}
-                  onAnalyze={handleAnalyze}
-                  onApprove={handleApproveAnalysis}
-                  onReject={handleRejectAnalysis}
-                  onApproveSubtasks={approveSubtaskCreation}
-                  isApproving={approvalLoading}
-                  onPromptGenerated={(prompt) => setOptimizedPrompt(prompt)}
-                  onSubtasksCreated={async () => {
-                    try {
-                      const res = await fetch(
-                        `${API_BASE}/tasks/${resolvedTaskId}`,
-                      );
-                      if (!res.ok) {
-                        logger.error('[TaskDetail] Failed to fetch task after subtask creation');
-                        return;
-                      }
-
-                      const data = await res.json();
-                      setTask(data);
-
-                      await new Promise(resolve => setTimeout(resolve, 500));
-
+              (showAIAssistant ||
+                devModeConfig?.isEnabled === true ||
+                isExecuting ||
+                isParallelExecutionRunning ||
+                executionResult !== null ||
+                analysisResult !== null ||
+                isTaskExecutingInStore) && (
+                <div className="mb-6">
+                  <AIAccordionPanel
+                    taskId={taskId}
+                    taskTitle={task.title}
+                    taskDescription={task.description}
+                    config={devModeConfig}
+                    onOpenSettings={() => setShowDevModeConfig(true)}
+                    isAnalyzing={isAnalyzing}
+                    analysisResult={analysisResult}
+                    analysisError={analysisError}
+                    analysisApprovalId={analysisApprovalId}
+                    onAnalyze={handleAnalyze}
+                    onApprove={handleApproveAnalysis}
+                    onReject={handleRejectAnalysis}
+                    onApproveSubtasks={approveSubtaskCreation}
+                    isApproving={approvalLoading}
+                    onPromptGenerated={(prompt) => setOptimizedPrompt(prompt)}
+                    onSubtasksCreated={async () => {
                       try {
-                        const configRes = await fetch(
-                          `${API_BASE}/agent-execution-config/${resolvedTaskId}`,
+                        const res = await fetch(
+                          `${API_BASE}/tasks/${resolvedTaskId}`,
                         );
-                        if (!configRes.ok) {
-                          logger.warn('[TaskDetail] Auto-execute config not found');
+                        if (!res.ok) {
+                          logger.error(
+                            '[TaskDetail] Failed to fetch task after subtask creation',
+                          );
                           return;
                         }
 
-                        const configData = await configRes.json();
-                        if (configData.autoExecuteOnAnalysis) {
-                          if (data.subtasks && data.subtasks.length > 0) {
-                            logger.debug(
-                              '[TaskDetail] Auto-executing parallel tasks after analysis',
+                        const data = await res.json();
+                        setTask(data);
+
+                        await new Promise((resolve) =>
+                          setTimeout(resolve, 500),
+                        );
+
+                        try {
+                          const configRes = await fetch(
+                            `${API_BASE}/agent-execution-config/${resolvedTaskId}`,
+                          );
+                          if (!configRes.ok) {
+                            logger.warn(
+                              '[TaskDetail] Auto-execute config not found',
                             );
-                            startSession();
-                          } else {
-                            if (isExecuting) {
-                              logger.warn('[TaskDetail] Skipping auto-execute: already executing');
-                            } else {
+                            return;
+                          }
+
+                          const configData = await configRes.json();
+                          if (configData.autoExecuteOnAnalysis) {
+                            if (data.subtasks && data.subtasks.length > 0) {
                               logger.debug(
-                                '[TaskDetail] Auto-executing agent after analysis',
+                                '[TaskDetail] Auto-executing parallel tasks after analysis',
                               );
-                              if (task && task.status !== 'in-progress') {
-                                setTask((prev) => {
-                                  if (!prev) return prev;
-                                  return { ...prev, status: 'in-progress' };
+                              startSession();
+                            } else {
+                              if (isExecuting) {
+                                logger.warn(
+                                  '[TaskDetail] Skipping auto-execute: already executing',
+                                );
+                              } else {
+                                logger.debug(
+                                  '[TaskDetail] Auto-executing agent after analysis',
+                                );
+                                if (task && task.status !== 'in-progress') {
+                                  setTask((prev) => {
+                                    if (!prev) return prev;
+                                    return { ...prev, status: 'in-progress' };
+                                  });
+                                }
+                                await executeAgent({
+                                  useTaskAnalysis: true,
+                                  optimizedPrompt: optimizedPrompt || undefined,
+                                  agentConfigId: agentConfigId ?? undefined,
                                 });
                               }
-                              await executeAgent({
-                                useTaskAnalysis: true,
-                                optimizedPrompt: optimizedPrompt || undefined,
-                                agentConfigId: agentConfigId ?? undefined,
-                              });
                             }
                           }
+                        } catch (err) {
+                          logger.error(
+                            '[TaskDetail] Failed to check auto-execute config:',
+                            err,
+                          );
                         }
                       } catch (err) {
                         logger.error(
-                          '[TaskDetail] Failed to check auto-execute config:',
+                          '[TaskDetail] Error in onSubtasksCreated:',
                           err,
                         );
                       }
-                    } catch (err) {
-                      logger.error(
-                        '[TaskDetail] Error in onSubtasksCreated:',
-                        err,
-                      );
-                    }
-                  }}
-                  showAgentPanel={devModeConfig?.isEnabled === true}
-                  isExecuting={isExecuting}
-                  executionStatus={executionStatus}
-                  executionResult={executionResult}
-                  executionError={executionResult?.error || null}
-                  workingDirectory={task.theme?.workingDirectory || undefined}
-                  defaultBranch={task.theme?.defaultBranch || 'main'}
-                  useTaskAnalysis={!!analysisResult}
-                  optimizedPrompt={optimizedPrompt}
-                  resources={resources}
-                  agentConfigId={agentConfigId}
-                  agents={agents}
-                  onAgentChange={setAgentConfigId}
-                  onExecute={async (options?) => {
-                    if (isExecuting) {
-                      logger.warn('[TaskDetail] Skipping execute: already executing');
-                      return null;
-                    }
-                    if (task && task.status !== 'in-progress') {
-                      setTask((prev) => {
-                        if (!prev) return prev;
-                        return { ...prev, status: 'in-progress' };
-                      });
-                    }
+                    }}
+                    showAgentPanel={devModeConfig?.isEnabled === true}
+                    isExecuting={isExecuting}
+                    executionStatus={executionStatus}
+                    executionResult={executionResult}
+                    executionError={executionResult?.error || null}
+                    workingDirectory={task.theme?.workingDirectory || undefined}
+                    defaultBranch={task.theme?.defaultBranch || 'main'}
+                    useTaskAnalysis={!!analysisResult}
+                    optimizedPrompt={optimizedPrompt}
+                    resources={resources}
+                    agentConfigId={agentConfigId}
+                    agents={agents}
+                    onAgentChange={setAgentConfigId}
+                    onExecute={async (options?) => {
+                      if (isExecuting) {
+                        logger.warn(
+                          '[TaskDetail] Skipping execute: already executing',
+                        );
+                        return null;
+                      }
+                      if (task && task.status !== 'in-progress') {
+                        setTask((prev) => {
+                          if (!prev) return prev;
+                          return { ...prev, status: 'in-progress' };
+                        });
+                      }
 
-                    const result = await executeAgent(options);
-                    return result as { sessionId?: number; message?: string } | null;
-                  }}
-                  onReset={resetExecutionState}
-                  onRestoreExecutionState={restoreExecutionState}
-                  onStopExecution={setExecutionCancelled}
-                  onExecutionComplete={async () => {
-                    for (let attempt = 0; attempt < 6; attempt++) {
-                      await new Promise(r => setTimeout(r, attempt === 0 ? 1000 : 2000));
-                      try {
-                        const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
-                        if (res.ok) {
-                          const data = await res.json();
-                          setTask(data);
-                          if (data.status === 'done') break;
+                      const result = await executeAgent(options);
+                      return result as {
+                        sessionId?: number;
+                        message?: string;
+                      } | null;
+                    }}
+                    onReset={resetExecutionState}
+                    onRestoreExecutionState={restoreExecutionState}
+                    onStopExecution={setExecutionCancelled}
+                    onExecutionComplete={async () => {
+                      for (let attempt = 0; attempt < 6; attempt++) {
+                        await new Promise((r) =>
+                          setTimeout(r, attempt === 0 ? 1000 : 2000),
+                        );
+                        try {
+                          const res = await fetch(
+                            `${API_BASE}/tasks/${resolvedTaskId}`,
+                          );
+                          if (res.ok) {
+                            const data = await res.json();
+                            setTask(data);
+                            if (data.status === 'done') break;
+                          }
+                        } catch {
+                          /* retry */
                         }
-                      } catch { /* retry */ }
-                    }
-                    refetchWorkflowFiles();
-                    onTaskUpdated?.();
-                  }}
-                  subtasks={task.subtasks}
-                  onStartParallelExecution={startSession}
-                  isParallelExecutionRunning={isParallelExecutionRunning}
-                  getSubtaskStatus={getSubtaskStatus}
-                  parallelSessionId={parallelSessionId}
-                  subtaskLogs={subtaskLogs}
-                  onRefreshSubtaskLogs={refreshSubtaskLogs}
-                />
-              </div>
-            )}
+                      }
+                      refetchWorkflowFiles();
+                      onTaskUpdated?.();
+                    }}
+                    subtasks={task.subtasks}
+                    onStartParallelExecution={startSession}
+                    isParallelExecutionRunning={isParallelExecutionRunning}
+                    getSubtaskStatus={getSubtaskStatus}
+                    parallelSessionId={parallelSessionId}
+                    subtaskLogs={subtaskLogs}
+                    onRefreshSubtaskLogs={refreshSubtaskLogs}
+                  />
+                </div>
+              )}
 
             {/* Workflow Section - 開発テーマのみ表示 */}
             {task.theme?.isDevelopment === true && (
@@ -897,13 +917,22 @@ function TaskDetailClient({
               <SubtaskSection
                 subtasks={task.subtasks}
                 isExpanded={isSubtasksExpanded}
-                onToggleExpand={() => setIsSubtasksExpanded(!isSubtasksExpanded)}
+                onToggleExpand={() =>
+                  setIsSubtasksExpanded(!isSubtasksExpanded)
+                }
                 isSubtaskSelectionMode={taskActions.isSubtaskSelectionMode}
                 selectedSubtaskIds={taskActions.selectedSubtaskIds}
                 showSubtaskDeleteConfirm={taskActions.showSubtaskDeleteConfirm}
                 editingSubtaskId={taskActions.editingSubtaskId}
                 editingSubtaskTitle={taskActions.editingSubtaskTitle}
-                editingSubtaskDescription={taskActions.editingSubtaskDescription}
+                editingSubtaskDescription={
+                  taskActions.editingSubtaskDescription
+                }
+                editingSubtaskPriority={taskActions.editingSubtaskPriority}
+                editingSubtaskLabels={taskActions.editingSubtaskLabels}
+                editingSubtaskEstimatedHours={
+                  taskActions.editingSubtaskEstimatedHours
+                }
                 isParallelExecutionRunning={isParallelExecutionRunning}
                 getSubtaskStatus={getSubtaskStatus}
                 onToggleSelectionMode={taskActions.toggleSubtaskSelectionMode}
@@ -915,7 +944,16 @@ function TaskDetailClient({
                 onDeleteSelected={taskActions.handleDeleteSelectedSubtasks}
                 onStartEditingSubtask={taskActions.startEditingSubtask}
                 onSetEditingSubtaskTitle={taskActions.setEditingSubtaskTitle}
-                onSetEditingSubtaskDescription={taskActions.setEditingSubtaskDescription}
+                onSetEditingSubtaskDescription={
+                  taskActions.setEditingSubtaskDescription
+                }
+                onSetEditingSubtaskPriority={
+                  taskActions.setEditingSubtaskPriority
+                }
+                onSetEditingSubtaskLabels={taskActions.setEditingSubtaskLabels}
+                onSetEditingSubtaskEstimatedHours={
+                  taskActions.setEditingSubtaskEstimatedHours
+                }
                 onSaveSubtaskEdit={taskActions.saveSubtaskEdit}
                 onCancelEditingSubtask={taskActions.cancelEditingSubtask}
                 onUpdateStatus={taskActions.updateStatus}

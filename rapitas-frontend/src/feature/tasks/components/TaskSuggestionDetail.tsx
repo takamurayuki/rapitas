@@ -33,7 +33,7 @@ export default function TaskSuggestionDetail({
   onApply,
 }: TaskSuggestionDetailProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['criteria', 'outcome'])
+    new Set(['criteria', 'outcome']),
   );
 
   const toggleSection = (section: string) => {
@@ -62,7 +62,10 @@ export default function TaskSuggestionDetail({
   };
 
   const formatCriteria = (criteria: string) => {
-    return criteria.split(/[・\n]/).filter(item => item.trim()).map(item => item.trim());
+    return criteria
+      .split(/[・\n]/)
+      .filter((item) => item.trim())
+      .map((item) => item.trim());
   };
 
   return (
@@ -73,10 +76,17 @@ export default function TaskSuggestionDetail({
           {suggestion.title}
         </h3>
         <div className="flex items-center gap-3 text-sm">
-          <span className={`px-2 py-1 rounded-md text-xs font-medium ${getPriorityColor(suggestion.priority)}`}>
-            {suggestion.priority === 'urgent' ? '緊急' :
-             suggestion.priority === 'high' ? '高' :
-             suggestion.priority === 'medium' ? '中' : '低'}優先度
+          <span
+            className={`px-2 py-1 rounded-md text-xs font-medium ${getPriorityColor(suggestion.priority)}`}
+          >
+            {suggestion.priority === 'urgent'
+              ? '緊急'
+              : suggestion.priority === 'high'
+                ? '高'
+                : suggestion.priority === 'medium'
+                  ? '中'
+                  : '低'}
+            優先度
           </span>
           {suggestion.estimatedHours && (
             <div className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
@@ -120,7 +130,9 @@ export default function TaskSuggestionDetail({
             </span>
           </div>
           <p className="text-xs text-blue-600 dark:text-blue-300">
-            {suggestion.estimatedHours ? `${suggestion.estimatedHours}時間` : '未設定'}
+            {suggestion.estimatedHours
+              ? `${suggestion.estimatedHours}時間`
+              : '未設定'}
           </p>
         </div>
       </div>
@@ -147,12 +159,17 @@ export default function TaskSuggestionDetail({
             {expandedSections.has('criteria') && (
               <div className="px-4 pb-3 pt-1">
                 <ul className="space-y-1">
-                  {formatCriteria(suggestion.completionCriteria).map((item, idx) => (
-                    <li key={idx} className="flex items-start gap-2 text-sm text-zinc-600 dark:text-zinc-300">
-                      <ListChecks className="w-3 h-3 mt-0.5 text-green-500 shrink-0" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
+                  {formatCriteria(suggestion.completionCriteria).map(
+                    (item, idx) => (
+                      <li
+                        key={idx}
+                        className="flex items-start gap-2 text-sm text-zinc-600 dark:text-zinc-300"
+                      >
+                        <ListChecks className="w-3 h-3 mt-0.5 text-green-500 shrink-0" />
+                        <span>{item}</span>
+                      </li>
+                    ),
+                  )}
                 </ul>
               </div>
             )}

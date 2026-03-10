@@ -10,8 +10,8 @@ import type {
   QuestionDetectionResult,
   QuestionKey,
   QuestionWaitingState,
-} from "./types";
-import { normalizeTimeoutSeconds } from "./timeout";
+} from './types';
+import { normalizeTimeoutSeconds } from './timeout';
 
 /**
  * 一意の質問IDを生成
@@ -26,54 +26,60 @@ export function generateQuestionId(): string {
  * AskUserQuestionツールの入力から質問カテゴリを推測
  */
 export function inferQuestionCategory(
-  input: Record<string, unknown> | undefined
+  input: Record<string, unknown> | undefined,
 ): QuestionCategory {
   if (!input) {
-    return "clarification";
+    return 'clarification';
   }
 
   // questionsフィールドを確認
-  const questions = input.questions as Array<{
-    options?: unknown[];
-    multiSelect?: boolean;
-    question?: string;
-  }> | undefined;
+  const questions = input.questions as
+    | Array<{
+        options?: unknown[];
+        multiSelect?: boolean;
+        question?: string;
+      }>
+    | undefined;
 
   if (questions && Array.isArray(questions) && questions.length > 0) {
     const firstQuestion = questions[0];
 
     // 選択肢がある場合は selection
-    if (firstQuestion?.options && Array.isArray(firstQuestion.options) && firstQuestion.options.length > 0) {
-      return "selection";
+    if (
+      firstQuestion?.options &&
+      Array.isArray(firstQuestion.options) &&
+      firstQuestion.options.length > 0
+    ) {
+      return 'selection';
     }
 
     // 質問テキストに確認系のキーワードが含まれる場合は confirmation
-    const questionText = firstQuestion?.question || "";
+    const questionText = firstQuestion?.question || '';
     const confirmationKeywords = [
-      "よろしいですか",
-      "してもいいですか",
-      "しますか",
-      "続けますか",
-      "確認",
-      "proceed",
-      "continue",
-      "confirm",
-      "ok",
-      "yes",
-      "no",
+      'よろしいですか',
+      'してもいいですか',
+      'しますか',
+      '続けますか',
+      '確認',
+      'proceed',
+      'continue',
+      'confirm',
+      'ok',
+      'yes',
+      'no',
     ];
 
     const isConfirmation = confirmationKeywords.some((keyword) =>
-      questionText.toLowerCase().includes(keyword.toLowerCase())
+      questionText.toLowerCase().includes(keyword.toLowerCase()),
     );
 
     if (isConfirmation) {
-      return "confirmation";
+      return 'confirmation';
     }
   }
 
   // デフォルトは clarification
-  return "clarification";
+  return 'clarification';
 }
 
 /**
@@ -85,10 +91,10 @@ export function extractQuestionInfo(input: Record<string, unknown> | undefined):
   questionDetails?: QuestionDetails;
 } {
   if (!input) {
-    return { questionText: "" };
+    return { questionText: '' };
   }
 
-  let questionText = "";
+  let questionText = '';
   const questionDetails: QuestionDetails = {};
 
   // questionsフィールドがある場合（配列形式）
@@ -102,14 +108,12 @@ export function extractQuestionInfo(input: Record<string, unknown> | undefined):
 
     // 質問テキストを抽出
     questionText = questions
-      .map((q) => q.question || q.header || "")
+      .map((q) => q.question || q.header || '')
       .filter((q) => q)
-      .join("\n");
+      .join('\n');
 
     // ヘッダーを抽出
-    const headers = questions
-      .map((q) => q.header)
-      .filter((h): h is string => !!h);
+    const headers = questions.map((q) => q.header).filter((h): h is string => !!h);
     if (headers.length > 0) {
       questionDetails.headers = headers;
     }
@@ -119,17 +123,17 @@ export function extractQuestionInfo(input: Record<string, unknown> | undefined):
     if (firstQuestion) {
       if (firstQuestion.options && Array.isArray(firstQuestion.options)) {
         questionDetails.options = firstQuestion.options.map((opt) => ({
-          label: opt.label || "",
+          label: opt.label || '',
           description: opt.description,
         }));
       }
-      if (typeof firstQuestion.multiSelect === "boolean") {
+      if (typeof firstQuestion.multiSelect === 'boolean') {
         questionDetails.multiSelect = firstQuestion.multiSelect;
       }
     }
   }
   // 単一のquestionフィールドがある場合
-  else if (input.question && typeof input.question === "string") {
+  else if (input.question && typeof input.question === 'string') {
     questionText = input.question;
   }
 
@@ -150,13 +154,13 @@ export function extractQuestionInfo(input: Record<string, unknown> | undefined):
  */
 export function createQuestionKeyFromToolCall(
   input: Record<string, unknown> | undefined,
-  timeoutSeconds?: number
+  timeoutSeconds?: number,
 ): QuestionKey {
   // タイムアウト秒数を正規化（範囲内に収める）
   const normalizedTimeout = normalizeTimeoutSeconds(timeoutSeconds);
 
   return {
-    status: "awaiting_user_input",
+    status: 'awaiting_user_input',
     question_id: generateQuestionId(),
     question_type: inferQuestionCategory(input),
     requires_response: true,
@@ -171,14 +175,14 @@ export function createQuestionKeyFromToolCall(
 export function detectQuestionFromToolCall(
   toolName: string,
   input: Record<string, unknown> | undefined,
-  timeoutSeconds?: number
+  timeoutSeconds?: number,
 ): QuestionDetectionResult {
   // AskUserQuestion以外のツールは質問なし
-  if (toolName !== "AskUserQuestion") {
+  if (toolName !== 'AskUserQuestion') {
     return {
       hasQuestion: false,
-      questionText: "",
-      detectionMethod: "none",
+      questionText: '',
+      detectionMethod: 'none',
     };
   }
 
@@ -190,10 +194,10 @@ export function detectQuestionFromToolCall(
 
   return {
     hasQuestion: true,
-    questionText: questionText || "ユーザーの入力を待っています",
+    questionText: questionText || 'ユーザーの入力を待っています',
     questionKey,
     questionDetails,
-    detectionMethod: "tool_call",
+    detectionMethod: 'tool_call',
   };
 }
 
@@ -203,8 +207,8 @@ export function detectQuestionFromToolCall(
 export function createInitialWaitingState(): QuestionWaitingState {
   return {
     hasQuestion: false,
-    question: "",
-    questionType: "none",
+    question: '',
+    questionType: 'none',
   };
 }
 
@@ -212,7 +216,7 @@ export function createInitialWaitingState(): QuestionWaitingState {
  * 質問検出結果から待機状態を更新
  */
 export function updateWaitingStateFromDetection(
-  result: QuestionDetectionResult
+  result: QuestionDetectionResult,
 ): QuestionWaitingState {
   if (!result.hasQuestion) {
     return createInitialWaitingState();

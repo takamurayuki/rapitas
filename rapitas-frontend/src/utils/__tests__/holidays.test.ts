@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { getHolidaysForYear, getHolidaysForMonth, getHolidayName } from '../holidays';
+import {
+  getHolidaysForYear,
+  getHolidaysForMonth,
+  getHolidayName,
+} from '../holidays';
 
 describe('getHolidaysForYear', () => {
   it('returns empty for years before 1948', () => {

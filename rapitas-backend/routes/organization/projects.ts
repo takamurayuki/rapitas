@@ -1,44 +1,44 @@
 /**
  * Projects API Routes
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
-import { projectSchema } from "../../schemas/project.schema";
-import { ValidationError } from "../../middleware/error-handler";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
+import { projectSchema } from '../../schemas/project.schema';
+import { ValidationError } from '../../middleware/error-handler';
 
-export const projectsRoutes = new Elysia({ prefix: "/projects" })
+export const projectsRoutes = new Elysia({ prefix: '/projects' })
   // Get all projects
-  .get("/", async () => {
+  .get('/', async () => {
     return await prisma.project.findMany({
       include: {
         _count: {
           select: { tasks: true, milestones: true },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
     });
   })
 
   // Get project by ID
-  .get("/:id", async (context) => {
-      const { params  } = context;
+  .get('/:id', async (context) => {
+    const { params } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
-      throw new ValidationError("無効なIDです");
+      throw new ValidationError('無効なIDです');
     }
 
     return await prisma.project.findUnique({
       where: { id },
       include: {
         milestones: {
-          orderBy: { createdAt: "asc" },
+          orderBy: { createdAt: 'asc' },
           include: {
             _count: { select: { tasks: true } },
           },
         },
         tasks: {
           where: { parentId: null },
-          orderBy: { createdAt: "desc" },
+          orderBy: { createdAt: 'desc' },
         },
       },
     });
@@ -46,11 +46,14 @@ export const projectsRoutes = new Elysia({ prefix: "/projects" })
 
   // Create project
   .post(
-    "/",
+    '/',
     async (context) => {
-      const { body  } = context;
-      const { name, description, color, icon  } = body as {
-        name: string; description?: string; color?: string; icon?: string;
+      const { body } = context;
+      const { name, description, color, icon } = body as {
+        name: string;
+        description?: string;
+        color?: string;
+        icon?: string;
       };
       return await prisma.project.create({
         data: {
@@ -63,38 +66,40 @@ export const projectsRoutes = new Elysia({ prefix: "/projects" })
     },
     {
       body: projectSchema.create,
-    }
+    },
   )
 
   // Update project
-  .patch(
-    "/:id",
-    async (context) => {
-      const { params, body  } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) {
-        throw new ValidationError("無効なIDです");
-      }
-
-      const { name, description, color, icon  } = body as { name?: string; description?: string; color?: string; icon?: string };
-      return await prisma.project.update({
-        where: { id },
-        data: {
-          ...(name && { name }),
-          ...(description !== undefined && { description }),
-          ...(color && { color }),
-          ...(icon !== undefined && { icon }),
-        },
-      });
-    }
-  )
-
-  // Delete project
-  .delete("/:id", async (context) => {
-      const { params  } = context;
+  .patch('/:id', async (context) => {
+    const { params, body } = context;
     const id = parseInt(params.id);
     if (isNaN(id)) {
-      throw new ValidationError("無効なIDです");
+      throw new ValidationError('無効なIDです');
+    }
+
+    const { name, description, color, icon } = body as {
+      name?: string;
+      description?: string;
+      color?: string;
+      icon?: string;
+    };
+    return await prisma.project.update({
+      where: { id },
+      data: {
+        ...(name && { name }),
+        ...(description !== undefined && { description }),
+        ...(color && { color }),
+        ...(icon !== undefined && { icon }),
+      },
+    });
+  })
+
+  // Delete project
+  .delete('/:id', async (context) => {
+    const { params } = context;
+    const id = parseInt(params.id);
+    if (isNaN(id)) {
+      throw new ValidationError('無効なIDです');
     }
 
     return await prisma.project.delete({

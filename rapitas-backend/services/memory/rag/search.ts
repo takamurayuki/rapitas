@@ -2,14 +2,14 @@
  * ベクトル類似検索
  * embeddingを生成してコサイン類似度で検索、forgettingStageでフィルタ
  */
-import { createLogger } from "../../../config/logger";
-import { prisma } from "../../../config/database";
-import { generateEmbedding } from "./embedding";
-import { searchSimilar } from "./vector-index";
-import { boostDecayOnAccess } from "../forgetting";
-import type { VectorSearchResult, KnowledgeSearchOptions } from "../types";
+import { createLogger } from '../../../config/logger';
+import { prisma } from '../../../config/database';
+import { generateEmbedding } from './embedding';
+import { searchSimilar } from './vector-index';
+import { boostDecayOnAccess } from '../forgetting';
+import type { VectorSearchResult, KnowledgeSearchOptions } from '../types';
 
-const log = createLogger("memory:rag:search");
+const log = createLogger('memory:rag:search');
 
 /**
  * ベクトル類似検索（テキストクエリから）
@@ -42,14 +42,7 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
     createdAt: Date;
   }>
 > {
-  const {
-    query,
-    limit = 10,
-    minSimilarity = 0.5,
-    forgettingStage,
-    category,
-    themeId,
-  } = options;
+  const { query, limit = 10, minSimilarity = 0.5, forgettingStage, category, themeId } = options;
 
   // ベクトル検索で候補を取得（多めに）
   const vectorResults = await vectorSearch({

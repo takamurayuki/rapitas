@@ -1,7 +1,7 @@
 /**
  * Category Validation Schemas
  */
-import { t } from "elysia";
+import { t } from 'elysia';
 
 export const categorySchema = {
   create: t.Object({

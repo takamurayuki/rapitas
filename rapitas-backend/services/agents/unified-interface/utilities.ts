@@ -4,7 +4,7 @@
  * 実行オプションのデフォルト値取得・マージ機能を提供
  */
 
-import type { ExecutionOptions } from "./agent-config";
+import type { ExecutionOptions } from './agent-config';
 
 /**
  * デフォルトの実行オプションを取得
@@ -24,7 +24,7 @@ export function getDefaultExecutionOptions(): ExecutionOptions {
  */
 export function mergeExecutionOptions(
   base: ExecutionOptions,
-  override?: Partial<ExecutionOptions>
+  override?: Partial<ExecutionOptions>,
 ): ExecutionOptions {
   if (!override) {
     return { ...base };

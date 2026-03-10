@@ -2,8 +2,8 @@
  * Auth Routes テスト
  * 認証機能（登録・ログイン・ログアウト・セッション管理）のユニットテスト
  */
-import { describe, test, expect, mock, beforeEach } from "bun:test";
-import { Elysia } from "elysia";
+import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { Elysia } from 'elysia';
 
 const mockPrisma = {
   user: {
@@ -20,18 +20,18 @@ const mockPrisma = {
 };
 
 const mockBcrypt = {
-  hash: mock(() => Promise.resolve("$2a$12$hashed")),
+  hash: mock(() => Promise.resolve('$2a$12$hashed')),
   compare: mock(() => Promise.resolve(true)),
 };
 
-mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
-mock.module("bcryptjs", () => ({ default: mockBcrypt }));
-mock.module("googleapis", () => ({
+mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('bcryptjs', () => ({ default: mockBcrypt }));
+mock.module('googleapis', () => ({
   google: {
     auth: {
       OAuth2: class MockOAuth2 {
         generateAuthUrl() {
-          return "https://accounts.google.com/o/oauth2/v2/auth";
+          return 'https://accounts.google.com/o/oauth2/v2/auth';
         }
         getToken() {
           return Promise.resolve({ tokens: {} });
@@ -46,7 +46,7 @@ mock.module("googleapis", () => ({
     }),
   },
 }));
-mock.module("../../../config/logger", () => ({
+mock.module('../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -55,19 +55,19 @@ mock.module("../../../config/logger", () => ({
   }),
 }));
 
-const { authRoutes } = await import("../../../routes/system/auth");
+const { authRoutes } = await import('../../../routes/system/auth');
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {
     for (const method of Object.values(model)) {
-      if (typeof method === "function" && "mockReset" in method) {
+      if (typeof method === 'function' && 'mockReset' in method) {
         (method as ReturnType<typeof mock>).mockReset();
       }
     }
   }
   mockBcrypt.hash.mockReset();
   mockBcrypt.compare.mockReset();
-  mockBcrypt.hash.mockResolvedValue("$2a$12$hashed");
+  mockBcrypt.hash.mockResolvedValue('$2a$12$hashed');
   mockBcrypt.compare.mockResolvedValue(true);
 }
 
@@ -75,9 +75,9 @@ function createApp() {
   return new Elysia().use(authRoutes);
 }
 
-const now = new Date("2026-03-05T10:00:00.000Z");
+const now = new Date('2026-03-05T10:00:00.000Z');
 
-describe("POST /auth/register", () => {
+describe('POST /auth/register', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -85,26 +85,26 @@ describe("POST /auth/register", () => {
     app = createApp();
   });
 
-  test("新規ユーザーを登録すること", async () => {
+  test('新規ユーザーを登録すること', async () => {
     mockPrisma.user.findFirst.mockResolvedValue(null);
     mockPrisma.user.create.mockResolvedValue({
       id: 1,
-      username: "testuser",
-      email: "test@example.com",
-      role: "user",
+      username: 'testuser',
+      email: 'test@example.com',
+      role: 'user',
       createdAt: now,
       lastLoginAt: null,
     });
     mockPrisma.userSession.create.mockResolvedValue({});
 
     const res = await app.handle(
-      new Request("http://localhost/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: "testuser",
-          email: "test@example.com",
-          password: "password123",
+          username: 'testuser',
+          email: 'test@example.com',
+          password: 'password123',
         }),
       }),
     );
@@ -112,26 +112,26 @@ describe("POST /auth/register", () => {
 
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
-    expect(body.user.username).toBe("testuser");
+    expect(body.user.username).toBe('testuser');
     expect(mockPrisma.user.create).toHaveBeenCalledTimes(1);
     expect(mockPrisma.userSession.create).toHaveBeenCalledTimes(1);
   });
 
-  test("既存ユーザー名で409を返すこと", async () => {
+  test('既存ユーザー名で409を返すこと', async () => {
     mockPrisma.user.findFirst.mockResolvedValue({
       id: 1,
-      username: "testuser",
-      email: "other@example.com",
+      username: 'testuser',
+      email: 'other@example.com',
     });
 
     const res = await app.handle(
-      new Request("http://localhost/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: "testuser",
-          email: "new@example.com",
-          password: "password123",
+          username: 'testuser',
+          email: 'new@example.com',
+          password: 'password123',
         }),
       }),
     );
@@ -139,24 +139,24 @@ describe("POST /auth/register", () => {
 
     expect(res.status).toBe(409);
     expect(body.success).toBe(false);
-    expect(body.message).toContain("Username");
+    expect(body.message).toContain('Username');
   });
 
-  test("既存メールで409を返すこと", async () => {
+  test('既存メールで409を返すこと', async () => {
     mockPrisma.user.findFirst.mockResolvedValue({
       id: 1,
-      username: "otheruser",
-      email: "test@example.com",
+      username: 'otheruser',
+      email: 'test@example.com',
     });
 
     const res = await app.handle(
-      new Request("http://localhost/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: "newuser",
-          email: "test@example.com",
-          password: "password123",
+          username: 'newuser',
+          email: 'test@example.com',
+          password: 'password123',
         }),
       }),
     );
@@ -164,18 +164,18 @@ describe("POST /auth/register", () => {
 
     expect(res.status).toBe(409);
     expect(body.success).toBe(false);
-    expect(body.message).toContain("Email");
+    expect(body.message).toContain('Email');
   });
 
-  test("短すぎるパスワードでバリデーションエラーを返すこと", async () => {
+  test('短すぎるパスワードでバリデーションエラーを返すこと', async () => {
     const res = await app.handle(
-      new Request("http://localhost/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: "testuser",
-          email: "test@example.com",
-          password: "short",
+          username: 'testuser',
+          email: 'test@example.com',
+          password: 'short',
         }),
       }),
     );
@@ -183,7 +183,7 @@ describe("POST /auth/register", () => {
   });
 });
 
-describe("POST /auth/login", () => {
+describe('POST /auth/login', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -191,13 +191,13 @@ describe("POST /auth/login", () => {
     app = createApp();
   });
 
-  test("正常にログインすること", async () => {
+  test('正常にログインすること', async () => {
     mockPrisma.user.findFirst.mockResolvedValue({
       id: 1,
-      username: "testuser",
-      email: "test@example.com",
-      passwordHash: "$2a$12$hashed",
-      role: "user",
+      username: 'testuser',
+      email: 'test@example.com',
+      passwordHash: '$2a$12$hashed',
+      role: 'user',
       createdAt: now,
       lastLoginAt: null,
     });
@@ -206,12 +206,12 @@ describe("POST /auth/login", () => {
     mockPrisma.user.update.mockResolvedValue({});
 
     const res = await app.handle(
-      new Request("http://localhost/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: "testuser",
-          password: "password123",
+          username: 'testuser',
+          password: 'password123',
         }),
       }),
     );
@@ -220,20 +220,20 @@ describe("POST /auth/login", () => {
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
     expect(body.token).toBeDefined();
-    expect(body.user.username).toBe("testuser");
+    expect(body.user.username).toBe('testuser');
     expect(mockPrisma.userSession.create).toHaveBeenCalledTimes(1);
   });
 
-  test("存在しないユーザーで401を返すこと", async () => {
+  test('存在しないユーザーで401を返すこと', async () => {
     mockPrisma.user.findFirst.mockResolvedValue(null);
 
     const res = await app.handle(
-      new Request("http://localhost/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: "nonexistent",
-          password: "password123",
+          username: 'nonexistent',
+          password: 'password123',
         }),
       }),
     );
@@ -241,24 +241,24 @@ describe("POST /auth/login", () => {
 
     expect(res.status).toBe(401);
     expect(body.success).toBe(false);
-    expect(body.message).toBe("Invalid credentials");
+    expect(body.message).toBe('Invalid credentials');
   });
 
-  test("パスワード不一致で401を返すこと", async () => {
+  test('パスワード不一致で401を返すこと', async () => {
     mockPrisma.user.findFirst.mockResolvedValue({
       id: 1,
-      username: "testuser",
-      passwordHash: "$2a$12$hashed",
+      username: 'testuser',
+      passwordHash: '$2a$12$hashed',
     });
     mockBcrypt.compare.mockResolvedValue(false);
 
     const res = await app.handle(
-      new Request("http://localhost/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: "testuser",
-          password: "wrongpassword",
+          username: 'testuser',
+          password: 'wrongpassword',
         }),
       }),
     );
@@ -268,20 +268,20 @@ describe("POST /auth/login", () => {
     expect(body.success).toBe(false);
   });
 
-  test("passwordHashがnullのユーザー(OAuth)で401を返すこと", async () => {
+  test('passwordHashがnullのユーザー(OAuth)で401を返すこと', async () => {
     mockPrisma.user.findFirst.mockResolvedValue({
       id: 1,
-      username: "oauthuser",
+      username: 'oauthuser',
       passwordHash: null,
     });
 
     const res = await app.handle(
-      new Request("http://localhost/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          username: "oauthuser",
-          password: "password123",
+          username: 'oauthuser',
+          password: 'password123',
         }),
       }),
     );
@@ -292,7 +292,7 @@ describe("POST /auth/login", () => {
   });
 });
 
-describe("POST /auth/logout", () => {
+describe('POST /auth/logout', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -300,14 +300,14 @@ describe("POST /auth/logout", () => {
     app = createApp();
   });
 
-  test("正常にログアウトすること", async () => {
+  test('正常にログアウトすること', async () => {
     mockPrisma.userSession.deleteMany.mockResolvedValue({ count: 1 });
 
     const res = await app.handle(
-      new Request("http://localhost/auth/logout", {
-        method: "POST",
+      new Request('http://localhost/auth/logout', {
+        method: 'POST',
         headers: {
-          Cookie: "sessionToken=test-token-123",
+          Cookie: 'sessionToken=test-token-123',
         },
       }),
     );
@@ -317,10 +317,10 @@ describe("POST /auth/logout", () => {
     expect(body.success).toBe(true);
   });
 
-  test("トークンなしでも正常応答すること", async () => {
+  test('トークンなしでも正常応答すること', async () => {
     const res = await app.handle(
-      new Request("http://localhost/auth/logout", {
-        method: "POST",
+      new Request('http://localhost/auth/logout', {
+        method: 'POST',
       }),
     );
     const body = await res.json();
@@ -330,7 +330,7 @@ describe("POST /auth/logout", () => {
   });
 });
 
-describe("GET /auth/me", () => {
+describe('GET /auth/me', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -338,45 +338,45 @@ describe("GET /auth/me", () => {
     app = createApp();
   });
 
-  test("有効なセッションでユーザー情報を返すこと", async () => {
+  test('有効なセッションでユーザー情報を返すこと', async () => {
     mockPrisma.userSession.findFirst.mockResolvedValue({
-      sessionToken: "valid-token",
+      sessionToken: 'valid-token',
       expiresAt: new Date(Date.now() + 86400000),
       user: {
         id: 1,
-        username: "testuser",
-        email: "test@example.com",
-        role: "user",
+        username: 'testuser',
+        email: 'test@example.com',
+        role: 'user',
         lastLoginAt: now,
       },
     });
 
     const res = await app.handle(
-      new Request("http://localhost/auth/me", {
-        headers: { Cookie: "sessionToken=valid-token" },
+      new Request('http://localhost/auth/me', {
+        headers: { Cookie: 'sessionToken=valid-token' },
       }),
     );
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
-    expect(body.user.username).toBe("testuser");
+    expect(body.user.username).toBe('testuser');
   });
 
-  test("トークンなしで401を返すこと", async () => {
-    const res = await app.handle(new Request("http://localhost/auth/me"));
+  test('トークンなしで401を返すこと', async () => {
+    const res = await app.handle(new Request('http://localhost/auth/me'));
     const body = await res.json();
 
     expect(res.status).toBe(401);
     expect(body.success).toBe(false);
   });
 
-  test("無効/期限切れセッションで401を返すこと", async () => {
+  test('無効/期限切れセッションで401を返すこと', async () => {
     mockPrisma.userSession.findFirst.mockResolvedValue(null);
 
     const res = await app.handle(
-      new Request("http://localhost/auth/me", {
-        headers: { Cookie: "sessionToken=expired-token" },
+      new Request('http://localhost/auth/me', {
+        headers: { Cookie: 'sessionToken=expired-token' },
       }),
     );
     const body = await res.json();
@@ -386,7 +386,7 @@ describe("GET /auth/me", () => {
   });
 });
 
-describe("GET /auth/sessions", () => {
+describe('GET /auth/sessions', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -394,30 +394,30 @@ describe("GET /auth/sessions", () => {
     app = createApp();
   });
 
-  test("セッション一覧を返すこと", async () => {
+  test('セッション一覧を返すこと', async () => {
     mockPrisma.userSession.findFirst.mockResolvedValue({
-      sessionToken: "current-token",
+      sessionToken: 'current-token',
       expiresAt: new Date(Date.now() + 86400000),
       user: { id: 1 },
     });
     mockPrisma.userSession.findMany.mockResolvedValue([
       {
         id: 1,
-        sessionToken: "current-token",
+        sessionToken: 'current-token',
         createdAt: now,
         expiresAt: new Date(Date.now() + 86400000),
       },
       {
         id: 2,
-        sessionToken: "other-token",
+        sessionToken: 'other-token',
         createdAt: now,
         expiresAt: new Date(Date.now() + 86400000),
       },
     ]);
 
     const res = await app.handle(
-      new Request("http://localhost/auth/sessions", {
-        headers: { Cookie: "sessionToken=current-token" },
+      new Request('http://localhost/auth/sessions', {
+        headers: { Cookie: 'sessionToken=current-token' },
       }),
     );
     const body = await res.json();
@@ -429,10 +429,8 @@ describe("GET /auth/sessions", () => {
     expect(body.sessions[1].isCurrentSession).toBe(false);
   });
 
-  test("トークンなしで401を返すこと", async () => {
-    const res = await app.handle(
-      new Request("http://localhost/auth/sessions"),
-    );
+  test('トークンなしで401を返すこと', async () => {
+    const res = await app.handle(new Request('http://localhost/auth/sessions'));
     const body = await res.json();
 
     expect(res.status).toBe(401);
@@ -440,7 +438,7 @@ describe("GET /auth/sessions", () => {
   });
 });
 
-describe("DELETE /auth/sessions/:sessionId", () => {
+describe('DELETE /auth/sessions/:sessionId', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -448,18 +446,18 @@ describe("DELETE /auth/sessions/:sessionId", () => {
     app = createApp();
   });
 
-  test("セッションを削除すること", async () => {
+  test('セッションを削除すること', async () => {
     mockPrisma.userSession.findFirst.mockResolvedValue({
-      sessionToken: "current-token",
+      sessionToken: 'current-token',
       expiresAt: new Date(Date.now() + 86400000),
       user: { id: 1 },
     });
     mockPrisma.userSession.deleteMany.mockResolvedValue({ count: 1 });
 
     const res = await app.handle(
-      new Request("http://localhost/auth/sessions/2", {
-        method: "DELETE",
-        headers: { Cookie: "sessionToken=current-token" },
+      new Request('http://localhost/auth/sessions/2', {
+        method: 'DELETE',
+        headers: { Cookie: 'sessionToken=current-token' },
       }),
     );
     const body = await res.json();
@@ -468,18 +466,18 @@ describe("DELETE /auth/sessions/:sessionId", () => {
     expect(body.success).toBe(true);
   });
 
-  test("存在しないセッションで404を返すこと", async () => {
+  test('存在しないセッションで404を返すこと', async () => {
     mockPrisma.userSession.findFirst.mockResolvedValue({
-      sessionToken: "current-token",
+      sessionToken: 'current-token',
       expiresAt: new Date(Date.now() + 86400000),
       user: { id: 1 },
     });
     mockPrisma.userSession.deleteMany.mockResolvedValue({ count: 0 });
 
     const res = await app.handle(
-      new Request("http://localhost/auth/sessions/999", {
-        method: "DELETE",
-        headers: { Cookie: "sessionToken=current-token" },
+      new Request('http://localhost/auth/sessions/999', {
+        method: 'DELETE',
+        headers: { Cookie: 'sessionToken=current-token' },
       }),
     );
     const body = await res.json();
@@ -488,17 +486,17 @@ describe("DELETE /auth/sessions/:sessionId", () => {
     expect(body.success).toBe(false);
   });
 
-  test("無効なセッションIDで400を返すこと", async () => {
+  test('無効なセッションIDで400を返すこと', async () => {
     mockPrisma.userSession.findFirst.mockResolvedValue({
-      sessionToken: "current-token",
+      sessionToken: 'current-token',
       expiresAt: new Date(Date.now() + 86400000),
       user: { id: 1 },
     });
 
     const res = await app.handle(
-      new Request("http://localhost/auth/sessions/abc", {
-        method: "DELETE",
-        headers: { Cookie: "sessionToken=current-token" },
+      new Request('http://localhost/auth/sessions/abc', {
+        method: 'DELETE',
+        headers: { Cookie: 'sessionToken=current-token' },
       }),
     );
     const body = await res.json();
@@ -508,7 +506,7 @@ describe("DELETE /auth/sessions/:sessionId", () => {
   });
 });
 
-describe("POST /auth/cleanup-sessions", () => {
+describe('POST /auth/cleanup-sessions', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -516,38 +514,38 @@ describe("POST /auth/cleanup-sessions", () => {
     app = createApp();
   });
 
-  test("admin権限で期限切れセッションを削除すること", async () => {
+  test('admin権限で期限切れセッションを削除すること', async () => {
     mockPrisma.userSession.findFirst.mockResolvedValue({
-      sessionToken: "admin-token",
+      sessionToken: 'admin-token',
       expiresAt: new Date(Date.now() + 86400000),
-      user: { id: 1, role: "admin" },
+      user: { id: 1, role: 'admin' },
     });
     mockPrisma.userSession.deleteMany.mockResolvedValue({ count: 5 });
 
     const res = await app.handle(
-      new Request("http://localhost/auth/cleanup-sessions", {
-        method: "POST",
-        headers: { Cookie: "sessionToken=admin-token" },
+      new Request('http://localhost/auth/cleanup-sessions', {
+        method: 'POST',
+        headers: { Cookie: 'sessionToken=admin-token' },
       }),
     );
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
-    expect(body.message).toContain("5");
+    expect(body.message).toContain('5');
   });
 
-  test("非admin権限で403を返すこと", async () => {
+  test('非admin権限で403を返すこと', async () => {
     mockPrisma.userSession.findFirst.mockResolvedValue({
-      sessionToken: "user-token",
+      sessionToken: 'user-token',
       expiresAt: new Date(Date.now() + 86400000),
-      user: { id: 2, role: "user" },
+      user: { id: 2, role: 'user' },
     });
 
     const res = await app.handle(
-      new Request("http://localhost/auth/cleanup-sessions", {
-        method: "POST",
-        headers: { Cookie: "sessionToken=user-token" },
+      new Request('http://localhost/auth/cleanup-sessions', {
+        method: 'POST',
+        headers: { Cookie: 'sessionToken=user-token' },
       }),
     );
     const body = await res.json();
@@ -556,10 +554,10 @@ describe("POST /auth/cleanup-sessions", () => {
     expect(body.success).toBe(false);
   });
 
-  test("トークンなしで401を返すこと", async () => {
+  test('トークンなしで401を返すこと', async () => {
     const res = await app.handle(
-      new Request("http://localhost/auth/cleanup-sessions", {
-        method: "POST",
+      new Request('http://localhost/auth/cleanup-sessions', {
+        method: 'POST',
       }),
     );
     const body = await res.json();

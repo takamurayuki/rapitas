@@ -2,13 +2,13 @@
  * Agent Execution Service
  * エージェント実行のライフサイクル管理、セッション管理を行う
  */
-import { PrismaClient, AgentExecution, AgentSession } from "@prisma/client";
-import { orchestrator } from "./orchestrator-instance";
+import { PrismaClient, AgentExecution, AgentSession } from '@prisma/client';
+import { orchestrator } from './orchestrator-instance';
 import type {
   ExecutionRequest,
   ExecutionResult,
-  AgentExecutionWithExtras
-} from "../types/agent-execution-types";
+  AgentExecutionWithExtras,
+} from '../types/agent-execution-types';
 import { createLogger } from '../config/logger';
 
 const log = createLogger('agent-execution-service');
@@ -23,27 +23,19 @@ export class AgentExecutionService {
   /**
    * タスクの実行を開始
    */
-  async executeTask(
-    taskId: number,
-    request: ExecutionRequest
-  ): Promise<ExecutionResult> {
-    const {
-      agentConfigId,
-      useTaskAnalysis = true,
-      optimizedPrompt,
-      sessionId,
-    } = request;
+  async executeTask(taskId: number, request: ExecutionRequest): Promise<ExecutionResult> {
+    const { agentConfigId, useTaskAnalysis = true, optimizedPrompt, sessionId } = request;
 
     // タスク情報を取得
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
       include: {
-        theme: true
-      }
+        theme: true,
+      },
     });
 
     if (!task) {
-      throw new Error("タスクが見つかりません");
+      throw new Error('タスクが見つかりません');
     }
 
     // セッション管理
@@ -60,7 +52,11 @@ export class AgentExecutionService {
 
     try {
       // 実行をオーケストレーターに委譲
-      const executionInstruction = this.buildExecutionInstruction(task, optimizedPrompt, useTaskAnalysis);
+      const executionInstruction = this.buildExecutionInstruction(
+        task,
+        optimizedPrompt,
+        useTaskAnalysis,
+      );
 
       orchestrator.executeTask(
         {
@@ -73,23 +69,23 @@ export class AgentExecutionService {
           taskId,
           sessionId: session.id,
           agentConfigId: agentConfig.id,
-        }
+        },
       );
 
       return {
         success: true,
         executionId: execution.id,
         sessionId: session.id,
-        message: "エージェントが実行を開始しました",
+        message: 'エージェントが実行を開始しました',
       };
     } catch (error) {
       // 実行開始に失敗した場合はエラー状態に更新
       await this.prisma.agentExecution.update({
         where: { id: execution.id },
         data: {
-          status: "error",
-          errorMessage: error instanceof Error ? error.message : "実行開始エラー",
-        }
+          status: 'error',
+          errorMessage: error instanceof Error ? error.message : '実行開始エラー',
+        },
       });
 
       throw error;
@@ -99,17 +95,14 @@ export class AgentExecutionService {
   /**
    * セッションを取得または新規作成
    */
-  private async getOrCreateSession(
-    sessionId?: number,
-    configId?: number
-  ): Promise<AgentSession> {
+  private async getOrCreateSession(sessionId?: number, configId?: number): Promise<AgentSession> {
     if (sessionId) {
       const existingSession = await this.prisma.agentSession.findUnique({
         where: { id: sessionId },
       });
 
       if (!existingSession) {
-        throw new Error("指定されたセッションが見つかりません");
+        throw new Error('指定されたセッションが見つかりません');
       }
 
       return existingSession;
@@ -117,14 +110,14 @@ export class AgentExecutionService {
 
     // 新規セッション作成
     if (!configId) {
-      throw new Error("新規セッション作成にはconfigIdが必要です");
+      throw new Error('新規セッション作成にはconfigIdが必要です');
     }
 
     return await this.prisma.agentSession.create({
       data: {
         configId,
         startedAt: new Date(),
-      }
+      },
     });
   }
 
@@ -137,7 +130,7 @@ export class AgentExecutionService {
     });
 
     if (!agentConfig || !agentConfig.isActive) {
-      throw new Error("有効なエージェント設定が見つかりません");
+      throw new Error('有効なエージェント設定が見つかりません');
     }
 
     return agentConfig;
@@ -151,30 +144,27 @@ export class AgentExecutionService {
     const runningExecution = await this.prisma.agentExecution.findFirst({
       where: {
         sessionId,
-        status: { in: ["running", "pending", "waiting_for_input"] }
-      }
+        status: { in: ['running', 'pending', 'waiting_for_input'] },
+      },
     });
 
     if (runningExecution) {
-      throw new Error("この実行セッションは既に実行中です");
+      throw new Error('この実行セッションは既に実行中です');
     }
   }
 
   /**
    * 実行エントリを作成
    */
-  private async createExecution(
-    sessionId: number,
-    agentConfigId: number
-  ): Promise<AgentExecution> {
+  private async createExecution(sessionId: number, agentConfigId: number): Promise<AgentExecution> {
     return await this.prisma.agentExecution.create({
       data: {
         sessionId,
         agentConfigId,
         command: `Agent execution`,
-        status: "pending",
+        status: 'pending',
         startedAt: new Date(),
-      }
+      },
     });
   }
 
@@ -184,15 +174,15 @@ export class AgentExecutionService {
   private buildExecutionInstruction(
     task: { description: string | null; workflowFiles?: Array<{ fileType: string }> },
     optimizedPrompt?: string,
-    useTaskAnalysis?: boolean
+    useTaskAnalysis?: boolean,
   ): string {
-    let instruction = task.description || "";
+    let instruction = task.description || '';
 
     if (optimizedPrompt) {
       instruction = `${optimizedPrompt}\n\n元のタスク内容:\n${instruction}`;
     }
 
-    if (useTaskAnalysis && task.workflowFiles?.some((f) => f.fileType === "research")) {
+    if (useTaskAnalysis && task.workflowFiles?.some((f) => f.fileType === 'research')) {
       instruction = `## 事前調査済み\n\nこのタスクは事前調査が完了しています。ワークフローファイルを確認してください。\n\n${instruction}`;
     }
 
@@ -211,14 +201,14 @@ export class AgentExecutionService {
       await this.prisma.agentExecution.update({
         where: { id: executionId },
         data: {
-          status: "cancelled",
+          status: 'cancelled',
           completedAt: new Date(),
-        }
+        },
       });
 
       return stopped;
     } catch (error) {
-      log.error({ err: error }, "Failed to stop execution");
+      log.error({ err: error }, 'Failed to stop execution');
       return false;
     }
   }
@@ -231,7 +221,10 @@ export class AgentExecutionService {
     const executions = orchestrator.getSessionExecutions(sessionId);
     for (const execution of executions) {
       await orchestrator.stopExecution(execution.executionId).catch((err) => {
-        log.warn({ err, executionId: execution.executionId }, "Failed to stop execution during session stop");
+        log.warn(
+          { err, executionId: execution.executionId },
+          'Failed to stop execution during session stop',
+        );
       });
     }
 
@@ -239,12 +232,12 @@ export class AgentExecutionService {
     await this.prisma.agentExecution.updateMany({
       where: {
         sessionId,
-        status: { in: ["running", "pending", "waiting_for_input"] }
+        status: { in: ['running', 'pending', 'waiting_for_input'] },
       },
       data: {
-        status: "cancelled",
-        completedAt: new Date()
-      }
+        status: 'cancelled',
+        completedAt: new Date(),
+      },
     });
 
     // セッション終了
@@ -252,27 +245,30 @@ export class AgentExecutionService {
       where: { id: sessionId },
       data: {
         completedAt: new Date(),
-        status: "completed"
-      }
+        status: 'completed',
+      },
     });
   }
 
   /**
    * 実行を継続/再開
    */
-  async continueExecution(taskId: number, options?: {
-    additionalInstructions?: string;
-    sessionId?: number;
-  }): Promise<ExecutionResult> {
+  async continueExecution(
+    taskId: number,
+    options?: {
+      additionalInstructions?: string;
+      sessionId?: number;
+    },
+  ): Promise<ExecutionResult> {
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
       include: {
         theme: true,
-      }
+      },
     });
 
     if (!task) {
-      throw new Error("タスクが見つかりません");
+      throw new Error('タスクが見つかりません');
     }
 
     // 既存の実行を検索
@@ -281,22 +277,25 @@ export class AgentExecutionService {
         ...(options?.sessionId ? { sessionId: options.sessionId } : {}),
         session: {
           config: {
-            taskId: taskId
-          }
-        }
+            taskId: taskId,
+          },
+        },
       },
-      orderBy: { startedAt: "desc" },
-      include: { agentConfig: true }
+      orderBy: { startedAt: 'desc' },
+      include: { agentConfig: true },
     });
 
     if (!previousExecution) {
-      throw new Error("継続可能な実行が見つかりません");
+      throw new Error('継続可能な実行が見つかりません');
     }
 
     // 実行停止処理
-    if (["running", "pending", "waiting_for_input"].includes(previousExecution.status)) {
+    if (['running', 'pending', 'waiting_for_input'].includes(previousExecution.status)) {
       await orchestrator.stopExecution(previousExecution.id).catch((err) => {
-        log.warn({ err, executionId: previousExecution.id }, "Failed to stop previous execution before resume");
+        log.warn(
+          { err, executionId: previousExecution.id },
+          'Failed to stop previous execution before resume',
+        );
       });
     }
 
@@ -305,14 +304,14 @@ export class AgentExecutionService {
       data: {
         sessionId: previousExecution.sessionId,
         agentConfigId: previousExecution.agentConfigId,
-        command: "continue_task",
-        status: "pending",
+        command: 'continue_task',
+        status: 'pending',
         startedAt: new Date(),
-      }
+      },
     });
 
     // 継続実行の指示文を構築
-    let fullInstruction = task.description || "";
+    let fullInstruction = task.description || '';
 
     if (options?.additionalInstructions) {
       fullInstruction = `${options.additionalInstructions}\n\n${fullInstruction}`;
@@ -321,7 +320,7 @@ export class AgentExecutionService {
     // 前回の実行内容を含める
     if (previousExecution.output) {
       const prevOutput = previousExecution.output.slice(0, 3000);
-      fullInstruction = `## 前回の実行内容\n\n前回の実行で以下の作業を行いました：\n\n${prevOutput}${previousExecution.output.length > 3000 ? "\n...(省略)" : ""}\n\n${fullInstruction}`;
+      fullInstruction = `## 前回の実行内容\n\n前回の実行で以下の作業を行いました：\n\n${prevOutput}${previousExecution.output.length > 3000 ? '\n...(省略)' : ''}\n\n${fullInstruction}`;
     }
 
     try {
@@ -336,22 +335,22 @@ export class AgentExecutionService {
         {
           taskId,
           sessionId: previousExecution.sessionId,
-        }
+        },
       );
 
       return {
         success: true,
         executionId: newExecution.id,
         sessionId: previousExecution.sessionId,
-        message: "エージェントが継続実行を開始しました",
+        message: 'エージェントが継続実行を開始しました',
       };
     } catch (error) {
       await this.prisma.agentExecution.update({
         where: { id: newExecution.id },
         data: {
-          status: "error",
-          errorMessage: error instanceof Error ? error.message : "継続実行エラー"
-        }
+          status: 'error',
+          errorMessage: error instanceof Error ? error.message : '継続実行エラー',
+        },
       });
 
       throw error;
@@ -368,9 +367,9 @@ export class AgentExecutionService {
         agentConfig: true,
         session: true,
         executionLogs: {
-          orderBy: { timestamp: "asc" }
-        }
-      }
+          orderBy: { timestamp: 'asc' },
+        },
+      },
     });
   }
 
@@ -382,19 +381,19 @@ export class AgentExecutionService {
       where: {
         session: {
           config: {
-            taskId: taskId
-          }
-        }
+            taskId: taskId,
+          },
+        },
       },
-      orderBy: { startedAt: "desc" },
+      orderBy: { startedAt: 'desc' },
       include: {
         agentConfig: true,
         session: true,
         executionLogs: {
-          orderBy: { timestamp: "asc" },
-          take: 10
-        }
-      }
+          orderBy: { timestamp: 'asc' },
+          take: 10,
+        },
+      },
     });
   }
 
@@ -404,13 +403,13 @@ export class AgentExecutionService {
   async getExecutingTasks(): Promise<AgentExecutionWithExtras[]> {
     return await this.prisma.agentExecution.findMany({
       where: {
-        status: { in: ["running", "pending", "waiting_for_input"] }
+        status: { in: ['running', 'pending', 'waiting_for_input'] },
       },
       include: {
         agentConfig: true,
-        session: true
+        session: true,
       },
-      orderBy: { startedAt: "desc" }
+      orderBy: { startedAt: 'desc' },
     });
   }
 
@@ -422,21 +421,21 @@ export class AgentExecutionService {
       where: {
         session: {
           config: {
-            taskId: taskId
-          }
-        }
+            taskId: taskId,
+          },
+        },
       },
-      orderBy: { startedAt: "desc" }
+      orderBy: { startedAt: 'desc' },
     });
 
     if (!latestExecution) {
-      throw new Error("リセット対象の実行が見つかりません");
+      throw new Error('リセット対象の実行が見つかりません');
     }
 
     // 実行中の場合は停止
-    if (["running", "pending", "waiting_for_input"].includes(latestExecution.status)) {
+    if (['running', 'pending', 'waiting_for_input'].includes(latestExecution.status)) {
       await orchestrator.stopExecution(latestExecution.id).catch((err) => {
-        log.warn({ err, executionId: latestExecution.id }, "Failed to stop execution before reset");
+        log.warn({ err, executionId: latestExecution.id }, 'Failed to stop execution before reset');
       });
     }
 
@@ -444,14 +443,14 @@ export class AgentExecutionService {
     await this.prisma.agentExecution.update({
       where: { id: latestExecution.id },
       data: {
-        status: "cancelled",
-        completedAt: new Date()
-      }
+        status: 'cancelled',
+        completedAt: new Date(),
+      },
     });
 
     // 実行ログを削除
     await this.prisma.agentExecutionLog.deleteMany({
-      where: { executionId: latestExecution.id }
+      where: { executionId: latestExecution.id },
     });
   }
 
@@ -461,14 +460,14 @@ export class AgentExecutionService {
   async getResumableExecutions(): Promise<AgentExecutionWithExtras[]> {
     return await this.prisma.agentExecution.findMany({
       where: {
-        status: "interrupted",
-        completedAt: { gt: new Date(Date.now() - 24 * 60 * 60 * 1000) } // 24時間以内
+        status: 'interrupted',
+        completedAt: { gt: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // 24時間以内
       },
       include: {
         agentConfig: true,
-        session: true
+        session: true,
       },
-      orderBy: { completedAt: "desc" }
+      orderBy: { completedAt: 'desc' },
     });
   }
 
@@ -478,14 +477,14 @@ export class AgentExecutionService {
   async getInterruptedExecutions(): Promise<AgentExecutionWithExtras[]> {
     return await this.prisma.agentExecution.findMany({
       where: {
-        status: { in: ["interrupted", "error", "cancelled"] },
-        completedAt: { gt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } // 1週間以内
+        status: { in: ['interrupted', 'error', 'cancelled'] },
+        completedAt: { gt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }, // 1週間以内
       },
       include: {
         agentConfig: true,
-        session: true
+        session: true,
       },
-      orderBy: { completedAt: "desc" }
+      orderBy: { completedAt: 'desc' },
     });
   }
 }

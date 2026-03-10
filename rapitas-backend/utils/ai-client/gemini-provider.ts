@@ -1,8 +1,8 @@
 /**
  * Google Gemini APIプロバイダー
  */
-import { type AIMessage, type AIResponse } from "./types";
-import { formatApiError } from "./error-handler";
+import { type AIMessage, type AIResponse } from './types';
+import { formatApiError } from './error-handler';
 
 /**
  * Google Gemini APIを呼び出す（非ストリーミング）
@@ -14,13 +14,13 @@ export async function callGemini(
   systemPrompt: string | undefined,
   maxTokens: number,
 ): Promise<AIResponse> {
-  const { GoogleGenerativeAI } = await import("@google/generative-ai");
+  const { GoogleGenerativeAI } = await import('@google/generative-ai');
   const genAI = new GoogleGenerativeAI(apiKey);
 
   const generativeModel = genAI.getGenerativeModel({
     model,
     ...(systemPrompt
-      ? { systemInstruction: { role: "system", parts: [{ text: systemPrompt }] } }
+      ? { systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] } }
       : {}),
     generationConfig: {
       maxOutputTokens: maxTokens,
@@ -29,16 +29,16 @@ export async function callGemini(
 
   // Gemini のチャット形式に変換
   const history = messages
-    .filter((m) => m.role !== "system")
+    .filter((m) => m.role !== 'system')
     .slice(0, -1)
     .map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
+      role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
     }));
 
-  const lastMessage = messages.filter((m) => m.role !== "system").slice(-1)[0];
+  const lastMessage = messages.filter((m) => m.role !== 'system').slice(-1)[0];
   if (!lastMessage) {
-    return { content: "", tokensUsed: 0 };
+    return { content: '', tokensUsed: 0 };
   }
 
   const chat = generativeModel.startChat({ history });
@@ -64,13 +64,13 @@ export async function callGeminiStream(
   systemPrompt: string | undefined,
   maxTokens: number,
 ): Promise<ReadableStream> {
-  const { GoogleGenerativeAI } = await import("@google/generative-ai");
+  const { GoogleGenerativeAI } = await import('@google/generative-ai');
   const genAI = new GoogleGenerativeAI(apiKey);
 
   const generativeModel = genAI.getGenerativeModel({
     model,
     ...(systemPrompt
-      ? { systemInstruction: { role: "system", parts: [{ text: systemPrompt }] } }
+      ? { systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] } }
       : {}),
     generationConfig: {
       maxOutputTokens: maxTokens,
@@ -78,20 +78,20 @@ export async function callGeminiStream(
   });
 
   const history = messages
-    .filter((m) => m.role !== "system")
+    .filter((m) => m.role !== 'system')
     .slice(0, -1)
     .map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
+      role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
     }));
 
-  const lastMessage = messages.filter((m) => m.role !== "system").slice(-1)[0];
+  const lastMessage = messages.filter((m) => m.role !== 'system').slice(-1)[0];
 
   return new ReadableStream({
     async start(controller) {
       try {
         if (!lastMessage) {
-          controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
+          controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
           controller.close();
           return;
         }
@@ -103,20 +103,16 @@ export async function callGeminiStream(
           const text = chunk.text();
           if (text) {
             const data = JSON.stringify({ content: text });
-            controller.enqueue(
-              new TextEncoder().encode(`data: ${data}\n\n`),
-            );
+            controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
           }
         }
-        controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
+        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
         controller.close();
       } catch (error: unknown) {
         const errorData = JSON.stringify({
-          error: formatApiError(error, "gemini"),
+          error: formatApiError(error, 'gemini'),
         });
-        controller.enqueue(
-          new TextEncoder().encode(`data: ${errorData}\n\n`),
-        );
+        controller.enqueue(new TextEncoder().encode(`data: ${errorData}\n\n`));
         controller.close();
       }
     },

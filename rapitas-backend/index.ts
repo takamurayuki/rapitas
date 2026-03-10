@@ -30,7 +30,6 @@ import {
   resourcesRoutes,
   directoriesRoutes,
   statisticsRoutes,
-  achievementsRoutes,
   habitsRoutes,
   flashcardsRoutes,
   templatesRoutes,
@@ -62,10 +61,15 @@ import {
   cliToolsManagementRoutes,
   workflowRoutes,
   workflowRolesRoutes,
+  orchestraRoutes,
   pomodoroRoutes,
   searchRoutes,
   knowledgeRoutes,
   memorySystemRoutes,
+  smartActionRoutes,
+  experimentsRoutes,
+  knowledgeGraphRoutes,
+  learningRoutes,
 } from './routes';
 
 // Import shared database client
@@ -161,7 +165,6 @@ app.use(studyStreaksRoutes);
 app.use(resourcesRoutes);
 app.use(directoriesRoutes);
 app.use(statisticsRoutes);
-app.use(achievementsRoutes);
 app.use(habitsRoutes);
 app.use(flashcardsRoutes);
 app.use(templatesRoutes);
@@ -193,10 +196,15 @@ app.use(authRoutes);
 app.use(cliToolsManagementRoutes);
 app.use(workflowRoutes);
 app.use(workflowRolesRoutes);
+app.use(orchestraRoutes);
 app.use(pomodoroRoutes);
 app.use(searchRoutes);
 app.use(knowledgeRoutes);
 app.use(memorySystemRoutes);
+app.use(smartActionRoutes);
+app.use(experimentsRoutes);
+app.use(knowledgeGraphRoutes);
+app.use(learningRoutes);
 
 // Start behavior scheduler
 import { BehaviorScheduler } from './src/services/behaviorScheduler';
@@ -207,6 +215,14 @@ import { initializeMemorySystem, shutdownMemorySystem } from './services/memory'
 initializeMemorySystem().catch((error) => {
   log.error({ err: error }, 'Failed to initialize memory system');
 });
+
+// Initialize AI Orchestra recovery
+import { AIOrchestra } from './services/workflow/ai-orchestra';
+AIOrchestra.getInstance()
+  .recoverOnStartup()
+  .catch((error) => {
+    log.error({ err: error }, 'AI Orchestra startup recovery failed');
+  });
 
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -247,8 +263,17 @@ const handleProcessSignal = async (signal: string) => {
       log.error({ err: error }, 'Error stopping listener');
     }
 
-    // Step 1.5: Stop memory system
-    log.info('Step 1.5: Stopping memory system...');
+    // Step 1.5: Stop AI Orchestra runner
+    log.info('Step 1.5: Stopping AI Orchestra runner...');
+    try {
+      const { WorkflowRunner } = await import('./services/workflow/workflow-runner');
+      await WorkflowRunner.getInstance().stopProcessing();
+    } catch (error) {
+      log.error({ err: error }, 'Error stopping workflow runner');
+    }
+
+    // Step 1.6: Stop memory system
+    log.info('Step 1.6: Stopping memory system...');
     shutdownMemorySystem();
 
     // Step 2: SSE接続を全て閉じる（既存接続のクリーンアップ）

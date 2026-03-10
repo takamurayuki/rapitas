@@ -4,9 +4,9 @@ import { useEffect, useRef, useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
 import { useTaskCacheStore } from '@/stores/taskCacheStore';
-import { createLogger } from "@/lib/logger";
+import { createLogger } from '@/lib/logger';
 
-const logger = createLogger("useExecutingTasksPolling");
+const logger = createLogger('useExecutingTasksPolling');
 
 /**
  * 実行中のタスクをポーリングで検出し、グローバルストアに反映するフック
@@ -37,37 +37,44 @@ export function useExecutingTasksPolling(options?: {
   }, [onExecutingTaskFound]);
 
   // ポーリング間隔を動的に調整する関数
-  const adjustPollingInterval = useCallback((hasExecutingTasks: boolean, hadError: boolean) => {
-    let newInterval = interval;
+  const adjustPollingInterval = useCallback(
+    (hasExecutingTasks: boolean, hadError: boolean) => {
+      let newInterval = interval;
 
-    if (hadError) {
-      // エラー発生時は間隔を倍に（最大30秒）
-      newInterval = Math.min(currentIntervalRef.current * 2, 30000);
-      logger.debug(`Error occurred, increasing interval to ${newInterval}ms`);
-    } else if (hasExecutingTasks) {
-      // 実行中タスクがある場合は短い間隔（デフォルトのまま）
-      newInterval = interval;
-      if (currentIntervalRef.current !== interval) {
-        logger.debug(`Tasks executing, resetting interval to ${newInterval}ms`);
+      if (hadError) {
+        // エラー発生時は間隔を倍に（最大30秒）
+        newInterval = Math.min(currentIntervalRef.current * 2, 30000);
+        logger.debug(`Error occurred, increasing interval to ${newInterval}ms`);
+      } else if (hasExecutingTasks) {
+        // 実行中タスクがある場合は短い間隔（デフォルトのまま）
+        newInterval = interval;
+        if (currentIntervalRef.current !== interval) {
+          logger.debug(
+            `Tasks executing, resetting interval to ${newInterval}ms`,
+          );
+        }
+      } else {
+        // 実行中タスクがない場合は長い間隔（最大15秒）
+        newInterval = Math.min(interval * 2, 15000);
+        if (currentIntervalRef.current !== newInterval) {
+          logger.debug(
+            `No tasks executing, increasing interval to ${newInterval}ms`,
+          );
+        }
       }
-    } else {
-      // 実行中タスクがない場合は長い間隔（最大15秒）
-      newInterval = Math.min(interval * 2, 15000);
+
+      // 間隔が変わった場合はタイマーを再設定
       if (currentIntervalRef.current !== newInterval) {
-        logger.debug(`No tasks executing, increasing interval to ${newInterval}ms`);
-      }
-    }
+        currentIntervalRef.current = newInterval;
 
-    // 間隔が変わった場合はタイマーを再設定
-    if (currentIntervalRef.current !== newInterval) {
-      currentIntervalRef.current = newInterval;
-
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = setInterval(checkExecutingTasks, newInterval);
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = setInterval(checkExecutingTasks, newInterval);
+        }
       }
-    }
-  }, [interval]);
+    },
+    [interval],
+  );
 
   const checkExecutingTasks = useCallback(async () => {
     try {
@@ -75,7 +82,7 @@ export function useExecutingTasksPolling(options?: {
       const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒タイムアウト
 
       const res = await fetch(`${API_BASE_URL}/tasks/executing`, {
-        signal: controller.signal
+        signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
@@ -134,25 +141,30 @@ export function useExecutingTasksPolling(options?: {
       errorCountRef.current = 0;
       lastSuccessTimeRef.current = Date.now();
       adjustPollingInterval(currentExecutingIds.size > 0, false);
-
     } catch (error) {
       errorCountRef.current++;
       const timeSinceLastSuccess = Date.now() - lastSuccessTimeRef.current;
 
       logger.warn(
         `Fetch failed (attempt ${errorCountRef.current}, ${Math.round(timeSinceLastSuccess / 1000)}s since last success):`,
-        error
+        error,
       );
 
       adjustPollingInterval(knownTaskIdsRef.current.size > 0, true);
 
       // 長期間エラーが続く場合は既知のタスク状態をリセット
-      if (timeSinceLastSuccess > 60000) { // 1分
+      if (timeSinceLastSuccess > 60000) {
+        // 1分
         logger.warn('Long-term connectivity issues, clearing known tasks');
         knownTaskIdsRef.current.clear();
       }
     }
-  }, [setExecutingTask, removeExecutingTask, fetchTaskUpdates, adjustPollingInterval]);
+  }, [
+    setExecutingTask,
+    removeExecutingTask,
+    fetchTaskUpdates,
+    adjustPollingInterval,
+  ]);
 
   useEffect(() => {
     // 初期化

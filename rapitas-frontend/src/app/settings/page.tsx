@@ -332,7 +332,14 @@ function SettingsPage() {
     }
   };
 
-  const saveWorkflowSettings = async (updates: Partial<Pick<UserSettings, 'autoApprovePlan' | 'autoComplexityAnalysis'>>) => {
+  const saveWorkflowSettings = async (
+    updates: Partial<
+      Pick<
+        UserSettings,
+        'autoApprovePlan' | 'autoApproveSubtaskPlan' | 'autoComplexityAnalysis'
+      >
+    >,
+  ) => {
     setError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/settings`, {
@@ -341,9 +348,7 @@ function SettingsPage() {
         body: JSON.stringify(updates),
       });
       if (res.ok) {
-        setSettings((prev) =>
-          prev ? { ...prev, ...updates } : prev,
-        );
+        setSettings((prev) => (prev ? { ...prev, ...updates } : prev));
         setSuccessMessage(t('workflowSaved'));
         setTimeout(() => setSuccessMessage(null), 3000);
         // Clear cache to ensure fresh data
@@ -412,8 +417,7 @@ function SettingsPage() {
 
   const deleteApiKey = async (providerKey: string) => {
     const provider = PROVIDERS.find((p) => p.key === providerKey);
-    if (!confirm(t('confirmDeleteKey')))
-      return;
+    if (!confirm(t('confirmDeleteKey'))) return;
 
     updateProviderState(providerKey, { isSaving: true });
     setError(null);
@@ -821,7 +825,9 @@ function SettingsPage() {
               </div>
               <button
                 onClick={() =>
-                  saveWorkflowSettings({ autoApprovePlan: !settings?.autoApprovePlan })
+                  saveWorkflowSettings({
+                    autoApprovePlan: !settings?.autoApprovePlan,
+                  })
                 }
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 ${
                   settings?.autoApprovePlan
@@ -843,6 +849,40 @@ function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                  {t('autoApproveSubtaskPlan')}
+                </h3>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                  {t('autoApproveSubtaskPlanDesc')}
+                </p>
+              </div>
+              <button
+                onClick={() =>
+                  saveWorkflowSettings({
+                    autoApproveSubtaskPlan: !(
+                      settings?.autoApproveSubtaskPlan ?? true
+                    ),
+                  })
+                }
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 ${
+                  (settings?.autoApproveSubtaskPlan ?? true)
+                    ? 'bg-violet-500'
+                    : 'bg-zinc-300 dark:bg-zinc-600'
+                }`}
+                role="switch"
+                aria-checked={settings?.autoApproveSubtaskPlan ?? true}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    (settings?.autoApproveSubtaskPlan ?? true)
+                      ? 'translate-x-5'
+                      : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
                   {t('autoComplexityAnalysis')}
                 </h3>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
@@ -851,7 +891,9 @@ function SettingsPage() {
               </div>
               <button
                 onClick={() =>
-                  saveWorkflowSettings({ autoComplexityAnalysis: !settings?.autoComplexityAnalysis })
+                  saveWorkflowSettings({
+                    autoComplexityAnalysis: !settings?.autoComplexityAnalysis,
+                  })
                 }
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 ${
                   settings?.autoComplexityAnalysis

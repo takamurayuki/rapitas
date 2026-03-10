@@ -1,20 +1,24 @@
 /**
  * Schedule Events API Routes
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
-import { ValidationError, NotFoundError } from "../../middleware/error-handler";
-import { parseRRule, expandRecurrence, RECURRENCE_PRESETS } from "../../services/recurrence-service";
-import { createLogger } from "../../config/logger";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
+import { ValidationError, NotFoundError } from '../../middleware/error-handler';
+import {
+  parseRRule,
+  expandRecurrence,
+  RECURRENCE_PRESETS,
+} from '../../services/recurrence-service';
+import { createLogger } from '../../config/logger';
 
-const log = createLogger("routes:schedules");
+const log = createLogger('routes:schedules');
 
-export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
+export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
   // Get all schedule events (with optional date range filter)
   // 繰り返しイベントを仮想展開して返す
-  .get("/", async (context) => {
-      const { query  } = context;
-    const { from, to  } = query as { from?: string; to?: string };
+  .get('/', async (context) => {
+    const { query } = context;
+    const { from, to } = query as { from?: string; to?: string };
 
     const rangeStart = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const rangeEnd = to ? new Date(to) : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
@@ -32,7 +36,7 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
 
     const normalEvents = await prisma.scheduleEvent.findMany({
       where,
-      orderBy: { startAt: "asc" },
+      orderBy: { startAt: 'asc' },
     });
 
     // 繰り返しイベント（親）を取得
@@ -52,9 +56,7 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
     });
 
     const exceptionDates = new Set(
-      exceptions.map((e) =>
-        `${e.parentEventId}:${e.originalDate?.toISOString().split("T")[0]}`
-      )
+      exceptions.map((e) => `${e.parentEventId}:${e.originalDate?.toISOString().split('T')[0]}`),
     );
 
     // 繰り返しイベントを展開
@@ -74,19 +76,17 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
         );
 
         for (const date of occurrences) {
-          const dateKey = `${event.id}:${date.toISOString().split("T")[0]}`;
+          const dateKey = `${event.id}:${date.toISOString().split('T')[0]}`;
 
           // 例外インスタンスがある場合はスキップ（代わりに例外が表示される）
           if (exceptionDates.has(dateKey)) continue;
 
           // 仮想インスタンスを生成
-          const duration = event.endAt
-            ? event.endAt.getTime() - event.startAt.getTime()
-            : 0;
+          const duration = event.endAt ? event.endAt.getTime() - event.startAt.getTime() : 0;
 
           expandedEvents.push({
             ...event,
-            id: event.id * 10000 + Math.floor(date.getTime() / 86400000) % 10000, // 仮想ID
+            id: event.id * 10000 + (Math.floor(date.getTime() / 86400000) % 10000), // 仮想ID
             startAt: date,
             endAt: duration > 0 ? new Date(date.getTime() + duration) : null,
             parentEventId: event.id,
@@ -98,138 +98,129 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
     }
 
     // 全イベントをマージしてソート
-    const allEvents = [...normalEvents, ...expandedEvents, ...exceptions]
-      .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+    const allEvents = [...normalEvents, ...expandedEvents, ...exceptions].sort(
+      (a, b) => a.startAt.getTime() - b.startAt.getTime(),
+    );
 
     return allEvents;
   })
 
   // 繰り返しプリセット一覧
-  .get("/recurrence-presets", () => {
+  .get('/recurrence-presets', () => {
     return RECURRENCE_PRESETS;
   })
 
   // Get single schedule event
-  .get("/:id", async (context) => {
-      const { params  } = context;
+  .get('/:id', async (context) => {
+    const { params } = context;
     const id = parseInt(params.id);
-    if (isNaN(id)) throw new ValidationError("Invalid ID");
+    if (isNaN(id)) throw new ValidationError('Invalid ID');
 
     const event = await prisma.scheduleEvent.findUnique({ where: { id } });
-    if (!event) throw new NotFoundError("Schedule event not found");
+    if (!event) throw new NotFoundError('Schedule event not found');
 
     return event;
   })
 
   // Create schedule event
-  .post(
-    "/",
-    async (context) => {
-      const { body } = context;
-      const data = body as {
-        title: string;
-        description?: string;
-        startAt: string;
-        endAt?: string;
-        isAllDay?: boolean;
-        color?: string;
-        reminderMinutes?: number | null;
-        taskId?: number | null;
-        type?: string;
-        userId?: string;
-        recurrenceRule?: string | null;
-        recurrenceEnd?: string | null;
-      };
+  .post('/', async (context) => {
+    const { body } = context;
+    const data = body as {
+      title: string;
+      description?: string;
+      startAt: string;
+      endAt?: string;
+      isAllDay?: boolean;
+      color?: string;
+      reminderMinutes?: number | null;
+      taskId?: number | null;
+      type?: string;
+      userId?: string;
+      recurrenceRule?: string | null;
+      recurrenceEnd?: string | null;
+    };
 
-      if (!data.title?.trim()) throw new ValidationError("Title is required");
-      if (!data.startAt)
-        throw new ValidationError("Start date/time is required");
+    if (!data.title?.trim()) throw new ValidationError('Title is required');
+    if (!data.startAt) throw new ValidationError('Start date/time is required');
 
-      return await prisma.scheduleEvent.create({
-        data: {
-          title: data.title.trim(),
-          description: data.description?.trim() || null,
-          startAt: new Date(data.startAt),
-          endAt: data.endAt ? new Date(data.endAt) : null,
-          isAllDay: data.isAllDay ?? false,
-          color: data.color || "#6366F1",
-          reminderMinutes: data.reminderMinutes ?? null,
-          taskId: data.taskId ?? null,
-          type: (data.type === "PAID_LEAVE" ? "PAID_LEAVE" : "GENERAL"),
-          userId: data.userId || "default",
-          recurrenceRule: data.recurrenceRule || null,
-          recurrenceEnd: data.recurrenceEnd ? new Date(data.recurrenceEnd) : null,
-        },
-      });
-    },
-  )
+    return await prisma.scheduleEvent.create({
+      data: {
+        title: data.title.trim(),
+        description: data.description?.trim() || null,
+        startAt: new Date(data.startAt),
+        endAt: data.endAt ? new Date(data.endAt) : null,
+        isAllDay: data.isAllDay ?? false,
+        color: data.color || '#6366F1',
+        reminderMinutes: data.reminderMinutes ?? null,
+        taskId: data.taskId ?? null,
+        type: data.type === 'PAID_LEAVE' ? 'PAID_LEAVE' : 'GENERAL',
+        userId: data.userId || 'default',
+        recurrenceRule: data.recurrenceRule || null,
+        recurrenceEnd: data.recurrenceEnd ? new Date(data.recurrenceEnd) : null,
+      },
+    });
+  })
 
   // Update schedule event
-  .patch(
-    "/:id",
-    async (context) => {
-      const { params, body } = context;
-      const data_input = body as {
-        title?: string;
-        description?: string | null;
-        startAt?: string;
-        endAt?: string | null;
-        isAllDay?: boolean;
-        color?: string;
-        reminderMinutes?: number | null;
-        reminderSentAt?: string | null;
-        taskId?: number | null;
-        type?: string;
-        userId?: string;
-      };
+  .patch('/:id', async (context) => {
+    const { params, body } = context;
+    const data_input = body as {
+      title?: string;
+      description?: string | null;
+      startAt?: string;
+      endAt?: string | null;
+      isAllDay?: boolean;
+      color?: string;
+      reminderMinutes?: number | null;
+      reminderSentAt?: string | null;
+      taskId?: number | null;
+      type?: string;
+      userId?: string;
+    };
 
-      const id = parseInt(params.id);
-      if (isNaN(id)) throw new ValidationError("Invalid ID");
-
-      const existing = await prisma.scheduleEvent.findUnique({ where: { id } });
-      if (!existing) throw new NotFoundError("Schedule event not found");
-
-      const data: Record<string, unknown> = {};
-      if (data_input.title !== undefined) data.title = data_input.title.trim();
-      if (data_input.description !== undefined) data.description = data_input.description;
-      if (data_input.startAt !== undefined) data.startAt = new Date(data_input.startAt);
-      if (data_input.endAt !== undefined)
-        data.endAt = data_input.endAt ? new Date(data_input.endAt) : null;
-      if (data_input.isAllDay !== undefined) data.isAllDay = data_input.isAllDay;
-      if (data_input.color !== undefined) data.color = data_input.color;
-      if (data_input.reminderMinutes !== undefined)
-        data.reminderMinutes = data_input.reminderMinutes;
-      if (data_input.reminderSentAt !== undefined)
-        data.reminderSentAt = data_input.reminderSentAt
-          ? new Date(data_input.reminderSentAt)
-          : null;
-      if (data_input.taskId !== undefined) data.taskId = data_input.taskId;
-
-      return await prisma.scheduleEvent.update({
-        where: { id },
-        data,
-      });
-    },
-  )
-
-  // Delete schedule event
-  .delete("/:id", async (context) => {
-      const { params  } = context;
     const id = parseInt(params.id);
-    if (isNaN(id)) throw new ValidationError("Invalid ID");
+    if (isNaN(id)) throw new ValidationError('Invalid ID');
 
     const existing = await prisma.scheduleEvent.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundError("Schedule event not found");
+    if (!existing) throw new NotFoundError('Schedule event not found');
+
+    const data: Record<string, unknown> = {};
+    if (data_input.title !== undefined) data.title = data_input.title.trim();
+    if (data_input.description !== undefined) data.description = data_input.description;
+    if (data_input.startAt !== undefined) data.startAt = new Date(data_input.startAt);
+    if (data_input.endAt !== undefined)
+      data.endAt = data_input.endAt ? new Date(data_input.endAt) : null;
+    if (data_input.isAllDay !== undefined) data.isAllDay = data_input.isAllDay;
+    if (data_input.color !== undefined) data.color = data_input.color;
+    if (data_input.reminderMinutes !== undefined) data.reminderMinutes = data_input.reminderMinutes;
+    if (data_input.reminderSentAt !== undefined)
+      data.reminderSentAt = data_input.reminderSentAt ? new Date(data_input.reminderSentAt) : null;
+    if (data_input.taskId !== undefined) data.taskId = data_input.taskId;
+
+    return await prisma.scheduleEvent.update({
+      where: { id },
+      data,
+    });
+  })
+
+  // Delete schedule event
+  .delete('/:id', async (context) => {
+    const { params } = context;
+    const id = parseInt(params.id);
+    if (isNaN(id)) throw new ValidationError('Invalid ID');
+
+    const existing = await prisma.scheduleEvent.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundError('Schedule event not found');
 
     await prisma.scheduleEvent.delete({ where: { id } });
     return { success: true, id };
   })
 
   // 繰り返しイベントの個別インスタンスを編集（この回のみ）
-  .post("/:id/exception", async (context) => {
+  .post('/:id/exception', async (context) => {
     const { params, body } = context;
     const parentId = parseInt(params.id);
-    if (isNaN(parentId)) throw new ValidationError("Invalid ID");
+    if (isNaN(parentId)) throw new ValidationError('Invalid ID');
 
     const data = body as {
       originalDate: string; // 元の繰り返し日付
@@ -241,7 +232,7 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
     };
 
     const parent = await prisma.scheduleEvent.findUnique({ where: { id: parentId } });
-    if (!parent) throw new NotFoundError("Parent event not found");
+    if (!parent) throw new NotFoundError('Parent event not found');
 
     // 例外インスタンスを作成
     return await prisma.scheduleEvent.create({
@@ -264,10 +255,10 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   })
 
   // 繰り返しイベントの以降全てを削除（recurrenceEndを更新）
-  .post("/:id/stop-recurrence", async (context) => {
+  .post('/:id/stop-recurrence', async (context) => {
     const { params, body } = context;
     const id = parseInt(params.id);
-    if (isNaN(id)) throw new ValidationError("Invalid ID");
+    if (isNaN(id)) throw new ValidationError('Invalid ID');
 
     const data = body as { stopDate: string };
 
@@ -280,7 +271,7 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
   })
 
   // Get upcoming reminders (events with unsent reminders that are due)
-  .get("/reminders/pending", async () => {
+  .get('/reminders/pending', async () => {
     const now = new Date();
 
     const events = await prisma.scheduleEvent.findMany({
@@ -289,31 +280,24 @@ export const schedulesRoutes = new Elysia({ prefix: "/schedules" })
         reminderSentAt: null,
         startAt: { gt: now },
       },
-      orderBy: { startAt: "asc" },
+      orderBy: { startAt: 'asc' },
     });
 
     // Filter events where reminder time has passed
-    return events.filter(
-      (event: { startAt: Date; reminderMinutes: number | null }) => {
-        const reminderTime = new Date(
-          event.startAt.getTime() - event.reminderMinutes! * 60 * 1000,
-        );
-        return reminderTime <= now;
-      },
-    );
+    return events.filter((event: { startAt: Date; reminderMinutes: number | null }) => {
+      const reminderTime = new Date(event.startAt.getTime() - event.reminderMinutes! * 60 * 1000);
+      return reminderTime <= now;
+    });
   })
 
   // Mark reminder as sent
-  .post(
-    "/reminders/:id/sent",
-    async (context) => {
-      const { params  } = context;
-      const id = parseInt(params.id);
-      if (isNaN(id)) throw new ValidationError("Invalid ID");
+  .post('/reminders/:id/sent', async (context) => {
+    const { params } = context;
+    const id = parseInt(params.id);
+    if (isNaN(id)) throw new ValidationError('Invalid ID');
 
-      return await prisma.scheduleEvent.update({
-        where: { id },
-        data: { reminderSentAt: new Date() },
-      });
-    },
-  );
+    return await prisma.scheduleEvent.update({
+      where: { id },
+      data: { reminderSentAt: new Date() },
+    });
+  });

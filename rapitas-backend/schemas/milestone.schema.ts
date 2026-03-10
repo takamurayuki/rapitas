@@ -1,7 +1,7 @@
 /**
  * Milestone Validation Schemas
  */
-import { t } from "elysia";
+import { t } from 'elysia';
 
 export const milestoneSchema = {
   create: t.Object({

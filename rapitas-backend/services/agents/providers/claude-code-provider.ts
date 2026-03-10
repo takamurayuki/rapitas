@@ -81,7 +81,8 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
   async isAvailable(): Promise<boolean> {
     return new Promise((resolve) => {
       const isWindows = process.platform === 'win32';
-      const baseClaudePath = this.config.cliPath ||
+      const baseClaudePath =
+        this.config.cliPath ||
         process.env.CLAUDE_CODE_PATH ||
         (isWindows ? 'claude.cmd' : 'claude');
       const claudePath = resolveCliPath(baseClaudePath);
@@ -259,7 +260,8 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
     return new Promise((resolve) => {
       const timeout = context.timeout || this.config.timeout || 900000;
       const isWindows = process.platform === 'win32';
-      const baseClaudePath = this.config.cliPath ||
+      const baseClaudePath =
+        this.config.cliPath ||
         process.env.CLAUDE_CODE_PATH ||
         (isWindows ? 'claude.cmd' : 'claude');
       const claudePath = resolveCliPath(baseClaudePath);
@@ -623,7 +625,8 @@ export class ClaudeCodeProvider implements IAgentProvider {
   async isAvailable(): Promise<boolean> {
     return new Promise((resolve) => {
       const isWindows = process.platform === 'win32';
-      const baseClaudePath = this.defaultConfig.cliPath ||
+      const baseClaudePath =
+        this.defaultConfig.cliPath ||
         process.env.CLAUDE_CODE_PATH ||
         (isWindows ? 'claude.cmd' : 'claude');
       const claudePath = resolveCliPath(baseClaudePath);

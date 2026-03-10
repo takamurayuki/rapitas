@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useCallback } from "react";
-import { API_BASE_URL } from "@/utils/api";
-import type { KnowledgeSearchResult } from "../types";
+import { useState, useCallback } from 'react';
+import { API_BASE_URL } from '@/utils/api';
+import type { KnowledgeSearchResult } from '../types';
 
 export function useKnowledgeSearch() {
   const [results, setResults] = useState<KnowledgeSearchResult[]>([]);
@@ -28,13 +28,14 @@ export function useKnowledgeSearch() {
       setError(null);
       try {
         const params = new URLSearchParams({ q: query });
-        if (options?.limit) params.set("limit", String(options.limit));
-        if (options?.minSimilarity) params.set("minSimilarity", String(options.minSimilarity));
-        if (options?.category) params.set("category", options.category);
-        if (options?.themeId) params.set("themeId", String(options.themeId));
+        if (options?.limit) params.set('limit', String(options.limit));
+        if (options?.minSimilarity)
+          params.set('minSimilarity', String(options.minSimilarity));
+        if (options?.category) params.set('category', options.category);
+        if (options?.themeId) params.set('themeId', String(options.themeId));
 
         const res = await fetch(`${API_BASE_URL}/knowledge/search?${params}`);
-        if (!res.ok) throw new Error("Search failed");
+        if (!res.ok) throw new Error('Search failed');
         const json = await res.json();
         setResults(json.results);
         return json.results as KnowledgeSearchResult[];

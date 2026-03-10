@@ -2,9 +2,9 @@
  * Parallel Execution Routes テスト
  * 並列実行APIのテスト
  */
-import { describe, test, expect, mock } from "bun:test";
+import { describe, test, expect, mock } from 'bun:test';
 
-mock.module("../../../config/logger", () => ({
+mock.module('../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -15,28 +15,28 @@ mock.module("../../../config/logger", () => ({
 
 const mockTask = {
   id: 1,
-  title: "Test Task",
-  description: "Test description",
+  title: 'Test Task',
+  description: 'Test description',
   subtasks: [
     {
       id: 10,
-      title: "Subtask 1",
-      description: "Sub 1",
-      priority: "medium",
+      title: 'Subtask 1',
+      description: 'Sub 1',
+      priority: 'medium',
       estimatedHours: 1,
       prompts: [],
     },
     {
       id: 11,
-      title: "Subtask 2",
-      description: "Sub 2",
-      priority: "high",
+      title: 'Subtask 2',
+      description: 'Sub 2',
+      priority: 'high',
       estimatedHours: 2,
       prompts: [],
     },
   ],
   prompts: [],
-  theme: { workingDirectory: "/tmp" },
+  theme: { workingDirectory: '/tmp' },
 };
 
 const mockPrisma = {
@@ -53,14 +53,12 @@ const mockPrisma = {
   },
 };
 
-mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
 
 // Mock the parallel execution service
-mock.module("../../../services/parallel-execution", () => ({
+mock.module('../../../services/parallel-execution', () => ({
   createParallelExecutor: mock(() => ({
-    startSession: mock(() =>
-      Promise.resolve({ sessionId: "sess-1", status: "running" })
-    ),
+    startSession: mock(() => Promise.resolve({ sessionId: 'sess-1', status: 'running' })),
     getSession: mock(() => null),
     listSessions: mock(() => []),
   })),
@@ -74,7 +72,7 @@ mock.module("../../../services/parallel-execution", () => ({
         maxDepth: 0,
       },
       plan: {
-        id: "plan-1",
+        id: 'plan-1',
         executionOrder: [],
         estimatedTotalDuration: 100,
         estimatedSequentialDuration: 200,
@@ -89,10 +87,14 @@ mock.module("../../../services/parallel-execution", () => ({
   })),
 }));
 
-mock.module("../../../services/sse-utils", () => ({
+mock.module('../../../services/sse-utils', () => ({
   SSEStreamController: class {
     createStream() {
-      return new ReadableStream({ start(c) { c.close(); } });
+      return new ReadableStream({
+        start(c) {
+          c.close();
+        },
+      });
     }
     sendStart() {}
     sendProgress() {}
@@ -101,43 +103,31 @@ mock.module("../../../services/sse-utils", () => ({
     sendError() {}
     close() {}
   },
-  getUserFriendlyErrorMessage: mock((e: unknown) =>
-    e instanceof Error ? e.message : String(e)
-  ),
+  getUserFriendlyErrorMessage: mock((e: unknown) => (e instanceof Error ? e.message : String(e))),
 }));
 
-const { parallelExecutionRoutes } = await import(
-  "../../../routes/agents/parallel-execution"
-);
+const { parallelExecutionRoutes } = await import('../../../routes/agents/parallel-execution');
 
-import { Elysia } from "elysia";
+import { Elysia } from 'elysia';
 const app = new Elysia().use(parallelExecutionRoutes);
 
-describe("Parallel Execution Routes", () => {
-  test("GET /parallel/tasks/:id/analyze - 依存関係分析", async () => {
-    const res = await app.handle(
-      new Request("http://localhost/parallel/tasks/1/analyze")
-    );
+describe('Parallel Execution Routes', () => {
+  test('GET /parallel/tasks/:id/analyze - 依存関係分析', async () => {
+    const res = await app.handle(new Request('http://localhost/parallel/tasks/1/analyze'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
   });
 
-  test("GET /parallel/tasks/:id/analyze - タスクが見つからない場合", async () => {
-    mockPrisma.task.findUnique.mockImplementationOnce(() =>
-      Promise.resolve(null)
-    );
-    const res = await app.handle(
-      new Request("http://localhost/parallel/tasks/999/analyze")
-    );
+  test('GET /parallel/tasks/:id/analyze - タスクが見つからない場合', async () => {
+    mockPrisma.task.findUnique.mockImplementationOnce(() => Promise.resolve(null));
+    const res = await app.handle(new Request('http://localhost/parallel/tasks/999/analyze'));
     const body = await res.json();
     expect(body.success).toBe(false);
   });
 
-  test("GET /parallel/tasks/:id/analyze/stream - SSEストリーム", async () => {
-    const res = await app.handle(
-      new Request("http://localhost/parallel/tasks/1/analyze/stream")
-    );
-    expect(res.headers.get("Content-Type")).toBe("text/event-stream");
+  test('GET /parallel/tasks/:id/analyze/stream - SSEストリーム', async () => {
+    const res = await app.handle(new Request('http://localhost/parallel/tasks/1/analyze/stream'));
+    expect(res.headers.get('Content-Type')).toBe('text/event-stream');
   });
 });

@@ -1,10 +1,16 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { API_BASE_URL } from '@/utils/api';
-import { createLogger } from "@/lib/logger";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  type ReactNode,
+} from 'react';
+import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
+import { createLogger } from '@/lib/logger';
 
-const logger = createLogger("AuthContext");
+const logger = createLogger('AuthContext');
 
 // 型定義
 export interface User {
@@ -36,8 +42,12 @@ export interface RegisterCredentials {
 }
 
 export interface AuthContextType extends AuthState {
-  login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
-  register: (credentials: RegisterCredentials) => Promise<{ success: boolean; error?: string }>;
+  login: (
+    credentials: LoginCredentials,
+  ) => Promise<{ success: boolean; error?: string }>;
+  register: (
+    credentials: RegisterCredentials,
+  ) => Promise<{ success: boolean; error?: string }>;
   loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   refreshSession: () => Promise<void>;
@@ -62,13 +72,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // セッション検証
   const validateSession = async (): Promise<User | null> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
-        method: 'GET',
-        credentials: 'include', // Cookieを含める
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await fetchWithRetry(
+        `${API_BASE_URL}/auth/me`,
+        {
+          method: 'GET',
+          credentials: 'include', // Cookieを含める
+          headers: {
+            'Content-Type': 'application/json',
+          },
         },
-      });
+        3, // maxRetries
+        300, // retryDelayMs
+        10000, // timeoutMs
+        { silent: true }, // 起動時の一時的エラーはwarnレベルで出力
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -78,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return null;
     } catch (error) {
-      logger.error('セッション検証エラー:', error);
+      logger.transientError('セッション検証エラー:', error);
       return null;
     }
   };
@@ -104,9 +121,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // ログイン
-  const login = async (credentials: LoginCredentials): Promise<{ success: boolean; error?: string }> => {
+  const login = async (
+    credentials: LoginCredentials,
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
-      setState(prev => ({ ...prev, isLoading: true }));
+      setState((prev) => ({ ...prev, isLoading: true }));
 
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
@@ -131,20 +150,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         return { success: true };
       } else {
-        setState(prev => ({ ...prev, isLoading: false }));
-        return { success: false, error: data.message || 'ログインに失敗しました' };
+        setState((prev) => ({ ...prev, isLoading: false }));
+        return {
+          success: false,
+          error: data.message || 'ログインに失敗しました',
+        };
       }
     } catch (error) {
-      setState(prev => ({ ...prev, isLoading: false }));
+      setState((prev) => ({ ...prev, isLoading: false }));
       logger.error('ログインエラー:', error);
       return { success: false, error: 'ネットワークエラーが発生しました' };
     }
   };
 
   // ユーザー登録
-  const register = async (credentials: RegisterCredentials): Promise<{ success: boolean; error?: string }> => {
+  const register = async (
+    credentials: RegisterCredentials,
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
-      setState(prev => ({ ...prev, isLoading: true }));
+      setState((prev) => ({ ...prev, isLoading: true }));
 
       const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
@@ -169,11 +193,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         return { success: true };
       } else {
-        setState(prev => ({ ...prev, isLoading: false }));
+        setState((prev) => ({ ...prev, isLoading: false }));
         return { success: false, error: data.message || '登録に失敗しました' };
       }
     } catch (error) {
-      setState(prev => ({ ...prev, isLoading: false }));
+      setState((prev) => ({ ...prev, isLoading: false }));
       logger.error('登録エラー:', error);
       return { success: false, error: 'ネットワークエラーが発生しました' };
     }
@@ -204,9 +228,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Googleログイン
-  const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
+  const loginWithGoogle = async (): Promise<{
+    success: boolean;
+    error?: string;
+  }> => {
     try {
-      setState(prev => ({ ...prev, isLoading: true }));
+      setState((prev) => ({ ...prev, isLoading: true }));
 
       // Google OAuth URLを取得
       const response = await fetch(`${API_BASE_URL}/auth/google/url`, {
@@ -224,11 +251,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.location.href = data.url;
         return { success: true };
       } else {
-        setState(prev => ({ ...prev, isLoading: false }));
-        return { success: false, error: data.message || 'Google認証URLの取得に失敗しました' };
+        setState((prev) => ({ ...prev, isLoading: false }));
+        return {
+          success: false,
+          error: data.message || 'Google認証URLの取得に失敗しました',
+        };
       }
     } catch (error) {
-      setState(prev => ({ ...prev, isLoading: false }));
+      setState((prev) => ({ ...prev, isLoading: false }));
       logger.error('Googleログインエラー:', error);
       return { success: false, error: 'ネットワークエラーが発生しました' };
     }
@@ -237,6 +267,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 初回セッション復元
   useEffect(() => {
     refreshSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const contextValue: AuthContextType = {
@@ -249,9 +280,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
   );
 }
 
@@ -265,7 +294,9 @@ export function useAuth() {
 }
 
 // 認証が必要なコンポーネント用のHOC
-export function requireAuth<P extends {}>(WrappedComponent: React.ComponentType<P>) {
+export function requireAuth<P extends object>(
+  WrappedComponent: React.ComponentType<P>,
+) {
   return function AuthenticatedComponent(props: P) {
     const { isAuthenticated, isLoading } = useAuth();
 
@@ -275,7 +306,9 @@ export function requireAuth<P extends {}>(WrappedComponent: React.ComponentType<
           <div className="flex flex-col items-center space-y-4">
             {/* Simple spinner for authentication check */}
             <div className="w-8 h-8 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin" />
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">認証を確認中...</div>
+            <div className="text-sm text-zinc-500 dark:text-zinc-400">
+              認証を確認中...
+            </div>
           </div>
         </div>
       );

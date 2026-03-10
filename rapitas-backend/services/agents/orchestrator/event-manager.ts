@@ -2,10 +2,10 @@
  * イベント管理
  * エージェントオーケストレーターのイベント配信機能を担当
  */
-import { createLogger } from "../../../config/logger";
-import type { EventListener, OrchestratorEvent } from "./types";
+import { createLogger } from '../../../config/logger';
+import type { EventListener, OrchestratorEvent } from './types';
 
-const logger = createLogger("event-manager");
+const logger = createLogger('event-manager');
 
 /**
  * イベント管理クラス
@@ -35,7 +35,7 @@ export class EventManager {
       try {
         listener(event);
       } catch (error) {
-        logger.error({ err: error }, "Error in event listener");
+        logger.error({ err: error }, 'Error in event listener');
       }
     }
   }

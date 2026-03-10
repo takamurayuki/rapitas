@@ -480,7 +480,13 @@ export function AIAccordionPanel({
       // running / waiting_for_input 等に戻ったらリセット
       handledTerminalStatusRef.current = null;
     }
-  }, [pollingStatus, onStopExecution, onExecutionComplete, removeExecutingTask, taskId]);
+  }, [
+    pollingStatus,
+    onStopExecution,
+    onExecutionComplete,
+    removeExecutingTask,
+    taskId,
+  ]);
 
   // サブタスクが存在するかどうか
   const hasSubtasks = subtasks && subtasks.length > 0;

@@ -2,19 +2,21 @@
  * Pomodoro Routes テスト
  * ポモドーロタイマーAPIのユニットテスト
  */
-import { describe, test, expect, mock, beforeEach } from "bun:test";
-import { Elysia } from "elysia";
+import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { Elysia } from 'elysia';
 
 const mockGetActiveSession = mock(() => Promise.resolve(null));
 const mockStartPomodoro = mock(() => Promise.resolve({ id: 1 }));
 const mockPausePomodoro = mock(() => Promise.resolve({ id: 1 }));
 const mockResumePomodoro = mock(() => Promise.resolve({ id: 1 }));
-const mockCompletePomodoro = mock(() => Promise.resolve({ session: { id: 1 }, completedPomodoros: 1 }));
+const mockCompletePomodoro = mock(() =>
+  Promise.resolve({ session: { id: 1 }, completedPomodoros: 1 }),
+);
 const mockCancelPomodoro = mock(() => Promise.resolve({ id: 1 }));
 const mockGetStatistics = mock(() => Promise.resolve({ totalSessions: 0, totalMinutes: 0 }));
 const mockGetHistory = mock(() => Promise.resolve({ sessions: [], total: 0 }));
 
-mock.module("../../../services/pomodoro-service", () => ({
+mock.module('../../../services/pomodoro-service', () => ({
   getActiveSession: mockGetActiveSession,
   startPomodoro: mockStartPomodoro,
   pausePomodoro: mockPausePomodoro,
@@ -24,7 +26,7 @@ mock.module("../../../services/pomodoro-service", () => ({
   getStatistics: mockGetStatistics,
   getHistory: mockGetHistory,
 }));
-mock.module("../../../config/logger", () => ({
+mock.module('../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -33,7 +35,7 @@ mock.module("../../../config/logger", () => ({
   }),
 }));
 
-const { pomodoroRoutes } = await import("../../../routes/scheduling/pomodoro");
+const { pomodoroRoutes } = await import('../../../routes/scheduling/pomodoro');
 
 function resetAllMocks() {
   mockGetActiveSession.mockReset();
@@ -46,11 +48,14 @@ function resetAllMocks() {
   mockGetHistory.mockReset();
 
   mockGetActiveSession.mockResolvedValue(null);
-  mockStartPomodoro.mockResolvedValue({ id: 1, status: "active" });
-  mockPausePomodoro.mockResolvedValue({ id: 1, status: "paused" });
-  mockResumePomodoro.mockResolvedValue({ id: 1, status: "active" });
-  mockCompletePomodoro.mockResolvedValue({ session: { id: 1, status: "completed" }, completedPomodoros: 1 });
-  mockCancelPomodoro.mockResolvedValue({ id: 1, status: "cancelled" });
+  mockStartPomodoro.mockResolvedValue({ id: 1, status: 'active' });
+  mockPausePomodoro.mockResolvedValue({ id: 1, status: 'paused' });
+  mockResumePomodoro.mockResolvedValue({ id: 1, status: 'active' });
+  mockCompletePomodoro.mockResolvedValue({
+    session: { id: 1, status: 'completed' },
+    completedPomodoros: 1,
+  });
+  mockCancelPomodoro.mockResolvedValue({ id: 1, status: 'cancelled' });
   mockGetStatistics.mockResolvedValue({ totalSessions: 5, totalMinutes: 125 });
   mockGetHistory.mockResolvedValue({ sessions: [], total: 0 });
 }
@@ -59,7 +64,7 @@ function createApp() {
   return new Elysia().use(pomodoroRoutes);
 }
 
-describe("GET /pomodoro/active", () => {
+describe('GET /pomodoro/active', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -67,10 +72,10 @@ describe("GET /pomodoro/active", () => {
     app = createApp();
   });
 
-  test("アクティブセッションがない場合、nullを返すこと", async () => {
+  test('アクティブセッションがない場合、nullを返すこと', async () => {
     mockGetActiveSession.mockResolvedValue(null);
 
-    const res = await app.handle(new Request("http://localhost/pomodoro/active"));
+    const res = await app.handle(new Request('http://localhost/pomodoro/active'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -78,11 +83,11 @@ describe("GET /pomodoro/active", () => {
     expect(body.session).toBeNull();
   });
 
-  test("アクティブセッションがある場合、セッションを返すこと", async () => {
-    const session = { id: 1, status: "active", duration: 1500, taskId: 1 };
+  test('アクティブセッションがある場合、セッションを返すこと', async () => {
+    const session = { id: 1, status: 'active', duration: 1500, taskId: 1 };
     mockGetActiveSession.mockResolvedValue(session);
 
-    const res = await app.handle(new Request("http://localhost/pomodoro/active"));
+    const res = await app.handle(new Request('http://localhost/pomodoro/active'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -90,10 +95,10 @@ describe("GET /pomodoro/active", () => {
     expect(body.session).toEqual(session);
   });
 
-  test("サービスエラー時に500を返すこと", async () => {
-    mockGetActiveSession.mockRejectedValue(new Error("DB error"));
+  test('サービスエラー時に500を返すこと', async () => {
+    mockGetActiveSession.mockRejectedValue(new Error('DB error'));
 
-    const res = await app.handle(new Request("http://localhost/pomodoro/active"));
+    const res = await app.handle(new Request('http://localhost/pomodoro/active'));
     const body = await res.json();
 
     expect(res.status).toBe(500);
@@ -101,7 +106,7 @@ describe("GET /pomodoro/active", () => {
   });
 });
 
-describe("POST /pomodoro/start", () => {
+describe('POST /pomodoro/start', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -109,14 +114,14 @@ describe("POST /pomodoro/start", () => {
     app = createApp();
   });
 
-  test("ポモドーロを開始できること", async () => {
-    const session = { id: 1, status: "active", duration: 1500 };
+  test('ポモドーロを開始できること', async () => {
+    const session = { id: 1, status: 'active', duration: 1500 };
     mockStartPomodoro.mockResolvedValue(session);
 
     const res = await app.handle(
-      new Request("http://localhost/pomodoro/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/pomodoro/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taskId: 1, duration: 1500 }),
       }),
     );
@@ -127,14 +132,14 @@ describe("POST /pomodoro/start", () => {
     expect(body.session).toEqual(session);
   });
 
-  test("bodyなしでも開始できること", async () => {
-    const session = { id: 1, status: "active" };
+  test('bodyなしでも開始できること', async () => {
+    const session = { id: 1, status: 'active' };
     mockStartPomodoro.mockResolvedValue(session);
 
     const res = await app.handle(
-      new Request("http://localhost/pomodoro/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/pomodoro/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       }),
     );
@@ -144,13 +149,13 @@ describe("POST /pomodoro/start", () => {
     expect(body.success).toBe(true);
   });
 
-  test("サービスエラー時に500を返すこと", async () => {
-    mockStartPomodoro.mockRejectedValue(new Error("Already active"));
+  test('サービスエラー時に500を返すこと', async () => {
+    mockStartPomodoro.mockRejectedValue(new Error('Already active'));
 
     const res = await app.handle(
-      new Request("http://localhost/pomodoro/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/pomodoro/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taskId: 1 }),
       }),
     );
@@ -161,7 +166,7 @@ describe("POST /pomodoro/start", () => {
   });
 });
 
-describe("POST /pomodoro/sessions/:id/pause", () => {
+describe('POST /pomodoro/sessions/:id/pause', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -169,12 +174,12 @@ describe("POST /pomodoro/sessions/:id/pause", () => {
     app = createApp();
   });
 
-  test("セッションを一時停止できること", async () => {
-    const session = { id: 1, status: "paused" };
+  test('セッションを一時停止できること', async () => {
+    const session = { id: 1, status: 'paused' };
     mockPausePomodoro.mockResolvedValue(session);
 
     const res = await app.handle(
-      new Request("http://localhost/pomodoro/sessions/1/pause", { method: "POST" }),
+      new Request('http://localhost/pomodoro/sessions/1/pause', { method: 'POST' }),
     );
     const body = await res.json();
 
@@ -183,9 +188,9 @@ describe("POST /pomodoro/sessions/:id/pause", () => {
     expect(body.session).toEqual(session);
   });
 
-  test("無効なセッションIDで400を返すこと", async () => {
+  test('無効なセッションIDで400を返すこと', async () => {
     const res = await app.handle(
-      new Request("http://localhost/pomodoro/sessions/abc/pause", { method: "POST" }),
+      new Request('http://localhost/pomodoro/sessions/abc/pause', { method: 'POST' }),
     );
     const body = await res.json();
 
@@ -193,11 +198,11 @@ describe("POST /pomodoro/sessions/:id/pause", () => {
     expect(body.success).toBe(false);
   });
 
-  test("サービスエラー時に400を返すこと", async () => {
-    mockPausePomodoro.mockRejectedValue(new Error("Session not found"));
+  test('サービスエラー時に400を返すこと', async () => {
+    mockPausePomodoro.mockRejectedValue(new Error('Session not found'));
 
     const res = await app.handle(
-      new Request("http://localhost/pomodoro/sessions/1/pause", { method: "POST" }),
+      new Request('http://localhost/pomodoro/sessions/1/pause', { method: 'POST' }),
     );
     const body = await res.json();
 
@@ -206,7 +211,7 @@ describe("POST /pomodoro/sessions/:id/pause", () => {
   });
 });
 
-describe("GET /pomodoro/statistics", () => {
+describe('GET /pomodoro/statistics', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -214,11 +219,11 @@ describe("GET /pomodoro/statistics", () => {
     app = createApp();
   });
 
-  test("統計情報を取得できること", async () => {
+  test('統計情報を取得できること', async () => {
     const stats = { totalSessions: 10, totalMinutes: 250 };
     mockGetStatistics.mockResolvedValue(stats);
 
-    const res = await app.handle(new Request("http://localhost/pomodoro/statistics"));
+    const res = await app.handle(new Request('http://localhost/pomodoro/statistics'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -226,11 +231,11 @@ describe("GET /pomodoro/statistics", () => {
     expect(body.totalSessions).toBe(10);
   });
 
-  test("日付フィルタ付きで統計情報を取得できること", async () => {
+  test('日付フィルタ付きで統計情報を取得できること', async () => {
     mockGetStatistics.mockResolvedValue({ totalSessions: 3, totalMinutes: 75 });
 
     const res = await app.handle(
-      new Request("http://localhost/pomodoro/statistics?startDate=2026-01-01&endDate=2026-01-31"),
+      new Request('http://localhost/pomodoro/statistics?startDate=2026-01-01&endDate=2026-01-31'),
     );
     const body = await res.json();
 
@@ -238,10 +243,10 @@ describe("GET /pomodoro/statistics", () => {
     expect(body.success).toBe(true);
   });
 
-  test("サービスエラー時に500を返すこと", async () => {
-    mockGetStatistics.mockRejectedValue(new Error("DB error"));
+  test('サービスエラー時に500を返すこと', async () => {
+    mockGetStatistics.mockRejectedValue(new Error('DB error'));
 
-    const res = await app.handle(new Request("http://localhost/pomodoro/statistics"));
+    const res = await app.handle(new Request('http://localhost/pomodoro/statistics'));
     const body = await res.json();
 
     expect(res.status).toBe(500);
@@ -249,7 +254,7 @@ describe("GET /pomodoro/statistics", () => {
   });
 });
 
-describe("GET /pomodoro/history", () => {
+describe('GET /pomodoro/history', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -257,11 +262,11 @@ describe("GET /pomodoro/history", () => {
     app = createApp();
   });
 
-  test("履歴を取得できること", async () => {
-    const result = { sessions: [{ id: 1, status: "completed" }], total: 1 };
+  test('履歴を取得できること', async () => {
+    const result = { sessions: [{ id: 1, status: 'completed' }], total: 1 };
     mockGetHistory.mockResolvedValue(result);
 
-    const res = await app.handle(new Request("http://localhost/pomodoro/history"));
+    const res = await app.handle(new Request('http://localhost/pomodoro/history'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -269,11 +274,11 @@ describe("GET /pomodoro/history", () => {
     expect(body.sessions).toHaveLength(1);
   });
 
-  test("limit/offsetパラメータを受け付けること", async () => {
+  test('limit/offsetパラメータを受け付けること', async () => {
     mockGetHistory.mockResolvedValue({ sessions: [], total: 0 });
 
     const res = await app.handle(
-      new Request("http://localhost/pomodoro/history?limit=10&offset=5"),
+      new Request('http://localhost/pomodoro/history?limit=10&offset=5'),
     );
     const body = await res.json();
 
@@ -281,10 +286,10 @@ describe("GET /pomodoro/history", () => {
     expect(body.success).toBe(true);
   });
 
-  test("サービスエラー時に500を返すこと", async () => {
-    mockGetHistory.mockRejectedValue(new Error("DB error"));
+  test('サービスエラー時に500を返すこと', async () => {
+    mockGetHistory.mockRejectedValue(new Error('DB error'));
 
-    const res = await app.handle(new Request("http://localhost/pomodoro/history"));
+    const res = await app.handle(new Request('http://localhost/pomodoro/history'));
     const body = await res.json();
 
     expect(res.status).toBe(500);

@@ -15,16 +15,21 @@ import {
   cleanupDuplicateSubtasks,
   cleanupAllDuplicateSubtasks,
 } from '../../services/task-service';
+import { parseNaturalLanguageTask } from '../../services/natural-language-parser';
+import { analyzeTask, generateExecutionInstructions } from '../../services/claude-agent/task-analyzer';
+import { analyzeTaskComplexity } from '../../services/workflow/complexity-analyzer';
+import { getDefaultProvider } from '../../utils/ai-client';
+import { generateTaskTitle } from '../../services/claude-agent/naming-service';
 
 const logger = createLogger('tasks');
 
 export const tasksRoutes = new Elysia({ prefix: '/tasks' })
-  // Search task titles for autocomplete
+  // Search task titles for autocomplete (enhanced with multi-word and description search)
   .get(
     '/search',
     async (context) => {
       const { query } = context;
-      const { q, limit, themeId, projectId } = query;
+      const { q, limit, themeId, projectId, status, searchDescription } = query;
       const searchQuery = q?.trim() ?? '';
       const resultLimit = Math.min(parseInt(limit ?? '10'), 20);
 
@@ -32,20 +37,52 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         return [];
       }
 
-      return await prisma.task.findMany({
-        where: {
-          parentId: null,
-          title: {
-            contains: searchQuery,
-          },
-          ...(themeId && { themeId: parseInt(themeId) }),
-          ...(projectId && { projectId: parseInt(projectId) }),
-        },
+      // マルチワード検索のためにクエリを分割
+      const words = searchQuery.split(/\s+/).filter(w => w.length > 0);
+
+      // 動的 where 条件構築
+      const whereCondition: any = {
+        parentId: null,
+        AND: []
+      };
+
+      // マルチワード検索（タイトル + 説明文オプション）
+      const searchConditions = words.map(word => {
+        const conditions: any[] = [
+          { title: { contains: word, mode: "insensitive" } }
+        ];
+
+        // searchDescription が true の場合、description も検索対象に含める
+        if (searchDescription === 'true') {
+          conditions.push({ description: { contains: word, mode: "insensitive" } });
+        }
+
+        return { OR: conditions };
+      });
+
+      whereCondition.AND.push(...searchConditions);
+
+      // フィルター条件追加
+      if (themeId) {
+        whereCondition.themeId = parseInt(themeId);
+      }
+      if (projectId) {
+        whereCondition.projectId = parseInt(projectId);
+      }
+      if (status) {
+        const statusList = status.split(',');
+        whereCondition.status = { in: statusList };
+      }
+
+      const tasks = await prisma.task.findMany({
+        where: whereCondition,
         select: {
           id: true,
           title: true,
+          description: true,
           priority: true,
           status: true,
+          updatedAt: true,
           theme: {
             select: {
               id: true,
@@ -54,9 +91,36 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
             },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { updatedAt: 'desc' },
         take: resultLimit,
       });
+
+      // 簡易関連度スコアでソート（OR検索の場合）
+      if (words.length > 1) {
+        const scored = tasks.map(task => {
+          let score = 0;
+          const lowerTitle = task.title.toLowerCase();
+          const lowerDesc = task.description?.toLowerCase() || '';
+          const lowerQuery = searchQuery.toLowerCase();
+
+          // 完全一致
+          if (lowerTitle.includes(lowerQuery)) score += 50;
+          if (searchDescription === 'true' && lowerDesc.includes(lowerQuery)) score += 30;
+
+          // 個別ワード一致
+          for (const word of words) {
+            if (lowerTitle.includes(word.toLowerCase())) score += 10;
+            if (searchDescription === 'true' && lowerDesc.includes(word.toLowerCase())) score += 5;
+          }
+
+          return { ...task, relevanceScore: score };
+        });
+
+        scored.sort((a, b) => b.relevanceScore - a.relevanceScore);
+        return scored.map(({ relevanceScore, ...task }) => task);
+      }
+
+      return tasks;
     },
     {
       query: t.Object({
@@ -64,6 +128,8 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         limit: t.Optional(t.String()),
         themeId: t.Optional(t.String()),
         projectId: t.Optional(t.String()),
+        status: t.Optional(t.String()),
+        searchDescription: t.Optional(t.String()),
       }),
     },
   )
@@ -289,7 +355,10 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       };
     }
 
-    // Full fetch (no `since`)
+    // Full fetch (no `since`) — with pagination
+    const page = query.page ? parseInt(query.page as string) : undefined;
+    const pageSize = query.limit ? Math.min(parseInt(query.limit as string), 500) : undefined;
+
     const tasks = await prisma.task.findMany({
       where: baseWhere,
       include: {
@@ -307,7 +376,20 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         },
       },
       orderBy: { createdAt: 'desc' },
+      ...(pageSize && { take: pageSize }),
+      ...(page && pageSize && { skip: (page - 1) * pageSize }),
     });
+
+    if (page && pageSize) {
+      const totalCount = await prisma.task.count({ where: baseWhere });
+      return {
+        tasks,
+        totalCount,
+        page,
+        pageSize,
+        totalPages: Math.ceil(totalCount / pageSize),
+      };
+    }
 
     return tasks;
   })
@@ -551,6 +633,147 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     {
       body: t.Object({
         subtaskIds: t.Array(t.Number()),
+      }),
+    },
+  )
+
+  // Quick create: NL parse → AI title → task → complexity → subtasks → instructions pipeline (NDJSON streaming)
+  .post(
+    '/quick-create',
+    async ({ body }) => {
+      const { text, themeId } = body;
+
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          const send = (data: Record<string, unknown>) => {
+            controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'));
+          };
+
+          try {
+            // Step 1: Parse natural language
+            send({ step: 'parsing', status: 'in_progress' });
+            const parsed = parseNaturalLanguageTask(text);
+            send({ step: 'parsing', status: 'done', data: parsed });
+
+            // Step 2: AI title summarization
+            send({ step: 'summarizing', status: 'in_progress' });
+            let title = parsed.title;
+            try {
+              const provider = await getDefaultProvider();
+              const result = await generateTaskTitle(text, provider);
+              if (result.title) {
+                title = result.title;
+              }
+            } catch (e) {
+              logger.warn({ err: e }, '[quick-create] AI title summarization failed, using parsed title');
+            }
+            send({ step: 'summarizing', status: 'done', data: { title } });
+
+            // Step 3: Create task
+            send({ step: 'creating', status: 'in_progress' });
+            const taskData: Parameters<typeof createTask>[1] = {
+              title,
+              ...(parsed.priority && { priority: parsed.priority }),
+              ...(parsed.estimatedHours && { estimatedHours: parsed.estimatedHours }),
+              ...(parsed.dueDate && { dueDate: parsed.dueDate }),
+              ...(themeId && { themeId }),
+              status: 'todo',
+            };
+
+            const task = await createTask(prisma, taskData);
+            if (!task) {
+              throw new AppError(500, 'Failed to create task');
+            }
+            send({ step: 'creating', status: 'done', data: { id: task.id, title: task.title } });
+
+            // Step 4: Analyze complexity
+            send({ step: 'analyzing', status: 'in_progress' });
+            const complexity = analyzeTaskComplexity({
+              title: task.title,
+              description: task.description || undefined,
+              estimatedHours: task.estimatedHours || undefined,
+              priority: task.priority,
+              labels: [],
+            });
+
+            const provider = await getDefaultProvider();
+            const analysisConfig = {
+              priority: 'balanced' as const,
+              maxSubtasks: 10,
+              provider,
+            };
+
+            const analysis = await analyzeTask(
+              {
+                id: task.id,
+                title: task.title,
+                description: task.description,
+                priority: task.priority,
+                dueDate: task.dueDate,
+                estimatedHours: task.estimatedHours,
+              },
+              analysisConfig,
+            );
+            send({ step: 'analyzing', status: 'done', data: { score: complexity.complexityScore, subtaskCount: analysis.result.suggestedSubtasks.length } });
+
+            // Step 5: Create subtasks
+            send({ step: 'generating_subtasks', status: 'in_progress' });
+            const createdSubtasks = [];
+            for (const subtask of analysis.result.suggestedSubtasks) {
+              const sub = await createTask(prisma, {
+                title: subtask.title,
+                description: subtask.description,
+                priority: subtask.priority || task.priority,
+                estimatedHours: subtask.estimatedHours,
+                parentId: task.id,
+                ...(themeId && { themeId }),
+              });
+              createdSubtasks.push(sub);
+            }
+            send({ step: 'generating_subtasks', status: 'done', data: { count: createdSubtasks.length } });
+
+            // Step 6: Generate execution instructions
+            send({ step: 'generating_instructions', status: 'in_progress' });
+            const instructions = await generateExecutionInstructions(
+              { title: task.title, description: task.description },
+              analysis.result.suggestedSubtasks,
+              provider,
+            );
+
+            await prisma.task.update({
+              where: { id: task.id },
+              data: {
+                description: `${task.description || ''}\n\n---\n## 実行手順\n${instructions.instructions}`,
+              },
+            });
+            send({ step: 'generating_instructions', status: 'done' });
+
+            // Complete
+            send({ step: 'complete', status: 'done', taskId: task.id });
+          } catch (error) {
+            logger.error({ err: error }, '[tasks/quick-create] Pipeline failed');
+            send({ step: 'error', status: 'error', message: error instanceof Error ? error.message : 'Quick create pipeline failed' });
+          } finally {
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'application/x-ndjson',
+          'Transfer-Encoding': 'chunked',
+          'Cache-Control': 'no-cache',
+        },
+      });
+    },
+    {
+      body: t.Object({
+        text: t.String({ minLength: 1 }),
+        themeId: t.Optional(t.Number()),
+        autoExecute: t.Optional(t.Boolean()),
+        agentConfigId: t.Optional(t.Number()),
       }),
     },
   );

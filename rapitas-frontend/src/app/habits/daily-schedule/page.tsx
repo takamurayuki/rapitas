@@ -33,18 +33,48 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('DailySchedulePage');
 
 const CATEGORY_OPTIONS = [
-  { value: 'sleep', labelKey: 'categorySleep' as const, icon: Moon, defaultColor: '#6366F1' },
-  { value: 'work', labelKey: 'categoryWork' as const, icon: Briefcase, defaultColor: '#3B82F6' },
-  { value: 'exercise', labelKey: 'categoryExercise' as const, icon: Dumbbell, defaultColor: '#10B981' },
+  {
+    value: 'sleep',
+    labelKey: 'categorySleep' as const,
+    icon: Moon,
+    defaultColor: '#6366F1',
+  },
+  {
+    value: 'work',
+    labelKey: 'categoryWork' as const,
+    icon: Briefcase,
+    defaultColor: '#3B82F6',
+  },
+  {
+    value: 'exercise',
+    labelKey: 'categoryExercise' as const,
+    icon: Dumbbell,
+    defaultColor: '#10B981',
+  },
   {
     value: 'meal',
     labelKey: 'categoryMeal' as const,
     icon: UtensilsCrossed,
     defaultColor: '#F59E0B',
   },
-  { value: 'commute', labelKey: 'categoryCommute' as const, icon: Train, defaultColor: '#8B5CF6' },
-  { value: 'study', labelKey: 'categoryStudy' as const, icon: BookOpen, defaultColor: '#EC4899' },
-  { value: 'hobby', labelKey: 'categoryHobby' as const, icon: Gamepad2, defaultColor: '#06B6D4' },
+  {
+    value: 'commute',
+    labelKey: 'categoryCommute' as const,
+    icon: Train,
+    defaultColor: '#8B5CF6',
+  },
+  {
+    value: 'study',
+    labelKey: 'categoryStudy' as const,
+    icon: BookOpen,
+    defaultColor: '#EC4899',
+  },
+  {
+    value: 'hobby',
+    labelKey: 'categoryHobby' as const,
+    icon: Gamepad2,
+    defaultColor: '#06B6D4',
+  },
   {
     value: 'other',
     labelKey: 'categoryOther' as const,
@@ -88,7 +118,10 @@ function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   };
 }
 
-function getDurationParts(startTime: string, endTime: string): { h: number; m: number } {
+function getDurationParts(
+  startTime: string,
+  endTime: string,
+): { h: number; m: number } {
   const start = timeToMinutes(startTime);
   let end = timeToMinutes(endTime);
 
@@ -467,7 +500,11 @@ export default function DailySchedulePage() {
               {t('chart24h')}
             </h2>
             <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t('coveragePercent', { percent: coveragePercent, hours: totalHours, mins: totalMins > 0 ? `${totalMins}` : '' })}
+              {t('coveragePercent', {
+                percent: coveragePercent,
+                hours: totalHours,
+                mins: totalMins > 0 ? `${totalMins}` : '',
+              })}
             </div>
           </div>
 

@@ -17,7 +17,7 @@ import {
   ChevronRight,
   Target,
   BarChart3,
-  Trophy,
+  CalendarClock,
   Flame,
   Brain,
   FileText,
@@ -48,6 +48,7 @@ import {
   User,
   LogOut,
   Package,
+  Activity,
 } from 'lucide-react';
 import AppIcon from '@/components/AppIcon';
 import GlobalPomodoroWidget from '@/feature/tasks/pomodoro/GlobalPomodoroWidget';
@@ -160,7 +161,7 @@ export default function Header() {
     if (binding.ctrl) parts.push('Ctrl');
     if (binding.meta) parts.push('\u2318');
     if (binding.shift) parts.push('\u21E7');
-    parts.push(binding.key.toUpperCase());
+    parts.push(binding.key ? binding.key.toUpperCase() : '');
     return parts.join('');
   };
 
@@ -279,6 +280,7 @@ export default function Header() {
         clearTimeout(debounceTimerRef.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, pathname, router]); // searchParamsを依存配列から除去 - 循環更新を防ぐ
 
   // URLの検索パラメータから初期値を設定（外部変更時のみ）
@@ -300,6 +302,7 @@ export default function Header() {
         setSearchQuery(search);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, pathname]); // 循環更新防止ガード追加
 
   // Enterキーで検索結果ページに遷移
@@ -422,12 +425,6 @@ export default function Header() {
       shortcut: getShortcutLabel('dashboard'),
     },
     {
-      href: '/calendar',
-      label: t('calendar'),
-      icon: Calendar,
-      shortcut: getShortcutLabel('calendar'),
-    },
-    {
       href: '#',
       label: t('learning'),
       icon: GraduationCap,
@@ -453,8 +450,14 @@ export default function Header() {
     {
       href: '#',
       label: t('habitsAchievements'),
-      icon: Trophy,
+      icon: CalendarClock,
       children: [
+        {
+          href: '/calendar',
+          label: t('calendar'),
+          icon: Calendar,
+          shortcut: getShortcutLabel('calendar'),
+        },
         {
           href: '/habits',
           label: t('habitTracker'),
@@ -464,11 +467,6 @@ export default function Header() {
           href: '/habits/daily-schedule',
           label: t('dailySchedule'),
           icon: Clock,
-        },
-        {
-          href: '/achievements',
-          label: t('achievementsBadges'),
-          icon: Trophy,
         },
         {
           href: '/reports',
@@ -525,7 +523,39 @@ export default function Header() {
               label: t('versionControl'),
               icon: Package,
             },
+            {
+              href: '/agents/memory',
+              label: t('memoryVisualization'),
+              icon: Sparkles,
+            },
+            {
+              href: '#',
+              label: t('knowledgeBase'),
+              icon: Brain,
+              children: [
+                {
+                  href: '/knowledge',
+                  label: t('knowledgeBrowser'),
+                  icon: Brain,
+                },
+                {
+                  href: '/knowledge/contradictions',
+                  label: t('contradictions'),
+                  icon: NotebookTabs,
+                },
+                {
+                  href: '/knowledge/admin',
+                  label: t('memoryAdmin'),
+                  icon: Settings,
+                },
+              ],
+            },
           ],
+        },
+        {
+          href: '/orchestra',
+          label: t('orchestra'),
+          icon: Activity,
         },
         {
           href: '/approvals',
@@ -541,28 +571,6 @@ export default function Header() {
           href: '/claude-md-generator',
           label: t('claudeGeneration'),
           icon: Sparkles,
-        },
-      ],
-    },
-    {
-      href: '#',
-      label: t('knowledgeBase'),
-      icon: Brain,
-      children: [
-        {
-          href: '/knowledge',
-          label: t('knowledgeBrowser'),
-          icon: Brain,
-        },
-        {
-          href: '/knowledge/contradictions',
-          label: t('contradictions'),
-          icon: NotebookTabs,
-        },
-        {
-          href: '/knowledge/admin',
-          label: t('memoryAdmin'),
-          icon: Settings,
         },
       ],
     },
@@ -1080,9 +1088,7 @@ export default function Header() {
                         <NotebookTabs className="w-4 h-4" />
                       )}
                       <span>
-                        {modalState.isOpen
-                          ? t('closeNoteAI')
-                          : t('openNoteAI')}
+                        {modalState.isOpen ? t('closeNoteAI') : t('openNoteAI')}
                       </span>
                     </button>
                     {/* ダークモード切り替え */}
@@ -1174,9 +1180,7 @@ export default function Header() {
                 ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30'
                 : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
-            aria-label={
-              isMenuPinned ? t('unpinMenu') : t('pinMenu')
-            }
+            aria-label={isMenuPinned ? t('unpinMenu') : t('pinMenu')}
             title={isMenuPinned ? t('unpinMenu') : t('pinMenu')}
           >
             {isMenuPinned ? (
@@ -1225,7 +1229,8 @@ export default function Header() {
             </h3>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
               <span className="font-semibold text-amber-600 dark:text-amber-400">
-                {restartConfirmDialog.activeExecutions}{t('tasksUnit')}
+                {restartConfirmDialog.activeExecutions}
+                {t('tasksUnit')}
               </span>{' '}
               {t('restartWarning')}
             </p>

@@ -37,10 +37,7 @@ function extractFilePaths(text: string | null | undefined): string[] {
   for (const pattern of patterns) {
     let match;
     while ((match = pattern.exec(text)) !== null) {
-      const filePath = match[1]
-        .replace(/\\/g, '/')
-        .replace(/^\.\//, '')
-        .toLowerCase();
+      const filePath = match[1].replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
 
       if (/\.[a-zA-Z]{1,10}$/.test(filePath)) {
         files.add(filePath);
@@ -63,10 +60,14 @@ function getFileName(path: string): string {
  */
 function priorityToWeight(priority: TaskPriority): number {
   switch (priority) {
-    case 'urgent': return 100;
-    case 'high': return 75;
-    case 'medium': return 50;
-    case 'low': return 25;
+    case 'urgent':
+      return 100;
+    case 'high':
+      return 75;
+    case 'medium':
+      return 50;
+    case 'low':
+      return 25;
   }
 }
 
@@ -246,7 +247,7 @@ export class DependencyAnalyzer {
   private calculateFileSharingWeight(
     node1: TaskNode,
     node2: TaskNode,
-    sharedFiles: string[]
+    sharedFiles: string[],
   ): number {
     const node1FileCount = node1.files.length || 1;
     const node2FileCount = node2.files.length || 1;
@@ -303,11 +304,14 @@ export class DependencyAnalyzer {
 
       // 独立性スコアを計算
       const totalEdgeWeight = this.edges
-        .filter(e => e.fromTaskId === nodeId || e.toTaskId === nodeId)
+        .filter((e) => e.fromTaskId === nodeId || e.toTaskId === nodeId)
         .reduce((sum, e) => sum + e.weight, 0);
 
       const maxPossibleWeight = this.nodes.size * 100;
-      node.independenceScore = Math.max(0, 100 - Math.round((totalEdgeWeight / maxPossibleWeight) * 100));
+      node.independenceScore = Math.max(
+        0,
+        100 - Math.round((totalEdgeWeight / maxPossibleWeight) * 100),
+      );
 
       // 並列実行可能性スコアを計算
       const dependencyCount = node.dependencies.length;
@@ -333,7 +337,7 @@ export class DependencyAnalyzer {
       for (const node of this.nodes.values()) {
         if (node.depth === level && !assigned.has(node.id)) {
           // 依存タスクがすべて完了している（より低いレベル）か確認
-          const canSchedule = node.dependencies.every(depId => {
+          const canSchedule = node.dependencies.every((depId) => {
             const depNode = this.nodes.get(depId);
             return depNode && depNode.depth < level;
           });
@@ -348,7 +352,7 @@ export class DependencyAnalyzer {
       if (levelTasks.length > 0) {
         // グループ内の依存関係を検出
         const internalDeps = this.edges.filter(
-          e => levelTasks.includes(e.fromTaskId) && levelTasks.includes(e.toTaskId)
+          (e) => levelTasks.includes(e.fromTaskId) && levelTasks.includes(e.toTaskId),
         );
 
         // グループ間の依存を計算
@@ -356,7 +360,7 @@ export class DependencyAnalyzer {
         for (const taskId of levelTasks) {
           const node = this.nodes.get(taskId)!;
           for (const depId of node.dependencies) {
-            const depGroup = groups.find(g => g.taskIds.includes(depId));
+            const depGroup = groups.find((g) => g.taskIds.includes(depId));
             if (depGroup && !dependsOnGroups.includes(depGroup.groupId)) {
               dependsOnGroups.push(depGroup.groupId);
             }
@@ -365,14 +369,14 @@ export class DependencyAnalyzer {
 
         // 推定実行時間を計算（並列実行の場合は最長タスクの時間）
         const estimatedDuration = Math.max(
-          ...levelTasks.map(id => this.nodes.get(id)?.estimatedHours || 1)
+          ...levelTasks.map((id) => this.nodes.get(id)?.estimatedHours || 1),
         );
 
         groups.push({
           groupId: groups.length,
           level,
           taskIds: levelTasks,
-          canRunParallel: internalDeps.every(e => e.weight < 70),
+          canRunParallel: internalDeps.every((e) => e.weight < 70),
           estimatedDuration,
           internalDependencies: internalDeps,
           dependsOnGroups,
@@ -398,8 +402,8 @@ export class DependencyAnalyzer {
 
     // 開始ノード（依存のないノード）を見つける
     const startNodes = Array.from(this.nodes.values())
-      .filter(n => n.dependencies.length === 0)
-      .map(n => n.id);
+      .filter((n) => n.dependencies.length === 0)
+      .map((n) => n.id);
 
     for (const startId of startNodes) {
       distances.set(startId, this.nodes.get(startId)?.estimatedHours || 0);
@@ -495,7 +499,7 @@ export class DependencyAnalyzer {
   private generateExecutionPlan(
     parentTaskId: number,
     treeMap: DependencyTreeMap,
-    config?: Partial<{ maxConcurrentAgents: number }>
+    config?: Partial<{ maxConcurrentAgents: number }>,
   ): ParallelExecutionPlan {
     const maxConcurrency = config?.maxConcurrentAgents || 3;
 
@@ -519,12 +523,15 @@ export class DependencyAnalyzer {
       estimatedTotalDuration += group.estimatedDuration;
     }
 
-    const estimatedSequentialDuration = Array.from(treeMap.nodes.values())
-      .reduce((sum, n) => sum + (n.estimatedHours || 0), 0);
+    const estimatedSequentialDuration = Array.from(treeMap.nodes.values()).reduce(
+      (sum, n) => sum + (n.estimatedHours || 0),
+      0,
+    );
 
-    const parallelEfficiency = estimatedSequentialDuration > 0
-      ? Math.round((1 - estimatedTotalDuration / estimatedSequentialDuration) * 100)
-      : 0;
+    const parallelEfficiency =
+      estimatedSequentialDuration > 0
+        ? Math.round((1 - estimatedTotalDuration / estimatedSequentialDuration) * 100)
+        : 0;
 
     return {
       id: `plan-${parentTaskId}-${Date.now()}`,
@@ -586,18 +593,19 @@ export class DependencyAnalyzer {
     const warnings: string[] = [];
 
     // 独立性の高いタスクを推奨
-    const highlyIndependent = Array.from(treeMap.nodes.values())
-      .filter(n => n.independenceScore >= 80);
+    const highlyIndependent = Array.from(treeMap.nodes.values()).filter(
+      (n) => n.independenceScore >= 80,
+    );
     if (highlyIndependent.length > 0) {
       recommendations.push(
-        `${highlyIndependent.length}個のタスクが高い独立性を持っています。これらは並列実行に適しています。`
+        `${highlyIndependent.length}個のタスクが高い独立性を持っています。これらは並列実行に適しています。`,
       );
     }
 
     // クリティカルパスの警告
     if (treeMap.criticalPath.length > 3) {
       warnings.push(
-        `クリティカルパスが${treeMap.criticalPath.length}タスクと長いため、全体の実行時間に影響します。`
+        `クリティカルパスが${treeMap.criticalPath.length}タスクと長いため、全体の実行時間に影響します。`,
       );
     }
 
@@ -608,20 +616,23 @@ export class DependencyAnalyzer {
     }
 
     // 高い依存関係の警告
-    const highlyDependent = Array.from(treeMap.nodes.values())
-      .filter(n => n.independenceScore < 30);
+    const highlyDependent = Array.from(treeMap.nodes.values()).filter(
+      (n) => n.independenceScore < 30,
+    );
     if (highlyDependent.length > 0) {
       warnings.push(
-        `${highlyDependent.length}個のタスクが高い依存性を持っています。ボトルネックになる可能性があります。`
+        `${highlyDependent.length}個のタスクが高い依存性を持っています。ボトルネックになる可能性があります。`,
       );
     }
 
     // 並列化の効果
-    const parallelGroups = treeMap.parallelGroups.filter(g => g.canRunParallel && g.taskIds.length > 1);
+    const parallelGroups = treeMap.parallelGroups.filter(
+      (g) => g.canRunParallel && g.taskIds.length > 1,
+    );
     if (parallelGroups.length > 0) {
       const totalParallelTasks = parallelGroups.reduce((sum, g) => sum + g.taskIds.length, 0);
       recommendations.push(
-        `${totalParallelTasks}個のタスクを${parallelGroups.length}グループで並列実行できます。`
+        `${totalParallelTasks}個のタスクを${parallelGroups.length}グループで並列実行できます。`,
       );
     }
 

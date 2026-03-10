@@ -19,10 +19,7 @@ export function Badge({
   };
 
   return (
-    <span
-      className={`${base} ${variants[variant]} ${className}`}
-      {...props}
-    >
+    <span className={`${base} ${variants[variant]} ${className}`} {...props}>
       {children}
     </span>
   );

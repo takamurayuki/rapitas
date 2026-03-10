@@ -2,24 +2,23 @@
  * Notification Service
  * 通知の作成とリアルタイム配信を統合
  */
-import { prisma } from "../config/database";
-import { realtimeService } from "./realtime-service";
+import { prisma } from '../config/database';
+import { realtimeService } from './realtime-service';
 
 export type NotificationType =
-  | "task_completed"
-  | "task_assigned"
-  | "agent_execution_completed"
-  | "agent_execution_failed"
-  | "agent_execution_resumed"
-  | "approval_requested"
-  | "approval_completed"
-  | "achievement_unlocked"
-  | "pomodoro_completed"
-  | "habit_reminder"
-  | "schedule_reminder"
-  | "contradiction_detected"
-  | "consolidation_completed"
-  | "system";
+  | 'task_completed'
+  | 'task_assigned'
+  | 'agent_execution_completed'
+  | 'agent_execution_failed'
+  | 'agent_execution_resumed'
+  | 'approval_requested'
+  | 'approval_completed'
+  | 'pomodoro_completed'
+  | 'habit_reminder'
+  | 'schedule_reminder'
+  | 'contradiction_detected'
+  | 'consolidation_completed'
+  | 'system';
 
 interface CreateNotificationParams {
   type: NotificationType;
@@ -45,7 +44,7 @@ export async function createNotification(params: CreateNotificationParams) {
 
   // SSE経由でリアルタイム配信
   const unreadCount = await prisma.notification.count({ where: { isRead: false } });
-  realtimeService.broadcast("notifications", "new_notification", {
+  realtimeService.broadcast('notifications', 'new_notification', {
     notification,
     unreadCount,
   });
@@ -58,8 +57,8 @@ export async function createNotification(params: CreateNotificationParams) {
  */
 export async function notifyTaskCompleted(taskId: number, taskTitle: string) {
   return createNotification({
-    type: "task_completed",
-    title: "タスク完了",
+    type: 'task_completed',
+    title: 'タスク完了',
     message: `「${taskTitle}」が完了しました`,
     link: `/tasks?taskId=${taskId}`,
     metadata: { taskId },
@@ -72,11 +71,11 @@ export async function notifyTaskCompleted(taskId: number, taskTitle: string) {
 export async function notifyAgentExecutionCompleted(
   executionId: number,
   taskTitle: string,
-  success: boolean
+  success: boolean,
 ) {
   return createNotification({
-    type: success ? "agent_execution_completed" : "agent_execution_failed",
-    title: success ? "AI実行完了" : "AI実行失敗",
+    type: success ? 'agent_execution_completed' : 'agent_execution_failed',
+    title: success ? 'AI実行完了' : 'AI実行失敗',
     message: success
       ? `「${taskTitle}」のAI実行が完了しました`
       : `「${taskTitle}」のAI実行が失敗しました`,
@@ -88,13 +87,10 @@ export async function notifyAgentExecutionCompleted(
 /**
  * 承認リクエスト通知
  */
-export async function notifyApprovalRequested(
-  approvalId: number,
-  title: string
-) {
+export async function notifyApprovalRequested(approvalId: number, title: string) {
   return createNotification({
-    type: "approval_requested",
-    title: "承認リクエスト",
+    type: 'approval_requested',
+    title: '承認リクエスト',
     message: `「${title}」の承認が必要です`,
     link: `/approvals`,
     metadata: { approvalId },
@@ -102,30 +98,12 @@ export async function notifyApprovalRequested(
 }
 
 /**
- * 実績解除通知
- */
-export async function notifyAchievementUnlocked(
-  achievementName: string,
-  achievementIcon: string
-) {
-  return createNotification({
-    type: "achievement_unlocked",
-    title: "実績解除！",
-    message: `${achievementIcon} 「${achievementName}」を達成しました！`,
-    link: `/achievements`,
-  });
-}
-
-/**
  * ポモドーロ完了通知
  */
-export async function notifyPomodoroCompleted(
-  taskTitle: string | null,
-  completedCount: number
-) {
+export async function notifyPomodoroCompleted(taskTitle: string | null, completedCount: number) {
   return createNotification({
-    type: "pomodoro_completed",
-    title: "ポモドーロ完了",
+    type: 'pomodoro_completed',
+    title: 'ポモドーロ完了',
     message: taskTitle
       ? `「${taskTitle}」のポモドーロ #${completedCount} が完了しました`
       : `ポモドーロ #${completedCount} が完了しました`,

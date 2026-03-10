@@ -16,16 +16,13 @@ export interface AgentLifecycleHooks {
    */
   beforeExecute?: (
     context: AgentExecutionContext,
-    task: AgentTaskDefinition
+    task: AgentTaskDefinition,
   ) => Promise<boolean | void>;
 
   /**
    * 実行完了後に呼び出される
    */
-  afterExecute?: (
-    context: AgentExecutionContext,
-    result: AgentExecutionResult
-  ) => Promise<void>;
+  afterExecute?: (context: AgentExecutionContext, result: AgentExecutionResult) => Promise<void>;
 
   /**
    * エラー発生時に呼び出される
@@ -34,7 +31,7 @@ export interface AgentLifecycleHooks {
   onError?: (
     context: AgentExecutionContext,
     error: Error,
-    retryCount: number
+    retryCount: number,
   ) => Promise<{ retry: boolean; delay?: number }>;
 
   /**
@@ -43,7 +40,7 @@ export interface AgentLifecycleHooks {
    */
   onQuestion?: (
     context: AgentExecutionContext,
-    question: PendingQuestion
+    question: PendingQuestion,
   ) => Promise<string | null>;
 
   /**
@@ -52,7 +49,7 @@ export interface AgentLifecycleHooks {
   onStateChange?: (
     context: AgentExecutionContext,
     previousState: AgentState,
-    newState: AgentState
+    newState: AgentState,
   ) => Promise<void>;
 
   /**
@@ -62,7 +59,7 @@ export interface AgentLifecycleHooks {
   beforeToolCall?: (
     context: AgentExecutionContext,
     toolName: string,
-    input: unknown
+    input: unknown,
   ) => Promise<boolean | void>;
 
   /**
@@ -73,22 +70,19 @@ export interface AgentLifecycleHooks {
     toolName: string,
     input: unknown,
     output: unknown,
-    success: boolean
+    success: boolean,
   ) => Promise<void>;
 
   /**
    * 成果物生成時に呼び出される
    */
-  onArtifact?: (
-    context: AgentExecutionContext,
-    artifact: AgentArtifact
-  ) => Promise<void>;
+  onArtifact?: (context: AgentExecutionContext, artifact: AgentArtifact) => Promise<void>;
 
   /**
    * シャットダウン時に呼び出される
    */
   onShutdown?: (
     context: AgentExecutionContext,
-    reason: 'completed' | 'cancelled' | 'error' | 'timeout'
+    reason: 'completed' | 'cancelled' | 'error' | 'timeout',
   ) => Promise<void>;
 }

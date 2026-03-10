@@ -7,15 +7,8 @@ import { createLogger } from '../../../config/logger';
 
 const pinoLog = createLogger('agent-error-handler');
 
-import type {
-  AgentExecutionContext,
-  AgentExecutionResult,
-} from './types';
-import type {
-  IErrorHandler,
-  AgentErrorType,
-  IAgentLogger,
-} from './interfaces';
+import type { AgentExecutionContext, AgentExecutionResult } from './types';
+import type { IErrorHandler, AgentErrorType, IAgentLogger } from './interfaces';
 import { AgentError } from './interfaces';
 
 /**
@@ -109,7 +102,10 @@ interface ErrorHandlerOptions {
 export class DefaultErrorHandler implements IErrorHandler {
   private retryStrategies: Record<AgentErrorType, RetryStrategyConfig>;
   private logger?: IAgentLogger;
-  private onErrorCallback?: (error: Error | AgentError, context: AgentExecutionContext) => Promise<void>;
+  private onErrorCallback?: (
+    error: Error | AgentError,
+    context: AgentExecutionContext,
+  ) => Promise<void>;
   private errorHistory: Array<{
     timestamp: Date;
     error: Error | AgentError;
@@ -158,14 +154,20 @@ export class DefaultErrorHandler implements IErrorHandler {
     const errorType = agentError.type;
 
     // ログ出力
-    this.log('error', `Error in execution ${context.executionId}: [${errorType}] ${agentError.message}`);
+    this.log(
+      'error',
+      `Error in execution ${context.executionId}: [${errorType}] ${agentError.message}`,
+    );
 
     // カスタムコールバックがあれば呼び出す
     if (this.onErrorCallback) {
       try {
         await this.onErrorCallback(error, context);
       } catch (callbackError) {
-        this.log('warn', `Error callback failed: ${callbackError instanceof Error ? callbackError.message : String(callbackError)}`);
+        this.log(
+          'warn',
+          `Error callback failed: ${callbackError instanceof Error ? callbackError.message : String(callbackError)}`,
+        );
       }
     }
 
@@ -188,16 +190,18 @@ export class DefaultErrorHandler implements IErrorHandler {
       output: '',
       errorMessage: agentError.message,
       debugInfo: {
-        logs: [{
-          timestamp: new Date(),
-          level: 'error',
-          message: agentError.message,
-          data: {
-            type: errorType,
-            recoverable: agentError.recoverable,
-            context: agentError.context,
+        logs: [
+          {
+            timestamp: new Date(),
+            level: 'error',
+            message: agentError.message,
+            data: {
+              type: errorType,
+              recoverable: agentError.recoverable,
+              context: agentError.context,
+            },
           },
-        }],
+        ],
       },
     };
 
@@ -312,10 +316,7 @@ export class DefaultErrorHandler implements IErrorHandler {
   /**
    * リトライ戦略を更新
    */
-  updateRetryStrategy(
-    errorType: AgentErrorType,
-    config: Partial<RetryStrategyConfig>,
-  ): void {
+  updateRetryStrategy(errorType: AgentErrorType, config: Partial<RetryStrategyConfig>): void {
     this.retryStrategies[errorType] = {
       ...this.retryStrategies[errorType],
       ...config,
@@ -339,16 +340,28 @@ export class DefaultErrorHandler implements IErrorHandler {
     if (message.includes('timeout') || message.includes('timed out')) {
       type = 'timeout';
       recoverable = true;
-    } else if (message.includes('network') || message.includes('econnrefused') || message.includes('enotfound')) {
+    } else if (
+      message.includes('network') ||
+      message.includes('econnrefused') ||
+      message.includes('enotfound')
+    ) {
       type = 'network';
       recoverable = true;
     } else if (message.includes('rate limit') || message.includes('too many requests')) {
       type = 'rate_limit';
       recoverable = true;
-    } else if (message.includes('authentication') || message.includes('unauthorized') || message.includes('401')) {
+    } else if (
+      message.includes('authentication') ||
+      message.includes('unauthorized') ||
+      message.includes('401')
+    ) {
       type = 'authentication';
       recoverable = false;
-    } else if (message.includes('permission') || message.includes('forbidden') || message.includes('403')) {
+    } else if (
+      message.includes('permission') ||
+      message.includes('forbidden') ||
+      message.includes('403')
+    ) {
       type = 'permission';
       recoverable = false;
     } else if (message.includes('not found') || message.includes('404')) {
@@ -362,13 +375,7 @@ export class DefaultErrorHandler implements IErrorHandler {
       recoverable = false;
     }
 
-    return new AgentError(
-      error.message,
-      type,
-      recoverable,
-      undefined,
-      error,
-    );
+    return new AgentError(error.message, type, recoverable, undefined, error);
   }
 
   private addToHistory(

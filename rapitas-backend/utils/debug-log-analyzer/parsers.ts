@@ -28,7 +28,7 @@ export class JSONLogParser implements LogParser {
         source: json.source || json.logger,
         metadata: json,
         raw: logLine,
-        type: this.type
+        type: this.type,
       };
     } catch {
       return null;
@@ -40,13 +40,24 @@ export class JSONLogParser implements LogParser {
     const normalized = level.toLowerCase();
 
     switch (normalized) {
-      case "trace": return LogLevel.TRACE;
-      case "debug": return LogLevel.DEBUG;
-      case "info": case "information": return LogLevel.INFO;
-      case "warn": case "warning": return LogLevel.WARN;
-      case "error": case "err": return LogLevel.ERROR;
-      case "fatal": case "critical": return LogLevel.FATAL;
-      default: return LogLevel.INFO;
+      case 'trace':
+        return LogLevel.TRACE;
+      case 'debug':
+        return LogLevel.DEBUG;
+      case 'info':
+      case 'information':
+        return LogLevel.INFO;
+      case 'warn':
+      case 'warning':
+        return LogLevel.WARN;
+      case 'error':
+      case 'err':
+        return LogLevel.ERROR;
+      case 'fatal':
+      case 'critical':
+        return LogLevel.FATAL;
+      default:
+        return LogLevel.INFO;
     }
   }
 }
@@ -79,21 +90,30 @@ export class SyslogParser implements LogParser {
         process,
         pid: parseInt(pid),
         facility: Math.floor(parseInt(priority) / 8),
-        severity
+        severity,
       },
       raw: logLine,
-      type: this.type
+      type: this.type,
     };
   }
 
   private severityToLogLevel(severity: number): LogLevel {
     switch (severity) {
-      case 0: case 1: case 2: return LogLevel.FATAL;
-      case 3: return LogLevel.ERROR;
-      case 4: return LogLevel.WARN;
-      case 5: case 6: return LogLevel.INFO;
-      case 7: return LogLevel.DEBUG;
-      default: return LogLevel.INFO;
+      case 0:
+      case 1:
+      case 2:
+        return LogLevel.FATAL;
+      case 3:
+        return LogLevel.ERROR;
+      case 4:
+        return LogLevel.WARN;
+      case 5:
+      case 6:
+        return LogLevel.INFO;
+      case 7:
+        return LogLevel.DEBUG;
+      default:
+        return LogLevel.INFO;
     }
   }
 }
@@ -123,22 +143,32 @@ export class ApacheCommonLogParser implements LogParser {
       source: ip,
       metadata: {
         ip,
-        user: user === "-" ? undefined : user,
+        user: user === '-' ? undefined : user,
         request,
         statusCode: status,
-        size: size === "-" ? 0 : parseInt(size),
-        type: "http_access"
+        size: size === '-' ? 0 : parseInt(size),
+        type: 'http_access',
       },
       raw: logLine,
-      type: this.type
+      type: this.type,
     };
   }
 
   private parseApacheDate(dateStr: string): Date {
     // Format: 01/Jan/2024:00:00:00 +0000
     const months: Record<string, number> = {
-      Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
-      Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
+      Jan: 0,
+      Feb: 1,
+      Mar: 2,
+      Apr: 3,
+      May: 4,
+      Jun: 5,
+      Jul: 6,
+      Aug: 7,
+      Sep: 8,
+      Oct: 9,
+      Nov: 10,
+      Dec: 11,
     };
 
     const match = dateStr.match(/(\d+)\/(\w+)\/(\d+):(\d+):(\d+):(\d+)\s+([\+\-]\d+)/);
@@ -151,7 +181,7 @@ export class ApacheCommonLogParser implements LogParser {
       parseInt(day),
       parseInt(hour),
       parseInt(minute),
-      parseInt(second)
+      parseInt(second),
     );
   }
 
@@ -174,11 +204,11 @@ export class NodeJSLogParser implements LogParser {
     // ERROR [2024-01-01T00:00:00.000Z] Message
     /^(\w+)\s+\[([^\]]+)\]\s+(.*)$/,
     // 2024-01-01T00:00:00.000Z - ERROR - Message
-    /^([^\s]+)\s+-\s+(\w+)\s+-\s+(.*)$/
+    /^([^\s]+)\s+-\s+(\w+)\s+-\s+(.*)$/,
   ];
 
   canParse(logLine: string): boolean {
-    return this.patterns.some(pattern => pattern.test(logLine));
+    return this.patterns.some((pattern) => pattern.test(logLine));
   }
 
   parse(logLine: string): ParsedLogEntry | null {
@@ -200,7 +230,7 @@ export class NodeJSLogParser implements LogParser {
           level: this.normalizeLogLevel(level),
           message,
           raw: logLine,
-          type: this.type
+          type: this.type,
         };
       }
     }
@@ -210,13 +240,21 @@ export class NodeJSLogParser implements LogParser {
   private normalizeLogLevel(level: string): LogLevel {
     const normalized = level.toLowerCase();
     switch (normalized) {
-      case "trace": return LogLevel.TRACE;
-      case "debug": return LogLevel.DEBUG;
-      case "info": return LogLevel.INFO;
-      case "warn": case "warning": return LogLevel.WARN;
-      case "error": return LogLevel.ERROR;
-      case "fatal": return LogLevel.FATAL;
-      default: return LogLevel.INFO;
+      case 'trace':
+        return LogLevel.TRACE;
+      case 'debug':
+        return LogLevel.DEBUG;
+      case 'info':
+        return LogLevel.INFO;
+      case 'warn':
+      case 'warning':
+        return LogLevel.WARN;
+      case 'error':
+        return LogLevel.ERROR;
+      case 'fatal':
+        return LogLevel.FATAL;
+      default:
+        return LogLevel.INFO;
     }
   }
 }

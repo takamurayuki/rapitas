@@ -27,6 +27,8 @@ import PaidLeaveDialog from '@/feature/calendar/components/PaidLeaveDialog';
 import { getHolidaysForMonth } from '@/utils/holidays';
 import type { PaidLeaveBalance } from '@/types';
 import { createLogger } from '@/lib/logger';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('CalendarPage');
 const API_BASE = API_BASE_URL;
@@ -49,6 +51,8 @@ export default function CalendarPage() {
   const router = useRouter();
   const t = useTranslations('calendar');
   const tc = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const { showToast } = useToast();
   const cachedTasks = useTaskCacheStore((s) => s.tasks);
   const taskCacheInitialized = useTaskCacheStore((s) => s.initialized);
@@ -353,12 +357,21 @@ export default function CalendarPage() {
 
   const getReminderLabel = (minutes: number) => {
     if (minutes < 60) return t('reminderMinutesBefore', { count: minutes });
-    if (minutes < 1440) return t('reminderHoursBefore', { count: minutes / 60 });
+    if (minutes < 1440)
+      return t('reminderHoursBefore', { count: minutes / 60 });
     return t('reminderDaysBefore', { count: minutes / 1440 });
   };
 
   const days = getDaysInMonth(currentDate);
-  const weekDays = [t('weekSun'), t('weekMon'), t('weekTue'), t('weekWed'), t('weekThu'), t('weekFri'), t('weekSat')];
+  const weekDays = [
+    t('weekSun'),
+    t('weekMon'),
+    t('weekTue'),
+    t('weekWed'),
+    t('weekThu'),
+    t('weekFri'),
+    t('weekSat'),
+  ];
 
   // 祝日データ（月ごとにメモ化）
   const holidays = useMemo(() => {
@@ -556,7 +569,10 @@ export default function CalendarPage() {
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 min-w-[140px] text-center">
-                {t('yearMonth', { year: currentDate.getFullYear(), month: currentDate.getMonth() + 1 })}
+                {t('yearMonth', {
+                  year: currentDate.getFullYear(),
+                  month: currentDate.getMonth() + 1,
+                })}
               </h2>
               <button
                 onClick={nextMonth}
@@ -751,7 +767,8 @@ export default function CalendarPage() {
                                 })}
                               {hiddenCount > 0 && (
                                 <div className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-1 leading-tight">
-                                  +{hiddenCount}{tc('items')}
+                                  +{hiddenCount}
+                                  {tc('items')}
                                 </div>
                               )}
                             </div>
@@ -820,7 +837,9 @@ export default function CalendarPage() {
                 {t('legendExam')}
               </div>
               <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                <span className="text-[10px] font-medium text-red-500">{t('legendHolidayIcon')}</span>
+                <span className="text-[10px] font-medium text-red-500">
+                  {t('legendHolidayIcon')}
+                </span>
                 {t('legendHoliday')}
               </div>
             </div>
@@ -836,7 +855,7 @@ export default function CalendarPage() {
             <div>
               <h3 className="font-semibold text-zinc-800 dark:text-zinc-200">
                 {selectedDate
-                  ? new Date(selectedDate).toLocaleDateString('ja-JP', {
+                  ? new Date(selectedDate).toLocaleDateString(dateLocale, {
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric',
@@ -931,18 +950,19 @@ export default function CalendarPage() {
                                   ? t('paidLeaveLabel')
                                   : t('legendSchedule')
                                 : t('legendTask')}
-                            {event.status === 'done' && ` ・ ${tc('completed')}`}
+                            {event.status === 'done' &&
+                              ` ・ ${tc('completed')}`}
                           </p>
                           {event.endDate && (
                             <span className="flex items-center gap-1 text-xs text-indigo-500 dark:text-indigo-400">
                               <CalendarIcon className="w-3 h-3" />
                               {new Date(event.date).toLocaleDateString(
-                                'ja-JP',
+                                dateLocale,
                                 { month: 'short', day: 'numeric' },
                               )}
                               {' 〜 '}
                               {new Date(event.endDate).toLocaleDateString(
-                                'ja-JP',
+                                dateLocale,
                                 { month: 'short', day: 'numeric' },
                               )}
                             </span>
@@ -1045,7 +1065,7 @@ export default function CalendarPage() {
 
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
               {t('deadline')}:{' '}
-              {new Date(selectedDate).toLocaleDateString('ja-JP', {
+              {new Date(selectedDate).toLocaleDateString(dateLocale, {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',

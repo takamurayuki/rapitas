@@ -2,12 +2,12 @@
  * Git操作ヘルパー
  * AgentOrchestratorからGit関連の操作を分離
  */
-import { exec } from "child_process";
-import { promisify } from "util";
-import { createLogger } from "../../../config/logger";
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import { createLogger } from '../../../config/logger';
 
 const execAsync = promisify(exec);
-const logger = createLogger("git-operations");
+const logger = createLogger('git-operations');
 
 /**
  * Git操作を提供するクラス
@@ -18,15 +18,15 @@ export class GitOperations {
    */
   async getGitDiff(workingDirectory: string): Promise<string> {
     try {
-      const { stdout } = await execAsync("git diff", {
+      const { stdout } = await execAsync('git diff', {
         cwd: workingDirectory,
-        encoding: "utf8",
+        encoding: 'utf8',
         maxBuffer: 10 * 1024 * 1024,
       });
       return stdout;
     } catch (error) {
-      logger.error({ err: error }, "Failed to get git diff");
-      return "";
+      logger.error({ err: error }, 'Failed to get git diff');
+      return '';
     }
   }
 
@@ -36,35 +36,32 @@ export class GitOperations {
   async getFullGitDiff(workingDirectory: string): Promise<string> {
     try {
       // ステージされた変更
-      const { stdout: staged } = await execAsync("git diff --cached", {
+      const { stdout: staged } = await execAsync('git diff --cached', {
         cwd: workingDirectory,
-        encoding: "utf8",
+        encoding: 'utf8',
         maxBuffer: 10 * 1024 * 1024,
       });
       // ステージされていない変更
-      const { stdout: unstaged } = await execAsync("git diff", {
+      const { stdout: unstaged } = await execAsync('git diff', {
         cwd: workingDirectory,
-        encoding: "utf8",
+        encoding: 'utf8',
         maxBuffer: 10 * 1024 * 1024,
       });
       // 新規ファイル
-      const { stdout: untracked } = await execAsync(
-        "git ls-files --others --exclude-standard",
-        {
-          cwd: workingDirectory,
-          encoding: "utf8",
-        },
-      );
+      const { stdout: untracked } = await execAsync('git ls-files --others --exclude-standard', {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      });
 
-      let result = "";
-      if (staged) result += "=== Staged Changes ===\n" + staged + "\n";
-      if (unstaged) result += "=== Unstaged Changes ===\n" + unstaged + "\n";
-      if (untracked.trim()) result += "=== New Files ===\n" + untracked + "\n";
+      let result = '';
+      if (staged) result += '=== Staged Changes ===\n' + staged + '\n';
+      if (unstaged) result += '=== Unstaged Changes ===\n' + unstaged + '\n';
+      if (untracked.trim()) result += '=== New Files ===\n' + untracked + '\n';
 
-      return result || "No changes detected";
+      return result || 'No changes detected';
     } catch (error) {
-      logger.error({ err: error }, "Failed to get full git diff");
-      return "";
+      logger.error({ err: error }, 'Failed to get full git diff');
+      return '';
     }
   }
 
@@ -78,7 +75,7 @@ export class GitOperations {
   ): Promise<{ success: boolean; commitHash?: string; error?: string }> {
     try {
       // すべての変更をステージ
-      await execAsync("git add -A", { cwd: workingDirectory });
+      await execAsync('git add -A', { cwd: workingDirectory });
 
       // コミットメッセージを作成
       const fullMessage = taskTitle
@@ -86,15 +83,15 @@ export class GitOperations {
         : `${message}\n\nCo-Authored-By: Claude Code <noreply@anthropic.com>`;
 
       // コミット
-      await execAsync(
-        `git commit -m "${fullMessage.replace(/"/g, '\\"')}"`,
-        { cwd: workingDirectory, encoding: "utf8" },
-      );
+      await execAsync(`git commit -m "${fullMessage.replace(/"/g, '\\"')}"`, {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      });
 
       // コミットハッシュを取得
-      const { stdout: hash } = await execAsync("git rev-parse HEAD", {
+      const { stdout: hash } = await execAsync('git rev-parse HEAD', {
         cwd: workingDirectory,
-        encoding: "utf8",
+        encoding: 'utf8',
       });
 
       return { success: true, commitHash: hash.trim() };
@@ -113,7 +110,7 @@ export class GitOperations {
     workingDirectory: string,
     title: string,
     body: string,
-    baseBranch: string = "main",
+    baseBranch: string = 'main',
   ): Promise<{
     success: boolean;
     prUrl?: string;
@@ -123,18 +120,13 @@ export class GitOperations {
     try {
       // ghコマンドのパス
       const ghPath =
-        process.platform === "win32"
-          ? '"C:\\Program Files\\GitHub CLI\\gh.exe"'
-          : "gh";
+        process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
 
       // 現在のブランチ名を取得
-      const { stdout: currentBranch } = await execAsync(
-        "git branch --show-current",
-        {
-          cwd: workingDirectory,
-          encoding: "utf8",
-        },
-      );
+      const { stdout: currentBranch } = await execAsync('git branch --show-current', {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      });
 
       // リモートにプッシュ
       await execAsync(`git push -u origin ${currentBranch.trim()}`, {
@@ -144,7 +136,7 @@ export class GitOperations {
       // PR作成
       const { stdout } = await execAsync(
         `${ghPath} pr create --title "${title.replace(/"/g, '\\"')}" --body "${body.replace(/"/g, '\\"')}" --base ${baseBranch}`,
-        { cwd: workingDirectory, encoding: "utf8" },
+        { cwd: workingDirectory, encoding: 'utf8' },
       );
 
       // PR URLからPR番号を抽出
@@ -152,7 +144,7 @@ export class GitOperations {
       const prMatch = prUrl.match(/\/pull\/(\d+)/);
 
       if (!prMatch || !prMatch[1]) {
-        return { success: false, error: "Failed to parse PR number from URL" };
+        return { success: false, error: 'Failed to parse PR number from URL' };
       }
 
       const prNumber = prMatch ? parseInt(prMatch[1], 10) : undefined;
@@ -174,40 +166,36 @@ export class GitOperations {
     workingDirectory: string,
     prNumber: number,
     commitThreshold: number = 5,
-    baseBranch: string = "master",
+    baseBranch: string = 'master',
   ): Promise<{
     success: boolean;
-    mergeStrategy?: "squash" | "merge";
+    mergeStrategy?: 'squash' | 'merge';
     error?: string;
   }> {
     try {
       const ghPath =
-        process.platform === "win32"
-          ? '"C:\\Program Files\\GitHub CLI\\gh.exe"'
-          : "gh";
+        process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
 
       // PRのコミット数を取得
       const { stdout } = await execAsync(
         `${ghPath} pr view ${prNumber} --json commits --jq ".commits | length"`,
-        { cwd: workingDirectory, encoding: "utf8" },
+        { cwd: workingDirectory, encoding: 'utf8' },
       );
       const commitCount = parseInt(stdout.trim(), 10) || 1;
-      const mergeStrategy =
-        commitCount >= commitThreshold ? "squash" : "merge";
-      const mergeFlag =
-        mergeStrategy === "squash" ? "--squash" : "--merge";
+      const mergeStrategy = commitCount >= commitThreshold ? 'squash' : 'merge';
+      const mergeFlag = mergeStrategy === 'squash' ? '--squash' : '--merge';
 
       // マージ + リモートブランチ削除
-      await execAsync(
-        `${ghPath} pr merge ${prNumber} ${mergeFlag} --delete-branch`,
-        { cwd: workingDirectory, encoding: "utf8" },
-      );
+      await execAsync(`${ghPath} pr merge ${prNumber} ${mergeFlag} --delete-branch`, {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      });
 
       // ベースブランチに戻って最新化
       await execAsync(`git checkout ${baseBranch}`, {
         cwd: workingDirectory,
       });
-      await execAsync("git pull", { cwd: workingDirectory });
+      await execAsync('git pull', { cwd: workingDirectory });
 
       return { success: true, mergeStrategy };
     } catch (error) {
@@ -224,14 +212,14 @@ export class GitOperations {
   async revertChanges(workingDirectory: string): Promise<boolean> {
     try {
       // ステージされた変更を取り消し
-      await execAsync("git reset HEAD", { cwd: workingDirectory });
+      await execAsync('git reset HEAD', { cwd: workingDirectory });
       // 変更を破棄
-      await execAsync("git checkout -- .", { cwd: workingDirectory });
+      await execAsync('git checkout -- .', { cwd: workingDirectory });
       // 新規ファイルを削除
-      await execAsync("git clean -fd", { cwd: workingDirectory });
+      await execAsync('git clean -fd', { cwd: workingDirectory });
       return true;
     } catch (error) {
-      logger.error({ err: error }, "Failed to revert changes");
+      logger.error({ err: error }, 'Failed to revert changes');
       return false;
     }
   }
@@ -239,10 +227,7 @@ export class GitOperations {
   /**
    * 新しいブランチを作成してチェックアウト
    */
-  async createBranch(
-    workingDirectory: string,
-    branchName: string,
-  ): Promise<boolean> {
+  async createBranch(workingDirectory: string, branchName: string): Promise<boolean> {
     try {
       // 既存ブランチの存在チェック
       const { stdout } = await execAsync(`git branch --list ${branchName}`, {
@@ -264,7 +249,7 @@ export class GitOperations {
       }
       return true;
     } catch (error) {
-      logger.error({ err: error }, "Failed to create/checkout branch");
+      logger.error({ err: error }, 'Failed to create/checkout branch');
       return false;
     }
   }
@@ -283,17 +268,14 @@ export class GitOperations {
     deletions: number;
   }> {
     // 現在のブランチ名を取得
-    const { stdout: currentBranch } = await execAsync(
-      "git branch --show-current",
-      {
-        cwd: workingDirectory,
-        encoding: "utf8",
-      },
-    );
+    const { stdout: currentBranch } = await execAsync('git branch --show-current', {
+      cwd: workingDirectory,
+      encoding: 'utf8',
+    });
     const branch = currentBranch.trim();
 
     // フィーチャーブランチでない場合は新規作成
-    if (branch === "main" || branch === "master" || branch === "develop") {
+    if (branch === 'main' || branch === 'master' || branch === 'develop') {
       const timestamp = Date.now();
       const featureBranch = `feature/auto-${timestamp}`;
       await execAsync(`git checkout -b ${featureBranch}`, {
@@ -302,26 +284,23 @@ export class GitOperations {
     }
 
     // すべての変更をステージ
-    await execAsync("git add -A", { cwd: workingDirectory });
+    await execAsync('git add -A', { cwd: workingDirectory });
 
     // 変更統計を取得
-    const { stdout: diffStat } = await execAsync(
-      "git diff --cached --numstat",
-      {
-        cwd: workingDirectory,
-        encoding: "utf8",
-      },
-    );
+    const { stdout: diffStat } = await execAsync('git diff --cached --numstat', {
+      cwd: workingDirectory,
+      encoding: 'utf8',
+    });
 
     let filesChanged = 0;
     let additions = 0;
     let deletions = 0;
 
     diffStat
-      .split("\n")
+      .split('\n')
       .filter(Boolean)
       .forEach((line) => {
-        const parts = line.split("\t");
+        const parts = line.split('\t');
         if (parts.length >= 2) {
           filesChanged++;
           const added = parseInt(parts[0]!, 10) || 0;
@@ -337,23 +316,20 @@ export class GitOperations {
     // コミット
     await execAsync(`git commit -m "${fullMessage.replace(/"/g, '\\"')}"`, {
       cwd: workingDirectory,
-      encoding: "utf8",
+      encoding: 'utf8',
     });
 
     // コミットハッシュを取得
-    const { stdout: hash } = await execAsync("git rev-parse HEAD", {
+    const { stdout: hash } = await execAsync('git rev-parse HEAD', {
       cwd: workingDirectory,
-      encoding: "utf8",
+      encoding: 'utf8',
     });
 
     // 最新のブランチ名を取得
-    const { stdout: finalBranch } = await execAsync(
-      "git branch --show-current",
-      {
-        cwd: workingDirectory,
-        encoding: "utf8",
-      },
-    );
+    const { stdout: finalBranch } = await execAsync('git branch --show-current', {
+      cwd: workingDirectory,
+      encoding: 'utf8',
+    });
 
     return {
       hash: hash.trim(),
@@ -386,36 +362,27 @@ export class GitOperations {
 
     try {
       // ステージされた変更
-      const { stdout: stagedNumstat } = await execAsync(
-        "git diff --cached --numstat",
-        {
-          cwd: workingDirectory,
-          encoding: "utf8",
-        },
-      );
+      const { stdout: stagedNumstat } = await execAsync('git diff --cached --numstat', {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      });
 
       // ステージされていない変更
-      const { stdout: unstagedNumstat } = await execAsync(
-        "git diff --numstat",
-        {
-          cwd: workingDirectory,
-          encoding: "utf8",
-        },
-      );
+      const { stdout: unstagedNumstat } = await execAsync('git diff --numstat', {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      });
 
       // 新規ファイル
-      const { stdout: untracked } = await execAsync(
-        "git ls-files --others --exclude-standard",
-        {
-          cwd: workingDirectory,
-          encoding: "utf8",
-        },
-      );
+      const { stdout: untracked } = await execAsync('git ls-files --others --exclude-standard', {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      });
 
       // ステータスを取得
-      const { stdout: status } = await execAsync("git status --porcelain", {
+      const { stdout: status } = await execAsync('git status --porcelain', {
         cwd: workingDirectory,
-        encoding: "utf8",
+        encoding: 'utf8',
       });
 
       // ファイル情報をマップに格納
@@ -431,10 +398,10 @@ export class GitOperations {
       // numstatを解析
       const parseNumstat = (numstat: string) => {
         numstat
-          .split("\n")
+          .split('\n')
           .filter(Boolean)
           .forEach((line) => {
-            const parts = line.split("\t");
+            const parts = line.split('\t');
             if (parts.length >= 3) {
               const additions = parseInt(parts[0]!, 10) || 0;
               const deletions = parseInt(parts[1]!, 10) || 0;
@@ -443,7 +410,7 @@ export class GitOperations {
               fileMap.set(filename, {
                 additions: (existing?.additions || 0) + additions,
                 deletions: (existing?.deletions || 0) + deletions,
-                status: existing?.status || "modified",
+                status: existing?.status || 'modified',
               });
             }
           });
@@ -454,34 +421,34 @@ export class GitOperations {
 
       // 新規ファイルを追加
       untracked
-        .split("\n")
+        .split('\n')
         .filter(Boolean)
         .forEach((filename) => {
           if (!fileMap.has(filename)) {
             fileMap.set(filename, {
               additions: 0,
               deletions: 0,
-              status: "added",
+              status: 'added',
             });
           }
         });
 
       // ステータスからファイル状態を更新
       status
-        .split("\n")
+        .split('\n')
         .filter(Boolean)
         .forEach((line) => {
           const statusCode = line.substring(0, 2);
           const filename = line.substring(3);
           const existing = fileMap.get(filename);
-          let fileStatus = "modified";
+          let fileStatus = 'modified';
 
-          if (statusCode.includes("A") || statusCode.includes("?")) {
-            fileStatus = "added";
-          } else if (statusCode.includes("D")) {
-            fileStatus = "deleted";
-          } else if (statusCode.includes("R")) {
-            fileStatus = "renamed";
+          if (statusCode.includes('A') || statusCode.includes('?')) {
+            fileStatus = 'added';
+          } else if (statusCode.includes('D')) {
+            fileStatus = 'deleted';
+          } else if (statusCode.includes('R')) {
+            fileStatus = 'renamed';
           }
 
           if (existing) {
@@ -497,17 +464,14 @@ export class GitOperations {
 
       // 各ファイルのパッチを取得
       for (const [filename, info] of fileMap) {
-        let patch = "";
+        let patch = '';
         try {
-          if (info.status !== "added") {
-            const { stdout: filePatch } = await execAsync(
-              `git diff HEAD -- "${filename}"`,
-              {
-                cwd: workingDirectory,
-                encoding: "utf8",
-                maxBuffer: 5 * 1024 * 1024,
-              },
-            );
+          if (info.status !== 'added') {
+            const { stdout: filePatch } = await execAsync(`git diff HEAD -- "${filename}"`, {
+              cwd: workingDirectory,
+              encoding: 'utf8',
+              maxBuffer: 5 * 1024 * 1024,
+            });
             patch = filePatch;
           }
         } catch {
@@ -525,7 +489,7 @@ export class GitOperations {
 
       return files;
     } catch (error) {
-      logger.error({ err: error }, "Failed to get diff");
+      logger.error({ err: error }, 'Failed to get diff');
       return [];
     }
   }

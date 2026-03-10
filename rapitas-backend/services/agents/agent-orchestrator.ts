@@ -12,17 +12,17 @@
  * - orchestrator/question-timeout-manager.ts: 質問タイムアウト・ロック管理
  * - orchestrator/execution-helpers.ts: 出力/質問検出ハンドラの共通化
  */
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from '@prisma/client';
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
-import type { AgentTask, AgentExecutionResult } from "./base-agent";
-import type { AgentConfigInput, AgentType } from "./agent-factory";
-import { decrypt } from "../../utils/encryption";
-import type { QuestionKey } from "./question-detection";
-import { agentFactory } from "./agent-factory";
-import { createLogger } from "../../config/logger";
-import { GitOperations } from "./orchestrator/git-operations";
-import { QuestionTimeoutManager } from "./orchestrator/question-timeout-manager";
+import type { AgentTask, AgentExecutionResult } from './base-agent';
+import type { AgentConfigInput, AgentType } from './agent-factory';
+import { decrypt } from '../../utils/encryption';
+import type { QuestionKey } from './question-detection';
+import { agentFactory } from './agent-factory';
+import { createLogger } from '../../config/logger';
+import { GitOperations } from './orchestrator/git-operations';
+import { QuestionTimeoutManager } from './orchestrator/question-timeout-manager';
 import type {
   ExecutionOptions,
   ExecutionState,
@@ -30,30 +30,30 @@ import type {
   EventListener,
   ActiveAgentInfo,
   OrchestratorContext,
-} from "./orchestrator/types";
+} from './orchestrator/types';
 import {
   setupSignalHandlers,
   gracefulShutdown as doGracefulShutdown,
   saveAgentState,
   saveAllAgentStates,
-} from "./orchestrator/lifecycle-manager";
-import { executeTask as doExecuteTask } from "./orchestrator/task-executor";
+} from './orchestrator/lifecycle-manager';
+import { executeTask as doExecuteTask } from './orchestrator/task-executor';
 import {
   executeContinuation as doExecuteContinuation,
   executeContinuationWithLock as doExecuteContinuationWithLock,
   handleQuestionTimeout as doHandleQuestionTimeout,
-} from "./orchestrator/continuation-executor";
+} from './orchestrator/continuation-executor';
 import {
   getInterruptedExecutions as doGetInterruptedExecutions,
   recoverStaleExecutions as doRecoverStaleExecutions,
   resumeInterruptedExecution as doResumeInterruptedExecution,
-} from "./orchestrator/recovery-manager";
-import { EventManager } from "./orchestrator/event-manager";
+} from './orchestrator/recovery-manager';
+import { EventManager } from './orchestrator/event-manager';
 
 // 型の再エクスポート（後方互換性）
 export type { ExecutionOptions, ExecutionState, OrchestratorEvent, EventListener };
 
-const logger = createLogger("agent-orchestrator");
+const logger = createLogger('agent-orchestrator');
 
 /**
  * エージェントオーケストレータークラス
@@ -77,12 +77,10 @@ export class AgentOrchestrator {
       () => this.gracefulShutdown(),
       () => saveAllAgentStates(this.prisma, this.activeAgents),
     );
-    this.questionTimeoutManager.setTimeoutHandler(
-      (executionId, taskId) => this.handleQuestionTimeout(executionId, taskId),
+    this.questionTimeoutManager.setTimeoutHandler((executionId, taskId) =>
+      this.handleQuestionTimeout(executionId, taskId),
     );
-    this.questionTimeoutManager.setEventEmitter(
-      (event) => this.eventManager.emitEvent(event),
-    );
+    this.questionTimeoutManager.setEventEmitter((event) => this.eventManager.emitEvent(event));
   }
 
   static getInstance(prisma: PrismaClientInstance): AgentOrchestrator {
@@ -114,7 +112,7 @@ export class AgentOrchestrator {
 
   async gracefulShutdown(options?: { skipServerStop?: boolean }): Promise<void> {
     if (this._isShuttingDown) {
-      logger.info("[Orchestrator] Shutdown already in progress, waiting...");
+      logger.info('[Orchestrator] Shutdown already in progress, waiting...');
       return this.shutdownPromise || Promise.resolve();
     }
 
@@ -126,7 +124,9 @@ export class AgentOrchestrator {
         questionTimeoutManager: this.questionTimeoutManager,
         serverStopCallback: this.serverStopCallback,
         getIsShuttingDown: () => this._isShuttingDown,
-        setIsShuttingDown: (v) => { this._isShuttingDown = v; },
+        setIsShuttingDown: (v) => {
+          this._isShuttingDown = v;
+        },
       },
       options,
     );
@@ -145,11 +145,11 @@ export class AgentOrchestrator {
   async stopServer(): Promise<void> {
     if (this.serverStopCallback) {
       try {
-        logger.info("[Orchestrator] Stopping server listener...");
+        logger.info('[Orchestrator] Stopping server listener...');
         await this.serverStopCallback();
-        logger.info("[Orchestrator] Server listener stopped");
+        logger.info('[Orchestrator] Server listener stopped');
       } catch (error) {
-        logger.error({ err: error }, "[Orchestrator] Failed to stop server listener");
+        logger.error({ err: error }, '[Orchestrator] Failed to stop server listener');
       }
     }
   }
@@ -210,7 +210,10 @@ export class AgentOrchestrator {
     this.questionTimeoutManager.cancelQuestionTimeout(executionId);
   }
 
-  tryAcquireContinuationLock(executionId: number, source: "user_response" | "auto_timeout"): boolean {
+  tryAcquireContinuationLock(
+    executionId: number,
+    source: 'user_response' | 'auto_timeout',
+  ): boolean {
     return this.questionTimeoutManager.tryAcquireContinuationLock(executionId, source);
   }
 
@@ -231,11 +234,8 @@ export class AgentOrchestrator {
   }
 
   private async handleQuestionTimeout(executionId: number, taskId: number): Promise<void> {
-    return doHandleQuestionTimeout(
-      this.getContext(),
-      executionId,
-      taskId,
-      (qk, qt, qd) => this.questionTimeoutManager.generateDefaultResponse(qk as QuestionKey | undefined, qt, qd),
+    return doHandleQuestionTimeout(this.getContext(), executionId, taskId, (qk, qt, qd) =>
+      this.questionTimeoutManager.generateDefaultResponse(qk as QuestionKey | undefined, qt, qd),
     );
   }
 
@@ -292,10 +292,10 @@ export class AgentOrchestrator {
     await this.prisma.agentExecution.update({
       where: { id: executionId },
       data: {
-        status: "cancelled",
+        status: 'cancelled',
         output: state.output,
         completedAt: new Date(),
-        errorMessage: "Cancelled by user",
+        errorMessage: 'Cancelled by user',
       },
     });
 
@@ -304,7 +304,7 @@ export class AgentOrchestrator {
     await agentFactory.removeAgent(state.agentId);
 
     this.eventManager.emitEvent({
-      type: "execution_cancelled",
+      type: 'execution_cancelled',
       executionId,
       sessionId: state.sessionId,
       taskId: state.taskId,
@@ -354,7 +354,7 @@ export class AgentOrchestrator {
     workingDirectory: string,
     title: string,
     body: string,
-    baseBranch: string = "main",
+    baseBranch: string = 'main',
   ): Promise<{ success: boolean; prUrl?: string; prNumber?: number; error?: string }> {
     return this.gitOps.createPullRequest(workingDirectory, title, body, baseBranch);
   }
@@ -363,10 +363,10 @@ export class AgentOrchestrator {
     workingDirectory: string,
     prNumber: number,
     commitThreshold: number = 5,
-    baseBranch: string = "master",
+    baseBranch: string = 'master',
   ): Promise<{
     success: boolean;
-    mergeStrategy?: "squash" | "merge";
+    mergeStrategy?: 'squash' | 'merge';
     error?: string;
   }> {
     return this.gitOps.mergePullRequest(workingDirectory, prNumber, commitThreshold, baseBranch);
@@ -383,12 +383,26 @@ export class AgentOrchestrator {
   async createCommit(
     workingDirectory: string,
     message: string,
-  ): Promise<{ hash: string; branch: string; filesChanged: number; additions: number; deletions: number }> {
+  ): Promise<{
+    hash: string;
+    branch: string;
+    filesChanged: number;
+    additions: number;
+    deletions: number;
+  }> {
     return this.gitOps.createCommit(workingDirectory, message);
   }
 
-  async getDiff(workingDirectory: string): Promise<
-    Array<{ filename: string; status: string; additions: number; deletions: number; patch?: string }>
+  async getDiff(
+    workingDirectory: string,
+  ): Promise<
+    Array<{
+      filename: string;
+      status: string;
+      additions: number;
+      deletions: number;
+      patch?: string;
+    }>
   > {
     return this.gitOps.getDiff(workingDirectory);
   }
@@ -419,7 +433,7 @@ export class AgentOrchestrator {
     }
 
     return {
-      type: (dbConfig.agentType as AgentType) || "claude-code",
+      type: (dbConfig.agentType as AgentType) || 'claude-code',
       name: dbConfig.name,
       endpoint: dbConfig.endpoint || undefined,
       apiKey: decryptedApiKey,

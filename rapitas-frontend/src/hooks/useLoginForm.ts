@@ -75,7 +75,10 @@ export function useLoginForm(): UseLoginFormReturn {
 
         // Successful login - redirect handled by caller or auth context
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'ログイン中にエラーが発生しました';
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'ログイン中にエラーが発生しました';
         logger.error('Login failed:', err);
         setErrors({ form: message });
       } finally {

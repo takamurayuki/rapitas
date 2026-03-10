@@ -5,6 +5,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { NotFoundError, ValidationError, parseId } from '../../middleware/error-handler';
 
 const log = createLogger('routes:approvals');
 import { orchestrator } from '../../services/orchestrator-instance';
@@ -110,8 +111,9 @@ export const approvalsRoutes = new Elysia({ prefix: '/approvals' })
   .get('/:id', async (context) => {
     const { params } = context;
     const { id } = params as { id: string };
+    const approvalId = parseId(id, 'approval ID');
     const approval = await prisma.approvalRequest.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: approvalId },
       include: {
         config: {
           include: {
@@ -136,7 +138,7 @@ export const approvalsRoutes = new Elysia({ prefix: '/approvals' })
   .post('/:id/approve', async (context) => {
     const params = context.params as { id: string };
     const body = context.body as { selectedSubtasks?: number[] };
-    const approvalId = parseInt(params.id);
+    const approvalId = parseId(params.id, 'approval ID');
     const { selectedSubtasks } = body;
 
     const approval = await prisma.approvalRequest.findUnique({
@@ -149,11 +151,11 @@ export const approvalsRoutes = new Elysia({ prefix: '/approvals' })
     });
 
     if (!approval) {
-      return { error: 'Approval request not found' };
+      throw new NotFoundError('Approval request not found');
     }
 
     if (approval.status !== 'pending') {
-      return { error: 'Approval request is not pending' };
+      throw new ValidationError('Approval request is not pending');
     }
 
     // Update approval request
@@ -174,7 +176,7 @@ export const approvalsRoutes = new Elysia({ prefix: '/approvals' })
       }>(approval.proposedChanges);
 
       if (!proposedChanges) {
-        return { error: 'Invalid proposed changes data' };
+        throw new ValidationError('Invalid proposed changes data');
       }
 
       const task = approval.config.task;
@@ -266,7 +268,7 @@ export const approvalsRoutes = new Elysia({ prefix: '/approvals' })
       }>(approval.proposedChanges);
 
       if (!proposedChanges) {
-        return { error: 'Invalid proposed changes data' };
+        throw new ValidationError('Invalid proposed changes data');
       }
 
       const task = approval.config.task;
@@ -354,7 +356,7 @@ Task ID: ${task.id}
       }>(approval.proposedChanges);
 
       if (!proposedChanges) {
-        return { error: 'Invalid proposed changes data' };
+        throw new ValidationError('Invalid proposed changes data');
       }
 
       const subtasksToCreate = selectedSubtasks
@@ -434,8 +436,9 @@ Task ID: ${task.id}
     const { id } = params;
     const { reason } = body;
 
+    const rejectionApprovalId = parseId(id, 'approval ID');
     const approval = await prisma.approvalRequest.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: rejectionApprovalId },
       include: {
         config: {
           include: { task: true },
@@ -444,11 +447,11 @@ Task ID: ${task.id}
     });
 
     if (!approval) {
-      return { error: 'Approval request not found' };
+      throw new NotFoundError('Approval request not found');
     }
 
     await prisma.approvalRequest.update({
-      where: { id: parseInt(id) },
+      where: { id: rejectionApprovalId },
       data: {
         status: 'rejected',
         rejectedAt: new Date(),
@@ -462,7 +465,7 @@ Task ID: ${task.id}
       }>(approval.proposedChanges);
 
       if (!proposedChanges) {
-        return { error: 'Invalid proposed changes data' };
+        throw new ValidationError('Invalid proposed changes data');
       }
 
       const reverted = await orchestrator.revertChanges(proposedChanges.workingDirectory);
@@ -486,11 +489,11 @@ Task ID: ${task.id}
   .post('/:id/approve-code-review', async (context) => {
     const params = context.params as { id: string };
     const body = context.body as { commitMessage: string; baseBranch?: string };
-    const { id } = params;
+    const codeReviewApprovalId = parseId(params.id, 'approval ID');
     const { commitMessage, baseBranch = 'main' } = body;
 
     const approval = await prisma.approvalRequest.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: codeReviewApprovalId },
       include: {
         config: {
           include: { task: { include: { theme: true } } },
@@ -499,15 +502,15 @@ Task ID: ${task.id}
     });
 
     if (!approval) {
-      return { error: 'Approval request not found' };
+      throw new NotFoundError('Approval request not found');
     }
 
     if (approval.status !== 'pending') {
-      return { error: 'Approval request is not pending' };
+      throw new ValidationError('Approval request is not pending');
     }
 
     if (approval.requestType !== 'code_review') {
-      return { error: 'This endpoint is only for code_review requests' };
+      throw new ValidationError('This endpoint is only for code_review requests');
     }
 
     const proposedChanges = fromJsonString<{
@@ -519,7 +522,7 @@ Task ID: ${task.id}
       proposedChanges?.workingDirectory || approval.config.task?.theme?.workingDirectory;
 
     if (!workingDirectory) {
-      return { error: 'Working directory not found' };
+      throw new NotFoundError('Working directory not found');
     }
 
     try {
@@ -534,7 +537,7 @@ Task ID: ${task.id}
       );
 
       await prisma.approvalRequest.update({
-        where: { id: parseInt(id) },
+        where: { id: codeReviewApprovalId },
         data: {
           status: 'approved',
           approvedAt: new Date(),
@@ -569,17 +572,17 @@ Task ID: ${task.id}
       };
     } catch (error) {
       log.error({ err: error }, 'Code review approval failed');
-      return { error: error instanceof Error ? error.message : String(error) };
+      throw error;
     }
   })
 
   // Reject code review (discard changes)
   .post('/:id/reject-code-review', async (context) => {
-    const { id } = context.params as { id: string };
+    const rejectCodeReviewId = parseId(context.params.id, 'approval ID');
     const { reason } = context.body as { reason?: string };
 
     const approval = await prisma.approvalRequest.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: rejectCodeReviewId },
       include: {
         config: {
           include: { task: { include: { theme: true } } },
@@ -588,11 +591,11 @@ Task ID: ${task.id}
     });
 
     if (!approval) {
-      return { error: 'Approval request not found' };
+      throw new NotFoundError('Approval request not found');
     }
 
     if (approval.requestType !== 'code_review') {
-      return { error: 'This endpoint is only for code_review requests' };
+      throw new ValidationError('This endpoint is only for code_review requests');
     }
 
     const proposedChanges = fromJsonString<{
@@ -603,14 +606,14 @@ Task ID: ${task.id}
       proposedChanges?.workingDirectory || approval.config.task?.theme?.workingDirectory;
 
     if (!workingDirectory) {
-      return { error: 'Working directory not found' };
+      throw new NotFoundError('Working directory not found');
     }
 
     try {
       const reverted = await orchestrator.revertChanges(workingDirectory);
 
       await prisma.approvalRequest.update({
-        where: { id: parseInt(id) },
+        where: { id: rejectCodeReviewId },
         data: {
           status: 'rejected',
           rejectedAt: new Date(),
@@ -630,7 +633,7 @@ Task ID: ${task.id}
       return { success: true, reverted };
     } catch (error) {
       log.error({ err: error }, 'Code review rejection failed');
-      return { error: error instanceof Error ? error.message : String(error) };
+      throw error;
     }
   })
 
@@ -641,11 +644,11 @@ Task ID: ${task.id}
       feedback: string;
       comments: { file?: string; content: string; type: string }[];
     };
-    const { id } = params;
+    const requestChangesId = parseId(params.id, 'approval ID');
     const { feedback, comments } = body;
 
     const approval = await prisma.approvalRequest.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: requestChangesId },
       include: {
         config: {
           include: { task: { include: { theme: true } } },
@@ -654,11 +657,11 @@ Task ID: ${task.id}
     });
 
     if (!approval) {
-      return { error: 'Approval request not found' };
+      throw new NotFoundError('Approval request not found');
     }
 
     if (approval.requestType !== 'code_review') {
-      return { error: 'This endpoint is only for code_review requests' };
+      throw new ValidationError('This endpoint is only for code_review requests');
     }
 
     const proposedChanges = fromJsonString<{
@@ -671,12 +674,12 @@ Task ID: ${task.id}
       proposedChanges?.workingDirectory || approval.config.task?.theme?.workingDirectory;
 
     if (!workingDirectory) {
-      return { error: 'Working directory not found' };
+      throw new NotFoundError('Working directory not found');
     }
 
     const task = approval.config.task;
     if (!task) {
-      return { error: 'Task not found' };
+      throw new NotFoundError('Task not found');
     }
 
     try {
@@ -725,7 +728,7 @@ ${previousImplementation}
 
       // Update approval status
       await prisma.approvalRequest.update({
-        where: { id: parseInt(id) },
+        where: { id: requestChangesId },
         data: {
           status: 'rejected',
           rejectedAt: new Date(),
@@ -741,7 +744,7 @@ ${previousImplementation}
           configId: approval.configId,
           status: 'pending',
           metadata: toJsonString({
-            previousApprovalId: parseInt(id),
+            previousApprovalId: requestChangesId,
             feedbackIteration: true,
           }),
         },
@@ -847,7 +850,7 @@ ${previousImplementation}
       };
     } catch (error) {
       log.error({ err: error }, 'Request changes failed');
-      return { error: error instanceof Error ? error.message : String(error) };
+      throw error;
     }
   })
 
@@ -855,9 +858,10 @@ ${previousImplementation}
   .get('/:id/diff', async (context) => {
     const { params } = context;
     const { id } = params as { id: string };
+    const diffApprovalId = parseId(id, 'approval ID');
 
     const approval = await prisma.approvalRequest.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: diffApprovalId },
       include: {
         config: {
           include: { task: { include: { theme: true } } },
@@ -866,7 +870,7 @@ ${previousImplementation}
     });
 
     if (!approval) {
-      return { error: 'Approval request not found' };
+      throw new NotFoundError('Approval request not found');
     }
 
     const proposedChanges = fromJsonString<{
@@ -877,7 +881,7 @@ ${previousImplementation}
       proposedChanges?.workingDirectory || approval.config.task?.theme?.workingDirectory;
 
     if (!workingDirectory) {
-      return { error: 'Working directory not found' };
+      throw new NotFoundError('Working directory not found');
     }
 
     try {
@@ -885,7 +889,7 @@ ${previousImplementation}
       return { files: diff };
     } catch (error) {
       log.error({ err: error }, 'Failed to get diff');
-      return { error: error instanceof Error ? error.message : String(error) };
+      throw error;
     }
   })
 
@@ -894,24 +898,28 @@ ${previousImplementation}
     const { body } = context;
     const { ids } = body as { ids: number[] };
 
+    // Batch fetch all approval requests at once
+    const allApprovals = await prisma.approvalRequest.findMany({
+      where: { id: { in: ids }, status: 'pending' },
+      include: {
+        config: {
+          include: { task: true },
+        },
+      },
+    });
+    const approvalMap = new Map(allApprovals.map((a) => [a.id, a]));
+
+    // Batch update all statuses at once
+    await prisma.approvalRequest.updateMany({
+      where: { id: { in: allApprovals.map((a) => a.id) } },
+      data: { status: 'approved', approvedAt: new Date() },
+    });
+
     const results = [];
     for (const id of ids) {
       try {
-        const approval = await prisma.approvalRequest.findUnique({
-          where: { id },
-          include: {
-            config: {
-              include: { task: true },
-            },
-          },
-        });
-
-        if (!approval || approval.status !== 'pending') continue;
-
-        await prisma.approvalRequest.update({
-          where: { id },
-          data: { status: 'approved', approvedAt: new Date() },
-        });
+        const approval = approvalMap.get(id);
+        if (!approval) continue;
 
         if (approval.requestType === 'task_execution') {
           const proposedChanges = fromJsonString<{

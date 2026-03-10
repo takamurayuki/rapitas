@@ -95,16 +95,11 @@ export class OpenAIAgent extends AbstractAgent {
     const modelId = config.model || 'gpt-4o';
     const modelInfo = OPENAI_MODELS[modelId as OpenAIModelId];
 
-    super(
-      generateAgentId('openai-codex'),
-      modelInfo?.name || 'OpenAI Agent',
-      'openai-codex',
-      {
-        version: '1.0.0',
-        description: 'OpenAI APIを使用したエージェント',
-        modelId,
-      },
-    );
+    super(generateAgentId('openai-codex'), modelInfo?.name || 'OpenAI Agent', 'openai-codex', {
+      version: '1.0.0',
+      description: 'OpenAI APIを使用したエージェント',
+      modelId,
+    });
     this.config = config;
   }
 
@@ -139,11 +134,15 @@ export class OpenAIAgent extends AbstractAgent {
 
     const apiKey = this.getApiKey();
     if (!apiKey) {
-      errors.push('API key is not configured. Set OPENAI_API_KEY environment variable or provide apiKey in config.');
+      errors.push(
+        'API key is not configured. Set OPENAI_API_KEY environment variable or provide apiKey in config.',
+      );
     }
 
     if (this.config.model && !OPENAI_MODELS[this.config.model as OpenAIModelId]) {
-      errors.push(`Unknown model: ${this.config.model}. Available models: ${Object.keys(OPENAI_MODELS).join(', ')}`);
+      errors.push(
+        `Unknown model: ${this.config.model}. Available models: ${Object.keys(OPENAI_MODELS).join(', ')}`,
+      );
     }
 
     return { valid: errors.length === 0, errors };
@@ -165,11 +164,7 @@ export class OpenAIAgent extends AbstractAgent {
     continuation: ContinuationContext,
     context: AgentExecutionContext,
   ): Promise<AgentExecutionResult> {
-    throw new AgentError(
-      'OpenAI provider is not yet fully implemented.',
-      'configuration',
-      false,
-    );
+    throw new AgentError('OpenAI provider is not yet fully implemented.', 'configuration', false);
   }
 
   protected async doStop(): Promise<void> {

@@ -22,12 +22,14 @@ import {
   ChevronUp,
   Play,
   Pause,
-  RotateCcw
+  RotateCcw,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { requireAuth } from '@/contexts/AuthContext';
 import { createLogger } from '@/lib/logger';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('AgentVersionManagementPage');
 
@@ -55,17 +57,26 @@ interface AgentConfig {
   currentVersion: string | null;
   latestVersion: string;
   isInstalled: boolean;
-  installationStatus: 'not_installed' | 'installing' | 'installed' | 'update_available' | 'error';
+  installationStatus:
+    | 'not_installed'
+    | 'installing'
+    | 'installed'
+    | 'update_available'
+    | 'error';
   lastUpdatedAt: string | null;
   autoUpdate: boolean;
 }
 
 // ステータス別のスタイル
 const statusStyles = {
-  not_installed: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300',
-  installing: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  installed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  update_available: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+  not_installed:
+    'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300',
+  installing:
+    'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+  installed:
+    'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  update_available:
+    'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
   error: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
 };
 
@@ -79,6 +90,8 @@ const statusIcons = {
 
 function AgentVersionManagementPage() {
   const t = useTranslations('agents');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   // State
   const [agentConfigs, setAgentConfigs] = useState<AgentConfig[]>([]);
   const [agentVersions, setAgentVersions] = useState<AgentVersion[]>([]);
@@ -87,7 +100,9 @@ function AgentVersionManagementPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null);
-  const [expandedVersions, setExpandedVersions] = useState<Set<number>>(new Set());
+  const [expandedVersions, setExpandedVersions] = useState<Set<number>>(
+    new Set(),
+  );
   const [installing, setInstalling] = useState<Set<number>>(new Set());
 
   // データ取得
@@ -98,7 +113,7 @@ function AgentVersionManagementPage() {
 
       const [configsRes, versionsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/agent-version-management/configs`),
-        fetch(`${API_BASE_URL}/agent-version-management/versions`)
+        fetch(`${API_BASE_URL}/agent-version-management/versions`),
       ]);
 
       if (configsRes.ok) {
@@ -110,7 +125,6 @@ function AgentVersionManagementPage() {
         const data = await versionsRes.json();
         setAgentVersions(data.versions || []);
       }
-
     } catch (err) {
       logger.error('Failed to fetch data:', err);
       setError(t('dataFetchFailed'));
@@ -126,15 +140,18 @@ function AgentVersionManagementPage() {
   // エージェントのインストール
   const installAgent = async (agentId: number, version?: string) => {
     try {
-      setInstalling(prev => new Set(prev).add(agentId));
+      setInstalling((prev) => new Set(prev).add(agentId));
 
-      const response = await fetch(`${API_BASE_URL}/agent-version-management/install`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await fetch(
+        `${API_BASE_URL}/agent-version-management/install`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ agentId, version }),
         },
-        body: JSON.stringify({ agentId, version }),
-      });
+      );
 
       const data = await response.json();
 
@@ -148,7 +165,7 @@ function AgentVersionManagementPage() {
       logger.error('インストールエラー:', err);
       setError(t('installError'));
     } finally {
-      setInstalling(prev => {
+      setInstalling((prev) => {
         const newSet = new Set(prev);
         newSet.delete(agentId);
         return newSet;
@@ -159,13 +176,16 @@ function AgentVersionManagementPage() {
   // エージェントのアンインストール
   const uninstallAgent = async (agentId: number) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-version-management/uninstall`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await fetch(
+        `${API_BASE_URL}/agent-version-management/uninstall`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ agentId }),
         },
-        body: JSON.stringify({ agentId }),
-      });
+      );
 
       const data = await response.json();
 
@@ -183,13 +203,16 @@ function AgentVersionManagementPage() {
   // 自動更新設定の切り替え
   const toggleAutoUpdate = async (agentId: number, enabled: boolean) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-version-management/auto-update`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await fetch(
+        `${API_BASE_URL}/agent-version-management/auto-update`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ agentId, enabled }),
         },
-        body: JSON.stringify({ agentId, enabled }),
-      });
+      );
 
       const data = await response.json();
 
@@ -205,16 +228,18 @@ function AgentVersionManagementPage() {
   };
 
   // フィルタリング
-  const filteredAgents = agentConfigs.filter(agent => {
-    const matchesSearch = agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         agent.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || agent.installationStatus === statusFilter;
+  const filteredAgents = agentConfigs.filter((agent) => {
+    const matchesSearch =
+      agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      agent.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus =
+      statusFilter === 'all' || agent.installationStatus === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   // バージョン展開/折りたたみ
   const toggleVersionExpansion = (agentId: number) => {
-    setExpandedVersions(prev => {
+    setExpandedVersions((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(agentId)) {
         newSet.delete(agentId);
@@ -227,8 +252,12 @@ function AgentVersionManagementPage() {
 
   // 特定エージェントのバージョン取得
   const getAgentVersions = (agentId: number) => {
-    return agentVersions.filter(v => v.agentId === agentId)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return agentVersions
+      .filter((v) => v.agentId === agentId)
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
   };
 
   if (loading) {
@@ -333,12 +362,18 @@ function AgentVersionManagementPage() {
                           {agent.description}
                         </p>
                         <div className="flex items-center gap-4 mt-2">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyles[agent.installationStatus]}`}>
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyles[agent.installationStatus]}`}
+                          >
                             <StatusIcon className="w-3 h-3 mr-1" />
-                            {agent.installationStatus === 'not_installed' && t('notInstalled')}
-                            {agent.installationStatus === 'installing' && t('installing')}
-                            {agent.installationStatus === 'installed' && t('installed')}
-                            {agent.installationStatus === 'update_available' && t('updateAvailable')}
+                            {agent.installationStatus === 'not_installed' &&
+                              t('notInstalled')}
+                            {agent.installationStatus === 'installing' &&
+                              t('installing')}
+                            {agent.installationStatus === 'installed' &&
+                              t('installed')}
+                            {agent.installationStatus === 'update_available' &&
+                              t('updateAvailable')}
                             {agent.installationStatus === 'error' && t('error')}
                           </span>
                           {agent.currentVersion && (
@@ -357,7 +392,9 @@ function AgentVersionManagementPage() {
                     <div className="flex items-center gap-2">
                       {/* 自動更新トグル */}
                       <button
-                        onClick={() => toggleAutoUpdate(agent.id, !agent.autoUpdate)}
+                        onClick={() =>
+                          toggleAutoUpdate(agent.id, !agent.autoUpdate)
+                        }
                         className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                           agent.autoUpdate
                             ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
@@ -376,14 +413,14 @@ function AgentVersionManagementPage() {
                         >
                           {isInstalling ? (
                             <>
-                            <RefreshCw className="w-4 h-4 animate-spin" />
-                            {t('installing')}
-                          </>
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                              {t('installing')}
+                            </>
                           ) : (
                             <>
-                            <Download className="w-4 h-4" />
-                            {t('install')}
-                          </>
+                              <Download className="w-4 h-4" />
+                              {t('install')}
+                            </>
                           )}
                         </button>
                       )}
@@ -396,14 +433,14 @@ function AgentVersionManagementPage() {
                         >
                           {isInstalling ? (
                             <>
-                            <RefreshCw className="w-4 h-4 animate-spin" />
-                            {t('updating')}
-                          </>
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                              {t('updating')}
+                            </>
                           ) : (
                             <>
-                            <RefreshCw className="w-4 h-4" />
-                            {t('refresh')}
-                          </>
+                              <RefreshCw className="w-4 h-4" />
+                              {t('refresh')}
+                            </>
                           )}
                         </button>
                       )}
@@ -464,7 +501,9 @@ function AgentVersionManagementPage() {
                                 )}
                               </div>
                               <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                                {new Date(version.createdAt).toLocaleDateString('ja-JP')}
+                                {new Date(version.createdAt).toLocaleDateString(
+                                  dateLocale,
+                                )}
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -475,7 +514,9 @@ function AgentVersionManagementPage() {
                               )}
                               {!version.isInstalled && (
                                 <button
-                                  onClick={() => installAgent(agent.id, version.version)}
+                                  onClick={() =>
+                                    installAgent(agent.id, version.version)
+                                  }
                                   disabled={isInstalling}
                                   className="px-3 py-1 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                                 >

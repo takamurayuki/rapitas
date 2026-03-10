@@ -25,11 +25,15 @@ import { priorityColors, priorityLabels } from '@/types';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('ApprovalsClient');
 
 export default function ApprovalsClient() {
   const t = useTranslations('approvals');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const searchParams = useSearchParams();
   const expandParam = searchParams.get('expand');
   const {
@@ -212,7 +216,7 @@ export default function ApprovalsClient() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('ja-JP', {
+    return new Date(dateString).toLocaleDateString(dateLocale, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -535,7 +539,9 @@ function ApprovalCard({
             <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
               <span className="flex items-center gap-1">
                 <ListChecks className="w-3.5 h-3.5" />
-                {t('subtaskCount', { count: approval.proposedChanges.subtasks?.length || 0 })}
+                {t('subtaskCount', {
+                  count: approval.proposedChanges.subtasks?.length || 0,
+                })}
               </span>
               <span className="flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" />

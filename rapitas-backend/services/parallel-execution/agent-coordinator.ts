@@ -71,7 +71,7 @@ export class AgentCoordinator extends EventEmitter {
     agentId: string,
     taskId: number,
     resource: string,
-    timeout?: number
+    timeout?: number,
   ): CoordinationRequest {
     const requestId = `lock-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -213,7 +213,10 @@ export class AgentCoordinator extends EventEmitter {
     const resolvedTasks: number[] = [];
 
     for (const [taskId, state] of this.dependencyStates) {
-      if (state.dependsOn.includes(completedTaskId) && !state.resolvedDependencies.includes(completedTaskId)) {
+      if (
+        state.dependsOn.includes(completedTaskId) &&
+        !state.resolvedDependencies.includes(completedTaskId)
+      ) {
         state.resolvedDependencies.push(completedTaskId);
 
         // すべての依存が解決されたかチェック
@@ -318,7 +321,12 @@ export class AgentCoordinator extends EventEmitter {
   /**
    * 特定のエージェントにメッセージを送信
    */
-  sendMessage(toAgentId: string, fromAgentId: string, type: AgentMessageType, payload: unknown): void {
+  sendMessage(
+    toAgentId: string,
+    fromAgentId: string,
+    type: AgentMessageType,
+    payload: unknown,
+  ): void {
     const message: AgentMessage = {
       id: `msg-${Date.now()}`,
       timestamp: new Date(),
@@ -340,7 +348,11 @@ export class AgentCoordinator extends EventEmitter {
   /**
    * 同期ポイントを作成
    */
-  async waitForSyncPoint(syncPointId: string, agentIds: string[], timeout: number = 30000): Promise<boolean> {
+  async waitForSyncPoint(
+    syncPointId: string,
+    agentIds: string[],
+    timeout: number = 30000,
+  ): Promise<boolean> {
     const syncState = new Map<string, boolean>();
 
     for (const agentId of agentIds) {
@@ -349,7 +361,7 @@ export class AgentCoordinator extends EventEmitter {
 
     return new Promise((resolve) => {
       const checkSync = () => {
-        const allSynced = Array.from(syncState.values()).every(v => v);
+        const allSynced = Array.from(syncState.values()).every((v) => v);
         if (allSynced) {
           this.emit('sync_completed', { syncPointId, agentIds });
           resolve(true);
@@ -407,13 +419,15 @@ export class AgentCoordinator extends EventEmitter {
     let messages = [...this.messageHistory];
 
     if (filter?.fromAgentId) {
-      messages = messages.filter(m => m.fromAgentId === filter.fromAgentId);
+      messages = messages.filter((m) => m.fromAgentId === filter.fromAgentId);
     }
     if (filter?.toAgentId) {
-      messages = messages.filter(m => m.toAgentId === filter.toAgentId || m.toAgentId === 'broadcast');
+      messages = messages.filter(
+        (m) => m.toAgentId === filter.toAgentId || m.toAgentId === 'broadcast',
+      );
     }
     if (filter?.type) {
-      messages = messages.filter(m => m.type === filter.type);
+      messages = messages.filter((m) => m.type === filter.type);
     }
 
     // 最新順にソート
@@ -437,10 +451,14 @@ export class AgentCoordinator extends EventEmitter {
     messageCount: number;
   } {
     return {
-      activeAgents: Array.from(this.agentStates.values()).filter(s => s.status === 'running').length,
+      activeAgents: Array.from(this.agentStates.values()).filter((s) => s.status === 'running')
+        .length,
       lockedResources: this.resourceLocks.size,
-      pendingRequests: Array.from(this.coordinationRequests.values()).filter(r => r.status === 'pending').length,
-      resolvedDependencies: Array.from(this.dependencyStates.values()).filter(s => s.isResolved).length,
+      pendingRequests: Array.from(this.coordinationRequests.values()).filter(
+        (r) => r.status === 'pending',
+      ).length,
+      resolvedDependencies: Array.from(this.dependencyStates.values()).filter((s) => s.isResolved)
+        .length,
       messageCount: this.messageHistory.length,
     };
   }

@@ -167,7 +167,10 @@ export class LogAggregator extends EventEmitter {
       return false;
     }
 
-    if (filter.searchText && !entry.message.toLowerCase().includes(filter.searchText.toLowerCase())) {
+    if (
+      filter.searchText &&
+      !entry.message.toLowerCase().includes(filter.searchText.toLowerCase())
+    ) {
       return false;
     }
 
@@ -320,7 +323,7 @@ export class LogAggregator extends EventEmitter {
     const exportData = {
       exportedAt: new Date().toISOString(),
       totalLogs: logs.length,
-      logs: logs.map(log => ({
+      logs: logs.map((log) => ({
         ...log,
         timestamp: log.timestamp.toISOString(),
       })),
@@ -341,7 +344,7 @@ export class LogAggregator extends EventEmitter {
    */
   getLogsByTag(tag: string, limit?: number): AggregatedLogEntry[] {
     const validLogs = this.getValidLogs();
-    const results = validLogs.filter(log => log.tags.includes(tag));
+    const results = validLogs.filter((log) => log.tags.includes(tag));
     results.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
     return limit ? results.slice(0, limit) : results;
   }
@@ -396,9 +399,14 @@ export class LogFormatter {
       markdown += `## タスク ${taskId}\n\n`;
 
       for (const log of logs) {
-        const icon = log.level === 'error' ? '❌' :
-                     log.level === 'warn' ? '⚠️' :
-                     log.level === 'info' ? 'ℹ️' : '🔍';
+        const icon =
+          log.level === 'error'
+            ? '❌'
+            : log.level === 'warn'
+              ? '⚠️'
+              : log.level === 'info'
+                ? 'ℹ️'
+                : '🔍';
 
         markdown += `- ${icon} **${log.timestamp.toLocaleTimeString()}** [${log.agentId}]: ${log.message}\n`;
       }

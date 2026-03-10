@@ -20,7 +20,11 @@ export type { ExecutionStatus, ExecutionResult };
 /**
  * Safe JSON parsing with improved validation
  */
-function safeJsonParse(text: string): { success: boolean; data?: unknown; error?: string } {
+function safeJsonParse(text: string): {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+} {
   // Basic validation
   if (!text || typeof text !== 'string') {
     return { success: false, error: 'Empty or invalid response text' };
@@ -44,7 +48,7 @@ function safeJsonParse(text: string): { success: boolean; data?: unknown; error?
     } catch (error) {
       return {
         success: false,
-        error: `JSON parse failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        error: `JSON parse failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }
@@ -155,9 +159,7 @@ export function useDeveloperMode(taskId: number) {
               fullOutput = logsData.logs
                 .map((log: { chunk: string }) => log.chunk)
                 .join('');
-              logger.debug(
-                `Restored ${logsData.logs.length} log chunks`,
-              );
+              logger.debug(`Restored ${logsData.logs.length} log chunks`);
             }
           }
         } catch (logErr) {
@@ -488,18 +490,21 @@ export function useDeveloperMode(taskId: number) {
 
               // Map known error patterns to user-friendly messages
               if (parseResult.error?.includes('Database query error')) {
-                data = { error: 'データベースクエリエラーが発生しました。しばらくしてから再度お試しください。' };
-              } else if (responseText.trim().startsWith('Error:') || responseText.trim().startsWith('Invalid')) {
+                data = {
+                  error:
+                    'データベースクエリエラーが発生しました。しばらくしてから再度お試しください。',
+                };
+              } else if (
+                responseText.trim().startsWith('Error:') ||
+                responseText.trim().startsWith('Invalid')
+              ) {
                 data = { error: responseText.trim() };
               } else {
                 data = { error: 'サーバーの応答形式が正しくありません。' };
               }
             }
           } catch (textErr) {
-            logger.warn(
-              'Failed to read response:',
-              textErr,
-            );
+            logger.warn('Failed to read response:', textErr);
             data = {
               error:
                 'サーバーとの通信中にエラーが発生しました。再度お試しください。',
@@ -546,7 +551,10 @@ export function useDeveloperMode(taskId: number) {
 
           // 二重実行防止 (409 Conflict)
           if (res.status === 409) {
-            const conflictData = await res.json().catch(() => ({})) as Record<string, unknown>;
+            const conflictData = (await res.json().catch(() => ({}))) as Record<
+              string,
+              unknown
+            >;
             logger.warn('Duplicate execution rejected:', conflictData);
             throw new Error(
               (conflictData.error as string) || 'このタスクは既に実行中です。',
@@ -578,18 +586,21 @@ export function useDeveloperMode(taskId: number) {
 
               // Map known error patterns to user-friendly messages
               if (parseResult.error?.includes('Database query error')) {
-                data = { error: 'データベースクエリエラーが発生しました。しばらくしてから再度お試しください。' };
-              } else if (responseText.trim().startsWith('Error:') || responseText.trim().startsWith('Invalid')) {
+                data = {
+                  error:
+                    'データベースクエリエラーが発生しました。しばらくしてから再度お試しください。',
+                };
+              } else if (
+                responseText.trim().startsWith('Error:') ||
+                responseText.trim().startsWith('Invalid')
+              ) {
                 data = { error: responseText.trim() };
               } else {
                 data = { error: 'サーバーの応答形式が正しくありません。' };
               }
             }
           } catch (textErr) {
-            logger.warn(
-              'Failed to read response:',
-              textErr,
-            );
+            logger.warn('Failed to read response:', textErr);
             data = {
               error:
                 'サーバーとの通信中にエラーが発生しました。再度お試しください。',
@@ -600,7 +611,8 @@ export function useDeveloperMode(taskId: number) {
             setExecutionResult({
               success: true,
               sessionId: data.sessionId as number,
-              message: (data.message as string) || 'エージェント実行を開始しました',
+              message:
+                (data.message as string) || 'エージェント実行を開始しました',
             });
             setExecutionStatus('running');
             // グローバルストアに実行中タスクを記録
@@ -611,7 +623,9 @@ export function useDeveloperMode(taskId: number) {
             });
             return data;
           } else {
-            throw new Error((data.error as string) || 'エージェントの実行に失敗しました');
+            throw new Error(
+              (data.error as string) || 'エージェントの実行に失敗しました',
+            );
           }
         }
       } catch (err) {
@@ -657,9 +671,7 @@ export function useDeveloperMode(taskId: number) {
         const data = await res.json();
         logger.debug('Execution state reset:', data);
       } else {
-        logger.error(
-          'Failed to reset execution state in DB',
-        );
+        logger.error('Failed to reset execution state in DB');
       }
     } catch (err) {
       logger.error('Error resetting execution state:', err);

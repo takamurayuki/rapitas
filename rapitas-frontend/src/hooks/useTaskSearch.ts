@@ -6,9 +6,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { searchTasks } from '@/lib/task-api';
 import type { Task } from '@/types';
-import { createLogger } from "@/lib/logger";
+import { createLogger } from '@/lib/logger';
 
-const logger = createLogger("useTaskSearch");
+const logger = createLogger('useTaskSearch');
 
 interface UseTaskSearchOptions {
   minLength?: number; // 最小検索文字数
@@ -27,45 +27,48 @@ export function useTaskSearch(options: UseTaskSearchOptions = {}) {
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 検索実行
-  const performSearch = useCallback(async (searchQuery: string) => {
-    // 前回の検索をキャンセル
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    if (searchQuery.length < minLength) {
-      setResults([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    // 新しいAbortController作成
-    abortControllerRef.current = new AbortController();
-
-    try {
-      const tasks = await searchTasks(searchQuery);
-
-      // キャンセルされていなければ結果を設定
-      if (!abortControllerRef.current.signal.aborted) {
-        setResults(tasks);
+  const performSearch = useCallback(
+    async (searchQuery: string) => {
+      // 前回の検索をキャンセル
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
-    } catch (err) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        setError(err.message || '検索中にエラーが発生しました');
-        logger.error('Search error:', err);
-      } else if (!(err instanceof Error)) {
-        setError('検索中にエラーが発生しました');
-        logger.error('Search error:', err);
-      }
-    } finally {
-      if (!abortControllerRef.current?.signal.aborted) {
+
+      if (searchQuery.length < minLength) {
+        setResults([]);
         setLoading(false);
+        return;
       }
-    }
-  }, [minLength]);
+
+      setLoading(true);
+      setError(null);
+
+      // 新しいAbortController作成
+      abortControllerRef.current = new AbortController();
+
+      try {
+        const tasks = await searchTasks(searchQuery);
+
+        // キャンセルされていなければ結果を設定
+        if (!abortControllerRef.current.signal.aborted) {
+          setResults(tasks);
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          setError(err.message || '検索中にエラーが発生しました');
+          logger.error('Search error:', err);
+        } else if (!(err instanceof Error)) {
+          setError('検索中にエラーが発生しました');
+          logger.error('Search error:', err);
+        }
+      } finally {
+        if (!abortControllerRef.current?.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    },
+    [minLength],
+  );
 
   // クエリ変更時のデバウンス処理
   useEffect(() => {
@@ -145,10 +148,11 @@ interface SearchFilters {
 
 export function useAdvancedTaskSearch(
   initialFilters: SearchFilters = {},
-  options: UseTaskSearchOptions = {}
+  options: UseTaskSearchOptions = {},
 ) {
   const [filters, setFilters] = useState<SearchFilters>(initialFilters);
-  const { query, setQuery, results, loading, error, clearSearch } = useTaskSearch(options);
+  const { query, setQuery, results, loading, error, clearSearch } =
+    useTaskSearch(options);
 
   // フィルターを適用した結果
   const filteredResults = results.filter((task) => {
@@ -165,7 +169,10 @@ export function useAdvancedTaskSearch(
     // 日付範囲フィルター
     if (filters.dateRange) {
       const taskDate = new Date(task.createdAt);
-      if (taskDate < filters.dateRange.from || taskDate > filters.dateRange.to) {
+      if (
+        taskDate < filters.dateRange.from ||
+        taskDate > filters.dateRange.to
+      ) {
         return false;
       }
     }
@@ -183,12 +190,12 @@ export function useAdvancedTaskSearch(
   });
 
   // フィルターの更新
-  const updateFilter = useCallback(<K extends keyof SearchFilters>(
-    key: K,
-    value: SearchFilters[K]
-  ) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-  }, []);
+  const updateFilter = useCallback(
+    <K extends keyof SearchFilters>(key: K, value: SearchFilters[K]) => {
+      setFilters((prev) => ({ ...prev, [key]: value }));
+    },
+    [],
+  );
 
   // すべてのフィルターをクリア
   const clearAllFilters = useCallback(() => {

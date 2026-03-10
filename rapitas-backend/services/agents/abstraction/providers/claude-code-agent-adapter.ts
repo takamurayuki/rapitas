@@ -149,7 +149,8 @@ export class ClaudeCodeAgentAdapter implements IAgent {
       const legacyConfig: ClaudeCodeAgentConfig = {
         workingDirectory: context.workingDirectory,
         timeout: context.timeout || this._config.defaultTimeout || 900000,
-        dangerouslySkipPermissions: context.dangerouslySkipPermissions || this._config.dangerouslySkipPermissions,
+        dangerouslySkipPermissions:
+          context.dangerouslySkipPermissions || this._config.dangerouslySkipPermissions,
         continueConversation: !!context.sessionId,
         resumeSessionId: context.sessionId,
       };
@@ -171,7 +172,7 @@ export class ClaudeCodeAgentAdapter implements IAgent {
           questionId: info.questionKey?.question_id || `q-${Date.now()}`,
           text: info.question,
           category: this.mapQuestionType(info.questionType),
-          options: info.questionDetails?.options?.map(opt => ({
+          options: info.questionDetails?.options?.map((opt) => ({
             label: opt.label,
             value: opt.label,
             description: opt.description,
@@ -194,21 +195,26 @@ export class ClaudeCodeAgentAdapter implements IAgent {
         description: task.description,
         workingDirectory: context.workingDirectory,
         optimizedPrompt: task.optimizedPrompt,
-        analysisInfo: task.analysis ? {
-          summary: task.analysis.summary,
-          complexity: task.analysis.complexity,
-          estimatedTotalHours: task.analysis.estimatedDuration ? task.analysis.estimatedDuration / 60 : 0,
-          subtasks: task.analysis.subtasks?.map((st) => ({
-            order: st.order,
-            title: st.title,
-            description: st.description,
-            estimatedHours: st.estimatedDuration ? st.estimatedDuration / 60 : 0,
-            priority: st.priority,
-            dependencies: st.dependencies,
-          })) || [],
-          reasoning: '',
-          tips: task.analysis.tips || [],
-        } : undefined,
+        analysisInfo: task.analysis
+          ? {
+              summary: task.analysis.summary,
+              complexity: task.analysis.complexity,
+              estimatedTotalHours: task.analysis.estimatedDuration
+                ? task.analysis.estimatedDuration / 60
+                : 0,
+              subtasks:
+                task.analysis.subtasks?.map((st) => ({
+                  order: st.order,
+                  title: st.title,
+                  description: st.description,
+                  estimatedHours: st.estimatedDuration ? st.estimatedDuration / 60 : 0,
+                  priority: st.priority,
+                  dependencies: st.dependencies,
+                })) || [],
+              reasoning: '',
+              tips: task.analysis.tips || [],
+            }
+          : undefined,
       };
 
       // タスクを実行
@@ -283,7 +289,8 @@ export class ClaudeCodeAgentAdapter implements IAgent {
       const legacyConfig: ClaudeCodeAgentConfig = {
         workingDirectory: context.workingDirectory,
         timeout: context.timeout || this._config.defaultTimeout || 900000,
-        dangerouslySkipPermissions: context.dangerouslySkipPermissions || this._config.dangerouslySkipPermissions,
+        dangerouslySkipPermissions:
+          context.dangerouslySkipPermissions || this._config.dangerouslySkipPermissions,
         continueConversation: true,
         resumeSessionId: continuation.sessionId || this._currentSessionId || undefined,
       };
@@ -301,9 +308,10 @@ export class ClaudeCodeAgentAdapter implements IAgent {
 
       // ユーザーの回答をタスクとして実行
       // previousExecutionIdがstringの場合は数値に変換
-      const taskId = typeof continuation.previousExecutionId === 'string'
-        ? parseInt(continuation.previousExecutionId, 10) || 0
-        : 0;
+      const taskId =
+        typeof continuation.previousExecutionId === 'string'
+          ? parseInt(continuation.previousExecutionId, 10) || 0
+          : 0;
 
       const legacyTask: AgentTask = {
         id: taskId,
@@ -433,23 +441,15 @@ export class ClaudeCodeAgentAdapter implements IAgent {
     }
 
     if (error instanceof Error) {
-      return new AgentError(
-        error.message,
-        'execution',
-        false,
-        undefined,
-        error,
-      );
+      return new AgentError(error.message, 'execution', false, undefined, error);
     }
 
-    return new AgentError(
-      String(error),
-      'internal',
-      false,
-    );
+    return new AgentError(String(error), 'internal', false);
   }
 
-  private mapQuestionType(legacyType: string): 'clarification' | 'confirmation' | 'selection' | 'input' {
+  private mapQuestionType(
+    legacyType: string,
+  ): 'clarification' | 'confirmation' | 'selection' | 'input' {
     switch (legacyType) {
       case 'clarification':
         return 'clarification';
@@ -493,7 +493,7 @@ export class ClaudeCodeAgentAdapter implements IAgent {
         questionId: legacyResult.questionKey?.question_id || `q-${Date.now()}`,
         text: legacyResult.question,
         category: this.mapQuestionType(legacyResult.questionType || 'input'),
-        options: legacyResult.questionDetails?.options?.map(opt => ({
+        options: legacyResult.questionDetails?.options?.map((opt) => ({
           label: opt.label,
           value: opt.label,
           description: opt.description,
@@ -507,13 +507,13 @@ export class ClaudeCodeAgentAdapter implements IAgent {
       state,
       output: legacyResult.output,
       errorMessage: legacyResult.errorMessage,
-      artifacts: legacyResult.artifacts?.map(a => ({
+      artifacts: legacyResult.artifacts?.map((a) => ({
         type: a.type as 'file' | 'code' | 'diff' | 'log' | 'image' | 'data',
         name: a.name,
         content: a.content,
         path: a.path,
       })),
-      commits: legacyResult.commits?.map(c => ({
+      commits: legacyResult.commits?.map((c) => ({
         hash: c.hash,
         message: c.message,
         branch: c.branch,

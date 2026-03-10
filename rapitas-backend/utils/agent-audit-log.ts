@@ -2,7 +2,7 @@
  * AIエージェント設定変更の監査ログユーティリティ
  */
 
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../config/logger';
 
 const log = createLogger('agent-audit-log');
@@ -10,15 +10,15 @@ const log = createLogger('agent-audit-log');
 const prisma = new PrismaClient();
 
 export type AuditAction =
-  | "create"
-  | "update"
-  | "delete"
-  | "api_key_set"
-  | "api_key_delete"
-  | "test_connection"
-  | "update_version"
-  | "install"
-  | "uninstall";
+  | 'create'
+  | 'update'
+  | 'delete'
+  | 'api_key_set'
+  | 'api_key_delete'
+  | 'test_connection'
+  | 'update_version'
+  | 'install'
+  | 'uninstall';
 
 export interface AuditLogEntry {
   agentConfigId: number;
@@ -48,7 +48,7 @@ export async function logAgentConfigChange(entry: AuditLogEntry): Promise<void> 
     });
     log.info(`Agent ${entry.agentConfigId}: ${entry.action}`);
   } catch (error) {
-    log.error({ err: error }, "Failed to create audit log");
+    log.error({ err: error }, 'Failed to create audit log');
     // 監査ログの記録失敗は、メイン処理をブロックしない
   }
 }
@@ -56,13 +56,10 @@ export async function logAgentConfigChange(entry: AuditLogEntry): Promise<void> 
 /**
  * 特定のエージェントの監査ログを取得
  */
-export async function getAgentConfigAuditLogs(
-  agentConfigId: number,
-  limit: number = 50
-) {
+export async function getAgentConfigAuditLogs(agentConfigId: number, limit: number = 50) {
   return prisma.agentConfigAuditLog.findMany({
     where: { agentConfigId },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: 'desc' },
     take: limit,
   });
 }
@@ -72,7 +69,7 @@ export async function getAgentConfigAuditLogs(
  */
 export async function getRecentAuditLogs(limit: number = 100) {
   return prisma.agentConfigAuditLog.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: 'desc' },
     take: limit,
   });
 }
@@ -82,7 +79,7 @@ export async function getRecentAuditLogs(limit: number = 100) {
  */
 export function calculateChanges(
   previous: Record<string, unknown>,
-  current: Record<string, unknown>
+  current: Record<string, unknown>,
 ): Record<string, { from: unknown; to: unknown }> {
   const changes: Record<string, { from: unknown; to: unknown }> = {};
 
@@ -90,9 +87,9 @@ export function calculateChanges(
 
   for (const key of allKeys) {
     // 機密情報はマスク
-    if (key.toLowerCase().includes("apikey") || key.toLowerCase().includes("secret")) {
+    if (key.toLowerCase().includes('apikey') || key.toLowerCase().includes('secret')) {
       if (previous[key] !== current[key]) {
-        changes[key] = { from: "***", to: "***" };
+        changes[key] = { from: '***', to: '***' };
       }
       continue;
     }
@@ -108,4 +105,3 @@ export function calculateChanges(
 
   return changes;
 }
-

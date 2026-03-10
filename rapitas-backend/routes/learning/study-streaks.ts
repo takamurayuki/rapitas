@@ -1,13 +1,13 @@
 /**
  * Study Streak API Routes
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
 
-export const studyStreaksRoutes = new Elysia({ prefix: "/study-streaks" })
-  .get("/", async (context) => {
-      const { query  } = context;
-    const { days  } = query as { days?: string };
+export const studyStreaksRoutes = new Elysia({ prefix: '/study-streaks' })
+  .get('/', async (context) => {
+    const { query } = context;
+    const { days } = query as { days?: string };
     const daysNum = days ? parseInt(days) : 30;
 
     const startDate = new Date();
@@ -18,11 +18,11 @@ export const studyStreaksRoutes = new Elysia({ prefix: "/study-streaks" })
       where: {
         date: { gte: startDate },
       },
-      orderBy: { date: "asc" },
+      orderBy: { date: 'asc' },
     });
   })
 
-  .get("/current", async () => {
+  .get('/current', async () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -43,7 +43,7 @@ export const studyStreaksRoutes = new Elysia({ prefix: "/study-streaks" })
     }
 
     const allStreaks = await prisma.studyStreak.findMany({
-      orderBy: { date: "asc" },
+      orderBy: { date: 'asc' },
     });
 
     let longestStreak = 0;
@@ -54,7 +54,7 @@ export const studyStreaksRoutes = new Elysia({ prefix: "/study-streaks" })
       if (streak.studyMinutes > 0 || streak.tasksCompleted > 0) {
         if (prevDate) {
           const diff = Math.round(
-            (streak.date.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24)
+            (streak.date.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24),
           );
           if (diff === 1) {
             tempStreak++;
@@ -80,11 +80,13 @@ export const studyStreaksRoutes = new Elysia({ prefix: "/study-streaks" })
   })
 
   .post(
-    "/record",
+    '/record',
     async (context) => {
-      const { body  } = context;
-      const { date, studyMinutes, tasksCompleted  } = body as {
-        date?: string | null; studyMinutes?: number | null; tasksCompleted?: number | null;
+      const { body } = context;
+      const { date, studyMinutes, tasksCompleted } = body as {
+        date?: string | null;
+        studyMinutes?: number | null;
+        tasksCompleted?: number | null;
       };
 
       const targetDate = date ? new Date(date) : new Date();
@@ -113,5 +115,5 @@ export const studyStreaksRoutes = new Elysia({ prefix: "/study-streaks" })
         studyMinutes: t.Optional(t.Nullable(t.Number())),
         tasksCompleted: t.Optional(t.Nullable(t.Number())),
       }),
-    }
+    },
   );

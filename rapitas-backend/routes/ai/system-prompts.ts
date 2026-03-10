@@ -2,16 +2,17 @@
  * System Prompts API Routes
  * ハードコードされたプロンプトをDB管理するためのCRUDエンドポイント
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
+import { NotFoundError, ValidationError, ConflictError } from '../../middleware/error-handler';
 
 // デフォルトのシステムプロンプト定義
 const DEFAULT_SYSTEM_PROMPTS = [
   {
-    key: "task_analysis",
-    name: "タスク分析",
-    description: "タスクを分析してサブタスクに分解する際に使用するシステムプロンプト",
-    category: "analysis",
+    key: 'task_analysis',
+    name: 'タスク分析',
+    description: 'タスクを分析してサブタスクに分解する際に使用するシステムプロンプト',
+    category: 'analysis',
     content: `あなたはタスク管理のAIアシスタントです。ユーザーのタスクを分析し、効率的に完了するためのサブタスクを提案します。
 
 以下のルールに従ってください：
@@ -42,10 +43,10 @@ const DEFAULT_SYSTEM_PROMPTS = [
 }`,
   },
   {
-    key: "prompt_optimization",
-    name: "プロンプト最適化",
-    description: "AIエージェント向けのプロンプトを最適化するためのシステムプロンプト",
-    category: "optimization",
+    key: 'prompt_optimization',
+    name: 'プロンプト最適化',
+    description: 'AIエージェント向けのプロンプトを最適化するためのシステムプロンプト',
+    category: 'optimization',
     content: `あなたはAIエージェント（Claude Code）向けのプロンプトを最適化するスペシャリストです。
 ユーザーから提供されたタスク情報を分析し、AIエージェントが理解しやすく、正確に実行できる構造化されたプロンプトを生成します。
 
@@ -99,19 +100,19 @@ const DEFAULT_SYSTEM_PROMPTS = [
 回答は必ずJSON形式で返してください。`,
   },
   {
-    key: "ai_chat_default",
-    name: "AIチャット（デフォルト）",
-    description: "AIチャット機能で使用するデフォルトのシステムプロンプト",
-    category: "chat",
+    key: 'ai_chat_default',
+    name: 'AIチャット（デフォルト）',
+    description: 'AIチャット機能で使用するデフォルトのシステムプロンプト',
+    category: 'chat',
     content: `あなたはRapi+アプリケーションのAIアシスタントです。
 ユーザーのタスク管理や学習に関する質問に日本語で丁寧に回答してください。
 簡潔で分かりやすい回答を心がけてください。`,
   },
   {
-    key: "agent_default",
-    name: "エージェント（デフォルト）",
-    description: "AIエージェント実行時に使用するデフォルトのシステムプロンプト",
-    category: "agent",
+    key: 'agent_default',
+    name: 'エージェント（デフォルト）',
+    description: 'AIエージェント実行時に使用するデフォルトのシステムプロンプト',
+    category: 'agent',
     content: `You are a helpful AI assistant specializing in software development.
 
 Guidelines:
@@ -121,10 +122,10 @@ Guidelines:
 - Focus on practical solutions`,
   },
   {
-    key: "branch_name_generation",
-    name: "ブランチ名生成",
-    description: "タスク情報からGitブランチ名を自動生成するためのシステムプロンプト",
-    category: "general",
+    key: 'branch_name_generation',
+    name: 'ブランチ名生成',
+    description: 'タスク情報からGitブランチ名を自動生成するためのシステムプロンプト',
+    category: 'general',
     content: `あなたはGitブランチ名を生成する専門家です。
 タスクのタイトルと説明から、適切なGitブランチ名を生成してください。
 
@@ -145,10 +146,10 @@ Guidelines:
 - 「READMEの更新」→ docs/update-readme`,
   },
   {
-    key: "task_title_generation",
-    name: "タスクタイトル生成",
-    description: "タスクの説明文から簡潔なタイトルを自動生成するためのシステムプロンプト",
-    category: "general",
+    key: 'task_title_generation',
+    name: 'タスクタイトル生成',
+    description: 'タスクの説明文から簡潔なタイトルを自動生成するためのシステムプロンプト',
+    category: 'general',
     content: `あなたはタスク管理のアシスタントです。
 タスクの説明文から、簡潔で分かりやすいタスクタイトルを生成してください。
 
@@ -163,10 +164,11 @@ Guidelines:
 タイトルのみを出力してください。説明や余計なテキストは不要です。`,
   },
   {
-    key: "workflow_role_researcher",
-    name: "ワークフロー: リサーチャー",
-    description: "ワークフローの調査フェーズで使用するシステムプロンプト。コードベースを調査しresearch.mdを作成する。",
-    category: "workflow",
+    key: 'workflow_role_researcher',
+    name: 'ワークフロー: リサーチャー',
+    description:
+      'ワークフローの調査フェーズで使用するシステムプロンプト。コードベースを調査しresearch.mdを作成する。',
+    category: 'workflow',
     content: `あなたはコードベースの調査を担当するリサーチャーです。
 タスクの要件を理解し、既存コードの依存関係・影響範囲・類似実装を徹底的に調査してresearch.mdを作成します。
 
@@ -229,10 +231,11 @@ Guidelines:
 - 類似実装がある場合は必ず言及すること`,
   },
   {
-    key: "workflow_role_planner",
-    name: "ワークフロー: プランナー",
-    description: "ワークフローの計画フェーズで使用するシステムプロンプト。research.mdを基にplan.mdを作成する。",
-    category: "workflow",
+    key: 'workflow_role_planner',
+    name: 'ワークフロー: プランナー',
+    description:
+      'ワークフローの計画フェーズで使用するシステムプロンプト。research.mdを基にplan.mdを作成する。',
+    category: 'workflow',
     content: `あなたは実装計画を作成するプランナーです。
 リサーチャーが作成したresearch.mdの調査結果を基に、チェックリスト形式の詳細なplan.mdを作成します。
 
@@ -303,10 +306,11 @@ Guidelines:
 - 各ステップが独立してレビュー可能な粒度であること`,
   },
   {
-    key: "workflow_role_reviewer",
-    name: "ワークフロー: レビュアー",
-    description: "ワークフローのレビューフェーズで使用するシステムプロンプト。plan.mdの弱点やリスクを指摘しquestion.mdを作成する。",
-    category: "workflow",
+    key: 'workflow_role_reviewer',
+    name: 'ワークフロー: レビュアー',
+    description:
+      'ワークフローのレビューフェーズで使用するシステムプロンプト。plan.mdの弱点やリスクを指摘しquestion.mdを作成する。',
+    category: 'workflow',
     content: `あなたは実装計画のレビュアーです。
 プランナーが作成したplan.mdを批判的に分析し、リスク・不明点・改善提案をquestion.mdとして作成します。
 
@@ -374,10 +378,11 @@ Guidelines:
 - 抽象的な指摘ではなく、具体的なコード箇所やファイルを参照すること`,
   },
   {
-    key: "workflow_role_implementer",
-    name: "ワークフロー: 実装者",
-    description: "ワークフローの実装フェーズで使用するシステムプロンプト。承認されたplan.mdに基づきコードを実装する。",
-    category: "workflow",
+    key: 'workflow_role_implementer',
+    name: 'ワークフロー: 実装者',
+    description:
+      'ワークフローの実装フェーズで使用するシステムプロンプト。承認されたplan.mdに基づきコードを実装する。',
+    category: 'workflow',
     content: `あなたはplan.mdに基づいてコードを実装するエンジニアです。
 承認された計画に従い、セーフガード条件を遵守しながら実装を完了させます。
 
@@ -412,10 +417,11 @@ Guidelines:
 - ダークモード対応が完了していること`,
   },
   {
-    key: "workflow_role_verifier",
-    name: "ワークフロー: 検証者",
-    description: "ワークフローの検証フェーズで使用するシステムプロンプト。実装結果を検証しverify.mdを作成する。",
-    category: "workflow",
+    key: 'workflow_role_verifier',
+    name: 'ワークフロー: 検証者',
+    description:
+      'ワークフローの検証フェーズで使用するシステムプロンプト。実装結果を検証しverify.mdを作成する。',
+    category: 'workflow',
     content: `あなたは実装結果を検証する検証者です。
 実装されたコードとplan.mdを比較し、verify.mdとして検証レポートを作成します。
 
@@ -482,8 +488,8 @@ Guidelines:
 
 export const systemPromptsRoutes = new Elysia()
   // システムプロンプト一覧取得
-  .get("/system-prompts", async (context) => {
-      const { query  } = context;
+  .get('/system-prompts', async (context) => {
+    const { query } = context;
     const where: Record<string, unknown> = {};
     if (query.category) {
       where.category = query.category;
@@ -491,167 +497,148 @@ export const systemPromptsRoutes = new Elysia()
 
     const prompts = await prisma.systemPrompt.findMany({
       where,
-      orderBy: [{ category: "asc" }, { name: "asc" }],
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
     });
 
     return prompts;
   })
 
   // システムプロンプト取得（キーで）
-  .get("/system-prompts/:key", async (context) => {
-      const { params, set  } = context;
+  .get('/system-prompts/:key', async (context) => {
+    const { params } = context;
     const prompt = await prisma.systemPrompt.findUnique({
       where: { key: params.key },
     });
 
     if (!prompt) {
-      set.status = 404;
-      return { error: "システムプロンプトが見つかりません" };
+      throw new NotFoundError('システムプロンプトが見つかりません');
     }
 
     return prompt;
   })
 
   // システムプロンプト作成
-  .post(
-    "/system-prompts",
-    async (context) => {
-      const { body, set } = context;
-      const { key, name, description, content, category } = body as {
-        key: string;
-        name: string;
-        description?: string;
-        content: string;
-        category?: string;
-      };
+  .post('/system-prompts', async (context) => {
+    const { body } = context;
+    const { key, name, description, content, category } = body as {
+      key: string;
+      name: string;
+      description?: string;
+      content: string;
+      category?: string;
+    };
 
-      if (!key || !name || !content) {
-        set.status = 400;
-        return { error: "key, name, content は必須です" };
-      }
-
-      const existing = await prisma.systemPrompt.findUnique({
-        where: { key },
-      });
-
-      if (existing) {
-        set.status = 409;
-        return { error: "同じキーのプロンプトが既に存在します" };
-      }
-
-      const prompt = await prisma.systemPrompt.create({
-        data: {
-          key,
-          name,
-          description,
-          content,
-          category: category || "general",
-          isDefault: false,
-        },
-      });
-
-      return prompt;
+    if (!key || !name || !content) {
+      throw new ValidationError('key, name, content は必須です');
     }
-  )
+
+    const existing = await prisma.systemPrompt.findUnique({
+      where: { key },
+    });
+
+    if (existing) {
+      throw new ConflictError('同じキーのプロンプトが既に存在します');
+    }
+
+    const prompt = await prisma.systemPrompt.create({
+      data: {
+        key,
+        name,
+        description,
+        content,
+        category: category || 'general',
+        isDefault: false,
+      },
+    });
+
+    return prompt;
+  })
 
   // システムプロンプト更新
-  .patch(
-    "/system-prompts/:key",
-    async (context) => {
-      const { params, body, set } = context;
-      const existing = await prisma.systemPrompt.findUnique({
-        where: { key: params.key },
-      });
+  .patch('/system-prompts/:key', async (context) => {
+    const { params, body } = context;
+    const existing = await prisma.systemPrompt.findUnique({
+      where: { key: params.key },
+    });
 
-      if (!existing) {
-        set.status = 404;
-        return { error: "システムプロンプトが見つかりません" };
-      }
-
-      const { name, description, content, category, isActive } = body as {
-        name?: string;
-        description?: string;
-        content?: string;
-        category?: string;
-        isActive?: boolean;
-      };
-
-      const updated = await prisma.systemPrompt.update({
-        where: { key: params.key },
-        data: {
-          ...(name !== undefined && { name }),
-          ...(description !== undefined && { description }),
-          ...(content !== undefined && { content }),
-          ...(category !== undefined && { category }),
-          ...(isActive !== undefined && { isActive }),
-        },
-      });
-
-      return updated;
+    if (!existing) {
+      throw new NotFoundError('システムプロンプトが見つかりません');
     }
-  )
+
+    const { name, description, content, category, isActive } = body as {
+      name?: string;
+      description?: string;
+      content?: string;
+      category?: string;
+      isActive?: boolean;
+    };
+
+    const updated = await prisma.systemPrompt.update({
+      where: { key: params.key },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(description !== undefined && { description }),
+        ...(content !== undefined && { content }),
+        ...(category !== undefined && { category }),
+        ...(isActive !== undefined && { isActive }),
+      },
+    });
+
+    return updated;
+  })
 
   // システムプロンプト削除（デフォルトプロンプトは削除不可）
-  .delete(
-    "/system-prompts/:key",
-    async (context) => {
-      const { params, set  } = context;
-      const existing = await prisma.systemPrompt.findUnique({
-        where: { key: params.key },
-      });
+  .delete('/system-prompts/:key', async (context) => {
+    const { params } = context;
+    const existing = await prisma.systemPrompt.findUnique({
+      where: { key: params.key },
+    });
 
-      if (!existing) {
-        set.status = 404;
-        return { error: "システムプロンプトが見つかりません" };
-      }
-
-      if (existing.isDefault) {
-        set.status = 400;
-        return { error: "デフォルトプロンプトは削除できません。無効化してください。" };
-      }
-
-      await prisma.systemPrompt.delete({
-        where: { key: params.key },
-      });
-
-      return { success: true };
+    if (!existing) {
+      throw new NotFoundError('システムプロンプトが見つかりません');
     }
-  )
+
+    if (existing.isDefault) {
+      throw new ValidationError('デフォルトプロンプトは削除できません。無効化してください。');
+    }
+
+    await prisma.systemPrompt.delete({
+      where: { key: params.key },
+    });
+
+    return { success: true };
+  })
 
   // デフォルトプロンプトをリセット（元の内容に戻す）
-  .post(
-    "/system-prompts/:key/reset",
-    async (context) => {
-      const { params, set  } = context;
-      const defaultPrompt = DEFAULT_SYSTEM_PROMPTS.find((p) => p.key === params.key);
-      if (!defaultPrompt) {
-        set.status = 404;
-        return { error: "デフォルトプロンプトが見つかりません" };
-      }
-
-      const updated = await prisma.systemPrompt.upsert({
-        where: { key: params.key },
-        update: {
-          content: defaultPrompt.content,
-          name: defaultPrompt.name,
-          description: defaultPrompt.description,
-          category: defaultPrompt.category,
-          isActive: true,
-          isDefault: true,
-        },
-        create: {
-          ...defaultPrompt,
-          isActive: true,
-          isDefault: true,
-        },
-      });
-
-      return updated;
+  .post('/system-prompts/:key/reset', async (context) => {
+    const { params } = context;
+    const defaultPrompt = DEFAULT_SYSTEM_PROMPTS.find((p) => p.key === params.key);
+    if (!defaultPrompt) {
+      throw new NotFoundError('デフォルトプロンプトが見つかりません');
     }
-  )
+
+    const updated = await prisma.systemPrompt.upsert({
+      where: { key: params.key },
+      update: {
+        content: defaultPrompt.content,
+        name: defaultPrompt.name,
+        description: defaultPrompt.description,
+        category: defaultPrompt.category,
+        isActive: true,
+        isDefault: true,
+      },
+      create: {
+        ...defaultPrompt,
+        isActive: true,
+        isDefault: true,
+      },
+    });
+
+    return updated;
+  })
 
   // デフォルトプロンプトの初期シード
-  .post("/system-prompts/seed", async () => {
+  .post('/system-prompts/seed', async () => {
     const results: Array<{ key: string; action: string }> = [];
 
     for (const prompt of DEFAULT_SYSTEM_PROMPTS) {
@@ -667,9 +654,9 @@ export const systemPromptsRoutes = new Elysia()
             isDefault: true,
           },
         });
-        results.push({ key: prompt.key, action: "created" });
+        results.push({ key: prompt.key, action: 'created' });
       } else {
-        results.push({ key: prompt.key, action: "skipped" });
+        results.push({ key: prompt.key, action: 'skipped' });
       }
     }
 

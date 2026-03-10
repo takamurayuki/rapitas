@@ -4,9 +4,9 @@ import {
   openExternalUrlInSplitView,
   isSplitViewActive,
 } from '@/utils/tauri';
-import { createLogger } from "@/lib/logger";
+import { createLogger } from '@/lib/logger';
 
-const logger = createLogger("useSplitView");
+const logger = createLogger('useSplitView');
 
 interface UseSplitViewReturn {
   /** 分割表示が現在アクティブかどうか */

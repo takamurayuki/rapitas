@@ -34,7 +34,9 @@ function getDefaultDateRange(): DateRange {
 }
 
 export function useAnalyticsDashboard(initialRange?: DateRange) {
-  const [dateRange, setDateRange] = useState<DateRange>(initialRange ?? getDefaultDateRange());
+  const [dateRange, setDateRange] = useState<DateRange>(
+    initialRange ?? getDefaultDateRange(),
+  );
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -47,7 +49,7 @@ export function useAnalyticsDashboard(initialRange?: DateRange) {
       const result = await res.json();
       setData(result);
     } catch (error) {
-      logger.error('Failed to fetch analytics data:', error);
+      logger.transientError('Failed to fetch analytics data:', error);
     } finally {
       setIsLoading(false);
     }

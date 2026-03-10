@@ -62,8 +62,18 @@ const MODE_OPTIONS: {
   icon: typeof Code;
   color: string;
 }[] = [
-  { value: 'development', labelKey: 'modeDevelopment', icon: Code, color: '#3B82F6' },
-  { value: 'learning', labelKey: 'modeLearning', icon: BookOpen, color: '#10B981' },
+  {
+    value: 'development',
+    labelKey: 'modeDevelopment',
+    icon: Code,
+    color: '#3B82F6',
+  },
+  {
+    value: 'learning',
+    labelKey: 'modeLearning',
+    icon: BookOpen,
+    color: '#10B981',
+  },
   { value: 'both', labelKey: 'modeBoth', icon: Layers, color: '#8B5CF6' },
 ];
 
@@ -195,10 +205,7 @@ export default function CategoriesPage() {
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (
-      !confirm(t('deleteConfirm', { name }))
-    )
-      return;
+    if (!confirm(t('deleteConfirm', { name }))) return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/categories/${id}`, {
@@ -492,9 +499,7 @@ export default function CategoriesPage() {
           <div className="text-center py-16 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
             <FolderKanban className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
             <p className="text-lg font-medium mb-2">{t('noCategories')}</p>
-            <p className="text-sm mb-4">
-              {t('noCategoriesDescription')}
-            </p>
+            <p className="text-sm mb-4">{t('noCategoriesDescription')}</p>
           </div>
         ) : (
           <DragDropContext onDragEnd={handleDragEnd}>
@@ -564,7 +569,9 @@ export default function CategoriesPage() {
                                         {defaultCategoryId === item.id && (
                                           <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">
                                             <Star className="w-3 h-3 fill-current" />
-                                            <span className="hidden sm:inline">{t('default')}</span>
+                                            <span className="hidden sm:inline">
+                                              {t('default')}
+                                            </span>
                                           </span>
                                         )}
                                         {(() => {
@@ -616,7 +623,9 @@ export default function CategoriesPage() {
                                               item.themes?.length ??
                                               0}
                                           </span>
-                                          <span className="hidden sm:inline">{t('themeName')}</span>
+                                          <span className="hidden sm:inline">
+                                            {t('themeName')}
+                                          </span>
                                         </span>
                                       </div>
                                     </div>
@@ -651,7 +660,9 @@ export default function CategoriesPage() {
                                       className="flex items-center gap-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1.5 text-sm text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all font-medium"
                                     >
                                       <Edit2 className="w-3.5 h-3.5" />
-                                      <span className="hidden sm:inline">{tc('edit')}</span>
+                                      <span className="hidden sm:inline">
+                                        {tc('edit')}
+                                      </span>
                                     </button>
                                     {!item.isDefault && (
                                       <button
@@ -661,7 +672,9 @@ export default function CategoriesPage() {
                                         className="flex items-center gap-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 px-2.5 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all font-medium"
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
-                                        <span className="hidden sm:inline">{tc('delete')}</span>
+                                        <span className="hidden sm:inline">
+                                          {tc('delete')}
+                                        </span>
                                       </button>
                                     )}
                                   </div>

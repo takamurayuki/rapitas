@@ -21,6 +21,7 @@ import {
   ChevronUp,
   ChevronsUpDown,
   ChevronDown,
+  Wand2,
 } from 'lucide-react';
 import type {
   Priority,
@@ -48,6 +49,8 @@ import { requireAuth } from '@/contexts/AuthContext';
 import CompactWorkflowSelector from '@/components/workflow/CompactWorkflowSelector';
 import { createLogger } from '@/lib/logger';
 import { useTranslations } from 'next-intl';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('NewTaskClient');
 const API_BASE = API_BASE_URL;
@@ -59,6 +62,8 @@ function NewTaskClient() {
   const appMode = useAppModeStore((state) => state.mode);
   const t = useTranslations('task');
   const tc = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
 
   // 基本フィールド
   const [title, setTitle] = useState('');
@@ -73,8 +78,10 @@ function NewTaskClient() {
   const [dueDate, setDueDate] = useState('');
 
   // ワークフローモード関連
-  const [workflowMode, setWorkflowMode] = useState<WorkflowMode>('comprehensive');
-  const [isWorkflowModeOverride, setIsWorkflowModeOverride] = useState<boolean>(false);
+  const [workflowMode, setWorkflowMode] =
+    useState<WorkflowMode>('comprehensive');
+  const [isWorkflowModeOverride, setIsWorkflowModeOverride] =
+    useState<boolean>(false);
 
   // データ
   const [themes, setThemes] = useState<Theme[]>([]);
@@ -91,6 +98,18 @@ function NewTaskClient() {
   const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(
     null,
   );
+
+  // 自然言語入力
+  const [nlInput, setNlInput] = useState('');
+  const [isQuickCreating, setIsQuickCreating] = useState(false);
+  const [quickCreateSteps, setQuickCreateSteps] = useState<
+    {
+      step: string;
+      status: 'pending' | 'in_progress' | 'done' | 'error';
+      data?: Record<string, unknown>;
+    }[]
+  >([]);
+  const nlTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // サブタスク
   const [subtasks, setSubtasks] = useState<
@@ -114,6 +133,87 @@ function NewTaskClient() {
     }
   };
 
+  const QUICK_CREATE_STEP_ORDER = [
+    'parsing',
+    'summarizing',
+    'creating',
+    'analyzing',
+    'generating_subtasks',
+    'generating_instructions',
+  ] as const;
+
+  const handleQuickCreate = async () => {
+    if (!nlInput.trim() || isQuickCreating) return;
+    setIsQuickCreating(true);
+    setQuickCreateSteps(
+      QUICK_CREATE_STEP_ORDER.map((step) => ({ step, status: 'pending' })),
+    );
+
+    try {
+      const res = await fetch(`${API_BASE}/tasks/quick-create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: nlInput,
+          ...(themeId && { themeId }),
+        }),
+      });
+
+      if (!res.ok || !res.body) {
+        showToast(tc('errorOccurred'), 'error');
+        setIsQuickCreating(false);
+        setQuickCreateSteps([]);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const event = JSON.parse(line);
+            if (event.step === 'complete') {
+              showToast(t('quickCreateSuccess'), 'success');
+              const detailPath = await getTaskDetailPath(event.taskId);
+              router.push(detailPath);
+              return;
+            }
+            if (event.step === 'error') {
+              showToast(event.message || tc('errorOccurred'), 'error');
+              setIsQuickCreating(false);
+              return;
+            }
+            // Update step status
+            setQuickCreateSteps((prev) =>
+              prev.map((s) =>
+                s.step === event.step
+                  ? { ...s, status: event.status, data: event.data }
+                  : s,
+              ),
+            );
+          } catch {
+            // skip malformed lines
+          }
+        }
+      }
+    } catch (e) {
+      logger.error('Failed to quick create:', e);
+      showToast(tc('errorOccurred'), 'error');
+    } finally {
+      setIsQuickCreating(false);
+    }
+  };
+
   const initializedRef = useRef(false);
   useEffect(() => {
     if (initializedRef.current) return;
@@ -121,6 +221,10 @@ function NewTaskClient() {
     const themeIdParam = searchParams.get('themeId');
     if (themeIdParam) {
       setThemeId(Number(themeIdParam));
+    }
+    const nlParam = searchParams.get('nl');
+    if (nlParam) {
+      setNlInput(nlParam);
     }
     fetchThemes();
     fetchCategories();
@@ -581,11 +685,13 @@ function NewTaskClient() {
             <span className="text-sm font-medium">{tc('back')}</span>
           </button>
           <div className="flex items-center gap-2">
-            <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${
-              appliedTemplate
-                ? 'border-purple-500 dark:border-purple-400'
-                : 'hover:border-purple-500 dark:hover:border-purple-400'
-            }`}>
+            <div
+              className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${
+                appliedTemplate
+                  ? 'border-purple-500 dark:border-purple-400'
+                  : 'hover:border-purple-500 dark:hover:border-purple-400'
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => setShowTemplateDialog(true)}
@@ -601,11 +707,13 @@ function NewTaskClient() {
                 </span>
               </button>
             </div>
-            <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${(!title.trim() || isSubmitting) ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'}`}>
+            <div
+              className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!title.trim() || isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'}`}
+            >
               <button
                 onClick={(e) => handleSubmit(e)}
                 disabled={!title.trim() || isSubmitting}
-                className={`flex items-center gap-2 transition-all ${(!title.trim() || isSubmitting) ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer'}`}
+                className={`flex items-center gap-2 transition-all ${!title.trim() || isSubmitting ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer'}`}
               >
                 {isSubmitting ? (
                   <div className="w-4 h-4 border-2 border-slate-300 dark:border-slate-600 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin" />
@@ -626,6 +734,98 @@ function NewTaskClient() {
         className="max-w-2xl mx-auto px-4 pb-8"
       >
         {/* Main Card */}
+        {/* Natural Language Quick Input */}
+        <div className="mb-4 bg-gradient-to-r from-violet-50 to-blue-50 dark:from-violet-950/30 dark:to-blue-950/30 rounded-xl border border-violet-200/50 dark:border-violet-800/50 p-3">
+          <div className="flex items-start gap-2">
+            <Wand2 className="w-4 h-4 text-violet-500 shrink-0 mt-2" />
+            <div className="flex-1 flex flex-col gap-2">
+              <textarea
+                ref={nlTextareaRef}
+                value={nlInput}
+                onChange={(e) => {
+                  setNlInput(e.target.value);
+                  // Auto-resize
+                  const el = e.target;
+                  el.style.height = 'auto';
+                  el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    handleQuickCreate();
+                  }
+                }}
+                placeholder={t('nlInputPlaceholder')}
+                className="w-full bg-transparent text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-violet-400 dark:placeholder:text-violet-500 border-none outline-none resize-none min-h-[2.25rem]"
+                rows={1}
+                disabled={isQuickCreating}
+              />
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] text-violet-500/70 dark:text-violet-400/50">
+                  {t('nlInputHint')}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleQuickCreate}
+                  disabled={!nlInput.trim() || isQuickCreating}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 shrink-0"
+                >
+                  {isQuickCreating ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Wand2 className="w-3.5 h-3.5" />
+                  )}
+                  {t('quickCreate')}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Progress Steps */}
+          {isQuickCreating && quickCreateSteps.length > 0 && (
+            <div className="mt-3 ml-6 space-y-1">
+              {quickCreateSteps.map((s) => {
+                const stepLabelMap: Record<string, string> = {
+                  parsing: t('quickCreateStepParsing'),
+                  summarizing: t('quickCreateStepSummarizing'),
+                  creating: t('quickCreateStepCreating'),
+                  analyzing: t('quickCreateStepAnalyzing'),
+                  generating_subtasks: t('quickCreateStepGeneratingSubtasks'),
+                  generating_instructions: t(
+                    'quickCreateStepGeneratingInstructions',
+                  ),
+                };
+                return (
+                  <div key={s.step} className="flex items-center gap-2">
+                    {s.status === 'done' ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    ) : s.status === 'in_progress' ? (
+                      <Loader2 className="w-3.5 h-3.5 text-violet-500 animate-spin shrink-0" />
+                    ) : s.status === 'error' ? (
+                      <div className="w-3.5 h-3.5 rounded-full bg-red-500 shrink-0" />
+                    ) : (
+                      <div className="w-3.5 h-3.5 rounded-full border-2 border-zinc-300 dark:border-zinc-600 shrink-0" />
+                    )}
+                    <span
+                      className={`text-xs ${
+                        s.status === 'done'
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : s.status === 'in_progress'
+                            ? 'text-violet-600 dark:text-violet-400 font-medium'
+                            : s.status === 'error'
+                              ? 'text-red-500'
+                              : 'text-zinc-400 dark:text-zinc-500'
+                      }`}
+                    >
+                      {stepLabelMap[s.step] || s.step}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
           {/* Title Section */}
           <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
@@ -659,7 +859,11 @@ function NewTaskClient() {
                           : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700'
                       }`}
                     >
-                      <span className={priority === opt.value ? 'text-white' : opt.iconColor}>
+                      <span
+                        className={
+                          priority === opt.value ? 'text-white' : opt.iconColor
+                        }
+                      >
                         {opt.icon}
                       </span>
                       {opt.label}
@@ -789,7 +993,7 @@ function NewTaskClient() {
                     {dueDate && (
                       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 shrink-0">
                         (
-                        {new Date(dueDate).toLocaleDateString('ja-JP', {
+                        {new Date(dueDate).toLocaleDateString(dateLocale, {
                           weekday: 'short',
                         })}
                         )
@@ -883,7 +1087,9 @@ function NewTaskClient() {
                   placeholder={t('addSubtaskPlaceholder')}
                   className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 />
-                <div className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!newSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'}`}>
+                <div
+                  className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!newSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'}`}
+                >
                   <button
                     type="button"
                     onClick={addSubtask}
@@ -910,7 +1116,9 @@ function NewTaskClient() {
                 currentMode={workflowMode}
                 isOverridden={isWorkflowModeOverride}
                 complexityScore={null} // 新規タスクなのでスコアなし
-                autoComplexityAnalysis={globalSettings?.autoComplexityAnalysis ?? false}
+                autoComplexityAnalysis={
+                  globalSettings?.autoComplexityAnalysis ?? false
+                }
                 onModeChange={(mode, isOverride) => {
                   setWorkflowMode(mode);
                   setIsWorkflowModeOverride(isOverride);
@@ -920,7 +1128,8 @@ function NewTaskClient() {
               />
               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <p className="text-xs text-blue-700 dark:text-blue-300">
-                  <strong>{t('workflowModeAbout')}</strong> {t('workflowModeExplanation')}
+                  <strong>{t('workflowModeAbout')}</strong>{' '}
+                  {t('workflowModeExplanation')}
                 </p>
               </div>
             </div>

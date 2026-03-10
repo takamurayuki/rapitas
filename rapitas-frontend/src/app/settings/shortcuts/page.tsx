@@ -469,9 +469,7 @@ export default function ShortcutSettingsPage() {
           >
             <Keyboard className="w-5 h-5" />
             <span className="text-sm font-medium">
-              {isRecordingGlobal
-                ? t('pressKey')
-                : t('clickToEnter')}
+              {isRecordingGlobal ? t('pressKey') : t('clickToEnter')}
             </span>
           </button>
         </div>
@@ -686,9 +684,7 @@ export default function ShortcutSettingsPage() {
                     >
                       <Keyboard className="w-4 h-4" />
                       <span className="text-sm">
-                        {isRecordingInApp
-                          ? t('pressKey')
-                          : t('clickToEnter')}
+                        {isRecordingInApp ? t('pressKey') : t('clickToEnter')}
                       </span>
                     </button>
 
@@ -740,12 +736,8 @@ export default function ShortcutSettingsPage() {
         <div className="flex gap-3">
           <Info className="w-5 h-5 text-blue-500 dark:text-blue-400 shrink-0 mt-0.5" />
           <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-            <p>
-              {t('globalInfo')}
-            </p>
-            <p>
-              {t('inAppInfo')}
-            </p>
+            <p>{t('globalInfo')}</p>
+            <p>{t('inAppInfo')}</p>
             {!isTauriEnv && (
               <p className="text-amber-600 dark:text-amber-400">
                 {t('desktopOnly')}

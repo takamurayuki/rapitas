@@ -3,8 +3,8 @@
  * システム・診断機能（暗号化、診断、シャットダウン、再起動）のテスト
  */
 
-import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
-import { Elysia } from "elysia";
+import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
+import { Elysia } from 'elysia';
 
 const mockPrisma = {
   aIAgentConfig: {
@@ -29,18 +29,18 @@ const mockRealtimeService = {
 };
 
 // Mock modules
-mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
-mock.module("../../../routes/agents/approvals", () => ({ orchestrator: mockOrchestrator }));
-mock.module("../../../utils/encryption", () => ({
+mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../routes/agents/approvals', () => ({ orchestrator: mockOrchestrator }));
+mock.module('../../../utils/encryption', () => ({
   isEncryptionKeyConfigured: mock(() => true),
 }));
-mock.module("../../../utils/agent-config-schema", () => ({
+mock.module('../../../utils/agent-config-schema', () => ({
   getAllAgentConfigSchemas: mock(() => ({})),
 }));
-mock.module("../../../services/realtime-service", () => ({
+mock.module('../../../services/realtime-service', () => ({
   realtimeService: mockRealtimeService,
 }));
-mock.module("../../../config/logger", () => ({
+mock.module('../../../config/logger', () => ({
   createLogger: mock(() => ({
     info: mock(() => {}),
     error: mock(() => {}),
@@ -49,18 +49,18 @@ mock.module("../../../config/logger", () => ({
 }));
 
 // Mock child_process for diagnose endpoint
-mock.module("child_process", () => ({
+mock.module('child_process', () => ({
   spawn: mock(() => ({
     stdout: { on: mock(() => {}) },
     stderr: { on: mock(() => {}) },
     kill: mock(() => {}),
     on: mock((event, callback) => {
-      if (event === "close") setTimeout(() => callback(0), 100);
+      if (event === 'close') setTimeout(() => callback(0), 100);
     }),
   })),
 }));
 
-const { agentSystemRouter } = await import("../../../routes/agents/agent-system-router");
+const { agentSystemRouter } = await import('../../../routes/agents/agent-system-router');
 
 interface EncryptionStatusResponse {
   isConfigured: boolean;
@@ -77,7 +77,7 @@ interface ValidateConfigResponse {
   [key: string]: unknown;
 }
 
-describe("Agent System Router", () => {
+describe('Agent System Router', () => {
   let app: Elysia;
   const originalExit = process.exit;
   const originalSetTimeout = global.setTimeout;
@@ -106,78 +106,77 @@ describe("Agent System Router", () => {
     global.setTimeout = originalSetTimeout;
   });
 
-  describe("GET /agents/encryption-status", () => {
-    it("should return encryption status", async () => {
-      const response = await app
-        .handle(new Request("http://localhost/agents/encryption-status"))
-        .then((res: Response) => res.json()) as EncryptionStatusResponse;
+  describe('GET /agents/encryption-status', () => {
+    it('should return encryption status', async () => {
+      const response = (await app
+        .handle(new Request('http://localhost/agents/encryption-status'))
+        .then((res: Response) => res.json())) as EncryptionStatusResponse;
 
       expect(response).toBeDefined();
-      expect(typeof response.isConfigured).toBe("boolean");
+      expect(typeof response.isConfigured).toBe('boolean');
     });
   });
 
-  describe("GET /agents/diagnose", () => {
-    it("should return system diagnosis", async () => {
-      const response = await app
-        .handle(new Request("http://localhost/agents/diagnose"));
+  describe('GET /agents/diagnose', () => {
+    it('should return system diagnosis', async () => {
+      const response = await app.handle(new Request('http://localhost/agents/diagnose'));
 
       expect(response.status).toBe(200);
-      const data = await response.json() as Record<string, unknown>;
+      const data = (await response.json()) as Record<string, unknown>;
       expect(data).toBeDefined();
-      expect(typeof data).toBe("object");
+      expect(typeof data).toBe('object');
     });
   });
 
-  describe("GET /agents/system-status", () => {
-    it("should return system status", async () => {
-      const response = await app
-        .handle(new Request("http://localhost/agents/system-status"));
+  describe('GET /agents/system-status', () => {
+    it('should return system status', async () => {
+      const response = await app.handle(new Request('http://localhost/agents/system-status'));
 
       expect(response.status).toBe(200);
-      const data = await response.json() as SystemStatusResponse;
+      const data = (await response.json()) as SystemStatusResponse;
       expect(data).toBeDefined();
-      expect(typeof data.status).toBe("string");
+      expect(typeof data.status).toBe('string');
     });
   });
 
-  describe("POST /agents/shutdown", () => {
-    it("should handle shutdown request", async () => {
-      const response = await app
-        .handle(new Request("http://localhost/agents/shutdown", {
-          method: "POST"
-        }));
+  describe('POST /agents/shutdown', () => {
+    it('should handle shutdown request', async () => {
+      const response = await app.handle(
+        new Request('http://localhost/agents/shutdown', {
+          method: 'POST',
+        }),
+      );
 
       expect(response.status).toBeOneOf([200, 202]);
     });
   });
 
-  describe("POST /agents/restart", () => {
-    it("should handle restart request", async () => {
-      const response = await app
-        .handle(new Request("http://localhost/agents/restart", {
-          method: "POST"
-        }));
+  describe('POST /agents/restart', () => {
+    it('should handle restart request', async () => {
+      const response = await app.handle(
+        new Request('http://localhost/agents/restart', {
+          method: 'POST',
+        }),
+      );
 
       expect(response.status).toBeOneOf([200, 202]);
     });
   });
 
-  describe("GET /agents/validate-config", () => {
-    it("should validate agent configuration", async () => {
-      const response = await app
-        .handle(new Request("http://localhost/agents/validate-config"))
-        .then((res: Response) => res.json()) as ValidateConfigResponse;
+  describe('GET /agents/validate-config', () => {
+    it('should validate agent configuration', async () => {
+      const response = (await app
+        .handle(new Request('http://localhost/agents/validate-config'))
+        .then((res: Response) => res.json())) as ValidateConfigResponse;
 
       expect(response).toBeDefined();
-      expect(typeof response.isValid).toBe("boolean");
+      expect(typeof response.isValid).toBe('boolean');
     });
   });
 
-  describe("GET /agents/health", () => {
-    it("should return health status", async () => {
-      const response = await app
-        .handle(new Request("http://localhost/agents/health"));
+  describe('GET /agents/health', () => {
+    it('should return health status', async () => {
+      const response = await app.handle(new Request('http://localhost/agents/health'));
 
       expect(response.status).toBe(200);
     });

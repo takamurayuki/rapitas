@@ -6,15 +6,15 @@ import type {
   QuestionKey,
   QuestionDetails,
   QuestionDetectionResult,
-} from "../services/agents/question-detection";
+} from '../services/agents/question-detection';
 
 // ==================== Worker入力メッセージ ====================
 
 export type WorkerInputMessage =
-  | { type: "parse-chunk"; data: string }
-  | { type: "parse-complete"; outputBuffer: string }
-  | { type: "configure"; config: WorkerConfig }
-  | { type: "terminate" };
+  | { type: 'parse-chunk'; data: string }
+  | { type: 'parse-complete'; outputBuffer: string }
+  | { type: 'configure'; config: WorkerConfig }
+  | { type: 'terminate' };
 
 export type WorkerConfig = {
   timeoutSeconds?: number;
@@ -37,7 +37,7 @@ export type WorkerOutputMessage =
   | WorkerError;
 
 export type WorkerSystemEvent = {
-  type: "system-event";
+  type: 'system-event';
   subtype: string;
   sessionId?: string;
   errorMessage?: string;
@@ -47,7 +47,7 @@ export type WorkerSystemEvent = {
 };
 
 export type WorkerAssistantMessage = {
-  type: "assistant-message";
+  type: 'assistant-message';
   displayOutput: string;
   toolUses: WorkerToolUse[];
 };
@@ -60,7 +60,7 @@ export type WorkerToolUse = {
 };
 
 export type WorkerUserMessage = {
-  type: "user-message";
+  type: 'user-message';
   displayOutput: string;
   toolResults: WorkerToolResult[];
 };
@@ -71,7 +71,7 @@ export type WorkerToolResult = {
 };
 
 export type WorkerResultEvent = {
-  type: "result-event";
+  type: 'result-event';
   displayOutput: string;
   subtype?: string;
   durationMs?: number;
@@ -80,39 +80,39 @@ export type WorkerResultEvent = {
 };
 
 export type WorkerQuestionDetected = {
-  type: "question-detected";
+  type: 'question-detected';
   detectionResult: QuestionDetectionResult;
   displayOutput: string;
 };
 
 export type WorkerToolTracking = {
-  type: "tool-tracking";
+  type: 'tool-tracking';
   hasFileModifyingToolCalls: boolean;
 };
 
 export type WorkerRawOutput = {
-  type: "raw-output";
+  type: 'raw-output';
   displayOutput: string;
 };
 
 export type WorkerArtifactsParsed = {
-  type: "artifacts-parsed";
+  type: 'artifacts-parsed';
   data: { artifacts: ParsedArtifact[] };
 };
 
 export type WorkerCommitsParsed = {
-  type: "commits-parsed";
+  type: 'commits-parsed';
   data: { commits: ParsedCommit[] };
 };
 
 export type WorkerParseComplete = {
-  type: "parse-complete";
+  type: 'parse-complete';
   /** 未処理の残りバッファ */
   remainingBuffer: string;
 };
 
 export type WorkerError = {
-  type: "error";
+  type: 'error';
   message: string;
   stack?: string;
 };
@@ -120,7 +120,7 @@ export type WorkerError = {
 // ==================== アーティファクト・コミット型（再エクスポート） ====================
 
 export type ParsedArtifact = {
-  type: "file" | "diff";
+  type: 'file' | 'diff';
   name: string;
   content: string;
   path?: string;

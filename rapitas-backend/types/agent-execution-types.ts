@@ -1,73 +1,60 @@
 /**
  * Agent実行関連の型定義
  */
-import type { AgentExecution, AgentSession, AIAgentConfig, AgentExecutionLog, GitCommit } from "@prisma/client";
+import type {
+  AgentExecution,
+  AgentSession,
+  AIAgentConfig,
+  AgentExecutionLog,
+  GitCommit,
+} from '@prisma/client';
 
 /**
  * Agent実行ステータス
  */
 export type AgentExecutionStatus =
-  | "pending"
-  | "running"
-  | "waiting_for_input"
-  | "completed"
-  | "error"
-  | "cancelled";
+  | 'pending'
+  | 'running'
+  | 'waiting_for_input'
+  | 'completed'
+  | 'error'
+  | 'cancelled';
 
 /**
  * 質問タイプ
  */
-export type QuestionType = "tool_call" | "none";
+export type QuestionType = 'tool_call' | 'none';
 
 /**
  * アクションタイプ
  */
-export type ActionType =
-  | "analysis"
-  | "implementation"
-  | "review"
-  | "test"
-  | "debug";
+export type ActionType = 'analysis' | 'implementation' | 'review' | 'test' | 'debug';
 
 /**
  * リクエストタイプ
  */
-export type RequestType =
-  | "code_review"
-  | "task_execution"
-  | "analysis_request"
-  | "test_execution";
+export type RequestType = 'code_review' | 'task_execution' | 'analysis_request' | 'test_execution';
 
 /**
  * 実行タイプ
  */
-export type ExecutionType =
-  | "code_review"
-  | "task_implementation"
-  | "analysis"
-  | "testing";
+export type ExecutionType = 'code_review' | 'task_implementation' | 'analysis' | 'testing';
 
 /**
  * ログタイプ
  */
-export type LogType =
-  | "info"
-  | "error"
-  | "warning"
-  | "debug"
-  | "output"
-  | "command";
+export type LogType = 'info' | 'error' | 'warning' | 'debug' | 'output' | 'command';
 
 /**
  * リアルタイム通信で使用されるイベントタイプ
  */
 export type RealtimeEventType =
-  | "agent_execution_started"
-  | "agent_execution_complete"
-  | "agent_execution_resumed"
-  | "agent_execution_continued"
-  | "agent_error"
-  | "pr_review_requested";
+  | 'agent_execution_started'
+  | 'agent_execution_complete'
+  | 'agent_execution_resumed'
+  | 'agent_execution_continued'
+  | 'agent_error'
+  | 'pr_review_requested';
 
 /**
  * 実行リクエスト型
@@ -233,7 +220,7 @@ export interface ExecutionStatistics {
 export interface SessionInfo {
   id: string;
   taskId?: number;
-  status: "active" | "completed" | "error" | "interrupted";
+  status: 'active' | 'completed' | 'error' | 'interrupted';
   startedAt: Date;
   completedAt?: Date;
   agentType: string;

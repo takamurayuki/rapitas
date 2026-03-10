@@ -66,10 +66,7 @@ export class AgentEventEmitter {
   /**
    * イベントをリッスン
    */
-  on<T extends AgentEvent>(
-    type: AgentEventType,
-    handler: AgentEventHandler<T>,
-  ): () => void {
+  on<T extends AgentEvent>(type: AgentEventType, handler: AgentEventHandler<T>): () => void {
     const listenerId = `listener-${this.nextListenerId++}`;
     const listener: EventListener = {
       id: listenerId,
@@ -90,10 +87,7 @@ export class AgentEventEmitter {
   /**
    * 一度だけイベントをリッスン
    */
-  once<T extends AgentEvent>(
-    type: AgentEventType,
-    handler: AgentEventHandler<T>,
-  ): () => void {
+  once<T extends AgentEvent>(type: AgentEventType, handler: AgentEventHandler<T>): () => void {
     const listenerId = `listener-${this.nextListenerId++}`;
     const listener: EventListener = {
       id: listenerId,
@@ -124,7 +118,7 @@ export class AgentEventEmitter {
     this.allListeners.push(listener);
 
     return () => {
-      this.allListeners = this.allListeners.filter(l => l.id !== listenerId);
+      this.allListeners = this.allListeners.filter((l) => l.id !== listenerId);
     };
   }
 
@@ -136,7 +130,7 @@ export class AgentEventEmitter {
     if (listeners) {
       this.listeners.set(
         type,
-        listeners.filter(l => l.id !== listenerId),
+        listeners.filter((l) => l.id !== listenerId),
       );
     }
   }
@@ -183,7 +177,7 @@ export class AgentEventEmitter {
     if (listenersToRemove.length > 0) {
       this.listeners.set(
         event.type,
-        listeners.filter(l => !listenersToRemove.includes(l.id)),
+        listeners.filter((l) => !listenersToRemove.includes(l.id)),
       );
     }
 
@@ -202,9 +196,7 @@ export class AgentEventEmitter {
     }
 
     if (allListenersToRemove.length > 0) {
-      this.allListeners = this.allListeners.filter(
-        l => !allListenersToRemove.includes(l.id),
-      );
+      this.allListeners = this.allListeners.filter((l) => !allListenersToRemove.includes(l.id));
     }
   }
 
@@ -215,11 +207,7 @@ export class AgentEventEmitter {
   /**
    * 状態変更イベントを発行
    */
-  emitStateChange(
-    previousState: AgentState,
-    newState: AgentState,
-    reason?: string,
-  ): Promise<void> {
+  emitStateChange(previousState: AgentState, newState: AgentState, reason?: string): Promise<void> {
     const event: StateChangeEvent = {
       type: 'state_change',
       timestamp: new Date(),
@@ -236,7 +224,7 @@ export class AgentEventEmitter {
    * 出力イベントを発行
    */
   emitOutput(content: string, isError = false, isPartial = false): Promise<void> {
-    if (content == null || content === "null" || content === "undefined") {
+    if (content == null || content === 'null' || content === 'undefined') {
       return Promise.resolve();
     }
     const event: OutputEvent = {
@@ -326,12 +314,7 @@ export class AgentEventEmitter {
   /**
    * 進捗イベントを発行
    */
-  emitProgress(
-    current: number,
-    total: number,
-    message?: string,
-    subtask?: string,
-  ): Promise<void> {
+  emitProgress(current: number, total: number, message?: string, subtask?: string): Promise<void> {
     const event: ProgressEvent = {
       type: 'progress',
       timestamp: new Date(),
@@ -395,9 +378,7 @@ export class AgentEventEmitter {
    * イベント履歴を取得
    */
   getEventHistory(type?: AgentEventType, limit?: number): AgentEvent[] {
-    let events = type
-      ? this.eventHistory.filter(e => e.type === type)
-      : [...this.eventHistory];
+    let events = type ? this.eventHistory.filter((e) => e.type === type) : [...this.eventHistory];
 
     if (limit && limit > 0) {
       events = events.slice(-limit);
@@ -481,9 +462,6 @@ export class AgentEventEmitter {
 /**
  * イベントエミッターを作成するファクトリー関数
  */
-export function createAgentEventEmitter(
-  agentId: string,
-  executionId?: string,
-): AgentEventEmitter {
+export function createAgentEventEmitter(agentId: string, executionId?: string): AgentEventEmitter {
   return new AgentEventEmitter(agentId, executionId);
 }

@@ -5,7 +5,7 @@ declare global {
       event: {
         listen: (
           event: string,
-          handler: (event: { payload: unknown }) => void
+          handler: (event: { payload: unknown }) => void,
         ) => Promise<() => void>;
         emit: (event: string, payload?: unknown) => Promise<void>;
       };
@@ -13,7 +13,10 @@ declare global {
         getCurrent: () => TauriWindow;
       };
       core?: {
-        invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
+        invoke: (
+          cmd: string,
+          args?: Record<string, unknown>,
+        ) => Promise<unknown>;
       };
       // 他のTauri APIも必要に応じて追加
     };

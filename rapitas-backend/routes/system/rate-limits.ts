@@ -1,13 +1,13 @@
 /**
  * Rate Limit API Routes
  */
-import { Elysia, t } from "elysia";
-import { getApiKeyForProvider } from "../../utils/ai-client";
-import { prisma } from "../../config/database";
-import { decrypt } from "../../utils/encryption";
-import { createLogger } from "../../config/logger";
+import { Elysia, t } from 'elysia';
+import { getApiKeyForProvider } from '../../utils/ai-client';
+import { prisma } from '../../config/database';
+import { decrypt } from '../../utils/encryption';
+import { createLogger } from '../../config/logger';
 
-const log = createLogger("routes:rate-limits");
+const log = createLogger('routes:rate-limits');
 
 type RateLimitInfo = {
   provider: string;
@@ -61,122 +61,137 @@ interface OpenAIUsageResponse {
   total_usage: number;
 }
 
-export const rateLimitRoutes = new Elysia({ prefix: "/rate-limits" })
+export const rateLimitRoutes = new Elysia({ prefix: '/rate-limits' })
   // Get rate limit info for all providers
-  .get("/", async () => {
+  .get('/', async () => {
     const rateLimits: RateLimitInfo[] = [];
 
     try {
       // Claude rate limits
-      const claudeApiKey = await getApiKeyForProvider("claude");
+      const claudeApiKey = await getApiKeyForProvider('claude');
       if (claudeApiKey) {
         // For Claude, we would need to make an API call to get actual usage
         // This is a mock implementation
         rateLimits.push({
-          provider: "claude",
-          plan: "Pro",
+          provider: 'claude',
+          plan: 'Pro',
           used: 12500,
           limit: 50000,
-          period: "月次",
+          period: '月次',
           resetAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // 15 days from now
           isMockData: true,
           dataSource: 'mock',
           lastUpdated: new Date(),
           reliability: 'low',
-          errorMessage: "Claude APIは使用量情報を提供していないため、推定データを表示しています"
+          errorMessage: 'Claude APIは使用量情報を提供していないため、推定データを表示しています',
         });
       }
 
       // OpenAI rate limits
       const settings = await prisma.userSettings.findFirst();
-      const openaiApiKey = settings?.chatgptApiKeyEncrypted ? decrypt(settings.chatgptApiKeyEncrypted) : null;
+      const openaiApiKey = settings?.chatgptApiKeyEncrypted
+        ? decrypt(settings.chatgptApiKeyEncrypted)
+        : null;
       if (openaiApiKey) {
         try {
           // Fetch subscription info from OpenAI
-          const subscriptionRes = await fetch("https://api.openai.com/v1/dashboard/billing/subscription", {
-            headers: {
-              "Authorization": `Bearer ${openaiApiKey}`,
+          const subscriptionRes = await fetch(
+            'https://api.openai.com/v1/dashboard/billing/subscription',
+            {
+              headers: {
+                Authorization: `Bearer ${openaiApiKey}`,
+              },
             },
-          });
+          );
 
-          const usageRes = await fetch(`https://api.openai.com/v1/dashboard/billing/usage?date=${new Date().toISOString().split('T')[0]}`, {
-            headers: {
-              "Authorization": `Bearer ${openaiApiKey}`,
+          const usageRes = await fetch(
+            `https://api.openai.com/v1/dashboard/billing/usage?date=${new Date().toISOString().split('T')[0]}`,
+            {
+              headers: {
+                Authorization: `Bearer ${openaiApiKey}`,
+              },
             },
-          });
+          );
 
           if (subscriptionRes.ok && usageRes.ok) {
-            const subscription = await subscriptionRes.json() as OpenAISubscriptionResponse;
-            const usage = await usageRes.json() as OpenAIUsageResponse;
+            const subscription = (await subscriptionRes.json()) as OpenAISubscriptionResponse;
+            const usage = (await usageRes.json()) as OpenAIUsageResponse;
 
             rateLimits.push({
-              provider: "chatgpt",
-              plan: subscription.plan?.title || "Pay as you go",
+              provider: 'chatgpt',
+              plan: subscription.plan?.title || 'Pay as you go',
               used: Math.round(usage.total_usage || 0),
               limit: subscription.hard_limit_usd ? subscription.hard_limit_usd * 100 : 12000, // Convert to cents
-              period: "月次",
-              resetAt: subscription.access_until ? new Date(subscription.access_until * 1000) : undefined,
+              period: '月次',
+              resetAt: subscription.access_until
+                ? new Date(subscription.access_until * 1000)
+                : undefined,
               isMockData: false,
               dataSource: 'api',
               lastUpdated: new Date(),
-              reliability: 'high'
+              reliability: 'high',
             });
           } else {
             // API failed - provide mock data with appropriate flags
-            const statusText = subscriptionRes.status === 401 ? "認証エラー" : `API呼び出しエラー (${subscriptionRes.status})`;
+            const statusText =
+              subscriptionRes.status === 401
+                ? '認証エラー'
+                : `API呼び出しエラー (${subscriptionRes.status})`;
             rateLimits.push({
-              provider: "chatgpt",
-              plan: "Pay as you go",
+              provider: 'chatgpt',
+              plan: 'Pay as you go',
               used: 3500,
               limit: 12000,
-              period: "月次",
+              period: '月次',
               resetAt: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000),
               isMockData: true,
               dataSource: 'mock',
               lastUpdated: new Date(),
               reliability: 'low',
-              errorMessage: `OpenAI APIからのデータ取得に失敗しました (${statusText})。モックデータを表示しています。`
+              errorMessage: `OpenAI APIからのデータ取得に失敗しました (${statusText})。モックデータを表示しています。`,
             });
           }
         } catch (error) {
           // Mock data on error with detailed error information
           rateLimits.push({
-            provider: "chatgpt",
-            plan: "Pay as you go",
+            provider: 'chatgpt',
+            plan: 'Pay as you go',
             used: 3500,
             limit: 12000,
-            period: "月次",
+            period: '月次',
             resetAt: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000),
             isMockData: true,
             dataSource: 'mock',
             lastUpdated: new Date(),
             reliability: 'low',
-            errorMessage: `OpenAI APIとの接続に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}。モックデータを表示しています。`
+            errorMessage: `OpenAI APIとの接続に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}。モックデータを表示しています。`,
           });
         }
       }
 
       // Gemini rate limits
-      const geminiApiKey = settings?.geminiApiKeyEncrypted ? decrypt(settings.geminiApiKeyEncrypted) : null;
+      const geminiApiKey = settings?.geminiApiKeyEncrypted
+        ? decrypt(settings.geminiApiKeyEncrypted)
+        : null;
       if (geminiApiKey) {
         // Google doesn't provide a direct API for rate limit info
         // This is mock data
         rateLimits.push({
-          provider: "gemini",
-          plan: "Free",
+          provider: 'gemini',
+          plan: 'Free',
           used: 800,
           limit: 1500,
-          period: "日次",
+          period: '日次',
           resetAt: new Date(Date.now() + 12 * 60 * 60 * 1000), // 12 hours from now
           isMockData: true,
           dataSource: 'mock',
           lastUpdated: new Date(),
           reliability: 'low',
-          errorMessage: "Gemini APIは使用量情報を提供していないため、推定データを表示しています"
+          errorMessage: 'Gemini APIは使用量情報を提供していないため、推定データを表示しています',
         });
       }
     } catch (error) {
-      log.error({ err: error }, "Error fetching rate limits");
+      log.error({ err: error }, 'Error fetching rate limits');
     }
 
     return { rateLimits };

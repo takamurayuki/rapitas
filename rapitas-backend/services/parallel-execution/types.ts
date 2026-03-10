@@ -6,30 +6,30 @@
 /**
  * タスク優先度
  */
-export type TaskPriority = "low" | "medium" | "high" | "urgent";
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 /**
  * 並列実行ステータス
  */
 export type ParallelExecutionStatus =
-  | "pending" // 待機中
-  | "scheduled" // スケジュール済み
-  | "running" // 実行中
-  | "completed" // 完了
-  | "failed" // 失敗
-  | "cancelled" // キャンセル
-  | "blocked" // ブロック（依存タスク未完了）
-  | "waiting_for_input"; // ユーザー入力待ち
+  | 'pending' // 待機中
+  | 'scheduled' // スケジュール済み
+  | 'running' // 実行中
+  | 'completed' // 完了
+  | 'failed' // 失敗
+  | 'cancelled' // キャンセル
+  | 'blocked' // ブロック（依存タスク未完了）
+  | 'waiting_for_input'; // ユーザー入力待ち
 
 /**
  * 依存関係の種類
  */
 export type DependencyType =
-  | "file_sharing" // ファイル共有による依存
-  | "data_flow" // データフローによる依存
-  | "sequential" // 順序依存（明示的）
-  | "resource" // リソース競合
-  | "logical"; // 論理的な依存関係
+  | 'file_sharing' // ファイル共有による依存
+  | 'data_flow' // データフローによる依存
+  | 'sequential' // 順序依存（明示的）
+  | 'resource' // リソース競合
+  | 'logical'; // 論理的な依存関係
 
 /**
  * 依存関係エッジ（タスク間の依存を表現）
@@ -132,7 +132,7 @@ export type ParallelExecutionPlan = {
  * リソース制約
  */
 export type ResourceConstraint = {
-  type: "file" | "api" | "memory" | "cpu";
+  type: 'file' | 'api' | 'memory' | 'cpu';
   resource: string;
   maxConcurrent: number;
   affectedTasks: number[];
@@ -195,7 +195,7 @@ export type AgentMessage = {
   id: string;
   timestamp: Date;
   fromAgentId: string;
-  toAgentId: string | "broadcast";
+  toAgentId: string | 'broadcast';
 
   type: AgentMessageType;
   payload: unknown;
@@ -209,16 +209,16 @@ export type AgentMessage = {
  * エージェントメッセージの種類
  */
 export type AgentMessageType =
-  | "task_started"
-  | "task_progress"
-  | "task_completed"
-  | "task_failed"
-  | "file_modified"
-  | "resource_locked"
-  | "resource_released"
-  | "dependency_resolved"
-  | "coordination_request"
-  | "coordination_response";
+  | 'task_started'
+  | 'task_progress'
+  | 'task_completed'
+  | 'task_failed'
+  | 'file_modified'
+  | 'resource_locked'
+  | 'resource_released'
+  | 'dependency_resolved'
+  | 'coordination_request'
+  | 'coordination_response';
 
 /**
  * 実行ログエントリ
@@ -227,7 +227,7 @@ export type ExecutionLogEntry = {
   timestamp: Date;
   agentId: string;
   taskId: number;
-  level: "debug" | "info" | "warn" | "error";
+  level: 'debug' | 'info' | 'warn' | 'error';
   message: string;
   metadata?: Record<string, unknown>;
 };

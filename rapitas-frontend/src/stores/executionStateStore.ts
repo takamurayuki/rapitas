@@ -18,7 +18,9 @@ interface ExecutionStateStore {
   /** 指定タスクが実行中かどうか */
   isTaskExecuting: (taskId: number) => boolean;
   /** 指定タスクの実行状態を取得 */
-  getExecutingTaskStatus: (taskId: number) => 'running' | 'waiting_for_input' | null;
+  getExecutingTaskStatus: (
+    taskId: number,
+  ) => 'running' | 'waiting_for_input' | null;
 }
 
 export const useExecutionStateStore = create<ExecutionStateStore>()(
@@ -27,7 +29,11 @@ export const useExecutionStateStore = create<ExecutionStateStore>()(
     setExecutingTask: (task) =>
       set((state) => {
         const existing = state.executingTasks.get(task.taskId);
-        if (existing && existing.status === task.status && existing.sessionId === task.sessionId) {
+        if (
+          existing &&
+          existing.status === task.status &&
+          existing.sessionId === task.sessionId
+        ) {
           return state;
         }
         const newMap = new Map(state.executingTasks);

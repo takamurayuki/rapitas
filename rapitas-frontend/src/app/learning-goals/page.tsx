@@ -20,10 +20,15 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
+  GraduationCap,
+  RefreshCw,
+  Layers,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('LearningGoalsPage');
 
@@ -33,6 +38,8 @@ type WizardStep = 'goal' | 'level' | 'schedule' | 'confirm';
 export default function LearningGoalsPage() {
   const t = useTranslations('learning');
   const tc = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const { showToast } = useToast();
 
   const WIZARD_STEPS: { key: WizardStep; label: string }[] = [
@@ -46,6 +53,10 @@ export default function LearningGoalsPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [adapting, setAdapting] = useState(false);
+  const [goalProgress, setGoalProgress] = useState<
+    Record<number, { total: number; completed: number; rate: number }>
+  >({});
   const [selectedGoal, setSelectedGoal] = useState<LearningGoal | null>(null);
   const [showWizard, setShowWizard] = useState(false);
   const [currentStep, setCurrentStep] = useState<WizardStep>('goal');
@@ -89,11 +100,82 @@ export default function LearningGoalsPage() {
     }
   }, []);
 
+  const fetchGoalProgress = useCallback(async (goalList: LearningGoal[]) => {
+    const appliedGoals = goalList.filter((g) => g.isApplied && g.themeId);
+    const progressMap: Record<
+      number,
+      { total: number; completed: number; rate: number }
+    > = {};
+
+    for (const goal of appliedGoals) {
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/tasks?themeId=${goal.themeId}`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const tasks = Array.isArray(data) ? data : data.tasks || [];
+          const parentTasks = tasks.filter(
+            (t: { parentId: number | null }) => !t.parentId,
+          );
+          const total = parentTasks.length;
+          const completed = parentTasks.filter(
+            (t: { status: string }) => t.status === 'done',
+          ).length;
+          progressMap[goal.id] = {
+            total,
+            completed,
+            rate: total > 0 ? completed / total : 0,
+          };
+        }
+      } catch (e) {
+        logger.error(`Failed to fetch progress for goal ${goal.id}:`, e);
+      }
+    }
+    setGoalProgress(progressMap);
+  }, []);
+
   useEffect(() => {
     Promise.all([fetchGoals(), fetchCategories()]).finally(() =>
       setLoading(false),
     );
   }, [fetchGoals, fetchCategories]);
+
+  useEffect(() => {
+    if (goals.length > 0) {
+      fetchGoalProgress(goals);
+    }
+  }, [goals, fetchGoalProgress]);
+
+  const handleAdaptPlan = async (goal: LearningGoal) => {
+    setAdapting(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/learning-goals/${goal.id}/adapt`,
+        { method: 'POST' },
+      );
+      if (res.ok) {
+        const result = await res.json();
+        if (result.success) {
+          showToast(t('adaptSuccess'), 'success');
+          await fetchGoals();
+          const updated = await fetch(
+            `${API_BASE_URL}/learning-goals/${goal.id}`,
+          );
+          if (updated.ok) {
+            setSelectedGoal(await updated.json());
+          }
+        } else {
+          showToast(result.error || t('adaptFailed'), 'error');
+        }
+      }
+    } catch (e) {
+      logger.error('Failed to adapt plan:', e);
+      showToast(tc('errorOccurred'), 'error');
+    } finally {
+      setAdapting(false);
+    }
+  };
 
   const resetWizard = () => {
     setFormData({
@@ -158,9 +240,7 @@ export default function LearningGoalsPage() {
       if (res.ok) {
         const result = await res.json();
         showToast(
-          result.source === 'ai'
-            ? t('aiGeneratedPlan')
-            : t('planGenerated'),
+          result.source === 'ai' ? t('aiGeneratedPlan') : t('planGenerated'),
           'success',
         );
         await fetchGoals();
@@ -185,10 +265,7 @@ export default function LearningGoalsPage() {
       showToast(t('alreadyApplied'), 'info');
       return;
     }
-    if (
-      !confirm(t('applyConfirm'))
-    )
-      return;
+    if (!confirm(t('applyConfirm'))) return;
 
     setApplying(true);
     try {
@@ -202,7 +279,10 @@ export default function LearningGoalsPage() {
         const result = await res.json();
         if (result.success) {
           showToast(
-            t('tasksCreated', { count: result.createdTaskCount, theme: result.themeName }),
+            t('tasksCreated', {
+              count: result.createdTaskCount,
+              theme: result.themeName,
+            }),
             'success',
           );
           await fetchGoals();
@@ -516,7 +596,8 @@ export default function LearningGoalsPage() {
                       className="flex-1 accent-emerald-600"
                     />
                     <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 min-w-[4rem] text-center">
-                      {formData.dailyHours}{t('hoursPerDay')}
+                      {formData.dailyHours}
+                      {t('hoursPerDay')}
                     </span>
                   </div>
                 </div>
@@ -600,7 +681,7 @@ export default function LearningGoalsPage() {
                       <p className="text-sm text-zinc-700 dark:text-zinc-300">
                         {formData.deadline
                           ? new Date(formData.deadline).toLocaleDateString(
-                              'ja-JP',
+                              dateLocale,
                             )
                           : t('deadlineUnset')}
                       </p>
@@ -610,7 +691,8 @@ export default function LearningGoalsPage() {
                         {t('studyTime')}
                       </span>
                       <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                        {formData.dailyHours}{t('hoursPerDayUnit')}
+                        {formData.dailyHours}
+                        {t('hoursPerDayUnit')}
                       </p>
                     </div>
                   </div>
@@ -721,7 +803,7 @@ export default function LearningGoalsPage() {
                           <span className="text-xs text-zinc-500 dark:text-zinc-400">
                             〜
                             {new Date(goal.deadline).toLocaleDateString(
-                              'ja-JP',
+                              dateLocale,
                             )}
                           </span>
                         )}
@@ -763,11 +845,14 @@ export default function LearningGoalsPage() {
               goal={selectedGoal}
               plan={getParsedPlan(selectedGoal)}
               applying={applying}
+              adapting={adapting}
+              progress={goalProgress[selectedGoal.id]}
               expandedPhases={expandedPhases}
               onTogglePhase={togglePhase}
               onApply={() => handleApplyPlan(selectedGoal)}
               onRegenerate={() => handleGeneratePlan(selectedGoal.id)}
               onDelete={() => handleDelete(selectedGoal.id)}
+              onAdapt={() => handleAdaptPlan(selectedGoal)}
             />
           ) : (
             <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-12 text-center">
@@ -791,22 +876,30 @@ function GoalDetailPanel({
   goal,
   plan,
   applying,
+  adapting,
+  progress,
   expandedPhases,
   onTogglePhase,
   onApply,
   onRegenerate,
   onDelete,
+  onAdapt,
 }: {
   goal: LearningGoal;
   plan: GeneratedLearningPlan | null;
   applying: boolean;
+  adapting: boolean;
+  progress?: { total: number; completed: number; rate: number };
   expandedPhases: Set<number>;
   onTogglePhase: (index: number) => void;
   onApply: () => void;
   onRegenerate: () => void;
   onDelete: () => void;
+  onAdapt: () => void;
 }) {
   const t = useTranslations('learning');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
       {/* ヘッダー */}
@@ -877,14 +970,65 @@ function GoalDetailPanel({
         {goal.deadline && (
           <div className="flex items-center gap-1.5">
             <Calendar className="w-4 h-4" />
-            <span>〜{new Date(goal.deadline).toLocaleDateString('ja-JP')}</span>
+            <span>
+              〜{new Date(goal.deadline).toLocaleDateString(dateLocale)}
+            </span>
           </div>
         )}
         <div className="flex items-center gap-1.5">
           <Clock className="w-4 h-4" />
-          <span>{goal.dailyHours}{t('hoursPerDayUnit')}</span>
+          <span>
+            {goal.dailyHours}
+            {t('hoursPerDayUnit')}
+          </span>
         </div>
       </div>
+
+      {/* 進捗バー + アクションボタン */}
+      {goal.isApplied && progress && (
+        <div className="mb-6 space-y-3">
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                {t('phaseProgress')}
+              </span>
+              <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                {progress.completed}/{progress.total} (
+                {Math.round(progress.rate * 100)}%)
+              </span>
+            </div>
+            <div className="w-full h-2.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                style={{ width: `${Math.round(progress.rate * 100)}%` }}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <a
+              href={`/flashcards?learningGoalId=${goal.id}`}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+            >
+              <Layers className="w-4 h-4" />
+              {t('flashcardReview')}
+            </a>
+            {progress.rate >= 0.3 && (
+              <button
+                onClick={onAdapt}
+                disabled={adapting}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50"
+              >
+                {adapting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                {t('adaptPlan')}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 学習プラン */}
       {plan ? (
@@ -908,7 +1052,9 @@ function GoalDetailPanel({
                       {phase.name}
                     </h3>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {phase.days}{t('daysCount')} ・ {phase.tasks.length}{t('tasksCount')}
+                      {phase.days}
+                      {t('daysCount')} ・ {phase.tasks.length}
+                      {t('tasksCount')}
                       {phase.description && ` ・ ${phase.description}`}
                     </p>
                   </div>

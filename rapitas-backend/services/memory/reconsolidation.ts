@@ -2,13 +2,13 @@
  * 再固定化（Reconsolidation）
  * 予測誤差に基づいて既存の知識を更新
  */
-import { prisma } from "../../config/database";
-import { createLogger } from "../../config/logger";
-import { sendAIMessage } from "../../utils/ai-client";
-import { appendEvent } from "./timeline";
-import { createContentHash } from "./utils";
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+import { sendAIMessage } from '../../utils/ai-client';
+import { appendEvent } from './timeline';
+import { createContentHash } from './utils';
 
-const log = createLogger("memory:reconsolidation");
+const log = createLogger('memory:reconsolidation');
 
 /**
  * 予測誤差を検出し、知識を再固定化
@@ -41,7 +41,7 @@ export async function triggerReconsolidation(params: {
       const response = await sendAIMessage({
         messages: [
           {
-            role: "user",
+            role: 'user',
             content: `以下の知識エントリが予測誤差により更新が必要です。
 
 現在の知識:
@@ -68,14 +68,14 @@ ${predictionError}
           content: newContent,
           contentHash: createContentHash(newContent),
           confidence: Math.max(0.1, entry.confidence - 0.1),
-          validationStatus: "pending",
+          validationStatus: 'pending',
         },
       });
 
       updated = true;
-      log.info({ entryId, errorMagnitude }, "Knowledge reconsolidated with LLM update");
+      log.info({ entryId, errorMagnitude }, 'Knowledge reconsolidated with LLM update');
     } catch (error) {
-      log.error({ err: error, entryId }, "Failed to reconsolidate with LLM");
+      log.error({ err: error, entryId }, 'Failed to reconsolidate with LLM');
       // フォールバック: confidence微減のみ
       await prisma.knowledgeEntry.update({
         where: { id: entryId },
@@ -88,7 +88,7 @@ ${predictionError}
       where: { id: entryId },
       data: { confidence: Math.max(0.1, entry.confidence - 0.05) },
     });
-    log.debug({ entryId, errorMagnitude }, "Knowledge confidence slightly reduced");
+    log.debug({ entryId, errorMagnitude }, 'Knowledge confidence slightly reduced');
   }
 
   // 再固定化記録を作成
@@ -104,7 +104,7 @@ ${predictionError}
   });
 
   await appendEvent({
-    eventType: "reconsolidation_triggered",
+    eventType: 'reconsolidation_triggered',
     payload: {
       entryId,
       reconsolidationId: record.id,

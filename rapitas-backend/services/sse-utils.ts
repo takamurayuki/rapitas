@@ -9,13 +9,13 @@ const log = createLogger('sse-utils');
 
 // SSEイベントの型定義
 export type SSEEventType =
-  | "start"
-  | "progress"
-  | "data"
-  | "error"
-  | "retry"
-  | "rollback"
-  | "complete";
+  | 'start'
+  | 'progress'
+  | 'data'
+  | 'error'
+  | 'retry'
+  | 'rollback'
+  | 'complete';
 
 export interface SSEEvent {
   type: SSEEventType;
@@ -43,11 +43,9 @@ export const DEFAULT_RETRY_CONFIG: RetryConfig = {
 // SSEレスポンスを生成するヘルパー
 export function createSSEHeaders(): Headers {
   const headers = new Headers();
-  headers.set("Content-Type", "text/event-stream");
-  headers.set("Cache-Control", "no-cache");
-  headers.set("Connection", "keep-alive");
-  headers.set("Access-Control-Allow-Origin", "*");
-  headers.set("Access-Control-Allow-Headers", "Content-Type");
+  headers.set('Content-Type', 'text/event-stream');
+  headers.set('Cache-Control', 'no-cache');
+  headers.set('Connection', 'keep-alive');
   return headers;
 }
 
@@ -64,10 +62,9 @@ export function formatSSEMessage(event: SSEEvent): string {
 // リトライ遅延を計算（指数バックオフ）
 export function calculateRetryDelay(
   retryCount: number,
-  config: RetryConfig = DEFAULT_RETRY_CONFIG
+  config: RetryConfig = DEFAULT_RETRY_CONFIG,
 ): number {
-  const delay =
-    config.initialDelay * Math.pow(config.backoffMultiplier, retryCount);
+  const delay = config.initialDelay * Math.pow(config.backoffMultiplier, retryCount);
   return Math.min(delay, config.maxDelay);
 }
 
@@ -82,15 +79,15 @@ export function isRetryableError(error: unknown): boolean {
     const message = error.message.toLowerCase();
     // ネットワークエラー、タイムアウト、一時的なサーバーエラー
     return (
-      message.includes("network") ||
-      message.includes("timeout") ||
-      message.includes("econnreset") ||
-      message.includes("econnrefused") ||
-      message.includes("temporarily") ||
-      message.includes("rate limit") ||
-      message.includes("429") ||
-      message.includes("503") ||
-      message.includes("504")
+      message.includes('network') ||
+      message.includes('timeout') ||
+      message.includes('econnreset') ||
+      message.includes('econnrefused') ||
+      message.includes('temporarily') ||
+      message.includes('rate limit') ||
+      message.includes('429') ||
+      message.includes('503') ||
+      message.includes('504')
     );
   }
   return false;
@@ -147,14 +144,14 @@ export class SSEStreamController {
       const message = formatSSEMessage(event);
       this.controller.enqueue(this.encoder.encode(message));
     } catch (error) {
-      log.error({ err: error }, "SSE send error");
+      log.error({ err: error }, 'SSE send error');
     }
   }
 
   // 開始イベントを送信
   sendStart(data: unknown = {}): void {
     this.send({
-      type: "start",
+      type: 'start',
       data,
       timestamp: new Date().toISOString(),
     });
@@ -163,11 +160,11 @@ export class SSEStreamController {
   // 進捗イベントを送信
   sendProgress(progress: number, message: string, data: unknown = {}): void {
     this.send({
-      type: "progress",
+      type: 'progress',
       data: {
         progress,
         message,
-        ...(typeof data === "object" && data !== null ? data : {}),
+        ...(typeof data === 'object' && data !== null ? data : {}),
       },
       timestamp: new Date().toISOString(),
     });
@@ -176,7 +173,7 @@ export class SSEStreamController {
   // データイベントを送信
   sendData(data: unknown): void {
     this.send({
-      type: "data",
+      type: 'data',
       data,
       timestamp: new Date().toISOString(),
     });
@@ -185,7 +182,7 @@ export class SSEStreamController {
   // リトライイベントを送信
   sendRetry(retryCount: number, reason: string): void {
     this.send({
-      type: "retry",
+      type: 'retry',
       data: {
         retryCount,
         maxRetries: this.retryConfig.maxRetries,
@@ -201,7 +198,7 @@ export class SSEStreamController {
   // エラーイベントを送信
   sendError(error: string, details?: unknown): void {
     this.send({
-      type: "error",
+      type: 'error',
       data: { error, details },
       timestamp: new Date().toISOString(),
     });
@@ -210,7 +207,7 @@ export class SSEStreamController {
   // ロールバックイベントを送信
   sendRollback(info: RollbackInfo): void {
     this.send({
-      type: "rollback",
+      type: 'rollback',
       data: info,
       timestamp: new Date().toISOString(),
     });
@@ -219,7 +216,7 @@ export class SSEStreamController {
   // 完了イベントを送信
   sendComplete(data: unknown = {}): void {
     this.send({
-      type: "complete",
+      type: 'complete',
       data,
       timestamp: new Date().toISOString(),
     });
@@ -240,7 +237,7 @@ export class SSEStreamController {
   // リトライロジックを含む操作を実行
   async executeWithRetry<T>(
     operation: () => Promise<T>,
-    onRetry?: (retryCount: number, error: Error) => void
+    onRetry?: (retryCount: number, error: Error) => void,
   ): Promise<T> {
     let lastError: Error | null = null;
 
@@ -249,10 +246,7 @@ export class SSEStreamController {
         if (attempt > 0) {
           this.retryCount = attempt;
           const delayMs = calculateRetryDelay(attempt - 1, this.retryConfig);
-          this.sendRetry(
-            attempt,
-            lastError?.message || "不明なエラーが発生しました"
-          );
+          this.sendRetry(attempt, lastError?.message || '不明なエラーが発生しました');
           await delay(delayMs);
           onRetry?.(attempt, lastError!);
         }
@@ -268,7 +262,7 @@ export class SSEStreamController {
             rollbackReason:
               attempt === this.retryConfig.maxRetries
                 ? `リトライ上限(${this.retryConfig.maxRetries}回)に達しました`
-                : "リトライ不可能なエラーが発生しました",
+                : 'リトライ不可能なエラーが発生しました',
             timestamp: new Date().toISOString(),
             errorDetails: lastError.message,
           };
@@ -285,7 +279,7 @@ export class SSEStreamController {
       }
     }
 
-    throw lastError || new Error("予期しないエラーが発生しました");
+    throw lastError || new Error('予期しないエラーが発生しました');
   }
 }
 
@@ -294,24 +288,24 @@ export function getUserFriendlyErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     const message = error.message.toLowerCase();
 
-    if (message.includes("rate limit") || message.includes("429")) {
-      return "APIのレート制限に達しました。しばらく待ってから再試行してください。";
+    if (message.includes('rate limit') || message.includes('429')) {
+      return 'APIのレート制限に達しました。しばらく待ってから再試行してください。';
     }
-    if (message.includes("timeout")) {
-      return "リクエストがタイムアウトしました。ネットワーク接続を確認してください。";
+    if (message.includes('timeout')) {
+      return 'リクエストがタイムアウトしました。ネットワーク接続を確認してください。';
     }
-    if (message.includes("network") || message.includes("econnrefused")) {
-      return "ネットワークエラーが発生しました。インターネット接続を確認してください。";
+    if (message.includes('network') || message.includes('econnrefused')) {
+      return 'ネットワークエラーが発生しました。インターネット接続を確認してください。';
     }
-    if (message.includes("api key") || message.includes("unauthorized")) {
-      return "APIキーが無効です。設定を確認してください。";
+    if (message.includes('api key') || message.includes('unauthorized')) {
+      return 'APIキーが無効です。設定を確認してください。';
     }
-    if (message.includes("not found") || message.includes("404")) {
-      return "リソースが見つかりませんでした。";
+    if (message.includes('not found') || message.includes('404')) {
+      return 'リソースが見つかりませんでした。';
     }
 
     return error.message;
   }
 
-  return "予期しないエラーが発生しました。";
+  return '予期しないエラーが発生しました。';
 }

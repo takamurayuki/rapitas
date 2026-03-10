@@ -1,13 +1,13 @@
 /**
  * メモリシステム共通ユーティリティ
  */
-import { createHash } from "crypto";
+import { createHash } from 'crypto';
 
 /**
  * コンテンツのハッシュを生成
  */
 export function createContentHash(content: string): string {
-  return createHash("sha256").update(content).digest("hex");
+  return createHash('sha256').update(content).digest('hex');
 }
 
 /**

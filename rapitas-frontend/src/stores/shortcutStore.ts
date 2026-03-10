@@ -9,7 +9,8 @@ export type ShortcutId =
   | 'calendar'
   | 'focusMode'
   | 'shortcutHelp'
-  | 'toggleAI';
+  | 'toggleAI'
+  | 'commandBar';
 
 export type ShortcutBinding = {
   id: ShortcutId;
@@ -54,7 +55,7 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
     label: 'カンバンビュー',
     key: 'K',
     meta: true,
-    shift: false,
+    shift: true,
     ctrl: false,
   },
   {
@@ -89,6 +90,14 @@ const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
     shift: false,
     ctrl: true,
   },
+  {
+    id: 'commandBar',
+    label: 'コマンドバー',
+    key: 'K',
+    meta: true,
+    shift: false,
+    ctrl: false,
+  },
 ];
 
 interface ShortcutState {
@@ -111,7 +120,7 @@ function formatBindingKey(
   if (b.ctrl) parts.push('ctrl');
   if (b.meta) parts.push('meta');
   if (b.shift) parts.push('shift');
-  parts.push(b.key.toUpperCase());
+  parts.push(b.key ? b.key.toUpperCase() : '');
   return parts.join('+');
 }
 

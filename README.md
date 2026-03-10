@@ -29,6 +29,7 @@ node scripts/dev.js --watch
 ```
 
 **特長:**
+
 - PostgreSQL接続チェック・自動修復
 - Prismaスキーマ同期 (`db push --skip-generate`)
 - Prisma Client自動生成
@@ -41,20 +42,39 @@ node scripts/dev.js --watch
 # 初回セットアップ
 npm install
 
-# Web版開発サーバー起動
+# プリフライトチェック + Web版開発サーバー起動
 npm run dev
+```
+
+起動時に **プリフライトチェック** が自動実行され、以下を検証します：
+
+- bun / pnpm / node のインストール確認
+- `.env` ファイルの存在確認と `DATABASE_URL` の設定確認
+- `node_modules` の存在確認
+- ポート 3000 / 3001 の空き確認
+
+バックエンドまたはフロントエンドのどちらかが起動に失敗した場合、もう一方も自動的に停止します（`--kill-others-on-fail`）。これにより、片方だけ起動してエラーになる事態を防ぎます。
+
+```bash
+# プリフライトチェックのみ実行
+npm run check
+
+# チェックをスキップして高速起動（2回目以降）
+npm run dev:skip-check
 ```
 
 ### 方法 3: 個別起動（高度なユーザー向け）
 
+> **注意**: 個別起動の場合、バックエンド（ポート3001）を先に起動してからフロントエンドを起動してください。フロントエンドのみの起動ではAPI通信がエラーになります。
+
 ```bash
-# バックエンド
+# バックエンド（先に起動）
 cd rapitas-backend
 bun run dev
 
 # フロントエンド（別ターミナル）
 cd rapitas-frontend
-npm run dev
+pnpm run dev
 
 # Tauriデスクトップアプリ（別ターミナル）
 cd rapitas-desktop
@@ -76,14 +96,24 @@ npm run tauri
 # 統合開発環境（推奨）
 cd rapitas-desktop && node scripts/dev.js
 
-# Web版開発サーバー
+# Web版開発サーバー（プリフライトチェック付き）
 npm run dev
+
+# プリフライトチェックをスキップして起動
+npm run dev:skip-check
+
+# プリフライトチェックのみ
+npm run check
 
 # バックエンドのみ
 npm run dev:backend
 
 # フロントエンドのみ
 npm run dev:frontend
+
+# Tauri統合開発をルートから起動
+npm run dev:tauri          # 通常モード
+npm run dev:tauri:watch    # ファイル監視付き
 
 # 依存関係を一括インストール
 npm run install:all
@@ -121,14 +151,21 @@ cd rapitas-desktop && npm run build
 ### 🧪 テスト・品質管理
 
 ```bash
-# バックエンドテスト
+# 全テスト一括実行（バックエンド + フロントエンド並列）
+npm run test:all
+
+# 全リンター一括実行
+npm run lint:all
+
+# 個別実行
 cd rapitas-backend && bun test
+cd rapitas-frontend && pnpm test
 
 # フロントエンド linting
-cd rapitas-frontend && npm run lint
+cd rapitas-frontend && pnpm run lint
 
 # フロントエンド フォーマット確認
-cd rapitas-frontend && npm run prettier:check
+cd rapitas-frontend && pnpm run prettier:check
 ```
 
 ## 📦 初期セットアップ
@@ -160,6 +197,7 @@ node scripts/dev.js
 ```
 
 **`dev.js`が自動実行する処理:**
+
 - PostgreSQL接続検証・修復
 - Prismaスキーマ同期 (`prisma db push --skip-generate`)
 - Prisma Client生成 (`prisma generate`)
@@ -396,6 +434,7 @@ npm run build -- --features custom-protocol
 ```
 
 **対応OS:**
+
 - Windows 10/11 (x64, ARM64)
 - macOS 10.15+ (Intel, Apple Silicon)
 - Linux (Ubuntu 18.04+, Fedora, Arch)
@@ -405,6 +444,7 @@ npm run build -- --features custom-protocol
 ### 推奨エディタ・拡張機能
 
 **Visual Studio Code:**
+
 - Prettier（コードフォーマッター）
 - ESLint（リンター）
 - Tailwind CSS IntelliSense
@@ -416,6 +456,7 @@ npm run build -- --features custom-protocol
 #### 🔍 よくある問題
 
 **PostgreSQL接続エラー:**
+
 ```bash
 # PostgreSQL起動確認
 brew services start postgresql  # Mac
@@ -423,6 +464,7 @@ sudo systemctl start postgresql  # Linux
 ```
 
 **ポートコンフリクト（3000/3001）:**
+
 ```bash
 # プロセス確認・終了
 lsof -ti:3000 | xargs kill -9
@@ -430,6 +472,7 @@ lsof -ti:3001 | xargs kill -9
 ```
 
 **Prismaスキーマ同期エラー:**
+
 ```bash
 cd rapitas-backend
 npx prisma migrate reset  # データベースリセット
@@ -437,6 +480,7 @@ npx prisma db push         # スキーマ再同期
 ```
 
 **Tauriビルドエラー:**
+
 ```bash
 # Rust toolchain更新
 rustup update
@@ -466,6 +510,35 @@ npm run ci:prepare  # CI環境準備
 - **ESLint + Prettier**: 自動フォーマット
 - **コミットメッセージ**: Conventional Commits
 - **テストカバレッジ**: 80%以上維持
+
+### コミット前チェック
+
+コミット時に**自動的にフォーマット/Lintエラーを修正**します：
+
+```bash
+# コミット実行（自動修正あり）
+git commit -m "your message"
+# → エラーがあれば自動修正を試み、成功すればコミット継続
+# → 失敗すれば詳細なエラー情報を自動表示
+
+# 手動で修正後、再度コミット
+git add .
+git commit -m "your message"
+
+# どうしても必要な場合のみ（非推奨）
+git commit -m "your message" --no-verify
+```
+
+**自動修正の仕組み:**
+
+1. lint-staged を実行（Prettier + ESLint）
+2. エラーが出たら自動修正スクリプトを実行
+3. 修正したファイルを再ステージング
+4. 再度チェック
+   - ✅ 成功 → コミット継続
+   - ❌ 失敗 → 詳細エラーを自動表示 + 修正方法を提示
+
+**詳細ガイド:** [docs/pre-commit-guide.md](docs/pre-commit-guide.md)
 
 ## 📄 ライセンス
 

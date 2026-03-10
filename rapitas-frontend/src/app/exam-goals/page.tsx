@@ -20,6 +20,8 @@ import {
 import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { useLocaleStore } from '@/stores/localeStore';
+import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('ExamGoalsPage');
 
@@ -37,6 +39,8 @@ const PRESET_COLORS = [
 export default function ExamGoalsPage() {
   const t = useTranslations('examGoals');
   const tc = useTranslations('common');
+  const locale = useLocaleStore((s) => s.locale);
+  const dateLocale = toDateLocale(locale);
   const [examGoals, setExamGoals] = useState<ExamGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -347,7 +351,7 @@ export default function ExamGoalsPage() {
                 <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
                   <Calendar className="w-4 h-4" />
                   <span>
-                    {new Date(goal.examDate).toLocaleDateString('ja-JP')}
+                    {new Date(goal.examDate).toLocaleDateString(dateLocale)}
                   </span>
                 </div>
               </div>
@@ -359,9 +363,7 @@ export default function ExamGoalsPage() {
       {examGoals.length === 0 && (
         <div className="text-center py-12">
           <Target className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-          <p className="text-zinc-500 dark:text-zinc-400">
-            {t('none')}
-          </p>
+          <p className="text-zinc-500 dark:text-zinc-400">{t('none')}</p>
         </div>
       )}
 

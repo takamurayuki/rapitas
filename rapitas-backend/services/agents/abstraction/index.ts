@@ -161,7 +161,6 @@ export {
   initializeProviders,
 } from './providers';
 
-
 // ============================================================================
 // ユーティリティ関数
 // ============================================================================
@@ -199,7 +198,9 @@ export function createDefaultCapabilities(
  * 状態が終了状態かどうか判定
  */
 export function isTerminalState(state: AgentState): boolean {
-  return state === 'completed' || state === 'failed' || state === 'cancelled' || state === 'timeout';
+  return (
+    state === 'completed' || state === 'failed' || state === 'cancelled' || state === 'timeout'
+  );
 }
 
 /**

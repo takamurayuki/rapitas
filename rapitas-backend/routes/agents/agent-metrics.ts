@@ -93,25 +93,28 @@ async function getAgentMetrics(dateRange?: DateRange): Promise<AgentMetrics[]> {
     },
   });
 
-  return agents.map(agent => {
+  return agents.map((agent) => {
     const executions = agent.executions;
     const totalExecutions = executions.length;
-    const successfulExecutions = executions.filter(e => e.status === 'completed').length;
-    const failedExecutions = executions.filter(e => e.status === 'failed' || e.errorMessage).length;
+    const successfulExecutions = executions.filter((e) => e.status === 'completed').length;
+    const failedExecutions = executions.filter(
+      (e) => e.status === 'failed' || e.errorMessage,
+    ).length;
     const successRate = totalExecutions > 0 ? (successfulExecutions / totalExecutions) * 100 : 0;
 
     const totalTokens = executions.reduce((sum, e) => sum + (e.tokensUsed || 0), 0);
     const averageTokensPerExecution = totalExecutions > 0 ? totalTokens / totalExecutions : null;
 
     const executionTimes = executions
-      .filter(e => e.executionTimeMs && e.executionTimeMs > 0)
-      .map(e => e.executionTimeMs!);
-    const averageExecutionTime = executionTimes.length > 0
-      ? executionTimes.reduce((sum, time) => sum + time, 0) / executionTimes.length
-      : null;
+      .filter((e) => e.executionTimeMs && e.executionTimeMs > 0)
+      .map((e) => e.executionTimeMs!);
+    const averageExecutionTime =
+      executionTimes.length > 0
+        ? executionTimes.reduce((sum, time) => sum + time, 0) / executionTimes.length
+        : null;
 
     const lastExecution = executions
-      .filter(e => e.completedAt)
+      .filter((e) => e.completedAt)
       .sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime())[0];
 
     return {
@@ -125,7 +128,9 @@ async function getAgentMetrics(dateRange?: DateRange): Promise<AgentMetrics[]> {
       successRate: Math.round(successRate * 100) / 100,
       averageExecutionTimeMs: averageExecutionTime ? Math.round(averageExecutionTime) : null,
       totalTokensUsed: totalTokens,
-      averageTokensPerExecution: averageTokensPerExecution ? Math.round(averageTokensPerExecution) : null,
+      averageTokensPerExecution: averageTokensPerExecution
+        ? Math.round(averageTokensPerExecution)
+        : null,
       lastExecutionAt: lastExecution?.completedAt || null,
       isActive: agent.isActive,
     };
@@ -135,7 +140,10 @@ async function getAgentMetrics(dateRange?: DateRange): Promise<AgentMetrics[]> {
 /**
  * 実行トレンドデータ取得
  */
-async function getExecutionTrends(period: 'day' | 'week' | 'month' = 'day', days: number = 30): Promise<ExecutionTrendData[]> {
+async function getExecutionTrends(
+  period: 'day' | 'week' | 'month' = 'day',
+  days: number = 30,
+): Promise<ExecutionTrendData[]> {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
@@ -154,14 +162,17 @@ async function getExecutionTrends(period: 'day' | 'week' | 'month' = 'day', days
   });
 
   // 日付ごとにグループ化
-  const groupedData: Record<string, {
-    successful: number;
-    failed: number;
-    totalTokens: number;
-    executionTimes: number[];
-  }> = {};
+  const groupedData: Record<
+    string,
+    {
+      successful: number;
+      failed: number;
+      totalTokens: number;
+      executionTimes: number[];
+    }
+  > = {};
 
-  executions.forEach(execution => {
+  executions.forEach((execution) => {
     const date = execution.createdAt.toISOString().split('T')[0];
     if (!groupedData[date]) {
       groupedData[date] = {
@@ -186,21 +197,28 @@ async function getExecutionTrends(period: 'day' | 'week' | 'month' = 'day', days
   });
 
   // 結果を配列に変換
-  return Object.entries(groupedData).map(([date, data]) => ({
-    date,
-    successful: data.successful,
-    failed: data.failed,
-    totalTokens: data.totalTokens,
-    averageTime: data.executionTimes.length > 0
-      ? Math.round(data.executionTimes.reduce((sum, time) => sum + time, 0) / data.executionTimes.length)
-      : null,
-  })).sort((a, b) => a.date.localeCompare(b.date));
+  return Object.entries(groupedData)
+    .map(([date, data]) => ({
+      date,
+      successful: data.successful,
+      failed: data.failed,
+      totalTokens: data.totalTokens,
+      averageTime:
+        data.executionTimes.length > 0
+          ? Math.round(
+              data.executionTimes.reduce((sum, time) => sum + time, 0) / data.executionTimes.length,
+            )
+          : null,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /**
  * エージェント性能比較データ取得
  */
-async function getAgentPerformanceComparison(dateRange?: DateRange): Promise<AgentPerformanceComparison[]> {
+async function getAgentPerformanceComparison(
+  dateRange?: DateRange,
+): Promise<AgentPerformanceComparison[]> {
   const whereClause: ExecutionWhereInput = {};
 
   if (dateRange?.startDate || dateRange?.endDate) {
@@ -226,22 +244,25 @@ async function getAgentPerformanceComparison(dateRange?: DateRange): Promise<Age
   });
 
   // エージェントタイプ+モデルでグループ化
-  const groupedData: Record<string, {
-    agentType: string;
-    modelId: string;
-    executions: Array<{
-      id: number;
-      status: string;
-      executionTimeMs: number | null;
-      tokensUsed: number;
-      agentConfig: {
-        agentType: string;
-        modelId: string | null;
-      } | null;
-    }>;
-  }> = {};
+  const groupedData: Record<
+    string,
+    {
+      agentType: string;
+      modelId: string;
+      executions: Array<{
+        id: number;
+        status: string;
+        executionTimeMs: number | null;
+        tokensUsed: number;
+        agentConfig: {
+          agentType: string;
+          modelId: string | null;
+        } | null;
+      }>;
+    }
+  > = {};
 
-  executions.forEach(execution => {
+  executions.forEach((execution) => {
     if (!execution.agentConfig) return;
 
     const key = `${execution.agentConfig.agentType}:${execution.agentConfig.modelId || 'unknown'}`;
@@ -255,29 +276,32 @@ async function getAgentPerformanceComparison(dateRange?: DateRange): Promise<Age
     groupedData[key].executions.push(execution);
   });
 
-  return Object.values(groupedData).map(group => {
-    const totalExecutions = group.executions.length;
-    const successful = group.executions.filter(e => e.status === 'completed').length;
-    const successRate = totalExecutions > 0 ? (successful / totalExecutions) * 100 : 0;
+  return Object.values(groupedData)
+    .map((group) => {
+      const totalExecutions = group.executions.length;
+      const successful = group.executions.filter((e) => e.status === 'completed').length;
+      const successRate = totalExecutions > 0 ? (successful / totalExecutions) * 100 : 0;
 
-    const executionTimes = group.executions
-      .filter(e => e.executionTimeMs && e.executionTimeMs > 0)
-      .map(e => e.executionTimeMs!);
-    const averageTime = executionTimes.length > 0
-      ? executionTimes.reduce((sum, time) => sum + time, 0) / executionTimes.length
-      : null;
+      const executionTimes = group.executions
+        .filter((e) => e.executionTimeMs && e.executionTimeMs > 0)
+        .map((e) => e.executionTimeMs!);
+      const averageTime =
+        executionTimes.length > 0
+          ? executionTimes.reduce((sum, time) => sum + time, 0) / executionTimes.length
+          : null;
 
-    const totalTokens = group.executions.reduce((sum, e) => sum + (e.tokensUsed || 0), 0);
+      const totalTokens = group.executions.reduce((sum, e) => sum + (e.tokensUsed || 0), 0);
 
-    return {
-      agentType: group.agentType,
-      modelId: group.modelId,
-      executionCount: totalExecutions,
-      averageTime: averageTime ? Math.round(averageTime) : null,
-      successRate: Math.round(successRate * 100) / 100,
-      totalTokens,
-    };
-  }).sort((a, b) => b.executionCount - a.executionCount);
+      return {
+        agentType: group.agentType,
+        modelId: group.modelId,
+        executionCount: totalExecutions,
+        averageTime: averageTime ? Math.round(averageTime) : null,
+        successRate: Math.round(successRate * 100) / 100,
+        totalTokens,
+      };
+    })
+    .sort((a, b) => b.executionCount - a.executionCount);
 }
 
 /**
@@ -312,18 +336,19 @@ async function getMetricsOverview(dateRange?: DateRange): Promise<MetricsOvervie
   ]);
 
   const totalExecutions = executions.length;
-  const totalSuccessful = executions.filter(e => e.status === 'completed').length;
-  const totalFailed = executions.filter(e => e.status === 'failed').length;
+  const totalSuccessful = executions.filter((e) => e.status === 'completed').length;
+  const totalFailed = executions.filter((e) => e.status === 'failed').length;
   const overallSuccessRate = totalExecutions > 0 ? (totalSuccessful / totalExecutions) * 100 : 0;
 
   const totalTokensUsed = executions.reduce((sum, e) => sum + (e.tokensUsed || 0), 0);
 
   const executionTimes = executions
-    .filter(e => e.executionTimeMs && e.executionTimeMs > 0)
-    .map(e => e.executionTimeMs!);
-  const averageExecutionTime = executionTimes.length > 0
-    ? executionTimes.reduce((sum, time) => sum + time, 0) / executionTimes.length
-    : null;
+    .filter((e) => e.executionTimeMs && e.executionTimeMs > 0)
+    .map((e) => e.executionTimeMs!);
+  const averageExecutionTime =
+    executionTimes.length > 0
+      ? executionTimes.reduce((sum, time) => sum + time, 0) / executionTimes.length
+      : null;
 
   return {
     totalExecutions,
@@ -459,19 +484,22 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
       // 基本統計計算
       const executions = agent.executions;
       const totalExecutions = executions.length;
-      const successfulExecutions = executions.filter(e => e.status === 'completed').length;
-      const failedExecutions = executions.filter(e => e.status === 'failed' || e.errorMessage).length;
+      const successfulExecutions = executions.filter((e) => e.status === 'completed').length;
+      const failedExecutions = executions.filter(
+        (e) => e.status === 'failed' || e.errorMessage,
+      ).length;
       const successRate = totalExecutions > 0 ? (successfulExecutions / totalExecutions) * 100 : 0;
 
       const totalTokens = executions.reduce((sum, e) => sum + (e.tokensUsed || 0), 0);
       const averageTokensPerExecution = totalExecutions > 0 ? totalTokens / totalExecutions : null;
 
       const executionTimes = executions
-        .filter(e => e.executionTimeMs && e.executionTimeMs > 0)
-        .map(e => e.executionTimeMs!);
-      const averageExecutionTime = executionTimes.length > 0
-        ? executionTimes.reduce((sum, time) => sum + time, 0) / executionTimes.length
-        : null;
+        .filter((e) => e.executionTimeMs && e.executionTimeMs > 0)
+        .map((e) => e.executionTimeMs!);
+      const averageExecutionTime =
+        executionTimes.length > 0
+          ? executionTimes.reduce((sum, time) => sum + time, 0) / executionTimes.length
+          : null;
 
       return {
         agent: {
@@ -488,9 +516,11 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
           successRate: Math.round(successRate * 100) / 100,
           averageExecutionTimeMs: averageExecutionTime ? Math.round(averageExecutionTime) : null,
           totalTokensUsed: totalTokens,
-          averageTokensPerExecution: averageTokensPerExecution ? Math.round(averageTokensPerExecution) : null,
+          averageTokensPerExecution: averageTokensPerExecution
+            ? Math.round(averageTokensPerExecution)
+            : null,
         },
-        recentExecutions: executions.map(e => ({
+        recentExecutions: executions.map((e) => ({
           id: e.id,
           status: e.status,
           startedAt: e.startedAt,

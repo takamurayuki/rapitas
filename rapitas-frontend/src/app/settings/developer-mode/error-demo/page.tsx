@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useTranslations } from 'next-intl';
 import { useErrorCapture } from '@/feature/developer-mode/hooks/useErrorCapture';
-import { ErrorAnalysis } from '@/feature/developer-mode/services/errorAnalysisService';
+import { type ErrorAnalysis } from '@/feature/developer-mode/services/errorAnalysisService';
 import Link from 'next/link';
 import { createLogger } from '@/lib/logger';
 
@@ -22,7 +22,7 @@ export default function ErrorDemoPage() {
     captureNetworkErrors: true,
     onError: (error) => {
       setLastError(error);
-    }
+    },
   });
 
   // エラーを意図的に発生させる関数群
@@ -31,13 +31,18 @@ export default function ErrorDemoPage() {
       // SyntaxErrorは実行時には発生しないので、evalを使用
       eval('const x = {');
     } catch (error) {
-      manualCaptureError('SyntaxError: Unexpected token', error instanceof Error ? error : new Error(String(error)));
+      manualCaptureError(
+        'SyntaxError: Unexpected token',
+        error instanceof Error ? error : new Error(String(error)),
+      );
     }
   };
 
   const triggerTypeError = () => {
     try {
-      const obj = null as unknown as { someProperty: { doSomething: () => void } };
+      const obj = null as unknown as {
+        someProperty: { doSomething: () => void };
+      };
       // This will throw: Cannot read properties of null
       obj.someProperty.doSomething();
     } catch (error) {
@@ -55,22 +60,32 @@ export default function ErrorDemoPage() {
 
   const triggerPromiseRejection = () => {
     // Unhandled promise rejection
-    Promise.reject(new Error('Unhandled Promise Rejection: Database connection failed'));
+    Promise.reject(
+      new Error('Unhandled Promise Rejection: Database connection failed'),
+    );
   };
 
   const triggerValidationError = () => {
-    manualCaptureError('ValidationError: Required field "email" is missing', undefined, {
-      formData: { name: 'John Doe', email: null },
-      endpoint: '/api/users/create'
-    });
+    manualCaptureError(
+      'ValidationError: Required field "email" is missing',
+      undefined,
+      {
+        formData: { name: 'John Doe', email: null },
+        endpoint: '/api/users/create',
+      },
+    );
   };
 
   const triggerTimeoutError = () => {
-    manualCaptureError('Timeout: Operation timed out after 30 seconds', undefined, {
-      operation: 'fetchLargeDataset',
-      timeoutMs: 30000,
-      dataSize: '2.5GB'
-    });
+    manualCaptureError(
+      'Timeout: Operation timed out after 30 seconds',
+      undefined,
+      {
+        operation: 'fetchLargeDataset',
+        timeoutMs: 30000,
+        dataSize: '2.5GB',
+      },
+    );
   };
 
   const triggerDependencyError = () => {
@@ -82,12 +97,16 @@ export default function ErrorDemoPage() {
   };
 
   const triggerComplexError = () => {
-    manualCaptureError('P2002 Prisma Error: Unique constraint failed on the fields: (`email`)', undefined, {
-      model: 'User',
-      operation: 'create',
-      fields: { email: 'user@example.com' },
-      sqlQuery: 'INSERT INTO users (email, name) VALUES ($1, $2)'
-    });
+    manualCaptureError(
+      'P2002 Prisma Error: Unique constraint failed on the fields: (`email`)',
+      undefined,
+      {
+        model: 'User',
+        operation: 'create',
+        fields: { email: 'user@example.com' },
+        sqlQuery: 'INSERT INTO users (email, name) VALUES ($1, $2)',
+      },
+    );
   };
 
   return (
@@ -127,7 +146,8 @@ export default function ErrorDemoPage() {
                 {t('errorDemoCaptured')}
               </h3>
               <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                {t('errorDemoCategory')}: {lastError.category} | {t('errorDemoSeverity')}: {lastError.severity}
+                {t('errorDemoCategory')}: {lastError.category} |{' '}
+                {t('errorDemoSeverity')}: {lastError.severity}
               </p>
               <p className="text-sm mt-1 font-mono">{lastError.message}</p>
             </div>
@@ -229,9 +249,7 @@ export default function ErrorDemoPage() {
             <p>{t('errorDemoStep1')}</p>
             <p>{t('errorDemoStep2')}</p>
             <p>{t('errorDemoStep3')}</p>
-            <p className="mt-3 text-xs">
-              {t('errorDemoNote')}
-            </p>
+            <p className="mt-3 text-xs">{t('errorDemoNote')}</p>
           </div>
         </Card>
       </div>

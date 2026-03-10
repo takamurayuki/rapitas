@@ -56,6 +56,129 @@ export type ExecutionLogViewerProps = {
   maxHeight?: number;
 };
 
+/**
+ * ファイルパスかどうかを判定
+ */
+function isFilePath(value: string): boolean {
+  return (
+    /^[a-zA-Z]?:?[/\\]/.test(value) ||
+    /\.(ts|tsx|js|jsx|json|md|css|prisma)$/.test(value)
+  );
+}
+
+/**
+ * ネストされたオブジェクトをインデント付きで整形する
+ */
+function formatNestedValue(value: unknown, indent: number = 0): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'object') {
+    const str = String(value);
+    if (isFilePath(str)) return str; // ファイルパスはそのまま
+    return str;
+  }
+
+  const obj = value as Record<string, unknown>;
+  const entries = Object.entries(obj).filter(
+    ([, v]) => v !== null && v !== undefined,
+  );
+  if (entries.length === 0) return '{}';
+  if (entries.length <= 2 && !entries.some(([, v]) => typeof v === 'object')) {
+    // 小さいオブジェクトはインラインで表示
+    return entries.map(([k, v]) => `${k}: ${v}`).join(', ');
+  }
+
+  const prefix = '  '.repeat(indent + 1);
+  const lines = entries.map(([k, v]) => {
+    if (typeof v === 'object' && v !== null) {
+      return `${prefix}${k}: ${formatNestedValue(v, indent + 1)}`;
+    }
+    return `${prefix}${k}: ${v}`;
+  });
+  return `\n${lines.join('\n')}`;
+}
+
+/**
+ * ログ文字列内のJSON部分を検出して整形する
+ */
+export function formatLogLine(log: string): {
+  formatted: string;
+  hasJson: boolean;
+  isError?: boolean;
+  isPhaseTransition?: boolean;
+  filePaths?: string[];
+} {
+  // ワークフローフェーズ遷移の検出
+  const phaseMatch = log.match(
+    /\[(research|plan|implement|verify|draft|plan_created|plan_approved|in_progress|completed)\]/i,
+  );
+  if (phaseMatch) {
+    return { formatted: log, hasJson: false, isPhaseTransition: true };
+  }
+
+  // JSON文字列を含むかチェック（{...} パターン）
+  const jsonMatch = log.match(/^(.*?)(\{[\s\S]*\})(.*)$/);
+  if (!jsonMatch) return { formatted: log, hasJson: false };
+
+  const [, prefix, jsonStr, suffix] = jsonMatch;
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (typeof parsed !== 'object' || parsed === null) {
+      return { formatted: log, hasJson: false };
+    }
+
+    const obj = parsed as Record<string, unknown>;
+    const parts: string[] = [];
+    const filePaths: string[] = [];
+    const isError = !!obj.error;
+
+    // よく使うフィールドを先に表示
+    const priorityKeys = [
+      'message',
+      'msg',
+      'status',
+      'type',
+      'error',
+      'taskId',
+      'agentId',
+    ];
+    for (const key of priorityKeys) {
+      if (key in obj && obj[key] !== null && obj[key] !== undefined) {
+        const val = obj[key];
+        if (typeof val === 'object') {
+          parts.push(`${key}: ${formatNestedValue(val)}`);
+        } else {
+          const strVal = String(val);
+          if (isFilePath(strVal)) filePaths.push(strVal);
+          parts.push(`${key}: ${strVal}`);
+        }
+      }
+    }
+
+    // 残りのフィールド（ネスト対応）
+    const skipKeys = new Set([...priorityKeys, 'timestamp', 'level']);
+    for (const [key, value] of Object.entries(obj)) {
+      if (skipKeys.has(key) || value === null || value === undefined) continue;
+      if (typeof value === 'object') {
+        parts.push(`${key}: ${formatNestedValue(value)}`);
+      } else {
+        const strVal = String(value);
+        if (isFilePath(strVal)) filePaths.push(strVal);
+        parts.push(`${key}: ${strVal}`);
+      }
+    }
+
+    const formattedJson = parts.join(' | ');
+    return {
+      formatted: `${prefix}${formattedJson}${suffix}`.trim(),
+      hasJson: true,
+      isError,
+      filePaths: filePaths.length > 0 ? filePaths : undefined,
+    };
+  } catch {
+    return { formatted: log, hasJson: false };
+  }
+}
+
 // ログエントリコンポーネント（メモ化）
 const LogEntry = memo<{
   log: string;
@@ -64,6 +187,39 @@ const LogEntry = memo<{
   searchQuery: string;
   highlightText: (text: string, query: string) => React.ReactNode;
 }>(({ log, index, isNewEntry, searchQuery, highlightText }) => {
+  const { formatted, hasJson, isError, isPhaseTransition, filePaths } =
+    formatLogLine(log);
+
+  // エラーメッセージは赤背景ブロックで強調
+  if (isError) {
+    return (
+      <span
+        key={index}
+        className={`block px-2 py-1 my-0.5 bg-red-950/50 border-l-2 border-red-500 text-red-400 ${isNewEntry ? 'log-entry-new' : ''}`}
+        style={{
+          animation: isNewEntry ? 'fadeInSlide 0.3s ease-out' : undefined,
+        }}
+      >
+        {searchQuery ? highlightText(formatted, searchQuery) : formatted}
+      </span>
+    );
+  }
+
+  // フェーズ遷移は特別なスタイル
+  if (isPhaseTransition) {
+    return (
+      <span
+        key={index}
+        className={`block px-2 py-0.5 my-0.5 bg-indigo-950/30 border-l-2 border-indigo-500 text-indigo-300 font-medium ${isNewEntry ? 'log-entry-new' : ''}`}
+        style={{
+          animation: isNewEntry ? 'fadeInSlide 0.3s ease-out' : undefined,
+        }}
+      >
+        {searchQuery ? highlightText(formatted, searchQuery) : formatted}
+      </span>
+    );
+  }
+
   const className = [
     log.includes('[エラー]')
       ? 'text-red-400'
@@ -76,9 +232,45 @@ const LogEntry = memo<{
           ? 'text-blue-400'
           : /^\[.+?\]/.test(log.trimStart())
             ? 'text-cyan-400'
-            : '',
+            : hasJson
+              ? 'text-amber-300/90'
+              : '',
     isNewEntry ? 'log-entry-new' : '',
-  ].filter(Boolean).join(' ');
+    filePaths ? 'file-path-line' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  // ファイルパスをモノスペース+色分けで表示
+  let content: React.ReactNode = searchQuery
+    ? highlightText(formatted, searchQuery)
+    : formatted;
+  if (filePaths && !searchQuery) {
+    let result = formatted;
+    for (const fp of filePaths) {
+      result = result.replace(fp, `\x00FP_START\x00${fp}\x00FP_END\x00`);
+    }
+    const segments = result.split(/\x00(FP_START|FP_END)\x00/);
+    let inFilePath = false;
+    content = segments.map((seg, i) => {
+      if (seg === 'FP_START') {
+        inFilePath = true;
+        return null;
+      }
+      if (seg === 'FP_END') {
+        inFilePath = false;
+        return null;
+      }
+      if (inFilePath) {
+        return (
+          <span key={i} className="text-cyan-300 font-mono">
+            {seg}
+          </span>
+        );
+      }
+      return seg;
+    });
+  }
 
   return (
     <span
@@ -89,7 +281,7 @@ const LogEntry = memo<{
         animation: isNewEntry ? 'fadeInSlide 0.3s ease-out' : undefined,
       }}
     >
-      {searchQuery ? highlightText(log, searchQuery) : log}
+      {content}
     </span>
   );
 });
@@ -176,7 +368,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
             // スムーズスクロールを使用
             logContainerRef.current.scrollTo({
               top: logContainerRef.current.scrollHeight,
-              behavior: 'smooth'
+              behavior: 'smooth',
             });
 
             setTimeout(() => {
@@ -263,7 +455,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         );
         logContainerRef.current.scrollTo({
           top: scrollPosition,
-          behavior: 'smooth'
+          behavior: 'smooth',
         });
         setAutoScroll(false);
       }
@@ -304,7 +496,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     if (logContainerRef.current) {
       logContainerRef.current.scrollTo({
         top: logContainerRef.current.scrollHeight,
-        behavior: 'smooth'
+        behavior: 'smooth',
       });
       setAutoScroll(true);
     }

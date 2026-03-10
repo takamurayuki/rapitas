@@ -32,7 +32,9 @@ export function registerBuiltinProviders(): void {
 /**
  * 特定のプロバイダーのみを登録
  */
-export function registerProvider(providerId: 'claude-code' | 'openai-codex' | 'gemini' | 'anthropic-api'): void {
+export function registerProvider(
+  providerId: 'claude-code' | 'openai-codex' | 'gemini' | 'anthropic-api',
+): void {
   const registry = AgentRegistry.getInstance();
 
   switch (providerId) {
@@ -79,13 +81,17 @@ export async function initializeProviders(): Promise<{
       available.push('claude-code');
     }
   } catch (error) {
-    errors.push(`Failed to register Claude Code Provider: ${error instanceof Error ? error.message : String(error)}`);
+    errors.push(
+      `Failed to register Claude Code Provider: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   // 将来の追加プロバイダー用のプレースホルダー
   // OpenAI Codex, Gemini等の実装時にここに追加
 
-  log.info(`[Agent Providers] Initialization complete: ${registered.length} registered, ${available.length} available`);
+  log.info(
+    `[Agent Providers] Initialization complete: ${registered.length} registered, ${available.length} available`,
+  );
 
   return {
     registered,

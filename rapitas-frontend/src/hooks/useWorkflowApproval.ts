@@ -5,7 +5,7 @@ import { API_BASE_URL } from '@/utils/api';
 
 export function useWorkflowApproval(
   taskId: number,
-  onComplete?: (newStatus: string) => void
+  onComplete?: (newStatus: string) => void,
 ) {
   const [isApproving, setIsApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +22,7 @@ export function useWorkflowApproval(
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ approved, reason }),
-          }
+          },
         );
 
         if (!res.ok) {
@@ -38,14 +38,15 @@ export function useWorkflowApproval(
 
         return { success: true, workflowStatus: data.workflowStatus };
       } catch (err) {
-        const message = err instanceof Error ? err.message : '承認処理に失敗しました';
+        const message =
+          err instanceof Error ? err.message : '承認処理に失敗しました';
         setError(message);
         return { success: false, error: message };
       } finally {
         setIsApproving(false);
       }
     },
-    [taskId, onComplete]
+    [taskId, onComplete],
   );
 
   const clearError = useCallback(() => setError(null), []);

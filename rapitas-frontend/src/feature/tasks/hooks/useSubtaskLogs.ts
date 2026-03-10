@@ -14,6 +14,65 @@ export interface SubtaskLogEntry {
 }
 
 /**
+ * データオブジェクトを人間が読みやすい形式にフォーマットする
+ */
+export function formatLogData(data: unknown): string {
+  if (data === null || data === undefined) return '';
+  if (typeof data === 'string') return data;
+  if (typeof data !== 'object') return String(data);
+
+  const obj = data as Record<string, unknown>;
+
+  // よく使われるフィールドを優先的に抽出して整形
+  const parts: string[] = [];
+
+  // メッセージ系フィールド
+  const msgField = obj.message || obj.msg || obj.description || obj.text;
+  if (msgField && typeof msgField === 'string') {
+    parts.push(msgField);
+  }
+
+  // ステータス系フィールド
+  if (obj.status && typeof obj.status === 'string') {
+    parts.push(`ステータス: ${obj.status}`);
+  }
+
+  // タイプ系フィールド
+  if (obj.type && typeof obj.type === 'string') {
+    parts.push(`タイプ: ${obj.type}`);
+  }
+
+  // エラー系フィールド
+  if (obj.error && typeof obj.error === 'string') {
+    parts.push(`エラー: ${obj.error}`);
+  }
+
+  // その他のフィールドをkey: value形式で追加
+  const skipKeys = new Set([
+    'message',
+    'msg',
+    'description',
+    'text',
+    'status',
+    'type',
+    'error',
+    'timestamp',
+    'level',
+  ]);
+  for (const [key, value] of Object.entries(obj)) {
+    if (skipKeys.has(key)) continue;
+    if (value === null || value === undefined) continue;
+    if (typeof value === 'object') {
+      parts.push(`${key}: ${JSON.stringify(value)}`);
+    } else {
+      parts.push(`${key}: ${value}`);
+    }
+  }
+
+  return parts.length > 0 ? parts.join(' | ') : JSON.stringify(data);
+}
+
+/**
  * サブタスクのログ状態
  */
 export interface SubtaskLogState {
@@ -34,7 +93,14 @@ interface UseSubtaskLogsOptions {
   /** 自動更新を有効にするか */
   autoRefresh?: boolean;
   /** 並列実行セッションの状態 */
-  sessionStatus?: 'pending' | 'scheduled' | 'running' | 'completed' | 'failed' | 'cancelled' | 'blocked';
+  sessionStatus?:
+    | 'pending'
+    | 'scheduled'
+    | 'running'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+    | 'blocked';
 }
 
 interface UseSubtaskLogsReturn {
@@ -108,7 +174,7 @@ export function useSubtaskLogs({
           interface RawLogEntry {
             timestamp: string;
             message?: string;
-            data?: { message?: string };
+            data?: Record<string, unknown>;
             level?: 'info' | 'warn' | 'error' | 'debug';
             taskId?: number;
           }
@@ -116,7 +182,11 @@ export function useSubtaskLogs({
             (log: RawLogEntry) => ({
               timestamp: log.timestamp,
               message:
-                log.message || log.data?.message || JSON.stringify(log.data),
+                log.message ||
+                (log.data && typeof log.data === 'object'
+                  ? ((log.data as Record<string, unknown>).message as string) ||
+                    formatLogData(log.data)
+                  : String(log.data ?? '')),
               level: log.level || 'info',
               taskId: log.taskId,
             }),
@@ -191,7 +261,10 @@ export function useSubtaskLogs({
 
   // セッション完了時のローディング状態クリア
   useEffect(() => {
-    const isCompleted = sessionStatus === 'completed' || sessionStatus === 'failed' || sessionStatus === 'cancelled';
+    const isCompleted =
+      sessionStatus === 'completed' ||
+      sessionStatus === 'failed' ||
+      sessionStatus === 'cancelled';
 
     if (isCompleted) {
       // 完了時は全サブタスクのローディング状態を確実に解除
@@ -213,7 +286,10 @@ export function useSubtaskLogs({
     if (!autoRefresh || !sessionId) return;
 
     // 実行が完了している場合は最後に一度だけログを取得してポーリング停止
-    const isCompleted = sessionStatus === 'completed' || sessionStatus === 'failed' || sessionStatus === 'cancelled';
+    const isCompleted =
+      sessionStatus === 'completed' ||
+      sessionStatus === 'failed' ||
+      sessionStatus === 'cancelled';
 
     if (isCompleted) {
       // 最終的なログを取得（非同期で実行してローディング状態を適切に管理）

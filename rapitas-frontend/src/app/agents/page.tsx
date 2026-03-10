@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Globe,
   Trash2,
+  Brain,
 } from 'lucide-react';
 import type { AIAgentConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
@@ -72,7 +73,7 @@ export default function AgentsPage() {
   const t = useTranslations('agents');
   const tc = useTranslations('common');
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -239,6 +240,13 @@ export default function AgentsPage() {
             </div>
             <div className="flex items-center gap-3">
               <Link
+                href="/agents/memory"
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                <Brain className="w-4 h-4" />
+                記憶
+              </Link>
+              <Link
                 href="/agents/metrics"
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
               >
@@ -295,7 +303,10 @@ export default function AgentsPage() {
               </p>
             </div>
             <div className="p-6">
-              <WorkflowRolesConfig agents={agents} availableModels={availableModels} />
+              <WorkflowRolesConfig
+                agents={agents}
+                availableModels={availableModels}
+              />
             </div>
           </div>
         </div>

@@ -123,83 +123,83 @@ export const HighEfficiency: Story = {
 // インタラクティブストーリー（タスクを完了させてアニメーションを確認）
 const InteractiveComponent = () => {
   const [completedCount, setCompletedCount] = useState(2);
-    const totalCount = 10;
+  const totalCount = 10;
 
-    const incrementCompleted = () => {
-      if (completedCount < totalCount) {
-        setCompletedCount(completedCount + 1);
-      }
-    };
+  const incrementCompleted = () => {
+    if (completedCount < totalCount) {
+      setCompletedCount(completedCount + 1);
+    }
+  };
 
-    const decrementCompleted = () => {
-      if (completedCount > 0) {
-        setCompletedCount(completedCount - 1);
-      }
-    };
+  const decrementCompleted = () => {
+    if (completedCount > 0) {
+      setCompletedCount(completedCount - 1);
+    }
+  };
 
-    const resetProgress = () => {
-      setCompletedCount(0);
-    };
+  const resetProgress = () => {
+    setCompletedCount(0);
+  };
 
-    const completeAll = () => {
-      setCompletedCount(totalCount);
-    };
+  const completeAll = () => {
+    setCompletedCount(totalCount);
+  };
 
-    return (
-      <div className="space-y-6">
-        <div className="mb-4 font-mono text-sm uppercase tracking-widest text-slate-500">
-          [INTERACTIVE] PROGRESS CONTROL PANEL
+  return (
+    <div className="space-y-6">
+      <div className="mb-4 font-mono text-sm uppercase tracking-widest text-slate-500">
+        [INTERACTIVE] PROGRESS CONTROL PANEL
+      </div>
+
+      <TodayTaskProgressBar
+        completedCount={completedCount}
+        totalCount={totalCount}
+      />
+
+      <div className="mt-8 space-y-4">
+        <p className="mb-4 font-mono text-xs text-slate-600">
+          INSTRUCTIONS: Use control buttons to simulate task completion and
+          observe particle effects
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={incrementCompleted}
+            className="bg-amber-500 px-4 py-2 font-mono text-xs font-bold uppercase text-black transition-all hover:bg-amber-400 active:scale-95"
+          >
+            COMPLETE TASK [+1]
+          </button>
+          <button
+            onClick={decrementCompleted}
+            className="bg-slate-800 px-4 py-2 font-mono text-xs font-bold uppercase text-slate-400 transition-all hover:bg-slate-700 active:scale-95"
+          >
+            UNDO TASK [-1]
+          </button>
+          <button
+            onClick={resetProgress}
+            className="bg-rose-900 px-4 py-2 font-mono text-xs font-bold uppercase text-rose-200 transition-all hover:bg-rose-800 active:scale-95"
+          >
+            RESET ALL [0]
+          </button>
+          <button
+            onClick={completeAll}
+            className="bg-green-900 px-4 py-2 font-mono text-xs font-bold uppercase text-green-200 transition-all hover:bg-green-800 active:scale-95"
+          >
+            COMPLETE ALL [100%]
+          </button>
         </div>
 
-        <TodayTaskProgressBar
-          completedCount={completedCount}
-          totalCount={totalCount}
-        />
-
-        <div className="mt-8 space-y-4">
-          <p className="mb-4 font-mono text-xs text-slate-600">
-            INSTRUCTIONS: Use control buttons to simulate task completion and
-            observe particle effects
-          </p>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={incrementCompleted}
-              className="bg-amber-500 px-4 py-2 font-mono text-xs font-bold uppercase text-black transition-all hover:bg-amber-400 active:scale-95"
-            >
-              COMPLETE TASK [+1]
-            </button>
-            <button
-              onClick={decrementCompleted}
-              className="bg-slate-800 px-4 py-2 font-mono text-xs font-bold uppercase text-slate-400 transition-all hover:bg-slate-700 active:scale-95"
-            >
-              UNDO TASK [-1]
-            </button>
-            <button
-              onClick={resetProgress}
-              className="bg-rose-900 px-4 py-2 font-mono text-xs font-bold uppercase text-rose-200 transition-all hover:bg-rose-800 active:scale-95"
-            >
-              RESET ALL [0]
-            </button>
-            <button
-              onClick={completeAll}
-              className="bg-green-900 px-4 py-2 font-mono text-xs font-bold uppercase text-green-200 transition-all hover:bg-green-800 active:scale-95"
-            >
-              COMPLETE ALL [100%]
-            </button>
-          </div>
-
-          <div className="mt-4 flex items-center gap-4 font-mono text-xs text-slate-600">
-            <span>
-              CURRENT_PROGRESS: {completedCount}/{totalCount}
-            </span>
-            <span>
-              EFFICIENCY: {Math.floor((completedCount / totalCount) * 100)}%
-            </span>
-          </div>
+        <div className="mt-4 flex items-center gap-4 font-mono text-xs text-slate-600">
+          <span>
+            CURRENT_PROGRESS: {completedCount}/{totalCount}
+          </span>
+          <span>
+            EFFICIENCY: {Math.floor((completedCount / totalCount) * 100)}%
+          </span>
         </div>
       </div>
-    );
+    </div>
+  );
 };
 
 export const Interactive: StoryObj<typeof TodayTaskProgressBar> = {

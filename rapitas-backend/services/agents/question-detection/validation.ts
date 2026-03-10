@@ -2,13 +2,13 @@
  * 質問判定システム - バリデーション & パース
  */
 
-import type { QuestionKey } from "./types";
+import type { QuestionKey } from './types';
 
 /**
  * QuestionKeyの妥当性を検証
  */
 export function validateQuestionKey(key: unknown): key is QuestionKey {
-  if (!key || typeof key !== "object") {
+  if (!key || typeof key !== 'object') {
     return false;
   }
 
@@ -16,28 +16,28 @@ export function validateQuestionKey(key: unknown): key is QuestionKey {
 
   // 必須フィールドの存在チェック
   if (
-    typeof obj.status !== "string" ||
-    typeof obj.question_id !== "string" ||
-    typeof obj.question_type !== "string" ||
-    typeof obj.requires_response !== "boolean"
+    typeof obj.status !== 'string' ||
+    typeof obj.question_id !== 'string' ||
+    typeof obj.question_type !== 'string' ||
+    typeof obj.requires_response !== 'boolean'
   ) {
     return false;
   }
 
   // status値の検証
-  const validStatuses = ["awaiting_user_input", "processing", "completed"];
+  const validStatuses = ['awaiting_user_input', 'processing', 'completed'];
   if (!validStatuses.includes(obj.status)) {
     return false;
   }
 
   // question_type値の検証
-  const validTypes = ["clarification", "confirmation", "selection"];
+  const validTypes = ['clarification', 'confirmation', 'selection'];
   if (!validTypes.includes(obj.question_type)) {
     return false;
   }
 
   // timeout_secondsがある場合は数値であることを確認
-  if (obj.timeout_seconds !== undefined && typeof obj.timeout_seconds !== "number") {
+  if (obj.timeout_seconds !== undefined && typeof obj.timeout_seconds !== 'number') {
     return false;
   }
 
@@ -69,7 +69,7 @@ export function extractQuestionKeyFromObject(obj: Record<string, unknown>): Ques
   }
 
   // ネストされた場所にある場合を探索
-  const possibleLocations = ["questionKey", "question_key", "key", "response"];
+  const possibleLocations = ['questionKey', 'question_key', 'key', 'response'];
   for (const loc of possibleLocations) {
     if (obj[loc] && validateQuestionKey(obj[loc])) {
       return obj[loc] as QuestionKey;

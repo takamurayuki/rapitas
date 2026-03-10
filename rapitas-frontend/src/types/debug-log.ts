@@ -4,23 +4,17 @@
 
 // ログタイプ
 export type LogType =
-  | "json"
-  | "syslog"
-  | "apache_common"
-  | "apache_combined"
-  | "nginx"
-  | "nodejs"
-  | "custom"
-  | "unknown";
+  | 'json'
+  | 'syslog'
+  | 'apache_common'
+  | 'apache_combined'
+  | 'nginx'
+  | 'nodejs'
+  | 'custom'
+  | 'unknown';
 
 // ログレベル
-export type LogLevel =
-  | "trace"
-  | "debug"
-  | "info"
-  | "warn"
-  | "error"
-  | "fatal";
+export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
 // パースされたログエントリー
 export interface ParsedLogEntry {

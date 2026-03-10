@@ -1,7 +1,7 @@
 /**
  * Agent関連の型定義
  */
-import type { AgentExecution } from "@prisma/client";
+import type { AgentExecution } from '@prisma/client';
 
 /**
  * AgentExecution に question/questionType/questionDetails/claudeSessionId が
@@ -92,5 +92,5 @@ export interface AgentConfigChange {
   field: string;
   oldValue: unknown;
   newValue: unknown;
-  changeType: "created" | "updated" | "deleted";
+  changeType: 'created' | 'updated' | 'deleted';
 }

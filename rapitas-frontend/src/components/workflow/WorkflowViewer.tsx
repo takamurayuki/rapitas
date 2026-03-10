@@ -1,12 +1,19 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import type { WorkflowFileType, WorkflowStatus, WorkflowRole, WorkflowRoleConfig } from '@/types';
+import type {
+  WorkflowFileType,
+  WorkflowStatus,
+  WorkflowRole,
+  WorkflowRoleConfig,
+} from '@/types';
 import { useWorkflowFiles } from '@/hooks/useWorkflowFiles';
 import { API_BASE_URL } from '@/utils/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import CompactWorkflowSelector, { type WorkflowMode } from './CompactWorkflowSelector';
+import CompactWorkflowSelector, {
+  type WorkflowMode,
+} from './CompactWorkflowSelector';
 import {
   Search,
   FileText,
@@ -70,10 +77,12 @@ const getWorkflowTabs = (workflowMode: string) => {
   switch (workflowMode) {
     case 'lightweight':
       // 軽量モード: 実装と検証のみ
-      return allTabs.filter(tab => ['verify'].includes(tab.id));
+      return allTabs.filter((tab) => ['verify'].includes(tab.id));
     case 'standard':
       // 標準モード: 計画、Q&A、検証
-      return allTabs.filter(tab => ['question', 'plan', 'verify'].includes(tab.id));
+      return allTabs.filter((tab) =>
+        ['question', 'plan', 'verify'].includes(tab.id),
+      );
     case 'comprehensive':
     default:
       // 詳細モード: 全てのタブ
@@ -83,24 +92,45 @@ const getWorkflowTabs = (workflowMode: string) => {
 
 // ワークフローモード別のステップマッピング
 const getStatusToNextRole = (workflowMode: string) => {
-  const lightweightMode: Record<string, { role: WorkflowRole; label: string; icon: typeof Search }> = {
-    'draft':         { role: 'implementer',    label: '実装開始',     icon: Code },
-    'in_progress':   { role: 'auto_verifier', label: '自動検証実行', icon: CheckCircle },
+  const lightweightMode: Record<
+    string,
+    { role: WorkflowRole; label: string; icon: typeof Search }
+  > = {
+    draft: { role: 'implementer', label: '実装開始', icon: Code },
+    in_progress: {
+      role: 'auto_verifier',
+      label: '自動検証実行',
+      icon: CheckCircle,
+    },
   };
 
-  const standardMode: Record<string, { role: WorkflowRole; label: string; icon: typeof Search }> = {
-    'draft':         { role: 'planner',      label: '計画作成',     icon: FileText },
-    'plan_created':  { role: 'reviewer',     label: 'レビュー実行', icon: MessageSquare },
-    'plan_approved': { role: 'implementer',  label: '実装開始',     icon: Code },
-    'in_progress':   { role: 'verifier',     label: '検証実行',     icon: CheckCircle },
+  const standardMode: Record<
+    string,
+    { role: WorkflowRole; label: string; icon: typeof Search }
+  > = {
+    draft: { role: 'planner', label: '計画作成', icon: FileText },
+    plan_created: {
+      role: 'reviewer',
+      label: 'レビュー実行',
+      icon: MessageSquare,
+    },
+    plan_approved: { role: 'implementer', label: '実装開始', icon: Code },
+    in_progress: { role: 'verifier', label: '検証実行', icon: CheckCircle },
   };
 
-  const comprehensiveMode: Record<string, { role: WorkflowRole; label: string; icon: typeof Search }> = {
-    'draft':         { role: 'researcher',   label: 'リサーチ実行', icon: Search },
-    'research_done': { role: 'planner',      label: '計画作成',     icon: FileText },
-    'plan_created':  { role: 'reviewer',     label: 'レビュー実行', icon: MessageSquare },
-    'plan_approved': { role: 'implementer',  label: '実装開始',     icon: Code },
-    'in_progress':   { role: 'verifier',     label: '検証実行',     icon: CheckCircle },
+  const comprehensiveMode: Record<
+    string,
+    { role: WorkflowRole; label: string; icon: typeof Search }
+  > = {
+    draft: { role: 'researcher', label: 'リサーチ実行', icon: Search },
+    research_done: { role: 'planner', label: '計画作成', icon: FileText },
+    plan_created: {
+      role: 'reviewer',
+      label: 'レビュー実行',
+      icon: MessageSquare,
+    },
+    plan_approved: { role: 'implementer', label: '実装開始', icon: Code },
+    in_progress: { role: 'verifier', label: '検証実行', icon: CheckCircle },
   };
 
   switch (workflowMode) {
@@ -116,11 +146,11 @@ const getStatusToNextRole = (workflowMode: string) => {
 
 // ステータスに対応するタブ自動選択マッピング
 const STATUS_TO_TAB: Partial<Record<WorkflowStatus, WorkflowFileType>> = {
-  'research_done': 'research',
-  'plan_created': 'plan',
-  'in_progress': 'plan',
-  'verify_done': 'verify',
-  'completed': 'verify',
+  research_done: 'research',
+  plan_created: 'plan',
+  in_progress: 'plan',
+  verify_done: 'verify',
+  completed: 'verify',
 };
 
 export default function WorkflowViewer({
@@ -139,8 +169,14 @@ export default function WorkflowViewer({
   className = '',
 }: WorkflowViewerProps) {
   const [activeTab, setActiveTab] = useState<WorkflowFileType>('research');
-  const { files, isLoading, error, refetch, workflowPath, workflowStatus: fetchedStatus } =
-    useWorkflowFiles(taskId);
+  const {
+    files,
+    isLoading,
+    error,
+    refetch,
+    workflowPath,
+    workflowStatus: fetchedStatus,
+  } = useWorkflowFiles(taskId);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [advanceError, setAdvanceError] = useState<string | null>(null);
   const [roles, setRoles] = useState<WorkflowRoleConfig[]>([]);
@@ -180,9 +216,14 @@ export default function WorkflowViewer({
   }, [fetchedStatus, workflowStatus, onStatusChange]);
 
   // 親のworkflowStatus propが更新されたらWorkflowViewerのファイルもrefetch
-  const prevWorkflowStatusPropRef = useRef<WorkflowStatus | null | undefined>(workflowStatus);
+  const prevWorkflowStatusPropRef = useRef<WorkflowStatus | null | undefined>(
+    workflowStatus,
+  );
   useEffect(() => {
-    if (workflowStatus && workflowStatus !== prevWorkflowStatusPropRef.current) {
+    if (
+      workflowStatus &&
+      workflowStatus !== prevWorkflowStatusPropRef.current
+    ) {
       prevWorkflowStatusPropRef.current = workflowStatus;
       refetch();
     }
@@ -230,12 +271,15 @@ export default function WorkflowViewer({
   }, []);
 
   // ポーリング開始/停止ヘルパー
-  const startPolling = useCallback((intervalMs: number = 3000) => {
-    stopPolling();
-    pollingRef.current = setInterval(() => {
-      refetch();
-    }, intervalMs);
-  }, [refetch]);
+  const startPolling = useCallback(
+    (intervalMs: number = 3000) => {
+      stopPolling();
+      pollingRef.current = setInterval(() => {
+        refetch();
+      }, intervalMs);
+    },
+    [refetch],
+  );
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -253,10 +297,13 @@ export default function WorkflowViewer({
     setIsAdvancing(true);
     setAdvanceError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/advance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/workflow/tasks/${taskId}/advance`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
       const data = await res.json();
       if (!res.ok || !data.success) {
         setAdvanceError(data.error || 'フェーズの実行に失敗しました');
@@ -268,7 +315,9 @@ export default function WorkflowViewer({
         await refetch();
       }
     } catch (err) {
-      setAdvanceError(err instanceof Error ? err.message : 'エラーが発生しました');
+      setAdvanceError(
+        err instanceof Error ? err.message : 'エラーが発生しました',
+      );
     } finally {
       setIsAdvancing(false);
     }
@@ -277,7 +326,11 @@ export default function WorkflowViewer({
   // ステータスが最終状態に到達したらポーリング停止してrefetch
   const prevFetchedStatusRef = useRef<WorkflowStatus | null>(null);
   useEffect(() => {
-    if (fetchedStatus && fetchedStatus !== prevFetchedStatusRef.current && pollingRef.current) {
+    if (
+      fetchedStatus &&
+      fetchedStatus !== prevFetchedStatusRef.current &&
+      pollingRef.current
+    ) {
       prevFetchedStatusRef.current = fetchedStatus;
       // 最終状態（completed, verify_done）に到達したらポーリング停止
       if (fetchedStatus === 'completed' || fetchedStatus === 'verify_done') {
@@ -319,7 +372,7 @@ export default function WorkflowViewer({
   // activeTabが現在のモードに存在しない場合、最初のタブにフォールバック
   const validActiveTab = workflowTabs.some((t) => t.id === activeTab)
     ? activeTab
-    : workflowTabs[0]?.id ?? 'research';
+    : (workflowTabs[0]?.id ?? 'research');
   useEffect(() => {
     if (validActiveTab !== activeTab) {
       setActiveTab(validActiveTab);
@@ -334,8 +387,7 @@ export default function WorkflowViewer({
     onPlanApprovalRequest;
 
   // 計画タブ内の承認ボタン
-  const showApprovalButton =
-    activeTab === 'plan' && isPlanAwaitingApproval;
+  const showApprovalButton = activeTab === 'plan' && isPlanAwaitingApproval;
 
   // 完了ボタン表示条件（検証完了後にユーザーが明示的に完了させる）
   const showCompleteButton =
@@ -373,7 +425,10 @@ export default function WorkflowViewer({
                 onWorkflowModeChange(analysis.recommendedMode, false);
               }
             }}
-            disabled={effectiveStatus === 'in_progress' || effectiveStatus === 'completed'}
+            disabled={
+              effectiveStatus === 'in_progress' ||
+              effectiveStatus === 'completed'
+            }
             showAnalyzeButton={true}
           />
 
@@ -384,7 +439,10 @@ export default function WorkflowViewer({
                 type="checkbox"
                 checked={autoApprovePlan}
                 onChange={(e) => onAutoApprovePlanChange?.(e.target.checked)}
-                disabled={effectiveStatus === 'in_progress' || effectiveStatus === 'completed'}
+                disabled={
+                  effectiveStatus === 'in_progress' ||
+                  effectiveStatus === 'completed'
+                }
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800"
               />
               <span className="text-sm text-zinc-700 dark:text-zinc-300">
@@ -428,33 +486,35 @@ export default function WorkflowViewer({
       )}
 
       {/* 検証完了バナー（verify_done時に表示） */}
-      {effectiveStatus === 'verify_done' && tabStatus.verify && onCompleteRequest && (
-        <div className="flex items-center justify-between px-4 py-3 bg-teal-50 dark:bg-teal-900/20 border-b border-teal-200 dark:border-teal-800/50">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 bg-teal-100 dark:bg-teal-800/50 rounded-full">
-              <CheckCircle className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+      {effectiveStatus === 'verify_done' &&
+        tabStatus.verify &&
+        onCompleteRequest && (
+          <div className="flex items-center justify-between px-4 py-3 bg-teal-50 dark:bg-teal-900/20 border-b border-teal-200 dark:border-teal-800/50">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 bg-teal-100 dark:bg-teal-800/50 rounded-full">
+                <CheckCircle className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-teal-800 dark:text-teal-200">
+                  検証が完了しました
+                </p>
+                <p className="text-xs text-teal-600 dark:text-teal-400">
+                  検証タブで内容を確認し、問題なければタスクを完了にしてください
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-medium text-teal-800 dark:text-teal-200">
-                検証が完了しました
-              </p>
-              <p className="text-xs text-teal-600 dark:text-teal-400">
-                検証タブで内容を確認し、問題なければタスクを完了にしてください
-              </p>
-            </div>
+            <button
+              onClick={() => {
+                setActiveTab('verify');
+                onCompleteRequest();
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+            >
+              <CheckCircle className="h-3.5 w-3.5" />
+              検証結果を確認
+            </button>
           </div>
-          <button
-            onClick={() => {
-              setActiveTab('verify');
-              onCompleteRequest();
-            }}
-            className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
-          >
-            <CheckCircle className="h-3.5 w-3.5" />
-            検証結果を確認
-          </button>
-        </div>
-      )}
+        )}
 
       {/* 非同期実行中バナー */}
       {isPolling && (
@@ -472,49 +532,57 @@ export default function WorkflowViewer({
       )}
 
       {/* 次のフェーズ実行ボタン */}
-      {effectiveStatus && effectiveStatus !== 'completed' && effectiveStatus !== 'plan_created' && !isPolling && (() => {
-        const statusToNextRole = getStatusToNextRole(workflowMode || 'comprehensive');
-        const next = statusToNextRole[effectiveStatus];
-        if (!next) return null;
+      {effectiveStatus &&
+        effectiveStatus !== 'completed' &&
+        effectiveStatus !== 'plan_created' &&
+        !isPolling &&
+        (() => {
+          const statusToNextRole = getStatusToNextRole(
+            workflowMode || 'comprehensive',
+          );
+          const next = statusToNextRole[effectiveStatus];
+          if (!next) return null;
 
-        const roleConfig = roles.find((r) => r.role === next.role);
-        const NextIcon = next.icon;
+          const roleConfig = roles.find((r) => r.role === next.role);
+          const NextIcon = next.icon;
 
-        return (
-          <div className="flex items-center justify-between px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-800/50">
-            <div className="flex items-center gap-2 text-sm">
-              <NextIcon className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-              <span className="text-indigo-700 dark:text-indigo-300 font-medium">
-                次: {next.label}
-              </span>
-              {roleConfig?.agentConfig && (
-                <span className="text-xs text-indigo-500 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-800/50 px-2 py-0.5 rounded-full">
-                  {roleConfig.agentConfig.name}
+          return (
+            <div className="flex items-center justify-between px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-800/50">
+              <div className="flex items-center gap-2 text-sm">
+                <NextIcon className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                <span className="text-indigo-700 dark:text-indigo-300 font-medium">
+                  次: {next.label}
                 </span>
-              )}
+                {roleConfig?.agentConfig && (
+                  <span className="text-xs text-indigo-500 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-800/50 px-2 py-0.5 rounded-full">
+                    {roleConfig.agentConfig.name}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={handleAdvance}
+                disabled={isAdvancing || !roleConfig?.agentConfigId}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                {isAdvancing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Play className="h-3.5 w-3.5" />
+                )}
+                {isAdvancing ? '実行中...' : '実行'}
+              </button>
             </div>
-            <button
-              onClick={handleAdvance}
-              disabled={isAdvancing || !roleConfig?.agentConfigId}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
-            >
-              {isAdvancing ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Play className="h-3.5 w-3.5" />
-              )}
-              {isAdvancing ? '実行中...' : '実行'}
-            </button>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
       {/* 実行エラー表示 */}
       {advanceError && (
         <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2">
           <div className="flex items-center">
             <AlertCircle className="h-4 w-4 text-red-500 mr-2 shrink-0" />
-            <span className="text-sm text-red-700 dark:text-red-300">{advanceError}</span>
+            <span className="text-sm text-red-700 dark:text-red-300">
+              {advanceError}
+            </span>
             <button
               onClick={() => setAdvanceError(null)}
               className="ml-auto text-red-400 hover:text-red-600 text-xs"
@@ -556,7 +624,10 @@ export default function WorkflowViewer({
             const hasContent = tabStatus[tab.id];
             const TabIcon = tab.icon;
             // 承認待ちの計画タブにはバッジ表示
-            const needsAttention = tab.id === 'plan' && effectiveStatus === 'plan_created' && hasContent;
+            const needsAttention =
+              tab.id === 'plan' &&
+              effectiveStatus === 'plan_created' &&
+              hasContent;
 
             return (
               <button
@@ -621,7 +692,9 @@ export default function WorkflowViewer({
                   className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
                   title="再読み込み"
                 >
-                  <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                  <RefreshCw
+                    className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`}
+                  />
                 </button>
               </div>
             </div>

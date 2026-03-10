@@ -22,20 +22,31 @@ import {
   Settings,
   AlertCircle,
   CheckCircle,
-  Loader2
+  Loader2,
 } from 'lucide-react';
 import { LogAnalysisViewer } from './LogAnalysisViewer';
-import type { LogType, LogAnalysisResult, LogFilter, LogLevel } from '@/types/debug-log';
+import type {
+  LogType,
+  LogAnalysisResult,
+  LogFilter,
+  LogLevel,
+} from '@/types/debug-log';
 
 interface DebugLogAnalyzerProps {
-  onAnalyze?: (logContent: string, logType?: LogType) => Promise<LogAnalysisResult>;
+  onAnalyze?: (
+    logContent: string,
+    logType?: LogType,
+  ) => Promise<LogAnalysisResult>;
 }
 
-export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze }) => {
+export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
+  onAnalyze,
+}) => {
   const [logContent, setLogContent] = useState('');
   const [selectedLogType, setSelectedLogType] = useState<LogType>('unknown');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<LogAnalysisResult | null>(null);
+  const [analysisResult, setAnalysisResult] =
+    useState<LogAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState('input');
 
@@ -59,33 +70,43 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
 
     nginx: `192.168.1.1 - admin [19/Feb/2024:10:00:00 +0000] "GET /api/users HTTP/1.1" 200 567 "-" "Mozilla/5.0"
 192.168.1.2 - - [19/Feb/2024:10:00:01 +0000] "POST /api/auth HTTP/1.1" 500 123 "http://example.com" "curl/7.68.0"
-192.168.1.3 - - [19/Feb/2024:10:00:02 +0000] "GET /static/css/main.css HTTP/1.1" 304 0 "http://example.com" "Chrome/120.0"`
+192.168.1.3 - - [19/Feb/2024:10:00:02 +0000] "GET /static/css/main.css HTTP/1.1" 304 0 "http://example.com" "Chrome/120.0"`,
   };
 
   // ファイルアップロード処理
-  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleFileUpload = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      setLogContent(content);
-      setError(null);
-    };
-    reader.onerror = () => {
-      setError('ファイルの読み込みに失敗しました');
-    };
-    reader.readAsText(file);
-  }, []);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        setLogContent(content);
+        setError(null);
+      };
+      reader.onerror = () => {
+        setError('ファイルの読み込みに失敗しました');
+      };
+      reader.readAsText(file);
+    },
+    [],
+  );
 
   // サンプルログの読み込み
   const loadSampleLog = useCallback((type: keyof typeof sampleLogs) => {
     setLogContent(sampleLogs[type]);
-    setSelectedLogType(type === 'json' ? 'json' :
-                      type === 'nodejs' ? 'nodejs' :
-                      type === 'apache' ? 'apache_common' :
-                      type === 'nginx' ? 'nginx' : 'unknown');
+    setSelectedLogType(
+      type === 'json'
+        ? 'json'
+        : type === 'nodejs'
+          ? 'nodejs'
+          : type === 'apache'
+            ? 'apache_common'
+            : type === 'nginx'
+              ? 'nginx'
+              : 'unknown',
+    );
     setError(null);
   }, []);
 
@@ -106,7 +127,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
         result = await onAnalyze(logContent, selectedLogType);
       } else {
         // デモ用のダミー解析結果
-        const lines = logContent.split('\n').filter(line => line.trim());
+        const lines = logContent.split('\n').filter((line) => line.trim());
         const now = new Date();
 
         result = {
@@ -115,41 +136,56 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
             type: selectedLogType,
             message: line,
             timestamp: new Date(now.getTime() - (lines.length - index) * 1000),
-            level: line.toLowerCase().includes('error') ? 'error' as LogLevel :
-                   line.toLowerCase().includes('warn') ? 'warn' as LogLevel :
-                   line.toLowerCase().includes('debug') ? 'debug' as LogLevel :
-                   'info' as LogLevel
+            level: line.toLowerCase().includes('error')
+              ? ('error' as LogLevel)
+              : line.toLowerCase().includes('warn')
+                ? ('warn' as LogLevel)
+                : line.toLowerCase().includes('debug')
+                  ? ('debug' as LogLevel)
+                  : ('info' as LogLevel),
           })),
           summary: {
             totalEntries: lines.length,
-            errorCount: lines.filter(l => l.toLowerCase().includes('error')).length,
-            warningCount: lines.filter(l => l.toLowerCase().includes('warn')).length,
+            errorCount: lines.filter((l) => l.toLowerCase().includes('error'))
+              .length,
+            warningCount: lines.filter((l) => l.toLowerCase().includes('warn'))
+              .length,
             timeRange: {
               start: new Date(now.getTime() - lines.length * 1000),
-              end: now
+              end: now,
             },
             levelDistribution: {
               trace: 0,
-              debug: lines.filter(l => l.toLowerCase().includes('debug')).length,
-              info: lines.filter(l => !l.toLowerCase().includes('error') && !l.toLowerCase().includes('warn') && !l.toLowerCase().includes('debug')).length,
-              warn: lines.filter(l => l.toLowerCase().includes('warn')).length,
-              error: lines.filter(l => l.toLowerCase().includes('error')).length,
-              fatal: 0
+              debug: lines.filter((l) => l.toLowerCase().includes('debug'))
+                .length,
+              info: lines.filter(
+                (l) =>
+                  !l.toLowerCase().includes('error') &&
+                  !l.toLowerCase().includes('warn') &&
+                  !l.toLowerCase().includes('debug'),
+              ).length,
+              warn: lines.filter((l) => l.toLowerCase().includes('warn'))
+                .length,
+              error: lines.filter((l) => l.toLowerCase().includes('error'))
+                .length,
+              fatal: 0,
             },
-            sourceDistribution: {}
+            sourceDistribution: {},
           },
           patterns: {
             errors: [],
             warnings: [],
-            frequentMessages: []
-          }
+            frequentMessages: [],
+          },
         };
       }
 
       setAnalysisResult(result);
       setSelectedTab('result');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '解析中にエラーが発生しました');
+      setError(
+        err instanceof Error ? err.message : '解析中にエラーが発生しました',
+      );
     } finally {
       setIsAnalyzing(false);
     }
@@ -162,10 +198,12 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
     const exportData = {
       ...analysisResult,
       exportDate: new Date().toISOString(),
-      filters: filter
+      filters: filter,
     };
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: 'application/json',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -202,12 +240,16 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
             <CardContent className="space-y-4">
               {/* ログタイプ選択 */}
               <div className="flex items-center gap-4">
-                <Label htmlFor="logType" className="min-w-[100px]">ログタイプ:</Label>
+                <Label htmlFor="logType" className="min-w-[100px]">
+                  ログタイプ:
+                </Label>
                 <Select
                   id="logType"
                   className="w-[200px]"
                   value={selectedLogType}
-                  onChange={(e) => setSelectedLogType(e.target.value as LogType)}
+                  onChange={(e) =>
+                    setSelectedLogType(e.target.value as LogType)
+                  }
                 >
                   <option value="unknown">自動検出</option>
                   <option value="json">JSON</option>
@@ -222,7 +264,9 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
 
               {/* ファイルアップロード */}
               <div className="flex items-center gap-4">
-                <Label htmlFor="fileUpload" className="min-w-[100px]">ファイル:</Label>
+                <Label htmlFor="fileUpload" className="min-w-[100px]">
+                  ファイル:
+                </Label>
                 <div className="flex-1">
                   <Input
                     id="fileUpload"
@@ -275,7 +319,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
                   <Label>ログコンテンツ:</Label>
                   {logContent && (
                     <span className="text-sm text-gray-500">
-                      {logContent.split('\n').filter(l => l.trim()).length} 行
+                      {logContent.split('\n').filter((l) => l.trim()).length} 行
                     </span>
                   )}
                 </div>
@@ -351,7 +395,12 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
                   <Label>最小ログレベル</Label>
                   <Select
                     value={filter.level || ''}
-                    onChange={(e) => setFilter({ ...filter, level: e.target.value as LogLevel || undefined })}
+                    onChange={(e) =>
+                      setFilter({
+                        ...filter,
+                        level: (e.target.value as LogLevel) || undefined,
+                      })
+                    }
                   >
                     <option value="">すべて</option>
                     <option value="trace">TRACE</option>
@@ -368,7 +417,12 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
                   <Input
                     placeholder="例: app.main"
                     value={filter.source || ''}
-                    onChange={(e) => setFilter({ ...filter, source: e.target.value || undefined })}
+                    onChange={(e) =>
+                      setFilter({
+                        ...filter,
+                        source: e.target.value || undefined,
+                      })
+                    }
                   />
                 </div>
 
@@ -376,11 +430,19 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
                   <Label>開始時刻</Label>
                   <Input
                     type="datetime-local"
-                    value={filter.startTime ? filter.startTime.toISOString().slice(0, 16) : ''}
-                    onChange={(e) => setFilter({
-                      ...filter,
-                      startTime: e.target.value ? new Date(e.target.value) : undefined
-                    })}
+                    value={
+                      filter.startTime
+                        ? filter.startTime.toISOString().slice(0, 16)
+                        : ''
+                    }
+                    onChange={(e) =>
+                      setFilter({
+                        ...filter,
+                        startTime: e.target.value
+                          ? new Date(e.target.value)
+                          : undefined,
+                      })
+                    }
                   />
                 </div>
 
@@ -388,11 +450,19 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
                   <Label>終了時刻</Label>
                   <Input
                     type="datetime-local"
-                    value={filter.endTime ? filter.endTime.toISOString().slice(0, 16) : ''}
-                    onChange={(e) => setFilter({
-                      ...filter,
-                      endTime: e.target.value ? new Date(e.target.value) : undefined
-                    })}
+                    value={
+                      filter.endTime
+                        ? filter.endTime.toISOString().slice(0, 16)
+                        : ''
+                    }
+                    onChange={(e) =>
+                      setFilter({
+                        ...filter,
+                        endTime: e.target.value
+                          ? new Date(e.target.value)
+                          : undefined,
+                      })
+                    }
                   />
                 </div>
 
@@ -401,7 +471,12 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze })
                   <Input
                     placeholder="検索キーワード..."
                     value={filter.searchText || ''}
-                    onChange={(e) => setFilter({ ...filter, searchText: e.target.value || undefined })}
+                    onChange={(e) =>
+                      setFilter({
+                        ...filter,
+                        searchText: e.target.value || undefined,
+                      })
+                    }
                   />
                 </div>
               </div>

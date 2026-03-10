@@ -393,7 +393,9 @@ export default function AgentSettingsClient({
       const data = await res.json();
       setTestResult({
         success: data.success,
-        message: data.message || (data.success ? t('connectionSuccess') : t('connectionFailed')),
+        message:
+          data.message ||
+          (data.success ? t('connectionSuccess') : t('connectionFailed')),
       });
     } catch (err) {
       logger.error('Failed to test connection:', err);
@@ -470,7 +472,12 @@ export default function AgentSettingsClient({
                 {agent.name}
               </h1>
               <p className="text-zinc-500 dark:text-zinc-400">
-                {t('settingsFor', { name: providerConfig.name === 'customProvider' ? t('custom') : providerConfig.name })}
+                {t('settingsFor', {
+                  name:
+                    providerConfig.name === 'customProvider'
+                      ? t('custom')
+                      : providerConfig.name,
+                })}
               </p>
             </div>
           </div>
@@ -622,7 +629,18 @@ export default function AgentSettingsClient({
                       ? 'border-red-400 dark:border-red-600 focus:ring-red-500'
                       : 'border-zinc-300 dark:border-zinc-600 focus:ring-indigo-500'
                   }`}
-                  placeholder={['claudeCodeLocalCli', 'codexLocalCli', 'geminiLocalCli', 'apiKeyGeneric'].includes(providerConfig.apiKeyPlaceholder) ? t(providerConfig.apiKeyPlaceholder as 'claudeCodeLocalCli') : providerConfig.apiKeyPlaceholder}
+                  placeholder={
+                    [
+                      'claudeCodeLocalCli',
+                      'codexLocalCli',
+                      'geminiLocalCli',
+                      'apiKeyGeneric',
+                    ].includes(providerConfig.apiKeyPlaceholder)
+                      ? t(
+                          providerConfig.apiKeyPlaceholder as 'claudeCodeLocalCli',
+                        )
+                      : providerConfig.apiKeyPlaceholder
+                  }
                 />
                 <button
                   type="button"
@@ -679,9 +697,7 @@ export default function AgentSettingsClient({
                 <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <div className="text-sm text-amber-700 dark:text-amber-300">
                   <p className="font-medium mb-1">{t('localCliMode')}</p>
-                  <p className="text-xs">
-                    {t('localCliDescription')}
-                  </p>
+                  <p className="text-xs">{t('localCliDescription')}</p>
                 </div>
               </div>
             </div>

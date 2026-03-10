@@ -41,6 +41,10 @@ export default function FlashcardsPage() {
   >('intermediate');
   const [generateLanguage, setGenerateLanguage] = useState<'ja' | 'en'>('ja');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [schedulePreview, setSchedulePreview] = useState<Record<
+    string,
+    { due: string; interval: number }
+  > | null>(null);
 
   useEffect(() => {
     fetchDecks();
@@ -157,6 +161,7 @@ export default function FlashcardsPage() {
       });
 
       // 次のカードへ
+      setSchedulePreview(null);
       if (currentCardIndex < (selectedDeck.cards?.length || 0) - 1) {
         setCurrentCardIndex(currentCardIndex + 1);
         setIsFlipped(false);
@@ -171,10 +176,40 @@ export default function FlashcardsPage() {
     }
   };
 
+  const formatInterval = (dateStr: string): string => {
+    const now = new Date();
+    const due = new Date(dateStr);
+    const diffMs = due.getTime() - now.getTime();
+    const diffMin = Math.round(diffMs / 60000);
+    const diffHours = Math.round(diffMs / 3600000);
+    const diffDays = Math.round(diffMs / 86400000);
+
+    if (diffMin < 1) return '<1m';
+    if (diffMin < 60) return `${diffMin}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+    return `${diffDays}d`;
+  };
+
+  const fetchSchedulePreview = async (cardId: number) => {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/flashcards/${cardId}/schedule-preview`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setSchedulePreview(data);
+      }
+    } catch (e) {
+      logger.error('Failed to fetch schedule preview:', e);
+      setSchedulePreview(null);
+    }
+  };
+
   const startStudy = () => {
     if (!selectedDeck?.cards?.length) return;
     setCurrentCardIndex(0);
     setIsFlipped(false);
+    setSchedulePreview(null);
     setIsStudyMode(true);
   };
 
@@ -264,7 +299,15 @@ export default function FlashcardsPage() {
 
         {/* カード */}
         <div
-          onClick={() => setIsFlipped(!isFlipped)}
+          onClick={() => {
+            if (!isFlipped) {
+              setIsFlipped(true);
+              fetchSchedulePreview(card.id);
+            } else {
+              setIsFlipped(false);
+              setSchedulePreview(null);
+            }
+          }}
           className="aspect-3/2 bg-white dark:bg-zinc-800 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-700 flex items-center justify-center p-8 cursor-pointer transition-all hover:shadow-2xl"
         >
           <div className="text-center">
@@ -290,28 +333,48 @@ export default function FlashcardsPage() {
               className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
             >
               <X className="w-5 h-5 mx-auto mb-1" />
-              <span className="text-xs">{t('forgot')}</span>
+              <span className="text-xs block">{t('forgot')}</span>
+              {schedulePreview?.again && (
+                <span className="text-[10px] opacity-70 block">
+                  {formatInterval(schedulePreview.again.due)}
+                </span>
+              )}
             </button>
             <button
               onClick={() => handleReview(3)}
               className="p-3 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-xl hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
             >
               <RotateCcw className="w-5 h-5 mx-auto mb-1" />
-              <span className="text-xs">{t('difficult')}</span>
+              <span className="text-xs block">{t('difficult')}</span>
+              {schedulePreview?.hard && (
+                <span className="text-[10px] opacity-70 block">
+                  {formatInterval(schedulePreview.hard.due)}
+                </span>
+              )}
             </button>
             <button
               onClick={() => handleReview(4)}
               className="p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-xl hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
             >
               <Check className="w-5 h-5 mx-auto mb-1" />
-              <span className="text-xs">{t('remembered')}</span>
+              <span className="text-xs block">{t('remembered')}</span>
+              {schedulePreview?.good && (
+                <span className="text-[10px] opacity-70 block">
+                  {formatInterval(schedulePreview.good.due)}
+                </span>
+              )}
             </button>
             <button
               onClick={() => handleReview(5)}
               className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-xl hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors"
             >
               <Brain className="w-5 h-5 mx-auto mb-1" />
-              <span className="text-xs">{t('perfect')}</span>
+              <span className="text-xs block">{t('perfect')}</span>
+              {schedulePreview?.easy && (
+                <span className="text-[10px] opacity-70 block">
+                  {formatInterval(schedulePreview.easy.due)}
+                </span>
+              )}
             </button>
           </div>
         )}

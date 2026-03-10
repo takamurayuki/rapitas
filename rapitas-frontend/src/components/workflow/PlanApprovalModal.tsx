@@ -5,13 +5,7 @@ import type { WorkflowFile } from '@/types';
 import { useWorkflowApproval } from '@/hooks/useWorkflowApproval';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import {
-  X,
-  CheckCircle,
-  AlertTriangle,
-  FileText,
-  Loader2,
-} from 'lucide-react';
+import { X, CheckCircle, AlertTriangle, FileText, Loader2 } from 'lucide-react';
 
 export interface PlanApprovalModalProps {
   isOpen: boolean;
@@ -38,7 +32,7 @@ export default function PlanApprovalModal({
         onApprovalComplete(newStatus === 'plan_approved', newStatus);
       }
       onClose();
-    }
+    },
   );
 
   if (!isOpen) return null;

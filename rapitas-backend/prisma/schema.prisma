@@ -334,29 +334,6 @@ model LearningGoal {
   updatedAt       DateTime  @updatedAt
 }
 
-model Achievement {
-  id            Int                 @id @default(autoincrement())
-  key           String              @unique
-  name          String
-  description   String
-  icon          String
-  color         String              @default("#FFD700")
-  category      String
-  condition     String              // JSON stored as string
-  rarity        String              @default("common")
-  unlockedBy    UserAchievement[]
-  createdAt     DateTime            @default(now())
-}
-
-model UserAchievement {
-  id            Int         @id @default(autoincrement())
-  achievementId Int
-  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
-  unlockedAt    DateTime    @default(now())
-
-  @@unique([achievementId])
-}
-
 model Habit {
   id            Int           @id @default(autoincrement())
   name          String
@@ -415,14 +392,16 @@ model Resource {
 }
 
 model FlashcardDeck {
-  id          Int         @id @default(autoincrement())
-  name        String
-  description String?
-  color       String      @default("#3B82F6")
-  taskId      Int?
-  cards       Flashcard[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id              Int         @id @default(autoincrement())
+  name            String
+  description     String?
+  color           String      @default("#3B82F6")
+  taskId          Int?
+  learningGoalId  Int?
+  phaseIndex      Int?
+  cards           Flashcard[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 }
 
 model Flashcard {
@@ -435,6 +414,12 @@ model Flashcard {
   interval    Int           @default(1)
   easeFactor  Float         @default(2.5)
   reviewCount Int           @default(0)
+  // FSRS algorithm fields
+  stability   Float         @default(0)
+  difficulty  Float         @default(0)
+  state       Int           @default(0) // 0=New, 1=Learning, 2=Review, 3=Relearning
+  lapses      Int           @default(0)
+  lastReview  DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 }
@@ -558,6 +543,7 @@ model UserSettings {
   geminiDefaultModel          String?
   defaultAiProvider           String?   @default("claude")
   autoApprovePlan             Boolean   @default(false) // plan.md保存時に自動承認するか
+  autoApproveSubtaskPlan      Boolean   @default(true)  // サブタスクのplan.md自動承認（デフォルトON）
   autoComplexityAnalysis      Boolean   @default(false) // 複雑度の自動分析を有効にするか
   createdAt                   DateTime  @default(now())
   updatedAt                   DateTime  @updatedAt
@@ -1155,5 +1141,216 @@ model MemoryJournalEntry {
 
   @@index([status])
   @@index([createdAt])
+}
+
+// ワークフローオーケストラセッション
+model OrchestraSession {
+  id              Int       @id @default(autoincrement())
+  status          String    @default("idle") // idle, conducting, paused, completed, error
+  maxConcurrency  Int       @default(3)
+  totalTasks      Int       @default(0)
+  completedTasks  Int       @default(0)
+  failedTasks     Int       @default(0)
+  metadata        String    @default("{}") // JSON: configuration, stats
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  queueItems      WorkflowQueueItem[]
+
+  @@index([status])
+}
+
+// ワークフローキューアイテム
+model WorkflowQueueItem {
+  id                Int       @id @default(autoincrement())
+  taskId            Int
+  orchestraSessionId Int?
+  orchestraSession  OrchestraSession? @relation(fields: [orchestraSessionId], references: [id], onDelete: SetNull)
+  priority          Int       @default(50) // 0-100, higher = more priority
+  status            String    @default("queued") // queued, running, waiting_approval, completed, failed, cancelled
+  currentPhase      String    @default("draft") // draft, research, plan, review, implement, verify
+  dependencies      String    @default("[]") // JSON array of taskIds
+  retryCount        Int       @default(0)
+  maxRetries        Int       @default(3)
+  errorMessage      String?
+  result            String?   // JSON: execution result summary
+  queuedAt          DateTime  @default(now())
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([taskId, orchestraSessionId])
+  @@index([status, priority])
+  @@index([orchestraSessionId])
+  @@index([taskId])
+}
+
+// ============================================
+// Self-Learning Agent Architecture
+// ============================================
+
+// 実験ログ - すべてのタスク実行を実験として記録
+model Experiment {
+  id            Int       @id @default(autoincrement())
+  taskId        Int?
+  title         String
+  status        String    @default("created") // created, researching, hypothesizing, planning, executing, evaluating, learning, completed, failed
+  research      String    @default("{}") // JSON: collected information
+  hypothesis    String?   // JSON: generated hypothesis
+  plan          String?   // JSON: execution plan
+  execution     String?   // JSON: execution details
+  result        String?   // JSON: execution result
+  evaluation    String?   // JSON: evaluation metrics
+  learning      String?   // JSON: extracted learnings
+  criticReviewId Int?
+  confidence    Float     @default(0)
+  duration      Int?      // milliseconds
+  metadata      String    @default("{}") // JSON: additional context
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  hypotheses    Hypothesis[]
+  criticReviews CriticReview[]
+  episodes      EpisodeMemory[]
+  promptEvolutions PromptEvolution[]
+
+  @@index([taskId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// 仮説管理 - 解決方法の仮説を追跡
+model Hypothesis {
+  id            Int       @id @default(autoincrement())
+  experimentId  Int
+  experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  content       String    // 仮説の内容
+  reasoning     String?   // 仮説の根拠
+  status        String    @default("proposed") // proposed, testing, validated, invalidated, revised
+  confidence    Float     @default(0.5) // 0-1.0
+  priority      Int       @default(50) // 0-100
+  testResult    String?   // JSON: test outcome
+  parentId      Int?      // 仮説の改訂元
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([experimentId])
+  @@index([status])
+}
+
+// Critic レビュー - 独立した評価エージェントの結果
+model CriticReview {
+  id            Int       @id @default(autoincrement())
+  experimentId  Int
+  experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  phase         String    // hypothesis, plan, execution
+  accuracy      Float     @default(0) // 0-1.0
+  logic         Float     @default(0) // 0-1.0
+  coverage      Float     @default(0) // 0-1.0
+  overallScore  Float     @default(0) // 0-1.0
+  feedback      String    // レビューコメント
+  suggestions   String    @default("[]") // JSON: improvement suggestions
+  issues        String    @default("[]") // JSON: detected issues
+  createdAt     DateTime  @default(now())
+
+  @@index([experimentId])
+  @@index([phase])
+}
+
+// 知識グラフノード
+model KnowledgeGraphNode {
+  id            Int       @id @default(autoincrement())
+  label         String    // ノード名
+  nodeType      String    // concept, problem, solution, technology, pattern
+  description   String?
+  properties    String    @default("{}") // JSON: additional properties
+  weight        Float     @default(1.0) // importance weight
+  accessCount   Int       @default(0)
+  lastAccessedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  outEdges      KnowledgeGraphEdge[] @relation("EdgeFrom")
+  inEdges       KnowledgeGraphEdge[] @relation("EdgeTo")
+
+  @@unique([label, nodeType])
+  @@index([nodeType])
+  @@index([weight])
+}
+
+// 知識グラフエッジ
+model KnowledgeGraphEdge {
+  id            Int       @id @default(autoincrement())
+  fromNodeId    Int
+  toNodeId      Int
+  fromNode      KnowledgeGraphNode @relation("EdgeFrom", fields: [fromNodeId], references: [id], onDelete: Cascade)
+  toNode        KnowledgeGraphNode @relation("EdgeTo", fields: [toNodeId], references: [id], onDelete: Cascade)
+  edgeType      String    // related, causes, solves, requires, part_of, similar_to
+  weight        Float     @default(1.0) // relationship strength
+  metadata      String    @default("{}") // JSON
+  createdAt     DateTime  @default(now())
+
+  @@unique([fromNodeId, toNodeId, edgeType])
+  @@index([fromNodeId])
+  @@index([toNodeId])
+  @@index([edgeType])
+}
+
+// 学習パターン - 成功/失敗パターンの記録
+model LearningPattern {
+  id            Int       @id @default(autoincrement())
+  patternType   String    // success_strategy, failure_pattern, optimization, anti_pattern
+  category      String    // bug_fix, feature_implementation, refactoring, debugging, testing
+  description   String
+  conditions    String    @default("[]") // JSON: when this pattern applies
+  actions       String    @default("[]") // JSON: recommended actions
+  confidence    Float     @default(0.5) // 0-1.0
+  occurrences   Int       @default(1) // how many times observed
+  lastObserved  DateTime  @default(now())
+  metadata      String    @default("{}") // JSON
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([patternType])
+  @@index([category])
+  @@index([confidence])
+}
+
+// エピソードメモリ - 実験の詳細な記録
+model EpisodeMemory {
+  id            Int       @id @default(autoincrement())
+  experimentId  Int
+  experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  phase         String    // research, hypothesis, plan, execute, evaluate, learn
+  content       String    // エピソード内容
+  context       String    @default("{}") // JSON: environmental context
+  outcome       String?   // success, failure, partial
+  emotionalTag  String?   // surprising, expected, frustrating, satisfying
+  importance    Float     @default(0.5) // 0-1.0
+  createdAt     DateTime  @default(now())
+
+  @@index([experimentId])
+  @@index([phase])
+  @@index([importance])
+}
+
+// プロンプト進化記録 - プロンプト改善の履歴
+model PromptEvolution {
+  id            Int       @id @default(autoincrement())
+  experimentId  Int?
+  experiment    Experiment? @relation(fields: [experimentId], references: [id], onDelete: SetNull)
+  category      String    // research, hypothesis, planning, execution, evaluation
+  beforePrompt  String
+  afterPrompt   String
+  improvement   String?   // what was improved
+  performanceDelta Float  @default(0) // -1.0 to 1.0
+  createdAt     DateTime  @default(now())
+
+  @@index([category])
+  @@index([performanceDelta])
 }
 

@@ -1,41 +1,39 @@
-"use client";
+'use client';
 
-import { useState, useCallback } from "react";
-import { useTranslations } from "next-intl";
-import { Brain, Plus, BarChart3 } from "lucide-react";
-import { useKnowledge } from "@/feature/knowledge/hooks/useKnowledge";
-import { useKnowledgeSearch } from "@/feature/knowledge/hooks/useKnowledgeSearch";
-import { useMemoryStats } from "@/feature/knowledge/hooks/useMemoryStats";
-import { KnowledgeEntryCard } from "@/feature/knowledge/components/KnowledgeEntryCard";
-import { KnowledgeSearchBar } from "@/feature/knowledge/components/KnowledgeSearchBar";
-import { KnowledgeFilterPanel } from "@/feature/knowledge/components/KnowledgeFilterPanel";
-import { KnowledgeStats } from "@/feature/knowledge/components/KnowledgeStats";
-import type { KnowledgeCategory, ForgettingStage, ValidationStatus } from "@/feature/knowledge/types";
+import { useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
+import { Brain, Plus, BarChart3 } from 'lucide-react';
+import { useKnowledge } from '@/feature/knowledge/hooks/useKnowledge';
+import { useKnowledgeSearch } from '@/feature/knowledge/hooks/useKnowledgeSearch';
+import { useMemoryStats } from '@/feature/knowledge/hooks/useMemoryStats';
+import { KnowledgeEntryCard } from '@/feature/knowledge/components/KnowledgeEntryCard';
+import { KnowledgeSearchBar } from '@/feature/knowledge/components/KnowledgeSearchBar';
+import { KnowledgeFilterPanel } from '@/feature/knowledge/components/KnowledgeFilterPanel';
+import { KnowledgeStats } from '@/feature/knowledge/components/KnowledgeStats';
+import type {
+  KnowledgeCategory,
+  ForgettingStage,
+  ValidationStatus,
+} from '@/feature/knowledge/types';
 
 export default function KnowledgeClient() {
-  const t = useTranslations("knowledge");
-  const tc = useTranslations("common");
+  const t = useTranslations('knowledge');
+  const tc = useTranslations('common');
 
   const [page, setPage] = useState(1);
-  const [category, setCategory] = useState<KnowledgeCategory | "">("");
-  const [stage, setStage] = useState<ForgettingStage | "">("");
-  const [validation, setValidation] = useState<ValidationStatus | "">("");
+  const [category, setCategory] = useState<KnowledgeCategory | ''>('');
+  const [stage, setStage] = useState<ForgettingStage | ''>('');
+  const [validation, setValidation] = useState<ValidationStatus | ''>('');
   const [searchMode, setSearchMode] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Create form state
-  const [newTitle, setNewTitle] = useState("");
-  const [newContent, setNewContent] = useState("");
-  const [newCategory, setNewCategory] = useState<KnowledgeCategory>("general");
+  const [newTitle, setNewTitle] = useState('');
+  const [newContent, setNewContent] = useState('');
+  const [newCategory, setNewCategory] = useState<KnowledgeCategory>('general');
 
-  const {
-    entries,
-    total,
-    totalPages,
-    isLoading,
-    createEntry,
-  } = useKnowledge({
+  const { entries, total, totalPages, isLoading, createEntry } = useKnowledge({
     page,
     limit: 20,
     category: category || undefined,
@@ -61,15 +59,15 @@ export default function KnowledgeClient() {
   const handleCreate = async () => {
     if (!newTitle.trim() || !newContent.trim()) return;
     await createEntry({
-      sourceType: "user_learning",
+      sourceType: 'user_learning',
       title: newTitle,
       content: newContent,
       category: newCategory,
     });
     setShowCreateModal(false);
-    setNewTitle("");
-    setNewContent("");
-    setNewCategory("general");
+    setNewTitle('');
+    setNewContent('');
+    setNewCategory('general');
   };
 
   const displayEntries = searchMode
@@ -84,10 +82,10 @@ export default function KnowledgeClient() {
           <Brain className="h-8 w-8 text-indigo-500" />
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">
-              {t("title")}
+              {t('title')}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {t("description")}
+              {t('description')}
             </p>
           </div>
         </div>
@@ -103,7 +101,7 @@ export default function KnowledgeClient() {
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >
             <Plus className="h-4 w-4" />
-            {t("createEntry")}
+            {t('createEntry')}
           </button>
         </div>
       </div>
@@ -123,9 +121,18 @@ export default function KnowledgeClient() {
             category={category}
             stage={stage}
             validation={validation}
-            onCategoryChange={(v) => { setCategory(v); setPage(1); }}
-            onStageChange={(v) => { setStage(v); setPage(1); }}
-            onValidationChange={(v) => { setValidation(v); setPage(1); }}
+            onCategoryChange={(v) => {
+              setCategory(v);
+              setPage(1);
+            }}
+            onStageChange={(v) => {
+              setStage(v);
+              setPage(1);
+            }}
+            onValidationChange={(v) => {
+              setValidation(v);
+              setPage(1);
+            }}
           />
         )}
       </div>
@@ -133,22 +140,29 @@ export default function KnowledgeClient() {
       {/* Results count */}
       <div className="mb-3 text-sm text-gray-500 dark:text-gray-400">
         {searchMode
-          ? `${searchResults.length} ${t("entries")}`
-          : `${total} ${t("entries")}`}
+          ? `${searchResults.length} ${t('entries')}`
+          : `${total} ${t('entries')}`}
       </div>
 
       {/* Entry list */}
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-28 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700" />
+            <div
+              key={i}
+              className="h-28 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700"
+            />
           ))}
         </div>
       ) : displayEntries.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-8 text-center dark:border-gray-700 dark:bg-gray-800">
           <Brain className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600" />
-          <p className="mt-3 text-sm font-medium text-gray-900 dark:text-gray-100">{t("noResults")}</p>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("noResultsDescription")}</p>
+          <p className="mt-3 text-sm font-medium text-gray-900 dark:text-gray-100">
+            {t('noResults')}
+          </p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {t('noResultsDescription')}
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -156,7 +170,9 @@ export default function KnowledgeClient() {
             <KnowledgeEntryCard
               key={entry.id}
               entry={entry}
-              similarity={"similarity" in entry ? (entry as any).similarity : undefined}
+              similarity={
+                'similarity' in entry ? (entry as any).similarity : undefined
+              }
             />
           ))}
         </div>
@@ -170,7 +186,7 @@ export default function KnowledgeClient() {
             disabled={page <= 1}
             className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300"
           >
-            {tc("back")}
+            {tc('back')}
           </button>
           <span className="text-sm text-gray-500 dark:text-gray-400">
             {page} / {totalPages}
@@ -190,7 +206,7 @@ export default function KnowledgeClient() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="mx-4 w-full max-w-lg rounded-xl bg-white p-6 dark:bg-gray-800">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-              {t("createEntry")}
+              {t('createEntry')}
             </h2>
             <div className="space-y-4">
               <div>
@@ -206,7 +222,7 @@ export default function KnowledgeClient() {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {t("content")}
+                  {t('content')}
                 </label>
                 <textarea
                   value={newContent}
@@ -217,20 +233,29 @@ export default function KnowledgeClient() {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {t("category")}
+                  {t('category')}
                 </label>
                 <select
                   value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value as KnowledgeCategory)}
+                  onChange={(e) =>
+                    setNewCategory(e.target.value as KnowledgeCategory)
+                  }
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                 >
-                  {(["general", "procedure", "fact", "pattern", "preference", "insight"] as KnowledgeCategory[]).map(
-                    (c) => (
-                      <option key={c} value={c}>
-                        {t(`categories.${c}`)}
-                      </option>
-                    ),
-                  )}
+                  {(
+                    [
+                      'general',
+                      'procedure',
+                      'fact',
+                      'pattern',
+                      'preference',
+                      'insight',
+                    ] as KnowledgeCategory[]
+                  ).map((c) => (
+                    <option key={c} value={c}>
+                      {t(`categories.${c}`)}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -239,14 +264,14 @@ export default function KnowledgeClient() {
                 onClick={() => setShowCreateModal(false)}
                 className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300"
               >
-                {tc("cancel")}
+                {tc('cancel')}
               </button>
               <button
                 onClick={handleCreate}
                 disabled={!newTitle.trim() || !newContent.trim()}
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
-                {tc("create")}
+                {tc('create')}
               </button>
             </div>
           </div>

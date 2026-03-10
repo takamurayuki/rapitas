@@ -2,10 +2,10 @@
  * Study Streak Service
  * 学習ストリーク（連続学習日数）の追跡とボーナス計算
  */
-import { prisma } from "../config/database";
-import { createLogger } from "../config/logger";
+import { prisma } from '../config/database';
+import { createLogger } from '../config/logger';
 
-const log = createLogger("study-streak-service");
+const log = createLogger('study-streak-service');
 
 export interface StreakInfo {
   currentStreak: number;
@@ -18,9 +18,9 @@ export interface StreakInfo {
  */
 export async function getStreak(): Promise<StreakInfo> {
   const sessions = await prisma.pomodoroSession.findMany({
-    where: { status: "completed", type: "work" },
+    where: { status: 'completed', type: 'work' },
     select: { completedAt: true },
-    orderBy: { completedAt: "desc" },
+    orderBy: { completedAt: 'desc' },
   });
 
   if (sessions.length === 0) {
@@ -29,19 +29,19 @@ export async function getStreak(): Promise<StreakInfo> {
 
   // 日ごとにグループ化
   const studyDates = new Set(
-    sessions.map((s) => (s.completedAt ?? new Date()).toISOString().split("T")[0]!)
+    sessions.map((s) => (s.completedAt ?? new Date()).toISOString().split('T')[0]!),
   );
   const sortedDates = Array.from(studyDates).sort().reverse();
   const lastStudyDate = sortedDates[0] ?? null;
 
   // 今日または昨日から連続しているか計算
-  const today = new Date().toISOString().split("T")[0]!;
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0]!;
+  const today = new Date().toISOString().split('T')[0]!;
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]!;
 
   let currentStreak = 0;
   if (lastStudyDate === today || lastStudyDate === yesterday) {
     let checkDate = new Date(lastStudyDate);
-    while (studyDates.has(checkDate.toISOString().split("T")[0]!)) {
+    while (studyDates.has(checkDate.toISOString().split('T')[0]!)) {
       currentStreak++;
       checkDate = new Date(checkDate.getTime() - 86400000);
     }
@@ -62,7 +62,7 @@ export async function getStreak(): Promise<StreakInfo> {
   }
   longestStreak = Math.max(longestStreak, streak, currentStreak);
 
-  log.info({ currentStreak, longestStreak }, "Streak calculated");
+  log.info({ currentStreak, longestStreak }, 'Streak calculated');
   return { currentStreak, longestStreak, lastStudyDate };
 }
 

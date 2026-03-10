@@ -14,11 +14,7 @@ import type {
   AgentExecutionResult,
   AgentProviderConfig,
 } from './types';
-import type {
-  IAgent,
-  IAgentExecutionManager,
-  IAgentLogger,
-} from './interfaces';
+import type { IAgent, IAgentExecutionManager, IAgentLogger } from './interfaces';
 import { AgentRegistry } from './registry';
 import { generateExecutionId } from './index';
 
@@ -80,9 +76,7 @@ export class AgentExecutionManager implements IAgentExecutionManager {
     // 同時実行数のチェック
     const activeCount = this.getActiveExecutionCount();
     if (activeCount >= this.maxConcurrentExecutions) {
-      throw new Error(
-        `Maximum concurrent executions (${this.maxConcurrentExecutions}) reached`,
-      );
+      throw new Error(`Maximum concurrent executions (${this.maxConcurrentExecutions}) reached`);
     }
 
     // 実行IDを生成
@@ -129,7 +123,11 @@ export class AgentExecutionManager implements IAgentExecutionManager {
       this.log('info', `Execution ${executionId} completed with state: ${result.state}`);
 
       // 完了した実行を一定時間後にクリーンアップ
-      if (result.state === 'completed' || result.state === 'failed' || result.state === 'cancelled') {
+      if (
+        result.state === 'completed' ||
+        result.state === 'failed' ||
+        result.state === 'cancelled'
+      ) {
         setTimeout(() => {
           this.cleanupExecution(executionId);
         }, 60000); // 1分後にクリーンアップ
@@ -139,7 +137,10 @@ export class AgentExecutionManager implements IAgentExecutionManager {
     } catch (error) {
       executionInfo.state = 'failed';
 
-      this.log('error', `Execution ${executionId} failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.log(
+        'error',
+        `Execution ${executionId} failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
 
       // エラー時も一定時間後にクリーンアップ
       setTimeout(() => {
@@ -199,7 +200,10 @@ export class AgentExecutionManager implements IAgentExecutionManager {
     } catch (error) {
       executionInfo.state = 'failed';
 
-      this.log('error', `Continuation ${executionId} failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.log(
+        'error',
+        `Continuation ${executionId} failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
 
       throw error;
     }
@@ -287,8 +291,7 @@ export class AgentExecutionManager implements IAgentExecutionManager {
   getActiveExecutionCount(): number {
     const activeStates: AgentState[] = ['initializing', 'running', 'waiting_for_input', 'paused'];
 
-    return Array.from(this.executions.values())
-      .filter((info) => activeStates.includes(info.state))
+    return Array.from(this.executions.values()).filter((info) => activeStates.includes(info.state))
       .length;
   }
 
@@ -297,14 +300,13 @@ export class AgentExecutionManager implements IAgentExecutionManager {
    */
   async stopAllExecutions(): Promise<void> {
     const activeStates: AgentState[] = ['initializing', 'running', 'waiting_for_input', 'paused'];
-    const activeExecutions = Array.from(this.executions.values())
-      .filter((info) => activeStates.includes(info.state));
+    const activeExecutions = Array.from(this.executions.values()).filter((info) =>
+      activeStates.includes(info.state),
+    );
 
     this.log('info', `Stopping all ${activeExecutions.length} active executions`);
 
-    await Promise.allSettled(
-      activeExecutions.map((info) => this.stopExecution(info.executionId)),
-    );
+    await Promise.allSettled(activeExecutions.map((info) => this.stopExecution(info.executionId)));
   }
 
   /**

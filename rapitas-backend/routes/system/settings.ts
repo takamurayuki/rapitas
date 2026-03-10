@@ -1,14 +1,14 @@
 /**
  * User Settings API Routes
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
-import { getApiKeyForProvider } from "../../utils/ai-client";
-import { encrypt, decrypt, maskApiKey } from "../../utils/encryption";
-import { systemSchemas } from "../../schemas/system.schema";
-import { createLogger } from "../../config/logger";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
+import { getApiKeyForProvider } from '../../utils/ai-client';
+import { encrypt, decrypt, maskApiKey } from '../../utils/encryption';
+import { systemSchemas } from '../../schemas/system.schema';
+import { createLogger } from '../../config/logger';
 
-const log = createLogger("routes:settings");
+const log = createLogger('routes:settings');
 
 // Type definitions for request bodies
 interface UserSettingsUpdateBody {
@@ -37,15 +37,15 @@ interface ModelConfigBody {
 }
 
 const PROVIDER_COLUMNS = {
-  claude: "claudeApiKeyEncrypted",
-  chatgpt: "chatgptApiKeyEncrypted",
-  gemini: "geminiApiKeyEncrypted",
+  claude: 'claudeApiKeyEncrypted',
+  chatgpt: 'chatgptApiKeyEncrypted',
+  gemini: 'geminiApiKeyEncrypted',
 } as const;
 
 const PROVIDER_MODEL_COLUMNS = {
-  claude: "claudeDefaultModel",
-  chatgpt: "chatgptDefaultModel",
-  gemini: "geminiDefaultModel",
+  claude: 'claudeDefaultModel',
+  chatgpt: 'chatgptDefaultModel',
+  gemini: 'geminiDefaultModel',
 } as const;
 
 // Cache for available models with expiration
@@ -84,27 +84,27 @@ interface GeminiModelsResponse {
 // Fallback models in case dynamic fetching fails
 const FALLBACK_MODELS: Record<string, Array<{ value: string; label: string }>> = {
   claude: [
-    { value: "claude-opus-4-6", label: "Claude Opus 4.6" },
-    { value: "claude-sonnet-4-5-20250929", label: "Claude Sonnet 4.5" },
-    { value: "claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
-    { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
-    { value: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku" },
+    { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
+    { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5' },
+    { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
+    { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+    { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
   ],
   chatgpt: [
-    { value: "gpt-4o", label: "GPT-4o" },
-    { value: "gpt-4o-mini", label: "GPT-4o Mini" },
-    { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
-    { value: "o1", label: "o1" },
-    { value: "o1-mini", label: "o1 Mini" },
-    { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
+    { value: 'gpt-4o', label: 'GPT-4o' },
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+    { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+    { value: 'o1', label: 'o1' },
+    { value: 'o1-mini', label: 'o1 Mini' },
+    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
   ],
   gemini: [
-    { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-    { value: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
-    { value: "gemini-2.0-flash-exp", label: "Gemini 2.0 Flash (Experimental)" },
-    { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
-    { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
-    { value: "gemini-1.5-flash-8b", label: "Gemini 1.5 Flash 8B" },
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+    { value: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash (Experimental)' },
+    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+    { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+    { value: 'gemini-1.5-flash-8b', label: 'Gemini 1.5 Flash 8B' },
   ],
 };
 
@@ -117,7 +117,9 @@ function isValidProvider(provider: string): provider is ApiProvider {
 /**
  * Fetch available models dynamically from providers
  */
-async function fetchAvailableModels(): Promise<Record<string, Array<{ value: string; label: string }>>> {
+async function fetchAvailableModels(): Promise<
+  Record<string, Array<{ value: string; label: string }>>
+> {
   // Check cache first
   if (modelCache && modelCache.expiresAt > Date.now()) {
     return modelCache.data;
@@ -127,21 +129,22 @@ async function fetchAvailableModels(): Promise<Record<string, Array<{ value: str
 
   try {
     // Fetch Claude models from Anthropic API
-    const claudeApiKey = await getApiKeyForProvider("claude");
+    const claudeApiKey = await getApiKeyForProvider('claude');
     if (claudeApiKey) {
       try {
-        const response = await fetch("https://api.anthropic.com/v1/models", {
+        const response = await fetch('https://api.anthropic.com/v1/models', {
           headers: {
-            "x-api-key": claudeApiKey,
-            "anthropic-version": "2023-06-01",
+            'x-api-key': claudeApiKey,
+            'anthropic-version': '2023-06-01',
           },
         });
         if (response.ok) {
-          const data = await response.json() as ClaudeModelsResponse;
-          models.claude = data.models?.map((model) => ({
-            value: model.id,
-            label: model.display_name || model.id,
-          })) || FALLBACK_MODELS.claude;
+          const data = (await response.json()) as ClaudeModelsResponse;
+          models.claude =
+            data.models?.map((model) => ({
+              value: model.id,
+              label: model.display_name || model.id,
+            })) || FALLBACK_MODELS.claude;
         } else {
           models.claude = FALLBACK_MODELS.claude;
         }
@@ -154,22 +157,25 @@ async function fetchAvailableModels(): Promise<Record<string, Array<{ value: str
 
     // Fetch OpenAI models
     const settings = await prisma.userSettings.findFirst();
-    const openaiApiKey = settings?.chatgptApiKeyEncrypted ? decrypt(settings.chatgptApiKeyEncrypted) : null;
+    const openaiApiKey = settings?.chatgptApiKeyEncrypted
+      ? decrypt(settings.chatgptApiKeyEncrypted)
+      : null;
     if (openaiApiKey) {
       try {
-        const response = await fetch("https://api.openai.com/v1/models", {
+        const response = await fetch('https://api.openai.com/v1/models', {
           headers: {
-            "Authorization": `Bearer ${openaiApiKey}`,
+            Authorization: `Bearer ${openaiApiKey}`,
           },
         });
         if (response.ok) {
-          const data = await response.json() as OpenAIModelsResponse;
-          const gptModels = data.data?.filter((model) =>
-            model.id.includes("gpt") || model.id.includes("o1")
-          ).map((model) => ({
-            value: model.id,
-            label: model.id.replace(/-/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()),
-          })) || [];
+          const data = (await response.json()) as OpenAIModelsResponse;
+          const gptModels =
+            data.data
+              ?.filter((model) => model.id.includes('gpt') || model.id.includes('o1'))
+              .map((model) => ({
+                value: model.id,
+                label: model.id.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+              })) || [];
           models.chatgpt = gptModels.length > 0 ? gptModels : FALLBACK_MODELS.chatgpt;
         } else {
           models.chatgpt = FALLBACK_MODELS.chatgpt;
@@ -182,18 +188,23 @@ async function fetchAvailableModels(): Promise<Record<string, Array<{ value: str
     }
 
     // Fetch Gemini models
-    const geminiApiKey = settings?.geminiApiKeyEncrypted ? decrypt(settings.geminiApiKeyEncrypted) : null;
+    const geminiApiKey = settings?.geminiApiKeyEncrypted
+      ? decrypt(settings.geminiApiKeyEncrypted)
+      : null;
     if (geminiApiKey) {
       try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${geminiApiKey}`);
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1/models?key=${geminiApiKey}`,
+        );
         if (response.ok) {
-          const data = await response.json() as GeminiModelsResponse;
-          const geminiModels = data.models?.filter((model) =>
-            model.supportedGenerationMethods?.includes("generateContent")
-          ).map((model) => ({
-            value: model.name.replace("models/", ""),
-            label: model.displayName || model.name.replace("models/", ""),
-          })) || [];
+          const data = (await response.json()) as GeminiModelsResponse;
+          const geminiModels =
+            data.models
+              ?.filter((model) => model.supportedGenerationMethods?.includes('generateContent'))
+              .map((model) => ({
+                value: model.name.replace('models/', ''),
+                label: model.displayName || model.name.replace('models/', ''),
+              })) || [];
           models.gemini = geminiModels.length > 0 ? geminiModels : FALLBACK_MODELS.gemini;
         } else {
           models.gemini = FALLBACK_MODELS.gemini;
@@ -205,7 +216,7 @@ async function fetchAvailableModels(): Promise<Record<string, Array<{ value: str
       models.gemini = FALLBACK_MODELS.gemini;
     }
   } catch (error) {
-    log.error({ err: error }, "Error fetching dynamic models");
+    log.error({ err: error }, 'Error fetching dynamic models');
     // Return fallback models if anything fails
     return FALLBACK_MODELS;
   }
@@ -225,47 +236,47 @@ async function fetchAvailableModels(): Promise<Record<string, Array<{ value: str
  */
 function validateApiKeyFormat(
   apiKey: string,
-  provider: ApiProvider
+  provider: ApiProvider,
 ): { valid: boolean; error?: string } {
   const trimmed = apiKey.trim();
 
   if (!trimmed) {
-    return { valid: false, error: "APIキーを入力してください" };
+    return { valid: false, error: 'APIキーを入力してください' };
   }
 
   if (trimmed.length < 10) {
-    return { valid: false, error: "APIキーが短すぎます（10文字以上必要です）" };
+    return { valid: false, error: 'APIキーが短すぎます（10文字以上必要です）' };
   }
 
   switch (provider) {
-    case "claude":
-      if (!trimmed.startsWith("sk-ant-api")) {
+    case 'claude':
+      if (!trimmed.startsWith('sk-ant-api')) {
         return {
           valid: false,
-          error: "Claude APIキーは「sk-ant-api」で始まる必要があります",
+          error: 'Claude APIキーは「sk-ant-api」で始まる必要があります',
         };
       }
       break;
-    case "chatgpt":
-      if (!trimmed.startsWith("sk-")) {
+    case 'chatgpt':
+      if (!trimmed.startsWith('sk-')) {
         return {
           valid: false,
-          error: "OpenAI APIキーは「sk-」で始まる必要があります",
+          error: 'OpenAI APIキーは「sk-」で始まる必要があります',
         };
       }
       // Claude APIキーとの誤入力を防止
-      if (trimmed.startsWith("sk-ant-api")) {
+      if (trimmed.startsWith('sk-ant-api')) {
         return {
           valid: false,
-          error: "これはClaude APIキーです。OpenAI APIキーを入力してください",
+          error: 'これはClaude APIキーです。OpenAI APIキーを入力してください',
         };
       }
       break;
-    case "gemini":
-      if (!trimmed.startsWith("AIza")) {
+    case 'gemini':
+      if (!trimmed.startsWith('AIza')) {
         return {
           valid: false,
-          error: "Gemini APIキーは「AIza」で始まる必要があります",
+          error: 'Gemini APIキーは「AIza」で始まる必要があります',
         };
       }
       break;
@@ -274,16 +285,16 @@ function validateApiKeyFormat(
   return { valid: true };
 }
 
-export const settingsRoutes = new Elysia({ prefix: "/settings" })
+export const settingsRoutes = new Elysia({ prefix: '/settings' })
   // Get settings (create if not exists)
-  .get("/", async () => {
+  .get('/', async () => {
     let settings = await prisma.userSettings.findFirst();
     if (!settings) {
       settings = await prisma.userSettings.create({
         data: {},
       });
     }
-    const claudeApiKey = await getApiKeyForProvider("claude");
+    const claudeApiKey = await getApiKeyForProvider('claude');
     const apiKeyConfigured = !!claudeApiKey;
 
     // ChatGPT/Gemini APIキーの設定状態を判定
@@ -309,9 +320,35 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
 
   // Update settings
   .patch(
-    "/",
+    '/',
     async ({ body, set }) => {
-      const { developerModeDefault, aiTaskAnalysisDefault, autoResumeInterruptedTasks, autoExecuteAfterCreate, autoGenerateTitle, autoGenerateTitleDelay, autoCreateAfterTitleGeneration, autoApprovePlan, autoComplexityAnalysis, defaultAiProvider, defaultCategoryId, activeMode } = body as { developerModeDefault?: boolean; aiTaskAnalysisDefault?: boolean; autoResumeInterruptedTasks?: boolean; autoExecuteAfterCreate?: boolean; autoGenerateTitle?: boolean; autoGenerateTitleDelay?: number; autoCreateAfterTitleGeneration?: boolean; autoApprovePlan?: boolean; autoComplexityAnalysis?: boolean; defaultAiProvider?: string; defaultCategoryId?: number; activeMode?: string };
+      const {
+        developerModeDefault,
+        aiTaskAnalysisDefault,
+        autoResumeInterruptedTasks,
+        autoExecuteAfterCreate,
+        autoGenerateTitle,
+        autoGenerateTitleDelay,
+        autoCreateAfterTitleGeneration,
+        autoApprovePlan,
+        autoComplexityAnalysis,
+        defaultAiProvider,
+        defaultCategoryId,
+        activeMode,
+      } = body as {
+        developerModeDefault?: boolean;
+        aiTaskAnalysisDefault?: boolean;
+        autoResumeInterruptedTasks?: boolean;
+        autoExecuteAfterCreate?: boolean;
+        autoGenerateTitle?: boolean;
+        autoGenerateTitleDelay?: number;
+        autoCreateAfterTitleGeneration?: boolean;
+        autoApprovePlan?: boolean;
+        autoComplexityAnalysis?: boolean;
+        defaultAiProvider?: string;
+        defaultCategoryId?: number;
+        activeMode?: string;
+      };
 
       try {
         let settings = await prisma.userSettings.findFirst();
@@ -341,7 +378,9 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
               ...(autoExecuteAfterCreate !== undefined && { autoExecuteAfterCreate }),
               ...(autoGenerateTitle !== undefined && { autoGenerateTitle }),
               ...(autoGenerateTitleDelay !== undefined && { autoGenerateTitleDelay }),
-              ...(autoCreateAfterTitleGeneration !== undefined && { autoCreateAfterTitleGeneration }),
+              ...(autoCreateAfterTitleGeneration !== undefined && {
+                autoCreateAfterTitleGeneration,
+              }),
               ...(autoApprovePlan !== undefined && { autoApprovePlan }),
               ...(autoComplexityAnalysis !== undefined && { autoComplexityAnalysis }),
               ...(defaultAiProvider !== undefined && { defaultAiProvider }),
@@ -353,75 +392,79 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
 
         return settings;
       } catch (error: unknown) {
-        log.error({ err: error }, "Settings update error");
+        log.error({ err: error }, 'Settings update error');
         set.status = 500;
         return {
-          error: "設定の保存に失敗しました",
-          message: error instanceof Error ? error.message : "Unknown error",
+          error: '設定の保存に失敗しました',
+          message: error instanceof Error ? error.message : 'Unknown error',
         };
       }
     },
     {
-      body: systemSchemas.userSettings
-    }
+      body: systemSchemas.userSettings,
+    },
   )
 
   // Get API status
-  .get("/api-status", async () => {
-    const claudeApiKey = await getApiKeyForProvider("claude");
+  .get('/api-status', async () => {
+    const claudeApiKey = await getApiKeyForProvider('claude');
     return {
       claudeApiKeyConfigured: !!claudeApiKey,
     };
   })
 
   // Get API key status for a specific provider
-  .get("/api-key", async ({ query }) => {
-    const provider = query.provider || "claude";
+  .get(
+    '/api-key',
+    async ({ query }) => {
+      const provider = query.provider || 'claude';
 
-    if (!isValidProvider(provider)) {
-      return { configured: false, maskedKey: null, provider };
-    }
+      if (!isValidProvider(provider)) {
+        return { configured: false, maskedKey: null, provider };
+      }
 
-    const settings = await prisma.userSettings.findFirst();
-    if (!settings) {
-      return { configured: false, maskedKey: null, provider };
-    }
+      const settings = await prisma.userSettings.findFirst();
+      if (!settings) {
+        return { configured: false, maskedKey: null, provider };
+      }
 
-    const column = PROVIDER_COLUMNS[provider];
-    const encryptedKey = settings[column];
+      const column = PROVIDER_COLUMNS[provider];
+      const encryptedKey = settings[column];
 
-    if (!encryptedKey) {
-      // Fallback to env var for Claude
-      if (provider === "claude" && process.env.CLAUDE_API_KEY) {
+      if (!encryptedKey) {
+        // Fallback to env var for Claude
+        if (provider === 'claude' && process.env.CLAUDE_API_KEY) {
+          return {
+            configured: true,
+            maskedKey: maskApiKey(process.env.CLAUDE_API_KEY),
+            provider,
+            source: 'env',
+          };
+        }
+        return { configured: false, maskedKey: null, provider };
+      }
+
+      try {
+        const decrypted = decrypt(encryptedKey);
         return {
           configured: true,
-          maskedKey: maskApiKey(process.env.CLAUDE_API_KEY),
+          maskedKey: maskApiKey(decrypted),
           provider,
-          source: "env",
+          source: 'db',
         };
+      } catch {
+        return { configured: false, maskedKey: null, provider };
       }
-      return { configured: false, maskedKey: null, provider };
-    }
-
-    try {
-      const decrypted = decrypt(encryptedKey);
-      return {
-        configured: true,
-        maskedKey: maskApiKey(decrypted),
-        provider,
-        source: "db",
-      };
-    } catch {
-      return { configured: false, maskedKey: null, provider };
-    }
-  }, {
-    query: t.Object({
-      provider: t.Optional(t.String())
-    })
-  })
+    },
+    {
+      query: t.Object({
+        provider: t.Optional(t.String()),
+      }),
+    },
+  )
 
   // Get all providers' API key status
-  .get("/api-keys", async () => {
+  .get('/api-keys', async () => {
     const settings = await prisma.userSettings.findFirst();
     const providers = Object.keys(PROVIDER_COLUMNS) as ApiProvider[];
 
@@ -438,7 +481,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
         } catch {
           result[provider] = { configured: false, maskedKey: null };
         }
-      } else if (provider === "claude" && process.env.CLAUDE_API_KEY) {
+      } else if (provider === 'claude' && process.env.CLAUDE_API_KEY) {
         result[provider] = {
           configured: true,
           maskedKey: maskApiKey(process.env.CLAUDE_API_KEY),
@@ -453,9 +496,9 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
 
   // Save API key for a specific provider
   .post(
-    "/api-key",
+    '/api-key',
     async ({ body, set }) => {
-      const { apiKey, provider = "claude" } = body as { apiKey: string; provider?: string };
+      const { apiKey, provider = 'claude' } = body as { apiKey: string; provider?: string };
 
       if (!isValidProvider(provider)) {
         set.status = 400;
@@ -491,15 +534,15 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       };
     },
     {
-      body: systemSchemas.aiProviderConfig
-    }
+      body: systemSchemas.aiProviderConfig,
+    },
   )
 
   // Validate API key format for a specific provider
   .post(
-    "/api-key/validate",
+    '/api-key/validate',
     async ({ body, set }) => {
-      const { apiKey, provider = "claude" } = body as { apiKey: string; provider?: string };
+      const { apiKey, provider = 'claude' } = body as { apiKey: string; provider?: string };
 
       if (!isValidProvider(provider)) {
         set.status = 400;
@@ -510,66 +553,74 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       return validation;
     },
     {
-      body: systemSchemas.aiProviderConfig
-    }
+      body: systemSchemas.aiProviderConfig,
+    },
   )
 
   // Delete API key for a specific provider
-  .delete("/api-key", async ({ query }) => {
-    const provider = query.provider || "claude";
+  .delete(
+    '/api-key',
+    async ({ query }) => {
+      const provider = query.provider || 'claude';
 
-    if (!isValidProvider(provider)) {
-      throw new Error(`Invalid provider: ${provider}`);
-    }
+      if (!isValidProvider(provider)) {
+        throw new Error(`Invalid provider: ${provider}`);
+      }
 
-    const column = PROVIDER_COLUMNS[provider];
-    const settings = await prisma.userSettings.findFirst();
+      const column = PROVIDER_COLUMNS[provider];
+      const settings = await prisma.userSettings.findFirst();
 
-    if (settings) {
-      await prisma.userSettings.update({
-        where: { id: settings.id },
-        data: { [column]: null },
-      });
-    }
+      if (settings) {
+        await prisma.userSettings.update({
+          where: { id: settings.id },
+          data: { [column]: null },
+        });
+      }
 
-    return { success: true, provider };
-  }, {
-    query: t.Object({
-      provider: t.Optional(t.String())
-    })
-  })
+      return { success: true, provider };
+    },
+    {
+      query: t.Object({
+        provider: t.Optional(t.String()),
+      }),
+    },
+  )
 
   // Get available models for all providers
-  .get("/models", async () => {
+  .get('/models', async () => {
     return await fetchAvailableModels();
   })
 
   // Get default model for a specific provider
-  .get("/model", async ({ query }) => {
-    const provider = query.provider || "claude";
+  .get(
+    '/model',
+    async ({ query }) => {
+      const provider = query.provider || 'claude';
 
-    if (!isValidProvider(provider)) {
-      return { provider, model: null };
-    }
+      if (!isValidProvider(provider)) {
+        return { provider, model: null };
+      }
 
-    const settings = await prisma.userSettings.findFirst();
-    if (!settings) {
-      return { provider, model: null };
-    }
+      const settings = await prisma.userSettings.findFirst();
+      if (!settings) {
+        return { provider, model: null };
+      }
 
-    const column = PROVIDER_MODEL_COLUMNS[provider];
-    return { provider, model: settings[column] };
-  }, {
-    query: t.Object({
-      provider: t.Optional(t.String())
-    })
-  })
+      const column = PROVIDER_MODEL_COLUMNS[provider];
+      return { provider, model: settings[column] };
+    },
+    {
+      query: t.Object({
+        provider: t.Optional(t.String()),
+      }),
+    },
+  )
 
   // Save default model for a specific provider
   .post(
-    "/model",
+    '/model',
     async ({ body, set }) => {
-      const { model, provider = "claude" } = body as { model: string; provider?: string };
+      const { model, provider = 'claude' } = body as { model: string; provider?: string };
 
       if (!isValidProvider(provider)) {
         set.status = 400;
@@ -603,6 +654,6 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       return { provider, model };
     },
     {
-      body: systemSchemas.modelConfig
-    }
+      body: systemSchemas.modelConfig,
+    },
   );

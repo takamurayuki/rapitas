@@ -2,11 +2,11 @@
  * メモリシステムのバックグラウンドジョブキュー
  * 5秒間隔ポーリングワーカー、リトライ3回、dead_letter移行
  */
-import { prisma } from "../../config/database";
-import { createLogger } from "../../config/logger";
-import type { MemoryTaskType } from "./types";
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+import type { MemoryTaskType } from './types';
 
-const log = createLogger("memory:task-queue");
+const log = createLogger('memory:task-queue');
 
 type TaskHandler = (payload: Record<string, unknown>) => Promise<void>;
 
@@ -25,7 +25,7 @@ export class MemoryTaskQueueProcessor {
    */
   registerHandler(taskType: MemoryTaskType, handler: TaskHandler): void {
     this.handlers.set(taskType, handler);
-    log.debug({ taskType }, "Task handler registered");
+    log.debug({ taskType }, 'Task handler registered');
   }
 
   /**
@@ -36,11 +36,11 @@ export class MemoryTaskQueueProcessor {
 
     this.intervalId = setInterval(() => {
       this.processNext().catch((err) => {
-        log.error({ err }, "Queue processing error");
+        log.error({ err }, 'Queue processing error');
       });
     }, this.pollIntervalMs);
 
-    log.info({ pollIntervalMs: this.pollIntervalMs }, "Memory task queue worker started");
+    log.info({ pollIntervalMs: this.pollIntervalMs }, 'Memory task queue worker started');
   }
 
   /**
@@ -50,7 +50,7 @@ export class MemoryTaskQueueProcessor {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
-      log.info("Memory task queue worker stopped");
+      log.info('Memory task queue worker stopped');
     }
   }
 
@@ -68,11 +68,11 @@ export class MemoryTaskQueueProcessor {
         taskType,
         payload: JSON.stringify(payload),
         priority,
-        status: "pending",
+        status: 'pending',
         scheduledAt: scheduledAt ?? new Date(),
       },
     });
-    log.debug({ taskType, taskId: task.id, priority }, "Task enqueued");
+    log.debug({ taskType, taskId: task.id, priority }, 'Task enqueued');
     return task.id;
   }
 
@@ -87,24 +87,24 @@ export class MemoryTaskQueueProcessor {
       // 最も優先度が高く、スケジュール時刻を過ぎたpendingタスクを取得
       const task = await prisma.memoryTaskQueue.findFirst({
         where: {
-          status: "pending",
+          status: 'pending',
           scheduledAt: { lte: new Date() },
         },
-        orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
+        orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
       });
 
       if (!task) return;
 
       const handler = this.handlers.get(task.taskType);
       if (!handler) {
-        log.warn({ taskType: task.taskType, taskId: task.id }, "No handler for task type");
+        log.warn({ taskType: task.taskType, taskId: task.id }, 'No handler for task type');
         return;
       }
 
       // processing に更新
       await prisma.memoryTaskQueue.update({
         where: { id: task.id },
-        data: { status: "processing", startedAt: new Date(), attempts: task.attempts + 1 },
+        data: { status: 'processing', startedAt: new Date(), attempts: task.attempts + 1 },
       });
 
       try {
@@ -114,9 +114,9 @@ export class MemoryTaskQueueProcessor {
         // completed に更新
         await prisma.memoryTaskQueue.update({
           where: { id: task.id },
-          data: { status: "completed", completedAt: new Date() },
+          data: { status: 'completed', completedAt: new Date() },
         });
-        log.debug({ taskType: task.taskType, taskId: task.id }, "Task completed");
+        log.debug({ taskType: task.taskType, taskId: task.id }, 'Task completed');
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         const newAttempts = task.attempts + 1;
@@ -125,21 +125,21 @@ export class MemoryTaskQueueProcessor {
           // dead_letter に移行
           await prisma.memoryTaskQueue.update({
             where: { id: task.id },
-            data: { status: "dead_letter", errorMessage: message },
+            data: { status: 'dead_letter', errorMessage: message },
           });
           log.error(
             { taskType: task.taskType, taskId: task.id, attempts: newAttempts },
-            "Task moved to dead_letter",
+            'Task moved to dead_letter',
           );
         } else {
           // リトライ: pending に戻す
           await prisma.memoryTaskQueue.update({
             where: { id: task.id },
-            data: { status: "pending", errorMessage: message },
+            data: { status: 'pending', errorMessage: message },
           });
           log.warn(
             { taskType: task.taskType, taskId: task.id, attempts: newAttempts },
-            "Task failed, will retry",
+            'Task failed, will retry',
           );
         }
       }
@@ -159,26 +159,26 @@ export class MemoryTaskQueueProcessor {
     deadLetter: number;
   }> {
     const counts = await prisma.memoryTaskQueue.groupBy({
-      by: ["status"],
+      by: ['status'],
       _count: { id: true },
     });
 
     const result = { pending: 0, processing: 0, completed: 0, failed: 0, deadLetter: 0 };
     for (const c of counts) {
       switch (c.status) {
-        case "pending":
+        case 'pending':
           result.pending = c._count.id;
           break;
-        case "processing":
+        case 'processing':
           result.processing = c._count.id;
           break;
-        case "completed":
+        case 'completed':
           result.completed = c._count.id;
           break;
-        case "failed":
+        case 'failed':
           result.failed = c._count.id;
           break;
-        case "dead_letter":
+        case 'dead_letter':
           result.deadLetter = c._count.id;
           break;
       }

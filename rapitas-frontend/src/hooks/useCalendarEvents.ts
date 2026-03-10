@@ -40,7 +40,7 @@ export function useCalendarEvents() {
       const data = await res.json();
       setEvents(data.events ?? data);
     } catch (error) {
-      logger.error('Failed to fetch calendar events:', error);
+      logger.transientError('Failed to fetch calendar events:', error);
     } finally {
       setIsLoading(false);
     }

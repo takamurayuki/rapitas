@@ -13,7 +13,7 @@ export interface AgentProviderConfigBase {
 
   // 認証
   apiKey?: string;
-  apiKeyEnvVar?: string;        // 環境変数から取得する場合
+  apiKeyEnvVar?: string; // 環境変数から取得する場合
 
   // エンドポイント
   endpoint?: string;

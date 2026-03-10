@@ -11,14 +11,9 @@ import {
   type LogPattern,
   type LogParser,
   type AnalyzeOptions,
-  type LogFilter
+  type LogFilter,
 } from './types';
-import {
-  JSONLogParser,
-  SyslogParser,
-  ApacheCommonLogParser,
-  NodeJSLogParser
-} from './parsers';
+import { JSONLogParser, SyslogParser, ApacheCommonLogParser, NodeJSLogParser } from './parsers';
 
 // メインのログアナライザー
 export class DebugLogAnalyzer {
@@ -26,7 +21,7 @@ export class DebugLogAnalyzer {
     new JSONLogParser(),
     new SyslogParser(),
     new ApacheCommonLogParser(),
-    new NodeJSLogParser()
+    new NodeJSLogParser(),
   ];
 
   // カスタムパーサーを追加
@@ -36,14 +31,14 @@ export class DebugLogAnalyzer {
 
   // ログタイプを検出
   detectLogType(logContent: string): LogType {
-    const lines = logContent.split('\n').filter(line => line.trim());
+    const lines = logContent.split('\n').filter((line) => line.trim());
     if (lines.length === 0) return LogType.UNKNOWN;
 
     // 最初の数行でタイプを判定
     const sampleLines = lines.slice(0, Math.min(10, lines.length));
 
     for (const parser of this.parsers) {
-      const canParseAll = sampleLines.every(line => parser.canParse(line));
+      const canParseAll = sampleLines.every((line) => parser.canParse(line));
       if (canParseAll) return parser.type;
     }
 
@@ -52,7 +47,7 @@ export class DebugLogAnalyzer {
 
   // ログを解析
   analyze(logContent: string, options?: AnalyzeOptions): LogAnalysisResult {
-    const lines = logContent.split('\n').filter(line => line.trim());
+    const lines = logContent.split('\n').filter((line) => line.trim());
     const entries: ParsedLogEntry[] = [];
 
     // 各行を解析
@@ -71,7 +66,7 @@ export class DebugLogAnalyzer {
         parsed = {
           raw: line,
           type: LogType.UNKNOWN,
-          message: line
+          message: line,
         };
       }
 
@@ -90,7 +85,7 @@ export class DebugLogAnalyzer {
 
   // エントリーのフィルタリング
   private filterEntries(entries: ParsedLogEntry[], filter: LogFilter): ParsedLogEntry[] {
-    return entries.filter(entry => {
+    return entries.filter((entry) => {
       if (filter.level && entry.level) {
         const levelPriority = this.getLogLevelPriority(entry.level);
         const filterPriority = this.getLogLevelPriority(filter.level);
@@ -127,7 +122,7 @@ export class DebugLogAnalyzer {
       [LogLevel.INFO]: 2,
       [LogLevel.WARN]: 3,
       [LogLevel.ERROR]: 4,
-      [LogLevel.FATAL]: 5
+      [LogLevel.FATAL]: 5,
     };
     return priorities[level] ?? 2;
   }
@@ -140,7 +135,7 @@ export class DebugLogAnalyzer {
       [LogLevel.INFO]: 0,
       [LogLevel.WARN]: 0,
       [LogLevel.ERROR]: 0,
-      [LogLevel.FATAL]: 0
+      [LogLevel.FATAL]: 0,
     };
 
     const sourceDistribution: Record<string, number> = {};
@@ -181,7 +176,7 @@ export class DebugLogAnalyzer {
             pattern,
             count: 0,
             samples: [],
-            severity: entry.level
+            severity: entry.level,
           });
         }
         const patternData = messagePatterns.get(pattern)!;
@@ -194,13 +189,11 @@ export class DebugLogAnalyzer {
 
     // パターンを分類
     const patterns = Array.from(messagePatterns.values());
-    const errorPatterns = patterns.filter(p =>
-      p.severity === LogLevel.ERROR || p.severity === LogLevel.FATAL
+    const errorPatterns = patterns.filter(
+      (p) => p.severity === LogLevel.ERROR || p.severity === LogLevel.FATAL,
     );
-    const warningPatterns = patterns.filter(p => p.severity === LogLevel.WARN);
-    const frequentPatterns = patterns
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
+    const warningPatterns = patterns.filter((p) => p.severity === LogLevel.WARN);
+    const frequentPatterns = patterns.sort((a, b) => b.count - a.count).slice(0, 10);
 
     return {
       entries,
@@ -210,13 +203,13 @@ export class DebugLogAnalyzer {
         warningCount,
         timeRange: minTime && maxTime ? { start: minTime, end: maxTime } : undefined,
         levelDistribution,
-        sourceDistribution
+        sourceDistribution,
       },
       patterns: {
         errors: errorPatterns,
         warnings: warningPatterns,
-        frequentMessages: frequentPatterns
-      }
+        frequentMessages: frequentPatterns,
+      },
     };
   }
 
@@ -233,7 +226,7 @@ export class DebugLogAnalyzer {
   // ログのストリーム解析（大きなファイル用）
   async *analyzeStream(
     logStream: AsyncIterable<string>,
-    options?: AnalyzeOptions
+    options?: AnalyzeOptions,
   ): AsyncGenerator<ParsedLogEntry> {
     for await (const line of logStream) {
       if (!line.trim()) continue;
@@ -250,7 +243,7 @@ export class DebugLogAnalyzer {
         parsed = {
           raw: line,
           type: LogType.UNKNOWN,
-          message: line
+          message: line,
         };
       }
 

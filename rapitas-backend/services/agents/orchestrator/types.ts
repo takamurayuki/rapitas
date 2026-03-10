@@ -2,18 +2,13 @@
  * オーケストレーター共通型定義
  * 循環依存を防ぐため、全モジュールで使用する型をここに集約
  */
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from '@prisma/client';
 export type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
-import type {
-  AgentOutputHandler,
-  AgentStatus,
-  TaskAnalysisInfo,
-  BaseAgent,
-} from "../base-agent";
-import type { QuestionKey } from "../question-detection";
-import type { ExecutionFileLogger } from "../execution-file-logger";
-import type { AgentConfigInput } from "../agent-factory";
+import type { AgentOutputHandler, AgentStatus, TaskAnalysisInfo, BaseAgent } from '../base-agent';
+import type { QuestionKey } from '../question-detection';
+import type { ExecutionFileLogger } from '../execution-file-logger';
+import type { AgentConfigInput } from '../agent-factory';
 
 export type ExecutionOptions = {
   taskId: number;
@@ -42,11 +37,11 @@ export type ExecutionState = {
 
 export type OrchestratorEvent = {
   type:
-    | "execution_started"
-    | "execution_output"
-    | "execution_completed"
-    | "execution_failed"
-    | "execution_cancelled";
+    | 'execution_started'
+    | 'execution_output'
+    | 'execution_completed'
+    | 'execution_failed'
+    | 'execution_cancelled';
   executionId: number;
   sessionId: number;
   taskId: number;
@@ -81,22 +76,16 @@ export type OrchestratorContext = {
   isShuttingDown: boolean;
   serverStartedAt: Date;
   emitEvent: (event: OrchestratorEvent) => void;
-  startQuestionTimeout: (
-    executionId: number,
-    taskId: number,
-    questionKey?: QuestionKey,
-  ) => void;
+  startQuestionTimeout: (executionId: number, taskId: number, questionKey?: QuestionKey) => void;
   cancelQuestionTimeout: (executionId: number) => void;
-  getQuestionTimeoutInfo: (
-    executionId: number,
-  ) => {
+  getQuestionTimeoutInfo: (executionId: number) => {
     remainingSeconds: number;
     deadline: Date;
     questionKey?: QuestionKey;
   } | null;
   tryAcquireContinuationLock: (
     executionId: number,
-    source: "user_response" | "auto_timeout",
+    source: 'user_response' | 'auto_timeout',
   ) => boolean;
   releaseContinuationLock: (executionId: number) => void;
   buildAgentConfigFromDb: (

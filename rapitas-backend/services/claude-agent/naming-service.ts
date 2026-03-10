@@ -1,8 +1,4 @@
-import {
-  sendAIMessage,
-  type AIProvider,
-  type AIMessage,
-} from "../../utils/ai-client";
+import { sendAIMessage, type AIProvider, type AIMessage } from '../../utils/ai-client';
 
 /**
  * タスク情報から意味のあるブランチ名を生成する
@@ -26,18 +22,21 @@ export async function generateBranchName(
 出力形式: ブランチ名のみを出力してください。`;
 
   const messages: AIMessage[] = [
-    { role: "user", content: `タイトル: ${taskTitle}\n${taskDescription ? `説明: ${taskDescription}` : ""}\n\n上記のタスク情報から適切なGitブランチ名を生成してください。` },
+    {
+      role: 'user',
+      content: `タイトル: ${taskTitle}\n${taskDescription ? `説明: ${taskDescription}` : ''}\n\n上記のタスク情報から適切なGitブランチ名を生成してください。`,
+    },
   ];
 
   const response = await sendAIMessage({
-    provider: provider || "claude",
+    provider: provider || 'claude',
     model,
     messages,
     systemPrompt,
     maxTokens: 100,
   });
 
-  return { branchName: response.content.trim().replace(/^["']|["']$/g, "") };
+  return { branchName: response.content.trim().replace(/^["']|["']$/g, '') };
 }
 
 /**
@@ -60,16 +59,19 @@ export async function generateTaskTitle(
 出力形式: タイトルのみを出力してください。`;
 
   const messages: AIMessage[] = [
-    { role: "user", content: `以下のタスク説明から、簡潔なタイトルを生成してください:\n\n${description}` },
+    {
+      role: 'user',
+      content: `以下のタスク説明から、簡潔なタイトルを生成してください:\n\n${description}`,
+    },
   ];
 
   const response = await sendAIMessage({
-    provider: provider || "claude",
+    provider: provider || 'claude',
     model,
     messages,
     systemPrompt,
     maxTokens: 100,
   });
 
-  return { title: response.content.trim().replace(/^["'「」『』]|["'「」『』]$/g, "") };
+  return { title: response.content.trim().replace(/^["'「」『』]|["'「」『』]$/g, '') };
 }

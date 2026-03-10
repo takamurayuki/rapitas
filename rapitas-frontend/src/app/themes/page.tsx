@@ -347,7 +347,9 @@ export default function ThemesPage() {
       logger.debug('Response status:', res.status, 'Response:', responseText);
 
       if (!res.ok) {
-        let errorMessage = t('updateFailedStatus', { status: String(res.status) });
+        let errorMessage = t('updateFailedStatus', {
+          status: String(res.status),
+        });
         try {
           const errorData = JSON.parse(responseText);
           if (errorData.error) {
@@ -374,10 +376,7 @@ export default function ThemesPage() {
       fetchItems();
     } catch (e) {
       logger.error('Theme update error:', e);
-      showToast(
-        e instanceof Error ? e.message : t('updateFailed'),
-        'error',
-      );
+      showToast(e instanceof Error ? e.message : t('updateFailed'), 'error');
     }
   };
 
@@ -934,7 +933,9 @@ export default function ThemesPage() {
         {categories.length > 0 && (
           <div className="mb-4 flex items-center gap-1.5 overflow-x-auto pb-1">
             {categories.map((cat) => {
-              const count = items.filter((ti) => ti.categoryId === cat.id).length;
+              const count = items.filter(
+                (ti) => ti.categoryId === cat.id,
+              ).length;
               const isSelected = selectedCategoryId === cat.id;
               return (
                 <button
@@ -953,7 +954,7 @@ export default function ThemesPage() {
                       ? { backgroundColor: cat.color }
                       : {
                           color: cat.color,
-                          borderColor: cat.color + '60'
+                          borderColor: cat.color + '60',
                         }
                   }
                 >
@@ -1140,8 +1141,16 @@ export default function ThemesPage() {
                                         }`}
                                         title={
                                           item.isDefault
-                                            ? t('defaultInCategory', { category: item.category?.name ?? 'Category' })
-                                            : t('setDefaultInCategory', { category: item.category?.name ?? 'Category' })
+                                            ? t('defaultInCategory', {
+                                                category:
+                                                  item.category?.name ??
+                                                  'Category',
+                                              })
+                                            : t('setDefaultInCategory', {
+                                                category:
+                                                  item.category?.name ??
+                                                  'Category',
+                                              })
                                         }
                                       >
                                         <Star

@@ -1,5 +1,5 @@
-import type { NextConfig } from "next";
-import path from "path";
+import type { NextConfig } from 'next';
+import path from 'path';
 
 const isTauriBuild = process.env.TAURI_BUILD === 'true';
 const disableTurbopack = process.env.NEXT_TURBO === '0';
@@ -12,11 +12,13 @@ const nextConfig: NextConfig = {
 
   // Turbopackのルートディレクトリをモノレポルートに設定（警告抑制）
   // CI環境でTurbopackが無効化されている場合はこの設定をスキップ
-  ...(disableTurbopack ? {} : {
-    turbopack: {
-      root: path.resolve(__dirname, '..'),
-    },
-  }),
+  ...(disableTurbopack
+    ? {}
+    : {
+        turbopack: {
+          root: path.resolve(__dirname, '..'),
+        },
+      }),
 
   // Tauri用の静的エクスポート設定
   ...(isTauriBuild && {

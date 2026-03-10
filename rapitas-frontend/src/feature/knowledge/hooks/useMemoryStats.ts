@@ -1,13 +1,15 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
-import { API_BASE_URL } from "@/utils/api";
-import type { KnowledgeStats, QueueStatus, ConsolidationRun } from "../types";
+import { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '@/utils/api';
+import type { KnowledgeStats, QueueStatus, ConsolidationRun } from '../types';
 
 export function useMemoryStats() {
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
-  const [consolidationRuns, setConsolidationRuns] = useState<ConsolidationRun[]>([]);
+  const [consolidationRuns, setConsolidationRuns] = useState<
+    ConsolidationRun[]
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,16 +38,20 @@ export function useMemoryStats() {
   }, [fetchAll]);
 
   const triggerConsolidation = useCallback(async () => {
-    const res = await fetch(`${API_BASE_URL}/memory/consolidation/trigger`, { method: "POST" });
-    if (!res.ok) throw new Error("Failed to trigger consolidation");
+    const res = await fetch(`${API_BASE_URL}/memory/consolidation/trigger`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error('Failed to trigger consolidation');
     const result = await res.json();
     await fetchAll();
     return result;
   }, [fetchAll]);
 
   const triggerForgettingSweep = useCallback(async () => {
-    const res = await fetch(`${API_BASE_URL}/memory/forgetting/sweep`, { method: "POST" });
-    if (!res.ok) throw new Error("Failed to trigger forgetting sweep");
+    const res = await fetch(`${API_BASE_URL}/memory/forgetting/sweep`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error('Failed to trigger forgetting sweep');
     const result = await res.json();
     await fetchAll();
     return result;

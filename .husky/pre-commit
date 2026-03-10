@@ -1,1 +1,2 @@
-npx lint-staged
+# 自動修正+コミット継続フック
+node scripts/auto-fix-commit.cjs

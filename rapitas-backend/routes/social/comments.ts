@@ -2,9 +2,9 @@
  * Comments API Routes
  * Task comments endpoints with link support
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
-import { ValidationError, NotFoundError } from "../../middleware/error-handler";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
+import { ValidationError, NotFoundError } from '../../middleware/error-handler';
 
 // Helper to get comment with links
 async function getCommentWithLinks(commentId: number) {
@@ -31,17 +31,17 @@ async function getCommentWithLinks(commentId: number) {
 
 export const commentsRoutes = new Elysia()
   // Get comments for a task (with replies and links)
-  .get("/tasks/:id/comments", async (context) => {
+  .get('/tasks/:id/comments', async (context) => {
     const taskId = parseInt(context.params.id);
     if (isNaN(taskId)) {
-      throw new ValidationError("無効なタスクIDです");
+      throw new ValidationError('無効なタスクIDです');
     }
 
     return await prisma.comment.findMany({
       where: { taskId },
       include: {
         replies: {
-          orderBy: { createdAt: "asc" },
+          orderBy: { createdAt: 'asc' },
           include: {
             linksFrom: {
               include: {
@@ -74,19 +74,19 @@ export const commentsRoutes = new Elysia()
           },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
     });
   })
 
   // Create comment for a task (supports replies with parentId)
   .post(
-    "/tasks/:id/comments",
+    '/tasks/:id/comments',
     async (context) => {
       const params = context.params as { id: string };
       const body = context.body as { content: string; parentId?: number };
       const taskId = parseInt(params.id);
       if (isNaN(taskId)) {
-        throw new ValidationError("無効なタスクIDです");
+        throw new ValidationError('無効なタスクIDです');
       }
 
       const { content, parentId } = body;
@@ -97,10 +97,10 @@ export const commentsRoutes = new Elysia()
           where: { id: parentId },
         });
         if (!parentComment) {
-          throw new NotFoundError("親コメントが見つかりません");
+          throw new NotFoundError('親コメントが見つかりません');
         }
         if (parentComment.taskId !== taskId) {
-          throw new ValidationError("親コメントは同じタスクに属している必要があります");
+          throw new ValidationError('親コメントは同じタスクに属している必要があります');
         }
       }
 
@@ -120,18 +120,18 @@ export const commentsRoutes = new Elysia()
         content: t.String({ minLength: 1 }),
         parentId: t.Optional(t.Number()),
       }),
-    }
+    },
   )
 
   // Update comment
   .patch(
-    "/comments/:id",
+    '/comments/:id',
     async (context) => {
       const params = context.params as { id: string };
       const body = context.body as { content: string };
       const commentId = parseInt(params.id);
       if (isNaN(commentId)) {
-        throw new ValidationError("無効なコメントIDです");
+        throw new ValidationError('無効なコメントIDです');
       }
 
       const comment = await prisma.comment.findUnique({
@@ -139,10 +139,10 @@ export const commentsRoutes = new Elysia()
       });
 
       if (!comment) {
-        throw new NotFoundError("コメントが見つかりません");
+        throw new NotFoundError('コメントが見つかりません');
       }
 
-      const { content  } = body;
+      const { content } = body;
       return await prisma.comment.update({
         where: { id: commentId },
         data: { content },
@@ -152,15 +152,15 @@ export const commentsRoutes = new Elysia()
       body: t.Object({
         content: t.String({ minLength: 1 }),
       }),
-    }
+    },
   )
 
   // Delete comment
-  .delete("/comments/:id", async (context) => {
+  .delete('/comments/:id', async (context) => {
     const params = context.params as { id: string };
     const commentId = parseInt(params.id);
     if (isNaN(commentId)) {
-      throw new ValidationError("無効なコメントIDです");
+      throw new ValidationError('無効なコメントIDです');
     }
 
     const comment = await prisma.comment.findUnique({
@@ -168,7 +168,7 @@ export const commentsRoutes = new Elysia()
     });
 
     if (!comment) {
-      throw new NotFoundError("コメントが見つかりません");
+      throw new NotFoundError('コメントが見つかりません');
     }
 
     await prisma.comment.delete({
@@ -182,18 +182,18 @@ export const commentsRoutes = new Elysia()
 
   // Create a link between two comments
   .post(
-    "/comments/:id/links",
+    '/comments/:id/links',
     async (context) => {
       const fromCommentId = parseInt(context.params.id);
       if (isNaN(fromCommentId)) {
-        throw new ValidationError("無効なコメントIDです");
+        throw new ValidationError('無効なコメントIDです');
       }
 
-      const { toCommentId, label  } = context.body as { toCommentId: number; label?: string };
+      const { toCommentId, label } = context.body as { toCommentId: number; label?: string };
 
       // Cannot link to self
       if (fromCommentId === toCommentId) {
-        throw new ValidationError("同じメモにリンクすることはできません");
+        throw new ValidationError('同じメモにリンクすることはできません');
       }
 
       // Check both comments exist
@@ -203,10 +203,10 @@ export const commentsRoutes = new Elysia()
       ]);
 
       if (!fromComment) {
-        throw new NotFoundError("リンク元のメモが見つかりません");
+        throw new NotFoundError('リンク元のメモが見つかりません');
       }
       if (!toComment) {
-        throw new NotFoundError("リンク先のメモが見つかりません");
+        throw new NotFoundError('リンク先のメモが見つかりません');
       }
 
       // Check if link already exists
@@ -217,7 +217,7 @@ export const commentsRoutes = new Elysia()
       });
 
       if (existingLink) {
-        throw new ValidationError("このリンクは既に存在します");
+        throw new ValidationError('このリンクは既に存在します');
       }
 
       // Create the link
@@ -244,38 +244,52 @@ export const commentsRoutes = new Elysia()
         toCommentId: t.Number(),
         label: t.Optional(t.String()),
       }),
-    }
+    },
   )
 
   // Get all links for a comment
-  .get("/comments/:id/links", async (context) => {
-      const { params  } = context;
+  .get('/comments/:id/links', async (context) => {
+    const { params } = context;
     const commentId = parseInt(params.id);
     if (isNaN(commentId)) {
-      throw new ValidationError("無効なコメントIDです");
+      throw new ValidationError('無効なコメントIDです');
     }
 
     const comment = await getCommentWithLinks(commentId);
     if (!comment) {
-      throw new NotFoundError("コメントが見つかりません");
+      throw new NotFoundError('コメントが見つかりません');
     }
 
     // Combine outgoing and incoming links
-    const outgoingLinks = comment.linksFrom.map((link: { id: number; label: string | null; createdAt: Date; toComment: { id: number; content: string; taskId: number; createdAt: Date } }) => ({
-      id: link.id,
-      direction: "outgoing" as const,
-      label: link.label,
-      linkedComment: link.toComment,
-      createdAt: link.createdAt,
-    }));
+    const outgoingLinks = comment.linksFrom.map(
+      (link: {
+        id: number;
+        label: string | null;
+        createdAt: Date;
+        toComment: { id: number; content: string; taskId: number; createdAt: Date };
+      }) => ({
+        id: link.id,
+        direction: 'outgoing' as const,
+        label: link.label,
+        linkedComment: link.toComment,
+        createdAt: link.createdAt,
+      }),
+    );
 
-    const incomingLinks = comment.linksTo.map((link: { id: number; label: string | null; createdAt: Date; fromComment: { id: number; content: string; taskId: number; createdAt: Date } }) => ({
-      id: link.id,
-      direction: "incoming" as const,
-      label: link.label,
-      linkedComment: link.fromComment,
-      createdAt: link.createdAt,
-    }));
+    const incomingLinks = comment.linksTo.map(
+      (link: {
+        id: number;
+        label: string | null;
+        createdAt: Date;
+        fromComment: { id: number; content: string; taskId: number; createdAt: Date };
+      }) => ({
+        id: link.id,
+        direction: 'incoming' as const,
+        label: link.label,
+        linkedComment: link.fromComment,
+        createdAt: link.createdAt,
+      }),
+    );
 
     return {
       commentId,
@@ -285,14 +299,14 @@ export const commentsRoutes = new Elysia()
 
   // Update a link label
   .patch(
-    "/comment-links/:id",
+    '/comment-links/:id',
     async (context) => {
       const params = context.params as { id: string };
       const body = context.body as { label?: string | null };
 
       const linkId = parseInt(params.id);
       if (isNaN(linkId)) {
-        throw new ValidationError("無効なリンクIDです");
+        throw new ValidationError('無効なリンクIDです');
       }
 
       const link = await prisma.commentLink.findUnique({
@@ -300,7 +314,7 @@ export const commentsRoutes = new Elysia()
       });
 
       if (!link) {
-        throw new NotFoundError("リンクが見つかりません");
+        throw new NotFoundError('リンクが見つかりません');
       }
 
       return await prisma.commentLink.update({
@@ -320,15 +334,15 @@ export const commentsRoutes = new Elysia()
       body: t.Object({
         label: t.Optional(t.Union([t.String(), t.Null()])),
       }),
-    }
+    },
   )
 
   // Delete a link
-  .delete("/comment-links/:id", async (context) => {
-      const { params  } = context;
+  .delete('/comment-links/:id', async (context) => {
+    const { params } = context;
     const linkId = parseInt(params.id);
     if (isNaN(linkId)) {
-      throw new ValidationError("無効なリンクIDです");
+      throw new ValidationError('無効なリンクIDです');
     }
 
     const link = await prisma.commentLink.findUnique({
@@ -336,7 +350,7 @@ export const commentsRoutes = new Elysia()
     });
 
     if (!link) {
-      throw new NotFoundError("リンクが見つかりません");
+      throw new NotFoundError('リンクが見つかりません');
     }
 
     await prisma.commentLink.delete({
@@ -348,14 +362,13 @@ export const commentsRoutes = new Elysia()
 
   // Search comments for linking (across all tasks or within a task)
   .get(
-    "/comments/search",
-    async ({ 
-
+    '/comments/search',
+    async ({
       query,
     }: {
       query: { q?: string; taskId?: string; excludeId?: string; limit?: string };
     }) => {
-      const { q, taskId, excludeId, limit  } = query;
+      const { q, taskId, excludeId, limit } = query;
       const searchLimit = limit ? parseInt(limit) : 20;
       const excludeCommentId = excludeId ? parseInt(excludeId) : undefined;
 
@@ -374,7 +387,7 @@ export const commentsRoutes = new Elysia()
 
       // If search query provided, filter by content
       if (q && q.trim()) {
-        whereClause.content = { contains: q.trim(), mode: "insensitive" };
+        whereClause.content = { contains: q.trim(), mode: 'insensitive' };
       }
 
       const comments = await prisma.comment.findMany({
@@ -388,10 +401,10 @@ export const commentsRoutes = new Elysia()
             select: { id: true, title: true },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
         take: searchLimit,
       });
 
       return comments;
-    }
+    },
   );

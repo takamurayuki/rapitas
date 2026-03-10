@@ -19,7 +19,12 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const MAX_CACHE_SIZE = 20;
 
 // Cache management helpers
-function generateCacheKey(query: string, types?: SearchResultType[], limit?: number, offset?: number): string {
+function generateCacheKey(
+  query: string,
+  types?: SearchResultType[],
+  limit?: number,
+  offset?: number,
+): string {
   return `${query}-${types?.join(',') || 'all'}-${limit || 20}-${offset || 0}`;
 }
 
@@ -35,7 +40,11 @@ function getCachedResult(key: string): CacheEntry | null {
   return cached;
 }
 
-function setCachedResult(key: string, results: SearchResult[], total: number): void {
+function setCachedResult(
+  key: string,
+  results: SearchResult[],
+  total: number,
+): void {
   // Remove oldest entries if cache is full
   if (searchCache.size >= MAX_CACHE_SIZE) {
     const firstKey = searchCache.keys().next().value;
@@ -75,7 +84,12 @@ interface UseGlobalSearchOptions {
 }
 
 export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
-  const { debounceDelay = 300, types, limit: initialLimit = 20, initialQuery = '' } = options;
+  const {
+    debounceDelay = 300,
+    types,
+    limit: initialLimit = 20,
+    initialQuery = '',
+  } = options;
 
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -85,7 +99,9 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
   const [error, setError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [limit, setLimitState] = useState(initialLimit);
-  const [typesState, setTypesState] = useState<SearchResultType[] | undefined>(types);
+  const [typesState, setTypesState] = useState<SearchResultType[] | undefined>(
+    types,
+  );
 
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -108,7 +124,12 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
     }
 
     // Check cache first
-    const cacheKey = generateCacheKey(q, typesRef.current, limitRef.current, searchOffset);
+    const cacheKey = generateCacheKey(
+      q,
+      typesRef.current,
+      limitRef.current,
+      searchOffset,
+    );
     const cachedResult = getCachedResult(cacheKey);
 
     if (cachedResult) {
@@ -127,9 +148,10 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
       const params = new URLSearchParams({
         q,
         limit: String(limitRef.current),
-        offset: String(searchOffset)
+        offset: String(searchOffset),
       });
-      if (typesRef.current?.length) params.set('type', typesRef.current.join(','));
+      if (typesRef.current?.length)
+        params.set('type', typesRef.current.join(','));
 
       const res = await fetch(`${API_BASE_URL}/search?${params}`, {
         signal: abortRef.current.signal,
@@ -206,7 +228,21 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
     setOffset(0); // Reset to first page when changing filter
   }, []);
 
-  return { query, setQuery, results, total, loading, error, clear, offset, setOffset, limit, setLimit, types: typesState, setTypes };
+  return {
+    query,
+    setQuery,
+    results,
+    total,
+    loading,
+    error,
+    clear,
+    offset,
+    setOffset,
+    limit,
+    setLimit,
+    types: typesState,
+    setTypes,
+  };
 }
 
 /**
@@ -232,7 +268,7 @@ export function useSearchSuggest() {
       try {
         const res = await fetch(
           `${API_BASE_URL}/search/suggest?q=${encodeURIComponent(query)}`,
-          { signal: abortRef.current.signal }
+          { signal: abortRef.current.signal },
         );
         if (res.ok) {
           const data = await res.json();

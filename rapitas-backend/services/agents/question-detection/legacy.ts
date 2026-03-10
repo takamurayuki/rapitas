@@ -2,23 +2,17 @@
  * 質問判定システム - 後方互換性レイヤー
  */
 
-import type {
-  QuestionDetectionMethod,
-  QuestionDetails,
-  QuestionWaitingState,
-} from "./types";
+import type { QuestionDetectionMethod, QuestionDetails, QuestionWaitingState } from './types';
 
 /**
  * 既存のQuestionType型との互換性を維持
  * 'tool_call' | 'none' を返す
  */
-export function tolegacyQuestionType(
-  method: QuestionDetectionMethod
-): "tool_call" | "none" {
-  if (method === "tool_call" || method === "key_based") {
-    return "tool_call";
+export function tolegacyQuestionType(method: QuestionDetectionMethod): 'tool_call' | 'none' {
+  if (method === 'tool_call' || method === 'key_based') {
+    return 'tool_call';
   }
-  return "none";
+  return 'none';
 }
 
 /**
@@ -27,7 +21,7 @@ export function tolegacyQuestionType(
 export function toExecutionResultFormat(state: QuestionWaitingState): {
   waitingForInput: boolean;
   question?: string;
-  questionType: "tool_call" | "none";
+  questionType: 'tool_call' | 'none';
   questionDetails?: QuestionDetails;
 } {
   return {

@@ -1,14 +1,7 @@
 'use client';
 
 import React from 'react';
-import {
-  Loader2,
-  CheckCircle2,
-  Circle,
-  XCircle,
-  Clock,
-  Pause,
-} from 'lucide-react';
+import { CheckCircle2, Circle, XCircle, Clock, Pause } from 'lucide-react';
 
 /**
  * 並列実行時のサブタスクステータス
@@ -94,7 +87,34 @@ export function SubtaskExecutionStatus({
       label: 'スケジュール済み',
     },
     running: {
-      icon: <Loader2 className={`${iconSize} animate-spin`} />,
+      icon: (
+        <div className={`relative ${containerSize}`}>
+          <svg
+            className="absolute -inset-0.5 w-[calc(100%+4px)] h-[calc(100%+4px)] pointer-events-none"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <rect
+              x="1"
+              y="1"
+              width="22"
+              height="22"
+              rx="5"
+              stroke="#3b82f6"
+              strokeWidth="2"
+              strokeDasharray="14 74"
+              strokeLinecap="round"
+              fill="none"
+              style={{
+                animation: 'icon-outer-border-spin 1.5s linear infinite',
+                willChange: 'stroke-dashoffset',
+                transform: 'translateZ(0)',
+              }}
+            />
+          </svg>
+          <Circle className={`${iconSize} text-blue-600 dark:text-blue-400`} />
+        </div>
+      ),
       bgColor: 'bg-blue-100 dark:bg-blue-900/40',
       textColor: 'text-blue-600 dark:text-blue-400',
       label: '実行中',
@@ -181,9 +201,32 @@ export function SubtaskTitleIndicator({
   switch (executionStatus) {
     case 'running':
       return (
-        <Loader2
-          className={`${iconSize} text-blue-500 dark:text-blue-400 animate-spin shrink-0 ${className}`}
-        />
+        <div className={`relative ${sizeClasses[size]} shrink-0 ${className}`}>
+          <svg
+            className="absolute -inset-0.5 w-[calc(100%+4px)] h-[calc(100%+4px)] pointer-events-none"
+            viewBox="0 0 20 20"
+            fill="none"
+          >
+            <rect
+              x="1"
+              y="1"
+              width="18"
+              height="18"
+              rx="4"
+              stroke="#3b82f6"
+              strokeWidth="2"
+              strokeDasharray="12 60"
+              strokeLinecap="round"
+              fill="none"
+              style={{
+                animation: 'icon-outer-border-spin 1.5s linear infinite',
+                willChange: 'stroke-dashoffset',
+                transform: 'translateZ(0)',
+              }}
+            />
+          </svg>
+          <Circle className={`${iconSize} text-blue-500 dark:text-blue-400`} />
+        </div>
       );
     case 'completed':
       return (

@@ -1,7 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChevronDown, Zap, ArrowRight, Settings, Info, Loader2 } from 'lucide-react';
+import {
+  ChevronDown,
+  Zap,
+  ArrowRight,
+  Settings,
+  Info,
+  Loader2,
+} from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 const logger = createLogger('WorkflowModeSelector');
@@ -28,7 +35,8 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     steps: ['実装', '自動検証'],
     icon: Zap,
     color: 'text-green-600 dark:text-green-400',
-    bgColor: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50',
+    bgColor:
+      'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50',
   },
   standard: {
     mode: 'standard',
@@ -38,7 +46,8 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     steps: ['計画作成', '実装', '検証'],
     icon: ArrowRight,
     color: 'text-blue-600 dark:text-blue-400',
-    bgColor: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50',
+    bgColor:
+      'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50',
   },
   comprehensive: {
     mode: 'comprehensive',
@@ -48,7 +57,8 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     steps: ['調査', '計画作成', '実装', '検証'],
     icon: Settings,
     color: 'text-purple-600 dark:text-purple-400',
-    bgColor: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/50',
+    bgColor:
+      'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/50',
   },
 };
 
@@ -71,7 +81,9 @@ export default function WorkflowModeSelector({
   showAnalyzeButton = true,
   className = '',
 }: WorkflowModeSelectorProps) {
-  const [selectedMode, setSelectedMode] = useState<WorkflowMode>(currentMode || 'comprehensive');
+  const [selectedMode, setSelectedMode] = useState<WorkflowMode>(
+    currentMode || 'comprehensive',
+  );
   const [isOpen, setIsOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -87,11 +99,14 @@ export default function WorkflowModeSelector({
 
     setIsUpdating(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/set-mode`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, override: true }),
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/workflow/tasks/${taskId}/set-mode`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode, override: true }),
+        },
+      );
 
       const data = await response.json();
       if (data.success) {
@@ -111,7 +126,9 @@ export default function WorkflowModeSelector({
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/analyze-complexity`);
+      const response = await fetch(
+        `${API_BASE_URL}/workflow/tasks/${taskId}/analyze-complexity`,
+      );
       const data = await response.json();
 
       if (data.success && data.analysis.recommendedMode) {
@@ -139,7 +156,9 @@ export default function WorkflowModeSelector({
         <div className={`p-4 rounded-lg border ${currentConfig.bgColor}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-full bg-white dark:bg-zinc-800 ${currentConfig.color}`}>
+              <div
+                className={`p-2 rounded-full bg-white dark:bg-zinc-800 ${currentConfig.color}`}
+              >
                 <CurrentIcon className="h-4 w-4" />
               </div>
               <div>
@@ -192,7 +211,9 @@ export default function WorkflowModeSelector({
                 ) : (
                   <>
                     変更
-                    <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown
+                      className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    />
                   </>
                 )}
               </button>
@@ -206,7 +227,12 @@ export default function WorkflowModeSelector({
             <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2">
               ワークフローモードを選択
             </h4>
-            {(Object.entries(WORKFLOW_MODE_CONFIGS) as [WorkflowMode, WorkflowModeConfig][]).map(([mode, config]) => {
+            {(
+              Object.entries(WORKFLOW_MODE_CONFIGS) as [
+                WorkflowMode,
+                WorkflowModeConfig,
+              ][]
+            ).map(([mode, config]) => {
               const isSelected = mode === selectedMode;
               const ModeIcon = config.icon;
 
@@ -222,12 +248,18 @@ export default function WorkflowModeSelector({
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`p-1.5 rounded-full ${isSelected ? 'bg-white dark:bg-zinc-800' : 'bg-zinc-100 dark:bg-zinc-700'}`}>
-                      <ModeIcon className={`h-3.5 w-3.5 ${isSelected ? config.color : 'text-zinc-500 dark:text-zinc-400'}`} />
+                    <div
+                      className={`p-1.5 rounded-full ${isSelected ? 'bg-white dark:bg-zinc-800' : 'bg-zinc-100 dark:bg-zinc-700'}`}
+                    >
+                      <ModeIcon
+                        className={`h-3.5 w-3.5 ${isSelected ? config.color : 'text-zinc-500 dark:text-zinc-400'}`}
+                      />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <span className={`text-sm font-medium ${isSelected ? config.color : 'text-zinc-900 dark:text-zinc-100'}`}>
+                        <span
+                          className={`text-sm font-medium ${isSelected ? config.color : 'text-zinc-900 dark:text-zinc-100'}`}
+                        >
                           {config.name}
                         </span>
                         {isSelected && (

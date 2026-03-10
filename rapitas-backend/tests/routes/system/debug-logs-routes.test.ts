@@ -2,11 +2,11 @@
  * Debug Logs Routes テスト
  * デバッグログ解析APIのユニットテスト
  */
-import { describe, test, expect, mock, beforeEach } from "bun:test";
-import { Elysia } from "elysia";
+import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { Elysia } from 'elysia';
 
 // Mock logger
-mock.module("../../../config/logger", () => ({
+mock.module('../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -15,26 +15,26 @@ mock.module("../../../config/logger", () => ({
   }),
 }));
 
-const { debugLogsRouter } = await import("../../../routes/system/debug-logs");
+const { debugLogsRouter } = await import('../../../routes/system/debug-logs');
 
 function createApp() {
   return new Elysia().use(debugLogsRouter);
 }
 
-describe("POST /debug-logs/analyze", () => {
+describe('POST /debug-logs/analyze', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
     app = createApp();
   });
 
-  test("JSONログコンテンツを解析して結果を返すこと", async () => {
+  test('JSONログコンテンツを解析して結果を返すこと', async () => {
     const content = '{"timestamp":"2024-01-01T00:00:00Z","level":"info","message":"Test message"}';
 
     const res = await app.handle(
-      new Request("http://localhost/debug-logs/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/debug-logs/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
       }),
     );
@@ -46,12 +46,12 @@ describe("POST /debug-logs/analyze", () => {
     expect(body.detectedType).toBeDefined();
   });
 
-  test("空のコンテンツでバリデーションエラーを返すこと", async () => {
+  test('空のコンテンツでバリデーションエラーを返すこと', async () => {
     const res = await app.handle(
-      new Request("http://localhost/debug-logs/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: "" }),
+      new Request('http://localhost/debug-logs/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: '' }),
       }),
     );
 
@@ -59,20 +59,20 @@ describe("POST /debug-logs/analyze", () => {
   });
 });
 
-describe("POST /debug-logs/detect-type", () => {
+describe('POST /debug-logs/detect-type', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
     app = createApp();
   });
 
-  test("Syslogコンテンツのタイプを検出すること", async () => {
-    const content = "<14>Jan  1 00:00:00 hostname process[1234]: Test message";
+  test('Syslogコンテンツのタイプを検出すること', async () => {
+    const content = '<14>Jan  1 00:00:00 hostname process[1234]: Test message';
 
     const res = await app.handle(
-      new Request("http://localhost/debug-logs/detect-type", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/debug-logs/detect-type', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
       }),
     );
@@ -84,17 +84,15 @@ describe("POST /debug-logs/detect-type", () => {
   });
 });
 
-describe("GET /debug-logs/supported-types", () => {
+describe('GET /debug-logs/supported-types', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
     app = createApp();
   });
 
-  test("サポートされているログタイプの配列を返すこと", async () => {
-    const res = await app.handle(
-      new Request("http://localhost/debug-logs/supported-types"),
-    );
+  test('サポートされているログタイプの配列を返すこと', async () => {
+    const res = await app.handle(new Request('http://localhost/debug-logs/supported-types'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
