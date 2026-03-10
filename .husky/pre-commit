@@ -1,5 +1,2 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
 # 自動修正+コミット継続フック
 node scripts/auto-fix-commit.cjs
