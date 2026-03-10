@@ -25,12 +25,15 @@ interface EmbeddingPipeline {
 
 let pipeline: EmbeddingPipeline | null = null;
 let useSubprocess = false;
+let embeddingDisabled = false;
+let initAttempted = false;
 
 /**
  * embeddingパイプラインを初期化
  */
 async function initPipeline(): Promise<void> {
-  if (pipeline) return;
+  if (pipeline || initAttempted) return;
+  initAttempted = true;
 
   try {
     // @xenova/transformersを動的インポート
@@ -38,9 +41,18 @@ async function initPipeline(): Promise<void> {
     const { pipeline: createPipeline } = await import('@xenova/transformers');
     pipeline = await createPipeline('feature-extraction', MODEL_NAME);
     log.info('Embedding pipeline initialized (direct)');
-  } catch (error) {
-    log.warn({ err: error }, 'Direct embedding init failed, using subprocess fallback');
-    useSubprocess = true;
+  } catch (_directError) {
+    // 直接importが失敗した場合、サブプロセスでもモジュールが必要なためチェック
+    try {
+      require.resolve('@xenova/transformers');
+      log.warn('Direct embedding init failed, using subprocess fallback');
+      useSubprocess = true;
+    } catch {
+      log.warn(
+        '@xenova/transformers is not installed. Embedding/RAG features are disabled. Install with: bun add @xenova/transformers',
+      );
+      embeddingDisabled = true;
+    }
   }
 }
 
@@ -80,6 +92,10 @@ async function generateEmbeddingSubprocess(text: string): Promise<number[]> {
  */
 export async function generateEmbedding(text: string): Promise<EmbeddingResult> {
   await initPipeline();
+
+  if (embeddingDisabled) {
+    throw new Error('Embedding is disabled: @xenova/transformers is not installed');
+  }
 
   let embedding: number[];
 

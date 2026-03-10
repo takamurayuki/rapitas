@@ -121,6 +121,8 @@ export function useParallelExecutionStatus({
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // sessionIdをrefでも保持（クロージャの古い値参照を防ぐ）
+  const sessionIdRef = useRef<string | null>(null);
 
   // グローバル実行状態ストアへのアクセス
   const { setExecutingTask, removeExecutingTask } = useExecutionStateStore();
@@ -346,53 +348,14 @@ export function useParallelExecutionStatus({
     });
   }, []);
 
-  // SSE接続を開始
-  const connectSSE = useCallback(
-    (sId: string) => {
-      if (!enableSSE) return;
-
-      // 既存の接続をクローズ
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
-
-      const eventSource = new EventSource(
-        `${API_BASE_URL}/parallel/sessions/${sId}/logs/stream`,
-      );
-
-      eventSource.onopen = () => {
-        setIsConnected(true);
-        setError(null);
-      };
-
-      eventSource.onmessage = (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          if (data.type) {
-            handleSSEEvent(data as ParallelExecutionEvent);
-          }
-        } catch (err) {
-          logger.error('[SSE] Failed to parse event:', err);
-        }
-      };
-
-      eventSource.onerror = () => {
-        setIsConnected(false);
-        // エラー時は自動的にポーリングにフォールバック
-      };
-
-      eventSourceRef.current = eventSource;
-    },
-    [enableSSE, handleSSEEvent],
-  );
-
-  // ステータスをポーリングで取得
+  // ステータスをポーリングで取得（refを使用してクロージャの古い値参照を防ぐ）
   const fetchStatus = useCallback(async () => {
-    if (!sessionId) return;
+    const currentSessionId = sessionIdRef.current;
+    if (!currentSessionId) return;
 
     try {
       const res = await fetch(
-        `${API_BASE_URL}/parallel/sessions/${sessionId}/status`,
+        `${API_BASE_URL}/parallel/sessions/${currentSessionId}/status`,
       );
       if (!res.ok) {
         throw new Error('ステータスの取得に失敗しました');
@@ -450,7 +413,7 @@ export function useParallelExecutionStatus({
           });
 
           return {
-            sessionId: sessionId,
+            sessionId: currentSessionId,
             status: data.status as ParallelExecutionStatus,
             progress: data.progress || 0,
             currentLevel: prev?.currentLevel || 0,
@@ -468,12 +431,60 @@ export function useParallelExecutionStatus({
     } catch (err) {
       logger.error('[Polling] Failed to fetch status:', err);
     }
-  }, [sessionId]);
+  }, []);
 
   // ステータスを手動で更新
   const refreshStatus = useCallback(async () => {
     await fetchStatus();
   }, [fetchStatus]);
+
+  // SSE接続を開始
+  const connectSSE = useCallback(
+    (sId: string) => {
+      if (!enableSSE) return;
+
+      // 既存の接続をクローズ
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+
+      const eventSource = new EventSource(
+        `${API_BASE_URL}/parallel/sessions/${sId}/logs/stream`,
+      );
+
+      eventSource.onopen = () => {
+        setIsConnected(true);
+        setError(null);
+      };
+
+      eventSource.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.type) {
+            handleSSEEvent(data as ParallelExecutionEvent);
+          }
+        } catch (err) {
+          logger.error('[SSE] Failed to parse event:', err);
+        }
+      };
+
+      eventSource.onerror = () => {
+        setIsConnected(false);
+        // SSE切断時にポーリングを即座に開始（useEffectの依存配列更新を待たない）
+        if (sessionIdRef.current && !pollingIntervalRef.current) {
+          logger.info('[SSE] Connection lost, starting polling fallback');
+          fetchStatus();
+          pollingIntervalRef.current = setInterval(
+            fetchStatus,
+            pollingInterval,
+          );
+        }
+      };
+
+      eventSourceRef.current = eventSource;
+    },
+    [enableSSE, handleSSEEvent, fetchStatus, pollingInterval],
+  );
 
   // セッションを開始
   const startSession = useCallback(
@@ -499,6 +510,8 @@ export function useParallelExecutionStatus({
         const result = await res.json();
         if (result.success && result.data?.sessionId) {
           const newSessionId = result.data.sessionId;
+          // refを先に同期的に更新（fetchStatusがすぐ使えるように）
+          sessionIdRef.current = newSessionId;
           setSessionId(newSessionId);
 
           // 初期状態を設定
@@ -561,6 +574,12 @@ export function useParallelExecutionStatus({
         eventSourceRef.current = null;
       }
 
+      // ポーリングも停止
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+
       setSessionState((prev) =>
         prev
           ? {
@@ -569,6 +588,9 @@ export function useParallelExecutionStatus({
             }
           : null,
       );
+
+      // sessionIdRefもクリア
+      sessionIdRef.current = null;
 
       // グローバルストアから削除
       removeExecutingTask(taskId);
@@ -605,9 +627,12 @@ export function useParallelExecutionStatus({
   // ポーリングを開始/停止
   useEffect(() => {
     if (sessionId && isRunning && !isConnected) {
-      // SSEが接続されていない場合はポーリング
-      pollingIntervalRef.current = setInterval(fetchStatus, pollingInterval);
-    } else {
+      // SSEが接続されていない場合はポーリング（既にonerrorで開始されていない場合のみ）
+      if (!pollingIntervalRef.current) {
+        pollingIntervalRef.current = setInterval(fetchStatus, pollingInterval);
+      }
+    } else if (!isRunning || isConnected) {
+      // 実行完了またはSSE接続復帰時はポーリング停止
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
@@ -617,6 +642,7 @@ export function useParallelExecutionStatus({
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
       }
     };
   }, [sessionId, isRunning, isConnected, pollingInterval, fetchStatus]);
@@ -626,10 +652,13 @@ export function useParallelExecutionStatus({
     return () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
+        eventSourceRef.current = null;
       }
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
       }
+      sessionIdRef.current = null;
     };
   }, []);
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type {
   DeveloperModeConfig,
   TaskAnalysisResult,
@@ -93,6 +93,19 @@ export function useDeveloperMode(taskId: number) {
 
   // Ref-based排他制御: React状態の非同期更新を回避して即座に二重実行を防止
   const isExecutingRef = useRef(false);
+
+  // taskIdが変わった時（別のタスク詳細に遷移した時）にrefをリセット
+  useEffect(() => {
+    // 新しいtaskIdに切り替わった時、前のタスクの実行ロックを解除
+    isExecutingRef.current = false;
+  }, [taskId]);
+
+  // コンポーネントアンマウント時にrefをリセット
+  useEffect(() => {
+    return () => {
+      isExecutingRef.current = false;
+    };
+  }, []);
 
   const fetchConfig = useCallback(async () => {
     setIsLoading(true);
