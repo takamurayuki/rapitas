@@ -280,6 +280,7 @@
     "advancedSettings": "Advanced Settings",
     "deadlineDate": "Deadline",
     "addSubtaskPlaceholder": "Add subtask...",
+    "subtaskDescriptionPlaceholder": "Subtask description (optional)",
     "workflowModeTitle": "Workflow Mode",
     "workflowModeAbout": "About Workflow Mode:",
     "workflowModeExplanation": "Adjust execution steps based on task complexity. Lightweight mode is for simple fixes, standard mode for regular feature development, and detailed mode for large-scale changes. After task creation, auto-analysis will suggest the optimal mode.",

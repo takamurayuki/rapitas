@@ -280,6 +280,7 @@
     "advancedSettings": "詳細設定",
     "deadlineDate": "締め切り日時",
     "addSubtaskPlaceholder": "サブタスクを追加...",
+    "subtaskDescriptionPlaceholder": "サブタスクの説明（任意）",
     "workflowModeTitle": "ワークフローモード",
     "workflowModeAbout": "ワークフローモードについて:",
     "workflowModeExplanation": "タスクの複雑さに応じて、実行手順を調整できます。軽量モードは簡単な修正、標準モードは通常の機能開発、詳細モードは大規模な変更に適しています。タスク作成後に自動分析で最適なモードが提案されます。",

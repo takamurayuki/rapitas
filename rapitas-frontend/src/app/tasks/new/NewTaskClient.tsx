@@ -121,6 +121,8 @@ function NewTaskClient() {
     }[]
   >([]);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [newSubtaskDescription, setNewSubtaskDescription] = useState('');
+  const [showSubtaskDescription, setShowSubtaskDescription] = useState(false);
 
   const fetchCategories = async () => {
     try {
@@ -312,9 +314,17 @@ function NewTaskClient() {
     if (!newSubtaskTitle.trim()) return;
     setSubtasks([
       ...subtasks,
-      { id: Date.now().toString(), title: newSubtaskTitle },
+      {
+        id: Date.now().toString(),
+        title: newSubtaskTitle,
+        ...(newSubtaskDescription.trim() && {
+          description: newSubtaskDescription.trim(),
+        }),
+      },
     ]);
     setNewSubtaskTitle('');
+    setNewSubtaskDescription('');
+    setShowSubtaskDescription(false);
   };
 
   const removeSubtask = (id: string) => {
@@ -481,6 +491,7 @@ function NewTaskClient() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   title: st.title,
+                  ...(st.description && { description: st.description }),
                   status: 'todo',
                   parentId: createdTask.id,
                 }),
@@ -575,6 +586,7 @@ function NewTaskClient() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   title: st.title,
+                  ...(st.description && { description: st.description }),
                   status: 'todo',
                   parentId: createdTask.id,
                 }),
@@ -1056,16 +1068,23 @@ function NewTaskClient() {
               {subtasks.map((st) => (
                 <div
                   key={st.id}
-                  className="flex items-center gap-2 p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg group"
+                  className="flex items-start gap-2 p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg group"
                 >
-                  <div className="w-4 h-4 rounded-full border-2 border-zinc-300 dark:border-zinc-600" />
-                  <span className="flex-1 text-sm text-zinc-700 dark:text-zinc-300">
-                    {st.title}
-                  </span>
+                  <div className="w-4 h-4 rounded-full border-2 border-zinc-300 dark:border-zinc-600 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                      {st.title}
+                    </span>
+                    {st.description && (
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 line-clamp-2">
+                        {st.description}
+                      </p>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => removeSubtask(st.id)}
-                    className="p-1 text-zinc-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
+                    className="p-1 text-zinc-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -1073,32 +1092,57 @@ function NewTaskClient() {
               ))}
 
               {/* Add Subtask Input */}
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newSubtaskTitle}
-                  onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addSubtask();
-                    }
-                  }}
-                  placeholder={t('addSubtaskPlaceholder')}
-                  className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                />
-                <div
-                  className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!newSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'}`}
-                >
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newSubtaskTitle}
+                    onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !showSubtaskDescription) {
+                        e.preventDefault();
+                        addSubtask();
+                      }
+                    }}
+                    placeholder={t('addSubtaskPlaceholder')}
+                    className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  />
                   <button
                     type="button"
-                    onClick={addSubtask}
-                    disabled={!newSubtaskTitle.trim()}
-                    className={`flex items-center justify-center transition-all ${!newSubtaskTitle.trim() ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer'}`}
+                    onClick={() =>
+                      setShowSubtaskDescription(!showSubtaskDescription)
+                    }
+                    className={`px-2 py-2 rounded-lg text-xs transition-all ${
+                      showSubtaskDescription
+                        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'
+                        : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                    }`}
+                    title={t('description')}
                   >
-                    <Plus className="w-4 h-4" />
+                    <FileText className="w-4 h-4" />
                   </button>
+                  <div
+                    className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!newSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'}`}
+                  >
+                    <button
+                      type="button"
+                      onClick={addSubtask}
+                      disabled={!newSubtaskTitle.trim()}
+                      className={`flex items-center justify-center transition-all ${!newSubtaskTitle.trim() ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer'}`}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
+                {showSubtaskDescription && (
+                  <textarea
+                    value={newSubtaskDescription}
+                    onChange={(e) => setNewSubtaskDescription(e.target.value)}
+                    placeholder={t('subtaskDescriptionPlaceholder')}
+                    rows={2}
+                    className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+                  />
+                )}
               </div>
             </div>
           </CompactAccordionGroup>
