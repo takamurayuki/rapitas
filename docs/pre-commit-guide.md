@@ -62,36 +62,16 @@ $ git commit -m "feat: add new feature"
 
 ## 🛠️ 自動修正できないエラーの対処法
 
-自動修正後もエラーが残る場合、以下のメッセージが表示されます：
+自動修正後もエラーが残る場合、**詳細なエラー情報が自動的に表示されます**：
 
 ```bash
 ═══════════════════════════════════════════
 ❌ 自動修正後もエラーが残っています
 ═══════════════════════════════════════════
 
-🔍 詳細なエラーを確認するには:
-   npm run check:commit
-
-💡 手動で修正するか、以下のコマンドでコミットできます:
-   git commit --no-verify
-```
-
-### 1. 詳細なエラーを確認
-
-```bash
-npm run check:commit
-```
-
-このコマンドは、**ステージされたファイルに対して詳細なチェック**を実行し、エラー箇所を明確に表示します：
-
-**エラー表示例:**
-
-```
-🔍 ステージされたファイルをチェック中...
+🔍 詳細なエラー情報を表示中...
 
 🎨 フロントエンドファイルをチェック中...
-  ├─ Prettierチェック...
-  │  ✅ Prettier OK
   └─ ESLintチェック...
      ❌ ESLintエラーが見つかりました:
 
@@ -99,7 +79,21 @@ npm run check:commit
         ⚠️  Line 58:9 - 'dateLocale' is assigned a value but never used
         ❌ Line 99:9 - 'rollbackSubtaskStatus' is assigned a value but never used
 
-     💡 修正方法: cd rapitas-frontend && npx eslint --fix <ファイル名>
+💡 対処方法:
+   1. 上記のエラーを手動で修正
+   2. git add . で再ステージング
+   3. git commit で再度コミット
+
+   または、エラーを無視してコミット:
+   git commit --no-verify
+```
+
+### 1. 詳細なエラーを確認
+
+エラーは **自動的に表示されます**。手動で確認したい場合：
+
+```bash
+npm run check:commit
 ```
 
 ### 2. 手動で修正
@@ -219,10 +213,11 @@ React Hook useEffect has missing dependencies
 
 ### エラーが出た場合
 
-1. `npm run check:commit` で詳細確認
+1. **エラーは自動的に表示されます** - どのファイルのどの行にエラーがあるか確認
 2. 手動で修正
 3. `git add .` で再ステージング
 4. `git commit -m "message"` で再度コミット
+   - 再度自動修正が試みられます
 
 ### 事前チェックしたい場合
 

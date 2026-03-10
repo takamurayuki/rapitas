@@ -519,10 +519,11 @@ npm run ci:prepare  # CI環境準備
 # コミット実行（自動修正あり）
 git commit -m "your message"
 # → エラーがあれば自動修正を試み、成功すればコミット継続
+# → 失敗すれば詳細なエラー情報を自動表示
 
-# 自動修正後もエラーが残る場合
-npm run check:commit  # 詳細なエラー情報を表示
 # 手動で修正後、再度コミット
+git add .
+git commit -m "your message"
 
 # どうしても必要な場合のみ（非推奨）
 git commit -m "your message" --no-verify
@@ -533,7 +534,9 @@ git commit -m "your message" --no-verify
 1. lint-staged を実行（Prettier + ESLint）
 2. エラーが出たら自動修正スクリプトを実行
 3. 修正したファイルを再ステージング
-4. 再度チェック → 成功すればコミット継続
+4. 再度チェック
+   - ✅ 成功 → コミット継続
+   - ❌ 失敗 → 詳細エラーを自動表示 + 修正方法を提示
 
 **詳細ガイド:** [docs/pre-commit-guide.md](docs/pre-commit-guide.md)
 

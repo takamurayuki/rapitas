@@ -20,6 +20,7 @@ const colors = {
   green: "\x1b[32m",
   yellow: "\x1b[33m",
   blue: "\x1b[34m",
+  magenta: "\x1b[35m",
   cyan: "\x1b[36m",
   bold: "\x1b[1m",
 };
@@ -55,15 +56,15 @@ function getStagedFiles() {
 
 function stageFiles(files) {
   if (files.length === 0) return true;
-  
+
   // ファイルを1つずつステージング
   for (const file of files) {
     const result = exec(`git add "${file}"`);
     if (!result.success) {
-      log(`  ⚠️  ${file} のステージングに失敗`, 'yellow');
+      log(`  ⚠️  ${file} のステージングに失敗`, "yellow");
     }
   }
-  
+
   return true;
 }
 
@@ -107,7 +108,7 @@ async function main() {
 
   // フロントエンドの自動修正
   if (frontendFiles.length > 0) {
-    log('\n🎨 フロントエンドファイルを修正中...', 'magenta');
+    log("\n🎨 フロントエンドファイルを修正中...", "magenta");
 
     // Prettier
     log("  ├─ Prettier実行...", "cyan");
@@ -134,7 +135,23 @@ async function main() {
     if (eslintResult.success) {
       log("     ✅ ESLint修正完了\n", "green");
     } else {
-      log("     ⚠️  ESLint一部修正完了（警告が残っている可能性）\n", "yellow");
+      log("     ⚠️  ESLint一部修正完了（警告が残っている可能性）", "yellow");
+
+      // エラー詳細を表示（簡潔に）
+      if (eslintResult.output) {
+        const errorLines = eslintResult.output
+          .split("\n")
+          .filter((line) => line.includes("error") || line.includes("warning"))
+          .slice(0, 3);
+
+        if (errorLines.length > 0) {
+          log("     エラー例:", "yellow");
+          errorLines.forEach((line) => {
+            log(`       ${line.trim()}`, "yellow");
+          });
+        }
+      }
+      log("", "reset");
     }
 
     fixAttempted = true;
@@ -142,7 +159,7 @@ async function main() {
 
   // バックエンドの自動修正
   if (backendFiles.length > 0) {
-    log('\n⚙️  バックエンドファイルを修正中...', 'magenta');
+    log("\n⚙️  バックエンドファイルを修正中...", "magenta");
     log("  └─ Prettier実行...", "cyan");
 
     const prettierResult = exec(
@@ -177,7 +194,7 @@ async function main() {
   log("✅ 再ステージング完了\n", "green");
 
   // 第2回目: lint-stagedを再実行
-  log("🔄 Step 2: 修正後の検証を実行中...", "blue");
+  log("🔄 Step 2: 修正後の検証を実行中...\n", "blue");
   const secondRun = exec("npx lint-staged");
 
   if (secondRun.success) {
@@ -193,22 +210,21 @@ async function main() {
   log("═══════════════════════════════════════════", "red");
   log("", "reset");
 
-  log("🔍 詳細なエラーを確認するには:", "yellow");
-  log("   npm run check:commit\n", "cyan");
+  // 詳細チェックを自動実行
+  log("🔍 詳細なエラー情報を表示中...\n", "yellow");
 
-  log("💡 手動で修正するか、以下のコマンドでコミットできます:", "yellow");
-  log("   git commit --no-verify\n", "cyan");
-
-  // エラー内容の一部を表示
-  if (secondRun.output) {
-    log("📋 エラー内容（抜粋）:", "yellow");
-    const lines = secondRun.output.split("\n").slice(0, 20);
-    lines.forEach((line) => {
-      if (line.trim()) {
-        console.log(`   ${line}`);
-      }
-    });
+  const checkResult = exec("node scripts/pre-commit-check.cjs");
+  if (!checkResult.success && checkResult.output) {
+    console.log(checkResult.output);
   }
+
+  log("\n💡 対処方法:", "yellow");
+  log("   1. 上記のエラーを手動で修正", "cyan");
+  log("   2. git add . で再ステージング", "cyan");
+  log("   3. git commit で再度コミット", "cyan");
+  log("", "reset");
+  log("   または、エラーを無視してコミット:", "yellow");
+  log("   git commit --no-verify\n", "cyan");
 
   process.exit(1);
 }
