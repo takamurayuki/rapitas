@@ -151,7 +151,7 @@ export function ResumableExecutionsBanner() {
   }, []);
 
   // バックエンド復帰時に再フェッチする
-  const { isConnected } = useBackendHealth({
+  const { isConnected, isIntentionalRestart } = useBackendHealth({
     onReconnectAction: () => {
       logger.info('Backend reconnected, re-fetching executions');
       setIsLoading(true);
@@ -434,8 +434,13 @@ export function ResumableExecutionsBanner() {
     return null;
   }
 
-  // Show error state if there's a connection error
+  // Show error state if there's a connection error (suppress during intentional restart)
   if (connectionError && !isConnected) {
+    // 意図的な再起動中は接続エラーを表示しない
+    if (isIntentionalRestart) {
+      return null;
+    }
+
     return (
       <div className="fixed bottom-20 right-6 z-50 max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
         <div className="border rounded-2xl shadow-xl overflow-hidden backdrop-blur-sm bg-red-50 dark:bg-red-950/95 border-red-200/80 dark:border-red-700/60">

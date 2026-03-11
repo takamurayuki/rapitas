@@ -523,3 +523,113 @@ export function getWorkflowModeConfig() {
     },
   };
 }
+
+/**
+ * 学習データを考慮した複雑度分析（拡張版）
+ *
+ * 通常の analyzeTaskComplexity に加えて、過去の学習記録から
+ * 類似タスクの実績を反映させた推奨モードを返す
+ */
+export async function analyzeTaskComplexityWithLearning(
+  input: TaskComplexityInput,
+): Promise<ComplexityAnalysisResult & { learningInsight?: LearningInsight }> {
+  const baseResult = analyzeTaskComplexity(input);
+
+  try {
+    // 動的インポートでPrismaの循環依存を回避
+    const { prisma } = await import('../../config');
+
+    // 同テーマの学習記録を取得
+    const where: Record<string, unknown> = { success: true };
+    if (input.themeId) where.themeId = input.themeId;
+
+    const records = await prisma.workflowLearningRecord.findMany({
+      where,
+      select: {
+        workflowMode: true,
+        predictedComplexity: true,
+        actualDurationMinutes: true,
+        estimatedDuration: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    });
+
+    if (records.length < 3) {
+      return baseResult;
+    }
+
+    // 類似複雑度（±15ポイント）のタスクを抽出
+    const similar = records.filter(
+      (r) =>
+        r.predictedComplexity !== null &&
+        Math.abs(r.predictedComplexity - baseResult.complexityScore) < 15,
+    );
+
+    if (similar.length < 3) {
+      return baseResult;
+    }
+
+    // 最も成功率の高いモードを判定
+    const modeCount: Record<string, number> = {};
+    for (const r of similar) {
+      modeCount[r.workflowMode] = (modeCount[r.workflowMode] || 0) + 1;
+    }
+
+    const sortedModes = Object.entries(modeCount).sort((a, b) => b[1] - a[1]);
+    const topMode = sortedModes[0];
+
+    // 実績が十分で、基本分析と異なるモードが推奨される場合
+    const learningRecommendedMode = topMode[0] as 'lightweight' | 'standard' | 'comprehensive';
+    const learningConfidence = topMode[1] / similar.length;
+
+    // 実績ベースの推定時間
+    const durations = similar
+      .map((r) => r.actualDurationMinutes)
+      .filter((d): d is number => d !== null);
+    const avgActualDuration =
+      durations.length > 0
+        ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+        : baseResult.estimatedExecutionTime;
+
+    const insight: LearningInsight = {
+      sampleSize: similar.length,
+      recommendedMode: learningRecommendedMode,
+      confidence: Math.round(learningConfidence * 100) / 100,
+      avgActualDuration,
+      modeDistribution: modeCount,
+      differs: learningRecommendedMode !== baseResult.recommendedMode,
+    };
+
+    // 学習データの信頼度が高い場合はモードを上書き
+    if (insight.differs && learningConfidence >= 0.7 && similar.length >= 5) {
+      return {
+        ...baseResult,
+        recommendedMode: learningRecommendedMode,
+        estimatedExecutionTime: avgActualDuration,
+        analysisBreakdown: {
+          ...baseResult.analysisBreakdown,
+          reasons: [
+            ...baseResult.analysisBreakdown.reasons,
+            `学習データ: 類似${similar.length}件中${topMode[1]}件が${learningRecommendedMode}で成功`,
+          ],
+        },
+        learningInsight: insight,
+      };
+    }
+
+    return { ...baseResult, learningInsight: insight };
+  } catch {
+    // DB接続失敗時は基本結果をそのまま返す
+    return baseResult;
+  }
+}
+
+export interface LearningInsight {
+  sampleSize: number;
+  recommendedMode: string;
+  confidence: number;
+  avgActualDuration: number;
+  modeDistribution: Record<string, number>;
+  differs: boolean;
+}

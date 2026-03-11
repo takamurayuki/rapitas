@@ -63,6 +63,7 @@ export { smartActionRoutes } from './system/smart-action';
 export { workflowRoutes } from './workflow/workflow';
 export { workflowRolesRoutes } from './workflow/workflow-roles';
 export { orchestraRoutes } from './workflow/orchestra';
+export { workflowLearningRoutes } from './workflow/workflow-learning';
 
 // Social - コミュニケーション・外部連携
 export { commentsRoutes } from './social/comments';
@@ -71,6 +72,7 @@ export { githubRoutes, taskGithubRoutes } from './social/github';
 // Analytics - 分析・レポート
 export { statisticsRoutes } from './analytics/statistics';
 export { reportsRoutes } from './analytics/reports';
+export { intelligentSuggestionsRoutes } from './analytics/intelligent-suggestions';
 
 // Lifestyle - 生活管理
 export { habitsRoutes } from './lifestyle/habits';

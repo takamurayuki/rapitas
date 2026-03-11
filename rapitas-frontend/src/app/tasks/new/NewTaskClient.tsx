@@ -47,6 +47,7 @@ import { getTaskDetailPath } from '@/utils/tauri';
 import { useAppModeStore } from '@/stores/appModeStore';
 import { requireAuth } from '@/contexts/AuthContext';
 import CompactWorkflowSelector from '@/components/workflow/CompactWorkflowSelector';
+import { RelatedKnowledgePanel } from '@/feature/intelligence/components/RelatedKnowledgePanel';
 import { createLogger } from '@/lib/logger';
 import { useTranslations } from 'next-intl';
 import { useLocaleStore } from '@/stores/localeStore';
@@ -122,7 +123,6 @@ function NewTaskClient() {
   >([]);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newSubtaskDescription, setNewSubtaskDescription] = useState('');
-  const [showSubtaskDescription, setShowSubtaskDescription] = useState(false);
 
   const fetchCategories = async () => {
     try {
@@ -324,7 +324,6 @@ function NewTaskClient() {
     ]);
     setNewSubtaskTitle('');
     setNewSubtaskDescription('');
-    setShowSubtaskDescription(false);
   };
 
   const removeSubtask = (id: string) => {
@@ -981,6 +980,15 @@ function NewTaskClient() {
             />
           </CompactAccordionGroup>
 
+          {/* Related Knowledge */}
+          {title.length >= 3 && (
+            <RelatedKnowledgePanel
+              title={title}
+              description={description || null}
+              themeId={themeId}
+            />
+          )}
+
           {/* Advanced Options - Collapsible */}
           <CompactAccordionGroup
             title={t('advancedSettings')}
@@ -1099,7 +1107,7 @@ function NewTaskClient() {
                     value={newSubtaskTitle}
                     onChange={(e) => setNewSubtaskTitle(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !showSubtaskDescription) {
+                      if (e.key === 'Enter') {
                         e.preventDefault();
                         addSubtask();
                       }
@@ -1107,20 +1115,6 @@ function NewTaskClient() {
                     placeholder={t('addSubtaskPlaceholder')}
                     className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                   />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowSubtaskDescription(!showSubtaskDescription)
-                    }
-                    className={`px-2 py-2 rounded-lg text-xs transition-all ${
-                      showSubtaskDescription
-                        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'
-                        : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                    }`}
-                    title={t('description')}
-                  >
-                    <FileText className="w-4 h-4" />
-                  </button>
                   <div
                     className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!newSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'}`}
                   >
@@ -1134,15 +1128,13 @@ function NewTaskClient() {
                     </button>
                   </div>
                 </div>
-                {showSubtaskDescription && (
-                  <textarea
-                    value={newSubtaskDescription}
-                    onChange={(e) => setNewSubtaskDescription(e.target.value)}
-                    placeholder={t('subtaskDescriptionPlaceholder')}
-                    rows={2}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
-                  />
-                )}
+                <textarea
+                  value={newSubtaskDescription}
+                  onChange={(e) => setNewSubtaskDescription(e.target.value)}
+                  placeholder={t('subtaskDescriptionPlaceholder')}
+                  rows={2}
+                  className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+                />
               </div>
             </div>
           </CompactAccordionGroup>

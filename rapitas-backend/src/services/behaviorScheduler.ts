@@ -1,6 +1,8 @@
 import { UserBehaviorService } from './userBehaviorService';
 import { createLogger } from '../../config/logger';
 import { memoryTaskQueue } from '../../services/memory';
+import { scanAndRemind } from '../../services/memory/knowledge-reminder';
+import { generateOptimizationRules } from '../../services/workflow/workflow-learning-optimizer';
 
 const log = createLogger('behavior-scheduler');
 
@@ -62,12 +64,36 @@ export class BehaviorScheduler {
       }
     }, 60 * 1000);
 
+    // 毎日9時にナレッジリマインドスキャンを実行
+    const knowledgeReminderInterval = setInterval(async () => {
+      const now = new Date();
+      if (now.getHours() === 9 && now.getMinutes() === 0) {
+        log.info('[BehaviorScheduler] Triggering knowledge reminder scan');
+        await scanAndRemind().catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Failed to scan knowledge reminders');
+        });
+      }
+    }, 60 * 1000);
+
+    // 毎日3時にワークフロー最適化ルールを生成
+    const workflowLearningInterval = setInterval(async () => {
+      const now = new Date();
+      if (now.getHours() === 3 && now.getMinutes() === 0) {
+        log.info('[BehaviorScheduler] Triggering workflow optimization rule generation');
+        await generateOptimizationRules().catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Failed to generate optimization rules');
+        });
+      }
+    }, 60 * 1000);
+
     this.intervalIds.push(
       dailyInterval,
       weeklyInterval,
       monthlyInterval,
       consolidationInterval,
       forgettingSweepInterval,
+      knowledgeReminderInterval,
+      workflowLearningInterval,
     );
 
     // 初回実行（サーバー起動時）

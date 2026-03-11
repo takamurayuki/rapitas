@@ -39,7 +39,10 @@ export type TimelineEventType =
   | 'contradiction_resolved'
   | 'reconsolidation_triggered'
   | 'forgetting_sweep'
-  | 'distillation_completed';
+  | 'distillation_completed'
+  | 'task_knowledge_extracted'
+  | 'knowledge_reminder_sent'
+  | 'knowledge_reviewed';
 
 export type ActorType = 'user' | 'agent' | 'system';
 

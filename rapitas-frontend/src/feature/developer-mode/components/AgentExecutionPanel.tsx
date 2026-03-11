@@ -47,6 +47,7 @@ import { AgentSwitcher } from '@/components/ui/AgentSwitcher';
 import { API_BASE_URL } from '@/utils/api';
 import type { Task } from '@/types';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import { AgentKnowledgeContext } from '@/feature/intelligence/components/AgentKnowledgeContext';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('AgentExecutionPanel');
@@ -1163,6 +1164,11 @@ export function AgentExecutionPanel({
                 </div>
               </div>
             )}
+
+            {/* エージェント共有ナレッジ */}
+            <div className="mt-3">
+              <AgentKnowledgeContext taskId={taskId} />
+            </div>
 
             {/* ログ表示（初期/再実行待ち状態でも最新ログを継続表示） */}
             {renderLogs({ running: !!isRunning, className: 'mt-4' })}
