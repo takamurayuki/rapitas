@@ -10,6 +10,11 @@ import type {
   AgentExecutionWithExtras,
 } from '../types/agent-execution-types';
 import { createLogger } from '../config/logger';
+import {
+  gatherSharedKnowledge,
+  formatKnowledgeContext,
+  updatePatternsFromExecution,
+} from './agents/agent-knowledge-sharing';
 
 const log = createLogger('agent-execution-service');
 
@@ -52,11 +57,33 @@ export class AgentExecutionService {
 
     try {
       // 実行をオーケストレーターに委譲
-      const executionInstruction = this.buildExecutionInstruction(
+      let executionInstruction = this.buildExecutionInstruction(
         task,
         optimizedPrompt,
         useTaskAnalysis,
       );
+
+      // 知識共有コンテキストを注入
+      try {
+        const sharedKnowledge = await gatherSharedKnowledge(taskId);
+        const contextText = formatKnowledgeContext(sharedKnowledge);
+        if (contextText) {
+          executionInstruction = `${executionInstruction}\n${contextText}`;
+          log.info(
+            {
+              taskId,
+              patterns: sharedKnowledge.patterns.length,
+              warnings: sharedKnowledge.warnings.length,
+            },
+            'Shared knowledge context injected',
+          );
+        }
+      } catch (knowledgeErr) {
+        log.warn(
+          { err: knowledgeErr, taskId },
+          'Failed to inject shared knowledge, proceeding without',
+        );
+      }
 
       orchestrator.executeTask(
         {

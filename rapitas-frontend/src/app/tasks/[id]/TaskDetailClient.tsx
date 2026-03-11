@@ -913,9 +913,19 @@ function TaskDetailClient({
             )}
 
             {/* Subtasks Section */}
-            {task.subtasks && task.subtasks.length > 0 && (
+            {(!task.subtasks || task.subtasks.length === 0) &&
+              !taskActions.isAddingSubtask && (
+                <button
+                  onClick={taskActions.toggleAddSubtask}
+                  className="w-full mb-6 px-4 py-3 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl text-sm font-medium text-zinc-500 dark:text-zinc-400 hover:border-emerald-400 hover:text-emerald-600 dark:hover:border-emerald-500 dark:hover:text-emerald-400 transition-colors"
+                >
+                  {t('addSubtask')}
+                </button>
+              )}
+            {((task.subtasks && task.subtasks.length > 0) ||
+              taskActions.isAddingSubtask) && (
               <SubtaskSection
-                subtasks={task.subtasks}
+                subtasks={task.subtasks || []}
                 isExpanded={isSubtasksExpanded}
                 onToggleExpand={() =>
                   setIsSubtasksExpanded(!isSubtasksExpanded)
@@ -957,6 +967,12 @@ function TaskDetailClient({
                 onSaveSubtaskEdit={taskActions.saveSubtaskEdit}
                 onCancelEditingSubtask={taskActions.cancelEditingSubtask}
                 onUpdateStatus={taskActions.updateStatus}
+                isAddingSubtask={taskActions.isAddingSubtask}
+                newSubtaskTitle={taskActions.newSubtaskTitle}
+                onToggleAddSubtask={taskActions.toggleAddSubtask}
+                onSetNewSubtaskTitle={taskActions.setNewSubtaskTitle}
+                onAddSubtask={taskActions.addSubtask}
+                onCancelAddSubtask={taskActions.cancelAddSubtask}
               />
             )}
           </>

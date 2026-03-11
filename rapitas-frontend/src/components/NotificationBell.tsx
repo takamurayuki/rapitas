@@ -29,6 +29,10 @@ const typeIcons: Record<string, string> = {
     'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
   github_sync_complete:
     'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400',
+  knowledge_extracted:
+    'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400',
+  knowledge_reminder:
+    'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
 };
 
 export default function NotificationBell() {

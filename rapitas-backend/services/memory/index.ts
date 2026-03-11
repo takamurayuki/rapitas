@@ -101,6 +101,24 @@ export async function initializeMemorySystem(): Promise<void> {
   memoryTaskQueue.registerHandler('distill', async (payload) => {
     const { executionId } = payload as { executionId: number };
     await distillFromExecution(executionId);
+
+    // 蒸留完了後にエージェント間知識共有のパターンも更新
+    try {
+      const { updatePatternsFromExecution } = await import('../agents/agent-knowledge-sharing');
+      const exec = await prisma.agentExecution.findUnique({
+        where: { id: executionId },
+        include: { session: { include: { config: { select: { taskId: true } } } } },
+      });
+      if (exec?.session?.config?.taskId) {
+        await updatePatternsFromExecution(
+          exec.session.config.taskId,
+          exec.status === 'completed',
+          executionId,
+        );
+      }
+    } catch (err) {
+      log.warn({ err, executionId }, 'Failed to update patterns from execution');
+    }
   });
 
   // 3. キューワーカーを開始

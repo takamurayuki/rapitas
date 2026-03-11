@@ -22,6 +22,8 @@ type UseBackendHealthOptions = {
 /**
  * バックエンドの接続状態を監視し、再起動後の復帰を検知するフック。
  * 切断→復帰を検知した場合に onReconnect コールバックを呼び出す。
+ * SSE経由でshutdownイベントを受信した場合は意図的な再起動として扱い、
+ * isIntentionalRestartフラグをtrueにする。
  */
 export function useBackendHealth(options: UseBackendHealthOptions = {}) {
   const {
@@ -32,9 +34,11 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
   } = options;
 
   const [status, setStatus] = useState<BackendHealthStatus>('checking');
+  const [isIntentionalRestart, setIsIntentionalRestart] = useState(false);
   const wasDisconnectedRef = useRef(false);
   const onReconnectRef = useRef(onReconnectAction);
   const onDisconnectRef = useRef(onDisconnectAction);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     onReconnectRef.current = onReconnectAction;
@@ -43,6 +47,40 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
   useEffect(() => {
     onDisconnectRef.current = onDisconnectAction;
   }, [onDisconnectAction]);
+
+  // SSE接続でshutdownイベントを検出
+  useEffect(() => {
+    const connectSSE = () => {
+      try {
+        const es = new EventSource(`${API_BASE_URL}/events/stream`);
+        eventSourceRef.current = es;
+
+        es.addEventListener('shutdown', () => {
+          logger.info(
+            'Received shutdown event - server is intentionally restarting',
+          );
+          setIsIntentionalRestart(true);
+        });
+
+        es.onerror = () => {
+          // SSE接続エラーは無視（ヘルスチェックポーリングで検出する）
+          es.close();
+          eventSourceRef.current = null;
+        };
+      } catch {
+        // EventSource作成失敗は無視
+      }
+    };
+
+    connectSSE();
+
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, []);
 
   const checkHealth = useCallback(async () => {
     try {
@@ -57,8 +95,32 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
       if (res.ok) {
         if (wasDisconnectedRef.current) {
           wasDisconnectedRef.current = false;
+          setIsIntentionalRestart(false);
           logger.info('Backend reconnected');
           onReconnectRef.current?.();
+
+          // 再接続後にSSEも再接続
+          if (
+            !eventSourceRef.current ||
+            eventSourceRef.current.readyState === EventSource.CLOSED
+          ) {
+            try {
+              const es = new EventSource(`${API_BASE_URL}/events/stream`);
+              eventSourceRef.current = es;
+              es.addEventListener('shutdown', () => {
+                logger.info(
+                  'Received shutdown event - server is intentionally restarting',
+                );
+                setIsIntentionalRestart(true);
+              });
+              es.onerror = () => {
+                es.close();
+                eventSourceRef.current = null;
+              };
+            } catch {
+              // EventSource作成失敗は無視
+            }
+          }
         }
         setStatus('connected');
       } else {
@@ -102,5 +164,5 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
     };
   }, [checkHealth, status, intervalMs, retryIntervalMs]);
 
-  return { status, isConnected: status === 'connected' };
+  return { status, isConnected: status === 'connected', isIntentionalRestart };
 }

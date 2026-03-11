@@ -10,11 +10,14 @@ import { NotFoundError, ValidationError, parseId } from '../../middleware/error-
 import { sanitizeMarkdownContent } from '../../utils/mojibake-detector';
 import {
   analyzeTaskComplexity,
+  analyzeTaskComplexityWithLearning,
   getWorkflowModeConfig,
   type TaskComplexityInput,
 } from '../../services/workflow/complexity-analyzer';
 import { AgentOrchestrator } from '../../services/agents/agent-orchestrator';
 import { createLogger } from '../../config/logger';
+import { recordWorkflowCompletion } from '../../services/workflow/workflow-learning-optimizer';
+import { extractKnowledgeFromTask } from '../../services/memory/task-knowledge-extractor';
 
 const log = createLogger('routes:workflow');
 
@@ -517,6 +520,16 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       let autoCommitPRResult: Awaited<ReturnType<typeof performAutoCommitAndPR>> = {};
       if (fileType === 'verify' && newStatus === 'completed') {
         autoCommitPRResult = await performAutoCommitAndPR(taskId, sanitizeResult.content);
+
+        // ワークフロー学習記録を非同期で収集（レスポンスを待たない）
+        recordWorkflowCompletion(taskId).catch((err) => {
+          log.error({ err, taskId }, 'Failed to record workflow learning data');
+        });
+
+        // タスク完了時のナレッジ自動抽出（非同期）
+        extractKnowledgeFromTask(taskId).catch((err) => {
+          log.error({ err, taskId }, 'Failed to extract knowledge from task');
+        });
       }
 
       // レスポンス構築
@@ -851,8 +864,8 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         themeId: task.themeId,
       };
 
-      // 複雑度分析を実行
-      const analysisResult = analyzeTaskComplexity(complexityInput);
+      // 学習データを考慮した複雑度分析を実行
+      const analysisResult = await analyzeTaskComplexityWithLearning(complexityInput);
 
       // 結果をデータベースに保存（複雑度スコアとワークフローモード）
       const updatedTask = await prisma.task.update({
@@ -872,6 +885,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         analysis: analysisResult,
         appliedMode: updatedTask.workflowMode,
         wasOverridden: !!task.workflowModeOverride,
+        learningInsight: analysisResult.learningInsight || null,
       };
     } catch (err) {
       if (err instanceof ValidationError || err instanceof NotFoundError) throw err;

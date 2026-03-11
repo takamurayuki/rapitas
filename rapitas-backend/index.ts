@@ -62,10 +62,12 @@ import {
   workflowRoutes,
   workflowRolesRoutes,
   orchestraRoutes,
+  workflowLearningRoutes,
   pomodoroRoutes,
   searchRoutes,
   knowledgeRoutes,
   memorySystemRoutes,
+  intelligentSuggestionsRoutes,
   smartActionRoutes,
   experimentsRoutes,
   knowledgeGraphRoutes,
@@ -197,10 +199,12 @@ app.use(cliToolsManagementRoutes);
 app.use(workflowRoutes);
 app.use(workflowRolesRoutes);
 app.use(orchestraRoutes);
+app.use(workflowLearningRoutes);
 app.use(pomodoroRoutes);
 app.use(searchRoutes);
 app.use(knowledgeRoutes);
 app.use(memorySystemRoutes);
+app.use(intelligentSuggestionsRoutes);
 app.use(smartActionRoutes);
 app.use(experimentsRoutes);
 app.use(knowledgeGraphRoutes);

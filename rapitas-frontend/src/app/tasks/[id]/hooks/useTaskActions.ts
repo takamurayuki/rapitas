@@ -44,6 +44,10 @@ export function useTaskActions({
   const [editEstimatedHours, setEditEstimatedHours] = useState('');
   const [editPriority, setEditPriority] = useState<Priority>('medium');
 
+  // --- Subtask adding state ---
+  const [isAddingSubtask, setIsAddingSubtask] = useState(false);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+
   // --- Subtask editing state ---
   const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
@@ -236,6 +240,48 @@ export function useTaskActions({
       logger.error('Failed to refetch task:', err);
     }
   }, [resolvedTaskId, setTask]);
+
+  // --- Subtask creation ---
+
+  const toggleAddSubtask = useCallback(() => {
+    setIsAddingSubtask((prev) => !prev);
+    setNewSubtaskTitle('');
+  }, []);
+
+  const cancelAddSubtask = useCallback(() => {
+    setIsAddingSubtask(false);
+    setNewSubtaskTitle('');
+  }, []);
+
+  const addSubtask = useCallback(async () => {
+    if (!task || !newSubtaskTitle.trim()) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newSubtaskTitle.trim(),
+          parentId: task.id,
+          status: 'todo',
+          priority: 'medium',
+        }),
+      });
+
+      if (!res.ok) throw new Error('サブタスクの作成に失敗しました');
+
+      const taskRes = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
+      if (taskRes.ok) {
+        setTask(await taskRes.json());
+      }
+      setNewSubtaskTitle('');
+      setIsAddingSubtask(false);
+      onTaskUpdated?.();
+    } catch (err) {
+      logger.error(err);
+      alert('サブタスクの作成に失敗しました');
+    }
+  }, [task, newSubtaskTitle, resolvedTaskId, setTask, onTaskUpdated]);
 
   // --- Subtask operations ---
 
@@ -459,6 +505,13 @@ export function useTaskActions({
     setEditEstimatedHours,
     editPriority,
     setEditPriority,
+    // Subtask adding state
+    isAddingSubtask,
+    newSubtaskTitle,
+    setNewSubtaskTitle,
+    toggleAddSubtask,
+    cancelAddSubtask,
+    addSubtask,
     // Subtask editing state
     editingSubtaskId,
     editingSubtaskTitle,

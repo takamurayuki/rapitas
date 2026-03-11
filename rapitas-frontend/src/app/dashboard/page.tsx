@@ -14,6 +14,10 @@ import {
 import { API_BASE_URL } from '@/utils/api';
 import BurnupChart from '@/components/BurnupChart';
 import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
+import { SuggestedTasksWidget } from '@/feature/intelligence/components/SuggestedTasksWidget';
+import { KnowledgeReminderWidget } from '@/feature/intelligence/components/KnowledgeReminderWidget';
+import { ProductivityHeatmap } from '@/feature/intelligence/components/ProductivityHeatmap';
+import { WorkflowLearningPanel } from '@/feature/intelligence/components/WorkflowLearningPanel';
 import { createLogger } from '@/lib/logger';
 import { useLocaleStore } from '@/stores/localeStore';
 import { toDateLocale } from '@/lib/utils';
@@ -373,6 +377,18 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* AI提案 & ナレッジリマインド */}
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SuggestedTasksWidget />
+        <KnowledgeReminderWidget />
+      </div>
+
+      {/* 生産性ヒートマップ & ワークフロー学習 */}
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ProductivityHeatmap />
+        <WorkflowLearningPanel />
       </div>
 
       {/* バーンアップチャート */}

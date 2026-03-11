@@ -123,6 +123,7 @@ model Task {
   complexityScore       Float?    // 自動判定による複雑度スコア (0-100)
   workflowModeOverride  Boolean   @default(false) // 手動でモード変更されたかどうか
   autoApprovePlan       Boolean   @default(false) // タスクレベルでplan.mdを自動承認するか
+  workflowLearningRecords WorkflowLearningRecord[]
 
   @@index([status])
   @@index([themeId])
@@ -1336,6 +1337,55 @@ model EpisodeMemory {
   @@index([experimentId])
   @@index([phase])
   @@index([importance])
+}
+
+// ワークフロー学習記録 - 完了タスクの実際のワークフロー実行データ
+model WorkflowLearningRecord {
+  id                    Int       @id @default(autoincrement())
+  taskId                Int
+  task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  workflowMode          String    // 実際に使用されたモード: lightweight, standard, comprehensive
+  predictedComplexity   Float?    // 予測された複雑度スコア
+  actualDurationMinutes Int?      // 実際の実行時間（分）
+  estimatedDuration     Int?      // 推定実行時間（分）
+  skippedPhases         String    @default("[]") // JSON: スキップされたフェーズ ["research", "plan"]
+  phaseTimings          String    @default("{}") // JSON: 各フェーズの所要時間 {"research": 5, "plan": 10, ...}
+  outcome               String    @default("completed") // completed, failed, cancelled
+  wasOverridden         Boolean   @default(false) // 手動でモードが変更されたか
+  overriddenFrom        String?   // 変更前のモード
+  categoryId            Int?
+  themeId               Int?
+  labels                String    @default("[]") // JSON: タスクのラベル名配列
+  titleKeywords         String    @default("[]") // JSON: タイトルから抽出されたキーワード
+  complexityFactors     String    @default("{}") // JSON: 複雑度分析の各要素スコア
+  success               Boolean   @default(true) // ワークフローが成功したか
+  createdAt             DateTime  @default(now())
+
+  @@index([workflowMode])
+  @@index([themeId])
+  @@index([categoryId])
+  @@index([outcome])
+  @@index([createdAt])
+}
+
+// ワークフロー最適化ルール - 学習データから抽出されたパターン
+model WorkflowOptimizationRule {
+  id                Int       @id @default(autoincrement())
+  ruleType          String    // skip_phase, downgrade_mode, upgrade_mode, adjust_time
+  condition         String    // JSON: ルール適用条件
+  recommendation    String    // JSON: 推奨アクション
+  confidence        Float     @default(0.5) // 0-1.0
+  sampleSize        Int       @default(0) // ルール生成に使用されたサンプル数
+  successRate       Float     @default(0) // このルールに合致したタスクの成功率
+  description       String    // 人間可読な説明
+  isActive          Boolean   @default(true)
+  lastEvaluated     DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([ruleType])
+  @@index([confidence])
+  @@index([isActive])
 }
 
 // プロンプト進化記録 - プロンプト改善の履歴

@@ -23,6 +23,7 @@ import {
   ArrowDown,
   ArrowUp,
   Minus,
+  Plus,
 } from 'lucide-react';
 import {
   SubtaskTitleIndicator,
@@ -65,6 +66,13 @@ interface SubtaskSectionProps {
   onSaveSubtaskEdit: () => void;
   onCancelEditingSubtask: () => void;
   onUpdateStatus: (id: number, status: string) => void;
+  // Adding subtask
+  isAddingSubtask: boolean;
+  newSubtaskTitle: string;
+  onToggleAddSubtask: () => void;
+  onSetNewSubtaskTitle: (v: string) => void;
+  onAddSubtask: () => void;
+  onCancelAddSubtask: () => void;
 }
 
 const priorityOptions: {
@@ -135,6 +143,12 @@ export default function SubtaskSection({
   onSaveSubtaskEdit,
   onCancelEditingSubtask,
   onUpdateStatus,
+  isAddingSubtask,
+  newSubtaskTitle,
+  onToggleAddSubtask,
+  onSetNewSubtaskTitle,
+  onAddSubtask,
+  onCancelAddSubtask,
 }: SubtaskSectionProps) {
   const t = useTranslations('task');
   const tc = useTranslations('common');
@@ -168,6 +182,17 @@ export default function SubtaskSection({
           </div>
           {/* Action buttons */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleAddSubtask();
+              }}
+              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors"
+              title={t('addSubtask')}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              {t('addSubtask')}
+            </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -283,6 +308,54 @@ export default function SubtaskSection({
             <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400">
               <button
                 onClick={() => onSetDeleteConfirm(null)}
+                className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+                <span className="font-mono text-xs font-black tracking-tight">
+                  {tc('cancel')}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add subtask form */}
+      {isAddingSubtask && (
+        <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-emerald-50/30 dark:bg-emerald-950/20">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+              value={newSubtaskTitle}
+              onChange={(e) => onSetNewSubtaskTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newSubtaskTitle.trim()) {
+                  onAddSubtask();
+                } else if (e.key === 'Escape') {
+                  onCancelAddSubtask();
+                }
+              }}
+              placeholder={t('addSubtaskPlaceholder')}
+              autoFocus
+            />
+            <div
+              className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!newSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-emerald-500 dark:hover:border-emerald-400'}`}
+            >
+              <button
+                onClick={onAddSubtask}
+                disabled={!newSubtaskTitle.trim()}
+                className={`flex items-center gap-2 transition-all ${!newSubtaskTitle.trim() ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 cursor-pointer'}`}
+              >
+                <Check className="w-4 h-4" />
+                <span className="font-mono text-xs font-black tracking-tight">
+                  {tc('save')}
+                </span>
+              </button>
+            </div>
+            <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400">
+              <button
+                onClick={onCancelAddSubtask}
                 className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
               >
                 <X className="w-4 h-4" />
