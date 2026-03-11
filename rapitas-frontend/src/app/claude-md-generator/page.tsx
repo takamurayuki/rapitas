@@ -8,7 +8,10 @@ import { useTranslations } from 'next-intl';
 // ─────────────────────────────────────────────────────────────────────────────
 const G = `
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+.cmd-gen,
+.cmd-gen *,
+.cmd-gen *::before,
+.cmd-gen *::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --bg:#08080c;--s1:#0f0f15;--s2:#16161f;--s3:#1e1e2a;
   --border:#252535;--border2:#32324a;
@@ -16,7 +19,7 @@ const G = `
   --text:#eeeef5;--muted:#6b6b85;--dimmed:#3a3a55;
   --green:#4ade80;--amber:#fbbf24;--red:#f87171;
 }
-body{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif}
+.cmd-gen{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif}
 
 .fade{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) both}
 @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
@@ -345,7 +348,18 @@ async function proposeApps(t: (key: string) => string, answers: AppAnswers) {
     }),
   });
 
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      errorData.error ||
+        `HTTP ${response.status}: プロポーザル生成に失敗しました`,
+    );
+  }
+
   const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
   return data;
 }
 
@@ -370,7 +384,17 @@ async function generateClaudeMd(
     }),
   });
 
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      errorData.error || `HTTP ${response.status}: CLAUDE.md生成に失敗しました`,
+    );
+  }
+
   const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
   return data;
 }
 
@@ -508,6 +532,7 @@ export default function ClaudeMdGeneratorPage() {
   if (phase === 'intro')
     return (
       <div
+        className="cmd-gen"
         style={{
           minHeight: '100vh',
           background: 'var(--bg)',
@@ -964,6 +989,7 @@ export default function ClaudeMdGeneratorPage() {
   if (phase === 'proposing')
     return (
       <div
+        className="cmd-gen"
         style={{
           minHeight: '100vh',
           background: 'var(--bg)',
@@ -1009,6 +1035,7 @@ export default function ClaudeMdGeneratorPage() {
           : 'var(--red)';
     return (
       <div
+        className="cmd-gen"
         style={{
           minHeight: '100vh',
           background: 'var(--bg)',
@@ -1047,6 +1074,50 @@ export default function ClaudeMdGeneratorPage() {
               {t('proposalsDescription')}
             </p>
           </div>
+
+          {proposals.length === 0 && (
+            <div
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 12,
+                padding: '32px 24px',
+                textAlign: 'center',
+                marginBottom: 32,
+                background: 'var(--s1)',
+              }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 12 }}>
+                &#x26A0;&#xFE0F;
+              </div>
+              <p
+                style={{
+                  color: 'var(--muted)',
+                  fontSize: 13,
+                  lineHeight: 1.8,
+                  marginBottom: 20,
+                }}
+              >
+                {t('proposalsEmpty')}
+              </p>
+              <button
+                className="btn btn-p"
+                onClick={() => {
+                  setPhase('proposing');
+                  proposeApps(t, answers)
+                    .then((r) => {
+                      setProposals(r.proposals || []);
+                      setPhase('proposals');
+                    })
+                    .catch(() => {
+                      setProposals([]);
+                      setPhase('proposals');
+                    });
+                }}
+              >
+                {t('retry')}
+              </button>
+            </div>
+          )}
 
           <div
             style={{
@@ -1185,13 +1256,18 @@ export default function ClaudeMdGeneratorPage() {
           >
             <button
               className="btn btn-g"
-              onClick={() => {
+              onClick={async () => {
                 setPhase('proposing');
-                proposeApps(t, answers).then((r) => {
+                try {
+                  const r = await proposeApps(t, answers);
                   setProposals(r.proposals || []);
                   setPickedProp(null);
                   setPhase('proposals');
-                });
+                } catch (error) {
+                  console.error('Failed to generate new proposals:', error);
+                  setProposals([]);
+                  setPhase('proposals');
+                }
               }}
             >
               {t('otherProposals')}
@@ -1226,6 +1302,7 @@ export default function ClaudeMdGeneratorPage() {
   if (phase === 'generating')
     return (
       <div
+        className="cmd-gen"
         style={{
           minHeight: '100vh',
           background: 'var(--bg)',
@@ -1302,6 +1379,7 @@ export default function ClaudeMdGeneratorPage() {
   if (phase === 'result')
     return (
       <div
+        className="cmd-gen"
         style={{
           minHeight: '100vh',
           background: 'var(--bg)',
@@ -1461,6 +1539,7 @@ function PageWrap({
   const progress = ((step - 1) / total) * 100;
   return (
     <div
+      className="cmd-gen"
       style={{
         minHeight: '100vh',
         background: 'var(--bg)',
