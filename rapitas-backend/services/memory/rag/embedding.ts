@@ -29,6 +29,17 @@ let embeddingDisabled = false;
 let initAttempted = false;
 
 /**
+ * 埋め込みパイプラインをリセット（再初期化のため）
+ */
+export function resetEmbeddingPipeline(): void {
+  pipeline = null;
+  useSubprocess = false;
+  embeddingDisabled = false;
+  initAttempted = false;
+  log.info('Embedding pipeline reset - ready for re-initialization');
+}
+
+/**
  * embeddingパイプラインを初期化
  */
 async function initPipeline(): Promise<void> {

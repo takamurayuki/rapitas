@@ -387,9 +387,8 @@ async function proposeApps(
   if (data.error) {
     throw new Error(data.error);
   }
-  if (data.aiFailed && data.errorMessage) {
-    throw new Error(data.errorMessage);
-  }
+  // Don't throw error for aiFailed, return the response with errorMessage
+  // The caller will handle the errorMessage appropriately
   return data;
 }
 
@@ -553,14 +552,15 @@ export default function ClaudeMdGeneratorPage() {
     setLocalPlatform(answers.platform || null);
     setLocalScale(answers.scale || null);
     setLocalPrio(answers.priority || null);
-  }, [answers.platform, answers.scale, answers.priority]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     topRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [phase]);
 
   // ── helpers ─────────────────────────────────────────────────────────────
-  const go = (nextPhase: string, extra: Partial<AppAnswers> = {}) => {
+  const _go = (nextPhase: string, extra: Partial<AppAnswers> = {}) => {
     setAnswers((a) => ({ ...a, ...extra }));
     setPhase(nextPhase);
   };
@@ -1013,7 +1013,11 @@ export default function ClaudeMdGeneratorPage() {
       try {
         const r = await proposeApps(t, next, dynamicSubs, dynamicElements);
         setProposals(r.proposals || []);
-        setAiErrorMessage(r.errorMessage || '');
+        if (r.aiFailed && r.errorMessage) {
+          setAiErrorMessage(r.errorMessage);
+        } else {
+          setAiErrorMessage('');
+        }
       } catch (error) {
         setProposals([]);
         setAiErrorMessage(
@@ -1285,29 +1289,32 @@ export default function ClaudeMdGeneratorPage() {
               <div style={{ fontSize: 32, marginBottom: 12 }}>
                 &#x26A0;&#xFE0F;
               </div>
-              <p
-                style={{
-                  color: 'var(--muted)',
-                  fontSize: 13,
-                  lineHeight: 1.8,
-                  marginBottom: aiErrorMessage ? 8 : 20,
-                }}
-              >
-                {t('proposalsEmpty')}
-              </p>
-              {aiErrorMessage && (
+              {aiErrorMessage ? (
                 <p
                   style={{
                     color: 'var(--danger, #ef4444)',
-                    fontSize: 12,
+                    fontSize: 13,
                     lineHeight: 1.6,
                     marginBottom: 20,
-                    padding: '8px 12px',
+                    padding: '12px 16px',
                     background: 'var(--danger-bg, rgba(239, 68, 68, 0.1))',
                     borderRadius: 8,
+                    border:
+                      '1px solid var(--danger-border, rgba(239, 68, 68, 0.2))',
                   }}
                 >
                   {aiErrorMessage}
+                </p>
+              ) : (
+                <p
+                  style={{
+                    color: 'var(--muted)',
+                    fontSize: 13,
+                    lineHeight: 1.8,
+                    marginBottom: 20,
+                  }}
+                >
+                  {t('proposalsEmpty')}
                 </p>
               )}
               <button
@@ -1317,7 +1324,11 @@ export default function ClaudeMdGeneratorPage() {
                   proposeApps(t, answers, dynamicSubs, dynamicElements)
                     .then((r) => {
                       setProposals(r.proposals || []);
-                      setAiErrorMessage(r.errorMessage || '');
+                      if (r.aiFailed && r.errorMessage) {
+                        setAiErrorMessage(r.errorMessage);
+                      } else {
+                        setAiErrorMessage('');
+                      }
                       setPhase('proposals');
                     })
                     .catch((error) => {
@@ -1483,7 +1494,11 @@ export default function ClaudeMdGeneratorPage() {
                     dynamicElements,
                   );
                   setProposals(r.proposals || []);
-                  setAiErrorMessage(r.errorMessage || '');
+                  if (r.aiFailed && r.errorMessage) {
+                    setAiErrorMessage(r.errorMessage);
+                  } else {
+                    setAiErrorMessage('');
+                  }
                   setPickedProp(null);
                   setPhase('proposals');
                 } catch (error) {

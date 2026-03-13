@@ -28,6 +28,7 @@ import {
   Settings,
   Clock,
   MessageSquarePlus,
+  Zap,
 } from 'lucide-react';
 import Link from 'next/link';
 import type {
@@ -51,6 +52,17 @@ import { AgentKnowledgeContext } from '@/feature/intelligence/components/AgentKn
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('AgentExecutionPanel');
+
+/** トークン数を読みやすい形式にフォーマット */
+function formatTokenCount(tokens: number): string {
+  if (tokens >= 1_000_000) {
+    return `${(tokens / 1_000_000).toFixed(1)}M tokens`;
+  }
+  if (tokens >= 1_000) {
+    return `${(tokens / 1_000).toFixed(1)}K tokens`;
+  }
+  return `${tokens} tokens`;
+}
 
 type Props = {
   taskId: number;
@@ -156,6 +168,8 @@ export function AgentExecutionPanel({
     questionType: pollingQuestionType,
     questionTimeout: pollingQuestionTimeout,
     sessionMode: pollingSessionMode,
+    tokensUsed: pollingTokensUsed,
+    totalSessionTokens: pollingTotalSessionTokens,
     startPolling,
     stopPolling,
     clearLogs: clearPollingLogs,
@@ -259,6 +273,41 @@ export function AgentExecutionPanel({
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // taskId変更時にstateをリセット
+  const previousTaskIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    // 初回マウント時はリセット不要
+    if (previousTaskIdRef.current === null) {
+      previousTaskIdRef.current = taskId;
+      return;
+    }
+
+    // taskIdが変更された場合のみリセット
+    if (previousTaskIdRef.current !== taskId) {
+      // hasRestoredRefをリセットして復元ロジックを再実行可能にする
+      hasRestoredRef.current = false;
+
+      // 各stateをリセット
+      setIsExpanded(false);
+      setSessionId(null);
+      setIsRestoring(false);
+      setShowLogs(true);
+      setUserResponse('');
+      setFollowUpInstruction('');
+      setFollowUpError(null);
+      setTimeoutCountdown(null);
+
+      // ポーリングを停止してログをクリア
+      stopPolling();
+      clearLogs();
+
+      // SSE接続もクリア
+      clearSseLogs();
+
+      previousTaskIdRef.current = taskId;
+    }
+  }, [taskId, stopPolling, clearLogs, clearSseLogs]);
 
   // マウント時に実行状態を復元
   useEffect(() => {
@@ -670,8 +719,16 @@ export function AgentExecutionPanel({
                 </p>
               </div>
             </div>
-            {/* 停止ボタン - 質問表示時もヘッダーに常に表示 */}
-            <div className="flex justify-end mt-4">
+            {/* 停止ボタン + トークン使用量 */}
+            <div className="flex items-center justify-between mt-4">
+              {(pollingTokensUsed ?? 0) > 0 ? (
+                <div className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>{formatTokenCount(pollingTokensUsed ?? 0)}</span>
+                </div>
+              ) : (
+                <div />
+              )}
               <button
                 onClick={handleStopExecution}
                 className="flex items-center gap-2 px-4 py-2 bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-800/50 text-red-700 dark:text-red-300 rounded-lg font-medium transition-colors"
@@ -840,6 +897,12 @@ export function AgentExecutionPanel({
                   {workflowPhaseInfo?.nextAction ||
                     '承認ページでコードレビューを行い、変更をコミットしてください。'}
                 </p>
+                {(pollingTokensUsed ?? 0) > 0 && (
+                  <div className="flex items-center gap-1.5 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>{formatTokenCount(pollingTokensUsed ?? 0)}</span>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -949,6 +1012,12 @@ export function AgentExecutionPanel({
                 <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
                   AIエージェントの実行がキャンセルされ、変更が元に戻されました。
                 </p>
+                {(pollingTokensUsed ?? 0) > 0 && (
+                  <div className="flex items-center gap-1.5 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>{formatTokenCount(pollingTokensUsed ?? 0)}</span>
+                  </div>
+                )}
               </div>
               <button
                 onClick={handleReset}
@@ -991,6 +1060,12 @@ export function AgentExecutionPanel({
                     executionResult?.error ||
                     '不明なエラーが発生しました'}
                 </p>
+                {(pollingTokensUsed ?? 0) > 0 && (
+                  <div className="flex items-center gap-1.5 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>{formatTokenCount(pollingTokensUsed ?? 0)}</span>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button

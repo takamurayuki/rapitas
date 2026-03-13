@@ -8,6 +8,7 @@ import { createLogger } from '../../config/logger';
 import {
   getSuggestedTasks,
   getProductivityHeatmap,
+  getHeatmapCellTasks,
 } from '../../services/predictive-task-suggester';
 import {
   scanAndRemind,
@@ -42,12 +43,27 @@ export const intelligentSuggestionsRoutes = new Elysia({ prefix: '/intelligence'
   })
 
   // 生産性ヒートマップを取得
-  .get('/productivity-heatmap', async () => {
+  .get('/productivity-heatmap', async ({ query }) => {
     try {
-      const result = await getProductivityHeatmap();
+      const days = Math.min(Math.max(parseInt(query?.days || '90', 10), 7), 365);
+      const result = await getProductivityHeatmap(days);
       return { success: true, ...result };
     } catch (err) {
       log.error({ err }, 'Error getting productivity heatmap');
+      throw err;
+    }
+  })
+
+  // ヒートマップセルの詳細タスク一覧
+  .get('/productivity-heatmap/tasks', async ({ query }) => {
+    try {
+      const day = parseInt(query?.day || '0', 10);
+      const hour = parseInt(query?.hour || '0', 10);
+      const days = Math.min(Math.max(parseInt(query?.days || '90', 10), 7), 365);
+      const tasks = await getHeatmapCellTasks(day, hour, days);
+      return { success: true, tasks };
+    } catch (err) {
+      log.error({ err }, 'Error getting heatmap cell tasks');
       throw err;
     }
   })

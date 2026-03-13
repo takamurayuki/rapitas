@@ -234,6 +234,7 @@ export function AIAccordionPanel({
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
   const hasRestoredRef = useRef(false);
+  const prevTaskIdRef = useRef(taskId);
   const [continueInstruction, setContinueInstruction] = useState('');
   const previousLogsLengthRef = useRef(0);
   // 実行履歴とタブ表示機能を削除
@@ -273,6 +274,20 @@ export function AIAccordionPanel({
     clearSseLogs();
     clearPollingLogs();
   }, [clearSseLogs, clearPollingLogs]);
+
+  // taskId変更時に状態をリセットし、復元を再トリガーする
+  useEffect(() => {
+    if (prevTaskIdRef.current !== taskId) {
+      prevTaskIdRef.current = taskId;
+      hasRestoredRef.current = false;
+      setExpandedSection(null);
+      setSessionId(null);
+      setIsRestoring(false);
+      setContinueInstruction('');
+      stopPolling();
+      clearLogs();
+    }
+  }, [taskId, stopPolling, clearLogs]);
 
   const toggleSection = (section: AccordionSection) => {
     setExpandedSection((prev) => (prev === section ? null : section));

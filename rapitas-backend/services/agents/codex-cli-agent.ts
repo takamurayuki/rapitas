@@ -31,6 +31,7 @@ import {
 } from './question-detection';
 import type { QuestionDetails, QuestionKey, QuestionWaitingState } from './question-detection';
 import { createLogger } from '../../config/logger';
+import { getProjectRoot } from '../../config';
 
 const logger = createLogger('codex-cli-agent');
 
@@ -109,7 +110,7 @@ export class CodexCliAgent extends BaseAgent {
     const timeout = this.config.timeout ?? 900000;
 
     const fs = await import('fs/promises');
-    const workDir = task.workingDirectory || this.config.workingDirectory || process.cwd();
+    const workDir = task.workingDirectory || this.config.workingDirectory || getProjectRoot();
 
     // 作業ディレクトリの存在確認
     try {

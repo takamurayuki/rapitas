@@ -245,14 +245,24 @@ export class AgentExecutionService {
    */
   async stopSession(sessionId: number): Promise<void> {
     // セッションの全実行を停止
-    const executions = orchestrator.getSessionExecutions(sessionId);
-    for (const execution of executions) {
-      await orchestrator.stopExecution(execution.executionId).catch((err) => {
-        log.warn(
-          { err, executionId: execution.executionId },
-          'Failed to stop execution during session stop',
-        );
-      });
+    // ワーカープロセス経由で非同期にセッション内の実行を取得・停止
+    try {
+      const { AgentWorkerManager } = await import('./agents/agent-worker-manager');
+      const executions =
+        await AgentWorkerManager.getInstance().getSessionExecutionsAsync(sessionId);
+      for (const execution of executions) {
+        await orchestrator.stopExecution(execution.executionId).catch((err) => {
+          log.warn(
+            { err, executionId: execution.executionId },
+            'Failed to stop execution during session stop',
+          );
+        });
+      }
+    } catch (err) {
+      log.warn(
+        { err },
+        'Failed to get session executions from worker, falling back to DB-only stop',
+      );
     }
 
     // データベースで実行中/待機中の実行をすべてキャンセル

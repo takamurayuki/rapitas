@@ -6,7 +6,9 @@ import { Elysia, t } from 'elysia';
 import { join } from 'path';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { getProjectRoot } from '../../config';
 import { orchestrator } from '../../services/orchestrator-instance';
+import { AgentWorkerManager } from '../../services/agents/agent-worker-manager';
 import { toJsonString, fromJsonString } from '../../utils/db-helpers';
 import {
   cleanImplementationSummary,
@@ -21,6 +23,9 @@ import { agentRateLimiter } from '../../middleware/rate-limiter';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
 const log = createLogger('routes:agent-execution');
+
+// エージェントワーカーマネージャーインスタンス
+const agentWorkerManager = AgentWorkerManager.getInstance();
 
 /**
  * タスク実行のインメモリロック
@@ -131,8 +136,8 @@ async function createCodeReviewApproval(params: {
   } = params;
 
   try {
-    const diff = await orchestrator.getFullGitDiff(workDir);
-    const structuredDiff = await orchestrator.getDiff(workDir);
+    const diff = await agentWorkerManager.getFullGitDiff(workDir);
+    const structuredDiff = await agentWorkerManager.getDiff(workDir);
 
     if (diff && diff !== 'No changes detected') {
       const implementationSummary = cleanImplementationSummary(
@@ -363,7 +368,7 @@ export const agentExecutionRouter = new Elysia()
         });
       }
 
-      const workDir = workingDirectory || task.theme?.workingDirectory || process.cwd();
+      const workDir = workingDirectory || task.theme?.workingDirectory || getProjectRoot();
 
       let developerModeConfig = task.developerModeConfig;
       let session;
@@ -421,7 +426,7 @@ export const agentExecutionRouter = new Elysia()
         }
 
         // ブランチを作成またはチェックアウト
-        const branchCreated = await orchestrator.createBranch(workDir, finalBranchName);
+        const branchCreated = await agentWorkerManager.createBranch(workDir, finalBranchName);
         if (!branchCreated) {
           return earlyReturnWithLockRelease({
             error: 'Failed to create branch',
@@ -580,8 +585,8 @@ export const agentExecutionRouter = new Elysia()
         }
       }
 
-      // Execute Claude Code asynchronously
-      orchestrator
+      // Execute Claude Code asynchronously (via worker)
+      agentWorkerManager
         .executeTask(
           {
             id: taskIdNum,
@@ -842,7 +847,9 @@ export const agentExecutionRouter = new Elysia()
         // タイムアウト情報を取得
         let questionTimeoutInfo = null;
         if (isWaitingForInput && latestExecution?.id) {
-          const timeoutInfo = orchestrator.getQuestionTimeoutInfo(latestExecution.id);
+          const timeoutInfo = await agentWorkerManager.getQuestionTimeoutInfoAsync(
+            latestExecution.id,
+          );
           if (timeoutInfo) {
             questionTimeoutInfo = {
               remainingSeconds: timeoutInfo.remainingSeconds,
@@ -870,6 +877,8 @@ export const agentExecutionRouter = new Elysia()
           errorMessage: latestExecution?.errorMessage,
           startedAt: latestExecution?.startedAt,
           completedAt: latestExecution?.completedAt,
+          tokensUsed: latestExecution?.tokensUsed || 0,
+          totalSessionTokens: latestSession.totalTokensUsed || 0,
           waitingForInput: isWaitingForInput,
           question: questionText,
           questionType,
@@ -946,29 +955,31 @@ export const agentExecutionRouter = new Elysia()
         }
 
         // オーケストレーターでロックを取得（他のプロセスと競合防止）
-        if (!orchestrator.tryAcquireContinuationLock(latestExecution.id, 'user_response')) {
+        if (
+          !(await agentWorkerManager.tryAcquireContinuationLockAsync(
+            latestExecution.id,
+            'user_response',
+          ))
+        ) {
           return {
             error: 'Another operation is in progress for this execution',
           };
         }
 
         // タイムアウトキャンセルを試行
-        orchestrator.cancelQuestionTimeout(latestExecution.id);
+        agentWorkerManager.cancelQuestionTimeout(latestExecution.id);
         log.info(`[agent-respond] Cancelled timeout for execution ${latestExecution.id}`);
 
-        const workingDirectory = config.task.theme?.workingDirectory || process.cwd();
+        const workingDirectory = config.task.theme?.workingDirectory || getProjectRoot();
 
-        // 応答を送信（ロック取得済みなので executeContinuationWithLock を使用）
-        // executeContinuationWithLock が finally でロックを解放する
-        const result = await orchestrator.executeContinuationWithLock(
-          latestExecution.id,
-          response,
-          {
-            sessionId: session.id,
-            taskId,
-            workingDirectory,
-          },
-        );
+        // 応答を送信（ワーカープロセス経由で継続実行）
+        const result = await agentWorkerManager.executeContinuation(latestExecution.id, response, {
+          sessionId: session.id,
+          taskId,
+          workingDirectory,
+        });
+
+        // ロック解放は executeContinuation 内部で自動的に処理される
 
         if (result.success) {
           return {
@@ -1081,7 +1092,7 @@ export const agentExecutionRouter = new Elysia()
 
             if (task?.workingDirectory) {
               try {
-                await orchestrator.revertChanges(task.workingDirectory);
+                await agentWorkerManager.revertChanges(task.workingDirectory);
                 log.info(`[stop-execution] Reverted changes in ${task.workingDirectory}`);
               } catch (revertError) {
                 log.error({ err: revertError }, `[stop-execution] Failed to revert changes`);
@@ -1099,9 +1110,9 @@ export const agentExecutionRouter = new Elysia()
 
         const session = config.agentSessions[0];
 
-        const executions = orchestrator.getSessionExecutions(session.id);
+        const executions = await agentWorkerManager.getSessionExecutionsAsync(session.id);
         for (const execution of executions) {
-          await orchestrator.stopExecution(execution.executionId);
+          await agentWorkerManager.stopExecution(execution.executionId);
         }
 
         const pendingExecutions = await prisma.agentExecution.findMany({
@@ -1153,7 +1164,7 @@ export const agentExecutionRouter = new Elysia()
 
         if (task?.workingDirectory) {
           try {
-            await orchestrator.revertChanges(task.workingDirectory);
+            await agentWorkerManager.revertChanges(task.workingDirectory);
             log.info(`[stop-execution] Reverted changes in ${task.workingDirectory}`);
           } catch (revertError) {
             log.error({ err: revertError }, `[stop-execution] Failed to revert changes`);
@@ -1270,7 +1281,7 @@ export const agentExecutionRouter = new Elysia()
         log.info(`[continue-execution] Session ${targetSessionId} status: "${session.status}"`);
 
         // 現在実行中のエージェントがある場合のみ拒否（二重実行防止）
-        const activeCount = orchestrator.getActiveExecutionCount();
+        const activeCount = await agentWorkerManager.getActiveExecutionCountAsync();
         const hasRunningExecution = session.agentExecutions.some(
           (e: { status: string }) => e.status === 'running' || e.status === 'pending',
         );
@@ -1281,12 +1292,12 @@ export const agentExecutionRouter = new Elysia()
 
         // 前回の実行情報を取得
         const previousExecution = session.agentExecutions[0];
-        const workingDirectory = task.theme?.workingDirectory || process.cwd();
+        const workingDirectory = task.theme?.workingDirectory || getProjectRoot();
 
         // セッションのブランチ名を取得し、必要に応じてチェックアウト
         if (session.branchName) {
           try {
-            const branchCreated = await orchestrator.createBranch(
+            const branchCreated = await agentWorkerManager.createBranch(
               workingDirectory,
               session.branchName,
             );
@@ -1376,8 +1387,8 @@ export const agentExecutionRouter = new Elysia()
           fullInstruction = `## 前回の実行内容\n\n前回の実行で以下の作業を行いました：\n\n${prevOutput}${previousExecution.output.length > 3000 ? '\n...(省略)' : ''}\n\n${fullInstruction}`;
         }
 
-        // オーケストレーターで実行（同じセッションで継続）
-        orchestrator
+        // ワーカープロセス経由で実行（同じセッションで継続）
+        agentWorkerManager
           .executeTask(
             {
               id: taskId,
@@ -1597,9 +1608,9 @@ export const agentExecutionRouter = new Elysia()
 
           if (['running', 'pending'].includes(latestSession.status)) {
             // アクティブな実行を停止
-            const executions = orchestrator.getSessionExecutions(latestSession.id);
+            const executions = await agentWorkerManager.getSessionExecutionsAsync(latestSession.id);
             for (const execution of executions) {
-              await orchestrator.stopExecution(execution.executionId);
+              await agentWorkerManager.stopExecution(execution.executionId);
             }
 
             // DBの実行記録を更新

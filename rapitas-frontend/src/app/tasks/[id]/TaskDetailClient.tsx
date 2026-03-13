@@ -105,9 +105,6 @@ function TaskDetailClient({
   // リソース/添付ファイル用の状態
   const [resources, setResources] = useState<Resource[]>([]);
 
-  // サブタスクアコーディオン用の状態
-  const [isSubtasksExpanded, setIsSubtasksExpanded] = useState(true);
-
   // タスク完了オーバーレイ用の状態
   const [showCompleteOverlay, setShowCompleteOverlay] = useState(false);
 
@@ -405,8 +402,6 @@ function TaskDetailClient({
         fetchTimeEntries(),
         fetchComments(),
         fetchResources(),
-        fetchDevModeConfig(),
-        fetchAgents(),
         fetchGlobalSettings(),
       ]);
 
@@ -422,7 +417,26 @@ function TaskDetailClient({
         skeletonTimerRef.current = null;
       }
     };
+  }, [resolvedTaskId]);
+
+  // 開発者モード設定とエージェント一覧の取得（メインuseEffectから分離）
+  // fetchAgentsはagentConfigId変更でコールバックIDが変わるため、
+  // メインuseEffectに含めるとスケルトンタイマーがクリアされるバグの原因になる
+  useEffect(() => {
+    if (resolvedTaskId) {
+      fetchDevModeConfig();
+      fetchAgents();
+    }
   }, [resolvedTaskId, fetchDevModeConfig, fetchAgents]);
+
+  // スケルトン表示のフォールバック安全機構
+  // メインuseEffectの再トリガーでタイマーがクリアされた場合に備え、
+  // loadingがfalseになったらshowSkeletonも確実にfalseにする
+  useEffect(() => {
+    if (!loading && showSkeleton && taskLoadedRef.current) {
+      setShowSkeleton(false);
+    }
+  }, [loading, showSkeleton]);
 
   // コンテンツ表示準備完了フラグ
   const [contentReady, setContentReady] = useState(false);
@@ -913,68 +927,58 @@ function TaskDetailClient({
             )}
 
             {/* Subtasks Section */}
-            {(!task.subtasks || task.subtasks.length === 0) &&
-              !taskActions.isAddingSubtask && (
-                <button
-                  onClick={taskActions.toggleAddSubtask}
-                  className="w-full mb-6 px-4 py-3 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl text-sm font-medium text-zinc-500 dark:text-zinc-400 hover:border-emerald-400 hover:text-emerald-600 dark:hover:border-emerald-500 dark:hover:text-emerald-400 transition-colors"
-                >
-                  {t('addSubtask')}
-                </button>
-              )}
-            {((task.subtasks && task.subtasks.length > 0) ||
-              taskActions.isAddingSubtask) && (
-              <SubtaskSection
-                subtasks={task.subtasks || []}
-                isExpanded={isSubtasksExpanded}
-                onToggleExpand={() =>
-                  setIsSubtasksExpanded(!isSubtasksExpanded)
-                }
-                isSubtaskSelectionMode={taskActions.isSubtaskSelectionMode}
-                selectedSubtaskIds={taskActions.selectedSubtaskIds}
-                showSubtaskDeleteConfirm={taskActions.showSubtaskDeleteConfirm}
-                editingSubtaskId={taskActions.editingSubtaskId}
-                editingSubtaskTitle={taskActions.editingSubtaskTitle}
-                editingSubtaskDescription={
-                  taskActions.editingSubtaskDescription
-                }
-                editingSubtaskPriority={taskActions.editingSubtaskPriority}
-                editingSubtaskLabels={taskActions.editingSubtaskLabels}
-                editingSubtaskEstimatedHours={
-                  taskActions.editingSubtaskEstimatedHours
-                }
-                isParallelExecutionRunning={isParallelExecutionRunning}
-                getSubtaskStatus={getSubtaskStatus}
-                onToggleSelectionMode={taskActions.toggleSubtaskSelectionMode}
-                onSelectAll={taskActions.selectAllSubtasks}
-                onDeselectAll={taskActions.deselectAllSubtasks}
-                onToggleSubtaskSelection={taskActions.toggleSubtaskSelection}
-                onSetDeleteConfirm={taskActions.setShowSubtaskDeleteConfirm}
-                onDeleteAll={taskActions.handleDeleteAllSubtasks}
-                onDeleteSelected={taskActions.handleDeleteSelectedSubtasks}
-                onStartEditingSubtask={taskActions.startEditingSubtask}
-                onSetEditingSubtaskTitle={taskActions.setEditingSubtaskTitle}
-                onSetEditingSubtaskDescription={
-                  taskActions.setEditingSubtaskDescription
-                }
-                onSetEditingSubtaskPriority={
-                  taskActions.setEditingSubtaskPriority
-                }
-                onSetEditingSubtaskLabels={taskActions.setEditingSubtaskLabels}
-                onSetEditingSubtaskEstimatedHours={
-                  taskActions.setEditingSubtaskEstimatedHours
-                }
-                onSaveSubtaskEdit={taskActions.saveSubtaskEdit}
-                onCancelEditingSubtask={taskActions.cancelEditingSubtask}
-                onUpdateStatus={taskActions.updateStatus}
-                isAddingSubtask={taskActions.isAddingSubtask}
-                newSubtaskTitle={taskActions.newSubtaskTitle}
-                onToggleAddSubtask={taskActions.toggleAddSubtask}
-                onSetNewSubtaskTitle={taskActions.setNewSubtaskTitle}
-                onAddSubtask={taskActions.addSubtask}
-                onCancelAddSubtask={taskActions.cancelAddSubtask}
-              />
-            )}
+            <SubtaskSection
+              subtasks={task.subtasks || []}
+              isSubtaskSelectionMode={taskActions.isSubtaskSelectionMode}
+              selectedSubtaskIds={taskActions.selectedSubtaskIds}
+              showSubtaskDeleteConfirm={taskActions.showSubtaskDeleteConfirm}
+              editingSubtaskId={taskActions.editingSubtaskId}
+              editingSubtaskTitle={taskActions.editingSubtaskTitle}
+              editingSubtaskDescription={taskActions.editingSubtaskDescription}
+              editingSubtaskPriority={taskActions.editingSubtaskPriority}
+              editingSubtaskLabels={taskActions.editingSubtaskLabels}
+              editingSubtaskEstimatedHours={
+                taskActions.editingSubtaskEstimatedHours
+              }
+              isParallelExecutionRunning={isParallelExecutionRunning}
+              getSubtaskStatus={getSubtaskStatus}
+              onToggleSelectionMode={taskActions.toggleSubtaskSelectionMode}
+              onSelectAll={taskActions.selectAllSubtasks}
+              onDeselectAll={taskActions.deselectAllSubtasks}
+              onToggleSubtaskSelection={taskActions.toggleSubtaskSelection}
+              onSetDeleteConfirm={taskActions.setShowSubtaskDeleteConfirm}
+              onDeleteAll={taskActions.handleDeleteAllSubtasks}
+              onDeleteSelected={taskActions.handleDeleteSelectedSubtasks}
+              onStartEditingSubtask={taskActions.startEditingSubtask}
+              onSetEditingSubtaskTitle={taskActions.setEditingSubtaskTitle}
+              onSetEditingSubtaskDescription={
+                taskActions.setEditingSubtaskDescription
+              }
+              onSetEditingSubtaskPriority={
+                taskActions.setEditingSubtaskPriority
+              }
+              onSetEditingSubtaskLabels={taskActions.setEditingSubtaskLabels}
+              onSetEditingSubtaskEstimatedHours={
+                taskActions.setEditingSubtaskEstimatedHours
+              }
+              onSaveSubtaskEdit={taskActions.saveSubtaskEdit}
+              onCancelEditingSubtask={taskActions.cancelEditingSubtask}
+              onUpdateStatus={taskActions.updateStatus}
+              isAddingSubtask={taskActions.isAddingSubtask}
+              newSubtaskTitle={taskActions.newSubtaskTitle}
+              newSubtaskDescription={taskActions.newSubtaskDescription}
+              newSubtaskLabels={taskActions.newSubtaskLabels}
+              newSubtaskEstimatedHours={taskActions.newSubtaskEstimatedHours}
+              onToggleAddSubtask={taskActions.toggleAddSubtask}
+              onSetNewSubtaskTitle={taskActions.setNewSubtaskTitle}
+              onSetNewSubtaskDescription={taskActions.setNewSubtaskDescription}
+              onSetNewSubtaskLabels={taskActions.setNewSubtaskLabels}
+              onSetNewSubtaskEstimatedHours={
+                taskActions.setNewSubtaskEstimatedHours
+              }
+              onAddSubtask={taskActions.addSubtask}
+              onCancelAddSubtask={taskActions.cancelAddSubtask}
+            />
           </>
         )}
       </div>

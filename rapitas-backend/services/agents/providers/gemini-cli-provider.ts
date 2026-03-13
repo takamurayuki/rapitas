@@ -8,6 +8,7 @@
 
 import { spawn, execSync } from 'child_process';
 import { existsSync } from 'fs';
+import { getProjectRoot } from '../../../config';
 import type {
   AgentCapabilities,
   AgentProviderConfig,
@@ -161,7 +162,7 @@ export class GeminiCliAgentV2 extends AbstractAgent {
     this.checkpointId = null;
 
     const prompt = this.buildPrompt(task);
-    const workDir = context.workingDirectory || this.config.workingDirectory || process.cwd();
+    const workDir = context.workingDirectory || this.config.workingDirectory || getProjectRoot();
 
     return this.runGeminiCli(prompt, workDir, context);
   }
@@ -175,7 +176,7 @@ export class GeminiCliAgentV2 extends AbstractAgent {
     this.lineBuffer = '';
 
     const prompt = continuation.userResponse || '';
-    const workDir = context.workingDirectory || this.config.workingDirectory || process.cwd();
+    const workDir = context.workingDirectory || this.config.workingDirectory || getProjectRoot();
 
     // 継続実行のためにチェックポイントIDを設定
     const originalCheckpoint = this.config.checkpointId;

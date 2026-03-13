@@ -182,7 +182,12 @@ export default function SmartCommandBar() {
       />
 
       {/* Command bar */}
-      <div className="relative w-full max-w-xl mx-4 bg-white dark:bg-zinc-800 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('placeholder')}
+        className="relative w-full max-w-xl mx-4 bg-white dark:bg-zinc-800 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden"
+      >
         {/* Input */}
         <div className="flex items-center gap-3 px-4 py-4 border-b border-zinc-100 dark:border-zinc-700">
           <Zap className="w-5 h-5 text-purple-500 shrink-0" />
@@ -191,6 +196,15 @@ export default function SmartCommandBar() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={suggestions.length > 0}
+            aria-controls="smart-command-results"
+            aria-activedescendant={
+              selectedIndex >= 0
+                ? `smart-command-option-${selectedIndex}`
+                : undefined
+            }
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown' && suggestions.length > 0) {
                 e.preventDefault();
@@ -228,18 +242,26 @@ export default function SmartCommandBar() {
               onClick={handleSubmit}
               disabled={!input.trim()}
               className="p-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 transition-colors"
+              aria-label={t('placeholder')}
             >
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4" aria-hidden="true" />
             </button>
           )}
         </div>
 
         {/* Search results */}
         {suggestions.length > 0 ? (
-          <div className="max-h-64 overflow-y-auto border-b border-zinc-100 dark:border-zinc-700">
+          <div
+            id="smart-command-results"
+            role="listbox"
+            className="max-h-64 overflow-y-auto border-b border-zinc-100 dark:border-zinc-700"
+          >
             {suggestions.map((s, i) => (
               <button
                 key={`${s.type}-${s.id}`}
+                id={`smart-command-option-${i}`}
+                role="option"
+                aria-selected={i === selectedIndex}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
                   i === selectedIndex
                     ? 'bg-purple-50 dark:bg-purple-900/30'

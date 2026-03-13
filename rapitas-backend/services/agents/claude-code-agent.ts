@@ -27,6 +27,7 @@ import {
 import type { QuestionDetails, QuestionKey, QuestionWaitingState } from './question-detection';
 import type { WorkerOutputMessage, WorkerInputMessage } from '../../workers/output-parser-types';
 import { createLogger } from '../../config/logger';
+import { getProjectRoot } from '../../config';
 
 const logger = createLogger('claude-code-agent');
 
@@ -130,7 +131,7 @@ export class ClaudeCodeAgent extends BaseAgent {
 
     // Promise executorをasyncにしないため、事前に非同期処理を行う
     const fs = await import('fs/promises');
-    const workDir = task.workingDirectory || this.config.workingDirectory || process.cwd();
+    const workDir = task.workingDirectory || this.config.workingDirectory || getProjectRoot();
 
     // 作業ディレクトリの存在確認を事前に行う
     try {

@@ -47,6 +47,9 @@ export function useTaskActions({
   // --- Subtask adding state ---
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [newSubtaskDescription, setNewSubtaskDescription] = useState('');
+  const [newSubtaskLabels, setNewSubtaskLabels] = useState('');
+  const [newSubtaskEstimatedHours, setNewSubtaskEstimatedHours] = useState('');
 
   // --- Subtask editing state ---
   const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
@@ -246,15 +249,29 @@ export function useTaskActions({
   const toggleAddSubtask = useCallback(() => {
     setIsAddingSubtask((prev) => !prev);
     setNewSubtaskTitle('');
+    setNewSubtaskDescription('');
+    setNewSubtaskLabels('');
+    setNewSubtaskEstimatedHours('');
   }, []);
 
   const cancelAddSubtask = useCallback(() => {
     setIsAddingSubtask(false);
     setNewSubtaskTitle('');
+    setNewSubtaskDescription('');
+    setNewSubtaskLabels('');
+    setNewSubtaskEstimatedHours('');
   }, []);
 
   const addSubtask = useCallback(async () => {
     if (!task || !newSubtaskTitle.trim()) return;
+
+    const labelsArray = newSubtaskLabels
+      .split(',')
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const hours = newSubtaskEstimatedHours
+      ? parseFloat(newSubtaskEstimatedHours)
+      : undefined;
 
     try {
       const res = await fetch(`${API_BASE}/tasks`, {
@@ -265,6 +282,13 @@ export function useTaskActions({
           parentId: task.id,
           status: 'todo',
           priority: 'medium',
+          ...(newSubtaskDescription.trim() && {
+            description: newSubtaskDescription.trim(),
+          }),
+          ...(labelsArray.length > 0 && {
+            labels: JSON.stringify(labelsArray),
+          }),
+          ...(hours && !isNaN(hours) && { estimatedHours: hours }),
         }),
       });
 
@@ -275,13 +299,25 @@ export function useTaskActions({
         setTask(await taskRes.json());
       }
       setNewSubtaskTitle('');
+      setNewSubtaskDescription('');
+      setNewSubtaskLabels('');
+      setNewSubtaskEstimatedHours('');
       setIsAddingSubtask(false);
       onTaskUpdated?.();
     } catch (err) {
       logger.error(err);
       alert('サブタスクの作成に失敗しました');
     }
-  }, [task, newSubtaskTitle, resolvedTaskId, setTask, onTaskUpdated]);
+  }, [
+    task,
+    newSubtaskTitle,
+    newSubtaskDescription,
+    newSubtaskLabels,
+    newSubtaskEstimatedHours,
+    resolvedTaskId,
+    setTask,
+    onTaskUpdated,
+  ]);
 
   // --- Subtask operations ---
 
@@ -509,6 +545,12 @@ export function useTaskActions({
     isAddingSubtask,
     newSubtaskTitle,
     setNewSubtaskTitle,
+    newSubtaskDescription,
+    setNewSubtaskDescription,
+    newSubtaskLabels,
+    setNewSubtaskLabels,
+    newSubtaskEstimatedHours,
+    setNewSubtaskEstimatedHours,
     toggleAddSubtask,
     cancelAddSubtask,
     addSubtask,

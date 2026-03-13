@@ -94,10 +94,20 @@ export function useDeveloperMode(taskId: number) {
   // Ref-based排他制御: React状態の非同期更新を回避して即座に二重実行を防止
   const isExecutingRef = useRef(false);
 
-  // taskIdが変わった時（別のタスク詳細に遷移した時）にrefをリセット
+  // taskIdが変わった時（別のタスク詳細に遷移した時）に状態をリセット
+  const prevTaskIdRef = useRef(taskId);
   useEffect(() => {
-    // 新しいtaskIdに切り替わった時、前のタスクの実行ロックを解除
-    isExecutingRef.current = false;
+    if (prevTaskIdRef.current !== taskId) {
+      prevTaskIdRef.current = taskId;
+      // 新しいtaskIdに切り替わった時、前のタスクの実行状態をリセット
+      isExecutingRef.current = false;
+      setIsExecuting(false);
+      setExecutionStatus('idle');
+      setExecutionResult(null);
+      setAnalysisResult(null);
+      setAnalysisApprovalId(null);
+      setError(null);
+    }
   }, [taskId]);
 
   // コンポーネントアンマウント時にrefをリセット

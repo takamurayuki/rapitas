@@ -1,7 +1,15 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Bell, Check, CheckCheck, X, ExternalLink } from 'lucide-react';
+import {
+  Bell,
+  BookOpen,
+  Check,
+  CheckCheck,
+  ExternalLink,
+  Lightbulb,
+  X,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useNotifications } from '@/feature/developer-mode/hooks/useNotifications';
@@ -111,8 +119,10 @@ export default function NotificationBell() {
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
         aria-label={t('title')}
+        aria-haspopup="true"
+        aria-expanded={isOpen}
       >
-        <Bell className="w-5 h-5" />
+        <Bell className="w-5 h-5" aria-hidden="true" />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-500 rounded-full">
             {unreadCount > 99 ? '99+' : unreadCount}
@@ -121,7 +131,11 @@ export default function NotificationBell() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-indigo-dark-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden z-50">
+        <div
+          role="region"
+          aria-label={t('title')}
+          className="absolute right-0 mt-2 w-80 bg-white dark:bg-indigo-dark-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden z-50"
+        >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
             <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
@@ -132,8 +146,9 @@ export default function NotificationBell() {
                 <button
                   onClick={markAllAsRead}
                   className="flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                  aria-label={t('markAllRead')}
                 >
-                  <CheckCheck className="w-3.5 h-3.5" />
+                  <CheckCheck className="w-3.5 h-3.5" aria-hidden="true" />
                   {t('markAllRead')}
                 </button>
               )}
@@ -141,8 +156,9 @@ export default function NotificationBell() {
                 <button
                   onClick={deleteAllNotifications}
                   className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400 hover:underline"
+                  aria-label={t('deleteAll')}
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3.5 h-3.5" aria-hidden="true" />
                   {t('deleteAll')}
                 </button>
               )}
@@ -150,7 +166,7 @@ export default function NotificationBell() {
           </div>
 
           {/* Notifications List */}
-          <div className="max-h-80 overflow-y-auto">
+          <div className="max-h-80 overflow-y-auto" aria-live="polite">
             {isLoading ? (
               <div className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
                 {tc('loading')}
@@ -200,9 +216,9 @@ export default function NotificationBell() {
                           markAsRead(notification.id);
                         }}
                         className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded transition-colors"
-                        title={t('markAsRead')}
+                        aria-label={t('markAsRead')}
                       >
-                        <Check className="w-3.5 h-3.5" />
+                        <Check className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
                     )}
                     <button
@@ -213,9 +229,9 @@ export default function NotificationBell() {
                         deleteNotification(notification.id);
                       }}
                       className="p-1 text-zinc-400 hover:text-red-500 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded transition-colors"
-                      title={tc('delete')}
+                      aria-label={tc('delete')}
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <X className="w-3.5 h-3.5" aria-hidden="true" />
                     </button>
                   </div>
 
@@ -323,6 +339,12 @@ function NotificationContent({
               d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
             />
           </svg>
+        )}
+        {notification.type === 'knowledge_extracted' && (
+          <Lightbulb className="w-4 h-4" />
+        )}
+        {notification.type === 'knowledge_reminder' && (
+          <BookOpen className="w-4 h-4" />
         )}
         {notification.type === 'agent_execution_started' && (
           <svg

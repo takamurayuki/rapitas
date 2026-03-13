@@ -124,21 +124,28 @@ export default function KeyboardShortcuts() {
       onClick={() => setShowHelp(false)}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="keyboard-shortcuts-title"
         className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center gap-2">
             <Keyboard className="w-5 h-5 text-indigo-500" />
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+            <h2
+              id="keyboard-shortcuts-title"
+              className="text-lg font-semibold text-zinc-900 dark:text-zinc-50"
+            >
               キーボードショートカット
             </h2>
           </div>
           <button
             onClick={() => setShowHelp(false)}
             className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg"
+            aria-label="閉じる"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 

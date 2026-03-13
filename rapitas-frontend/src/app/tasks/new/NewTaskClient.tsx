@@ -3,6 +3,10 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
+  ArrowDown,
+  ArrowUp,
+  Minus,
+  AlertTriangle,
   Clock,
   Tag,
   Layers,
@@ -22,6 +26,9 @@ import {
   ChevronsUpDown,
   ChevronDown,
   Wand2,
+  Check,
+  Circle,
+  X,
 } from 'lucide-react';
 import type {
   Priority,
@@ -52,9 +59,50 @@ import { createLogger } from '@/lib/logger';
 import { useTranslations } from 'next-intl';
 import { useLocaleStore } from '@/stores/localeStore';
 import { toDateLocale } from '@/lib/utils';
+import {
+  statusConfig,
+  renderStatusIcon,
+} from '@/feature/tasks/config/StatusConfig';
 
 const logger = createLogger('NewTaskClient');
 const API_BASE = API_BASE_URL;
+
+const subtaskPriorityOptions: {
+  value: Priority;
+  icon: React.ReactNode;
+  color: string;
+  activeBg: string;
+  activeBorder: string;
+}[] = [
+  {
+    value: 'low',
+    icon: <ArrowDown className="w-3.5 h-3.5" />,
+    color: 'text-blue-500',
+    activeBg: 'bg-blue-50 dark:bg-blue-900/30',
+    activeBorder: 'border-blue-400 dark:border-blue-500',
+  },
+  {
+    value: 'medium',
+    icon: <Minus className="w-3.5 h-3.5" />,
+    color: 'text-yellow-500',
+    activeBg: 'bg-yellow-50 dark:bg-yellow-900/30',
+    activeBorder: 'border-yellow-400 dark:border-yellow-500',
+  },
+  {
+    value: 'high',
+    icon: <ArrowUp className="w-3.5 h-3.5" />,
+    color: 'text-orange-500',
+    activeBg: 'bg-orange-50 dark:bg-orange-900/30',
+    activeBorder: 'border-orange-400 dark:border-orange-500',
+  },
+  {
+    value: 'urgent',
+    icon: <AlertTriangle className="w-3.5 h-3.5" />,
+    color: 'text-red-500',
+    activeBg: 'bg-red-50 dark:bg-red-900/30',
+    activeBorder: 'border-red-400 dark:border-red-500',
+  },
+];
 
 function NewTaskClient() {
   const router = useRouter();
@@ -118,11 +166,17 @@ function NewTaskClient() {
       id: string;
       title: string;
       description?: string;
+      priority?: Priority;
+      labels?: string[];
       estimatedHours?: number;
     }[]
   >([]);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newSubtaskDescription, setNewSubtaskDescription] = useState('');
+  const [newSubtaskPriority, setNewSubtaskPriority] =
+    useState<Priority>('medium');
+  const [newSubtaskLabels, setNewSubtaskLabels] = useState('');
+  const [newSubtaskEstimatedHours, setNewSubtaskEstimatedHours] = useState('');
 
   const fetchCategories = async () => {
     try {
@@ -310,20 +364,35 @@ function NewTaskClient() {
     }
   };
 
+  const resetSubtaskForm = () => {
+    setNewSubtaskTitle('');
+    setNewSubtaskDescription('');
+    setNewSubtaskPriority('medium');
+    setNewSubtaskLabels('');
+    setNewSubtaskEstimatedHours('');
+  };
+
   const addSubtask = () => {
     if (!newSubtaskTitle.trim()) return;
+    const labelsArray = newSubtaskLabels
+      .split(',')
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const hours = parseFloat(newSubtaskEstimatedHours);
     setSubtasks([
       ...subtasks,
       {
         id: Date.now().toString(),
-        title: newSubtaskTitle,
+        title: newSubtaskTitle.trim(),
         ...(newSubtaskDescription.trim() && {
           description: newSubtaskDescription.trim(),
         }),
+        priority: newSubtaskPriority,
+        ...(labelsArray.length > 0 && { labels: labelsArray }),
+        ...(hours && !isNaN(hours) && { estimatedHours: hours }),
       },
     ]);
-    setNewSubtaskTitle('');
-    setNewSubtaskDescription('');
+    resetSubtaskForm();
   };
 
   const removeSubtask = (id: string) => {
@@ -492,6 +561,14 @@ function NewTaskClient() {
                   title: st.title,
                   ...(st.description && { description: st.description }),
                   status: 'todo',
+                  priority: st.priority || 'medium',
+                  ...(st.labels &&
+                    st.labels.length > 0 && {
+                      labels: JSON.stringify(st.labels),
+                    }),
+                  ...(st.estimatedHours && {
+                    estimatedHours: st.estimatedHours,
+                  }),
                   parentId: createdTask.id,
                 }),
               });
@@ -587,6 +664,14 @@ function NewTaskClient() {
                   title: st.title,
                   ...(st.description && { description: st.description }),
                   status: 'todo',
+                  priority: st.priority || 'medium',
+                  ...(st.labels &&
+                    st.labels.length > 0 && {
+                      labels: JSON.stringify(st.labels),
+                    }),
+                  ...(st.estimatedHours && {
+                    estimatedHours: st.estimatedHours,
+                  }),
                   parentId: createdTask.id,
                 }),
               });
@@ -972,11 +1057,21 @@ function NewTaskClient() {
             }
           >
             <textarea
+              ref={(el) => {
+                if (el) {
+                  el.style.height = 'auto';
+                  el.style.height = `${Math.max(el.scrollHeight, 84)}px`;
+                }
+              }}
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                const el = e.target;
+                el.style.height = 'auto';
+                el.style.height = `${Math.max(el.scrollHeight, 84)}px`;
+              }}
               placeholder={t('taskDetailPlaceholder')}
-              rows={3}
-              className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+              className="w-full min-h-[84px] bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
             />
           </CompactAccordionGroup>
 
@@ -1057,86 +1152,244 @@ function NewTaskClient() {
             </div>
           </CompactAccordionGroup>
 
-          {/* Subtasks Section - Collapsible */}
+          {/* Subtasks Section - Accordion */}
           <CompactAccordionGroup
             title={t('subtasks')}
-            icon={<CheckCircle2 className="w-3.5 h-3.5" />}
+            icon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
             badge={
-              subtasks.length > 0 ? (
-                <span className="px-1.5 py-0.5 text-[10px] font-medium bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-full">
-                  {subtasks.length}
-                </span>
-              ) : undefined
+              <span className="px-2 py-0.5 text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-full">
+                {subtasks.length}
+              </span>
             }
-            defaultExpanded={false}
+            defaultExpanded
             className="border-b-0"
           >
-            <div className="space-y-2">
-              {/* Subtask List */}
-              {subtasks.map((st) => (
-                <div
-                  key={st.id}
-                  className="flex items-start gap-2 p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg group"
-                >
-                  <div className="w-4 h-4 rounded-full border-2 border-zinc-300 dark:border-zinc-600 mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                      {st.title}
-                    </span>
-                    {st.description && (
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 line-clamp-2">
-                        {st.description}
-                      </p>
-                    )}
+            {/* Add subtask form */}
+              <div className="mb-3 p-4 rounded-lg bg-emerald-50/30 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30">
+                <div className="space-y-4">
+                  {/* Title */}
+                  <div>
+                    <input
+                      type="text"
+                      className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+                      value={newSubtaskTitle}
+                      onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newSubtaskTitle.trim()) {
+                          e.preventDefault();
+                          addSubtask();
+                        } else if (e.key === 'Escape') {
+                          resetSubtaskForm();
+                        }
+                      }}
+                      placeholder={t('addSubtaskPlaceholder')}
+                    />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeSubtask(st.id)}
-                    className="p-1 text-zinc-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
 
-              {/* Add Subtask Input */}
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newSubtaskTitle}
-                    onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addSubtask();
-                      }
-                    }}
-                    placeholder={t('addSubtaskPlaceholder')}
-                    className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                  />
-                  <div
-                    className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!newSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'}`}
-                  >
-                    <button
-                      type="button"
-                      onClick={addSubtask}
-                      disabled={!newSubtaskTitle.trim()}
-                      className={`flex items-center justify-center transition-all ${!newSubtaskTitle.trim() ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer'}`}
+                  {/* Description */}
+                  <div>
+                    <textarea
+                      className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+                      value={newSubtaskDescription}
+                      onChange={(e) => setNewSubtaskDescription(e.target.value)}
+                      placeholder={t('subtaskDescriptionPlaceholder')}
+                      rows={3}
+                    />
+                  </div>
+
+                  {/* Priority */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+                      <Flag className="w-3.5 h-3.5" />
+                      {t('subtaskPriority')}
+                    </label>
+                    <div className="flex gap-1.5">
+                      {subtaskPriorityOptions.map((opt) => {
+                        const isActive = newSubtaskPriority === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setNewSubtaskPriority(opt.value)}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md border text-xs font-medium transition-all cursor-pointer ${
+                              isActive
+                                ? `${opt.activeBg} ${opt.activeBorder} ${opt.color}`
+                                : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
+                            }`}
+                          >
+                            {opt.icon}
+                            <span className="capitalize">{opt.value}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Estimated Hours + Labels row */}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    {/* Estimated hours */}
+                    <div className="w-full sm:w-36">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+                        <Clock className="w-3.5 h-3.5" />
+                        {t('subtaskEstimatedHours')}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+                        placeholder="0"
+                        value={newSubtaskEstimatedHours}
+                        onChange={(e) =>
+                          setNewSubtaskEstimatedHours(e.target.value)
+                        }
+                      />
+                    </div>
+
+                    {/* Labels */}
+                    <div className="flex-1">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
+                        <Tag className="w-3.5 h-3.5" />
+                        {t('subtaskLabels')}
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+                        placeholder={t('labelsCommaSeparated')}
+                        value={newSubtaskLabels}
+                        onChange={(e) => setNewSubtaskLabels(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <div
+                      className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!newSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-emerald-500 dark:hover:border-emerald-400'}`}
                     >
-                      <Plus className="w-4 h-4" />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={addSubtask}
+                        disabled={!newSubtaskTitle.trim()}
+                        className={`flex items-center gap-2 transition-all ${!newSubtaskTitle.trim() ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 cursor-pointer'}`}
+                      >
+                        <Check className="w-4 h-4" />
+                        <span className="font-mono text-xs font-black tracking-tight">
+                          {tc('save')}
+                        </span>
+                      </button>
+                    </div>
+                    <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400">
+                      <button
+                        type="button"
+                        onClick={resetSubtaskForm}
+                        className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                        <span className="font-mono text-xs font-black tracking-tight">
+                          {tc('cancel')}
+                        </span>
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <textarea
-                  value={newSubtaskDescription}
-                  onChange={(e) => setNewSubtaskDescription(e.target.value)}
-                  placeholder={t('subtaskDescriptionPlaceholder')}
-                  rows={2}
-                  className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
-                />
               </div>
-            </div>
+
+            {/* Subtask list - TaskCard style */}
+            {subtasks.length > 0 && (
+              <div className="bg-zinc-50/50 dark:bg-indigo-dark-900/50 rounded-lg overflow-hidden">
+                {subtasks.map((st, index) => {
+                  // Use todo status config for new subtasks (can be extended later)
+                  const subtaskStatus = statusConfig.todo;
+                  const isFirst = index === 0;
+                  const isLast = index === subtasks.length - 1;
+                  const roundedClass =
+                    isFirst && isLast
+                      ? 'rounded-md'
+                      : isFirst
+                        ? 'rounded-t-md'
+                        : isLast
+                          ? 'rounded-b-md'
+                          : '';
+                  return (
+                    <div
+                      key={st.id}
+                      className={`group p-2 ${roundedClass} transition-colors border-l-2 ${subtaskStatus.borderColor} ${subtaskStatus.bgColor} dark:bg-indigo-dark-900`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`flex items-center justify-center w-6 h-6 rounded ${subtaskStatus.color} ${subtaskStatus.bgColor} border ${subtaskStatus.borderColor.replace('border-l-', 'border-')} shrink-0`}
+                          aria-label={subtaskStatus.label}
+                        >
+                          {renderStatusIcon('todo')}
+                        </div>
+                        <span className="flex-1 text-sm text-zinc-700 dark:text-zinc-300">
+                          {st.title}
+                        </span>
+                        {/* Priority badge */}
+                        {st.priority && st.priority !== 'medium' && (
+                          <span
+                            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${
+                              subtaskPriorityOptions.find(
+                                (o) => o.value === st.priority,
+                              )?.color ?? ''
+                            } ${
+                              subtaskPriorityOptions.find(
+                                (o) => o.value === st.priority,
+                              )?.activeBg ?? ''
+                            }`}
+                          >
+                            {
+                              subtaskPriorityOptions.find(
+                                (o) => o.value === st.priority,
+                              )?.icon
+                            }
+                            <span className="capitalize">{st.priority}</span>
+                          </span>
+                        )}
+                        {/* Estimated hours */}
+                        {st.estimatedHours && (
+                          <span className="flex items-center gap-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                            <Clock className="w-3 h-3" />
+                            {st.estimatedHours}h
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeSubtask(st.id)}
+                          className="p-1 text-zinc-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      {/* Description and labels */}
+                      {(st.description ||
+                        (st.labels && st.labels.length > 0)) && (
+                        <div className="ml-8 mt-1 space-y-1">
+                          {st.description && (
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
+                              {st.description}
+                            </p>
+                          )}
+                          {st.labels && st.labels.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {st.labels.map((label) => (
+                                <span
+                                  key={label}
+                                  className="px-1.5 py-0.5 text-xs rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                                >
+                                  {label}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CompactAccordionGroup>
 
           {/* Workflow Mode Section - Collapsible */}

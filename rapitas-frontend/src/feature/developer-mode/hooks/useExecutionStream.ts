@@ -61,6 +61,10 @@ export type ExecutionStreamState = {
   questionTimeout?: QuestionTimeoutInfo;
   /** セッションのモード（workflow-researcher等） */
   sessionMode?: string | null;
+  /** 実行で使用されたトークン数 */
+  tokensUsed?: number;
+  /** セッション全体のトークン使用量 */
+  totalSessionTokens?: number;
 };
 
 // SSEは現在無効化（ポーリングをメインで使用）
@@ -454,6 +458,20 @@ export function useExecutionPolling(taskId: number | null) {
           if (!data.executionStatus || data.status === 'none') {
             logger.debug('No execution data yet');
             return;
+          }
+
+          // トークン使用量を常に更新
+          const polledTokensUsed = data.tokensUsed as number | undefined;
+          const polledTotalSessionTokens = data.totalSessionTokens as
+            | number
+            | undefined;
+          if (polledTokensUsed || polledTotalSessionTokens) {
+            setState((prev) => ({
+              ...prev,
+              tokensUsed: polledTokensUsed ?? prev.tokensUsed,
+              totalSessionTokens:
+                polledTotalSessionTokens ?? prev.totalSessionTokens,
+            }));
           }
 
           // 出力を更新

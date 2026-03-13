@@ -62,6 +62,12 @@ export type ReminderSummary = {
   }>;
 };
 
+export type HeatmapCellTask = {
+  taskId: number;
+  title: string;
+  completedAt: string;
+};
+
 export type RelatedKnowledge = {
   id: number;
   title: string;
@@ -91,18 +97,49 @@ export function useSuggestedTasks() {
     }
   }, []);
 
-  return { data, loading, fetch };
+  const updateTaskStatus = useCallback(
+    async (taskId: number, status: string) => {
+      try {
+        const res = await globalThis.fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status }),
+        });
+        return res.ok;
+      } catch (e) {
+        logger.warn('Failed to update task status:', e);
+        return false;
+      }
+    },
+    [],
+  );
+
+  const startPomodoro = useCallback(async (taskId: number) => {
+    try {
+      const res = await globalThis.fetch(`${API_BASE_URL}/pomodoro/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId, duration: 1500, type: 'work' }),
+      });
+      return res.ok;
+    } catch (e) {
+      logger.warn('Failed to start pomodoro:', e);
+      return false;
+    }
+  }, []);
+
+  return { data, loading, fetch, updateTaskStatus, startPomodoro };
 }
 
 export function useProductivityHeatmap() {
   const [data, setData] = useState<HeatmapResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const fetch = useCallback(async () => {
+  const fetch = useCallback(async (days: number = 90) => {
     setLoading(true);
     try {
       const res = await globalThis.fetch(
-        `${API_BASE_URL}/intelligence/productivity-heatmap`,
+        `${API_BASE_URL}/intelligence/productivity-heatmap?days=${days}`,
       );
       if (res.ok) {
         setData(await res.json());
@@ -114,7 +151,25 @@ export function useProductivityHeatmap() {
     }
   }, []);
 
-  return { data, loading, fetch };
+  const fetchCellTasks = useCallback(
+    async (day: number, hour: number, days: number = 90) => {
+      try {
+        const res = await globalThis.fetch(
+          `${API_BASE_URL}/intelligence/productivity-heatmap/tasks?day=${day}&hour=${hour}&days=${days}`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          return data.tasks || [];
+        }
+      } catch (e) {
+        logger.warn('Failed to fetch cell tasks:', e);
+      }
+      return [];
+    },
+    [],
+  );
+
+  return { data, loading, fetch, fetchCellTasks };
 }
 
 export function useKnowledgeReminders() {
@@ -161,7 +216,59 @@ export function useKnowledgeReminders() {
     return false;
   }, []);
 
-  return { summary, loading, fetchSummary, markAsReviewed };
+  const snooze = useCallback(async (entryId: number, hours: number = 24) => {
+    try {
+      const pinnedUntil = new Date(
+        Date.now() + hours * 60 * 60 * 1000,
+      ).toISOString();
+      const res = await globalThis.fetch(
+        `${API_BASE_URL}/knowledge/${entryId}/pin`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pinnedUntil }),
+        },
+      );
+      if (res.ok) {
+        setSummary((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            atRiskCount: Math.max(0, prev.atRiskCount - 1),
+            topAtRisk: prev.topAtRisk.filter((e) => e.id !== entryId),
+          };
+        });
+        return true;
+      }
+    } catch (e) {
+      logger.warn('Failed to snooze entry:', e);
+    }
+    return false;
+  }, []);
+
+  const fetchContent = useCallback(async (entryId: number) => {
+    try {
+      const res = await globalThis.fetch(
+        `${API_BASE_URL}/knowledge/${entryId}`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        return data.content || '';
+      }
+    } catch (e) {
+      logger.warn('Failed to fetch knowledge content:', e);
+    }
+    return '';
+  }, []);
+
+  return {
+    summary,
+    loading,
+    fetchSummary,
+    markAsReviewed,
+    snooze,
+    fetchContent,
+  };
 }
 
 export function useRelatedKnowledge() {

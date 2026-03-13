@@ -3,8 +3,9 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('GenerateProposalsRoute');
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+const BACKEND_URL = (
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'
+).replace('localhost', '127.0.0.1');
 
 interface ProposalRequest {
   genre: string;
@@ -109,83 +110,6 @@ function parseAIResponse(content: string): { proposals: Proposal[] } | null {
   return null;
 }
 
-function getFallbackProposals(
-  genre: string,
-  subs: string,
-  elems: string,
-): { proposals: Proposal[] } {
-  // Dynamic fallback based on genre for better variety even without API
-  const fallbacks: Record<string, Proposal[]> = {
-    game: [
-      {
-        id: 'A',
-        name: 'MindForge',
-        tagline: '思考がゲームになる',
-        concept:
-          '日常の意思決定をRPGのクエストに変換するアプリ。買い物や勉強の選択がスキルポイントとして蓄積され、自分だけのキャラクターが成長する。',
-        unique: '現実の行動データをゲームメカニクスに自動変換するAIエンジン',
-        difficulty: 'hard',
-        tech_hint: ['React Native', 'TensorFlow.js', 'Supabase', 'Expo'],
-      },
-      {
-        id: 'B',
-        name: 'SoundQuest',
-        tagline: '音で冒険する世界',
-        concept:
-          '周囲の環境音をリアルタイム解析し、音の風景に基づいたロケーションベースのアドベンチャーゲーム。雨の日と晴れの日で異なるクエストが出現。',
-        unique: 'Web Audio APIによる環境音認識とプロシージャル生成の融合',
-        difficulty: 'hard',
-        tech_hint: ['Next.js', 'Web Audio API', 'Mapbox', 'WebGL'],
-      },
-      {
-        id: 'C',
-        name: 'PlantBattle',
-        tagline: '育てた植物で対戦',
-        concept:
-          '実際の植物の成長写真をAIが解析し、デジタルモンスターに変換。育成した植物同士でターン制バトルができるコミュニティアプリ。',
-        unique:
-          '画像認識で実際の植物がゲームキャラに変化するリアル連動システム',
-        difficulty: 'medium',
-        tech_hint: ['Flutter', 'Firebase', 'Vision AI', 'Cloud Functions'],
-      },
-    ],
-    default: [
-      {
-        id: 'A',
-        name: 'Serendip',
-        tagline: '偶然の出会いを設計する',
-        concept:
-          '位置情報と興味関心データを基に、予期しない体験やコンテンツとの出会いを演出するアプリ。アルゴリズムの真逆を行く「反レコメンド」エンジン搭載。',
-        unique: 'フィルターバブルを意図的に破壊する逆アルゴリズム設計',
-        difficulty: 'hard',
-        tech_hint: ['Next.js', 'PostGIS', 'Redis', 'WebSocket'],
-      },
-      {
-        id: 'B',
-        name: 'SkillSwap',
-        tagline: 'スキルの物々交換',
-        concept:
-          '金銭を介さずスキルと時間を交換するマッチングプラットフォーム。プログラミングを教える代わりに料理を教わるなど、等価交換の新経済圏。',
-        unique: 'スキル価値の自動算定AIと信頼スコアによる安全な交換保証',
-        difficulty: 'medium',
-        tech_hint: ['Next.js', 'Supabase', 'Stripe Connect', 'Tailwind CSS'],
-      },
-      {
-        id: 'C',
-        name: 'MoodCanvas',
-        tagline: '感情を可視化するアート',
-        concept:
-          'テキスト日記や音声入力から感情をAI解析し、毎日のムードを抽象アートとして自動生成。月単位で感情の変遷がギャラリーとして閲覧できる。',
-        unique: '感情分析×ジェネラティブアートの自動生成パイプライン',
-        difficulty: 'medium',
-        tech_hint: ['React', 'Hugging Face', 'Canvas API', 'Supabase'],
-      },
-    ],
-  };
-
-  return { proposals: fallbacks[genre] || fallbacks.default };
-}
-
 export async function POST(request: NextRequest) {
   try {
     const body: ProposalRequest = await request.json();
@@ -200,6 +124,7 @@ export async function POST(request: NextRequest) {
 優先事項: ${prio}`;
 
     // Try AI generation via backend
+    let errorMessage = '';
     try {
       const response = await fetch(`${BACKEND_URL}/ai/chat`, {
         method: 'POST',
@@ -222,17 +147,28 @@ export async function POST(request: NextRequest) {
           logger.warn(
             'AI response could not be parsed as valid proposals JSON',
           );
+          errorMessage =
+            'AIからの応答を解析できませんでした。再試行してください。';
         }
       } else {
         const errData = await response.json().catch(() => ({}));
         logger.warn('Backend AI chat returned error:', errData);
+        errorMessage =
+          errData.error ||
+          `AIサーバーからエラーが返されました（ステータス: ${response.status}）`;
       }
     } catch (aiError) {
-      logger.warn('AI generation failed, falling back to mock data:', aiError);
+      logger.warn('AI generation failed:', aiError);
+      if (aiError instanceof DOMException && aiError.name === 'TimeoutError') {
+        errorMessage =
+          'AIからの応答がタイムアウトしました。再試行してください。';
+      } else {
+        errorMessage = 'AIサービスへの接続に失敗しました。';
+      }
     }
 
-    // Fallback: return genre-aware mock data
-    return NextResponse.json(getFallbackProposals(genre, subs, elems));
+    // No static fallback - return error so frontend can show retry
+    return NextResponse.json({ proposals: [], aiFailed: true, errorMessage });
   } catch (error) {
     logger.error('Error generating proposals:', error);
     return NextResponse.json(

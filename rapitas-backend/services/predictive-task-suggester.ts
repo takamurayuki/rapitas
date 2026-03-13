@@ -115,18 +115,17 @@ export async function getSuggestedTasks(limit: number = 5): Promise<{
 /**
  * 時間帯別の生産性ヒートマップを生成
  */
-export async function getProductivityHeatmap(): Promise<{
+export async function getProductivityHeatmap(days: number = 90): Promise<{
   heatmap: Array<{ hour: number; day: number; completions: number; avgDuration: number }>;
   peakHours: number[];
   lowHours: number[];
 }> {
-  // 過去90日の完了タスクを取得
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
   const completedBehaviors = await prisma.userBehavior.findMany({
     where: {
       actionType: 'task_completed',
-      createdAt: { gte: ninetyDaysAgo },
+      createdAt: { gte: cutoff },
     },
     select: { createdAt: true },
   });
@@ -171,6 +170,48 @@ export async function getProductivityHeatmap(): Promise<{
     sortedHours.filter((h) => hourTotals[h] === 0).length > 0 ? sortedHours.slice(-3) : [];
 
   return { heatmap, peakHours, lowHours };
+}
+
+export async function getHeatmapCellTasks(
+  day: number,
+  hour: number,
+  days: number = 90,
+): Promise<Array<{ taskId: number; title: string; completedAt: string }>> {
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  const behaviors = await prisma.userBehavior.findMany({
+    where: {
+      actionType: 'task_completed',
+      createdAt: { gte: cutoff },
+    },
+    select: {
+      taskId: true,
+      createdAt: true,
+    },
+  });
+
+  const matching = behaviors.filter((b) => {
+    return b.createdAt.getDay() === day && b.createdAt.getHours() === hour && b.taskId != null;
+  });
+
+  if (matching.length === 0) return [];
+
+  const taskIds = [...new Set(matching.map((b) => b.taskId!))];
+  const tasks = await prisma.task.findMany({
+    where: { id: { in: taskIds } },
+    select: { id: true, title: true },
+  });
+
+  const taskMap = new Map(tasks.map((t) => [t.id, t.title]));
+
+  return matching
+    .filter((b) => taskMap.has(b.taskId!))
+    .map((b) => ({
+      taskId: b.taskId!,
+      title: taskMap.get(b.taskId!) || '',
+      completedAt: b.createdAt.toISOString(),
+    }))
+    .slice(0, 20);
 }
 
 // ──── 内部ヘルパー ────

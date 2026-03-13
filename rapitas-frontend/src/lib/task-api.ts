@@ -96,9 +96,64 @@ export async function fetchTaskStatistics(): Promise<{
   byStatus: Record<Status, number>;
   byCategory: Record<number, number>;
 }> {
-  return apiFetch('/tasks/statistics', {
-    cacheTime: 300000, // 5分キャッシュ
-  });
+  try {
+    return await apiFetch('/tasks/statistics', {
+      cacheTime: 300000, // 5分キャッシュ
+    });
+  } catch (error) {
+    // エンドポイントがまだ実装されていない場合のフォールバック
+    console.warn(
+      'Statistics endpoint not available, using fallback data:',
+      error,
+    );
+
+    // 基本的なタスク情報を取得して統計を計算
+    try {
+      const tasks: Task[] = await apiFetch('/tasks', {
+        cacheTime: 60000, // 1分キャッシュ
+      });
+
+      const total = tasks.length;
+      const byStatus: Record<Status, number> = {
+        todo: 0,
+        in_progress: 0,
+        done: 0,
+        blocked: 0,
+        cancelled: 0,
+      };
+      const byCategory: Record<number, number> = {};
+
+      for (const task of tasks) {
+        // ステータス別カウント
+        if (task.status in byStatus) {
+          byStatus[task.status as Status]++;
+        }
+
+        // カテゴリ別カウント
+        const categoryId = task.theme?.categoryId ?? 0;
+        byCategory[categoryId] = (byCategory[categoryId] || 0) + 1;
+      }
+
+      return { total, byStatus, byCategory };
+    } catch (fallbackError) {
+      // フォールバックも失敗した場合はデフォルト値を返す
+      console.error(
+        'Failed to fetch tasks for statistics fallback:',
+        fallbackError,
+      );
+      return {
+        total: 0,
+        byStatus: {
+          todo: 0,
+          in_progress: 0,
+          done: 0,
+          blocked: 0,
+          cancelled: 0,
+        },
+        byCategory: {},
+      };
+    }
+  }
 }
 
 /**

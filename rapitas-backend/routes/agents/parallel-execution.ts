@@ -4,7 +4,7 @@
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
-import { createLogger } from '../../config/logger';
+import { createLogger, getProjectRoot } from '../../config';
 
 const log = createLogger('routes:parallel-execution');
 import {
@@ -381,7 +381,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
           taskId,
           analysisResult.plan,
           analysisResult.treeMap.nodes,
-          task.theme?.workingDirectory || process.cwd(),
+          task.theme?.workingDirectory || getProjectRoot(),
         );
 
         return {

@@ -20,7 +20,7 @@
  * - 実行中タスク一覧
  */
 import { Elysia, t } from 'elysia';
-import { prisma } from '../../config';
+import { prisma, getProjectRoot } from '../../config';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('routes:ai-agent');
@@ -1103,7 +1103,7 @@ export const aiAgentRoutes = new Elysia()
         return { success: false, error: 'Task not found for this execution' };
       }
 
-      const workingDirectory = task.theme?.workingDirectory || process.cwd();
+      const workingDirectory = task.theme?.workingDirectory || getProjectRoot();
 
       // サブタスクの存在を確認（進行中のサブタスクのみ）
       const subtasks = await prisma.task.findMany({

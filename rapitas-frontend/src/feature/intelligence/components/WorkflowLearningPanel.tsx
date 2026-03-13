@@ -225,14 +225,14 @@ export function WorkflowLearningPanel() {
       </div>
 
       {/* Mode stats */}
-      {stats.modeStats.length > 0 && (
+      {stats.modeStats?.length > 0 && (
         <div className="mb-4">
           <h3 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2 flex items-center gap-1.5">
             <BarChart3 className="w-3.5 h-3.5" />
             モード別実績
           </h3>
           <div className="space-y-1.5">
-            {stats.modeStats.map((ms) => (
+            {stats.modeStats?.map((ms) => (
               <div
                 key={ms.mode}
                 className="flex items-center gap-3 p-2 rounded-lg bg-zinc-50 dark:bg-zinc-700/30"
