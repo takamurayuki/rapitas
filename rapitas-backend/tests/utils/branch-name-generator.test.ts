@@ -7,6 +7,7 @@ import {
   sanitizeBranchName,
   isValidBranchName,
   generateFallbackBranchName,
+  extractBranchName,
 } from '../../utils/branch-name-generator';
 
 describe('sanitizeBranchName', () => {
@@ -92,6 +93,45 @@ describe('isValidBranchName', () => {
 
   test('末尾がハイフンの名前を拒否すること', () => {
     expect(isValidBranchName('feature/test-')).toBe(false);
+  });
+});
+
+describe('extractBranchName', () => {
+  test('クリーンなブランチ名をそのまま返すこと', () => {
+    expect(extractBranchName('feature/add-auth')).toBe('feature/add-auth');
+  });
+
+  test('引用符を除去すること', () => {
+    expect(extractBranchName('"feature/add-auth"')).toBe('feature/add-auth');
+    expect(extractBranchName("'feature/add-auth'")).toBe('feature/add-auth');
+  });
+
+  test('コードブロックを除去すること', () => {
+    expect(extractBranchName('```\nfeature/add-auth\n```')).toBe('feature/add-auth');
+  });
+
+  test('バッククォートを除去すること', () => {
+    expect(extractBranchName('`feature/add-auth`')).toBe('feature/add-auth');
+  });
+
+  test('説明文付きの出力から最初の行を取得すること', () => {
+    expect(extractBranchName('feature/add-auth\nThis branch adds authentication')).toBe(
+      'feature/add-auth',
+    );
+  });
+
+  test('"branch name:" プレフィックスを除去すること', () => {
+    expect(extractBranchName('Branch name: feature/add-auth')).toBe('feature/add-auth');
+  });
+
+  test('fix/ を bugfix/ に正規化すること', () => {
+    expect(extractBranchName('fix/login-error')).toBe('bugfix/login-error');
+  });
+
+  test('テキスト中からブランチ名を抽出すること', () => {
+    expect(extractBranchName('Here is the branch name: feature/add-auth for this task')).toBe(
+      'feature/add-auth',
+    );
   });
 });
 

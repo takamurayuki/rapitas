@@ -11,41 +11,33 @@ export async function generateBranchName(
   taskDescription?: string,
 ): Promise<string> {
   try {
-    // タスク内容からブランチ名を生成するプロンプト
-    const prompt = `
-タスクのタイトルと説明から、Git命名規則に従った適切なブランチ名を生成してください。
+    const systemPrompt = `You are a Git branch name generator. Output ONLY a branch name, nothing else.
 
-タスクタイトル: "${taskTitle}"
-${taskDescription ? `タスク説明: "${taskDescription}"` : ''}
+Rules:
+- Prefix: feature/ (new feature), bugfix/ (bug fix), chore/ (other work)
+- English only, lowercase kebab-case
+- Describe WHAT the task does in 3-5 words after the prefix
+- Max 50 characters total
+- If the input is in Japanese, translate the core meaning to English
 
-要件:
-1. プレフィックス: "feature/" または "bugfix/" または "chore/" のいずれかを選択
-   - 新機能・機能追加: feature/
-   - バグ修正: bugfix/
-   - その他の作業: chore/
-2. 英語のみ使用
-3. ケバブケース（小文字・ハイフン区切り）
-4. 30文字以内で簡潔に
-5. 特殊文字（/, ?, :, @, &, =, +, $, ,）は使用禁止
+Examples:
+- Task: "ユーザー認証機能を追加" -> feature/add-user-authentication
+- Task: "ログインボタンが動かないバグ" -> bugfix/fix-login-button
+- Task: "依存関係の更新" -> chore/update-dependencies
+- Task: "ダッシュボードにグラフ表示" -> feature/add-dashboard-charts
+- Task: "APIレスポンスのキャッシュ実装" -> feature/add-api-response-cache
+- Task: "メール通知の送信エラー修正" -> bugfix/fix-email-notification-error`;
 
-ブランチ名のみを回答してください（例: feature/add-user-authentication）
-    `.trim();
+    const userMessage = `Task title: "${taskTitle}"${taskDescription ? `\nTask description: "${taskDescription}"` : ''}\n\nGenerate a branch name:`;
 
     const response = await sendAIMessage({
       provider: 'ollama',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: userMessage }],
+      systemPrompt,
       maxTokens: 100,
     });
 
-    let branchName = response.content.trim();
-
-    // 前後の引用符を削除
-    if (
-      (branchName.startsWith('"') && branchName.endsWith('"')) ||
-      (branchName.startsWith("'") && branchName.endsWith("'"))
-    ) {
-      branchName = branchName.slice(1, -1);
-    }
+    let branchName = extractBranchName(response.content);
 
     // サニタイズとバリデーション
     branchName = sanitizeBranchName(branchName);
@@ -60,6 +52,41 @@ ${taskDescription ? `タスク説明: "${taskDescription}"` : ''}
     // フォールバック: タスクタイトルベースの命名
     return generateFallbackBranchName(taskTitle);
   }
+}
+
+/**
+ * LLMの出力からブランチ名部分を抽出する
+ */
+export function extractBranchName(raw: string): string {
+  let text = raw.trim();
+
+  // マークダウンのコードブロックを除去
+  text = text.replace(/```[^\n]*\n?/g, '').replace(/```/g, '');
+
+  // バッククォートを除去
+  text = text.replace(/`/g, '');
+
+  // 最初の行のみ取得（LLMが説明文を付加した場合）
+  text = text.split('\n')[0].trim();
+
+  // 前後の引用符を削除
+  text = text.replace(/^["']+|["']+$/g, '');
+
+  // "branch name: xxx" のようなプレフィックスを除去
+  text = text.replace(/^(branch\s*name\s*[:：]\s*)/i, '');
+
+  // 有効なプレフィックスで始まる部分を抽出
+  const prefixMatch = text.match(/((?:feature|bugfix|chore|fix|refactor|docs)\/[\w-]+)/);
+  if (prefixMatch) {
+    text = prefixMatch[1];
+  }
+
+  // fix/ を bugfix/ に正規化
+  if (text.startsWith('fix/')) {
+    text = 'bugfix/' + text.slice(4);
+  }
+
+  return text.trim();
 }
 
 /**
@@ -83,7 +110,7 @@ export function isValidBranchName(name: string): boolean {
   if (name.length > 50) return false;
 
   // 有効なプレフィックスをチェック
-  const validPrefixes = ['feature/', 'bugfix/', 'chore/'];
+  const validPrefixes = ['feature/', 'bugfix/', 'chore/', 'refactor/', 'docs/'];
   if (!validPrefixes.some((prefix) => name.startsWith(prefix))) {
     return false;
   }
