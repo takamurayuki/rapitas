@@ -20,7 +20,8 @@ export async function generateBranchName(
 Rules:
 - Prefix: feature/ (new feature), bugfix/ (bug fix), chore/ (other work), refactor/, docs/
 - English only, lowercase kebab-case
-- Describe WHAT the task does in 3-5 words after the prefix
+- MUST have at least 2 words after the prefix, joined by hyphens (e.g., "add-auth" not "auth")
+- Describe WHAT the task does in 2-5 words after the prefix
 - Max 50 characters total
 - If the input is in Japanese, translate the core meaning to English
 

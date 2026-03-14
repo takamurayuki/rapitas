@@ -16,7 +16,8 @@ export async function generateBranchName(
 Rules:
 - Prefix: feature/ (new feature), bugfix/ (bug fix), chore/ (other work)
 - English only, lowercase kebab-case
-- Describe WHAT the task does in 3-5 words after the prefix
+- MUST have at least 2 words after the prefix, joined by hyphens (e.g., "add-auth" not "auth")
+- Describe WHAT the task does in 2-5 words after the prefix
 - Max 50 characters total
 - If the input is in Japanese, translate the core meaning to English
 
@@ -115,6 +116,11 @@ export function isValidBranchName(name: string): boolean {
     return false;
   }
 
+  // Branch name must have at least 2 words (one hyphen) after the prefix
+  const prefixEnd = name.indexOf('/');
+  const slug = name.substring(prefixEnd + 1);
+  if (!slug.includes('-')) return false;
+
   // Git naming rules: disallow special characters, spaces, consecutive dots, etc.
   const invalidChars = /[\s~^:?*\[\\@{;`"'<>|]/;
   if (invalidChars.test(name)) return false;
@@ -167,6 +173,17 @@ export function generateFallbackBranchName(taskTitle: string): string {
     prefix = 'chore/';
   }
 
-  const branchName = `${prefix}${sanitizedTitle || 'task'}`;
+  // NOTE: Ensure at least 2 words after prefix — single-word slugs are rejected by isValidBranchName().
+  let slug = sanitizedTitle || 'task';
+  if (!slug.includes('-')) {
+    const verbMap: Record<string, string> = {
+      'feature/': 'implement',
+      'bugfix/': 'fix',
+      'chore/': 'update',
+    };
+    slug = `${verbMap[prefix] || 'implement'}-${slug}`;
+  }
+
+  const branchName = `${prefix}${slug}`;
   return sanitizeBranchName(branchName);
 }

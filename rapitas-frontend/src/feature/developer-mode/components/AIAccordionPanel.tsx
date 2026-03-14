@@ -448,10 +448,15 @@ export function AIAccordionPanel({
   useEffect(() => {
     // Skip during/after restoration — startPolling is already called in the restore logic
     if (isRestoring) return;
+    // NOTE: Do not restart polling if pollingStatus is terminal — prevents infinite loop of complete → stop → restart
+    const isTerminalPolling =
+      pollingStatus === 'completed' ||
+      pollingStatus === 'failed' ||
+      pollingStatus === 'cancelled';
     if (executionSessionId) {
       setSessionId(executionSessionId);
-      // Start polling only if not already running
-      if (!isPollingRunning) {
+      // Start polling only if not already running and not already terminal
+      if (!isPollingRunning && !isTerminalPolling) {
         if (executionOutput) {
           startPolling({
             initialOutput: executionOutput,
@@ -474,15 +479,26 @@ export function AIAccordionPanel({
     startPolling,
     isRestoring,
     isPollingRunning,
+    pollingStatus,
   ]);
 
   useEffect(() => {
-    if (isExecuting && !isPollingRunning && !isRestoring) {
+    // NOTE: Do not restart if pollingStatus is terminal — prevents infinite loop of complete → stop → restart
+    const isTerminalPolling =
+      pollingStatus === 'completed' ||
+      pollingStatus === 'failed' ||
+      pollingStatus === 'cancelled';
+    if (
+      isExecuting &&
+      !isPollingRunning &&
+      !isRestoring &&
+      !isTerminalPolling
+    ) {
       // NOTE: On new execution start, ignore previous completed execution's terminal
       // status until the worker creates a new DB execution
       startPolling({ terminalGraceMs: 5000 });
     }
-  }, [isExecuting, isPollingRunning, startPolling, isRestoring]);
+  }, [isExecuting, isPollingRunning, startPolling, isRestoring, pollingStatus]);
 
   // Update parent component once when polling status becomes terminal (completed/failed/cancelled)
   const handledTerminalStatusRef = useRef<string | null>(null);

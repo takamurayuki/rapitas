@@ -28,7 +28,7 @@ describe('sanitizeBranchName', () => {
   });
 
   test('先頭・末尾のハイフンを除去すること', () => {
-    expect(sanitizeBranchName('-feature/test-')).toBe('feature/test');
+    expect(sanitizeBranchName('-feature/test-name-')).toBe('feature/test-name');
   });
 
   test('50文字を超える場合に切り詰めること', () => {
@@ -93,6 +93,18 @@ describe('isValidBranchName', () => {
 
   test('末尾がハイフンの名前を拒否すること', () => {
     expect(isValidBranchName('feature/test-')).toBe(false);
+  });
+
+  test('プレフィックス後に1語しかないブランチ名を拒否すること', () => {
+    expect(isValidBranchName('feature/auth')).toBe(false);
+    expect(isValidBranchName('bugfix/login')).toBe(false);
+    expect(isValidBranchName('chore/deps')).toBe(false);
+  });
+
+  test('プレフィックス後に2語以上あるブランチ名を受け入れること', () => {
+    expect(isValidBranchName('feature/add-auth')).toBe(true);
+    expect(isValidBranchName('bugfix/fix-login-error')).toBe(true);
+    expect(isValidBranchName('chore/update-deps')).toBe(true);
   });
 });
 
@@ -172,5 +184,14 @@ describe('generateFallbackBranchName', () => {
   test('空のタイトルでもデフォルト名を生成すること', () => {
     const result = generateFallbackBranchName('');
     expect(result.length).toBeGreaterThan(0);
+    expect(isValidBranchName(result)).toBe(true);
+  });
+
+  test('1語のタイトルでも2語以上のブランチ名を生成すること', () => {
+    const result = generateFallbackBranchName('Auth');
+    expect(isValidBranchName(result)).toBe(true);
+    // slug部分にハイフンが含まれていること（2語以上）
+    const slug = result.substring(result.indexOf('/') + 1);
+    expect(slug).toContain('-');
   });
 });
