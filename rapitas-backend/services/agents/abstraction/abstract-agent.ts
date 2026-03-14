@@ -1,6 +1,11 @@
 /**
- * AIエージェント抽象化レイヤー - 抽象エージェントクラス
- * 全エージェント実装の基底クラス
+ * AbstractAgent
+ *
+ * Base class for all agent implementations. Provides common lifecycle
+ * management, retry logic with exponential backoff, and event emission.
+ *
+ * 全エージェント実装の基底クラス。共通のライフサイクル管理、
+ * 指数バックオフ付きリトライロジック、イベント発行を提供する。
  */
 
 import { createLogger } from '../../../config/logger';
@@ -26,6 +31,21 @@ import type {
 import type { IAgent, IAgentLogger } from './interfaces';
 import { AgentEventEmitter, createAgentEventEmitter } from './event-emitter';
 import { AgentError } from './interfaces';
+
+// NOTE(agent): Upper bound to prevent infinite retry loops regardless of hook/strategy configuration.
+// onErrorフックや戦略設定に関わらず無限リトライを防ぐための上限値。
+const MAX_RETRY_UPPER_BOUND = 10;
+
+/**
+ * Delays execution for the specified milliseconds.
+ * 指定ミリ秒だけ実行を遅延させる。
+ *
+ * @param ms - Delay duration in milliseconds / 遅延時間（ミリ秒）
+ * @returns Promise that resolves after the delay / 遅延後に解決するPromise
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
  * 抽象エージェント基底クラス
@@ -132,7 +152,12 @@ export abstract class AbstractAgent implements IAgent {
   // ============================================================================
 
   /**
-   * タスクを実行
+   * Executes a task with automatic retry on recoverable errors.
+   * リカバリー可能なエラー発生時に自動リトライ付きでタスクを実行する。
+   *
+   * @param task - Task definition to execute / 実行するタスク定義
+   * @param context - Execution context / 実行コンテキスト
+   * @returns Execution result / 実行結果
    */
   async execute(
     task: AgentTaskDefinition,
@@ -168,8 +193,9 @@ export abstract class AbstractAgent implements IAgent {
       // 状態遷移: initializing -> running
       await this.transitionState('running');
 
-      // 実際の実行
-      const result = await this.doExecute(task, context);
+      // NOTE(agent): Retry loop wraps doExecute() to handle transient errors with exponential backoff.
+      // doExecute()を指数バックオフ付きリトライで実行する。
+      const result = await this.executeWithRetry(task, context);
 
       // メトリクス完了
       this._metrics.endTime = new Date();
@@ -197,15 +223,6 @@ export abstract class AbstractAgent implements IAgent {
     } catch (error) {
       const agentError = this.wrapError(error);
 
-      // onErrorフック
-      if (this._lifecycleHooks.onError) {
-        const errorResult = await this._lifecycleHooks.onError(context, agentError, 0);
-        if (errorResult.retry) {
-          // リトライロジックは将来実装
-          this.log('info', `Retry requested with delay: ${errorResult.delay}ms`);
-        }
-      }
-
       await this.transitionState('failed');
       await this._events.emitError(agentError, agentError.recoverable);
 
@@ -216,7 +233,14 @@ export abstract class AbstractAgent implements IAgent {
   }
 
   /**
-   * 継続実行
+   * Continues execution after user input, with retry on recoverable errors.
+   * ユーザー入力後に実行を継続する。リカバリー可能なエラーにはリトライを行う。
+   *
+   * @param continuation - Continuation context with user response / ユーザー応答を含む継続コンテキスト
+   * @param context - Execution context / 実行コンテキスト
+   * @returns Execution result / 実行結果
+   * @throws {AgentError} If agent is not in 'waiting_for_input' state
+   *                      エージェントが 'waiting_for_input' 状態でない場合
    */
   async continue(
     continuation: ContinuationContext,
@@ -238,7 +262,9 @@ export abstract class AbstractAgent implements IAgent {
     try {
       await this.transitionState('running');
 
-      const result = await this.doContinue(continuation, context);
+      // NOTE(agent): Retry loop for continuation, same pattern as executeWithRetry.
+      // 継続実行にもexecuteWithRetryと同じリトライパターンを適用。
+      const result = await this.continueWithRetry(continuation, context);
 
       // 結果に基づいて状態遷移
       if (result.pendingQuestion) {
@@ -496,6 +522,168 @@ export abstract class AbstractAgent implements IAgent {
         pinoLog.info({ data }, logMsg);
       }
     }
+  }
+
+  // ============================================================================
+  // リトライロジック / Retry Logic
+  // ============================================================================
+
+  /**
+   * Executes doExecute() with automatic retry on recoverable errors.
+   * Uses the onError lifecycle hook to determine retry behavior, falling back
+   * to the error's recoverable flag and a default delay.
+   *
+   * リカバリー可能なエラー時にdoExecute()を自動リトライする。
+   * onErrorフックでリトライ動作を制御し、フック未設定時はエラーの
+   * recoverableフラグとデフォルト遅延を使用する。
+   *
+   * @param task - Task definition / タスク定義
+   * @param context - Execution context / 実行コンテキスト
+   * @returns Execution result / 実行結果
+   */
+  private async executeWithRetry(
+    task: AgentTaskDefinition,
+    context: AgentExecutionContext,
+  ): Promise<AgentExecutionResult> {
+    let retryCount = 0;
+
+    while (true) {
+      try {
+        return await this.doExecute(task, context);
+      } catch (error) {
+        const agentError = this.wrapError(error);
+        const retryDecision = await this.evaluateRetry(agentError, context, retryCount);
+
+        if (!retryDecision.shouldRetry) {
+          throw agentError;
+        }
+
+        retryCount++;
+        this.log(
+          'warn',
+          `Retrying execution (attempt ${retryCount}) after ${retryDecision.delay}ms delay. Error: ${agentError.message}`,
+        );
+
+        await sleep(retryDecision.delay);
+
+        // NOTE(agent): Re-check disposal/cancellation state before each retry attempt.
+        // リトライ前にdispose/キャンセル状態を再確認し、無駄な実行を防止。
+        if (this._isDisposed || this._state === 'cancelled') {
+          throw new AgentError(
+            'Agent was disposed or cancelled during retry delay',
+            'internal',
+            false,
+          );
+        }
+
+        // NOTE(agent): Transition back to running state for the retry attempt.
+        // リトライ実行のためrunning状態に復帰。
+        await this.transitionState('running', `Retry attempt ${retryCount}`);
+      }
+    }
+  }
+
+  /**
+   * Executes doContinue() with automatic retry on recoverable errors.
+   * リカバリー可能なエラー時にdoContinue()を自動リトライする。
+   *
+   * @param continuation - Continuation context / 継続コンテキスト
+   * @param context - Execution context / 実行コンテキスト
+   * @returns Execution result / 実行結果
+   */
+  private async continueWithRetry(
+    continuation: ContinuationContext,
+    context: AgentExecutionContext,
+  ): Promise<AgentExecutionResult> {
+    let retryCount = 0;
+
+    while (true) {
+      try {
+        return await this.doContinue(continuation, context);
+      } catch (error) {
+        const agentError = this.wrapError(error);
+        const retryDecision = await this.evaluateRetry(agentError, context, retryCount);
+
+        if (!retryDecision.shouldRetry) {
+          throw agentError;
+        }
+
+        retryCount++;
+        this.log(
+          'warn',
+          `Retrying continuation (attempt ${retryCount}) after ${retryDecision.delay}ms delay. Error: ${agentError.message}`,
+        );
+
+        await sleep(retryDecision.delay);
+
+        if (this._isDisposed || this._state === 'cancelled') {
+          throw new AgentError(
+            'Agent was disposed or cancelled during retry delay',
+            'internal',
+            false,
+          );
+        }
+
+        await this.transitionState('running', `Retry attempt ${retryCount}`);
+      }
+    }
+  }
+
+  /**
+   * Evaluates whether an error should trigger a retry.
+   * Consults the onError lifecycle hook first; if unavailable, uses the
+   * error's recoverable flag with a default 3-second delay.
+   *
+   * エラーに対してリトライすべきかを判定する。
+   * onErrorフックを優先的に使用し、フック未設定時はrecoverableフラグと
+   * デフォルト3秒遅延を使用する。
+   *
+   * @param error - The error that occurred / 発生したエラー
+   * @param context - Execution context / 実行コンテキスト
+   * @param retryCount - Current retry count (0-based) / 現在のリトライ回数（0始まり）
+   * @returns Retry decision / リトライ判定結果
+   */
+  private async evaluateRetry(
+    error: AgentError,
+    context: AgentExecutionContext,
+    retryCount: number,
+  ): Promise<{ shouldRetry: boolean; delay: number }> {
+    // NOTE(agent): Hard upper bound prevents infinite retries even if hooks always return true.
+    // フックが常にtrueを返す場合でも無限リトライを防ぐハードリミット。
+    if (retryCount >= MAX_RETRY_UPPER_BOUND) {
+      this.log('error', `Max retry upper bound (${MAX_RETRY_UPPER_BOUND}) reached, giving up`);
+      return { shouldRetry: false, delay: 0 };
+    }
+
+    // onErrorフックが設定されている場合はフックに判断を委譲
+    if (this._lifecycleHooks.onError) {
+      try {
+        const hookResult = await this._lifecycleHooks.onError(context, error, retryCount);
+        return {
+          shouldRetry: hookResult.retry,
+          delay: hookResult.delay ?? 3000,
+        };
+      } catch (hookError) {
+        this.log(
+          'warn',
+          `onError hook threw an error: ${hookError instanceof Error ? hookError.message : String(hookError)}`,
+        );
+        return { shouldRetry: false, delay: 0 };
+      }
+    }
+
+    // NOTE(agent): Without an onError hook, fall back to the error's recoverable flag.
+    // Limit default retries to 3 to avoid excessive retries without explicit configuration.
+    // onErrorフック未設定時はrecoverableフラグにフォールバック。
+    // 明示的な設定なしでの過剰リトライを防ぐため、デフォルト上限は3回。
+    const DEFAULT_MAX_RETRIES = 3;
+    const DEFAULT_DELAY_MS = 3000;
+
+    if (error.recoverable && retryCount < DEFAULT_MAX_RETRIES) {
+      return { shouldRetry: true, delay: DEFAULT_DELAY_MS };
+    }
+
+    return { shouldRetry: false, delay: 0 };
   }
 
   // ============================================================================
