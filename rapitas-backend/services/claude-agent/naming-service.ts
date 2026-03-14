@@ -1,4 +1,10 @@
 import { sendAIMessage, type AIProvider, type AIMessage } from '../../utils/ai-client';
+import {
+  extractBranchName,
+  sanitizeBranchName,
+  isValidBranchName,
+  generateFallbackBranchName,
+} from '../../utils/branch-name-generator';
 
 /**
  * タスク情報から意味のあるブランチ名を生成する
@@ -9,33 +15,48 @@ export async function generateBranchName(
   provider?: AIProvider,
   model?: string,
 ): Promise<{ branchName: string }> {
-  const systemPrompt = `あなたはGitブランチ名を生成する専門家です。
-タスクのタイトルと説明から、適切なGitブランチ名を生成してください。
+  const systemPrompt = `You are a Git branch name generator. Output ONLY a branch name, nothing else.
 
-ブランチ名のルール:
-1. 英語で記述する
-2. 小文字のケバブケース
-3. 適切なプレフィックスを使用: feature/, fix/, refactor/, docs/, chore/
-4. 50文字以内推奨
-5. 特殊文字は使用しない
+Rules:
+- Prefix: feature/ (new feature), bugfix/ (bug fix), chore/ (other work), refactor/, docs/
+- English only, lowercase kebab-case
+- Describe WHAT the task does in 3-5 words after the prefix
+- Max 50 characters total
+- If the input is in Japanese, translate the core meaning to English
 
-出力形式: ブランチ名のみを出力してください。`;
+Examples:
+- Task: "ユーザー認証機能を追加" -> feature/add-user-authentication
+- Task: "ログインボタンが動かないバグ" -> bugfix/fix-login-button
+- Task: "依存関係の更新" -> chore/update-dependencies
+- Task: "ダッシュボードにグラフ表示" -> feature/add-dashboard-charts
+- Task: "APIレスポンスのキャッシュ実装" -> feature/add-api-response-cache`;
 
   const messages: AIMessage[] = [
     {
       role: 'user',
-      content: `タイトル: ${taskTitle}\n${taskDescription ? `説明: ${taskDescription}` : ''}\n\n上記のタスク情報から適切なGitブランチ名を生成してください。`,
+      content: `Task title: "${taskTitle}"${taskDescription ? `\nTask description: "${taskDescription}"` : ''}\n\nGenerate a branch name:`,
     },
   ];
 
-  const response = await sendAIMessage({
-    provider: 'ollama',
-    messages,
-    systemPrompt,
-    maxTokens: 100,
-  });
+  try {
+    const response = await sendAIMessage({
+      provider: 'ollama',
+      messages,
+      systemPrompt,
+      maxTokens: 100,
+    });
 
-  return { branchName: response.content.trim().replace(/^["']|["']$/g, '') };
+    let branchName = extractBranchName(response.content);
+    branchName = sanitizeBranchName(branchName);
+
+    if (!isValidBranchName(branchName)) {
+      return { branchName: generateFallbackBranchName(taskTitle) };
+    }
+
+    return { branchName };
+  } catch {
+    return { branchName: generateFallbackBranchName(taskTitle) };
+  }
 }
 
 /**
